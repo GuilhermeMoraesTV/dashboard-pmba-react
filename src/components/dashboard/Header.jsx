@@ -5,9 +5,8 @@ const Header = ({ handleLogout, isDarkMode, setIsDarkMode }) => {
     <header className="header">
       <div className="header-content">
         <h1>Dashboard de Performance</h1>
-        <p>Seu centro de controle para o concurso da PMBA</p>
       </div>
-      <button onClick={handleLogout} style={{ marginLeft: '20px', backgroundColor: 'var(--danger-color)', color: 'white', border: 'none', borderRadius: '8px', padding: '10px 15px', cursor: 'pointer' }}>
+      <button onClick={handleLogout} style={{ marginLeft: '760px', backgroundColor: 'var(--danger-color)', color: 'white', border: 'none', borderRadius: '8px', padding: '10px 15px', cursor: 'pointer' }}>
         Sair
       </button>
       <button id="theme-toggle" title="Alterar tema" onClick={() => setIsDarkMode(!isDarkMode)}>
