@@ -1,0 +1,64 @@
+{
+  "hash": "498bfc3a",
+  "configHash": "f1be53da",
+  "lockfileHash": "c047d6f4",
+  "browserHash": "0c5bb078",
+  "optimized": {
+    "firebase/app": {
+      "src": "../../node_modules/firebase/app/dist/esm/index.esm.js",
+      "file": "firebase_app.js",
+      "fileHash": "114e6767",
+      "needsInterop": false
+    },
+    "firebase/auth": {
+      "src": "../../node_modules/firebase/auth/dist/esm/index.esm.js",
+      "file": "firebase_auth.js",
+      "fileHash": "6d626a0d",
+      "needsInterop": false
+    },
+    "firebase/firestore": {
+      "src": "../../node_modules/firebase/firestore/dist/esm/index.esm.js",
+      "file": "firebase_firestore.js",
+      "fileHash": "92e7c20a",
+      "needsInterop": false
+    },
+    "react": {
+      "src": "../../node_modules/react/index.js",
+      "file": "react.js",
+      "fileHash": "a675aa26",
+      "needsInterop": true
+    },
+    "react-dom/client": {
+      "src": "../../node_modules/react-dom/client.js",
+      "file": "react-dom_client.js",
+      "fileHash": "0ad87114",
+      "needsInterop": true
+    },
+    "chart.js": {
+      "src": "../../node_modules/chart.js/dist/chart.js",
+      "file": "chart__js.js",
+      "fileHash": "cd7736e6",
+      "needsInterop": false
+    },
+    "chartjs-plugin-datalabels": {
+      "src": "../../node_modules/chartjs-plugin-datalabels/dist/chartjs-plugin-datalabels.esm.js",
+      "file": "chartjs-plugin-datalabels.js",
+      "fileHash": "273dd8f3",
+      "needsInterop": false
+    }
+  },
+  "chunks": {
+    "chunk-IXG4W66X": {
+      "file": "chunk-IXG4W66X.js"
+    },
+    "chunk-J6KE6MJH": {
+      "file": "chunk-J6KE6MJH.js"
+    },
+    "chunk-KI7ILGMJ": {
+      "file": "chunk-KI7ILGMJ.js"
+    },
+    "chunk-BUSYA2B4": {
+      "file": "chunk-BUSYA2B4.js"
+    }
+  }
+}
