@@ -1018,8 +1018,8 @@ h2 {
 /* Streak tracker em largura completa */
 .streak-tracker-full {
   display: flex;
-  width: 70%;
-  gap: 0;
+  width: 1100x;
+  gap: 2px;
   margin-top: 16px;
   height: 40px;
 }
@@ -1132,5 +1132,323 @@ h2 {
 
   .main-content-area {
     padding-left: 12px;
+  }
+}
+
+/* Adicione/substitua estas regras no seu index.css */
+
+/* SIDEBAR EXPANSÍVEL */
+.nav-sidebar {
+  width: 70px;
+  background-color: var(--card-background-color);
+  height: 100vh;
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 1000;
+  padding: 24px 0;
+  border-right: 1px solid var(--border-color);
+  overflow: visible;
+  transition: width 0.3s ease;
+}
+
+.nav-sidebar.expanded {
+  width: 260px;
+}
+
+.sidebar-header {
+  padding: 0 16px 16px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border-color);
+  overflow: hidden;
+  min-height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sidebar-logo {
+  max-width: 100%;
+  height: auto;
+  max-height: 45px;
+  object-fit: contain;
+  transition: all 0.3s ease;
+}
+
+.nav-sidebar:not(.expanded) .sidebar-logo {
+  max-width: 55px;
+  max-height: 55px;
+}
+
+.nav-sidebar.expanded .sidebar-logo {
+  max-width: 120px;
+  max-height: 55px;
+}
+
+.nav-sidebar ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.nav-sidebar li button {
+  width: calc(100% - 16px);
+  background-color: transparent;
+  border: none;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin: 4px 8px;
+  font-size: 1em;
+  font-weight: 600;
+  color: var(--subtle-text-color);
+  cursor: pointer;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transition: all 0.2s;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.nav-sidebar li button .menu-icon {
+  font-size: 1.3em;
+  min-width: 24px;
+  text-align: center;
+}
+
+.nav-sidebar li button .menu-label {
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.nav-sidebar.expanded li button .menu-label {
+  opacity: 1;
+}
+
+.nav-sidebar li button:hover {
+  background-color: var(--background-color);
+  color: var(--text-color);
+}
+
+.nav-sidebar li button.active {
+  background-color: var(--primary-color);
+  color: white;
+}
+
+.main-content-area {
+  flex-grow: 1;
+  margin-left: 70px;
+  padding: 24px;
+  width: calc(100% - 70px);
+  max-width: 1400px;
+  transition: margin-left 0.3s ease;
+}
+
+/* BOTÃO HAMBÚRGUER */
+.hamburger-btn {
+  display: none;
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  z-index: 1002;
+  background-color: var(--card-background-color);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 8px;
+  cursor: pointer;
+  flex-direction: column;
+  gap: 4px;
+  width: 40px;
+  height: 40px;
+  justify-content: center;
+  align-items: center;
+  box-shadow: var(--card-shadow);
+}
+
+.hamburger-btn span {
+  display: block;
+  width: 22px;
+  height: 2.5px;
+  background-color: var(--text-color);
+  border-radius: 2px;
+  transition: all 0.3s ease;
+}
+
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 998;
+}
+
+/* RESPONSIVIDADE */
+@media (max-width: 992px) {
+  .hamburger-btn {
+    display: flex;
+  }
+
+  .nav-sidebar {
+    width: 260px;
+    left: -260px;
+    transition: left 0.3s ease;
+    padding-top: 70px;
+  }
+
+  .nav-sidebar.mobile-open {
+    left: 0;
+  }
+
+  .nav-sidebar.mobile-open li button .menu-label {
+    opacity: 1;
+  }
+
+  .sidebar-overlay {
+    display: block;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+  }
+
+  .nav-sidebar.mobile-open ~ .sidebar-overlay {
+    opacity: 1;
+    pointer-events: all;
+  }
+
+  .main-content-area {
+    margin-left: 0;
+    width: 100%;
+    padding: 70px 16px 16px;
+  }
+
+  .header {
+    padding-top: 8px;
+  }
+
+  .home-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .main-content-area {
+    padding: 70px 12px 12px;
+  }
+
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .header-content h1 {
+    font-size: 1.4em;
+  }
+
+  #theme-toggle {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+  }
+
+  .card, .home-card {
+    padding: 16px;
+  }
+
+  .form-container {
+    flex-direction: column;
+  }
+
+  .form-group.fg-grow-1,
+  .form-group.fg-grow-2 {
+    width: 100%;
+  }
+
+  .chart-section-container {
+    flex-direction: column;
+  }
+
+  .legend-container,
+  .chart-wrapper {
+    min-width: 100%;
+    max-width: 100%;
+  }
+
+  .streak-tracker-full {
+    width: 100%;
+  }
+
+  .goal-calendar {
+    gap: 3px;
+  }
+
+  .calendar-day,
+  .calendar-weekday {
+    padding: 6px;
+    font-size: 0.75em;
+  }
+
+  .history-table,
+  .discipline-summary-table {
+    font-size: 0.85em;
+  }
+
+  .history-table th,
+  .history-table td,
+  .discipline-summary-table th,
+  .discipline-summary-table td {
+    padding: 10px 6px;
+  }
+}
+
+@media (max-width: 480px) {
+  .hamburger-btn {
+    top: 12px;
+    left: 12px;
+  }
+
+  .main-content-area {
+    padding: 60px 8px 8px;
+  }
+
+  .header-content h1 {
+    font-size: 1.2em;
+  }
+
+  .header-content p {
+    font-size: 0.85em;
+  }
+
+  #theme-toggle {
+    top: 12px;
+    right: 12px;
+    width: 36px;
+    height: 36px;
+  }
+
+  .home-card .stat-big {
+    font-size: 1.8em;
+  }
+
+  .card, .home-card {
+    padding: 12px;
+  }
+
+  .modal-content {
+    padding: 16px;
+    width: 95%;
+  }
+
+  .streak-day-full {
+    height: 32px;
+  }
+
+  .btn {
+    padding: 10px 16px;
+    font-size: 0.9em;
   }
 }
