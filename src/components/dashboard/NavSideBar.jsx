@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-const NavSidebar = ({ activeTab, setActiveTab }) => {
+const NavSideBar = ({ activeTab, setActiveTab }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
@@ -50,4 +50,4 @@ const NavSidebar = ({ activeTab, setActiveTab }) => {
   );
 };
 
-export default NavSidebar;
+export default NavSideBar;

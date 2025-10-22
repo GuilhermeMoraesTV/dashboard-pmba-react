@@ -223,7 +223,7 @@ function Dashboard({ user }) {
 
   return (
     <div className="app-layout">
-      <NavSidebar activeTab={activeTab} setActiveTab={setActiveTab} />
+      <NavSideBar activeTab={activeTab} setActiveTab={setActiveTab} />
       <main className="main-content-area">
         <Header
           user={user}
