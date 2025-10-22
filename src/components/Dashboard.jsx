@@ -3,7 +3,7 @@ import { auth, db } from '../firebaseConfig';
 import { signOut } from "firebase/auth";
 import { collection, getDocs, addDoc, deleteDoc, doc, setDoc } from "firebase/firestore";
 
-import NavSidebar from "./dashboard/dashboard/NavSidebar.jsx";
+import NavSideBar from './dashboard/NavSidebar.jsx';
 import Header from './dashboard/Header.jsx';
 import Home from './dashboard/Home.jsx';
 import QuestionsTab from './dashboard/QuestionsTab.jsx';
