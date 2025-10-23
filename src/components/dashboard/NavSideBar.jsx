@@ -1,6 +1,6 @@
 import React from 'react';
 
-// Ícones (substitua pelos seus ícones reais, ex: react-icons)
+// Ícones (sem alteração)
 const IconHome = () => <span>🏠</span>;
 const IconQuestions = () => <span>❓</span>;
 const IconHours = () => <span>⏱️</span>;
@@ -26,13 +26,19 @@ function NavSideBar({
     { id: 'calendar', label: 'Calendário', icon: <IconCalendar /> },
   ];
 
-  // --- HAMBURGER BUTTON (sem alterações) ---
+  // --- HAMBURGER BUTTON (CORRIGIDO) ---
   const HamburgerButton = () => (
     <button
-      className="fixed top-4 left-4 z-50 flex lg:hidden flex-col items-center justify-center w-10 h-10 gap-1 bg-card-background-color dark:bg:dark-card-background-color border border-border-color dark:border-dark-border-color rounded-lg shadow-card-shadow cursor-pointer"
+      className={`fixed top-4 left-4 z-[51] flex lg:hidden flex-col items-center justify-center
+                 w-10 h-10 gap-1 bg-card-background-color dark:bg-dark-card-background-color
+                 border border-border-color dark:border-dark-border-color rounded-lg shadow-card-shadow cursor-pointer
+                 transition-opacity duration-300 ease-in-out
+                 ${isMobileOpen ? 'opacity-0 pointer-events-none' : 'opacity-100 pointer-events-auto'}` // Esconde quando aberto
+                }
       onClick={() => setMobileOpen(!isMobileOpen)}
-      aria-label="Abrir menu"
+      aria-label="Abrir/Fechar menu" // Label atualizado
     >
+      {/* Ícone de hambúrguer (sem alteração) */}
       <span className="block w-[22px] h-[2.5px] bg-text-color dark:bg-dark-text-color rounded-full transition-all duration-300 ease-in-out"></span>
       <span className="block w-[22px] h-[2.5px] bg-text-color dark:bg-dark-text-color rounded-full transition-all duration-300 ease-in-out"></span>
       <span className="block w-[22px] h-[2.5px] bg-text-color dark:bg-dark-text-color rounded-full transition-all duration-300 ease-in-out"></span>
@@ -40,31 +46,28 @@ function NavSideBar({
   );
 
   // --- LÓGICA DE EXPANSÃO (sem alterações) ---
-  // Determina se o menu deve estar totalmente expandido
   const isFullyExpanded = (isExpanded && !isMobileOpen) || isMobileOpen;
 
   return (
     <>
       <HamburgerButton />
       <nav
-        className={`fixed top-0 left-0 z-50 h-screen
+        // Z-Index 50 e Lógica de Classes (sem alterações)
+        className={`fixed top-0 z-50 h-screen
                     bg-card-background-color dark:bg-dark-card-background-color
                     border-r border-border-color dark:border-dark-border-color
                     transition-[width,left] duration-300 ease-in-out
 
-                    {/* --- LÓGICA DE CLASSES TOTALMENTE CORRIGIDA --- */}
+                    /* Mobile: Escondido por padrão, expande quando aberto */
+                    w-[260px] /* Largura total quando visível */
+                    ${isMobileOpen ? 'left-0' : '-left-[260px]'} /* Controla a visibilidade */
 
-                    /* Desktop (base): encolhido e visível */
-                    lg:w-[70px] lg:left-0
-
-                    /* Desktop (hover): expande */
-                    ${isExpanded ? 'lg:w-[260px]' : ''}
-
-                    /* Mobile: alterna entre escondido (com 70px) e visível (com 260px) */
-                    ${isMobileOpen ? 'w-[260px] left-0' : 'w-[70px] -left-[70px]'}
+                    /* Desktop: Sobrescreve mobile. Visível, largura baseada no hover */
+                    lg:left-0 /* Sempre visível */
+                    ${isExpanded ? 'lg:w-[260px]' : 'lg:w-[70px]'} /* Controla a largura */
                   `}
 
-        // Eventos de hover só rodam se o menu mobile NÃO estiver aberto
+        // Eventos de hover (sem alteração)
         onMouseEnter={() => !isMobileOpen && setExpanded(true)}
         onMouseLeave={() => !isMobileOpen && setExpanded(false)}
       >
