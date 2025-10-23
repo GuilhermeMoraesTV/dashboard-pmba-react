@@ -1,8 +1,9 @@
-import React, { useMemo, useState } from 'react'; // ADICIONAR useState aqui
+import React, { useMemo, useState } from 'react'; // Import do useState
 import DisciplineSummaryTable from './DisciplineSummaryTable.jsx';
 import WeeklyGoalsPanel from './WeeklyGoalsPanel.jsx';
 import DayDetailsModal from './DayDetailsModal.jsx';
 
+// --- Funções Helper (Sem alteração) ---
 const dateToYMD_local = (date) => {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -17,10 +18,14 @@ const formatDecimalHours = (d) => {
     const m = totalMinutes % 60;
     return `${String(h).padStart(2, '0')}h ${String(m).padStart(2, '0')}m`;
 };
+// -------------------------------------
+
 
 function Home({ questionsData, hoursData, goalsHistory, setActiveTab }) {
-  // MOVER O ESTADO PARA ANTES DO useMemo
+  // --- !! CORREÇÃO DA ORDEM DOS HOOKS !! ---
+  // useState deve ser chamado ANTES de useMemo
   const [selectedDate, setSelectedDate] = useState(null);
+  // ----------------------------------------
 
   const handleDayClick = (date) => {
     const dayQuestions = questionsData.filter(d => d.date === date);
@@ -34,6 +39,7 @@ function Home({ questionsData, hoursData, goalsHistory, setActiveTab }) {
     return sortedGoals.find(g => g.startDate <= dateStr) || { questions: 0, hours: 0 };
   };
 
+  // --- Lógica do useMemo (Sem alteração) ---
   const homeStats = useMemo(() => {
     try {
       const studyDays = {};
@@ -121,42 +127,88 @@ function Home({ questionsData, hoursData, goalsHistory, setActiveTab }) {
         return { streak: 0, last14Days: [], performance: { correct: 0, wrong: 0, percentage: 0, total: 0 }, totalTime: 0 };
     }
   }, [questionsData, hoursData, goalsHistory]);
+  // ---------------------------------------------
 
+
+  // --- JSX Traduzido ---
   return (
     <div>
-      <div className="home-grid">
-        <div className="home-card">
-          <h3>Tempo de Estudo</h3>
-          <p className="stat-big">{formatDecimalHours(homeStats.totalTime)}</p>
+      {/* TRADUÇÃO de .home-grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+        {/* TRADUÇÃO de .home-card */}
+        <div className="bg-card-background-color dark:bg-dark-card-background-color rounded-xl shadow-card-shadow p-4 md:p-6 flex flex-col min-h-[120px]">
+          {/* TRADUÇÃO de .home-card h3 */}
+          <h3 className="text-sm text-subtle-text-color dark:text-dark-subtle-text-color uppercase font-semibold mb-2">
+            Tempo de Estudo
+          </h3>
+          {/* TRADUÇÃO de .stat-big */}
+          <p className="text-3xl md:text-4xl font-bold text-heading-color dark:text-dark-heading-color mt-auto self-end">
+            {formatDecimalHours(homeStats.totalTime)}
+          </p>
         </div>
-        <div className="home-card">
-          <h3>Questões Resolvidas</h3>
-          <p className="stat-big">{homeStats.performance.total}</p>
+
+        {/* Card 2 (mesma tradução) */}
+        <div className="bg-card-background-color dark:bg-dark-card-background-color rounded-xl shadow-card-shadow p-4 md:p-6 flex flex-col min-h-[120px]">
+          <h3 className="text-sm text-subtle-text-color dark:text-dark-subtle-text-color uppercase font-semibold mb-2">
+            Questões Resolvidas
+          </h3>
+          <p className="text-3xl md:text-4xl font-bold text-heading-color dark:text-dark-heading-color mt-auto self-end">
+            {homeStats.performance.total}
+          </p>
         </div>
-        <div className="home-card">
-          <h3>Desempenho</h3>
-          <div className="stat-secondary">
-            <span className="correct">{homeStats.performance.correct} Acertos</span>
-            <span className="wrong">{homeStats.performance.wrong} Erros</span>
+
+        {/* Card 3 (com .stat-secondary) */}
+        <div className="bg-card-background-color dark:bg-dark-card-background-color rounded-xl shadow-card-shadow p-4 md:p-6 flex flex-col min-h-[120px]">
+          <h3 className="text-sm text-subtle-text-color dark:text-dark-subtle-text-color uppercase font-semibold mb-2">
+            Desempenho
+          </h3>
+          {/* TRADUÇÃO de .stat-secondary */}
+          <div className="text-sm font-semibold flex flex-col gap-1">
+            {/* TRADUÇÃO de .correct / .wrong */}
+            <span className="text-success-color">{homeStats.performance.correct} Acertos</span>
+            <span className="text-danger-color">{homeStats.performance.wrong} Erros</span>
           </div>
-          <p className="stat-big">{homeStats.performance.percentage.toFixed(0)}%</p>
+          <p className="text-3xl md:text-4xl font-bold text-heading-color dark:text-dark-heading-color mt-auto self-end">
+            {homeStats.performance.percentage.toFixed(0)}%
+          </p>
         </div>
 
-        <div className="home-card grid-col-span-full">
-            <h3>🔥 Constância nos Estudos</h3>
-            <p>Você está há <span style={{fontWeight: 700, color: 'var(--success-color)'}}>{homeStats.streak} {homeStats.streak === 1 ? 'dia' : 'dias'}</span> sem falhar!</p>
-            <div className="streak-tracker-full">
-                {homeStats.last14Days.map(day => (
-                    <div
-                        key={day.date}
-                        data-tooltip={day.title}
-                        className={`streak-day-full ${day.status} ${day.date === dateToYMD_local(new Date()) ? 'today' : ''} ${day.hasData ? 'has-data' : ''}`}
-                        onClick={() => day.hasData && handleDayClick(day.date)}
-                    ></div>
-                ))}
-            </div>
+        {/* TRADUÇÃO de .grid-col-span-full */}
+        <div className="bg-card-background-color dark:bg-dark-card-background-color rounded-xl shadow-card-shadow p-4 md:p-6 col-span-1 md:col-span-2 lg:col-span-3">
+          <h3 className="text-sm text-subtle-text-color dark:text-dark-subtle-text-color uppercase font-semibold mb-2">
+            🔥 Constância nos Estudos
+          </h3>
+          <p className='dark:text-dark-text-color'>Você está há <span className="font-bold text-success-color">{homeStats.streak} {homeStats.streak === 1 ? 'dia' : 'dias'}</span> sem falhar!</p>
+
+          {/* TRADUÇÃO de .streak-tracker-full */}
+          <div className="flex gap-0.5 mt-4 h-8 md:h-10">
+              {homeStats.last14Days.map(day => (
+                  <div
+                      key={day.date}
+                      data-tooltip={day.title} // O Tooltip CSS ainda deve ser mantido no index.css
+
+                      /* TRADUÇÃO de .streak-day-full e classes dinâmicas */
+                      className={`
+                        flex-1 h-full transition-all duration-200
+                        first:rounded-l-md last:rounded-r-md
+
+                        ${day.status === 'goal-met-both' ? 'bg-goal-met-both' : ''}
+                        ${day.status === 'goal-met-one' ? 'bg-goal-met-one' : ''}
+                        ${day.status === 'goal-not-met' ? 'bg-goal-not-met' : ''}
+                        ${day.status === 'no-data' ? 'bg-border-color dark:bg-dark-border-color opacity-60' : ''}
+
+                        ${day.date === dateToYMD_local(new Date()) ? 'shadow-[inset_0_-3px_0_theme(colors.primary-color)]' : ''}
+
+                        ${day.hasData ? 'cursor-pointer hover:-translate-y-0.5 hover:brightness-110' : ''}
+                      `}
+                      onClick={() => day.hasData && handleDayClick(day.date)}
+                  ></div>
+              ))}
+          </div>
         </div>
 
+        {/* Estes componentes também precisarão ser traduzidos */}
         <WeeklyGoalsPanel
             questionsData={questionsData}
             hoursData={hoursData}
@@ -170,6 +222,7 @@ function Home({ questionsData, hoursData, goalsHistory, setActiveTab }) {
         />
       </div>
 
+      {/* O DayDetailsModal agora está sendo traduzido */}
       {selectedDate && (
         <DayDetailsModal
           date={selectedDate.date}

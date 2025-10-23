@@ -1,0 +1,1454 @@
+/* ==========================================================================
+   1. ROOT & THEME VARIABLES
+   ========================================================================== */
+
+:root {
+  --primary-color: #3498db;
+  --secondary-color: #2c3e50;
+  --background-color: #f4f6f9;
+  --card-background-color: #ffffff;
+  --text-color: #34495e;
+  --heading-color: #2c3e50;
+  --subtle-text-color: #7f8c8d;
+  --success-color: #27ae60;
+  --danger-color: #c0392b;
+  --warning-color: #f39c12;
+  --excellent-color: #08F7FE;
+  --border-color: #e4e7ea;
+  --card-shadow: 0 4px 6px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.1);
+  --goal-met-both: #2ecc71;
+  --goal-met-one: #f1c40f;
+  --goal-not-met: #e74c3c;
+}
+
+.dark-mode {
+  --primary-color: #3498db;
+  --secondary-color: #3B597C;
+  --background-color: #2c3e50;
+  --card-background-color: #34495e;
+  --text-color: #ecf0f1;
+  --heading-color: #ffffff;
+  --subtle-text-color: #95a5a6;
+  --border-color: #46607e;
+  --goal-met-both: #27ae60;
+  --goal-met-one: #f39c12;
+  --goal-not-met: #c0392b;
+}
+
+/* ==========================================================================
+   2. GLOBAL STYLES & RESETS
+   ========================================================================== */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Poppins', sans-serif;
+  background-color: var(--background-color);
+  color: var(--text-color);
+  margin: 0;
+  padding: 0;
+}
+
+h2 {
+  color: var(--heading-color);
+  margin-top: 32px;
+  margin-bottom: 16px;
+  border-bottom: 2px solid var(--border-color);
+  padding-bottom: 8px;
+}
+
+/* ==========================================================================
+   3. LAYOUT PRINCIPAL
+   ========================================================================== */
+
+.app-layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+.nav-sidebar {
+  width: 260px;
+  flex-shrink: 0;
+  background-color: var(--card-background-color);
+  height: 100vh;
+  position: sticky;
+  top: 0;
+  padding: 24px;
+  border-right: 1px solid var(--border-color);
+  overflow-y: auto;
+}
+
+.sidebar-header {
+  padding-bottom: 16px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.sidebar-header h3 {
+  margin: 0;
+  color: var(--heading-color);
+  font-size: 1.2em;
+}
+
+.nav-sidebar ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.nav-sidebar li button {
+  width: 100%;
+  background-color: transparent;
+  border: none;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 8px;
+  font-size: 1em;
+  font-weight: 600;
+  color: var(--subtle-text-color);
+  cursor: pointer;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.nav-sidebar li button:hover {
+  background-color: var(--background-color);
+  color: var(--text-color);
+}
+
+.nav-sidebar li button.active {
+  background-color: var(--primary-color);
+  color: white;
+}
+
+.main-content-area {
+  flex-grow: 1;
+  padding: 24px;
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* ==========================================================================
+   4. HEADER
+   ========================================================================== */
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 32px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid var(--border-color);
+}
+
+.header-content h1 {
+  margin: 0;
+  font-size: 2em;
+  color: var(--heading-color);
+}
+
+.header-content p {
+  margin: 4px 0 0 0;
+  color: var(--subtle-text-color);
+}
+
+#theme-toggle {
+  background-color: var(--card-background-color);
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+#theme-toggle:hover {
+  background-color: var(--background-color);
+}
+
+#theme-toggle svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* ==========================================================================
+   5. CARDS
+   ========================================================================== */
+
+.card {
+  background-color: var(--card-background-color);
+  border-radius: 12px;
+  box-shadow: var(--card-shadow);
+  padding: 24px;
+  margin-bottom: 24px;
+  animation: fadeInFromBottom 0.5s ease-out forwards;
+  opacity: 0;
+}
+
+.home-card {
+  background-color: var(--card-background-color);
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: var(--card-shadow);
+  display: flex;
+  flex-direction: column;
+  min-height: 120px;
+}
+
+.home-card h3 {
+  margin-top: 0;
+  margin-bottom: 8px;
+  font-size: 0.9em;
+  color: var(--subtle-text-color);
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.home-card .stat-big {
+  font-size: 2.2em;
+  font-weight: 700;
+  color: var(--heading-color);
+  line-height: 1.2;
+  margin-top: auto;
+  align-self: flex-end;
+}
+
+.home-card .stat-secondary {
+  font-size: 0.9em;
+  font-weight: 600;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.home-card .stat-secondary .correct {
+  color: var(--success-color);
+}
+
+.home-card .stat-secondary .wrong {
+  color: var(--danger-color);
+}
+
+/* ==========================================================================
+   6. BUTTONS
+   ========================================================================== */
+
+.btn {
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  padding: 12px 24px;
+  font-size: 1em;
+  transition: opacity 0.2s, transform 0.1s;
+}
+
+.btn:hover {
+  opacity: 0.9;
+}
+
+.btn:active {
+  transform: scale(0.98);
+}
+
+.btn-primary {
+  background-color: var(--primary-color);
+  color: white;
+}
+
+.btn-success {
+  background-color: var(--success-color);
+  color: white;
+}
+
+.btn-delete {
+  background: none;
+  border: none;
+  color: var(--subtle-text-color);
+  cursor: pointer;
+  font-size: 1.2em;
+  padding: 4px 8px;
+  transition: color 0.2s;
+}
+
+.btn-delete:hover {
+  color: var(--danger-color);
+}
+
+/* ==========================================================================
+   7. FORMS
+   ========================================================================== */
+
+.form-container {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 16px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.form-group label {
+  margin-bottom: 8px;
+  font-weight: 600;
+  font-size: 0.9em;
+  color: var(--text-color);
+}
+
+.form-group input,
+.form-group select {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background-color: var(--background-color);
+  color: var(--text-color);
+  font-size: 1em;
+}
+
+.form-group.fg-grow-2 {
+  flex: 2;
+  min-width: 180px;
+}
+
+.form-group.fg-grow-1 {
+  flex: 1;
+  min-width: 120px;
+}
+
+.input-group {
+  display: flex;
+  gap: 8px;
+}
+
+.input-group input {
+  flex: 1;
+}
+
+/* ==========================================================================
+   8. TABLES
+   ========================================================================== */
+
+.history-table,
+.discipline-summary-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.history-table th,
+.history-table td,
+.discipline-summary-table th,
+.discipline-summary-table td {
+  padding: 14px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.history-table thead th,
+.discipline-summary-table thead th {
+  color: var(--subtle-text-color);
+  text-transform: uppercase;
+  font-size: 0.8em;
+  border-bottom: 2px solid var(--border-color);
+  font-weight: 600;
+}
+
+.history-table tbody tr,
+.discipline-summary-table tbody tr {
+  border-bottom: 1px solid var(--border-color);
+  transition: background-color 0.2s;
+}
+
+.history-table tbody tr:hover,
+.discipline-summary-table tbody tr:hover {
+  background-color: var(--background-color);
+}
+
+/* ==========================================================================
+   9. HOME GRID
+   ========================================================================== */
+
+.home-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 24px;
+}
+
+.grid-col-span-3 {
+  grid-column: 1 / -1;
+}
+
+.grid-col-span-full {
+  grid-column: 1 / -1;
+}
+
+
+/* ==========================================================================
+   10. STREAK TRACKER
+   ========================================================================== */
+
+.streak-tracker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.streak-day-full {
+  width: 34px;
+  height: 34px;
+  border-radius: 6px;
+  border: 2px solid transparent;
+  transition: transform 0.2s;
+  position: relative;
+}
+
+.streak-day:hover {
+  transform: scale(1.1);
+}
+
+.streak-day.has-data {
+  cursor: pointer;
+}
+
+.streak-day.today {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 8px var(--primary-color);
+}
+
+.streak-day.goal-met-both {
+  background-color: var(--goal-met-both);
+}
+
+.streak-day.goal-met-one {
+  background-color: var(--goal-met-one);
+}
+
+.streak-day.goal-not-met {
+  background-color: var(--goal-not-met);
+}
+
+.streak-day.no-data {
+  background-color: var(--border-color);
+  opacity: 0.6;
+}
+
+/* ==========================================================================
+   11. WEEKLY GOALS
+   ========================================================================== */
+
+.weekly-goals-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.weekly-goals-header h2 {
+  margin: 0;
+  border: none;
+}
+
+.weekly-goals-header button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.2em;
+  color: var(--subtle-text-color);
+  padding: 8px;
+  border-radius: 50%;
+  line-height: 1;
+  transition: background-color 0.2s;
+}
+
+.weekly-goals-header button:hover {
+  background-color: var(--background-color);
+}
+
+/* ==========================================================================
+   12. PROGRESS BARS
+   ========================================================================== */
+
+.progress-bar-container {
+  margin-bottom: 16px;
+}
+
+.progress-bar-label {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 600;
+  margin-bottom: 8px;
+  font-size: 0.9em;
+}
+
+.progress-bar {
+  background-color: var(--border-color);
+  border-radius: 8px;
+  height: 16px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  background-color: var(--primary-color);
+  height: 100%;
+  width: 0%;
+  border-radius: 8px;
+  transition: width 0.5s ease-out;
+}
+
+.progress-bar-fill.completed {
+  background-color: var(--success-color);
+}
+
+/* ==========================================================================
+   13. CALENDAR
+   ========================================================================== */
+
+.goal-calendar {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 5px;
+}
+
+.calendar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.calendar-header h2 {
+  margin: 0;
+  border: none;
+}
+
+.calendar-nav {
+  background: none;
+  border: none;
+  font-size: 1.5em;
+  cursor: pointer;
+  color: var(--text-color);
+  padding: 8px;
+  transition: background-color 0.2s;
+  border-radius: 8px;
+}
+
+.calendar-nav:hover {
+  background-color: var(--background-color);
+}
+
+.calendar-day,
+.calendar-weekday {
+  text-align: center;
+  padding: 8px;
+  border-radius: 6px;
+}
+
+.calendar-weekday {
+  font-weight: 700;
+  color: var(--subtle-text-color);
+  font-size: 0.8em;
+}
+
+.calendar-day {
+  font-size: 0.9em;
+  position: relative;
+  transition: transform 0.2s;
+}
+
+.calendar-day.has-data {
+  cursor: pointer;
+}
+
+.calendar-day.has-data:hover {
+  transform: scale(1.05);
+}
+
+.calendar-day.today {
+  font-weight: 700;
+  box-shadow: 0 0 0 2px var(--primary-color);
+}
+
+.calendar-day.goal-met-both {
+  background-color: var(--goal-met-both);
+  color: white;
+}
+
+.calendar-day.goal-met-one {
+  background-color: var(--goal-met-one);
+  color: white;
+}
+
+.calendar-day.goal-not-met.has-data {
+  background-color: var(--goal-not-met);
+  color: white;
+}
+
+.calendar-day-number {
+  font-weight: 600;
+}
+
+.calendar-day-icons {
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 3px;
+  font-size: 0.7em;
+}
+
+/* ==========================================================================
+   14. MODAL
+   ========================================================================== */
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.modal-overlay.active {
+  opacity: 1;
+  pointer-events: all;
+}
+
+.modal-content {
+  background-color: var(--card-background-color);
+  border-radius: 12px;
+  padding: 32px;
+  width: 90%;
+  max-width: 700px;
+  max-height: 90vh;
+  overflow-y: auto;
+  transform: scale(0.95);
+  transition: transform 0.3s ease;
+}
+
+.modal-overlay.active .modal-content {
+  transform: scale(1);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  border-bottom: 2px solid var(--border-color);
+  padding-bottom: 8px;
+}
+
+.modal-header h2 {
+  margin: 0;
+  border: none;
+}
+
+.modal-close-btn {
+  background: none;
+  border: none;
+  font-size: 1.8em;
+  cursor: pointer;
+  color: var(--text-color);
+  transition: color 0.2s;
+}
+
+.modal-close-btn:hover {
+  color: var(--danger-color);
+}
+
+.modal-summary-panel {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.modal-summary-item {
+  background-color: var(--background-color);
+  text-align: center;
+  padding: 16px;
+  border-radius: 10px;
+}
+
+.modal-summary-item h4 {
+  margin: 0 0 8px 0;
+  color: var(--subtle-text-color);
+  font-size: 0.9em;
+}
+
+.modal-summary-item p {
+  margin: 0;
+  font-size: 1.5em;
+  font-weight: 700;
+  color: var(--heading-color);
+}
+
+/* ==========================================================================
+   15. CHARTS
+   ========================================================================== */
+
+.chart-section-container {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 24px;
+}
+
+.legend-container {
+  flex: 1;
+  min-width: 280px;
+}
+
+.legend-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.legend-table tr {
+  border-bottom: 1px solid var(--border-color);
+}
+
+.legend-table td {
+  padding: 8px;
+}
+
+.chart-wrapper {
+  flex: 2;
+  min-width: 300px;
+  max-width: 500px;
+  margin: auto;
+  position: relative;
+  height: 400px;
+}
+
+/* ==========================================================================
+   16. AUTH PAGES
+   ========================================================================== */
+
+.auth-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 24px;
+  background-color: var(--background-color);
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 400px;
+  padding: 40px 30px;
+  background-color: var(--card-background-color);
+  border-radius: 12px;
+  box-shadow: var(--card-shadow);
+  text-align: center;
+}
+
+.auth-card h2 {
+  margin-top: 0;
+  margin-bottom: 24px;
+  color: var(--heading-color);
+  border: none;
+}
+
+.auth-card .form-group {
+  margin-bottom: 20px;
+  text-align: left;
+}
+
+.auth-card .btn {
+  width: 100%;
+  padding: 12px;
+  margin-top: 10px;
+}
+
+.auth-card .error-message {
+  color: var(--danger-color);
+  font-size: 0.9em;
+  margin-bottom: 15px;
+}
+
+.auth-card .switch-mode {
+  margin-top: 20px;
+  font-size: 0.9em;
+  color: var(--subtle-text-color);
+}
+
+.auth-card .switch-mode button {
+  background: none;
+  border: none;
+  color: var(--primary-color);
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+
+/* ==========================================================================
+   17. TOOLTIP
+   ========================================================================== */
+
+[data-tooltip] {
+  position: relative;
+}
+
+[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 125%;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #2c3e50;
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 0.85em;
+  font-weight: 500;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s, visibility 0.2s;
+  pointer-events: none;
+  z-index: 10;
+}
+
+[data-tooltip]::before {
+  content: '';
+  position: absolute;
+  bottom: 125%;
+  left: 50%;
+  transform: translateX(-50%) translateY(100%);
+  border: 6px solid transparent;
+  border-top-color: #2c3e50;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s, visibility 0.2s;
+  pointer-events: none;
+  z-index: 10;
+}
+
+[data-tooltip]:hover::after,
+[data-tooltip]:hover::before {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* ==========================================================================
+   18. ANIMATIONS
+   ========================================================================== */
+
+@keyframes fadeInFromBottom {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.confetti {
+  position: fixed;
+  width: 10px;
+  height: 10px;
+  background-color: #f00;
+  opacity: 0.7;
+  z-index: 2000;
+  pointer-events: none;
+  animation: fall 3s linear forwards;
+}
+
+@keyframes fall {
+  to {
+    transform: translateY(100vh) rotate(360deg);
+    opacity: 0;
+  }
+}
+
+/* ==========================================================================
+   19. RESPONSIVE DESIGN
+   ========================================================================== */
+
+@media (max-width: 992px) {
+  .app-layout {
+    flex-direction: column;
+  }
+
+  .nav-sidebar {
+    width: 100%;
+    height: auto;
+    position: static;
+    border-right: none;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .nav-sidebar ul {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .nav-sidebar li {
+    flex: 1;
+    min-width: 140px;
+  }
+
+  .main-content-area {
+    padding: 16px;
+  }
+
+  .home-grid {
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .header-content h1 {
+    font-size: 1.5em;
+  }
+
+  #theme-toggle {
+    position: absolute;
+    top: 0;
+    right: 0;
+  }
+
+  .home-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .chart-section-container {
+    flex-direction: column;
+  }
+
+  .legend-container,
+  .chart-wrapper {
+    min-width: 100%;
+    max-width: 100%;
+  }
+
+  .form-container {
+    flex-direction: column;
+  }
+
+  .form-group.fg-grow-1,
+  .form-group.fg-grow-2 {
+    width: 100%;
+  }
+
+  .streak-tracker {
+    justify-content: center;
+  }
+
+  .goal-calendar {
+    gap: 3px;
+  }
+
+  .calendar-day,
+  .calendar-weekday {
+    padding: 6px;
+    font-size: 0.8em;
+  }
+}
+
+@media (max-width: 480px) {
+  .main-content-area {
+    padding: 12px;
+  }
+
+  .card,
+  .home-card {
+    padding: 16px;
+  }
+
+  .header-content h1 {
+    font-size: 1.3em;
+  }
+
+  .home-card .stat-big {
+    font-size: 1.8em;
+  }
+
+  .streak-day {
+    width: 28px;
+    height: 28px;
+  }
+
+  .modal-content {
+    padding: 20px;
+    width: 95%;
+  }
+
+  .history-table th,
+  .history-table td {
+    padding: 10px 8px;
+    font-size: 0.9em;
+  }
+}
+
+/* Streak tracker em largura completa */
+.streak-tracker-full {
+  display: flex;
+  width: 1100x;
+  gap: 2px;
+  margin-top: 16px;
+  height: 40px;
+}
+
+.streak-day-full {
+  flex: 1;
+  height: 90%;
+  border-radius: 0;
+  border: none;
+  border-right: 2px solid var(--background-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.streak-day-full:first-child {
+  border-radius: 8px 0 0 8px;
+}
+
+.streak-day-full:last-child {
+  border-radius: 0 8px 8px 0;
+  border-right: none;
+}
+
+.streak-day-full.today {
+  box-shadow: inset 0 -4px 0 var(--primary-color);
+  font-weight: 700;
+}
+
+.streak-day-full.has-data {
+  cursor: pointer;
+}
+
+.streak-day-full.has-data:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.1);
+}
+
+.streak-day-full.goal-met-both { background-color: var(--goal-met-both); }
+.streak-day-full.goal-met-one { background-color: var(--goal-met-one); }
+.streak-day-full.goal-not-met { background-color: var(--goal-not-met); }
+.streak-day-full.no-data { background-color: var(--border-color); opacity: 0.6; }
+
+/* Botão hambúrguer */
+.hamburger-btn {
+  display: none;
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  z-index: 1001;
+  background-color: var(--card-background-color);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 10px;
+  cursor: pointer;
+  flex-direction: column;
+  gap: 4px;
+  width: 40px;
+  height: 40px;
+  justify-content: center;
+  align-items: center;
+  box-shadow: var(--card-shadow);
+}
+
+.hamburger-btn span {
+  display: block;
+  width: 20px;
+  height: 2px;
+  background-color: var(--text-color);
+  transition: all 0.3s ease;
+}
+
+/* Overlay do menu mobile */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+}
+
+/* Responsividade do menu */
+@media (max-width: 992px) {
+  .hamburger-btn {
+    display: flex;
+  }
+
+  .nav-sidebar {
+    position: fixed;
+    left: -280px;
+    top: 0;
+    z-index: 1000;
+    height: 100vh;
+    width: 260px;
+    transition: left 0.3s ease;
+    border-right: 1px solid var(--border-color);
+  }
+
+  .nav-sidebar.open {
+    left: 0;
+  }
+
+  .sidebar-overlay {
+    display: block;
+  }
+
+  .main-content-area {
+    padding-left: 12px;
+  }
+}
+
+/* Adicione/substitua estas regras no seu index.css */
+
+/* SIDEBAR EXPANSÍVEL */
+.nav-sidebar {
+  width: 70px;
+  background-color: var(--card-background-color);
+  height: 100vh;
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 1000;
+  padding: 24px 0;
+  border-right: 1px solid var(--border-color);
+  overflow: visible;
+  transition: width 0.3s ease;
+}
+
+.nav-sidebar.expanded {
+  width: 260px;
+}
+
+.sidebar-header {
+  padding: 0 16px 16px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border-color);
+  overflow: hidden;
+  min-height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sidebar-logo {
+  max-width: 100%;
+  height: auto;
+  max-height: 45px;
+  object-fit: contain;
+  transition: all 0.3s ease;
+}
+
+.nav-sidebar:not(.expanded) .sidebar-logo {
+  max-width: 55px;
+  max-height: 55px;
+}
+
+.nav-sidebar.expanded .sidebar-logo {
+  max-width: 120px;
+  max-height: 55px;
+}
+
+.nav-sidebar ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.nav-sidebar li button {
+  width: calc(100% - 16px);
+  background-color: transparent;
+  border: none;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin: 4px 8px;
+  font-size: 1em;
+  font-weight: 600;
+  color: var(--subtle-text-color);
+  cursor: pointer;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transition: all 0.2s;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.nav-sidebar li button .menu-icon {
+  font-size: 1.3em;
+  min-width: 24px;
+  text-align: center;
+}
+
+.nav-sidebar li button .menu-label {
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.nav-sidebar.expanded li button .menu-label {
+  opacity: 1;
+}
+
+.nav-sidebar li button:hover {
+  background-color: var(--background-color);
+  color: var(--text-color);
+}
+
+.nav-sidebar li button.active {
+  background-color: var(--primary-color);
+  color: white;
+}
+
+.main-content-area {
+  flex-grow: 1;
+  margin-left: 70px;
+  padding: 24px;
+  width: calc(100% - 70px);
+  max-width: 1400px;
+  transition: margin-left 0.3s ease;
+}
+
+/* BOTÃO HAMBÚRGUER */
+.hamburger-btn {
+  display: none;
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  z-index: 1002;
+  background-color: var(--card-background-color);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 8px;
+  cursor: pointer;
+  flex-direction: column;
+  gap: 4px;
+  width: 40px;
+  height: 40px;
+  justify-content: center;
+  align-items: center;
+  box-shadow: var(--card-shadow);
+}
+
+.hamburger-btn span {
+  display: block;
+  width: 22px;
+  height: 2.5px;
+  background-color: var(--text-color);
+  border-radius: 2px;
+  transition: all 0.3s ease;
+}
+
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 998;
+}
+
+/* RESPONSIVIDADE */
+@media (max-width: 992px) {
+  .hamburger-btn {
+    display: flex;
+  }
+
+  .nav-sidebar {
+    width: 260px;
+    left: -260px;
+    transition: left 0.3s ease;
+    padding-top: 70px;
+  }
+
+  .nav-sidebar.mobile-open {
+    left: 0;
+  }
+
+  .nav-sidebar.mobile-open li button .menu-label {
+    opacity: 1;
+  }
+
+  .sidebar-overlay {
+    display: block;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+  }
+
+  .nav-sidebar.mobile-open ~ .sidebar-overlay {
+    opacity: 1;
+    pointer-events: all;
+  }
+
+  .main-content-area {
+    margin-left: 0;
+    width: 100%;
+    padding: 70px 16px 16px;
+  }
+
+  .header {
+    padding-top: 8px;
+  }
+
+  .home-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .main-content-area {
+    padding: 70px 12px 12px;
+  }
+
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .header-content h1 {
+    font-size: 1.4em;
+  }
+
+  #theme-toggle {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+  }
+
+  .card, .home-card {
+    padding: 16px;
+  }
+
+  .form-container {
+    flex-direction: column;
+  }
+
+  .form-group.fg-grow-1,
+  .form-group.fg-grow-2 {
+    width: 100%;
+  }
+
+  .chart-section-container {
+    flex-direction: column;
+  }
+
+  .legend-container,
+  .chart-wrapper {
+    min-width: 100%;
+    max-width: 100%;
+  }
+
+  .streak-tracker-full {
+    width: 100%;
+  }
+
+  .goal-calendar {
+    gap: 3px;
+  }
+
+  .calendar-day,
+  .calendar-weekday {
+    padding: 6px;
+    font-size: 0.75em;
+  }
+
+  .history-table,
+  .discipline-summary-table {
+    font-size: 0.85em;
+  }
+
+  .history-table th,
+  .history-table td,
+  .discipline-summary-table th,
+  .discipline-summary-table td {
+    padding: 10px 6px;
+  }
+}
+
+@media (max-width: 480px) {
+  .hamburger-btn {
+    top: 12px;
+    left: 12px;
+  }
+
+  .main-content-area {
+    padding: 60px 8px 8px;
+  }
+
+  .header-content h1 {
+    font-size: 1.2em;
+  }
+
+  .header-content p {
+    font-size: 0.85em;
+  }
+
+  #theme-toggle {
+    top: 12px;
+    right: 12px;
+    width: 36px;
+    height: 36px;
+  }
+
+  .home-card .stat-big {
+    font-size: 1.8em;
+  }
+
+  .card, .home-card {
+    padding: 12px;
+  }
+
+  .modal-content {
+    padding: 16px;
+    width: 95%;
+  }
+
+  .streak-day-full {
+    height: 32px;
+  }
+
+  .btn {
+    padding: 10px 16px;
+    font-size: 0.9em;
+  }
+}
