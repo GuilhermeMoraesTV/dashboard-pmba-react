@@ -1,11 +1,13 @@
 import React from 'react';
 
-// Ícones (sem alteração)
+
+// Ícones (com adição)
 const IconHome = () => <span>🏠</span>;
 const IconQuestions = () => <span>❓</span>;
 const IconHours = () => <span>⏱️</span>;
 const IconGoals = () => <span>🎯</span>;
 const IconCalendar = () => <span>📅</span>;
+const IconCiclos = () => <span>🔄</span>; // <-- NOVO ÍCONE
 const IconLogout = () => <span>🚪</span>;
 // --------------------------------------------------------
 
@@ -24,17 +26,18 @@ function NavSideBar({
     { id: 'hours', label: 'Horas', icon: <IconHours /> },
     { id: 'goals', label: 'Metas', icon: <IconGoals /> },
     { id: 'calendar', label: 'Calendário', icon: <IconCalendar /> },
+    { id: 'ciclos', label: 'Meus Ciclos', icon: <IconCiclos /> }, // <-- NOVO ITEM DO MENU
   ];
 
-  // --- HAMBURGER BUTTON (CORRIGIDO) ---
+  // --- HAMBURGER BUTTON (sem alteração) ---
   const HamburgerButton = () => (
     <button
       className={`fixed top-4 left-4 z-[51] flex lg:hidden flex-col items-center justify-center
                  w-10 h-10 gap-1 bg-card-background-color dark:bg-dark-card-background-color
                  border border-border-color dark:border-dark-border-color rounded-lg shadow-card-shadow cursor-pointer
                  transition-opacity duration-300 ease-in-out
-                 ${isMobileOpen ? 'opacity-0 pointer-events-none' : 'opacity-100 pointer-events-auto'}` // Esconde quando aberto
-                }
+                 ${isMobileOpen ? 'opacity-0 pointer-events-none' : 'opacity-100 pointer-events-auto'}`} // Esconde quando aberto
+
       onClick={() => setMobileOpen(!isMobileOpen)}
       aria-label="Abrir/Fechar menu" // Label atualizado
     >
@@ -80,7 +83,7 @@ function NavSideBar({
           />
         </div>
 
-        {/* --- LISTA DE NAVEGAÇÃO (sem alterações) --- */}
+        {/* --- LISTA DE NAVEGAÇÃO (agora com 6 itens) --- */}
         <ul className="list-none p-0 m-0">
           {navItems.map((item) => {
             const isActive = activeTab === item.id;

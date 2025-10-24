@@ -116,3 +116,71 @@
     opacity: 0;
   }
 }
+
+/* --- Novo Estilo de Ciclo (Progressivo e Segmentado) --- */
+
+.ciclo-slice-group {
+  transition: all 0.2s ease-out;
+  cursor: pointer;
+}
+
+/* Anel de Fundo (Meta) */
+.ciclo-slice-goal {
+  opacity: 0.1; /* Bem sutil */
+  stroke-linecap: butt; /* Ponta reta para o gap */
+}
+
+/* Anel da Frente (Progresso) */
+.ciclo-slice-progress {
+  transition: all 0.5s ease-out;
+  /* A opacidade total faz ele se destacar */
+  opacity: 1;
+}
+
+/* Interatividade (Hover) */
+.ciclo-slice-group:not(.active) .ciclo-slice-progress {
+  opacity: 0.5; /* Diminui o progresso de fatias não-ativas */
+}
+.ciclo-slice-group:not(.active) .ciclo-slice-goal {
+  opacity: 0.05; /* Diminui a meta de fatias não-ativas */
+}
+
+.ciclo-slice-group.active .ciclo-slice-goal {
+  opacity: 0.2; /* Destaca a meta da fatia ativa */
+}
+
+
+/* --- Estilo da Legenda Interativa (Novo) --- */
+
+.ciclo-legend-item {
+  display: flex;
+  flex-direction: column; /* Organiza em coluna */
+  gap: 0.25rem; /* 4px */
+  padding: 1rem; /* 16px */
+  border-radius: 0.75rem; /* 12px */
+  cursor: pointer;
+  transition: all 0.2s ease-out;
+  border: 2px solid transparent;
+  /* Sombra sutil vinda do seu tema */
+  box-shadow: var(--shadow-card-shadow, 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06));
+  background-color: var(--color-card-background, #FFFFFF);
+}
+
+.dark .ciclo-legend-item {
+  background-color: var(--dark-card-background-color, #1F2937);
+  border-color: var(--dark-border-color, #374151);
+}
+
+.ciclo-legend-item .legend-dot {
+  width: 0.75rem; /* 12px */
+  height: 0.75rem; /* 12px */
+  border-radius: 9999px; /* Círculo */
+  flex-shrink: 0;
+}
+
+.ciclo-legend-item.active {
+  /* Destaca o item da legenda quando ativo */
+  transform: scale(1.03); /* Leve zoom */
+  border-color: var(--color-primary, #3B82F6);
+  box-shadow: 0 0 15px 0px var(--color-primary-transparent, rgba(59, 130, 246, 0.3));
+}

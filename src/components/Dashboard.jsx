@@ -10,6 +10,7 @@ import QuestionsTab from './dashboard/QuestionsTab';
 import HoursTab from './dashboard/HoursTab';
 import GoalsTab from './dashboard/GoalsTab';
 import CalendarTab from './dashboard/CalendarTab';
+import CiclosPage from '../pages/CiclosPage'; // Importação (sem alteração)
 
 // Função para formatar data (sem alteração)
 const dateToYMD = (date) => {
@@ -19,7 +20,7 @@ const dateToYMD = (date) => {
   return '' + y + '-' + (m <= 9 ? '0' + m : m) + '-' + (d <= 9 ? '0' + d : d);
 };
 
-function Dashboard({ user, isDarkMode, toggleTheme }) {
+function Dashboard({ user, isDarkMode, toggleTheme }) { // 'user' já está aqui
   // --- Guarda de Segurança (sem alteração) ---
   if (!user) {
     return (
@@ -40,25 +41,16 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
-  // --- !! NOVA CORREÇÃO DE REDIMENSIONAMENTO !! ---
-  // Este useEffect "ouve" a largura da janela.
+  // --- Correção de Redimensionamento (sem alteração) ---
   useEffect(() => {
     const handleResize = () => {
-      // O breakpoint 'lg' do Tailwind é 1024px.
-      // Se a janela for MAIOR que 1024px, estamos no desktop.
       if (window.innerWidth >= 1024) {
-        setIsMobileOpen(false); // Força o fechamento do menu mobile.
+        setIsMobileOpen(false);
       }
     };
-
-    // Adiciona o "ouvinte"
     window.addEventListener('resize', handleResize);
-
-    // Limpa o "ouvinte" quando o componente for desmontado
     return () => window.removeEventListener('resize', handleResize);
-  }, []); // O array vazio [] significa que isso roda só uma vez (na montagem).
-  // --- FIM DA NOVA CORREÇÃO ---
-
+  }, []);
 
   // Hooks de dados (sem alteração)
   useEffect(() => {
@@ -130,7 +122,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     signOut(auth).catch((error) => console.error('Logout Error:', error));
   };
 
-  // renderTabContent (sem alteração)
+  // renderTabContent (MODIFICADO)
   const renderTabContent = () => {
     if (loading) {
       return (
@@ -157,6 +149,11 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
                 />;
       case 'calendar':
         return <CalendarTab questionsData={questionsData} hoursData={hoursData} goalsHistory={goalsHistory} />;
+
+      case 'ciclos':
+        // AQUI ESTÁ A MUDANÇA: Passando 'user' como prop
+        return <CiclosPage user={user} />;
+
       default:
         return <Home questionsData={questionsData} hoursData={hoursData} goalsHistory={goalsHistory} setActiveTab={setActiveTab} />;
     }
