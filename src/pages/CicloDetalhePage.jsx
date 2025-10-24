@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { db } from '../../firebaseConfig';
+import { db } from '../firebaseConfig';
 import { doc, onSnapshot } from 'firebase/firestore';
 import CicloVisual from '../components/ciclos/CicloVisual';
 
