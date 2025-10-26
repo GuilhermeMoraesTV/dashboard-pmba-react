@@ -1,13 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { collection, onSnapshot, query, orderBy, addDoc, deleteDoc, doc } from 'firebase/firestore';
+import {
+  collection,
+  onSnapshot,
+  query,
+  orderBy,
+  addDoc,
+  deleteDoc,
+  doc,
+  where // <-- IMPORTAR 'where'
+} from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
 import { signOut } from 'firebase/auth';
 
 import NavSideBar from './dashboard/NavSideBar';
 import Header from './dashboard/Header';
 import Home from './dashboard/Home';
-// import QuestionsTab from './dashboard/QuestionsTab'; // REMOVIDO
-// import HoursTab from './dashboard/HoursTab'; // REMOVIDO
 import GoalsTab from './dashboard/GoalsTab';
 import CalendarTab from './dashboard/CalendarTab';
 import CiclosPage from '../pages/CiclosPage';
@@ -31,13 +38,17 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     );
   }
 
-  // --- Estados (sem alteração) ---
+  // --- Estados ---
   const [activeTab, setActiveTab] = useState('home');
   const [goalsHistory, setGoalsHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
-  const [registrosEstudo, setRegistrosEstudo] = useState([]);
+
+  // --- NOVOS ESTADOS PARA FILTRAGEM ---
+  const [activeCicloId, setActiveCicloId] = useState(null);
+  const [allRegistrosEstudo, setAllRegistrosEstudo] = useState([]); // Para o Calendário
+  const [activeRegistrosEstudo, setActiveRegistrosEstudo] = useState([]); // Para a Home
 
   // Correção de Redimensionamento (sem alteração)
   useEffect(() => {
@@ -50,18 +61,74 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Hook de Registros (sem alteração)
+  // --- NOVO HOOK: Buscar o Ciclo Ativo ---
   useEffect(() => {
     if (!user) return;
-    setLoading(true);
-    const q = query(collection(db, 'users', user.uid, 'registrosEstudo'), orderBy('data', 'desc'));
+
+    // Query para encontrar o ciclo ativo e não arquivado
+    const ciclosRef = collection(db, 'users', user.uid, 'ciclos');
+    const q = query(ciclosRef,
+      where('ativo', '==', true),
+      where('arquivado', '==', false)
+    );
+
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      setRegistrosEstudo(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      if (snapshot.empty) {
+        // Nenhum ciclo ativo encontrado
+        setActiveCicloId(null);
+        setLoading(false);
+      } else {
+        // Pega o primeiro (e único) ciclo ativo
+        const cicloAtivo = snapshot.docs[0];
+        setActiveCicloId(cicloAtivo.id);
+        // Não seta loading para false aqui, pois o hook de registros ainda está rodando
+      }
+    }, (error) => {
+      console.error("Erro ao buscar ciclo ativo:", error);
       setLoading(false);
-    }, (error) => console.error("Erro ao buscar registros:", error));
+    });
 
     return () => unsubscribe();
   }, [user]);
+
+  // --- HOOK MODIFICADO: Buscar TODOS os Registros ---
+  useEffect(() => {
+    if (!user) return;
+
+    // Este hook agora busca TODOS os registros e os armazena em 'allRegistrosEstudo'
+    // A flag 'loading' é controlada aqui.
+    setLoading(true);
+    const q = query(collection(db, 'users', user.uid, 'registrosEstudo'), orderBy('data', 'desc'));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const todosRegistros = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setAllRegistrosEstudo(todosRegistros);
+      setLoading(false); // <--- Loading principal termina aqui
+    }, (error) => {
+      console.error("Erro ao buscar registros:", error);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  // --- NOVO HOOK: Filtrar Registros para a Home ---
+  useEffect(() => {
+    // Este hook reage à mudança do ciclo ativo ou à lista de registros
+    if (loading) return; // Espera o carregamento inicial terminar
+
+    if (!activeCicloId) {
+      // Se não há ciclo ativo, a Home não exibe dados de ciclo
+      setActiveRegistrosEstudo([]);
+    } else {
+      // Filtra a lista completa de registros
+      // ASSUMINDO que seu 'registroEstudo' tem o campo 'cicloId'
+      const registrosFiltrados = allRegistrosEstudo.filter(
+        (registro) => registro.cicloId === activeCicloId
+      );
+      setActiveRegistrosEstudo(registrosFiltrados);
+    }
+  }, [activeCicloId, allRegistrosEstudo, loading]); // Depende do ciclo ativo e dos registros
 
   // Hook de Metas (sem alteração)
   useEffect(() => {
@@ -74,9 +141,11 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     return () => unsubscribeGoals();
   }, [user]);
 
-  // --- FUNÇÕES DE DADOS (AGORA SÃO GLOBAIS) ---
+
+  // --- FUNÇÕES DE DADOS (sem alteração) ---
   const addRegistroEstudo = async (data) => {
     try {
+      // IMPORTANTE: 'data' deve conter 'cicloId: activeCicloId'
       const collectionRef = collection(db, 'users', user.uid, 'registrosEstudo');
       await addDoc(collectionRef, data);
     } catch (e) {
@@ -117,6 +186,14 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     signOut(auth).catch((error) => console.error('Logout Error:', error));
   };
 
+  // --- NOVA FUNÇÃO CALLBACK ---
+  // Esta função será chamada pelo CiclosList quando o usuário
+  // ativar um novo ciclo ou arquivar o ciclo atual.
+  const handleCicloAtivado = (cicloId) => {
+    setActiveCicloId(cicloId); // Simplesmente atualiza o estado
+  };
+
+
   // --- RENDERIZAÇÃO DE ABA (MODIFICADO) ---
   const renderTabContent = () => {
     if (loading && activeTab === 'home') {
@@ -129,19 +206,15 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       );
     }
 
-    // A Home e o Calendário agora precisam da função de delete
-    // para o (futuro) modal de detalhes do dia.
-
     switch (activeTab) {
       case 'home':
         return <Home
-                  registrosEstudo={registrosEstudo}
+                  // Passa APENAS os registros filtrados para a Home
+                  registrosEstudo={activeRegistrosEstudo}
                   goalsHistory={goalsHistory}
                   setActiveTab={setActiveTab}
-                  onDeleteRegistro={deleteRegistro} // Passando delete
+                  onDeleteRegistro={deleteRegistro}
                 />;
-
-      // 'questions' e 'hours' REMOVIDOS
 
       case 'goals':
         return <GoalsTab
@@ -151,19 +224,21 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
                 />;
       case 'calendar':
         return <CalendarTab
-                  registrosEstudo={registrosEstudo}
+                  // O Calendário continua recebendo TODOS os registros
+                  registrosEstudo={allRegistrosEstudo}
                   goalsHistory={goalsHistory}
-                  onDeleteRegistro={deleteRegistro} // Passando delete
+                  onDeleteRegistro={deleteRegistro}
                 />;
       case 'ciclos':
-        // Passando a função de ADICIONAR para o módulo de ciclos
         return <CiclosPage
                   user={user}
                   addRegistroEstudo={addRegistroEstudo}
+                  // Passa a função de callback para o CiclosPage
+                  onCicloAtivado={handleCicloAtivado}
                 />;
       default:
         return <Home
-                  registrosEstudo={registrosEstudo}
+                  registrosEstudo={activeRegistrosEstudo}
                   goalsHistory={goalsHistory}
                   setActiveTab={setActiveTab}
                   onDeleteRegistro={deleteRegistro}

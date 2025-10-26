@@ -35,7 +35,13 @@ function WeeklyGoalsPanel({ registrosEstudo, goalsHistory, setActiveTab }) {
         const startOfWeekStr = getStartOfWeek();
 
         const weeklyRegistros = registrosEstudo.filter(item => {
-            const itemDateStr = dateToYMD_local(item.data.toDate());
+            // CORREÇÃO: item.data JÁ É A STRING "YYYY-MM-DD"
+            const itemDateStr = item.data;
+
+            // Proteção contra dados inválidos
+            if (!itemDateStr || typeof itemDateStr !== 'string' || itemDateStr.split('-').length !== 3) {
+              return false;
+            }
             return itemDateStr >= startOfWeekStr;
         });
 
@@ -43,33 +49,34 @@ function WeeklyGoalsPanel({ registrosEstudo, goalsHistory, setActiveTab }) {
         let totalMinutes = 0;
 
         weeklyRegistros.forEach(item => {
-            // CORREÇÃO: Soma se houver questões
+            // CORREÇÃO: Os nomes dos campos são 'questoesFeitas' e 'tempoEstudadoMinutos'
             if (item.questoesFeitas > 0) {
                 totalQuestions += item.questoesFeitas;
             }
-            // CORREÇÃO: Soma se houver tempo
-            if (item.duracaoMinutos > 0) {
-                totalMinutes += item.duracaoMinutos;
+            if (item.tempoEstudadoMinutos > 0) {
+                totalMinutes += item.tempoEstudadoMinutos;
             }
         });
 
         const totalHours = totalMinutes / 60;
+        const goalQuestionsNum = parseInt(activeGoal.questions) || 0;
+        const goalHoursNum = parseFloat(activeGoal.hours) || 0;
 
-        const questionsPercent = activeGoal.questions > 0
-            ? Math.min((totalQuestions / activeGoal.questions) * 100, 100)
+        const questionsPercent = goalQuestionsNum > 0
+            ? Math.min((totalQuestions / goalQuestionsNum) * 100, 100)
             : 0;
 
-        const hoursPercent = activeGoal.hours > 0
-            ? Math.min((totalHours / activeGoal.hours) * 100, 100)
+        const hoursPercent = goalHoursNum > 0
+            ? Math.min((totalHours / goalHoursNum) * 100, 100)
             : 0;
 
         return {
             currentQuestions: totalQuestions,
-            goalQuestions: activeGoal.questions,
+            goalQuestions: goalQuestionsNum,
             questionsPercent: questionsPercent,
 
             currentHours: totalHours,
-            goalHours: activeGoal.hours,
+            goalHours: goalHoursNum,
             hoursPercent: hoursPercent
         };
 

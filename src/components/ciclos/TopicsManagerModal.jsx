@@ -5,44 +5,57 @@ const IconTrash = () => <span>🗑️</span>;
 const IconEdit = () => <span>✏️</span>; // Para o futuro
 
 function TopicsManagerModal({ disciplinaNome, initialTopics = [], onClose, onSave }) {
+
   // Estado para a lista de tópicos (começa com os tópicos existentes)
-  const [topics, setTopics] = useState(initialTopics);
+  const [topics, setTopics] = useState(
+    (initialTopics || []).map(t => ({
+      ...t,
+      tempId: t.id || t.tempId || Date.now() // Garante um ID de key para o React
+    }))
+  );
+
   // Estado para o input de novo tópico
   const [newTopicName, setNewTopicName] = useState('');
 
   // Adiciona um novo tópico à lista
   const handleAddTopic = (e) => {
     e.preventDefault();
-    if (!newTopicName.trim()) return; // Ignora se estiver vazio
+    if (!newTopicName.trim()) return;
 
     const newTopic = {
-      // Usamos um ID temporário ou baseado no nome por enquanto
-      // O Firestore gerará o ID real ao salvar
-      id: Date.now(),
+      id: null,
+      tempId: Date.now(),
       nome: newTopicName.trim(),
-      // Você pode adicionar 'ordem' aqui se quiser reordenar
     };
     setTopics([...topics, newTopic]);
-    setNewTopicName(''); // Limpa o input
+    setNewTopicName('');
   };
 
   // Remove um tópico da lista
-  const handleRemoveTopic = (topicId) => {
-    setTopics(topics.filter(t => t.id !== topicId));
+  const handleRemoveTopic = (topicToRemove) => {
+    if (topicToRemove.id) {
+      setTopics(topics.filter(t => t.id !== topicToRemove.id));
+    } else {
+      setTopics(topics.filter(t => t.tempId !== topicToRemove.tempId));
+    }
   };
 
-  // Chama a função onSave passada pelo CicloCreateWizard
-  // para atualizar a lista de tópicos da disciplina no estado PAI.
+  // Salva alterações
   const handleSaveChanges = () => {
-    onSave(topics); // Envia a lista atualizada de tópicos
-    onClose();      // Fecha o modal
+    onSave(topics);
+    onClose();
   };
 
   return (
     // Overlay do modal
-    <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-[60] p-4"> {/* z-index maior que o wizard */}
+    <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-[60] p-4"
+      onClick={onClose}
+    >
       {/* Conteúdo do modal */}
-      <div className="bg-card-background-color dark:bg-dark-card-background-color p-6 rounded-lg shadow-xl w-full max-w-lg border border-border-color dark:border-dark-border-color">
+      <div
+        className="bg-card-background-color dark:bg-dark-card-background-color p-6 rounded-lg shadow-xl w-full max-w-lg border border-border-color dark:border-dark-border-color"
+        onClick={(e) => e.stopPropagation()}
+      >
         <h2 className="text-xl font-bold text-heading-color dark:text-dark-heading-color mb-4">
           Gerenciar Tópicos: <span className="text-primary-color">{disciplinaNome}</span>
         </h2>
@@ -68,18 +81,20 @@ function TopicsManagerModal({ disciplinaNome, initialTopics = [], onClose, onSav
             <p className='text-subtle-text-color dark:text-dark-subtle-text-color text-center p-4'>Nenhum tópico adicionado ainda.</p>
           )}
           {topics.map((topic, index) => (
-            <div key={topic.id} className="flex justify-between items-center bg-card-background-color dark:bg-dark-card-background-color border border-border-color dark:border-dark-border-color p-3 rounded-md">
+            <div
+              key={topic.tempId}
+              className="flex justify-between items-center bg-card-background-color dark:bg-dark-card-background-color border border-border-color dark:border-dark-border-color p-3 rounded-md"
+            >
               <span className="text-text-color dark:text-dark-text-color">
-                {/* Pode adicionar um número de ordem se quiser: {index + 1}. */} {topic.nome}
+                {topic.nome}
               </span>
               <div className="flex gap-3">
-                {/* Botão Editar (funcionalidade futura) */}
                  <button disabled className="text-blue-500 opacity-50 cursor-not-allowed" title="Editar (em breve)">
                     <IconEdit />
                  </button>
                 {/* Botão Excluir */}
                 <button
-                  onClick={() => handleRemoveTopic(topic.id)}
+                  onClick={() => handleRemoveTopic(topic)}
                   className="text-danger-color hover:brightness-125"
                   title="Excluir tópico"
                 >
@@ -92,7 +107,11 @@ function TopicsManagerModal({ disciplinaNome, initialTopics = [], onClose, onSav
 
         {/* Botões de Ação do Modal */}
         <div className="flex justify-end gap-4 pt-4 border-t border-border-color dark:border-dark-border-color">
-          <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 font-medium">
+          <button
+            type="button" // <-- CORRIGIDO AQUI (faltava o =)
+            onClick={onClose}
+            className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 font-medium"
+          >
             Cancelar
           </button>
           <button
