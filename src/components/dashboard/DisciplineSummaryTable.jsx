@@ -8,69 +8,82 @@ const formatDecimalHours = (d) => {
     return `${String(h).padStart(2, '0')}h ${String(m).padStart(2, '0')}m`;
 };
 
-const DisciplineSummaryTable = ({ questionsData, hoursData }) => {
-  const summary = useMemo(() => {
-    const data = {};
+function DisciplineSummaryTable({ registrosEstudo }) {
 
-    // Agrega horas
-    hoursData.forEach(item => {
-      data[item.subject] = data[item.subject] || { hours: 0, questions: 0, correct: 0 };
-      data[item.subject].hours += item.hours;
-    });
+    // --- useMemo CORRIGIDO ---
+    const summary = useMemo(() => {
+        const disciplineMap = new Map();
 
-    // Agrega questões
-    questionsData.forEach(item => {
-      data[item.subject] = data[item.subject] || { hours: 0, questions: 0, correct: 0 };
-      data[item.subject].questions += item.questions;
-      data[item.subject].correct += item.correct;
-    });
+        registrosEstudo.forEach(item => {
+            const name = item.disciplinaNome || 'Não Classificado';
 
-    return Object.entries(data)
-      .map(([subject, values]) => {
-        const wrong = values.questions - values.correct;
-        const percentage = values.questions > 0 ? (values.correct / values.questions) * 100 : 0;
-        return { subject, ...values, wrong, percentage };
-      })
-      .sort((a, b) => b.hours - a.hours); // Ordena por horas de estudo
-  }, [questionsData, hoursData]);
+            if (!disciplineMap.has(name)) {
+                disciplineMap.set(name, {
+                    name: name,
+                    questions: 0,
+                    correct: 0,
+                    hours: 0,
+                });
+            }
 
-  return (
-    // TRADUÇÃO de .home-card .grid-col-span-3
-    <div className="bg-card-background-color dark:bg-dark-card-background-color rounded-xl shadow-card-shadow p-4 md:p-6 col-span-1 md:col-span-2 lg:col-span-3">
-        {/* TRADUÇÃO de h2 */}
-        <h2 className="text-xl font-bold text-heading-color dark:text-dark-heading-color mb-4 mt-0 border-none">
-          Painel de Disciplinas
-        </h2>
+            const stats = disciplineMap.get(name);
 
-        {/* TRADUÇÃO de .discipline-summary-table */}
-        <div className="overflow-x-auto"> {/* Garante responsividade em telas pequenas */}
-          <table className="w-full border-collapse min-w-[600px]">
-              <thead>
-                  <tr className="border-b-2 border-border-color dark:border-dark-border-color">
-                      <th className="p-3 text-left text-xs font-semibold text-subtle-text-color dark:text-dark-subtle-text-color uppercase">Disciplinas</th>
-                      <th className="p-3 text-left text-xs font-semibold text-subtle-text-color dark:text-dark-subtle-text-color uppercase">Tempo</th>
-                      <th className="p-3 text-left text-xs font-semibold text-subtle-text-color dark:text-dark-subtle-text-color uppercase">Qtd.</th>
-                      <th className="p-3 text-left text-xs font-semibold text-subtle-text-color dark:text-dark-subtle-text-color uppercase">✅</th>
-                      <th className="p-3 text-left text-xs font-semibold text-subtle-text-color dark:text-dark-subtle-text-color uppercase">❌</th>
-                      <th className="p-3 text-left text-xs font-semibold text-subtle-text-color dark:text-dark-subtle-text-color uppercase">%</th>
-                  </tr>
-              </thead>
-              <tbody>
-                  {summary.map(item => (
-                      <tr key={item.subject} className="border-b border-border-color dark:border-dark-border-color transition-colors hover:bg-background-color dark:hover:bg-dark-background-color">
-                          <td className="p-3 align-middle text-sm font-medium text-heading-color dark:text-dark-heading-color">{item.subject}</td>
-                          <td className="p-3 align-middle text-sm">{formatDecimalHours(item.hours)}</td>
-                          <td className="p-3 align-middle text-sm">{item.questions}</td>
-                          <td className="p-3 align-middle text-sm text-success-color">{item.correct}</td>
-                          <td className="p-3 align-middle text-sm text-danger-color">{item.wrong}</td>
-                          <td className="p-3 align-middle text-sm font-semibold">{item.percentage.toFixed(0)}%</td>
-                      </tr>
-                  ))}
-              </tbody>
-          </table>
+            // CORREÇÃO: Soma se houver questões
+            if (item.questoesFeitas > 0) {
+                stats.questions += item.questoesFeitas;
+                stats.correct += item.questoesAcertadas;
+            }
+            // CORREÇÃO: Soma se houver tempo
+            if (item.duracaoMinutos > 0) {
+                stats.hours += (item.duracaoMinutos / 60); // Converte para horas
+            }
+        });
+
+        return Array.from(disciplineMap.values())
+            .map(item => ({
+                ...item,
+                performance: item.questions > 0 ? (item.correct / item.questions) * 100 : 0,
+            }))
+            .sort((a, b) => b.hours - a.hours); // Ordena por mais horas
+
+    }, [registrosEstudo]);
+    // --- FIM DA CORREÇÃO ---
+
+    return (
+        <div className="bg-card-background-color dark:bg-dark-card-background-color p-6 rounded-xl shadow-card-shadow border border-border-color dark:border-dark-border-color">
+            <h3 className="text-xl font-semibold mb-4 text-heading-color dark:text-dark-heading-color">Resumo por Disciplina</h3>
+            <div className="overflow-x-auto">
+                <table className="w-full min-w-[500px] text-left">
+                    <thead>
+                        <tr className="border-b border-border-color dark:border-dark-border-color">
+                            <th className="p-3 text-sm font-semibold text-subtle-text-color dark:text-dark-subtle-text-color">Disciplina</th>
+                            <th className="p-3 text-sm font-semibold text-subtle-text-color dark:text-dark-subtle-text-color">Tempo</th>
+                            <th className="p-3 text-sm font-semibold text-subtle-text-color dark:text-dark-subtle-text-color">Questões</th>
+                            <th className="p-3 text-sm font-semibold text-subtle-text-color dark:text-dark-subtle-text-color">Desempenho</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border-color dark:divide-dark-border-color">
+                        {summary.map((item) => (
+                            <tr key={item.name} className="hover:bg-background-color dark:hover:bg-dark-background-color">
+                                <td className="p-3 text-text-color dark:text-dark-text-color font-medium">
+                                    {item.name}
+                                </td>
+                                <td className="p-3 text-primary-color font-semibold">
+                                    {formatDecimalHours(item.hours)}
+                                </td>
+                                <td className="p-3 text-text-color dark:text-dark-text-color">
+                                    {item.questions}
+                                </td>
+                                <td className="p-3 text-text-color dark:text-dark-text-color font-semibold">
+                                    {item.questions > 0 ? `${item.performance.toFixed(0)}%` : '-'}
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
         </div>
-    </div>
-  );
-};
+    );
+}
 
 export default DisciplineSummaryTable;

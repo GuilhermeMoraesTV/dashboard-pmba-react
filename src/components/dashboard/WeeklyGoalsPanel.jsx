@@ -1,108 +1,135 @@
 import React, { useMemo } from 'react';
 
-const formatDecimalHours = (d) => {
-    // Formato de horas e minutos (ex: 05h 30m)
-    if (!d || d < 0) return '00h 00m';
-    const totalMinutes = Math.round(d * 60);
-    const h = Math.floor(totalMinutes / 60);
-    const m = totalMinutes % 60;
-    return `${String(h).padStart(2, '0')}h ${String(m).padStart(2, '0')}m`;
+// --- Funções Helper (Sem alteração) ---
+const dateToYMD_local = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
 };
 
-const WeeklyGoalsPanel = ({ questionsData, hoursData, goalsHistory, setActiveTab }) => {
+const getStartOfWeek = () => {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const dayOfWeek = today.getDay();
+  const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
 
+  const startOfWeek = new Date(today);
+  startOfWeek.setDate(today.getDate() + diffToMonday);
+  return dateToYMD_local(startOfWeek);
+};
+// --- FIM DOS HELPERS ---
+
+
+function WeeklyGoalsPanel({ registrosEstudo, goalsHistory, setActiveTab }) {
+
+    const activeGoal = useMemo(() => {
+        if (!goalsHistory || goalsHistory.length === 0) {
+            return { questions: 0, hours: 0 };
+        }
+        return [...goalsHistory].sort((a, b) => new Date(b.startDate) - new Date(a.startDate))[0];
+    }, [goalsHistory]);
+
+    // --- useMemo CORRIGIDO ---
     const weeklyProgress = useMemo(() => {
-        const today = new Date();
-        const day = today.getDay();
-        const diff = today.getDate() - day + (day === 0 ? -6 : 1);
-        const startOfWeek = new Date(today.setDate(diff));
-        startOfWeek.setHours(0, 0, 0, 0);
+        const startOfWeekStr = getStartOfWeek();
 
-        const getGoalsForDate = (dateStr) => {
-            if (!goalsHistory || goalsHistory.length === 0) return { questions: 0, hours: 0 };
-            const sortedGoals = [...goalsHistory].sort((a, b) => new Date(b.startDate) - new Date(a.startDate));
-            return sortedGoals.find(g => g.startDate <= dateStr) || { questions: 0, hours: 0 };
-        };
+        const weeklyRegistros = registrosEstudo.filter(item => {
+            const itemDateStr = dateToYMD_local(item.data.toDate());
+            return itemDateStr >= startOfWeekStr;
+        });
 
-        const goalForThisWeek = getGoalsForDate(startOfWeek.toISOString().slice(0, 10));
+        let totalQuestions = 0;
+        let totalMinutes = 0;
 
-        const weeklyQuestions = questionsData
-            .filter(d => new Date(d.date + 'T03:00:00') >= startOfWeek) // Ajuste de fuso
-            .reduce((sum, item) => sum + item.questions, 0);
+        weeklyRegistros.forEach(item => {
+            // CORREÇÃO: Soma se houver questões
+            if (item.questoesFeitas > 0) {
+                totalQuestions += item.questoesFeitas;
+            }
+            // CORREÇÃO: Soma se houver tempo
+            if (item.duracaoMinutos > 0) {
+                totalMinutes += item.duracaoMinutos;
+            }
+        });
 
-        const weeklyHours = hoursData
-            .filter(d => new Date(d.date + 'T03:00:00') >= startOfWeek) // Ajuste de fuso
-            .reduce((sum, item) => sum + item.hours, 0);
+        const totalHours = totalMinutes / 60;
 
-        const questionGoal = goalForThisWeek.questions * 7;
-        const hoursGoal = goalForThisWeek.hours * 7;
+        const questionsPercent = activeGoal.questions > 0
+            ? Math.min((totalQuestions / activeGoal.questions) * 100, 100)
+            : 0;
 
-        const hoursPerc = Math.min(hoursGoal > 0 ? (weeklyHours / hoursGoal) * 100 : 0, 100);
-        const questionPerc = Math.min(questionGoal > 0 ? (weeklyQuestions / questionGoal) * 100 : 0, 100);
+        const hoursPercent = activeGoal.hours > 0
+            ? Math.min((totalHours / activeGoal.hours) * 100, 100)
+            : 0;
 
         return {
-            currentQuestions: weeklyQuestions,
-            goalQuestions: questionGoal,
-            questionPerc: questionPerc,
-            currentHours: weeklyHours,
-            goalHours: hoursGoal,
-            hoursPerc: hoursPerc,
+            currentQuestions: totalQuestions,
+            goalQuestions: activeGoal.questions,
+            questionsPercent: questionsPercent,
+
+            currentHours: totalHours,
+            goalHours: activeGoal.hours,
+            hoursPercent: hoursPercent
         };
-    }, [questionsData, hoursData, goalsHistory]);
+
+    }, [registrosEstudo, activeGoal]);
+    // --- FIM DA CORREÇÃO ---
+
+    const formatHours = (d) => {
+        if (!d || d < 0) return '0.0';
+        return d.toFixed(1);
+    };
 
     return (
-        // TRADUÇÃO de .home-card .grid-col-span-3
-        <div className="bg-card-background-color dark:bg-dark-card-background-color rounded-xl shadow-card-shadow p-4 md:p-6 col-span-1 md:col-span-2 lg:col-span-3">
-            {/* TRADUÇÃO de .weekly-goals-header */}
+        <div className="bg-card-background-color dark:bg-dark-card-background-color rounded-xl shadow-card-shadow p-4 md:p-6 col-span-1 md:col-span-1 lg:col-span-2">
             <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-bold text-heading-color dark:text-dark-heading-color m-0 border-none">
-                  Metas da Semana
-                </h2>
-                {/* TRADUÇÃO do botão de editar */}
+                <h3 className="text-lg font-semibold text-heading-color dark:text-dark-heading-color">
+                    Metas Semanais
+                </h3>
                 <button
-                  onClick={() => setActiveTab('goals')}
-                  title="Editar Metas"
-                  className="bg-transparent border-none text-2xl cursor-pointer text-subtle-text-color dark:text-dark-subtle-text-color
-                             hover:bg-background-color dark:hover:bg-dark-background-color rounded-full p-2"
+                    onClick={() => setActiveTab('goals')}
+                    className="text-sm font-semibold text-primary-color hover:brightness-125"
                 >
-                  ✏️
+                    Definir Metas
                 </button>
             </div>
 
-            {/* TRADUÇÃO de .progress-bar-container */}
-            <div className="mb-4">
-                {/* TRADUÇÃO de .progress-bar-label */}
-                <div className="flex justify-between font-semibold mb-2 text-sm text-text-color dark:text-dark-text-color">
-                    <span>Horas de Estudo</span>
-                    <span>{formatDecimalHours(weeklyProgress.currentHours)} / {formatDecimalHours(weeklyProgress.goalHours)}</span>
+            <div className="space-y-4">
+                {/* Meta de Horas */}
+                <div>
+                    <div className="flex justify-between text-sm font-medium mb-1">
+                        <span className="text-subtle-text-color dark:text-dark-subtle-text-color">Horas de Estudo</span>
+                        <span className="text-heading-color dark:text-dark-heading-color">
+                            {formatHours(weeklyProgress.currentHours)} / {formatHours(weeklyProgress.goalHours)}h
+                        </span>
+                    </div>
+                    <div className="w-full bg-border-color dark:bg-dark-border-color rounded-full h-2.5">
+                        <div
+                            className="bg-primary-color h-2.5 rounded-full transition-all duration-500"
+                            style={{ width: `${weeklyProgress.hoursPercent}%` }}
+                        ></div>
+                    </div>
                 </div>
-                {/* TRADUÇÃO de .progress-bar */}
-                <div className="bg-border-color dark:bg-dark-border-color rounded-full h-4 overflow-hidden">
-                    {/* TRADUÇÃO de .progress-bar-fill */}
-                    <div
-                      className={`h-full rounded-full transition-all duration-500 ease-out
-                                 ${weeklyProgress.hoursPerc >= 100 ? 'bg-success-color' : 'bg-primary-color'}`}
-                      style={{ width: `${weeklyProgress.hoursPerc}%` }}
-                    ></div>
-                </div>
-            </div>
 
-            {/* Segundo .progress-bar-container */}
-            <div>
-                <div className="flex justify-between font-semibold mb-2 text-sm text-text-color dark:text-dark-text-color">
-                    <span>Questões</span>
-                    <span>{weeklyProgress.currentQuestions} / {weeklyProgress.goalQuestions}</span>
-                </div>
-                <div className="bg-border-color dark:bg-dark-border-color rounded-full h-4 overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all duration-500 ease-out
-                                 ${weeklyProgress.questionPerc >= 100 ? 'bg-success-color' : 'bg-primary-color'}`}
-                      style={{ width: `${weeklyProgress.questionPerc}%` }}
-                    ></div>
+                {/* Meta de Questões */}
+                <div>
+                    <div className="flex justify-between text-sm font-medium mb-1">
+                        <span className="text-subtle-text-color dark:text-dark-subtle-text-color">Questões Resolvidas</span>
+                        <span className="text-heading-color dark:text-dark-heading-color">
+                            {weeklyProgress.currentQuestions} / {weeklyProgress.goalQuestions}
+                        </span>
+                    </div>
+                    <div className="w-full bg-border-color dark:bg-dark-border-color rounded-full h-2.5">
+                        <div
+                            className="bg-success-color h-2.5 rounded-full transition-all duration-500"
+                            style={{ width: `${weeklyProgress.questionsPercent}%` }}
+                        ></div>
+                    </div>
                 </div>
             </div>
         </div>
     );
-};
+}
 
 export default WeeklyGoalsPanel;

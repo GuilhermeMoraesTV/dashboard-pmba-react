@@ -1,203 +1,236 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Chart, registerables } from 'chart.js';
-import ChartDataLabels from 'chartjs-plugin-datalabels';
-import Legend from './Legend.jsx';
+import React, { useState, useMemo } from 'react';
+import { db } from '../../firebaseConfig';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { Timestamp } from 'firebase/firestore';
 
-// Registra os componentes do Chart.js
-Chart.register(...registerables, ChartDataLabels);
+// --- Reutiliza o mesmo HOOK ---
+const useCicloData = (user) => {
+  const [ciclos, setCiclos] = useState([]);
+  const [disciplinas, setDisciplinas] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-// --- Funções Helper ---
-const dateToYMD_local = (date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-};
-
-const formatDecimalHours = (d) => {
-    if (!d || d < 0) return '00:00:00';
-    const s = Math.round(d * 3600);
-    const h = Math.floor(s / 3600);
-    const m = Math.floor((s % 3600) / 60);
-    const sc = s % 60;
-    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(sc).padStart(2, '0')}`;
-};
-// ----------------------
-
-function HoursTab({ hoursData, onAddHour, onDeleteHour }) {
-  const [subject, setSubject] = useState('Língua Portuguesa');
-  const [hours, setHours] = useState('');
-  const [minutes, setMinutes] = useState('');
-  const [seconds, setSeconds] = useState('');
-  const [entryDate, setEntryDate] = useState(dateToYMD_local(new Date()));
-  const studyActivities = ["Língua Portuguesa", "Matemática", "Raciocínio Lógico", "História", "Geografia", "Atualidades", "Informática", "Dir. Constitucional", "Direitos Humanos", "Dir. Administrativo", "Dir. Penal", "Igualdade Racial", "Dir. Penal Militar", "Simulado", "Correção de Simulado"];
-
-  const chartRef = useRef(null);
-  const chartInstanceRef = useRef(null);
-
-  // Lógica do Gráfico (sem alteração)
+  // 1. Busca Ciclos Ativos
   useEffect(() => {
-    if (chartRef.current) {
-      if (chartInstanceRef.current) {
-        chartInstanceRef.current.destroy();
-      }
-      if (hoursData.length === 0) { return; }
+    if (!user) return;
+    const ciclosRef = collection(db, 'users', user.uid, 'ciclos');
+    const q = query(ciclosRef, where('ativo', '==', true));
 
-      const ctx = chartRef.current.getContext('2d');
-      const agg = hoursData.reduce((a, e) => {
-        a[e.subject] = (a[e.subject] || 0) + e.hours;
-        return a;
-      }, {});
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const ciclosData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setCiclos(ciclosData);
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, [user]);
 
-      const sortedData = Object.entries(agg).map(([subject, value]) => ({ subject, value })).sort((a,b) => b.value - a.value);
-      const labels = sortedData.map(d => d.subject);
-      const data = sortedData.map(d => d.value);
-      const total = data.reduce((s, v) => s + v, 0);
-
-      chartInstanceRef.current = new Chart(ctx, {
-        type: 'pie',
-        data: {
-          labels: labels,
-          datasets: [{
-            data: data,
-            backgroundColor: ['#3498db','#2ecc71','#9b59b6','#f1c40f','#e74c3c','#34495e','#1abc9c','#e67e22','#7f8c8d','#2980b9','#27ae60','#8e44ad', '#d35400', '#c0392b'],
-            borderWidth: 0,
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: { display: false },
-            datalabels: {
-              color: '#fff',
-              font: { weight: '600' },
-              formatter: (v) => total > 0 ? `${((v / total) * 100).toFixed(0)}%` : ''
-            }
-          }
-        }
-      });
+  // 2. Busca Disciplinas do ciclo ativo
+  useEffect(() => {
+    if (!ciclos || ciclos.length === 0) {
+      setDisciplinas([]);
+      return;
     }
-  }, [hoursData]);
+    const cicloAtivoId = ciclos[0].id;
+    const disciplinasRef = collection(db, 'users', user.uid, 'ciclos', cicloAtivoId, 'disciplinas');
 
-  // Lógica de Submit (sem alteração)
+    const unsubscribe = onSnapshot(disciplinasRef, (snapshot) => {
+      const disciplinasData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setDisciplinas(disciplinasData);
+    });
+    return () => unsubscribe();
+  }, [ciclos, user.uid]);
+
+  return { ciclos, disciplinas, loadingCiclos: loading };
+};
+// --- FIM DO HOOK ---
+
+// Função helper para formatar H:M (Ex: 1.5 -> 01h 30m)
+const formatDecimalHours = (d) => {
+    if (!d || d < 0) return '00h 00m';
+    const totalMinutes = Math.round(d * 60);
+    const h = Math.floor(totalMinutes / 60);
+    const m = totalMinutes % 60;
+    return `${String(h).padStart(2, '0')}h ${String(m).padStart(2, '0')}m`;
+};
+
+
+// --- COMPONENTE PRINCIPAL ---
+function HoursTab({ registrosEstudo, onAddRegistro, onDeleteRegistro, user }) {
+  // Filtra os registros para mostrar apenas horas
+  const hoursData = useMemo(() =>
+    registrosEstudo.filter(r => r.tipo === 'Horas'),
+    [registrosEstudo]
+  );
+
+  // Estados do formulário
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [hours, setHours] = useState(''); // Armazena como string (ex: "1.5")
+
+  // --- NOVOS ESTADOS DO FORMULÁRIO ---
+  const [selectedCicloId, setSelectedCicloId] = useState('');
+  const [selectedDisciplinaId, setSelectedDisciplinaId] = useState('');
+
+  // Busca dados dos ciclos e disciplinas
+  const { ciclos, disciplinas, loadingCiclos } = useCicloData(user);
+
+  // Atualiza o cicloId selecionado
+  useEffect(() => {
+    if (ciclos.length > 0 && !selectedCicloId) {
+      setSelectedCicloId(ciclos[0].id);
+    }
+  }, [ciclos, selectedCicloId]);
+
   const handleSubmit = (e) => {
     e.preventDefault();
-    const h = parseInt(hours) || 0;
-    const m = parseInt(minutes) || 0;
-    const s = parseInt(seconds) || 0;
+    if (!selectedDisciplinaId) {
+      alert("Por favor, selecione uma disciplina.");
+      return;
+    }
 
-    if ((h + m + s) <= 0 || !entryDate) { alert('Tempo ou data inválidos.'); return; }
+    const disciplinaSelecionada = disciplinas.find(d => d.id === selectedDisciplinaId);
+    const horasEmDecimal = parseFloat(hours);
+    const duracaoEmMinutos = Math.round(horasEmDecimal * 60);
 
-    const newHour = { subject, hours: h + (m / 60) + (s / 3600), date: entryDate };
-    onAddHour(newHour);
+    // Constrói o NOVO objeto de registro
+    const novoRegistro = {
+      tipo: 'Horas',
+      data: Timestamp.fromDate(new Date(date + 'T03:00:00')),
+      duracaoMinutos: duracaoEmMinutos,
+
+      // Zera campos de questão
+      questoesFeitas: 0,
+      questoesAcertadas: 0,
+
+      // Links com o ciclo
+      cicloId: selectedCicloId,
+      disciplinaId: selectedDisciplinaId,
+
+      // Dados denormalizados
+      disciplinaNome: disciplinaSelecionada?.nome || 'Desconhecida'
+    };
+
+    onAddRegistro(novoRegistro); // Chama a nova função do Dashboard
+
+    // Limpa o formulário
     setHours('');
-    setMinutes('');
-    setSeconds('');
+    setSelectedDisciplinaId(''); // Limpa a disciplina
   };
 
+  // Totalizador
+  const totalHours = useMemo(() => {
+    const totalMinutes = hoursData.reduce((acc, item) => acc + item.duracaoMinutos, 0);
+    return totalMinutes / 60;
+  }, [hoursData]);
+
   return (
-    <div>
-      {/* TRADUÇÃO de .chart-section-container .card */}
-      <section className="bg-card-background-color dark:bg-dark-card-background-color rounded-xl shadow-card-shadow p-4 md:p-6 mt-6
-                          flex flex-col md:flex-row items-start gap-6">
-          <div className="flex-1 w-full min-w-[280px]">
-            <Legend title="Distribuição de Horas" data={hoursData} dataKey="hours" />
-          </div>
-        <div className="flex-2 min-w-[300px] max-w-md mx-auto w-full h-[400px] relative">
-          <canvas ref={chartRef}></canvas>
-        </div>
-      </section>
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-      {/* TRADUÇÃO de .card */}
-      <div className="bg-card-background-color dark:bg-dark-card-background-color rounded-xl shadow-card-shadow p-4 md:p-6 mt-8">
-        <h2 className="text-xl font-bold text-heading-color dark:text-dark-heading-color mt-0 mb-4 border-none">
-          Adicionar Horas de Estudo
-        </h2>
+      {/* Coluna 1: Formulário de Registro */}
+      <div className="lg:col-span-1">
+        <div className="bg-card-background-color dark:bg-dark-card-background-color p-6 rounded-xl shadow-card-shadow border border-border-color dark:border-dark-border-color">
+          <h3 className="text-xl font-semibold mb-4 text-heading-color dark:text-dark-heading-color">Registrar Horas</h3>
+          <form onSubmit={handleSubmit} className="space-y-4">
 
-        {/* TRADUÇÃO de .form-container */}
-        <form onSubmit={handleSubmit} className="flex flex-col md:flex-row flex-wrap items-end gap-4">
-          <div className="flex flex-col flex-grow w-full md:w-auto md:flex-[2] min-w-[180px]">
-            <label htmlFor="h-subject" className="block mb-2 font-semibold text-sm text-text-color dark:text-dark-text-color">Disciplina</label>
-            <select id="h-subject" value={subject} onChange={(e) => setSubject(e.target.value)}
-              className="w-full p-3 border border-border-color dark:border-dark-border-color rounded-lg bg-background-color dark:bg-dark-background-color text-text-color dark:text-dark-text-color text-base
-                         focus:outline-none focus:ring-2 focus:ring-primary-color"
-            >
-              {studyActivities.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
-          {/* TRADUÇÃO de .form-group .fg-grow-2 e .input-group */}
-          <div className="flex flex-col flex-grow w-full md:w-auto md:flex-[2] min-w-[180px]">
-            <label className="block mb-2 font-semibold text-sm text-text-color dark:text-dark-text-color">Tempo (H/M/S)</label>
-            <div className="flex gap-2">
-              <input placeholder="H" type="number" value={hours} onChange={e => setHours(e.target.value)}
-                className="w-full p-3 border border-border-color dark:border-dark-border-color rounded-lg bg-background-color dark:bg-dark-background-color text-text-color dark:text-dark-text-color text-base
-                           focus:outline-none focus:ring-2 focus:ring-primary-color"
-              />
-              <input placeholder="M" type="number" value={minutes} onChange={e => setMinutes(e.target.value)}
-                className="w-full p-3 border border-border-color dark:border-dark-border-color rounded-lg bg-background-color dark:bg-dark-background-color text-text-color dark:text-dark-text-color text-base
-                           focus:outline-none focus:ring-2 focus:ring-primary-color"
-              />
-              <input placeholder="S" type="number" value={seconds} onChange={e => setSeconds(e.target.value)}
-                className="w-full p-3 border border-border-color dark:border-dark-border-color rounded-lg bg-background-color dark:bg-dark-background-color text-text-color dark:text-dark-text-color text-base
-                           focus:outline-none focus:ring-2 focus:ring-primary-color"
+            {/* Dropdown de Disciplina */}
+            <div>
+              <label className="block text-sm font-medium text-subtle-text-color dark:text-dark-subtle-text-color mb-1">Disciplina</label>
+              <select
+                value={selectedDisciplinaId}
+                onChange={(e) => setSelectedDisciplinaId(e.target.value)}
+                required
+                className="w-full p-3 rounded bg-background-color dark:bg-dark-background-color text-text-color dark:text-dark-text-color border border-border-color dark:border-dark-border-color focus:outline-none focus:ring-2 focus:ring-primary-color"
+              >
+                <option value="">{loadingCiclos ? "Carregando..." : "Selecione a disciplina"}</option>
+                {disciplinas.map(disciplina => (
+                  <option key={disciplina.id} value={disciplina.id}>{disciplina.nome}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-subtle-text-color dark:text-dark-subtle-text-color mb-1">Horas (ex: 1.5 para 1h 30m)</label>
+              <input
+                type="number"
+                step="0.1"
+                value={hours}
+                onChange={(e) => setHours(e.target.value)}
+                required
+                className="w-full p-3 rounded bg-background-color dark:bg-dark-background-color text-text-color dark:text-dark-text-color border border-border-color dark:border-dark-border-color focus:outline-none focus:ring-2 focus:ring-primary-color"
               />
             </div>
-          </div>
-          <div className="flex flex-col flex-grow w-full md:w-auto md:flex-[1] min-w-[120px]">
-            <label htmlFor="h-entry-date" className="block mb-2 font-semibold text-sm text-text-color dark:text-dark-text-color">Data</label>
-            <input type="date" id="h-entry-date" value={entryDate} onChange={e => setEntryDate(e.target.value)}
-              className="w-full p-3 border border-border-color dark:border-dark-border-color rounded-lg bg-background-color dark:bg-dark-background-color text-text-color dark:text-dark-text-color text-base
-                         focus:outline-none focus:ring-2 focus:ring-primary-color"
-            />
-          </div>
-          <button type="submit"
-            className="w-full md:w-auto p-3 h-12 border-none rounded-lg cursor-pointer font-semibold text-base
-                       transition-opacity duration-200 transform active:scale-[0.98]
-                       bg-primary-color text-white hover:opacity-90"
-          >
-            Adicionar
-          </button>
-        </form>
+
+            <div>
+              <label className="block text-sm font-medium text-subtle-text-color dark:text-dark-subtle-text-color mb-1">Data</label>
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                required
+                className="w-full p-3 rounded bg-background-color dark:bg-dark-background-color text-text-color dark:text-dark-text-color border border-border-color dark:border-dark-border-color focus:outline-none focus:ring-2 focus:ring-primary-color"
+              />
+            </div>
+
+            <button
+              type="submit"
+              className="w-full py-3 px-4 bg-primary-color text-white font-semibold rounded-lg shadow-lg hover:brightness-110 transition-all"
+            >
+              Adicionar Registro
+            </button>
+          </form>
+        </div>
+
+        {/* Painel de Estatísticas */}
+        <div className="bg-card-background-color dark:bg-dark-card-background-color p-6 rounded-xl shadow-card-shadow border border-border-color dark:border-dark-border-color mt-6">
+            <h3 className="text-lg font-semibold text-heading-color dark:text-dark-heading-color mb-4">Resumo de Horas</h3>
+            <div className="space-y-2 text-text-color dark:text-dark-text-color">
+                <div className="flex justify-between items-baseline">
+                    <span className="text-subtle-text-color dark:text-dark-subtle-text-color">Total de Horas:</span>
+                    <span className="font-semibold text-3xl text-primary-color">{formatDecimalHours(totalHours)}</span>
+                </div>
+            </div>
+        </div>
+
       </div>
 
-      <h2 className="text-xl font-bold text-heading-color dark:text-dark-heading-color mt-8 mb-4 border-b-2 border-border-color dark:border-dark-border-color pb-2">
-        Histórico de Horas
-      </h2>
-
-      {/* TRADUÇÃO de .history-table */}
-      <div className="overflow-x-auto">
-        <table className="w-full border-collapse min-w-[600px]">
-          <thead>
-            <tr className="border-b-2 border-border-color dark:border-dark-border-color">
-              <th className="p-3 text-left text-xs font-semibold text-subtle-text-color dark:text-dark-subtle-text-color uppercase">Disciplina</th>
-              <th className="p-3 text-left text-xs font-semibold text-subtle-text-color dark:text-dark-subtle-text-color uppercase">Data</th>
-              <th className="p-3 text-left text-xs font-semibold text-subtle-text-color dark:text-dark-subtle-text-color uppercase">Tempo</th>
-              <th className="p-3 text-left text-xs font-semibold text-subtle-text-color dark:text-dark-subtle-text-color uppercase">Ação</th>
-            </tr>
-          </thead>
-          <tbody>
-            {hoursData.length === 0 ? (
-              <tr><td colSpan="4" className="p-3 text-center text-subtle-text-color dark:text-dark-subtle-text-color">Nenhum registro encontrado.</td></tr>
-            ) : (
-              [...hoursData].sort((a,b) => new Date(b.date) - new Date(a.date)).map(item => (
-                <tr key={item.id || Date.now() + Math.random()} className="border-b border-border-color dark:border-dark-border-color transition-colors hover:bg-background-color dark:hover:bg-dark-background-color">
-                  <td className="p-3 align-middle text-sm">{item.subject}</td>
-                  <td className="p-3 align-middle text-sm">{new Date(item.date + 'T03:00:00').toLocaleDateString('pt-BR')}</td>
-                  <td className="p-3 align-middle text-sm">{formatDecimalHours(item.hours)}</td>
-                  <td>
-                    <button
-                      className="bg-transparent border-none text-subtle-text-color dark:text-dark-subtle-text-color cursor-pointer text-lg p-2 transition-colors hover:text-danger-color"
-                      onClick={() => onDeleteHour(item.id)}
-                    >
-                      ❌
-                    </button>
-                  </td>
+      {/* Coluna 2: Tabela de Registros */}
+      <div className="lg:col-span-2">
+        <div className="bg-card-background-color dark:bg-dark-card-background-color p-6 rounded-xl shadow-card-shadow border border-border-color dark:border-dark-border-color">
+          <h3 className="text-xl font-semibold mb-4 text-heading-color dark:text-dark-heading-color">Histórico de Horas</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[600px] text-left">
+              <thead>
+                <tr className="border-b border-border-color dark:border-dark-border-color">
+                  <th className="p-3 text-sm font-semibold text-subtle-text-color dark:text-dark-subtle-text-color">Data</th>
+                  <th className="p-3 text-sm font-semibold text-subtle-text-color dark:text-dark-subtle-text-color">Disciplina</th>
+                  <th className="p-3 text-sm font-semibold text-subtle-text-color dark:text-dark-subtle-text-color">Tempo</th>
+                  <th className="p-3 text-sm font-semibold text-subtle-text-color dark:text-dark-subtle-text-color">Ações</th>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              </thead>
+              <tbody className="divide-y divide-border-color dark:divide-dark-border-color">
+                {hoursData.map((item) => (
+                  <tr key={item.id} className="hover:bg-background-color dark:hover:bg-dark-background-color">
+                    <td className="p-3 text-text-color dark:text-dark-text-color">
+                      {item.data.toDate().toLocaleDateString('pt-BR')}
+                    </td>
+                    <td className="p-3 text-text-color dark:text-dark-text-color font-medium">
+                      {item.disciplinaNome}
+                    </td>
+                    <td className="p-3 text-primary-color font-semibold">
+                      {formatDecimalHours(item.duracaoMinutos / 60)}
+                    </td>
+                    <td className="p-3">
+                      <button
+                        onClick={() => onDeleteRegistro(item.id)} // Chama a nova função
+                        className="text-danger-color hover:brightness-125"
+                      >
+                        Excluir
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </div>
   );

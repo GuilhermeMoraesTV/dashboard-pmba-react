@@ -6,11 +6,11 @@ import { signOut } from 'firebase/auth';
 import NavSideBar from './dashboard/NavSideBar';
 import Header from './dashboard/Header';
 import Home from './dashboard/Home';
-import QuestionsTab from './dashboard/QuestionsTab';
-import HoursTab from './dashboard/HoursTab';
+// import QuestionsTab from './dashboard/QuestionsTab'; // REMOVIDO
+// import HoursTab from './dashboard/HoursTab'; // REMOVIDO
 import GoalsTab from './dashboard/GoalsTab';
 import CalendarTab from './dashboard/CalendarTab';
-import CiclosPage from '../pages/CiclosPage'; // Importação (sem alteração)
+import CiclosPage from '../pages/CiclosPage';
 
 // Função para formatar data (sem alteração)
 const dateToYMD = (date) => {
@@ -20,8 +20,7 @@ const dateToYMD = (date) => {
   return '' + y + '-' + (m <= 9 ? '0' + m : m) + '-' + (d <= 9 ? '0' + d : d);
 };
 
-function Dashboard({ user, isDarkMode, toggleTheme }) { // 'user' já está aqui
-  // --- Guarda de Segurança (sem alteração) ---
+function Dashboard({ user, isDarkMode, toggleTheme }) {
   if (!user) {
     return (
       <div className="flex justify-center items-center min-h-screen bg-background-color dark:bg-dark-background-color">
@@ -34,14 +33,13 @@ function Dashboard({ user, isDarkMode, toggleTheme }) { // 'user' já está aqui
 
   // --- Estados (sem alteração) ---
   const [activeTab, setActiveTab] = useState('home');
-  const [questionsData, setQuestionsData] = useState([]);
-  const [hoursData, setHoursData] = useState([]);
   const [goalsHistory, setGoalsHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [registrosEstudo, setRegistrosEstudo] = useState([]);
 
-  // --- Correção de Redimensionamento (sem alteração) ---
+  // Correção de Redimensionamento (sem alteração)
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth >= 1024) {
@@ -52,31 +50,20 @@ function Dashboard({ user, isDarkMode, toggleTheme }) { // 'user' já está aqui
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Hooks de dados (sem alteração)
+  // Hook de Registros (sem alteração)
   useEffect(() => {
     if (!user) return;
     setLoading(true);
-    const q = query(collection(db, 'users', user.uid, 'questoes'), orderBy('date', 'desc'));
-    const unsubscribeQuestions = onSnapshot(q, (snapshot) => {
-      setQuestionsData(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    const q = query(collection(db, 'users', user.uid, 'registrosEstudo'), orderBy('data', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setRegistrosEstudo(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       setLoading(false);
-    }, (error) => console.error("Erro ao buscar questões:", error));
+    }, (error) => console.error("Erro ao buscar registros:", error));
 
-    return () => unsubscribeQuestions();
+    return () => unsubscribe();
   }, [user]);
 
-  useEffect(() => {
-    if (!user) return;
-    setLoading(true);
-    const q = query(collection(db, 'users', user.uid, 'horas'), orderBy('date', 'desc'));
-    const unsubscribeHours = onSnapshot(q, (snapshot) => {
-      setHoursData(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-      setLoading(false);
-    }, (error) => console.error("Erro ao buscar horas:", error));
-
-    return () => unsubscribeHours();
-  }, [user]);
-
+  // Hook de Metas (sem alteração)
   useEffect(() => {
     if (!user) return;
     const q = query(collection(db, 'users', user.uid, 'metas'), orderBy('startDate', 'desc'));
@@ -87,13 +74,21 @@ function Dashboard({ user, isDarkMode, toggleTheme }) { // 'user' já está aqui
     return () => unsubscribeGoals();
   }, [user]);
 
-  // Funções de manipulação de dados (sem alteração)
-  const addData = async (collectionName, data) => {
+  // --- FUNÇÕES DE DADOS (AGORA SÃO GLOBAIS) ---
+  const addRegistroEstudo = async (data) => {
     try {
-      const collectionRef = collection(db, 'users', user.uid, collectionName);
+      const collectionRef = collection(db, 'users', user.uid, 'registrosEstudo');
       await addDoc(collectionRef, data);
     } catch (e) {
       console.error('Error adding document: ', e);
+    }
+  };
+
+  const deleteRegistro = async (id) => {
+    try {
+      await deleteDoc(doc(db, 'users', user.uid, 'registrosEstudo', id));
+    } catch (e) {
+      console.error('Error deleting document: ', e);
     }
   };
 
@@ -122,9 +117,9 @@ function Dashboard({ user, isDarkMode, toggleTheme }) { // 'user' já está aqui
     signOut(auth).catch((error) => console.error('Logout Error:', error));
   };
 
-  // renderTabContent (MODIFICADO)
+  // --- RENDERIZAÇÃO DE ABA (MODIFICADO) ---
   const renderTabContent = () => {
-    if (loading) {
+    if (loading && activeTab === 'home') {
       return (
         <div className="flex justify-center items-center pt-20">
           <h2 className="text-xl font-semibold text-heading-color dark:text-dark-heading-color">
@@ -134,13 +129,20 @@ function Dashboard({ user, isDarkMode, toggleTheme }) { // 'user' já está aqui
       );
     }
 
+    // A Home e o Calendário agora precisam da função de delete
+    // para o (futuro) modal de detalhes do dia.
+
     switch (activeTab) {
       case 'home':
-        return <Home questionsData={questionsData} hoursData={hoursData} goalsHistory={goalsHistory} setActiveTab={setActiveTab} />;
-      case 'questions':
-        return <QuestionsTab questionsData={questionsData} onAddQuestion={(data) => addData('questoes', data)} onDeleteQuestion={(id) => deleteData('questoes', id)} />;
-      case 'hours':
-        return <HoursTab hoursData={hoursData} onAddHour={(data) => addData('horas', data)} onDeleteHour={(id) => deleteData('horas', id)} />;
+        return <Home
+                  registrosEstudo={registrosEstudo}
+                  goalsHistory={goalsHistory}
+                  setActiveTab={setActiveTab}
+                  onDeleteRegistro={deleteRegistro} // Passando delete
+                />;
+
+      // 'questions' e 'hours' REMOVIDOS
+
       case 'goals':
         return <GoalsTab
                   goalsHistory={goalsHistory}
@@ -148,14 +150,24 @@ function Dashboard({ user, isDarkMode, toggleTheme }) { // 'user' já está aqui
                   onDeleteGoal={(id) => deleteData('metas', id)}
                 />;
       case 'calendar':
-        return <CalendarTab questionsData={questionsData} hoursData={hoursData} goalsHistory={goalsHistory} />;
-
+        return <CalendarTab
+                  registrosEstudo={registrosEstudo}
+                  goalsHistory={goalsHistory}
+                  onDeleteRegistro={deleteRegistro} // Passando delete
+                />;
       case 'ciclos':
-        // AQUI ESTÁ A MUDANÇA: Passando 'user' como prop
-        return <CiclosPage user={user} />;
-
+        // Passando a função de ADICIONAR para o módulo de ciclos
+        return <CiclosPage
+                  user={user}
+                  addRegistroEstudo={addRegistroEstudo}
+                />;
       default:
-        return <Home questionsData={questionsData} hoursData={hoursData} goalsHistory={goalsHistory} setActiveTab={setActiveTab} />;
+        return <Home
+                  registrosEstudo={registrosEstudo}
+                  goalsHistory={goalsHistory}
+                  setActiveTab={setActiveTab}
+                  onDeleteRegistro={deleteRegistro}
+                />;
     }
   };
 

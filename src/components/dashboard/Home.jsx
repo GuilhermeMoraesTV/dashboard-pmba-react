@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'; // Import do useState
+import React, { useMemo, useState } from 'react';
 import DisciplineSummaryTable from './DisciplineSummaryTable.jsx';
 import WeeklyGoalsPanel from './WeeklyGoalsPanel.jsx';
 import DayDetailsModal from './DayDetailsModal.jsx';
@@ -20,18 +20,22 @@ const formatDecimalHours = (d) => {
 };
 // -------------------------------------
 
+// Recebe 'onDeleteRegistro' do Dashboard
+function Home({ registrosEstudo, goalsHistory, setActiveTab, onDeleteRegistro }) {
 
-function Home({ questionsData, hoursData, goalsHistory, setActiveTab }) {
-  // --- !! CORREÇÃO DA ORDEM DOS HOOKS !! ---
-  // useState deve ser chamado ANTES de useMemo
   const [selectedDate, setSelectedDate] = useState(null);
-  // ----------------------------------------
 
+  // --- handleDayClick CORRIGIDO ---
   const handleDayClick = (date) => {
-    const dayQuestions = questionsData.filter(d => d.date === date);
-    const dayHours = hoursData.filter(d => d.date === date);
+    const dayRegistros = registrosEstudo.filter(r => dateToYMD_local(r.data.toDate()) === date);
+
+    // CORREÇÃO: Filtra por 'questoesFeitas > 0' e 'duracaoMinutos > 0'
+    const dayQuestions = dayRegistros.filter(r => r.questoesFeitas > 0);
+    const dayHours = dayRegistros.filter(r => r.duracaoMinutos > 0);
+
     setSelectedDate({ date, dayQuestions, dayHours });
   };
+  // --- FIM DA CORREÇÃO ---
 
   const getGoalsForDate = (dateStr) => {
     if (!goalsHistory || goalsHistory.length === 0) return { questions: 0, hours: 0 };
@@ -39,24 +43,36 @@ function Home({ questionsData, hoursData, goalsHistory, setActiveTab }) {
     return sortedGoals.find(g => g.startDate <= dateStr) || { questions: 0, hours: 0 };
   };
 
-  // --- Lógica do useMemo (Sem alteração) ---
+  // --- useMemo CORRIGIDO ---
   const homeStats = useMemo(() => {
     try {
       const studyDays = {};
-      questionsData.forEach(d => {
-        studyDays[d.date] = studyDays[d.date] || { questions: 0, correct: 0, hours: 0 };
-        studyDays[d.date].questions += d.questions;
-        studyDays[d.date].correct += d.correct;
-      });
-      hoursData.forEach(d => {
-        studyDays[d.date] = studyDays[d.date] || { questions: 0, correct: 0, hours: 0 };
-        studyDays[d.date].hours += d.hours;
+      let totalQuestions = 0;
+      let totalCorrect = 0;
+      let totalTimeMinutes = 0;
+
+      registrosEstudo.forEach(item => {
+        const dateStr = dateToYMD_local(item.data.toDate());
+        studyDays[dateStr] = studyDays[dateStr] || { questions: 0, correct: 0, hours: 0 };
+
+        // CORREÇÃO: Verifica se há questões, independente do tipo
+        if (item.questoesFeitas > 0) {
+          studyDays[dateStr].questions += item.questoesFeitas;
+          studyDays[dateStr].correct += item.questoesAcertadas;
+          totalQuestions += item.questoesFeitas;
+          totalCorrect += item.questoesAcertadas;
+        }
+
+        // CORREÇÃO: Verifica se há tempo, independente do tipo
+        if (item.duracaoMinutos > 0) {
+          studyDays[dateStr].hours += (item.duracaoMinutos / 60); // Converte para horas
+          totalTimeMinutes += item.duracaoMinutos;
+        }
       });
 
-      const totalQuestions = questionsData.reduce((sum, item) => sum + item.questions, 0);
-      const totalCorrect = questionsData.reduce((sum, item) => sum + item.correct, 0);
-      const totalTime = hoursData.reduce((sum, item) => sum + item.hours, 0);
+      const totalTimeHours = totalTimeMinutes / 60;
 
+      // Lógica do Streak (sem alteração, já usava 'studyDays')
       let currentStreak = 0;
       const today = new Date();
       const yesterday = new Date();
@@ -92,7 +108,7 @@ function Home({ questionsData, hoursData, goalsHistory, setActiveTab }) {
           const dateStr = dateToYMD_local(date);
           const dayData = studyDays[dateStr];
           let status = 'no-data';
-          const hasData = !!dayData;
+          const hasData = !!dayData && (dayData.questions > 0 || dayData.hours > 0);
 
           if(hasData) {
               const goalsForDay = getGoalsForDate(dateStr);
@@ -120,35 +136,31 @@ function Home({ questionsData, hoursData, goalsHistory, setActiveTab }) {
           percentage: totalQuestions > 0 ? (totalCorrect / totalQuestions) * 100 : 0,
           total: totalQuestions
         },
-        totalTime: totalTime,
+        totalTime: totalTimeHours,
       };
     } catch (error) {
         console.error("Erro ao calcular estatísticas da Home:", error);
         return { streak: 0, last14Days: [], performance: { correct: 0, wrong: 0, percentage: 0, total: 0 }, totalTime: 0 };
     }
-  }, [questionsData, hoursData, goalsHistory]);
-  // ---------------------------------------------
+  }, [registrosEstudo, goalsHistory]);
+  // --- FIM DA CORREÇÃO ---
 
 
-  // --- JSX Traduzido ---
+  // --- JSX (Sem alteração visual, apenas de props) ---
   return (
     <div>
-      {/* TRADUÇÃO de .home-grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-
-        {/* TRADUÇÃO de .home-card */}
+        {/* Card 1 (Tempo) */}
         <div className="bg-card-background-color dark:bg-dark-card-background-color rounded-xl shadow-card-shadow p-4 md:p-6 flex flex-col min-h-[120px]">
-          {/* TRADUÇÃO de .home-card h3 */}
           <h3 className="text-sm text-subtle-text-color dark:text-dark-subtle-text-color uppercase font-semibold mb-2">
             Tempo de Estudo
           </h3>
-          {/* TRADUÇÃO de .stat-big */}
           <p className="text-3xl md:text-4xl font-bold text-heading-color dark:text-dark-heading-color mt-auto self-end">
             {formatDecimalHours(homeStats.totalTime)}
           </p>
         </div>
 
-        {/* Card 2 (mesma tradução) */}
+        {/* Card 2 (Questões) */}
         <div className="bg-card-background-color dark:bg-dark-card-background-color rounded-xl shadow-card-shadow p-4 md:p-6 flex flex-col min-h-[120px]">
           <h3 className="text-sm text-subtle-text-color dark:text-dark-subtle-text-color uppercase font-semibold mb-2">
             Questões Resolvidas
@@ -158,14 +170,12 @@ function Home({ questionsData, hoursData, goalsHistory, setActiveTab }) {
           </p>
         </div>
 
-        {/* Card 3 (com .stat-secondary) */}
+        {/* Card 3 (Desempenho) */}
         <div className="bg-card-background-color dark:bg-dark-card-background-color rounded-xl shadow-card-shadow p-4 md:p-6 flex flex-col min-h-[120px]">
           <h3 className="text-sm text-subtle-text-color dark:text-dark-subtle-text-color uppercase font-semibold mb-2">
             Desempenho
           </h3>
-          {/* TRADUÇÃO de .stat-secondary */}
           <div className="text-sm font-semibold flex flex-col gap-1">
-            {/* TRADUÇÃO de .correct / .wrong */}
             <span className="text-success-color">{homeStats.performance.correct} Acertos</span>
             <span className="text-danger-color">{homeStats.performance.wrong} Erros</span>
           </div>
@@ -174,32 +184,25 @@ function Home({ questionsData, hoursData, goalsHistory, setActiveTab }) {
           </p>
         </div>
 
-        {/* TRADUÇÃO de .grid-col-span-full */}
+        {/* Constância (sem alteração) */}
         <div className="bg-card-background-color dark:bg-dark-card-background-color rounded-xl shadow-card-shadow p-4 md:p-6 col-span-1 md:col-span-2 lg:col-span-3">
           <h3 className="text-sm text-subtle-text-color dark:text-dark-subtle-text-color uppercase font-semibold mb-2">
             🔥 Constância nos Estudos
           </h3>
-          <p className='dark:text-dark-text-color'>Você está há <span className="font-bold text-success-color">{homeStats.streak} {homeStats.streak === 1 ? 'dia' : 'dias'}</span> sem falhar!</p>
-
-          {/* TRADUÇÃO de .streak-tracker-full */}
+          <p className='dark:text-dark-text-color'>Você está há <span className="font-bold text-success-color">{homeStats.streak} {homeStats.streak === 1 ? 'dia' : 'dia'}</span> sem falhar!</p>
           <div className="flex gap-0.5 mt-4 h-8 md:h-10">
               {homeStats.last14Days.map(day => (
                   <div
                       key={day.date}
-                      data-tooltip={day.title} // O Tooltip CSS ainda deve ser mantido no index.css
-
-                      /* TRADUÇÃO de .streak-day-full e classes dinâmicas */
+                      data-tooltip={day.title}
                       className={`
                         flex-1 h-full transition-all duration-200
                         first:rounded-l-md last:rounded-r-md
-
                         ${day.status === 'goal-met-both' ? 'bg-goal-met-both' : ''}
                         ${day.status === 'goal-met-one' ? 'bg-goal-met-one' : ''}
                         ${day.status === 'goal-not-met' ? 'bg-goal-not-met' : ''}
                         ${day.status === 'no-data' ? 'bg-border-color dark:bg-dark-border-color opacity-60' : ''}
-
                         ${day.date === dateToYMD_local(new Date()) ? 'shadow-[inset_0_-3px_0_theme(colors.primary-color)]' : ''}
-
                         ${day.hasData ? 'cursor-pointer hover:-translate-y-0.5 hover:brightness-110' : ''}
                       `}
                       onClick={() => day.hasData && handleDayClick(day.date)}
@@ -208,26 +211,25 @@ function Home({ questionsData, hoursData, goalsHistory, setActiveTab }) {
           </div>
         </div>
 
-        {/* Estes componentes também precisarão ser traduzidos */}
         <WeeklyGoalsPanel
-            questionsData={questionsData}
-            hoursData={hoursData}
+            registrosEstudo={registrosEstudo}
             goalsHistory={goalsHistory}
             setActiveTab={setActiveTab}
         />
 
         <DisciplineSummaryTable
-          questionsData={questionsData}
-          hoursData={hoursData}
+          registrosEstudo={registrosEstudo}
         />
       </div>
 
-      {/* O DayDetailsModal agora está sendo traduzido */}
+      {/* O DayDetailsModal agora recebe os dados filtrados corretamente */}
+      {/* E também recebe a função onDeleteRegistro */}
       {selectedDate && (
         <DayDetailsModal
           date={selectedDate.date}
           dayData={{ dayQuestions: selectedDate.dayQuestions, dayHours: selectedDate.dayHours }}
           onClose={() => setSelectedDate(null)}
+          onDeleteRegistro={onDeleteRegistro} // Passando a função de delete
         />
       )}
     </div>

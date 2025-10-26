@@ -2,17 +2,18 @@ import React, { useState } from 'react';
 import CiclosList from '../components/ciclos/CiclosList';
 import CicloDetalhePage from './CicloDetalhePage';
 
-// Recebe 'user' como prop do Dashboard
-function CiclosPage({ user }) {
+// Recebe 'user' e 'addRegistroEstudo' como props do Dashboard
+function CiclosPage({ user, addRegistroEstudo }) {
   const [selectedCicloId, setSelectedCicloId] = useState(null);
 
   if (selectedCicloId) {
-    // Passa 'user' para a página de Detalhe
+    // Passa 'user' e 'addRegistroEstudo' para a página de Detalhe
     return (
       <CicloDetalhePage
         cicloId={selectedCicloId}
         onBack={() => setSelectedCicloId(null)}
-        user={user} // <-- Prop 'user' adicionada
+        user={user}
+        addRegistroEstudo={addRegistroEstudo} // <-- Prop 'add' passada
       />
     );
   } else {
@@ -20,7 +21,7 @@ function CiclosPage({ user }) {
     return (
       <CiclosList
         onCicloClick={(id) => setSelectedCicloId(id)}
-        user={user} // <-- Prop 'user' adicionada
+        user={user}
       />
     );
   }

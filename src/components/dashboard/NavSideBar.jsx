@@ -1,13 +1,12 @@
 import React from 'react';
 
-
-// Ícones (com adição)
+// Ícones (com remoção)
 const IconHome = () => <span>🏠</span>;
-const IconQuestions = () => <span>❓</span>;
-const IconHours = () => <span>⏱️</span>;
+// const IconQuestions = () => <span>❓</span>; // REMOVIDO
+// const IconHours = () => <span>⏱️</span>; // REMOVIDO
 const IconGoals = () => <span>🎯</span>;
 const IconCalendar = () => <span>📅</span>;
-const IconCiclos = () => <span>🔄</span>; // <-- NOVO ÍCONE
+const IconCiclos = () => <span>🔄</span>;
 const IconLogout = () => <span>🚪</span>;
 // --------------------------------------------------------
 
@@ -22,11 +21,10 @@ function NavSideBar({
 }) {
   const navItems = [
     { id: 'home', label: 'Home', icon: <IconHome /> },
-    { id: 'questions', label: 'Questões', icon: <IconQuestions /> },
-    { id: 'hours', label: 'Horas', icon: <IconHours /> },
+    { id: 'ciclos', label: 'Meus Ciclos', icon: <IconCiclos /> }, // Agora é o segundo
     { id: 'goals', label: 'Metas', icon: <IconGoals /> },
     { id: 'calendar', label: 'Calendário', icon: <IconCalendar /> },
-    { id: 'ciclos', label: 'Meus Ciclos', icon: <IconCiclos /> }, // <-- NOVO ITEM DO MENU
+    // 'Questões' e 'Horas' foram removidos daqui
   ];
 
   // --- HAMBURGER BUTTON (sem alteração) ---
@@ -36,12 +34,10 @@ function NavSideBar({
                  w-10 h-10 gap-1 bg-card-background-color dark:bg-dark-card-background-color
                  border border-border-color dark:border-dark-border-color rounded-lg shadow-card-shadow cursor-pointer
                  transition-opacity duration-300 ease-in-out
-                 ${isMobileOpen ? 'opacity-0 pointer-events-none' : 'opacity-100 pointer-events-auto'}`} // Esconde quando aberto
-
+                 ${isMobileOpen ? 'opacity-0 pointer-events-none' : 'opacity-100 pointer-events-auto'}`}
       onClick={() => setMobileOpen(!isMobileOpen)}
-      aria-label="Abrir/Fechar menu" // Label atualizado
+      aria-label="Abrir/Fechar menu"
     >
-      {/* Ícone de hambúrguer (sem alteração) */}
       <span className="block w-[22px] h-[2.5px] bg-text-color dark:bg-dark-text-color rounded-full transition-all duration-300 ease-in-out"></span>
       <span className="block w-[22px] h-[2.5px] bg-text-color dark:bg-dark-text-color rounded-full transition-all duration-300 ease-in-out"></span>
       <span className="block w-[22px] h-[2.5px] bg-text-color dark:bg-dark-text-color rounded-full transition-all duration-300 ease-in-out"></span>
@@ -55,22 +51,15 @@ function NavSideBar({
     <>
       <HamburgerButton />
       <nav
-        // Z-Index 50 e Lógica de Classes (sem alterações)
         className={`fixed top-0 z-50 h-screen
                     bg-card-background-color dark:bg-dark-card-background-color
                     border-r border-border-color dark:border-dark-border-color
                     transition-[width,left] duration-300 ease-in-out
-
-                    /* Mobile: Escondido por padrão, expande quando aberto */
-                    w-[260px] /* Largura total quando visível */
-                    ${isMobileOpen ? 'left-0' : '-left-[260px]'} /* Controla a visibilidade */
-
-                    /* Desktop: Sobrescreve mobile. Visível, largura baseada no hover */
-                    lg:left-0 /* Sempre visível */
-                    ${isExpanded ? 'lg:w-[260px]' : 'lg:w-[70px]'} /* Controla a largura */
+                    w-[260px]
+                    ${isMobileOpen ? 'left-0' : '-left-[260px]'}
+                    lg:left-0
+                    ${isExpanded ? 'lg:w-[260px]' : 'lg:w-[70px]'}
                   `}
-
-        // Eventos de hover (sem alteração)
         onMouseEnter={() => !isMobileOpen && setExpanded(true)}
         onMouseLeave={() => !isMobileOpen && setExpanded(false)}
       >
@@ -83,7 +72,7 @@ function NavSideBar({
           />
         </div>
 
-        {/* --- LISTA DE NAVEGAÇÃO (agora com 6 itens) --- */}
+        {/* --- LISTA DE NAVEGAÇÃO (atualizada) --- */}
         <ul className="list-none p-0 m-0">
           {navItems.map((item) => {
             const isActive = activeTab === item.id;

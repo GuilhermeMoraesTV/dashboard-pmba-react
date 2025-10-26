@@ -1,30 +1,21 @@
 import { useState } from 'react';
-import { db } from '../firebaseConfig'; // 'auth' não é mais necessário aqui
-// 'useAuthState' foi REMOVIDO
+import { db } from '../firebaseConfig';
 import { collection, doc, writeBatch, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
 
 // Lógica de cálculo (sem alteração)
 const calcularDistribuicao = (disciplinas, cargaHorariaTotalMinutos) => {
   const pesos = { 'Iniciante': 3, 'Medio': 2, 'Avançado': 1 };
-
   let totalPesos = 0;
-  disciplinas.forEach(disciplina => {
-    totalPesos += pesos[disciplina.nivel] || 1;
-  });
-
+  disciplinas.forEach(disciplina => { totalPesos += pesos[disciplina.nivel] || 1; });
   if (totalPesos === 0) return disciplinas;
-
   const tempoPorPonto = cargaHorariaTotalMinutos / totalPesos;
-
   return disciplinas.map(disciplina => ({
     ...disciplina,
     tempoAlocadoMinutos: Math.round(pesos[disciplina.nivel] * tempoPorPonto),
   }));
 };
 
-// O hook agora 'recebe' o usuário
 export const useCiclos = (user) => {
-  // 'user' vem do argumento
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -37,8 +28,8 @@ export const useCiclos = (user) => {
     });
   };
 
+  // --- FUNÇÃO criarCiclo MODIFICADA PARA SALVAR TÓPICOS ---
   const criarCiclo = async (cicloData) => {
-    // O 'user' já está disponível no escopo do hook
     if (!user) {
       setError("Usuário não autenticado");
       return false;
@@ -49,12 +40,13 @@ export const useCiclos = (user) => {
 
     try {
       const cargaHorariaTotalMinutos = cicloData.cargaHorariaTotal * 60;
+      // As 'disciplinas' agora contêm o array 'topicos' vindo do Wizard
       const disciplinasComTempo = calcularDistribuicao(cicloData.disciplinas, cargaHorariaTotalMinutos);
 
       const batch = writeBatch(db);
-
       await desativarCiclosAntigos(batch, user.uid);
 
+      // Cria o documento principal do Ciclo (sem alteração)
       const cicloRef = doc(collection(db, 'users', user.uid, 'ciclos'));
       batch.set(cicloRef, {
         nome: cicloData.nome,
@@ -63,14 +55,37 @@ export const useCiclos = (user) => {
         dataCriacao: serverTimestamp(),
       });
 
+      // Loop para salvar Disciplinas (sem alteração no set)
       for (const disciplina of disciplinasComTempo) {
+        // Cria ref para a disciplina na subcoleção /ciclos/{id}/disciplinas
         const disciplinaRef = doc(collection(db, 'users', user.uid, 'ciclos', cicloRef.id, 'disciplinas'));
 
+        // Salva os dados da disciplina
         batch.set(disciplinaRef, {
           nome: disciplina.nome,
           nivelProficiencia: disciplina.nivel,
           tempoAlocadoSemanalMinutos: disciplina.tempoAlocadoMinutos,
         });
+
+        // --- NOVO LOOP PARA SALVAR TÓPICOS ---
+        // Itera sobre o array 'topicos' dentro do objeto 'disciplina'
+        if (disciplina.topicos && disciplina.topicos.length > 0) {
+          for (const topico of disciplina.topicos) {
+            // Cria ref para o tópico na subcoleção /ciclos/{id}/topicos
+            const topicoRef = doc(collection(db, 'users', user.uid, 'ciclos', cicloRef.id, 'topicos'));
+
+            // Salva os dados do tópico, incluindo o ID da disciplina pai
+            batch.set(topicoRef, {
+              disciplinaId: disciplinaRef.id, // <-- LINK IMPORTANTE
+              nome: topico.nome,
+              // Adicione outros campos se necessário (ex: ordem, estudado, etc.)
+              // ordem: topico.ordem || 0,
+              estudado: false,
+              ultimoDesempenho: 0,
+            });
+          }
+        }
+        // --- FIM DO LOOP DE TÓPICOS ---
       }
 
       await batch.commit();
@@ -84,6 +99,7 @@ export const useCiclos = (user) => {
       return false;
     }
   };
+  // --- FIM DA FUNÇÃO MODIFICADA ---
 
   return { criarCiclo, loading, error };
 };

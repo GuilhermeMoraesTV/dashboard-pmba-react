@@ -33,10 +33,15 @@
            border border-border-color dark:border-dark-border-color
            rounded-lg;
   }
+
+  /* Garante que botões não tenham fundo/borda padrão que interfira */
+  button {
+    @apply bg-transparent border-none;
+  }
 }
 
 /* ==========================================================================
-   17. TOOLTIP (Mantido, pois Tailwind não gera pseudo-elementos)
+   17. TOOLTIP (Mantido)
    ========================================================================== */
 
 [data-tooltip] {
@@ -49,7 +54,7 @@
   bottom: 125%;
   left: 50%;
   transform: translateX(-50%);
-  background-color: #2c3e50; /* Mantido hardcoded, ou pode ser bg-secondary-color */
+  background-color: #2c3e50; /* Pode mudar para uma var(--cor) */
   color: #fff;
   padding: 8px 12px;
   border-radius: 6px;
@@ -70,7 +75,7 @@
   left: 50%;
   transform: translateX(-50%) translateY(100%);
   border: 6px solid transparent;
-  border-top-color: #2c3e50; /* Mantido hardcoded */
+  border-top-color: #2c3e50; /* Pode mudar para uma var(--cor) */
   opacity: 0;
   visibility: hidden;
   transition: opacity 0.2s, visibility 0.2s;
@@ -103,7 +108,7 @@
   position: fixed;
   width: 10px;
   height: 10px;
-  background-color: #f00;
+  background-color: #f00; /* Pode mudar para uma var(--cor) */
   opacity: 0.7;
   z-index: 2000;
   pointer-events: none;
@@ -116,71 +121,73 @@
     opacity: 0;
   }
 }
+/* ==========================================================================
+   ESTILOS DO CICLO E LEGENDA (VERIFICAR/SUBSTITUIR ESTE BLOCO)
+   ========================================================================== */
 
-/* --- Novo Estilo de Ciclo (Progressivo e Segmentado) --- */
-
-.ciclo-slice-group {
-  transition: all 0.2s ease-out;
-  cursor: pointer;
-}
-
-/* Anel de Fundo (Meta) */
-.ciclo-slice-goal {
-  opacity: 0.1; /* Bem sutil */
-  stroke-linecap: butt; /* Ponta reta para o gap */
-}
-
-/* Anel da Frente (Progresso) */
-.ciclo-slice-progress {
-  transition: all 0.5s ease-out;
-  /* A opacidade total faz ele se destacar */
-  opacity: 1;
-}
-
-/* Interatividade (Hover) */
-.ciclo-slice-group:not(.active) .ciclo-slice-progress {
-  opacity: 0.5; /* Diminui o progresso de fatias não-ativas */
-}
-.ciclo-slice-group:not(.active) .ciclo-slice-goal {
-  opacity: 0.05; /* Diminui a meta de fatias não-ativas */
-}
-
-.ciclo-slice-group.active .ciclo-slice-goal {
-  opacity: 0.2; /* Destaca a meta da fatia ativa */
-}
+/* --- Estilo da Roda (Progressivo e Segmentado) --- */
+.ciclo-slice-group { transition: all 0.2s ease-out; cursor: pointer; }
+.ciclo-slice-goal { opacity: 0.1; stroke-linecap: butt; }
+.ciclo-slice-progress { transition: all 0.5s ease-out; opacity: 1; }
+.ciclo-slice-group:not(.active) .ciclo-slice-progress { opacity: 0.5; }
+.ciclo-slice-group:not(.active) .ciclo-slice-goal { opacity: 0.05; }
+.ciclo-slice-group.active .ciclo-slice-goal { opacity: 0.2; }
+/* Espessura do anel de progresso é controlada via 'strokeWidth' no JSX */
 
 
-/* --- Estilo da Legenda Interativa (Novo) --- */
-
+/* --- Estilo da Legenda Interativa (CORRIGIDO PARA BUTTON) --- */
 .ciclo-legend-item {
   display: flex;
-  flex-direction: column; /* Organiza em coluna */
+  flex-direction: column;
   gap: 0.25rem; /* 4px */
   padding: 1rem; /* 16px */
   border-radius: 0.75rem; /* 12px */
   cursor: pointer;
-  transition: all 0.2s ease-out;
+  transition: all 0.2s ease-out; /* Define a transição base */
   border: 2px solid transparent;
-  /* Sombra sutil vinda do seu tema */
-  box-shadow: var(--shadow-card-shadow, 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06));
+  text-align: left;
+  width: 100%;
   background-color: var(--color-card-background, #FFFFFF);
+  box-shadow: var(--shadow-card-shadow, 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06));
 }
-
 .dark .ciclo-legend-item {
   background-color: var(--dark-card-background-color, #1F2937);
-  border-color: var(--dark-border-color, #374151);
 }
+.ciclo-legend-item:focus { outline: none; }
+.ciclo-legend-item:focus-visible { box-shadow: 0 0 0 2px var(--color-primary, #3B82F6); }
+.ciclo-legend-item .legend-dot { width: 0.75rem; height: 0.75rem; border-radius: 9999px; flex-shrink: 0; }
 
-.ciclo-legend-item .legend-dot {
-  width: 0.75rem; /* 12px */
-  height: 0.75rem; /* 12px */
-  border-radius: 9999px; /* Círculo */
-  flex-shrink: 0;
-}
-
+/* Efeito HOVER (classe '.active') */
+/* Aplica uma borda sutil e levanta o card */
 .ciclo-legend-item.active {
-  /* Destaca o item da legenda quando ativo */
-  transform: scale(1.03); /* Leve zoom */
-  border-color: var(--color-primary, #3B82F6);
-  box-shadow: 0 0 15px 0px var(--color-primary-transparent, rgba(59, 130, 246, 0.3));
+   border-color: var(--color-border, #E5E7EB);
+   transform: translateY(-2px); /* Levanta sutilmente */
+   /* Você pode adicionar um leve brilho se quiser:
+   box-shadow: var(--shadow-card-shadow), 0 0 8px rgba(0,0,0,0.1); */
 }
+.dark .ciclo-legend-item.active {
+   border-color: var(--dark-border-color, #374151);
+   /* box-shadow: var(--shadow-card-shadow), 0 0 8px rgba(255,255,255,0.05); */
+}
+
+/* Efeito SELECIONADO (classe '.selected') */
+/* Aplica borda colorida mais grossa e sombra colorida */
+.ciclo-legend-item.selected {
+  border-width: 2px;
+  /* Usa a cor da disciplina definida na prop 'style' */
+  border-color: var(--disciplina-color, var(--color-primary));
+  box-shadow: 0 0 15px 0px var(--disciplina-color, rgba(59, 130, 246, 0.4));
+  transform: scale(1.02); /* Leve zoom para destacar */
+}
+
+/* Combinação: Selecionado E Hover */
+/* Garante que o efeito selecionado (mais forte) prevaleça, mas mantém o 'lift' do hover */
+.ciclo-legend-item.selected.active {
+    /* Mantém a borda e sombra do .selected */
+    border-color: var(--disciplina-color, var(--color-primary));
+    box-shadow: 0 0 15px 0px var(--disciplina-color, rgba(59, 130, 246, 0.4));
+    /* Combina os transforms */
+    transform: scale(1.02) translateY(-2px);
+}
+
+/* --- FIM DOS ESTILOS DO CICLO/LEGENDA --- */
