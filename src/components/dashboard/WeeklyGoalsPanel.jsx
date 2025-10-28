@@ -38,7 +38,7 @@ function WeeklyGoalsPanel({ registrosEstudo, goalsHistory, setActiveTab }) {
             // CORREÇÃO: item.data JÁ É A STRING "YYYY-MM-DD"
             const itemDateStr = item.data;
 
-            // Proteção contra dados inválidos
+            // Proteção contra dados inválidos/antigos
             if (!itemDateStr || typeof itemDateStr !== 'string' || itemDateStr.split('-').length !== 3) {
               return false;
             }
@@ -49,16 +49,18 @@ function WeeklyGoalsPanel({ registrosEstudo, goalsHistory, setActiveTab }) {
         let totalMinutes = 0;
 
         weeklyRegistros.forEach(item => {
-            // CORREÇÃO: Os nomes dos campos são 'questoesFeitas' e 'tempoEstudadoMinutos'
-            if (item.questoesFeitas > 0) {
+            // CORREÇÃO: Usa 'questoesFeitas'
+            if ((item.questoesFeitas || 0) > 0) {
                 totalQuestions += item.questoesFeitas;
             }
-            if (item.tempoEstudadoMinutos > 0) {
+            // CORREÇÃO: Usa 'tempoEstudadoMinutos'
+            if ((item.tempoEstudadoMinutos || 0) > 0) {
                 totalMinutes += item.tempoEstudadoMinutos;
             }
         });
 
         const totalHours = totalMinutes / 60;
+
         const goalQuestionsNum = parseInt(activeGoal.questions) || 0;
         const goalHoursNum = parseFloat(activeGoal.hours) || 0;
 

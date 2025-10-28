@@ -1,185 +1,206 @@
 import React, { useState, useMemo } from 'react';
-import DayDetailsModal from './DayDetailsModal.jsx'; // Continua usando o modal corrigido
+import DayDetailsModal from './DayDetailsModal.jsx'; // Reutiliza o modal
+import Legend from './Legend.jsx'; // Importa a legenda
 
 // --- Funções Helper (Sem alteração) ---
 const dateToYMD_local = (date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const formatDecimalHours = (d) => {
+  if (!d || d < 0) return '0h 0m';
+  const totalMinutes = Math.round(d * 60);
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  return `${h}h ${m}m`;
 };
 // -------------------------------------
 
-// Recebe 'registrosEstudo' e 'onDeleteRegistro'
+
 function CalendarTab({ registrosEstudo, goalsHistory, onDeleteRegistro }) {
-    const [viewDate, setViewDate] = useState(new Date());
-    const [selectedDate, setSelectedDate] = useState(null);
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState(null);
 
-    // Função getGoalsForDate (sem alteração)
-    const getGoalsForDate = (dateStr) => {
-        if (!goalsHistory || goalsHistory.length === 0) return { questions: 0, hours: 0 };
-        const sortedGoals = [...goalsHistory].sort((a, b) => new Date(b.startDate) - new Date(a.startDate));
-        return sortedGoals.find(g => g.startDate <= dateStr) || { questions: 0, hours: 0 };
-    };
+  // --- getGoalsForDate (Sem alteração) ---
+  const getGoalsForDate = (dateStr) => {
+    if (!goalsHistory || goalsHistory.length === 0) return { questions: 0, hours: 0 };
+    const sortedGoals = [...goalsHistory].sort((a, b) => new Date(b.startDate) - new Date(a.startDate));
+    return sortedGoals.find(g => g.startDate <= dateStr) || { questions: 0, hours: 0 };
+  };
 
-    // --- useMemo COM LÓGICA CORRETA (sem alteração na lógica) ---
-    const calendarData = useMemo(() => {
-        const studyDays = {};
-        registrosEstudo.forEach(item => {
-            const dateStr = dateToYMD_local(item.data.toDate());
-            studyDays[dateStr] = studyDays[dateStr] || { questions: 0, hours: 0 };
+  // --- useMemo CORRIGIDO ---
+  const studyDays = useMemo(() => {
+    const days = {};
+    try {
+      registrosEstudo.forEach(item => {
+        // CORREÇÃO: item.data JÁ É A STRING "YYYY-MM-DD"
+        const dateStr = item.data;
 
-            if (item.questoesFeitas > 0) {
-                studyDays[dateStr].questions += item.questoesFeitas;
-            }
-            if (item.duracaoMinutos > 0) {
-                studyDays[dateStr].hours += (item.duracaoMinutos / 60);
-            }
-        });
-
-        const year = viewDate.getFullYear();
-        const month = viewDate.getMonth();
-        const firstDayOfMonth = new Date(year, month, 1);
-        const lastDayOfMonth = new Date(year, month + 1, 0);
-        const daysInMonth = lastDayOfMonth.getDate();
-        const startDayOfWeek = firstDayOfMonth.getDay(); // 0 = Domingo
-
-        const days = Array(startDayOfWeek).fill(null); // Dias em branco
-
-        for (let i = 1; i <= daysInMonth; i++) {
-            const date = new Date(year, month, i);
-            const dateStr = dateToYMD_local(date);
-            const dayData = studyDays[dateStr];
-            let status = 'no-data';
-            const hasData = !!dayData && (dayData.questions > 0 || dayData.hours > 0);
-
-            if (hasData) {
-                const goalsForDay = getGoalsForDate(dateStr);
-                const qGoalMet = dayData.questions >= goalsForDay.questions;
-                const hGoalMet = dayData.hours >= goalsForDay.hours;
-                if (qGoalMet && hGoalMet) status = 'goal-met-both'; // Verde mais forte
-                else if (qGoalMet || hGoalMet) status = 'goal-met-one'; // Amarelo/Verde claro
-                else status = 'goal-not-met'; // Vermelho/Laranja
-            }
-            days.push({ day: i, date: dateStr, status, hasData });
+        // Proteção contra dados inválidos/antigos
+        if (!dateStr || typeof dateStr !== 'string' || dateStr.split('-').length !== 3) {
+          return;
         }
-        return days;
-    }, [registrosEstudo, goalsHistory, viewDate]);
-    // --- FIM DO useMemo ---
 
-    // handleDayClick (sem alteração na lógica)
-    const handleDayClick = (day) => {
-        if (!day || !day.hasData) return;
-        const dayRegistros = registrosEstudo.filter(r => dateToYMD_local(r.data.toDate()) === day.date);
-        const dayQuestions = dayRegistros.filter(r => r.questoesFeitas > 0);
-        const dayHours = dayRegistros.filter(r => r.duracaoMinutos > 0);
-        setSelectedDate({ date: day.date, dayQuestions, dayHours });
-    };
+        days[dateStr] = days[dateStr] || { questions: 0, correct: 0, hours: 0 };
 
-    const weekDays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+        // CORREÇÃO: Usa 'tempoEstudadoMinutos'
+        if ((item.tempoEstudadoMinutos || 0) > 0) {
+          days[dateStr].hours += (item.tempoEstudadoMinutos / 60);
+        }
 
-    return (
-        // --- JSX COM NOVO ESTILO VISUAL ---
-        <div className="bg-card-background-color dark:bg-dark-card-background-color p-4 md:p-6 rounded-xl shadow-card-shadow border border-border-color dark:border-dark-border-color">
-            {/* Cabeçalho de Navegação (sem alteração) */}
-            <div className="flex justify-between items-center mb-4">
-                <button
-                    onClick={() => setViewDate(new Date(viewDate.setMonth(viewDate.getMonth() - 1)))}
-                    className="px-4 py-2 rounded bg-background-color dark:bg-dark-background-color text-text-color dark:text-dark-text-color font-semibold hover:bg-border-color dark:hover:bg-dark-border-color"
-                >
-                    &lt; Anterior
-                </button>
-                <h2 className="text-lg md:text-xl font-semibold text-heading-color dark:text-dark-heading-color text-center">
-                    {viewDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).replace(/^\w/, c => c.toUpperCase())}
-                </h2>
-                <button
-                    onClick={() => setViewDate(new Date(viewDate.setMonth(viewDate.getMonth() + 1)))}
-                    className="px-4 py-2 rounded bg-background-color dark:bg-dark-background-color text-text-color dark:text-dark-text-color font-semibold hover:bg-border-color dark:hover:bg-dark-border-color"
-                >
-                    Próximo &gt;
-                </button>
-            </div>
+        // CORREÇÃO: Usa 'questoesFeitas' e 'acertos'
+        if ((item.questoesFeitas || 0) > 0) {
+          days[dateStr].questions += item.questoesFeitas;
+          days[dateStr].correct += (item.acertos || 0);
+        }
+      });
+    } catch (error) {
+      console.error("Erro ao processar dados do calendário:", error);
+    }
+    return days;
+  }, [registrosEstudo]);
+  // --- FIM DA CORREÇÃO ---
 
-            {/* Grid do Calendário (Estilo Modificado) */}
-            <div className="grid grid-cols-7 gap-1 md:gap-2"> {/* Aumenta o gap */}
-                {/* Cabeçalho dos dias da semana */}
-                {weekDays.map(day => (
-                    <div key={day} className="text-center font-semibold text-subtle-text-color dark:text-dark-subtle-text-color text-xs md:text-sm py-2">
-                        {day}
-                    </div>
-                ))}
-                {/* Dias do mês */}
-                {calendarData.map((day, index) => {
-                  // Define a cor de fundo e a cor do texto com base no status
-                  let bgColorClass = 'bg-background-color dark:bg-dark-background-color'; // Padrão
-                  let textColorClass = 'text-text-color dark:text-dark-text-color'; // Padrão
-                  let hoverClass = 'hover:bg-border-color dark:hover:bg-dark-border-color'; // Padrão
 
-                  if (day) {
-                    switch (day.status) {
-                      case 'goal-met-both':
-                        bgColorClass = 'bg-goal-met-both'; // Seu verde forte
-                        textColorClass = 'text-white font-bold'; // Texto branco para contraste
-                        hoverClass = 'hover:brightness-110';
-                        break;
-                      case 'goal-met-one':
-                        bgColorClass = 'bg-goal-met-one'; // Seu amarelo/verde claro
-                        textColorClass = 'text-yellow-900 font-semibold'; // Texto escuro para contraste
-                        hoverClass = 'hover:brightness-110';
-                        break;
-                      case 'goal-not-met':
-                        bgColorClass = 'bg-goal-not-met'; // Seu vermelho/laranja
-                        textColorClass = 'text-red-900 font-semibold'; // Texto escuro para contraste
-                        hoverClass = 'hover:brightness-110';
-                        break;
-                      case 'no-data':
-                        // Mantém o padrão
-                        break;
-                    }
-                  } else {
-                    // Dias em branco (mês anterior/seguinte)
-                     bgColorClass = 'bg-gray-100 dark:bg-gray-800 opacity-40';
-                     hoverClass = ''; // Sem hover
-                  }
+  // --- handleDayClick CORRIGIDO ---
+  const handleDayClick = (date) => {
+    // CORREÇÃO: Compara 'r.data' (string) diretamente com 'date' (string)
+    const dayRegistros = registrosEstudo.filter(r => r.data === date);
 
-                  return (
-                    <div
-                        key={index}
-                        // --- ESTILO DA CÉLULA DO DIA MODIFICADO ---
-                        className={`
-                            h-16 md:h-20 border border-border-color dark:border-dark-border-color rounded-lg  /* Borda arredondada */
-                            flex items-center justify-center /* Centraliza o número */
-                            transition-all duration-200
-                            ${bgColorClass} /* Cor de fundo baseada no status */
-                            ${day?.hasData ? 'cursor-pointer' : ''}
-                            ${day?.hasData ? hoverClass : ''} /* Efeito hover só se houver dados */
-                        `}
-                        onClick={() => handleDayClick(day)}
-                    >
-                        {day && (
-                            // Número do dia com cor ajustada
-                            <span className={`text-sm font-semibold ${textColorClass}`}>
-                                {day.day}
-                            </span>
-                        )}
-                        {/* A bolinha foi removida */}
-                    </div>
-                  );
-                })}
-            </div>
-            {/* --- FIM DO JSX MODIFICADO --- */}
+    // CORREÇÃO: Nomes de campo corretos
+    const dayQuestions = dayRegistros.filter(r => (r.questoesFeitas || 0) > 0);
+    const dayHours = dayRegistros.filter(r => (r.tempoEstudadoMinutos || 0) > 0);
 
-            {/* Modal (sem alteração, usa o modal já corrigido) */}
-            {selectedDate && (
-                <DayDetailsModal
-                    date={selectedDate.date}
-                    dayData={{ dayQuestions: selectedDate.dayQuestions, dayHours: selectedDate.dayHours }}
-                    onClose={() => setSelectedDate(null)}
-                    onDeleteRegistro={onDeleteRegistro} // Passa a função de delete
-                />
-            )}
-        </div>
-    );
+    setSelectedDate({ date, dayQuestions, dayHours });
+  };
+  // --- FIM DA CORREÇÃO ---
+
+
+  // Funções de navegação do calendário (sem alteração)
+  const daysOfWeek = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+  const currentMonth = currentDate.getMonth();
+  const currentYear = currentDate.getFullYear();
+  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+  const firstDayOfMonth = new Date(currentYear, currentMonth, 1).getDay();
+
+  const changeMonth = (offset) => {
+    setCurrentDate(new Date(currentYear, currentMonth + offset, 1));
+  };
+
+  const getDayStatus = (dateStr) => {
+    const dayData = studyDays[dateStr];
+    const hasData = !!dayData && (dayData.questions > 0 || dayData.hours > 0);
+    let status = 'no-data';
+
+    if (hasData) {
+      const goalsForDay = getGoalsForDate(dateStr);
+      const qGoal = goalsForDay?.questions || 0;
+      const hGoal = goalsForDay?.hours || 0;
+      const qGoalMet = dayData.questions >= qGoal;
+      const hGoalMet = dayData.hours >= hGoal;
+
+      if (qGoalMet && hGoalMet) status = 'goal-met-both';
+      else if (qGoalMet || hGoalMet) status = 'goal-met-one';
+      else status = 'goal-not-met';
+    }
+    return { status, hasData };
+  };
+
+  return (
+    <div className="bg-card-background-color dark:bg-dark-card-background-color rounded-xl shadow-card-shadow p-4 md:p-6">
+      <h1 className="text-2xl font-semibold text-heading-color dark:text-dark-heading-color mb-6">
+        Calendário de Estudos
+      </h1>
+
+      {/* Header do Calendário */}
+      <div className="flex justify-between items-center mb-4">
+        <button
+          onClick={() => changeMonth(-1)}
+          className="px-4 py-2 bg-gray-200 dark:bg-dark-border-color rounded-lg font-semibold text-text-color dark:text-dark-text-color hover:brightness-95"
+        >
+          &larr; Anterior
+        </button>
+        <h2 className="text-xl font-bold text-heading-color dark:text-dark-heading-color">
+          {new Date(currentYear, currentMonth).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+        </h2>
+        <button
+          onClick={() => changeMonth(1)}
+          className="px-4 py-2 bg-gray-200 dark:bg-dark-border-color rounded-lg font-semibold text-text-color dark:text-dark-text-color hover:brightness-95"
+        >
+          Próximo &rarr;
+        </button>
+      </div>
+
+      {/* Grid do Calendário */}
+      <div className="grid grid-cols-7 gap-1">
+        {daysOfWeek.map(day => (
+          <div key={day} className="text-center font-semibold text-subtle-text-color dark:text-dark-subtle-text-color text-sm py-2">
+            {day}
+          </div>
+        ))}
+
+        {/* Dias em branco (offset) */}
+        {Array.from({ length: firstDayOfMonth }).map((_, i) => (
+          <div key={`empty-${i}`} className="border border-border-color dark:border-dark-border-color bg-background-color dark:bg-dark-background-color/50 min-h-[100px] rounded-md"></div>
+        ))}
+
+        {/* Dias do Mês */}
+        {Array.from({ length: daysInMonth }).map((_, day) => {
+          const dayNumber = day + 1;
+          const date = new Date(currentYear, currentMonth, dayNumber);
+          const dateStr = dateToYMD_local(date);
+          const { status, hasData } = getDayStatus(dateStr);
+          const isToday = dateToYMD_local(new Date()) === dateStr;
+
+          return (
+            <button
+              key={dateStr}
+              disabled={!hasData}
+              onClick={() => hasData && handleDayClick(dateStr)}
+              className={`
+                border border-border-color dark:border-dark-border-color min-h-[100px] rounded-md p-2 text-left relative transition-all duration-150
+                ${status === 'goal-met-both' ? 'bg-goal-met-both' : ''}
+                ${status === 'goal-met-one' ? 'bg-goal-met-one' : ''}
+                ${status === 'goal-not-met' ? 'bg-goal-not-met' : ''}
+                ${status === 'no-data' ? 'bg-background-color dark:bg-dark-background-color/50' : ''}
+                ${hasData ? 'cursor-pointer hover:brightness-110' : 'cursor-default'}
+                ${isToday ? 'shadow-[inset_0_0_0_2px_theme(colors.primary-color)]' : ''}
+              `}
+            >
+              <span className={`font-semibold text-sm ${isToday ? 'text-primary-color' : 'text-text-color dark:text-dark-text-color'}`}>
+                {dayNumber}
+              </span>
+              {hasData && (
+                <div className="absolute bottom-2 left-2 right-2 text-xs text-text-color dark:text-dark-text-color">
+                  {studyDays[dateStr].hours > 0 && (
+                    <div className="font-medium">{formatDecimalHours(studyDays[dateStr].hours)}</div>
+                  )}
+                  {studyDays[dateStr].questions > 0 && (
+                    <div className="font-medium">{studyDays[dateStr].questions} Qst.</div>
+                  )}
+                </div>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      <Legend />
+
+      {/* Modal de Detalhes */}
+      {selectedDate && (
+        <DayDetailsModal
+          date={selectedDate.date}
+          dayData={{ dayQuestions: selectedDate.dayQuestions, dayHours: selectedDate.dayHours }}
+          onClose={() => setSelectedDate(null)}
+          onDeleteRegistro={onDeleteRegistro}
+        />
+      )}
+    </div>
+  );
 }
 
 export default CalendarTab;

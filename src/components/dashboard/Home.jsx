@@ -30,7 +30,7 @@ function Home({ registrosEstudo, goalsHistory, setActiveTab, onDeleteRegistro })
     // CORREÇÃO: Compara 'r.data' (string) diretamente com 'date' (string)
     const dayRegistros = registrosEstudo.filter(r => r.data === date);
 
-    // CORREÇÃO: Seus nomes de campo são 'questoesFeitas' e 'tempoEstudadoMinutos'
+    // CORREÇÃO: Nomes de campo corretos
     const dayQuestions = dayRegistros.filter(r => (r.questoesFeitas || 0) > 0);
     const dayHours = dayRegistros.filter(r => (r.tempoEstudadoMinutos || 0) > 0);
 
@@ -53,27 +53,27 @@ function Home({ registrosEstudo, goalsHistory, setActiveTab, onDeleteRegistro })
       let totalTimeMinutes = 0;
 
       registrosEstudo.forEach(item => {
-        // CORREÇÃO: item.data JÁ É A STRING "YYYY-MM-DD"
+        // CORREÇÃO: item.data JÁ É A STRING "YYYY-MM-DD", não precisa de .toDate()
         const dateStr = item.data;
 
-        // Proteção contra dados inválidos
+        // Proteção contra dados inválidos/antigos
         if (!dateStr || typeof dateStr !== 'string' || dateStr.split('-').length !== 3) {
-          console.warn("Registro com data inválida:", item);
+          console.warn("Registro com data inválida pulado:", item);
           return;
         }
 
         studyDays[dateStr] = studyDays[dateStr] || { questions: 0, correct: 0, hours: 0 };
 
-        // CORREÇÃO: Os nomes dos campos são 'questoesFeitas' e 'acertos'
-        if (item.questoesFeitas > 0) {
+        // CORREÇÃO: Usa 'questoesFeitas' e 'acertos'
+        if ((item.questoesFeitas || 0) > 0) {
           studyDays[dateStr].questions += item.questoesFeitas;
           studyDays[dateStr].correct += (item.acertos || 0); // Usa 'acertos'
           totalQuestions += item.questoesFeitas;
           totalCorrect += (item.acertos || 0);
         }
 
-        // CORREÇÃO: O nome do campo é 'tempoEstudadoMinutos'
-        if (item.tempoEstudadoMinutos > 0) {
+        // CORREÇÃO: Usa 'tempoEstudadoMinutos'
+        if ((item.tempoEstudadoMinutos || 0) > 0) {
           studyDays[dateStr].hours += (item.tempoEstudadoMinutos / 60); // Converte para horas
           totalTimeMinutes += item.tempoEstudadoMinutos;
         }
@@ -97,8 +97,8 @@ function Home({ registrosEstudo, goalsHistory, setActiveTab, onDeleteRegistro })
 
               if (dayData) {
                   const goalsForDay = getGoalsForDate(dateStr);
-                  const qGoalMet = dayData.questions > 0 && dayData.questions >= goalsForDay.questions;
-                  const hGoalMet = dayData.hours > 0 && dayData.hours >= goalsForDay.hours;
+                  const qGoalMet = dayData.questions > 0 && dayData.questions >= (goalsForDay.questions || 0);
+                  const hGoalMet = dayData.hours > 0 && dayData.hours >= (goalsForDay.hours || 0);
                   if (qGoalMet || hGoalMet) {
                       currentStreak++;
                   } else {
@@ -121,7 +121,6 @@ function Home({ registrosEstudo, goalsHistory, setActiveTab, onDeleteRegistro })
 
           if(hasData) {
               const goalsForDay = getGoalsForDate(dateStr);
-              // Garante que goalsForDay exista
               const qGoal = goalsForDay?.questions || 0;
               const hGoal = goalsForDay?.hours || 0;
 
@@ -137,7 +136,6 @@ function Home({ registrosEstudo, goalsHistory, setActiveTab, onDeleteRegistro })
             date: dateStr,
             status,
             hasData,
-            // Adiciona fallback para fuso horário
             title: new Date(dateStr + 'T03:00:00').toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' })
           };
       });
@@ -209,7 +207,7 @@ function Home({ registrosEstudo, goalsHistory, setActiveTab, onDeleteRegistro })
               {homeStats.last14Days.map(day => (
                   <div
                       key={day.date}
-                      data-tooltip={day.title} // Você precisará de um CSS para 'data-tooltip'
+                      data-tooltip={day.title}
                       className={`
                         flex-1 h-full transition-all duration-200
                         first:rounded-l-md last:rounded-r-md

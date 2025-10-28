@@ -1,89 +1,103 @@
 import React, { useMemo } from 'react';
 
-const formatDecimalHours = (d) => {
-    if (!d || d < 0) return '00h 00m';
-    const totalMinutes = Math.round(d * 60);
-    const h = Math.floor(totalMinutes / 60);
-    const m = totalMinutes % 60;
-    return `${String(h).padStart(2, '0')}h ${String(m).padStart(2, '0')}m`;
+// Função para formatar o tempo (sem alteração)
+const formatTime = (minutes) => {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${h}h ${m}m`;
 };
 
 function DisciplineSummaryTable({ registrosEstudo }) {
+  const disciplineData = useMemo(() => {
+    const disciplinas = {};
 
-    // --- useMemo CORRIGIDO ---
-    const summary = useMemo(() => {
-        const disciplineMap = new Map();
+    registrosEstudo.forEach(item => {
+      // Usa o 'disciplinaId' como chave
+      const disciplinaKey = item.disciplinaId || 'desconhecida';
 
-        registrosEstudo.forEach(item => {
-            const name = item.disciplinaNome || 'Não Classificado';
+      if (!disciplinas[disciplinaKey]) {
+        disciplinas[disciplinaKey] = {
+          nome: item.disciplinaNome || `ID: ${disciplinaKey}`, // Assume que 'disciplinaNome' existe ou usa o ID
+          tempo: 0,
+          questoes: 0,
+          acertos: 0,
+        };
+      }
 
-            if (!disciplineMap.has(name)) {
-                disciplineMap.set(name, {
-                    name: name,
-                    questions: 0,
-                    correct: 0,
-                    hours: 0,
-                });
-            }
+      // CORREÇÃO: Usa 'tempoEstudadoMinutos'
+      if ((item.tempoEstudadoMinutos || 0) > 0) {
+        disciplinas[disciplinaKey].tempo += item.tempoEstudadoMinutos;
+      }
 
-            const stats = disciplineMap.get(name);
+      // CORREÇÃO: Usa 'questoesFeitas' e 'acertos'
+      if ((item.questoesFeitas || 0) > 0) {
+        disciplinas[disciplinaKey].questoes += item.questoesFeitas;
+        disciplinas[disciplinaKey].acertos += (item.acertos || 0);
+      }
+    });
 
-            // CORREÇÃO: Soma se houver questões
-            if (item.questoesFeitas > 0) {
-                stats.questions += item.questoesFeitas;
-                stats.correct += item.questoesAcertadas;
-            }
-            // CORREÇÃO: Soma se houver tempo
-            if (item.duracaoMinutos > 0) {
-                stats.hours += (item.duracaoMinutos / 60); // Converte para horas
-            }
-        });
+    // Tenta buscar o nome da disciplina do primeiro registro que o tiver
+    // (O ideal seria ter uma coleção de 'disciplinas' para consultar)
+    registrosEstudo.forEach(item => {
+        if (item.disciplinaId && item.disciplinaNome && disciplinas[item.disciplinaId]) {
+            disciplinas[item.disciplinaId].nome = item.disciplinaNome;
+        }
+    });
 
-        return Array.from(disciplineMap.values())
-            .map(item => ({
-                ...item,
-                performance: item.questions > 0 ? (item.correct / item.questions) * 100 : 0,
-            }))
-            .sort((a, b) => b.hours - a.hours); // Ordena por mais horas
+    return Object.values(disciplinas)
+      .filter(d => d.tempo > 0 || d.questoes > 0) // Mostra apenas se tiver dados
+      .sort((a, b) => b.tempo - a.tempo); // Ordena por tempo
 
-    }, [registrosEstudo]);
-    // --- FIM DA CORREÇÃO ---
+  }, [registrosEstudo]);
 
+  if (disciplineData.length === 0) {
     return (
-        <div className="bg-card-background-color dark:bg-dark-card-background-color p-6 rounded-xl shadow-card-shadow border border-border-color dark:border-dark-border-color">
-            <h3 className="text-xl font-semibold mb-4 text-heading-color dark:text-dark-heading-color">Resumo por Disciplina</h3>
-            <div className="overflow-x-auto">
-                <table className="w-full min-w-[500px] text-left">
-                    <thead>
-                        <tr className="border-b border-border-color dark:border-dark-border-color">
-                            <th className="p-3 text-sm font-semibold text-subtle-text-color dark:text-dark-subtle-text-color">Disciplina</th>
-                            <th className="p-3 text-sm font-semibold text-subtle-text-color dark:text-dark-subtle-text-color">Tempo</th>
-                            <th className="p-3 text-sm font-semibold text-subtle-text-color dark:text-dark-subtle-text-color">Questões</th>
-                            <th className="p-3 text-sm font-semibold text-subtle-text-color dark:text-dark-subtle-text-color">Desempenho</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border-color dark:divide-dark-border-color">
-                        {summary.map((item) => (
-                            <tr key={item.name} className="hover:bg-background-color dark:hover:bg-dark-background-color">
-                                <td className="p-3 text-text-color dark:text-dark-text-color font-medium">
-                                    {item.name}
-                                </td>
-                                <td className="p-3 text-primary-color font-semibold">
-                                    {formatDecimalHours(item.hours)}
-                                </td>
-                                <td className="p-3 text-text-color dark:text-dark-text-color">
-                                    {item.questions}
-                                </td>
-                                <td className="p-3 text-text-color dark:text-dark-text-color font-semibold">
-                                    {item.questions > 0 ? `${item.performance.toFixed(0)}%` : '-'}
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-        </div>
+      <div className="bg-card-background-color dark:bg-dark-card-background-color rounded-xl shadow-card-shadow p-4 md:p-6 col-span-1 lg:col-span-1">
+        <h3 className="text-lg font-semibold text-heading-color dark:text-dark-heading-color mb-4">
+          Resumo por Disciplina
+        </h3>
+        <p className="text-subtle-text-color dark:text-dark-subtle-text-color text-center py-8">
+          Nenhum registro de estudo encontrado para o ciclo ativo.
+        </p>
+      </div>
     );
+  }
+
+  return (
+    <div className="bg-card-background-color dark:bg-dark-card-background-color rounded-xl shadow-card-shadow p-4 md:p-6 col-span-1 lg:col-span-1">
+      <h3 className="text-lg font-semibold text-heading-color dark:text-dark-heading-color mb-4">
+        Resumo por Disciplina
+      </h3>
+      <div className="max-h-80 overflow-y-auto">
+        <table className="w-full text-left">
+          <thead>
+            <tr className="border-b border-border-color dark:border-dark-border-color">
+              <th className="py-2 text-sm font-semibold text-subtle-text-color dark:text-dark-subtle-text-color">Disciplina</th>
+              <th className="py-2 text-sm font-semibold text-subtle-text-color dark:text-dark-subtle-text-color text-right">Tempo</th>
+              <th className="py-2 text-sm font-semibold text-subtle-text-color dark:text-dark-subtle-text-color text-right">Desempenho</th>
+            </tr>
+          </thead>
+          <tbody>
+            {disciplineData.map((disciplina) => {
+              const percentual = disciplina.questoes > 0
+                ? (disciplina.acertos / disciplina.questoes) * 100
+                : 0;
+
+              return (
+                <tr key={disciplina.nome} className="border-b border-border-color dark:border-dark-border-color last:border-b-0">
+                  <td className="py-3 text-sm font-medium text-text-color dark:text-dark-text-color truncate pr-2">{disciplina.nome}</td>
+                  <td className="py-3 text-sm text-text-color dark:text-dark-text-color text-right font-medium">{formatTime(disciplina.tempo)}</td>
+                  <td className="py-3 text-sm text-text-color dark:text-dark-text-color text-right font-medium">
+                    {disciplina.questoes > 0 ? `${percentual.toFixed(0)}%` : '--'}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
 }
 
 export default DisciplineSummaryTable;
