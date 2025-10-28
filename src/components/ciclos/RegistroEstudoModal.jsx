@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, Timestamp } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
 
-// Helper (esta é a função que usamos)
+// Helper para data local
 const dateToYMDLocal = (date) => {
   const d = date.getDate();
   const m = date.getMonth() + 1;
@@ -14,19 +14,15 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
   const [tipoEstudo, setTipoEstudo] = useState('Teoria');
   const [disciplinaSelecionadaId, setDisciplinaSelecionadaId] = useState('');
   const [topicoSelecionadoId, setTopicoSelecionadoId] = useState('');
-
-  // Data padrão é "hoje"
   const [dataEstudo, setDataEstudo] = useState(dateToYMDLocal(new Date()));
-
   const [horas, setHoras] = useState(0);
   const [minutos, setMinutos] = useState(0);
   const [questoesFeitas, setQuestoesFeitas] = useState(0);
   const [acertos, setAcertos] = useState(0);
-
   const [topicosDaDisciplina, setTopicosDaDisciplina] = useState([]);
   const [loadingTopicos, setLoadingTopicos] = useState(false);
 
-  // Hook para buscar tópicos quando a disciplina muda
+  // Busca tópicos quando disciplina muda
   useEffect(() => {
     if (!disciplinaSelecionadaId || !cicloId || !userId) {
       setTopicosDaDisciplina([]);
@@ -38,12 +34,11 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
     const q = query(topicosRef, where('disciplinaId', '==', disciplinaSelecionadaId));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const topicosList = [];
-      snapshot.forEach(doc => topicosList.push({ id: doc.id, ...doc.data() }));
+      const topicosList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setTopicosDaDisciplina(topicosList);
       setLoadingTopicos(false);
     }, (error) => {
-      console.error("Erro ao buscar tópicos: ", error);
+      console.error("Erro ao buscar tópicos:", error);
       setLoadingTopicos(false);
     });
 
@@ -53,46 +48,66 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    let tempoTotalMinutos = parseInt(horas || 0) * 60 + parseInt(minutos || 0);
-    let totalQuestoes = parseInt(questoesFeitas || 0);
-    let totalAcertos = parseInt(acertos || 0);
+    // Conversões e validações
+    const tempoTotalMinutos = parseInt(horas || 0) * 60 + parseInt(minutos || 0);
+    const totalQuestoes = parseInt(questoesFeitas || 0);
+    const totalAcertos = parseInt(acertos || 0);
 
     // Validações básicas
     if (!disciplinaSelecionadaId) {
       alert("Por favor, selecione uma disciplina.");
       return;
     }
+
     if (tipoEstudo === 'Teoria' && tempoTotalMinutos === 0) {
       alert("Por favor, insira o tempo estudado.");
       return;
     }
+
     if (tipoEstudo === 'Questões' && totalQuestoes === 0) {
       alert("Por favor, insira o número de questões.");
       return;
     }
 
-    // Assegura que tipo 'Revisão' tenha pelo menos um dos dois
     if (tipoEstudo === 'Revisão' && tempoTotalMinutos === 0 && totalQuestoes === 0) {
       alert("Para 'Revisão', insira o tempo gasto ou o número de questões.");
       return;
     }
 
-    // --- CORREÇÃO DO cicloId (Mantida) ---
+    // Busca nome da disciplina e tópico
+    const disciplina = disciplinasDoCiclo.find(d => d.id === disciplinaSelecionadaId);
+    const topico = topicosDaDisciplina.find(t => t.id === topicoSelecionadoId);
+
+    // ============================================
+    // ESTRUTURA PADRONIZADA DO REGISTRO
+    // ============================================
     const data = {
-      cicloId: cicloId, // <-- Importante!
+      // IDs de referência
+      cicloId: cicloId,
       disciplinaId: disciplinaSelecionadaId,
       topicoId: topicoSelecionadoId || null,
+      userId: userId,
 
+      // Data (como STRING "YYYY-MM-DD")
       data: dataEstudo,
-      tipoEstudo,
 
+      // Tipo de estudo
+      tipoEstudo: tipoEstudo,
+
+      // Campos de tempo (SEMPRE em minutos)
       tempoEstudadoMinutos: tempoTotalMinutos,
+
+      // Campos de questões (SEMPRE com estes nomes)
       questoesFeitas: totalQuestoes,
       acertos: totalAcertos,
 
-      userId: userId,
+      // Dados denormalizados para facilitar queries
+      disciplinaNome: disciplina?.nome || 'Desconhecida',
+      topicoNome: topico?.nome || null,
+
+      // Timestamp para ordenação
+      timestamp: Timestamp.now()
     };
-    // --- FIM DA CORREÇÃO ---
 
     try {
       await addRegistroEstudo(data);
@@ -104,20 +119,17 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
   };
 
   return (
-    <div
-      className="fixed inset-0 bg-black/60 z-40 flex justify-center items-center"
-      onClick={onClose}
-    >
-      <div
-        className="bg-card-background-color dark:bg-dark-card-background-color p-8 rounded-lg shadow-xl z-50 w-full max-w-lg mx-4"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <div className="fixed inset-0 bg-black/60 z-40 flex justify-center items-center" onClick={onClose}>
+      <div className="bg-card-background-color dark:bg-dark-card-background-color p-8 rounded-lg shadow-xl z-50 w-full max-w-lg mx-4"
+        onClick={(e) => e.stopPropagation()}>
+
         <h2 className="text-2xl font-bold text-heading-color dark:text-dark-heading-color mb-6">
           Registrar Estudo
         </h2>
 
         <form onSubmit={handleSubmit} className="space-y-5">
 
+          {/* Data */}
           <div>
             <label className="block text-sm font-medium text-text-color dark:text-dark-text-color mb-1">
               Data do Estudo
@@ -130,6 +142,7 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
             />
           </div>
 
+          {/* Tipo */}
           <div>
             <label className="block text-sm font-medium text-text-color dark:text-dark-text-color mb-1">
               Tipo de Estudo
@@ -145,6 +158,7 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
             </select>
           </div>
 
+          {/* Disciplina */}
           <div>
             <label className="block text-sm font-medium text-text-color dark:text-dark-text-color mb-1">
               Disciplina
@@ -153,7 +167,7 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
               value={disciplinaSelecionadaId}
               onChange={(e) => {
                 setDisciplinaSelecionadaId(e.target.value);
-                setTopicoSelecionadoId(''); // Reseta o tópico ao mudar a disciplina
+                setTopicoSelecionadoId('');
               }}
               required
               className="w-full p-2 rounded-lg bg-background-color dark:bg-dark-background-color border border-border-color dark:border-dark-border-color focus:outline-none focus:ring-2 focus:ring-primary-color"
@@ -165,6 +179,7 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
             </select>
           </div>
 
+          {/* Tópico */}
           <div>
             <label className="block text-sm font-medium text-text-color dark:text-dark-text-color mb-1">
               Tópico (Opcional)
@@ -186,6 +201,7 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
             </select>
           </div>
 
+          {/* Tempo (Teoria ou Revisão) */}
           {(tipoEstudo === 'Teoria' || tipoEstudo === 'Revisão') && (
             <div className="flex gap-4">
               <div className="w-1/2">
@@ -216,6 +232,7 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
             </div>
           )}
 
+          {/* Questões (Questões ou Revisão) */}
           {(tipoEstudo === 'Questões' || tipoEstudo === 'Revisão') && (
             <div className="flex gap-4">
               <div className="w-1/2">
@@ -233,7 +250,7 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
               <div className="w-1/2">
                 <label className="block text-sm font-medium text-text-color dark:text-dark-text-color mb-1">
                   Acertos
-                </label> {/* <-- ESTA ERA A LINHA COM ERRO */}
+                </label>
                 <input
                   type="number"
                   min="0"
@@ -246,6 +263,7 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
             </div>
           )}
 
+          {/* Botões */}
           <div className="flex justify-end gap-4 pt-4">
             <button
               type="button"

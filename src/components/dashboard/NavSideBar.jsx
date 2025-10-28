@@ -1,14 +1,12 @@
 import React from 'react';
 
-// Ícones (com remoção)
+// Ícones
 const IconHome = () => <span>🏠</span>;
-// const IconQuestions = () => <span>❓</span>; // REMOVIDO
-// const IconHours = () => <span>⏱️</span>; // REMOVIDO
 const IconGoals = () => <span>🎯</span>;
 const IconCalendar = () => <span>📅</span>;
 const IconCiclos = () => <span>🔄</span>;
+const IconProfile = () => <span>👤</span>;
 const IconLogout = () => <span>🚪</span>;
-// --------------------------------------------------------
 
 function NavSideBar({
   activeTab,
@@ -21,13 +19,12 @@ function NavSideBar({
 }) {
   const navItems = [
     { id: 'home', label: 'Home', icon: <IconHome /> },
-    { id: 'ciclos', label: 'Meus Ciclos', icon: <IconCiclos /> }, // Agora é o segundo
+    { id: 'ciclos', label: 'Meus Ciclos', icon: <IconCiclos /> },
     { id: 'goals', label: 'Metas', icon: <IconGoals /> },
     { id: 'calendar', label: 'Calendário', icon: <IconCalendar /> },
-    // 'Questões' e 'Horas' foram removidos daqui
+    { id: 'profile', label: 'Perfil', icon: <IconProfile /> },
   ];
 
-  // --- HAMBURGER BUTTON (sem alteração) ---
   const HamburgerButton = () => (
     <button
       className={`fixed top-4 left-4 z-[51] flex lg:hidden flex-col items-center justify-center
@@ -44,7 +41,6 @@ function NavSideBar({
     </button>
   );
 
-  // --- LÓGICA DE EXPANSÃO (sem alterações) ---
   const isFullyExpanded = (isExpanded && !isMobileOpen) || isMobileOpen;
 
   return (
@@ -63,16 +59,18 @@ function NavSideBar({
         onMouseEnter={() => !isMobileOpen && setExpanded(true)}
         onMouseLeave={() => !isMobileOpen && setExpanded(false)}
       >
-        {/* --- HEADER (sem alterações) --- */}
+        {/* Header */}
         <div className="flex items-center justify-center min-h-[50px] overflow-hidden border-b border-border-color dark:border-dark-border-color px-4 pb-4 mb-4 mt-5 lg:mt-0">
           <img
             src="/logo-pmba.png"
             alt="Logo"
-            className={`h-auto object-contain transition-all duration-300 ease-in-out ${isFullyExpanded ? 'max-w-[120px] max-h-[55px]' : 'max-w-[55px] max-h-[55px]'}`}
+            className={`h-auto object-contain transition-all duration-300 ease-in-out ${
+              isFullyExpanded ? 'max-w-[120px] max-h-[55px]' : 'max-w-[55px] max-h-[55px]'
+            }`}
           />
         </div>
 
-        {/* --- LISTA DE NAVEGAÇÃO (atualizada) --- */}
+        {/* Lista de navegação */}
         <ul className="list-none p-0 m-0">
           {navItems.map((item) => {
             const isActive = activeTab === item.id;
@@ -92,7 +90,9 @@ function NavSideBar({
                 >
                   <span className="text-xl min-w-[24px] text-center">{item.icon}</span>
                   <span
-                    className={`transition-opacity duration-300 ease-in-out ${isFullyExpanded ? 'opacity-100' : 'opacity-0'}`}
+                    className={`transition-opacity duration-300 ease-in-out ${
+                      isFullyExpanded ? 'opacity-100' : 'opacity-0'
+                    }`}
                   >
                     {item.label}
                   </span>
@@ -102,7 +102,7 @@ function NavSideBar({
           })}
         </ul>
 
-        {/* --- BOTÃO DE LOGOUT (sem alterações) --- */}
+        {/* Botão Logout */}
         <ul className="list-none p-0 m-0 absolute bottom-4 w-full">
           <li>
             <button
@@ -113,7 +113,9 @@ function NavSideBar({
             >
               <span className="text-xl min-w-[24px] text-center"><IconLogout /></span>
               <span
-                className={`transition-opacity duration-300 ease-in-out ${isFullyExpanded ? 'opacity-100' : 'opacity-0'}`}
+                className={`transition-opacity duration-300 ease-in-out ${
+                  isFullyExpanded ? 'opacity-100' : 'opacity-0'
+                }`}
               >
                 Sair
               </span>
