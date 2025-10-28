@@ -102,17 +102,20 @@ function CicloVisual({ cicloId, user, selectedDisciplinaId, onSelectDisciplina }
     if (!user) return;
     const { start, end } = getWeekRange();
     const registrosRef = collection(db, 'users', user.uid, 'registrosEstudo');
-    // Adiciona filtro por cicloId se necessário (depende se registros tem cicloId)
-    // const q = query(registrosRef, where('cicloId', '==', cicloId), where('data', '>=', start), where('data', '<=', end));
-    const q = query(registrosRef, where('data', '>=', start), where('data', '<=', end)); // Usando sem filtro de ciclo por enquanto
+    const q = query(registrosRef, where('data', '>=', start), where('data', '<=', end));
+
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const newProgressMap = new Map();
       snapshot.forEach(doc => {
-        const { disciplinaId, duracaoMinutos } = doc.data();
-        // Garante que o registro pertence a este ciclo (se disciplinaId for suficiente)
+        const data = doc.data();
+        const { disciplinaId } = data;
+
+        // NORMALIZAÇÃO: Aceita ambos os nomes de campo
+        const minutos = data.tempoEstudadoMinutos || data.duracaoMinutos || 0;
+
         const pertenceAoCiclo = disciplinas.some(d => d.id === disciplinaId);
-        if (pertenceAoCiclo && duracaoMinutos > 0) {
-            newProgressMap.set(disciplinaId, (newProgressMap.get(disciplinaId) || 0) + duracaoMinutos);
+        if (pertenceAoCiclo && minutos > 0) {
+          newProgressMap.set(disciplinaId, (newProgressMap.get(disciplinaId) || 0) + minutos);
         }
       });
       setProgressMap(newProgressMap);
@@ -120,7 +123,6 @@ function CicloVisual({ cicloId, user, selectedDisciplinaId, onSelectDisciplina }
       console.error("Erro progresso:", error);
     });
     return () => unsubscribe();
-    // Adiciona 'disciplinas' como dependência para refiltrar se as disciplinas do ciclo mudarem
   }, [user, cicloId, disciplinas]);
 
   // --- Lógica de Cálculo (useMemo Completo) ---

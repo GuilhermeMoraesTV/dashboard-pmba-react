@@ -41,36 +41,37 @@ function TopicListPanel({ user, cicloId, disciplinaId, registrosEstudo }) {
     if (!topics || topics.length === 0) return new Map();
 
     const summaryMap = new Map();
-    // Inicializa o mapa com todos os tópicos
     topics.forEach(topic => {
       summaryMap.set(topic.id, {
-        ...topic, // Inclui nome, etc.
+        ...topic,
         totalMinutes: 0,
         totalQuestions: 0,
         totalCorrect: 0,
       });
     });
 
-    // Filtra registros SÓ da disciplina selecionada (otimização)
     const registrosDaDisciplina = registrosEstudo.filter(r => r.disciplinaId === disciplinaId);
 
-    // Agrega os dados dos registros
     registrosDaDisciplina.forEach(registro => {
-      if (registro.topicId && summaryMap.has(registro.topicId)) {
-        const topicData = summaryMap.get(registro.topicId);
-        if (registro.duracaoMinutos > 0) {
-          topicData.totalMinutes += registro.duracaoMinutos;
+      if (registro.topicoId && summaryMap.has(registro.topicoId)) {
+        const topicData = summaryMap.get(registro.topicoId);
+
+        // NORMALIZAÇÃO: Aceita ambos os nomes
+        const minutos = registro.tempoEstudadoMinutos || registro.duracaoMinutos || 0;
+        const questoes = registro.questoesFeitas || 0;
+        const acertos = registro.acertos || registro.questoesAcertadas || 0;
+
+        if (minutos > 0) {
+          topicData.totalMinutes += minutos;
         }
-        if (registro.questoesFeitas > 0) {
-          topicData.totalQuestions += registro.questoesFeitas;
-          topicData.totalCorrect += registro.questoesAcertadas;
+        if (questoes > 0) {
+          topicData.totalQuestions += questoes;
+          topicData.totalCorrect += acertos;
         }
       }
-      // Opcional: Contar registros sem tópico associado?
     });
 
     return summaryMap;
-
   }, [topics, registrosEstudo, disciplinaId]);
 
   if (loadingTopics) {

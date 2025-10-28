@@ -36,29 +36,29 @@ function CalendarTab({ registrosEstudo, goalsHistory, onDeleteRegistro }) {
     const days = {};
     try {
       registrosEstudo.forEach(item => {
-        // CORREÇÃO: item.data JÁ É A STRING "YYYY-MM-DD"
         const dateStr = item.data;
-
-        // Proteção contra dados inválidos/antigos
         if (!dateStr || typeof dateStr !== 'string' || dateStr.split('-').length !== 3) {
           return;
         }
 
         days[dateStr] = days[dateStr] || { questions: 0, correct: 0, hours: 0 };
 
-        // CORREÇÃO: Usa 'tempoEstudadoMinutos'
-        if ((item.tempoEstudadoMinutos || 0) > 0) {
-          days[dateStr].hours += (item.tempoEstudadoMinutos / 60);
+        // NORMALIZAÇÃO
+        const minutos = item.tempoEstudadoMinutos || item.duracaoMinutos || 0;
+        const questoes = item.questoesFeitas || 0;
+        const acertos = item.acertos || item.questoesAcertadas || 0;
+
+        if (minutos > 0) {
+          days[dateStr].hours += (minutos / 60);
         }
 
-        // CORREÇÃO: Usa 'questoesFeitas' e 'acertos'
-        if ((item.questoesFeitas || 0) > 0) {
-          days[dateStr].questions += item.questoesFeitas;
-          days[dateStr].correct += (item.acertos || 0);
+        if (questoes > 0) {
+          days[dateStr].questions += questoes;
+          days[dateStr].correct += acertos;
         }
       });
     } catch (error) {
-      console.error("Erro ao processar dados do calendário:", error);
+      console.error("Erro ao processar calendário:", error);
     }
     return days;
   }, [registrosEstudo]);

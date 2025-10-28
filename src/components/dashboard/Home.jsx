@@ -44,16 +44,15 @@ function Home({ registrosEstudo, goalsHistory, setActiveTab, onDeleteRegistro })
       registrosEstudo.forEach(item => {
         const dateStr = item.data;
         if (!dateStr || typeof dateStr !== 'string' || dateStr.split('-').length !== 3) {
-          console.warn("Registro com data inválida:", item);
           return;
         }
 
         studyDays[dateStr] = studyDays[dateStr] || { questions: 0, correct: 0, hours: 0 };
 
-        // Usa os campos padronizados
+        // NORMALIZAÇÃO COMPLETA
         const questoes = item.questoesFeitas || 0;
-        const acertadas = item.acertos || 0;
-        const minutos = item.tempoEstudadoMinutos || 0;
+        const acertadas = item.acertos || item.questoesAcertadas || 0;
+        const minutos = item.tempoEstudadoMinutos || item.duracaoMinutos || 0;
 
         if (questoes > 0) {
           studyDays[dateStr].questions += questoes;

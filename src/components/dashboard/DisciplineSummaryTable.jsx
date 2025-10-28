@@ -12,42 +12,35 @@ function DisciplineSummaryTable({ registrosEstudo }) {
     const disciplinas = {};
 
     registrosEstudo.forEach(item => {
-      // Usa o 'disciplinaId' como chave
       const disciplinaKey = item.disciplinaId || 'desconhecida';
 
       if (!disciplinas[disciplinaKey]) {
         disciplinas[disciplinaKey] = {
-          nome: item.disciplinaNome || `ID: ${disciplinaKey}`, // Assume que 'disciplinaNome' existe ou usa o ID
+          nome: item.disciplinaNome || `ID: ${disciplinaKey}`,
           tempo: 0,
           questoes: 0,
           acertos: 0,
         };
       }
 
-      // CORREÇÃO: Usa 'tempoEstudadoMinutos'
-      if ((item.tempoEstudadoMinutos || 0) > 0) {
-        disciplinas[disciplinaKey].tempo += item.tempoEstudadoMinutos;
+      // NORMALIZAÇÃO
+      const minutos = item.tempoEstudadoMinutos || item.duracaoMinutos || 0;
+      const questoes = item.questoesFeitas || 0;
+      const acertos = item.acertos || item.questoesAcertadas || 0;
+
+      if (minutos > 0) {
+        disciplinas[disciplinaKey].tempo += minutos;
       }
 
-      // CORREÇÃO: Usa 'questoesFeitas' e 'acertos'
-      if ((item.questoesFeitas || 0) > 0) {
-        disciplinas[disciplinaKey].questoes += item.questoesFeitas;
-        disciplinas[disciplinaKey].acertos += (item.acertos || 0);
+      if (questoes > 0) {
+        disciplinas[disciplinaKey].questoes += questoes;
+        disciplinas[disciplinaKey].acertos += acertos;
       }
-    });
-
-    // Tenta buscar o nome da disciplina do primeiro registro que o tiver
-    // (O ideal seria ter uma coleção de 'disciplinas' para consultar)
-    registrosEstudo.forEach(item => {
-        if (item.disciplinaId && item.disciplinaNome && disciplinas[item.disciplinaId]) {
-            disciplinas[item.disciplinaId].nome = item.disciplinaNome;
-        }
     });
 
     return Object.values(disciplinas)
-      .filter(d => d.tempo > 0 || d.questoes > 0) // Mostra apenas se tiver dados
-      .sort((a, b) => b.tempo - a.tempo); // Ordena por tempo
-
+      .filter(d => d.tempo > 0 || d.questoes > 0)
+      .sort((a, b) => b.tempo - a.tempo);
   }, [registrosEstudo]);
 
   if (disciplineData.length === 0) {

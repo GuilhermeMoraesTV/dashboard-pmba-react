@@ -32,56 +32,52 @@ function WeeklyGoalsPanel({ registrosEstudo, goalsHistory, setActiveTab }) {
 
     // --- useMemo CORRIGIDO ---
     const weeklyProgress = useMemo(() => {
-        const startOfWeekStr = getStartOfWeek();
+      const startOfWeekStr = getStartOfWeek();
 
-        const weeklyRegistros = registrosEstudo.filter(item => {
-            // CORREÇÃO: item.data JÁ É A STRING "YYYY-MM-DD"
-            const itemDateStr = item.data;
+      const weeklyRegistros = registrosEstudo.filter(item => {
+        const itemDateStr = item.data;
+        if (!itemDateStr || typeof itemDateStr !== 'string' || itemDateStr.split('-').length !== 3) {
+          return false;
+        }
+        return itemDateStr >= startOfWeekStr;
+      });
 
-            // Proteção contra dados inválidos/antigos
-            if (!itemDateStr || typeof itemDateStr !== 'string' || itemDateStr.split('-').length !== 3) {
-              return false;
-            }
-            return itemDateStr >= startOfWeekStr;
-        });
+      let totalQuestions = 0;
+      let totalMinutes = 0;
 
-        let totalQuestions = 0;
-        let totalMinutes = 0;
+      weeklyRegistros.forEach(item => {
+        // NORMALIZAÇÃO
+        const questoes = item.questoesFeitas || 0;
+        const minutos = item.tempoEstudadoMinutos || item.duracaoMinutos || 0;
 
-        weeklyRegistros.forEach(item => {
-            // CORREÇÃO: Usa 'questoesFeitas'
-            if ((item.questoesFeitas || 0) > 0) {
-                totalQuestions += item.questoesFeitas;
-            }
-            // CORREÇÃO: Usa 'tempoEstudadoMinutos'
-            if ((item.tempoEstudadoMinutos || 0) > 0) {
-                totalMinutes += item.tempoEstudadoMinutos;
-            }
-        });
+        if (questoes > 0) {
+          totalQuestions += questoes;
+        }
+        if (minutos > 0) {
+          totalMinutes += minutos;
+        }
+      });
 
-        const totalHours = totalMinutes / 60;
+      const totalHours = totalMinutes / 60;
+      const goalQuestionsNum = parseInt(activeGoal.questions) || 0;
+      const goalHoursNum = parseFloat(activeGoal.hours) || 0;
 
-        const goalQuestionsNum = parseInt(activeGoal.questions) || 0;
-        const goalHoursNum = parseFloat(activeGoal.hours) || 0;
+      const questionsPercent = goalQuestionsNum > 0
+        ? Math.min((totalQuestions / goalQuestionsNum) * 100, 100)
+        : 0;
 
-        const questionsPercent = goalQuestionsNum > 0
-            ? Math.min((totalQuestions / goalQuestionsNum) * 100, 100)
-            : 0;
+      const hoursPercent = goalHoursNum > 0
+        ? Math.min((totalHours / goalHoursNum) * 100, 100)
+        : 0;
 
-        const hoursPercent = goalHoursNum > 0
-            ? Math.min((totalHours / goalHoursNum) * 100, 100)
-            : 0;
-
-        return {
-            currentQuestions: totalQuestions,
-            goalQuestions: goalQuestionsNum,
-            questionsPercent: questionsPercent,
-
-            currentHours: totalHours,
-            goalHours: goalHoursNum,
-            hoursPercent: hoursPercent
-        };
-
+      return {
+        currentQuestions: totalQuestions,
+        goalQuestions: goalQuestionsNum,
+        questionsPercent: questionsPercent,
+        currentHours: totalHours,
+        goalHours: goalHoursNum,
+        hoursPercent: hoursPercent
+      };
     }, [registrosEstudo, activeGoal]);
     // --- FIM DA CORREÇÃO ---
 

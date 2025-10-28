@@ -103,6 +103,30 @@ function EtapaDisciplinas({ disciplinas, setDisciplinas, openTopicsManager }) {
   );
 }
 
+function ValidationAlert({ message, onClose }) {
+  return (
+    <div className="fixed inset-0 bg-black/60 z-[70] flex justify-center items-center p-4">
+      <div className="bg-card-background-color dark:bg-dark-card-background-color p-6 rounded-lg shadow-xl max-w-md w-full border-2 border-warning-color">
+        <div className="flex items-center gap-3 mb-4">
+          <span className="text-3xl">⚠️</span>
+          <h3 className="text-lg font-bold text-heading-color dark:text-dark-heading-color">
+            Atenção
+          </h3>
+        </div>
+        <p className="text-text-color dark:text-dark-text-color mb-6">
+          {message}
+        </p>
+        <button
+          onClick={onClose}
+          className="w-full px-5 py-2 bg-primary-color text-white rounded-lg font-semibold hover:brightness-110 transition-all"
+        >
+          Entendi
+        </button>
+      </div>
+    </div>
+  );
+}
+
 
 // --- Componente Principal do Modal de Edição ---
 function CicloEditModal({ onClose, user, ciclo }) {
@@ -110,6 +134,9 @@ function CicloEditModal({ onClose, user, ciclo }) {
   const [nome, setNome] = useState('');
   const [cargaHoraria, setCargaHoraria] = useState(0);
   const [disciplinas, setDisciplinas] = useState([]);
+
+  const [showValidation, setShowValidation] = useState(false);
+    const [validationMessage, setValidationMessage] = useState('');
 
   const [showTopicsModal, setShowTopicsModal] = useState(false);
   const [disciplinaIndex, setDisciplinaIndex] = useState(null);
@@ -176,9 +203,10 @@ function CicloEditModal({ onClose, user, ciclo }) {
   // Submissão (Sem alteração)
   const handleSave = async () => {
     if (disciplinas.length === 0) {
-      alert("Adicione pelo menos uma disciplina.");
-      return;
-    }
+          setValidationMessage("Adicione pelo menos uma disciplina antes de salvar.");
+          setShowValidation(true);
+          return;
+        }
 
     const cicloData = {
       nome,
@@ -268,6 +296,13 @@ function CicloEditModal({ onClose, user, ciclo }) {
           disciplinaNome={disciplinas[disciplinaIndex].nome}
         />
       )}
+
+  {showValidation && (
+          <ValidationAlert
+            message={validationMessage}
+            onClose={() => setShowValidation(false)}
+          />
+        )}
     </div>
   );
 }
