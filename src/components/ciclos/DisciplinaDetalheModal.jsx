@@ -132,10 +132,10 @@ function DisciplinaDetalheModal({ disciplina, registrosEstudo, cicloId, user, on
               </div>
 
               {/* Seção de Tópicos */}
-              {/* O TopicListPanel agora vive aqui! */}
               <div className="bg-card-background-color dark:bg-dark-card-background-color rounded-xl shadow-lg p-4 md:p-6 border border-border-color dark:border-dark-border-color">
+                  {/* [CORREÇÃO 1] Passando user.uid como userId */}
                   <TopicListPanel
-                      user={user}
+                      userId={user.uid} // <--- CORRIGIDO AQUI
                       cicloId={cicloId}
                       disciplinaId={disciplina.id}
                       registrosEstudo={registrosDaDisciplina} // Passa só os registros filtrados

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../../firebaseConfig';
 import { collection, query, where, onSnapshot, orderBy, serverTimestamp } from 'firebase/firestore';
-import useTopicsDaDisciplina from '../../hooks/useTopicsDaDisciplina'; // Importando o hook
+import useTopicsDaDisciplina from '../../hooks/useTopicsDaDisciplina'; // Importando o hook (agora corrigido)
 
 // --- Ícones ---
 const IconClose = () => (
@@ -31,7 +31,7 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
     [initialData]
   );
 
-  // Usando o hook externo
+  // Esta chamada agora funciona, pois o hook (useTopicsDaDisciplina) foi corrigido
   const { topics, loadingTopics } = useTopicsDaDisciplina(userId, cicloId, formData.disciplinaId);
 
   useEffect(() => {
@@ -110,7 +110,8 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
         </div>
 
         {/* Formulário com Scroll */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
+        {/* [CORREÇÃO 2] Adicionado id="registro-form" para o botão 'submit' funcionar */}
+        <form onSubmit={handleSubmit} id="registro-form" className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
 
           {errorMessage && (
             <div className="p-3 bg-danger-color/10 border border-danger-color/30 rounded-lg text-danger-color text-sm">
@@ -257,8 +258,7 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
           </button>
           <button
             type="submit"
-            form="registro-form" // [CORREÇÃO 5] Embora o form já capture, boa prática
-            // [CORREÇÃO 5] Removido o onClick={handleSubmit} daqui
+            form="registro-form" // Este atributo agora encontra o form
             disabled={loading}
             className="px-5 py-2.5 rounded-lg text-sm font-semibold text-white bg-primary-color hover:bg-primary-hover transition flex items-center justify-center disabled:opacity-50"
           >

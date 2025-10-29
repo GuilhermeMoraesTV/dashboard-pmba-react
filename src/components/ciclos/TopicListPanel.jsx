@@ -1,35 +1,34 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../../firebaseConfig';
 import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
-// [CORREÇÃO 2] Importando o hook externo padronizado
-import useTopicsDaDisciplina from '../../hooks/useTopicsDaDisciplina';
+import useTopicsDaDisciplina from '../../hooks/useTopicsDaDisciplina'; // Importando o hook (agora corrigido)
 
-// Ícones
+// Ícones (mantidos como antes)
 const IconBook = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" />
-  </svg>
-);
-const IconClock = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-  </svg>
-);
-const IconQuestions = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 5.25h.008v.008H12v-.008Z" />
-  </svg>
-);
-const IconTrophy = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 18.75h-9m9 0a3 3 0 0 1 3 3h-15a3 3 0 0 1 3-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 0 1-.982-3.172M9.497 14.25a7.454 7.454 0 0 0 .981-3.172M5.25 4.236c-.982.143-1.954.317-2.916.52A6.003 6.003 0 0 0 7.73 9.728M5.25 4.236V4.5c0 2.108.966 3.99 2.48 5.228M5.25 4.236V2.721C7.456 2.41 9.71 2.25 12 2.25c2.291 0 4.545.16 6.75.47v1.516M7.73 9.728a6.726 6.726 0 0 0 2.748 1.35m8.272-6.842V4.5c0 2.108-.966 3.99-2.48 5.228m2.48-5.492a46.32 46.32 0 0 1 2.916.52 6.003 6.003 0 0 1-5.395 4.972m0 0a6.726 6.726 0 0 1-2.749 1.35m0 0a6.772 6.772 0 0 1-3.044 0" />
-  </svg>
-);
-const IconPlusCircle = () => (
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" />
     </svg>
-);
+  );
+  const IconClock = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+    </svg>
+  );
+  const IconQuestions = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 5.25h.008v.008H12v-.008Z" />
+    </svg>
+  );
+  const IconTrophy = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 18.75h-9m9 0a3 3 0 0 1 3 3h-15a3 3 0 0 1 3-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 0 1-.982-3.172M9.497 14.25a7.454 7.454 0 0 0 .981-3.172M5.25 4.236c-.982.143-1.954.317-2.916.52A6.003 6.003 0 0 0 7.73 9.728M5.25 4.236V4.5c0 2.108.966 3.99 2.48 5.228M5.25 4.236V2.721C7.456 2.41 9.71 2.25 12 2.25c2.291 0 4.545.16 6.75.47v1.516M7.73 9.728a6.726 6.726 0 0 0 2.748 1.35m8.272-6.842V4.5c0 2.108-.966 3.99-2.48 5.228m2.48-5.492a46.32 46.32 0 0 1 2.916.52 6.003 6.003 0 0 1-5.395 4.972m0 0a6.726 6.726 0 0 1-2.749 1.35m0 0a6.772 6.772 0 0 1-3.044 0" />
+    </svg>
+  );
+  const IconPlusCircle = () => (
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+      </svg>
+  );
 
 const formatDecimalHours = (minutos) => {
     if (!minutos || minutos < 0) return '0h 0m';
@@ -39,60 +38,34 @@ const formatDecimalHours = (minutos) => {
     return `${h}h ${String(m).padStart(2, '0')}m`;
 };
 
-// [CORREÇÃO 2] Hook inline removido.
 
 function TopicListPanel({ user, cicloId, disciplinaId, registrosEstudo, disciplinaNome, onQuickAddTopic }) {
 
-  console.log("📊 TopicListPanel renderizado:", {
-    disciplinaId,
-    totalRegistros: registrosEstudo?.length || 0
-  });
-
   // 1. Busca os tópicos da disciplina selecionada usando o hook externo
-  const { topics, loadingTopics } = useTopicsDaDisciplina(user, cicloId, disciplinaId);
+  // [CORREÇÃO 1 e 2] Passando user.uid (string) em vez do objeto user
+  const { topics, loadingTopics } = useTopicsDaDisciplina(user?.uid, cicloId, disciplinaId);
 
-  // 2. Processa os registros de estudo para agregar dados por tópico
+  // 2. Processa os registros de estudo para agregar dados por tópico (lógica inalterada)
   const topicSummary = useMemo(() => {
     if (!topics || topics.length === 0) {
-      console.log("⚠️ Nenhum tópico disponível para processar");
       return new Map();
     }
-
     const summaryMap = new Map();
-
     topics.forEach(topic => {
       summaryMap.set(topic.id, {
-        ...topic,
-        totalMinutes: 0,
-        totalQuestions: 0,
-        totalCorrect: 0,
-        registrosCount: 0
+        ...topic, totalMinutes: 0, totalQuestions: 0, totalCorrect: 0, registrosCount: 0
       });
     });
-
-    // [CORREÇÃO 2] Otimização: A prop 'registrosEstudo' já vem filtrada do modal.
-    // Não é necessário filtrar novamente por 'disciplinaId'.
-    console.log("📝 Processando registros da disciplina:", registrosEstudo.length);
-
     registrosEstudo.forEach(registro => {
-      console.log("🔍 Registro:", {
-        topicoId: registro.topicoId,
-        minutos: registro.tempoEstudadoMinutos,
-        questoes: registro.questoesFeitas
-      });
-
       if (registro.topicoId && summaryMap.has(registro.topicoId)) {
         const topicData = summaryMap.get(registro.topicoId);
-
         const minutos = Number(registro.tempoEstudadoMinutos || 0);
         const questoes = Number(registro.questoesFeitas || 0);
         const acertos = Number(registro.acertos || 0);
-
         if (minutos > 0) {
           topicData.totalMinutes += minutos;
           topicData.registrosCount++;
         }
-
         if (questoes > 0) {
           topicData.totalQuestions += questoes;
           topicData.totalCorrect += acertos;
@@ -100,13 +73,10 @@ function TopicListPanel({ user, cicloId, disciplinaId, registrosEstudo, discipli
         }
       }
     });
-
-    console.log("📊 Resumo final dos tópicos:", Array.from(summaryMap.values()));
     return summaryMap;
-  // [CORREÇÃO 2] A dependência 'disciplinaId' é removida do useMemo,
-  // pois a prop 'registrosEstudo' já depende dela no componente pai.
   }, [topics, registrosEstudo]);
 
+  // Renderização (inalterada, exceto pela remoção do scroll interno)
   if (loadingTopics) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -140,7 +110,7 @@ function TopicListPanel({ user, cicloId, disciplinaId, registrosEstudo, discipli
   const completionPercentage = totalTopics > 0 ? (studiedTopics / totalTopics * 100).toFixed(0) : 0;
 
   return (
-    <div className="h-full flex flex-col">
+    <div>
       {/* Header com estatísticas */}
       <div className="mb-6">
         <h2 className="text-xl font-bold text-heading-color dark:text-dark-heading-color mb-2">
@@ -165,8 +135,8 @@ function TopicListPanel({ user, cicloId, disciplinaId, registrosEstudo, discipli
         </div>
       </div>
 
-      {/* Lista de Tópicos */}
-      <div className="flex-1 space-y-3 overflow-y-auto pr-2 pb-2" style={{ maxHeight: 'calc(100vh - 400px)' }}>
+      {/* Lista de Tópicos (sem scroll próprio) */}
+      <div className="space-y-3 pr-2 pb-2">
         {topicArray.map(topicData => {
           const performance = topicData.totalQuestions > 0
             ? ((topicData.totalCorrect / topicData.totalQuestions) * 100).toFixed(0)
