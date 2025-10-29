@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../../firebaseConfig';
 import { collection, query, where, onSnapshot, orderBy, serverTimestamp } from 'firebase/firestore';
+import useTopicsDaDisciplina from '../../hooks/useTopicsDaDisciplina'; // Importando o hook
 
 // --- Ícones ---
 const IconClose = () => (
@@ -8,38 +9,6 @@ const IconClose = () => (
       <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
     </svg>
 );
-// ... (outros ícones se necessário)
-
-// --- Hook para Tópicos ---
-const useTopicsDaDisciplina = (user, cicloId, disciplinaId) => {
-  const [topics, setTopics] = useState([]);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (!user || !cicloId || !disciplinaId) {
-      setTopics([]);
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    setTopics([]);
-    const topicsRef = collection(db, 'users', user.uid, 'ciclos', cicloId, 'topicos');
-    const q = query(topicsRef, where('disciplinaId', '==', disciplinaId), orderBy('nome'));
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setTopics(data);
-      setLoading(false);
-    }, (error) => {
-        console.error("Erro ao buscar tópicos:", error);
-        setLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, [user, cicloId, disciplinaId]);
-
-  return { topics, loadingTopics: loading };
-};
 
 // --- Componente Principal do Modal ---
 function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disciplinasDoCiclo, initialData }) {
@@ -48,47 +17,42 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
     disciplinaId: initialData?.disciplinaId || '',
     topicoId: initialData?.topicoId || '',
     data: new Date().toISOString().split('T')[0], // YYYY-MM-DD
-    // [NOVO] Aceita tempo do timer ou default
     minutos: initialData?.tempoEstudadoMinutos || 0,
     questoesFeitas: initialData?.questoesFeitas || 0,
     acertos: initialData?.acertos || 0,
-    // [NOVO] Campo Tipo de Estudo
     tipoEstudo: initialData?.tipoEstudo || 'Teoria',
   });
 
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  // [NOVO] Verifica se o tempo foi pré-preenchido pelo timer
   const isTimeFromTimer = useMemo(() =>
     initialData?.tempoEstudadoMinutos !== undefined && initialData.tempoEstudadoMinutos > 0,
     [initialData]
   );
 
+  // Usando o hook externo
   const { topics, loadingTopics } = useTopicsDaDisciplina(userId, cicloId, formData.disciplinaId);
 
-  // Atualiza o formulário se a disciplina selecionada não tiver tópicos
   useEffect(() => {
     if (formData.disciplinaId && !loadingTopics && topics.length === 0) {
       setFormData(prev => ({ ...prev, topicoId: '' }));
     }
   }, [formData.disciplinaId, loadingTopics, topics]);
 
-  // [NOVO] Tipos de Estudo
   const tiposDeEstudo = ['Teoria', 'Questões', 'Revisão', 'Resumo', 'Simulado', 'Outro'];
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
 
-    // Limpa o tópico se a disciplina mudar
     if (name === 'disciplinaId') {
         setFormData(prev => ({ ...prev, topicoId: '' }));
     }
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    e.preventDefault(); // O onSubmit do form chama esta função
     setLoading(true);
     setErrorMessage('');
 
@@ -112,7 +76,7 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
       tempoEstudadoMinutos: Number(formData.minutos),
       questoesFeitas: Number(formData.questoesFeitas),
       acertos: Number(formData.acertos),
-      tipoEstudo: formData.tipoEstudo, // [NOVO]
+      tipoEstudo: formData.tipoEstudo,
       // (Campos antigos normalizados)
       duracaoMinutos: Number(formData.minutos),
       questoesAcertadas: Number(formData.acertos),
@@ -191,7 +155,7 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
             </div>
           </div>
 
-          {/* [NOVO] Linha 2: Tipo de Estudo */}
+          {/* Linha 2: Tipo de Estudo */}
           <div>
             <label className="block text-sm font-semibold mb-2 text-heading-color dark:text-dark-heading-color">Tipo de Estudo *</label>
             <div className="flex flex-wrap gap-2">
@@ -239,7 +203,6 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
                 onChange={handleChange}
                 min="0"
                 step="1"
-                // [NOVO] Desabilita se veio do timer
                 disabled={isTimeFromTimer}
                 className="w-full p-2.5 border border-border-color dark:border-dark-border-color rounded-lg bg-background-color dark:bg-dark-background-color focus:ring-2 focus:ring-primary-color focus:border-primary-color transition disabled:opacity-50 disabled:bg-border-color dark:disabled:bg-dark-border-color"
               />
@@ -294,7 +257,8 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
           </button>
           <button
             type="submit"
-            onClick={handleSubmit}
+            form="registro-form" // [CORREÇÃO 5] Embora o form já capture, boa prática
+            // [CORREÇÃO 5] Removido o onClick={handleSubmit} daqui
             disabled={loading}
             className="px-5 py-2.5 rounded-lg text-sm font-semibold text-white bg-primary-color hover:bg-primary-hover transition flex items-center justify-center disabled:opacity-50"
           >

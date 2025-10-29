@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../../firebaseConfig';
 import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
+// [CORREÇÃO 2] Importando o hook externo padronizado
+import useTopicsDaDisciplina from '../../hooks/useTopicsDaDisciplina';
 
 // Ícones
 const IconBook = () => (
@@ -8,26 +10,21 @@ const IconBook = () => (
     <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" />
   </svg>
 );
-
 const IconClock = () => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
     <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
   </svg>
 );
-
 const IconQuestions = () => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
     <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 5.25h.008v.008H12v-.008Z" />
   </svg>
 );
-
 const IconTrophy = () => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
     <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 18.75h-9m9 0a3 3 0 0 1 3 3h-15a3 3 0 0 1 3-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 0 1-.982-3.172M9.497 14.25a7.454 7.454 0 0 0 .981-3.172M5.25 4.236c-.982.143-1.954.317-2.916.52A6.003 6.003 0 0 0 7.73 9.728M5.25 4.236V4.5c0 2.108.966 3.99 2.48 5.228M5.25 4.236V2.721C7.456 2.41 9.71 2.25 12 2.25c2.291 0 4.545.16 6.75.47v1.516M7.73 9.728a6.726 6.726 0 0 0 2.748 1.35m8.272-6.842V4.5c0 2.108-.966 3.99-2.48 5.228m2.48-5.492a46.32 46.32 0 0 1 2.916.52 6.003 6.003 0 0 1-5.395 4.972m0 0a6.726 6.726 0 0 1-2.749 1.35m0 0a6.772 6.772 0 0 1-3.044 0" />
   </svg>
 );
-
-// [ITEM 2] Ícone para o botão de Quick Add
 const IconPlusCircle = () => (
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
       <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
@@ -42,41 +39,8 @@ const formatDecimalHours = (minutos) => {
     return `${h}h ${String(m).padStart(2, '0')}m`;
 };
 
-// Hook para buscar Tópicos da Disciplina
-const useTopicsDaDisciplina = (user, cicloId, disciplinaId) => {
-  const [topics, setTopics] = useState([]);
-  const [loading, setLoading] = useState(false);
+// [CORREÇÃO 2] Hook inline removido.
 
-  useEffect(() => {
-    if (!user || !cicloId || !disciplinaId) {
-      setTopics([]);
-      setLoading(false);
-      return;
-    }
-
-    console.log("🔍 Buscando tópicos para disciplina:", disciplinaId);
-    setLoading(true);
-    setTopics([]); // <-- [ITEM 5] CORREÇÃO: Limpa os tópicos antigos ao buscar novos
-    const topicsRef = collection(db, 'users', user.uid, 'ciclos', cicloId, 'topicos');
-    const q = query(topicsRef, where('disciplinaId', '==', disciplinaId), orderBy('nome'));
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const topicsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      console.log("✅ Tópicos carregados:", topicsData.length);
-      setTopics(topicsData);
-      setLoading(false);
-    }, (error) => {
-      console.error("❌ Erro ao buscar tópicos:", error);
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, [user, cicloId, disciplinaId]);
-
-  return { topics, loadingTopics: loading };
-};
-
-// [ITEM 2] Adicionada a prop 'onQuickAddTopic'
 function TopicListPanel({ user, cicloId, disciplinaId, registrosEstudo, disciplinaNome, onQuickAddTopic }) {
 
   console.log("📊 TopicListPanel renderizado:", {
@@ -84,7 +48,7 @@ function TopicListPanel({ user, cicloId, disciplinaId, registrosEstudo, discipli
     totalRegistros: registrosEstudo?.length || 0
   });
 
-  // 1. Busca os tópicos da disciplina selecionada
+  // 1. Busca os tópicos da disciplina selecionada usando o hook externo
   const { topics, loadingTopics } = useTopicsDaDisciplina(user, cicloId, disciplinaId);
 
   // 2. Processa os registros de estudo para agregar dados por tópico
@@ -96,7 +60,6 @@ function TopicListPanel({ user, cicloId, disciplinaId, registrosEstudo, discipli
 
     const summaryMap = new Map();
 
-    // Inicializa todos os tópicos com valores zerados
     topics.forEach(topic => {
       summaryMap.set(topic.id, {
         ...topic,
@@ -107,12 +70,11 @@ function TopicListPanel({ user, cicloId, disciplinaId, registrosEstudo, discipli
       });
     });
 
-    // Filtra registros da disciplina
-    const registrosDaDisciplina = registrosEstudo.filter(r => r.disciplinaId === disciplinaId);
+    // [CORREÇÃO 2] Otimização: A prop 'registrosEstudo' já vem filtrada do modal.
+    // Não é necessário filtrar novamente por 'disciplinaId'.
+    console.log("📝 Processando registros da disciplina:", registrosEstudo.length);
 
-    console.log("📝 Processando registros da disciplina:", registrosDaDisciplina.length);
-
-    registrosDaDisciplina.forEach(registro => {
+    registrosEstudo.forEach(registro => {
       console.log("🔍 Registro:", {
         topicoId: registro.topicoId,
         minutos: registro.tempoEstudadoMinutos,
@@ -122,7 +84,6 @@ function TopicListPanel({ user, cicloId, disciplinaId, registrosEstudo, discipli
       if (registro.topicoId && summaryMap.has(registro.topicoId)) {
         const topicData = summaryMap.get(registro.topicoId);
 
-        // NORMALIZAÇÃO COMPLETA
         const minutos = Number(registro.tempoEstudadoMinutos || 0);
         const questoes = Number(registro.questoesFeitas || 0);
         const acertos = Number(registro.acertos || 0);
@@ -135,16 +96,16 @@ function TopicListPanel({ user, cicloId, disciplinaId, registrosEstudo, discipli
         if (questoes > 0) {
           topicData.totalQuestions += questoes;
           topicData.totalCorrect += acertos;
-          if (minutos === 0) topicData.registrosCount++; // Conta também se só tiver questões
+          if (minutos === 0) topicData.registrosCount++;
         }
-
-        console.log(`✅ Tópico ${topicData.nome} atualizado:`, topicData);
       }
     });
 
     console.log("📊 Resumo final dos tópicos:", Array.from(summaryMap.values()));
     return summaryMap;
-  }, [topics, registrosEstudo, disciplinaId]);
+  // [CORREÇÃO 2] A dependência 'disciplinaId' é removida do useMemo,
+  // pois a prop 'registrosEstudo' já depende dela no componente pai.
+  }, [topics, registrosEstudo]);
 
   if (loadingTopics) {
     return (
@@ -224,7 +185,6 @@ function TopicListPanel({ user, cicloId, disciplinaId, registrosEstudo, discipli
                 }
               `}
             >
-              {/* Barra de progresso de fundo */}
               {hasData && (
                 <div
                   className="absolute inset-0 bg-primary-color/5 transition-all duration-500"
@@ -236,7 +196,6 @@ function TopicListPanel({ user, cicloId, disciplinaId, registrosEstudo, discipli
               )}
 
               <div className="relative p-4">
-                {/* [ITEM 2] Nome do tópico e contador de registros */}
                 <div className="flex items-start justify-between mb-3">
                   <h4 className="font-semibold text-text-color dark:text-dark-text-color flex items-center gap-2 flex-1 min-w-0">
                     <span className={`w-2 h-2 rounded-full ${hasData ? 'bg-primary-color' : 'bg-border-color dark:bg-dark-border-color'}`}></span>
@@ -249,10 +208,8 @@ function TopicListPanel({ user, cicloId, disciplinaId, registrosEstudo, discipli
                   )}
                 </div>
 
-                {/* Estatísticas */}
                 {hasData ? (
                   <div className="grid grid-cols-3 gap-2">
-                    {/* Tempo */}
                     <div className="text-center p-2 bg-background-color dark:bg-dark-background-color rounded-lg">
                       <div className="flex items-center justify-center gap-1 mb-1">
                         <IconClock />
@@ -265,7 +222,6 @@ function TopicListPanel({ user, cicloId, disciplinaId, registrosEstudo, discipli
                       </div>
                     </div>
 
-                    {/* Questões */}
                     <div className="text-center p-2 bg-background-color dark:bg-dark-background-color rounded-lg">
                       <div className="flex items-center justify-center gap-1 mb-1">
                         <IconQuestions />
@@ -278,7 +234,6 @@ function TopicListPanel({ user, cicloId, disciplinaId, registrosEstudo, discipli
                       </div>
                     </div>
 
-                    {/* Desempenho */}
                     <div className="text-center p-2 bg-background-color dark:bg-dark-background-color rounded-lg">
                       <div className="flex items-center justify-center gap-1 mb-1">
                         <IconTrophy />
@@ -296,7 +251,6 @@ function TopicListPanel({ user, cicloId, disciplinaId, registrosEstudo, discipli
                     </div>
                   </div>
                 ) : (
-                  // [ITEM 2] Só mostra "Nenhum registro" se não houver a função de quick add
                   !onQuickAddTopic && (
                     <div className="text-center py-3">
                       <p className="text-sm text-subtle-text-color dark:text-dark-subtle-text-color">
@@ -306,7 +260,6 @@ function TopicListPanel({ user, cicloId, disciplinaId, registrosEstudo, discipli
                   )
                 )}
 
-                {/* [ITEM 2] Botão de Quick Add */}
                 {onQuickAddTopic && (
                     <button
                       onClick={() => onQuickAddTopic(disciplinaId, topicData)}

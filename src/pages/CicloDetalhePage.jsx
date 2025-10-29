@@ -1,14 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../firebaseConfig';
 import { doc, collection, query, orderBy, onSnapshot } from 'firebase/firestore';
-import { AnimatePresence, motion } from 'framer-motion'; // [NOVO] Para animações
+import { AnimatePresence, motion } from 'framer-motion'; // Para animações
 
 // Componentes Reais do seu projeto
 import CicloVisual from '../components/ciclos/CicloVisual';
 import RegistroEstudoModal from '../components/ciclos/RegistroEstudoModal';
 import StudyTimer from '../components/ciclos/StudyTimer'; // [NOVO]
 import DisciplinaDetalheModal from '../components/ciclos/DisciplinaDetalheModal'; // [NOVO]
-// [REMOVIDO] TopicListPanel não é mais usado diretamente aqui
 
 // ==================== ÍCONES ====================
 const IconArrowLeft = () => (
@@ -65,11 +64,8 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo }) {
   const [viewModeCiclo, setViewModeCiclo] = useState('semanal'); // 'semanal' ou 'total'
 
   // --- [NOVOS ESTADOS] ---
-  // Para o timer
   const [disciplinaEmEstudo, setDisciplinaEmEstudo] = useState(null);
-  // Para o modal de detalhes
   const [disciplinaEmDetalhe, setDisciplinaEmDetalhe] = useState(null);
-  // Para o highlight na roda/legenda
   const [selectedDisciplinaId, setSelectedDisciplinaId] = useState(null);
 
   // --- Carregamento de Dados (sem alterações) ---
@@ -132,42 +128,40 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo }) {
       return dias.size;
   }, [registrosDoCiclo]);
 
-  // --- [NOVOS HANDLERS] ---
+  // --- [HANDLERS ATUALIZADOS] ---
 
-  // Abre o modal de detalhes
   const handleViewDetails = (disciplina) => {
     setDisciplinaEmDetalhe(disciplina);
-    setSelectedDisciplinaId(disciplina.id); // Mantém o highlight
+    setSelectedDisciplinaId(disciplina.id);
   };
 
-  // Inicia a sessão de estudo (timer)
   const handleStartStudy = (disciplina) => {
     if (ciclo.ativo) {
         setDisciplinaEmEstudo(disciplina);
-        setDisciplinaEmDetalhe(null); // Fecha o modal se estiver aberto
-        setSelectedDisciplinaId(null); // Limpa highlight
+        setDisciplinaEmDetalhe(null);
+        setSelectedDisciplinaId(null);
     }
   };
 
-  // Para o timer e abre o modal de registro
+  // [CORREÇÃO 1 - TELA BRANCA]
   const handleStopStudy = (tempoMinutos) => {
-    const disciplina = disciplinaEmEstudo;
+    // Adiciona verificação para impedir double-click ou race condition
+    if (!disciplinaEmEstudo) return;
+
+    const disciplina = disciplinaEmEstudo; // Pega o valor ANTES de limpar
     setDisciplinaEmEstudo(null); // Fecha o timer
 
-    // Prepara os dados para o modal de registro
     setRegistroPreenchido({
-        disciplinaId: disciplina.id,
-        tempoEstudadoMinutos: Math.max(1, Math.round(tempoMinutos)), // Mínimo de 1 min
+        disciplinaId: disciplina.id, // Agora isso é seguro
+        tempoEstudadoMinutos: Math.max(1, Math.round(tempoMinutos)),
     });
     setShowRegistroModal(true);
   };
 
-  // Cancela o timer
   const handleCancelStudy = () => {
     setDisciplinaEmEstudo(null);
   };
 
-  // Abre o modal de registro pré-preenchido (vindo do TopicListPanel)
   const openRegistroModalWithTopic = (disciplinaId, topico) => {
     const disciplina = disciplinas.find(d => d.id === disciplinaId);
     if (disciplina) {
@@ -176,20 +170,18 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo }) {
             topicoId: topico.id,
         });
         setShowRegistroModal(true);
-        setDisciplinaEmDetalhe(null); // Fecha o modal de detalhes
+        setDisciplinaEmDetalhe(null);
     }
   };
 
-  // Fecha o modal de registro
   const handleModalClose = () => {
     setShowRegistroModal(false);
     setRegistroPreenchido(null);
   };
 
-  // Fecha o modal de detalhes
   const handleDetalheModalClose = () => {
     setDisciplinaEmDetalhe(null);
-    setSelectedDisciplinaId(null); // Limpa highlight
+    setSelectedDisciplinaId(null);
   };
 
   // --- Renderização ---
@@ -270,7 +262,6 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo }) {
       <div className="flex flex-col flex-grow items-center p-4 md:p-6">
           <div className="w-full max-w-5xl bg-card-background-color dark:bg-dark-card-background-color rounded-xl shadow-lg p-4 md:p-6 border border-border-color dark:border-dark-border-color">
 
-              {/* [NOVO] Animação de troca entre Roda e Timer */}
               <AnimatePresence mode="wait">
                 {disciplinaEmEstudo ? (
                     <motion.div
@@ -298,9 +289,9 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo }) {
                     >
                         <CicloVisual
                             selectedDisciplinaId={selectedDisciplinaId}
-                            onSelectDisciplina={setSelectedDisciplinaId} // Seta o highlight
-                            onViewDetails={handleViewDetails} // Abre o modal
-                            onStartStudy={handleStartStudy}  // Inicia o timer
+                            onSelectDisciplina={setSelectedDisciplinaId}
+                            onViewDetails={handleViewDetails}
+                            onStartStudy={handleStartStudy}
                             disciplinas={disciplinas}
                             registrosEstudo={registrosDoCiclo}
                             viewMode={viewModeCiclo}
@@ -310,14 +301,12 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo }) {
                 )}
               </AnimatePresence>
           </div>
-
-          {/* [REMOVIDO] O TopicListPanel não é mais renderizado aqui */}
       </div>
 
 
       {/* Botão Flutuante (Registrar Manualmente) */}
       <AnimatePresence>
-      {!disciplinaEmEstudo && ( // Esconde o botão se o timer estiver ativo
+      {!disciplinaEmEstudo && (
         <motion.div
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -344,8 +333,6 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo }) {
       )}
       </AnimatePresence>
 
-
-      {/* --- [NOVOS MODAIS] --- */}
 
       {/* Modal de Detalhes da Disciplina */}
       <AnimatePresence>
@@ -375,13 +362,12 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo }) {
               cicloId={cicloId}
               userId={user.uid}
               disciplinasDoCiclo={disciplinas}
-              initialData={registroPreenchido} // Passa dados iniciais (do timer ou quick add)
+              initialData={registroPreenchido}
             />
         </motion.div>
       )}
       </AnimatePresence>
 
-      {/* Espaçador final */}
       <div className="h-24 flex-shrink-0"></div>
     </div>
   );
