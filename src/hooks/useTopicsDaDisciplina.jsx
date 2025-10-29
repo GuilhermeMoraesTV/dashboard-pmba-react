@@ -17,6 +17,7 @@ const useTopicsDaDisciplina = (user, cicloId, disciplinaId) => {
     }
 
     setLoading(true);
+    setTopics([]);
     const topicsRef = collection(db, 'users', user.uid, 'ciclos', cicloId, 'topicos');
     // Query para buscar tópicos ONDE disciplinaId == ID selecionado
     // Ordena por nome (ou por 'ordem' se você adicionar esse campo)
