@@ -1,16 +1,16 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../firebaseConfig';
 import { doc, collection, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { AnimatePresence, motion } from 'framer-motion'; // [NOVO] Para animações
 
 // Componentes Reais do seu projeto
-// IMPORTANTE: Precisaremos de um novo CicloVisual aprimorado
 import CicloVisual from '../components/ciclos/CicloVisual';
 import RegistroEstudoModal from '../components/ciclos/RegistroEstudoModal';
-// IMPORTANTE: Precisaremos de um novo TopicListPanel aprimorado
-import TopicListPanel from '../components/ciclos/TopicListPanel';
+import StudyTimer from '../components/ciclos/StudyTimer'; // [NOVO]
+import DisciplinaDetalheModal from '../components/ciclos/DisciplinaDetalheModal'; // [NOVO]
+// [REMOVIDO] TopicListPanel não é mais usado diretamente aqui
 
 // ==================== ÍCONES ====================
-// (Reutilizando os ícones anteriores e adicionando novos se necessário)
 const IconArrowLeft = () => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
     <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
@@ -31,33 +31,12 @@ const IconFire = () => (
     <path strokeLinecap="round" strokeLinejoin="round" d="M15.362 5.214A8.252 8.252 0 0 1 12 21 8.25 8.25 0 0 1 6.038 7.047 8.287 8.287 0 0 0 9 9.601a8.983 8.983 0 0 1 3.361-6.867 8.21 8.21 0 0 0 3 2.48Z" />
   </svg>
 );
-const IconClock = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-  </svg>
-);
 const IconTarget = () => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
     <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
     <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
   </svg>
 );
-const IconClose = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-    </svg>
-);
-// Ícone para Quick Add no TopicListPanel (opcional)
-const IconPlusCircle = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-    </svg>
-);
-// Ícones para os tópicos
-const IconTopicTime = () => (<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 text-blue-500"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>);
-const IconTopicQuestions = () => (<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 text-green-500"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>);
-const IconTopicPerformance = () => (<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 text-yellow-500"><path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 1 1-3 0m3 0a1.5 1.5 0 1 0-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-9.75 0h3.75" /></svg>);
-// Ícone para alternar progresso Total/Semanal
 const IconSwitch = () => (
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
       <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h18M16.5 3 21 7.5m0 0L16.5 12M21 7.5H3" />
@@ -73,13 +52,6 @@ const dateToYMD_local = (date) => {
   return `${year}-${month}-${day}`;
 };
 
-const formatDecimalHours = (minutos) => {
-  if (!minutos || minutos < 0) return '0h 0m';
-  const h = Math.floor(minutos / 60);
-  const m = Math.round(minutos % 60);
-  return `${h}h ${m}m`;
-};
-
 // ==================== COMPONENTE PRINCIPAL (PÁGINA) ====================
 function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo }) {
 
@@ -89,12 +61,18 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo }) {
 
   const [loading, setLoading] = useState(true);
   const [showRegistroModal, setShowRegistroModal] = useState(false);
-  const [registroPreenchido, setRegistroPreenchido] = useState(null); // Para pré-preencher o modal
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const [selectedDisciplinaForDrawer, setSelectedDisciplinaForDrawer] = useState(null);
-  const [selectedDisciplinaIdVisual, setSelectedDisciplinaIdVisual] = useState(null);
+  const [registroPreenchido, setRegistroPreenchido] = useState(null);
   const [viewModeCiclo, setViewModeCiclo] = useState('semanal'); // 'semanal' ou 'total'
 
+  // --- [NOVOS ESTADOS] ---
+  // Para o timer
+  const [disciplinaEmEstudo, setDisciplinaEmEstudo] = useState(null);
+  // Para o modal de detalhes
+  const [disciplinaEmDetalhe, setDisciplinaEmDetalhe] = useState(null);
+  // Para o highlight na roda/legenda
+  const [selectedDisciplinaId, setSelectedDisciplinaId] = useState(null);
+
+  // --- Carregamento de Dados (sem alterações) ---
   useEffect(() => {
      if (!user || !cicloId) return;
      setLoading(true);
@@ -132,6 +110,7 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo }) {
                 questoesFeitas: Number(data.questoesFeitas || 0),
                 acertos: Number(data.acertos || data.questoesAcertadas || 0),
                 data: typeof data.data === 'string' ? data.data : (data.data?.toDate ? dateToYMD_local(data.data.toDate()) : dateToYMD_local(new Date())),
+                tipoEstudo: data.tipoEstudo || 'Teoria', // Garante o campo
             };
         });
         setAllRegistrosEstudo(todosRegistros);
@@ -153,25 +132,42 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo }) {
       return dias.size;
   }, [registrosDoCiclo]);
 
-  const handleSelectDisciplina = (disciplinaId) => {
-    const disciplinaSelecionada = disciplinas.find(d => d.id === disciplinaId);
-    if (disciplinaSelecionada) {
-        if (isDrawerOpen && selectedDisciplinaForDrawer?.id === disciplinaId) {
-            setIsDrawerOpen(false);
-            setSelectedDisciplinaForDrawer(null);
-            setSelectedDisciplinaIdVisual(null);
-        } else {
-            setSelectedDisciplinaForDrawer({ id: disciplinaId, nome: disciplinaSelecionada.nome });
-            setIsDrawerOpen(true);
-            setSelectedDisciplinaIdVisual(disciplinaId);
-        }
-    } else {
-        setIsDrawerOpen(false);
-        setSelectedDisciplinaForDrawer(null);
-        setSelectedDisciplinaIdVisual(null);
+  // --- [NOVOS HANDLERS] ---
+
+  // Abre o modal de detalhes
+  const handleViewDetails = (disciplina) => {
+    setDisciplinaEmDetalhe(disciplina);
+    setSelectedDisciplinaId(disciplina.id); // Mantém o highlight
+  };
+
+  // Inicia a sessão de estudo (timer)
+  const handleStartStudy = (disciplina) => {
+    if (ciclo.ativo) {
+        setDisciplinaEmEstudo(disciplina);
+        setDisciplinaEmDetalhe(null); // Fecha o modal se estiver aberto
+        setSelectedDisciplinaId(null); // Limpa highlight
     }
   };
 
+  // Para o timer e abre o modal de registro
+  const handleStopStudy = (tempoMinutos) => {
+    const disciplina = disciplinaEmEstudo;
+    setDisciplinaEmEstudo(null); // Fecha o timer
+
+    // Prepara os dados para o modal de registro
+    setRegistroPreenchido({
+        disciplinaId: disciplina.id,
+        tempoEstudadoMinutos: Math.max(1, Math.round(tempoMinutos)), // Mínimo de 1 min
+    });
+    setShowRegistroModal(true);
+  };
+
+  // Cancela o timer
+  const handleCancelStudy = () => {
+    setDisciplinaEmEstudo(null);
+  };
+
+  // Abre o modal de registro pré-preenchido (vindo do TopicListPanel)
   const openRegistroModalWithTopic = (disciplinaId, topico) => {
     const disciplina = disciplinas.find(d => d.id === disciplinaId);
     if (disciplina) {
@@ -180,13 +176,23 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo }) {
             topicoId: topico.id,
         });
         setShowRegistroModal(true);
+        setDisciplinaEmDetalhe(null); // Fecha o modal de detalhes
     }
   };
 
+  // Fecha o modal de registro
   const handleModalClose = () => {
     setShowRegistroModal(false);
-    setRegistroPreenchido(null); // Limpa o pré-preenchimento ao fechar
+    setRegistroPreenchido(null);
   };
+
+  // Fecha o modal de detalhes
+  const handleDetalheModalClose = () => {
+    setDisciplinaEmDetalhe(null);
+    setSelectedDisciplinaId(null); // Limpa highlight
+  };
+
+  // --- Renderização ---
 
   if (loading) {
     return (
@@ -206,8 +212,9 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo }) {
   }
 
   return (
-    <div className="relative flex flex-col flex-grow h-full">
+    <div className="relative flex flex-col flex-grow h-full overflow-y-auto custom-scrollbar">
 
+      {/* Header Fixo */}
       <div className="relative overflow-hidden bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 rounded-b-3xl shadow-lg p-6 flex-shrink-0">
         <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)', backgroundSize: '40px 40px' }}></div>
         <div className="relative z-10">
@@ -229,7 +236,7 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo }) {
               <div className="flex items-center gap-4 text-white/80 text-xs">
                 <p className="flex items-center gap-1.5">
                   <IconTarget className="w-4 h-4" />
-                  Meta: {(ciclo.totalMetaSemanalMinutos / 60).toFixed(1) || 0}h/semana
+                  Meta: {((ciclo.totalMetaSemanalMinutos || 0) / 60).toFixed(1)}h/semana
                 </p>
                 <p className="flex items-center gap-1.5">
                   <IconFire className="w-4 h-4" />
@@ -237,7 +244,6 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo }) {
                 </p>
               </div>
             </div>
-             {/* Botão de Toggle Visualização */}
             <button
                 onClick={() => setViewModeCiclo(prev => prev === 'semanal' ? 'total' : 'semanal')}
                 className="flex items-center gap-2 px-3 py-1.5 bg-white/20 backdrop-blur-sm text-white text-xs font-semibold rounded-full hover:bg-white/30 transition-colors"
@@ -260,85 +266,123 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo }) {
         </div>
       )}
 
-      <div className="flex flex-grow justify-center items-center p-4 md:p-6 overflow-hidden">
-          <div className="w-full h-full max-w-5xl max-h-[calc(100vh-250px)] bg-card-background-color dark:bg-dark-card-background-color rounded-xl shadow-lg p-4 md:p-6 border border-border-color dark:border-dark-border-color flex justify-center items-center">
-              <div className="w-full h-full">
-                <CicloVisual
-                    selectedDisciplinaId={selectedDisciplinaIdVisual}
-                    onSelectDisciplina={handleSelectDisciplina}
-                    disciplinas={disciplinas}
-                    registrosEstudo={registrosDoCiclo}
-                    viewMode={viewModeCiclo} // Passa o modo de visualização
-                    key={viewModeCiclo} // Força re-renderização ao mudar modo
-                />
-              </div>
+      {/* Container do conteúdo principal (Roda OU Timer) */}
+      <div className="flex flex-col flex-grow items-center p-4 md:p-6">
+          <div className="w-full max-w-5xl bg-card-background-color dark:bg-dark-card-background-color rounded-xl shadow-lg p-4 md:p-6 border border-border-color dark:border-dark-border-color">
+
+              {/* [NOVO] Animação de troca entre Roda e Timer */}
+              <AnimatePresence mode="wait">
+                {disciplinaEmEstudo ? (
+                    <motion.div
+                        key="timer"
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.9 }}
+                        transition={{ duration: 0.2 }}
+                        className="w-full"
+                    >
+                        <StudyTimer
+                            disciplina={disciplinaEmEstudo}
+                            onStop={handleStopStudy}
+                            onCancel={handleCancelStudy}
+                        />
+                    </motion.div>
+                ) : (
+                    <motion.div
+                        key="ciclo"
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.9 }}
+                        transition={{ duration: 0.2 }}
+                        className="w-full"
+                    >
+                        <CicloVisual
+                            selectedDisciplinaId={selectedDisciplinaId}
+                            onSelectDisciplina={setSelectedDisciplinaId} // Seta o highlight
+                            onViewDetails={handleViewDetails} // Abre o modal
+                            onStartStudy={handleStartStudy}  // Inicia o timer
+                            disciplinas={disciplinas}
+                            registrosEstudo={registrosDoCiclo}
+                            viewMode={viewModeCiclo}
+                            key={viewModeCiclo}
+                        />
+                    </motion.div>
+                )}
+              </AnimatePresence>
           </div>
+
+          {/* [REMOVIDO] O TopicListPanel não é mais renderizado aqui */}
       </div>
 
-      <div className="fixed bottom-6 right-6 z-30 group">
+
+      {/* Botão Flutuante (Registrar Manualmente) */}
+      <AnimatePresence>
+      {!disciplinaEmEstudo && ( // Esconde o botão se o timer estiver ativo
+        <motion.div
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.8 }}
+            className="fixed bottom-6 right-6 z-30 group"
+        >
           <button
               onClick={() => ciclo.ativo && setShowRegistroModal(true)}
               disabled={!ciclo.ativo}
               className={`flex items-center justify-center bg-primary-color text-white rounded-full p-4 shadow-lg hover:bg-primary-hover transition-all duration-300 ease-in-out
                          ${!ciclo.ativo ? 'opacity-50 cursor-not-allowed' : ''}
-                         w-16 h-16 group-hover:w-48 group-hover:rounded-lg`}
-              title="Registrar Estudo"
+                         w-16 h-16 group-hover:w-48 group-hover:rounded-lg
+                         group-hover:justify-start group-hover:gap-3`}
+              title="Registrar Estudo Manualmente"
           >
              <IconPlus />
               <span
-                 className="absolute left-16 opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap overflow-hidden font-semibold text-sm pointer-events-none"
+                 className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap overflow-hidden font-semibold text-sm pointer-events-none"
                >
                  Registrar Estudo
               </span>
           </button>
-      </div>
-
-      <div
-        className={`fixed top-0 right-0 h-full w-full max-w-md bg-card-background-color dark:bg-dark-card-background-color shadow-2xl z-40 transform transition-transform duration-300 ease-in-out border-l border-border-color dark:border-dark-border-color flex flex-col
-                   ${isDrawerOpen ? 'translate-x-0' : 'translate-x-full'}`}
-      >
-          {selectedDisciplinaForDrawer && (
-            <>
-              <div className="flex justify-between items-center p-4 border-b border-border-color dark:border-dark-border-color">
-                  <h2 className="text-lg font-semibold text-heading-color dark:text-dark-heading-color">
-                     Tópicos de: {selectedDisciplinaForDrawer.nome}
-                  </h2>
-                  <button onClick={() => { setIsDrawerOpen(false); setSelectedDisciplinaForDrawer(null); setSelectedDisciplinaIdVisual(null); }} className="text-subtle-text-color dark:text-dark-subtle-text-color hover:text-danger-color">
-                      <IconClose />
-                  </button>
-              </div>
-              <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
-                  <TopicListPanel
-                      user={user}
-                      cicloId={cicloId}
-                      disciplinaId={selectedDisciplinaForDrawer.id}
-                      registrosEstudo={registrosDoCiclo}
-                      disciplinaNome={selectedDisciplinaForDrawer.nome}
-                      onQuickAddTopic={openRegistroModalWithTopic} // Passa a função para quick add
-                  />
-              </div>
-            </>
-          )}
-      </div>
-
-      {isDrawerOpen && (
-        <div
-          className="fixed inset-0 bg-black/40 z-30"
-          onClick={() => { setIsDrawerOpen(false); setSelectedDisciplinaForDrawer(null); setSelectedDisciplinaIdVisual(null); }}
-        ></div>
+        </motion.div>
       )}
+      </AnimatePresence>
 
 
-      {showRegistroModal && (
-        <RegistroEstudoModal
-          onClose={handleModalClose}
-          addRegistroEstudo={addRegistroEstudo}
-          cicloId={cicloId}
-          userId={user.uid}
-          disciplinasDoCiclo={disciplinas}
-          initialData={registroPreenchido} // Passa dados iniciais se houver
+      {/* --- [NOVOS MODAIS] --- */}
+
+      {/* Modal de Detalhes da Disciplina */}
+      <AnimatePresence>
+      {disciplinaEmDetalhe && (
+        <DisciplinaDetalheModal
+            disciplina={disciplinaEmDetalhe}
+            registrosEstudo={registrosDoCiclo}
+            cicloId={cicloId}
+            user={user}
+            onClose={handleDetalheModalClose}
+            onQuickAddTopic={openRegistroModalWithTopic}
         />
       )}
+      </AnimatePresence>
+
+      {/* Modal de Registro (Usado para registro manual e pós-timer) */}
+      <AnimatePresence>
+      {showRegistroModal && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+        >
+            <RegistroEstudoModal
+              onClose={handleModalClose}
+              addRegistroEstudo={addRegistroEstudo}
+              cicloId={cicloId}
+              userId={user.uid}
+              disciplinasDoCiclo={disciplinas}
+              initialData={registroPreenchido} // Passa dados iniciais (do timer ou quick add)
+            />
+        </motion.div>
+      )}
+      </AnimatePresence>
+
+      {/* Espaçador final */}
+      <div className="h-24 flex-shrink-0"></div>
     </div>
   );
 }

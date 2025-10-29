@@ -1,319 +1,311 @@
-import React, { useState, useEffect } from 'react';
-import { collection, query, where, onSnapshot, Timestamp } from 'firebase/firestore';
+import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../../firebaseConfig';
+import { collection, query, where, onSnapshot, orderBy, serverTimestamp } from 'firebase/firestore';
 
-// Helper para data local
-const dateToYMDLocal = (date) => {
-  const d = date.getDate();
-  const m = date.getMonth() + 1;
-  const y = date.getFullYear();
-  return '' + y + '-' + (m <= 9 ? '0' + m : m) + '-' + (d <= 9 ? '0' + d : d);
-};
+// --- Ícones ---
+const IconClose = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+    </svg>
+);
+// ... (outros ícones se necessário)
 
-function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disciplinasDoCiclo }) {
-  const [tipoEstudo, setTipoEstudo] = useState('Teoria');
-  const [disciplinaSelecionadaId, setDisciplinaSelecionadaId] = useState('');
-  const [topicoSelecionadoId, setTopicoSelecionadoId] = useState('');
-  const [dataEstudo, setDataEstudo] = useState(dateToYMDLocal(new Date()));
-  const [horas, setHoras] = useState(0);
-  const [minutos, setMinutos] = useState(0);
-  const [questoesFeitas, setQuestoesFeitas] = useState(0);
-  const [acertos, setAcertos] = useState(0);
-  const [topicosDaDisciplina, setTopicosDaDisciplina] = useState([]);
-  const [loadingTopicos, setLoadingTopicos] = useState(false);
+// --- Hook para Tópicos ---
+const useTopicsDaDisciplina = (user, cicloId, disciplinaId) => {
+  const [topics, setTopics] = useState([]);
+  const [loading, setLoading] = useState(false);
 
-  // Busca tópicos quando disciplina muda
   useEffect(() => {
-    if (!disciplinaSelecionadaId || !cicloId || !userId) {
-      setTopicosDaDisciplina([]);
+    if (!user || !cicloId || !disciplinaId) {
+      setTopics([]);
+      setLoading(false);
       return;
     }
-
-    setLoadingTopicos(true);
-    const topicosRef = collection(db, 'users', userId, 'ciclos', cicloId, 'topicos');
-    const q = query(topicosRef, where('disciplinaId', '==', disciplinaSelecionadaId));
+    setLoading(true);
+    setTopics([]);
+    const topicsRef = collection(db, 'users', user.uid, 'ciclos', cicloId, 'topicos');
+    const q = query(topicsRef, where('disciplinaId', '==', disciplinaId), orderBy('nome'));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const topicosList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setTopicosDaDisciplina(topicosList);
-      setLoadingTopicos(false);
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setTopics(data);
+      setLoading(false);
     }, (error) => {
-      console.error("Erro ao buscar tópicos:", error);
-      setLoadingTopicos(false);
+        console.error("Erro ao buscar tópicos:", error);
+        setLoading(false);
     });
 
     return () => unsubscribe();
-  }, [disciplinaSelecionadaId, cicloId, userId]);
+  }, [user, cicloId, disciplinaId]);
+
+  return { topics, loadingTopics: loading };
+};
+
+// --- Componente Principal do Modal ---
+function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disciplinasDoCiclo, initialData }) {
+
+  const [formData, setFormData] = useState({
+    disciplinaId: initialData?.disciplinaId || '',
+    topicoId: initialData?.topicoId || '',
+    data: new Date().toISOString().split('T')[0], // YYYY-MM-DD
+    // [NOVO] Aceita tempo do timer ou default
+    minutos: initialData?.tempoEstudadoMinutos || 0,
+    questoesFeitas: initialData?.questoesFeitas || 0,
+    acertos: initialData?.acertos || 0,
+    // [NOVO] Campo Tipo de Estudo
+    tipoEstudo: initialData?.tipoEstudo || 'Teoria',
+  });
+
+  const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+
+  // [NOVO] Verifica se o tempo foi pré-preenchido pelo timer
+  const isTimeFromTimer = useMemo(() =>
+    initialData?.tempoEstudadoMinutos !== undefined && initialData.tempoEstudadoMinutos > 0,
+    [initialData]
+  );
+
+  const { topics, loadingTopics } = useTopicsDaDisciplina(userId, cicloId, formData.disciplinaId);
+
+  // Atualiza o formulário se a disciplina selecionada não tiver tópicos
+  useEffect(() => {
+    if (formData.disciplinaId && !loadingTopics && topics.length === 0) {
+      setFormData(prev => ({ ...prev, topicoId: '' }));
+    }
+  }, [formData.disciplinaId, loadingTopics, topics]);
+
+  // [NOVO] Tipos de Estudo
+  const tiposDeEstudo = ['Teoria', 'Questões', 'Revisão', 'Resumo', 'Simulado', 'Outro'];
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+
+    // Limpa o tópico se a disciplina mudar
+    if (name === 'disciplinaId') {
+        setFormData(prev => ({ ...prev, topicoId: '' }));
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
+    setErrorMessage('');
 
-    // Conversões e validações
-    const tempoTotalMinutos = parseInt(horas || 0) * 60 + parseInt(minutos || 0);
-    const totalQuestoes = parseInt(questoesFeitas || 0);
-    const totalAcertos = parseInt(acertos || 0);
-
-    // Validações básicas
-    if (!disciplinaSelecionadaId) {
-      alert("Por favor, selecione uma disciplina.");
-      return;
+    if (!formData.disciplinaId || !formData.data || (formData.minutos <= 0 && formData.questoesFeitas <= 0)) {
+        setErrorMessage('Preencha os campos obrigatórios: Disciplina, Data e pelo menos Tempo ou Questões.');
+        setLoading(false);
+        return;
     }
 
-    if (tipoEstudo === 'Teoria' && tempoTotalMinutos === 0) {
-      alert("Por favor, insira o tempo estudado.");
-      return;
-    }
+    const disciplinaNome = disciplinasDoCiclo.find(d => d.id === formData.disciplinaId)?.nome || 'Desconhecida';
+    const topicoNome = topics.find(t => t.id === formData.topicoId)?.nome || '';
 
-    if (tipoEstudo === 'Questões' && totalQuestoes === 0) {
-      alert("Por favor, insira o número de questões.");
-      return;
-    }
-
-    if (tipoEstudo === 'Revisão' && tempoTotalMinutos === 0 && totalQuestoes === 0) {
-      alert("Para 'Revisão', insira o tempo gasto ou o número de questões.");
-      return;
-    }
-
-    // Busca nome da disciplina e tópico
-    const disciplina = disciplinasDoCiclo.find(d => d.id === disciplinaSelecionadaId);
-    const topico = topicosDaDisciplina.find(t => t.id === topicoSelecionadoId);
-
-    // ============================================
-    // ESTRUTURA PADRONIZADA DO REGISTRO
-    // ============================================
-    const data = {
-      // IDs de referência
+    const registro = {
       cicloId: cicloId,
-      disciplinaId: disciplinaSelecionadaId,
-      topicoId: topicoSelecionadoId || null,
-      userId: userId,
-
-      // Data (como STRING "YYYY-MM-DD")
-      data: dataEstudo,
-
-      // Tipo de estudo
-      tipoEstudo: tipoEstudo,
-
-      // Campos de tempo (SEMPRE em minutos)
-      tempoEstudadoMinutos: tempoTotalMinutos,
-
-      // Campos de questões (SEMPRE com estes nomes)
-      questoesFeitas: totalQuestoes,
-      acertos: totalAcertos,
-
-      // Dados denormalizados para facilitar queries
-      disciplinaNome: disciplina?.nome || 'Desconhecida',
-      topicoNome: topico?.nome || null,
-
-      // Timestamp para ordenação
-      timestamp: Timestamp.now()
+      disciplinaId: formData.disciplinaId,
+      disciplinaNome: disciplinaNome,
+      topicoId: formData.topicoId || null,
+      topicoNome: topicoNome || null,
+      data: formData.data,
+      timestamp: serverTimestamp(),
+      tempoEstudadoMinutos: Number(formData.minutos),
+      questoesFeitas: Number(formData.questoesFeitas),
+      acertos: Number(formData.acertos),
+      tipoEstudo: formData.tipoEstudo, // [NOVO]
+      // (Campos antigos normalizados)
+      duracaoMinutos: Number(formData.minutos),
+      questoesAcertadas: Number(formData.acertos),
     };
 
-    console.log("📝 Salvando registro:", data); // DEBUG
-
     try {
-      await addRegistroEstudo(data);
-      console.log("✅ Registro salvo com sucesso!"); // DEBUG
-      onClose();
+      await addRegistroEstudo(registro);
+      setLoading(false);
+      onClose(); // Fecha o modal após sucesso
     } catch (error) {
-      console.error("❌ Erro ao salvar registro:", error);
-      alert("Erro ao salvar registro. Tente novamente.");
+      console.error("Erro ao registrar estudo: ", error);
+      setErrorMessage('Erro ao salvar o registro. Tente novamente.');
+      setLoading(false);
     }
   };
 
-  // --- Lógica de Validação dos Inputs ---
-  const questoesNum = parseInt(questoesFeitas || 0);
-  const acertosNum = parseInt(acertos || 0);
-
-  const handleQuestoesChange = (e) => {
-    const novasQuestoesStr = e.target.value;
-    const novasQuestoesNum = parseInt(novasQuestoesStr || 0);
-
-    setQuestoesFeitas(novasQuestoesStr);
-
-    // Se o novo total de questões for menor que os acertos atuais,
-    // ajusta os acertos para o novo máximo.
-    if (acertosNum > novasQuestoesNum) {
-      setAcertos(novasQuestoesStr);
-    }
-  };
-
-  const handleAcertosChange = (e) => {
-    const novosAcertosStr = e.target.value;
-    const novosAcertosNum = parseInt(novosAcertosStr || 0);
-
-    // Não permite que o valor de acertos ultrapasse o total de questões
-    if (novosAcertosNum > questoesNum) {
-      setAcertos(String(questoesNum));
-    } else {
-      setAcertos(novosAcertosStr);
-    }
-  };
-
+  const selectedDisciplina = disciplinasDoCiclo.find(d => d.id === formData.disciplinaId);
 
   return (
-    <div className="fixed inset-0 bg-black/60 z-40 flex justify-center items-center" onClick={onClose}>
-      <div className="bg-card-background-color dark:bg-dark-card-background-color p-8 rounded-lg shadow-xl z-50 w-full max-w-lg mx-4"
-        onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-black/60 z-50 flex justify-center items-center backdrop-blur-sm p-4">
+      <div className="bg-card-background-color dark:bg-dark-card-background-color rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
 
-        <h2 className="text-2xl font-bold text-heading-color dark:text-dark-heading-color mb-6">
-          Registrar Estudo
-        </h2>
+        {/* Header */}
+        <div className="flex justify-between items-center p-5 border-b border-border-color dark:border-dark-border-color">
+          <h2 className="text-xl font-bold text-heading-color dark:text-dark-heading-color">
+            Registrar Estudo
+          </h2>
+          <button onClick={onClose} className="text-subtle-text-color dark:text-dark-subtle-text-color hover:text-danger-color dark:hover:text-dark-danger-color transition-colors">
+            <IconClose />
+          </button>
+        </div>
 
-        <form onSubmit={handleSubmit} className="space-y-5">
+        {/* Formulário com Scroll */}
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
 
-          {/* Data */}
-          <div>
-            <label className="block text-sm font-medium text-text-color dark:text-dark-text-color mb-1">
-              Data do Estudo
-            </label>
-            <input
-              type="date"
-              value={dataEstudo}
-              onChange={(e) => setDataEstudo(e.target.value)}
-              className="w-full p-2 rounded-lg bg-background-color dark:bg-dark-background-color border border-border-color dark:border-dark-border-color focus:outline-none focus:ring-2 focus:ring-primary-color"
-            />
+          {errorMessage && (
+            <div className="p-3 bg-danger-color/10 border border-danger-color/30 rounded-lg text-danger-color text-sm">
+              {errorMessage}
+            </div>
+          )}
+
+          {/* Linha 1: Disciplina e Tópico */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="disciplinaId" className="block text-sm font-semibold mb-2 text-heading-color dark:text-dark-heading-color">Disciplina *</label>
+              <select
+                id="disciplinaId"
+                name="disciplinaId"
+                value={formData.disciplinaId}
+                onChange={handleChange}
+                required
+                className="w-full p-2.5 border border-border-color dark:border-dark-border-color rounded-lg bg-background-color dark:bg-dark-background-color focus:ring-2 focus:ring-primary-color focus:border-primary-color transition"
+              >
+                <option value="">Selecione...</option>
+                {disciplinasDoCiclo.map(disc => (
+                  <option key={disc.id} value={disc.id}>{disc.nome}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label htmlFor="topicoId" className="block text-sm font-semibold mb-2 text-heading-color dark:text-dark-heading-color">Tópico (Opcional)</label>
+              <select
+                id="topicoId"
+                name="topicoId"
+                value={formData.topicoId}
+                onChange={handleChange}
+                disabled={!formData.disciplinaId || loadingTopics}
+                className="w-full p-2.5 border border-border-color dark:border-dark-border-color rounded-lg bg-background-color dark:bg-dark-background-color focus:ring-2 focus:ring-primary-color focus:border-primary-color transition disabled:opacity-50"
+              >
+                <option value="">{loadingTopics ? 'Carregando...' : (topics.length > 0 ? 'Selecione o tópico...' : (selectedDisciplina ? 'Nenhum tópico' : 'Selecione a disciplina'))}</option>
+                {topics.map(topic => (
+                  <option key={topic.id} value={topic.id}>{topic.nome}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
-          {/* Tipo */}
+          {/* [NOVO] Linha 2: Tipo de Estudo */}
           <div>
-            <label className="block text-sm font-medium text-text-color dark:text-dark-text-color mb-1">
-              Tipo de Estudo
-            </label>
-            <select
-              value={tipoEstudo}
-              onChange={(e) => setTipoEstudo(e.target.value)}
-              className="w-full p-2 rounded-lg bg-background-color dark:bg-dark-background-color border border-border-color dark:border-dark-border-color focus:outline-none focus:ring-2 focus:ring-primary-color"
-            >
-              <option value="Teoria">Teoria</option>
-              <option value="Questões">Questões</option>
-              <option value="Revisão">Revisão</option>
-            </select>
+            <label className="block text-sm font-semibold mb-2 text-heading-color dark:text-dark-heading-color">Tipo de Estudo *</label>
+            <div className="flex flex-wrap gap-2">
+                {tiposDeEstudo.map(tipo => (
+                    <button
+                        key={tipo}
+                        type="button"
+                        onClick={() => setFormData(prev => ({...prev, tipoEstudo: tipo}))}
+                        className={`
+                          px-4 py-2 rounded-full text-sm font-semibold transition-all border
+                          ${formData.tipoEstudo === tipo
+                            ? 'bg-primary-color text-white border-transparent'
+                            : 'bg-background-color dark:bg-dark-background-color border-border-color dark:border-dark-border-color hover:bg-border-color dark:hover:bg-dark-border-color'
+                          }
+                        `}
+                    >
+                        {tipo}
+                    </button>
+                ))}
+            </div>
           </div>
 
-          {/* Disciplina */}
-          <div>
-            <label className="block text-sm font-medium text-text-color dark:text-dark-text-color mb-1">
-              Disciplina
-            </label>
-            <select
-              value={disciplinaSelecionadaId}
-              onChange={(e) => {
-                setDisciplinaSelecionadaId(e.target.value);
-                setTopicoSelecionadoId('');
-              }}
-              required
-              className="w-full p-2 rounded-lg bg-background-color dark:bg-dark-background-color border border-border-color dark:border-dark-border-color focus:outline-none focus:ring-2 focus:ring-primary-color"
-            >
-              <option value="">-- Selecione a Disciplina --</option>
-              {disciplinasDoCiclo.map(d => (
-                <option key={d.id} value={d.id}>{d.nome}</option>
-              ))}
-            </select>
-          </div>
+          {/* Linha 3: Data e Tempo */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="data" className="block text-sm font-semibold mb-2 text-heading-color dark:text-dark-heading-color">Data *</label>
+              <input
+                type="date"
+                id="data"
+                name="data"
+                value={formData.data}
+                onChange={handleChange}
+                required
+                className="w-full p-2.5 border border-border-color dark:border-dark-border-color rounded-lg bg-background-color dark:bg-dark-background-color focus:ring-2 focus:ring-primary-color focus:border-primary-color transition"
+              />
+            </div>
 
-          {/* Tópico */}
-          <div>
-            <label className="block text-sm font-medium text-text-color dark:text-dark-text-color mb-1">
-              Tópico (Opcional)
-            </label>
-            <select
-              value={topicoSelecionadoId}
-              onChange={(e) => setTopicoSelecionadoId(e.target.value)}
-              disabled={loadingTopicos || topicosDaDisciplina.length === 0}
-              className="w-full p-2 rounded-lg bg-background-color dark:bg-dark-background-color border border-border-color dark:border-dark-border-color focus:outline-none focus:ring-2 focus:ring-primary-color disabled:opacity-50"
-            >
-              <option value="">-- Selecione o Tópico (Opcional) --</option>
-              {loadingTopicos ? (
-                <option disabled>Carregando tópicos...</option>
-              ) : (
-                topicosDaDisciplina.map(t => (
-                  <option key={t.id} value={t.id}>{t.nome}</option>
-                ))
+            <div>
+              <label htmlFor="minutos" className="block text-sm font-semibold mb-2 text-heading-color dark:text-dark-heading-color">Tempo (minutos)</label>
+              <input
+                type="number"
+                id="minutos"
+                name="minutos"
+                value={formData.minutos}
+                onChange={handleChange}
+                min="0"
+                step="1"
+                // [NOVO] Desabilita se veio do timer
+                disabled={isTimeFromTimer}
+                className="w-full p-2.5 border border-border-color dark:border-dark-border-color rounded-lg bg-background-color dark:bg-dark-background-color focus:ring-2 focus:ring-primary-color focus:border-primary-color transition disabled:opacity-50 disabled:bg-border-color dark:disabled:bg-dark-border-color"
+              />
+              {isTimeFromTimer && (
+                <p className="text-xs text-subtle-text-color dark:text-dark-subtle-text-color mt-1">Tempo registrado pelo timer.</p>
               )}
-            </select>
+            </div>
           </div>
 
-          {/* Tempo (Teoria ou Revisão) */}
-          {(tipoEstudo === 'Teoria' || tipoEstudo === 'Revisão') && (
-            <div className="flex gap-4">
-              <div className="w-1/2">
-                <label className="block text-sm font-medium text-text-color dark:text-dark-text-color mb-1">
-                  Horas
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  value={horas}
-                  onChange={(e) => setHoras(e.target.value)}
-                  className="w-full p-2 rounded-lg bg-background-color dark:bg-dark-background-color border border-border-color dark:border-dark-border-color focus:outline-none focus:ring-2 focus:ring-primary-color"
-                />
-              </div>
-              <div className="w-1/2">
-                <label className="block text-sm font-medium text-text-color dark:text-dark-text-color mb-1">
-                  Minutos
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  max="59"
-                  value={minutos}
-                  onChange={(e) => setMinutos(e.target.value)}
-                  className="w-full p-2 rounded-lg bg-background-color dark:bg-dark-background-color border border-border-color dark:border-dark-border-color focus:outline-none focus:ring-2 focus:ring-primary-color"
-                />
-              </div>
+          {/* Linha 4: Questões e Acertos */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="questoesFeitas" className="block text-sm font-semibold mb-2 text-heading-color dark:text-dark-heading-color">Questões Feitas</label>
+              <input
+                type="number"
+                id="questoesFeitas"
+                name="questoesFeitas"
+                value={formData.questoesFeitas}
+                onChange={handleChange}
+                min="0"
+                step="1"
+                className="w-full p-2.5 border border-border-color dark:border-dark-border-color rounded-lg bg-background-color dark:bg-dark-background-color focus:ring-2 focus:ring-primary-color focus:border-primary-color transition"
+              />
             </div>
-          )}
 
-          {/* Questões (Questões ou Revisão) */}
-          {(tipoEstudo === 'Questões' || tipoEstudo === 'Revisão') && (
-            <div className="flex gap-4">
-              <div className="w-1/2">
-                <label className="block text-sm font-medium text-text-color dark:text-dark-text-color mb-1">
-                  Questões Feitas
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  value={questoesFeitas}
-                  onChange={handleQuestoesChange} // <-- CORREÇÃO
-                  className="w-full p-2 rounded-lg bg-background-color dark:bg-dark-background-color border border-border-color dark:border-dark-border-color focus:outline-none focus:ring-2 focus:ring-primary-color"
-                />
-              </div>
-              <div className="w-1/2">
-                <label className="block text-sm font-medium text-text-color dark:text-dark-text-color mb-1">
-                  Acertos
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  max={questoesNum} // <-- CORREÇÃO (usa o número parseado)
-                  value={acertos}
-                  onChange={handleAcertosChange} // <-- CORREÇÃO
-                  className="w-full p-2 rounded-lg bg-background-color dark:bg-dark-background-color border border-border-color dark:border-dark-border-color focus:outline-none focus:ring-2 focus:ring-primary-color"
-                />
-              </div>
+            <div>
+              <label htmlFor="acertos" className="block text-sm font-semibold mb-2 text-heading-color dark:text-dark-heading-color">Acertos</label>
+              <input
+                type="number"
+                id="acertos"
+                name="acertos"
+                value={formData.acertos}
+                onChange={handleChange}
+                min="0"
+                max={formData.questoesFeitas > 0 ? formData.questoesFeitas : undefined}
+                className="w-full p-2.5 border border-border-color dark:border-dark-border-color rounded-lg bg-background-color dark:bg-dark-background-color focus:ring-2 focus:ring-primary-color focus:border-primary-color transition"
+              />
             </div>
-          )}
-
-          {/* Botões */}
-          <div className="flex justify-end gap-4 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-5 py-2 bg-gray-200 text-gray-800 rounded-lg font-semibold hover:bg-gray-300 transition-all"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              className="px-5 py-2 bg-primary-color text-white rounded-lg font-semibold shadow-lg hover:brightness-110 transition-all"
-            >
-              Salvar Registro
-            </button>
           </div>
 
         </form>
+
+        {/* Footer (Ações) */}
+        <div className="p-5 bg-background-color dark:bg-dark-background-color/50 border-t border-border-color dark:border-dark-border-color flex justify-end gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={loading}
+            className="px-5 py-2.5 rounded-lg text-sm font-semibold text-text-color dark:text-dark-text-color bg-card-background-color dark:bg-dark-card-background-color border border-border-color dark:border-dark-border-color hover:bg-border-color dark:hover:bg-dark-border-color transition disabled:opacity-50"
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            onClick={handleSubmit}
+            disabled={loading}
+            className="px-5 py-2.5 rounded-lg text-sm font-semibold text-white bg-primary-color hover:bg-primary-hover transition flex items-center justify-center disabled:opacity-50"
+          >
+            {loading ? (
+              <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            ) : 'Salvar Registro'}
+          </button>
+        </div>
       </div>
     </div>
   );

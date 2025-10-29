@@ -27,6 +27,13 @@ const IconTrophy = () => (
   </svg>
 );
 
+// [ITEM 2] Ícone para o botão de Quick Add
+const IconPlusCircle = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+    </svg>
+);
+
 const formatDecimalHours = (minutos) => {
     if (!minutos || minutos < 0) return '0h 0m';
     const totalMinutes = Math.round(minutos);
@@ -49,6 +56,7 @@ const useTopicsDaDisciplina = (user, cicloId, disciplinaId) => {
 
     console.log("🔍 Buscando tópicos para disciplina:", disciplinaId);
     setLoading(true);
+    setTopics([]); // <-- [ITEM 5] CORREÇÃO: Limpa os tópicos antigos ao buscar novos
     const topicsRef = collection(db, 'users', user.uid, 'ciclos', cicloId, 'topicos');
     const q = query(topicsRef, where('disciplinaId', '==', disciplinaId), orderBy('nome'));
 
@@ -68,7 +76,8 @@ const useTopicsDaDisciplina = (user, cicloId, disciplinaId) => {
   return { topics, loadingTopics: loading };
 };
 
-function TopicListPanel({ user, cicloId, disciplinaId, registrosEstudo, disciplinaNome }) {
+// [ITEM 2] Adicionada a prop 'onQuickAddTopic'
+function TopicListPanel({ user, cicloId, disciplinaId, registrosEstudo, disciplinaNome, onQuickAddTopic }) {
 
   console.log("📊 TopicListPanel renderizado:", {
     disciplinaId,
@@ -227,14 +236,14 @@ function TopicListPanel({ user, cicloId, disciplinaId, registrosEstudo, discipli
               )}
 
               <div className="relative p-4">
-                {/* Nome do tópico */}
+                {/* [ITEM 2] Nome do tópico e contador de registros */}
                 <div className="flex items-start justify-between mb-3">
-                  <h4 className="font-semibold text-text-color dark:text-dark-text-color flex items-center gap-2">
+                  <h4 className="font-semibold text-text-color dark:text-dark-text-color flex items-center gap-2 flex-1 min-w-0">
                     <span className={`w-2 h-2 rounded-full ${hasData ? 'bg-primary-color' : 'bg-border-color dark:bg-dark-border-color'}`}></span>
-                    {topicData.nome}
+                    <span className="truncate">{topicData.nome}</span>
                   </h4>
                   {hasData && (
-                    <span className="text-xs font-bold bg-primary-color/20 text-primary-color px-2 py-1 rounded-full">
+                    <span className="text-xs font-bold bg-primary-color/20 text-primary-color px-2 py-1 rounded-full ml-2 flex-shrink-0">
                       {topicData.registrosCount} {topicData.registrosCount === 1 ? 'registro' : 'registros'}
                     </span>
                   )}
@@ -287,11 +296,30 @@ function TopicListPanel({ user, cicloId, disciplinaId, registrosEstudo, discipli
                     </div>
                   </div>
                 ) : (
-                  <div className="text-center py-3">
-                    <p className="text-sm text-subtle-text-color dark:text-dark-subtle-text-color">
-                      Nenhum registro ainda
-                    </p>
-                  </div>
+                  // [ITEM 2] Só mostra "Nenhum registro" se não houver a função de quick add
+                  !onQuickAddTopic && (
+                    <div className="text-center py-3">
+                      <p className="text-sm text-subtle-text-color dark:text-dark-subtle-text-color">
+                        Nenhum registro ainda
+                      </p>
+                    </div>
+                  )
+                )}
+
+                {/* [ITEM 2] Botão de Quick Add */}
+                {onQuickAddTopic && (
+                    <button
+                      onClick={() => onQuickAddTopic(disciplinaId, topicData)}
+                      className={`flex items-center justify-center gap-2 text-sm font-semibold transition-colors w-full mt-4 p-2 rounded-lg
+                        ${hasData
+                          ? 'text-primary-color hover:text-primary-hover bg-primary-color/10 hover:bg-primary-color/20'
+                          : 'text-subtle-text-color dark:text-dark-subtle-text-color hover:text-primary-color bg-background-color dark:bg-dark-background-color hover:bg-primary-color/10 border border-dashed border-border-color dark:border-dark-border-color'
+                        }
+                      `}
+                    >
+                      <IconPlusCircle />
+                      {hasData ? 'Registrar mais' : 'Registrar primeiro estudo'}
+                    </button>
                 )}
               </div>
             </div>

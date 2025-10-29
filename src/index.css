@@ -191,4 +191,55 @@
     transform: scale(1.02) translateY(-2px);
 }
 
-/* --- FIM DOS ESTILOS DO CICLO/LEGENDA --- */
+/* ==================================================================
+   NOVOS ESTILOS DE SCROLLBAR PERSONALIZADA
+  ==================================================================
+*/
+
+/* Para Webkit (Chrome, Safari, Edge) */
+::-webkit-scrollbar {
+  width: 8px;  /* Largura para scroll vertical */
+  height: 8px; /* Altura para scroll horizontal */
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.2); /* Cor da barra no modo claro */
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(0, 0, 0, 0.3);
+}
+
+/* Cor da barra no modo escuro */
+.dark ::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+}
+
+/* Para Firefox (Moderno) */
+/* Note: O Firefox suporta menos personalização */
+@supports (scrollbar-color: auto) {
+  * {
+    scrollbar-color: rgba(0, 0, 0, 0.3) transparent; /* thumb track */
+    scrollbar-width: thin;
+  }
+
+  .dark * {
+    scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+  }
+}
+
+/* Helper para aplicar em divs com scroll (se necessário, mas o seletor * já deve pegar) */
+.custom-scrollbar {
+  /* O seletor * acima já aplica o scrollbar-width: thin; */
+}
