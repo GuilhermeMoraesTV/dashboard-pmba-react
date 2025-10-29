@@ -1,9 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../../firebaseConfig';
 import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
-import useTopicsDaDisciplina from '../../hooks/useTopicsDaDisciplina'; // Importando o hook (agora corrigido)
 
-// Ícones (mantidos como antes)
 const IconBook = () => (
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
       <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" />
@@ -38,14 +36,51 @@ const formatDecimalHours = (minutos) => {
     return `${h}h ${String(m).padStart(2, '0')}m`;
 };
 
-
 function TopicListPanel({ user, cicloId, disciplinaId, registrosEstudo, disciplinaNome, onQuickAddTopic }) {
 
-  // 1. Busca os tópicos da disciplina selecionada usando o hook externo
-  // [CORREÇÃO 1 e 2] Passando user.uid (string) em vez do objeto user
-  const { topics, loadingTopics } = useTopicsDaDisciplina(user?.uid, cicloId, disciplinaId);
+  const [topics, setTopics] = useState([]);
+  const [loadingTopics, setLoadingTopics] = useState(false);
 
-  // 2. Processa os registros de estudo para agregar dados por tópico (lógica inalterada)
+  useEffect(() => {
+    if (!user || !cicloId || !disciplinaId) {
+      setTopics([]);
+      setLoadingTopics(false);
+      return;
+    }
+
+    console.log('Buscando tópicos para:', { user, cicloId, disciplinaId });
+
+    setLoadingTopics(true);
+    setTopics([]);
+
+    try {
+        const topicsRef = collection(db, 'users', user, 'ciclos', cicloId, 'topicos');
+        const q = query(
+            topicsRef,
+            where('disciplinaId', '==', disciplinaId),
+            orderBy('nome')
+        );
+
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+          const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          console.log('Tópicos carregados:', data);
+          setTopics(data);
+          setLoadingTopics(false);
+        }, (error) => {
+            console.error("Erro no listener de tópicos:", error);
+            setLoadingTopics(false);
+        });
+
+        return () => unsubscribe();
+
+    } catch (error) {
+        console.error("Erro ao configurar busca de tópicos:", error);
+        setLoadingTopics(false);
+        setTopics([]);
+    }
+
+  }, [user, cicloId, disciplinaId]);
+
   const topicSummary = useMemo(() => {
     if (!topics || topics.length === 0) {
       return new Map();
@@ -76,7 +111,6 @@ function TopicListPanel({ user, cicloId, disciplinaId, registrosEstudo, discipli
     return summaryMap;
   }, [topics, registrosEstudo]);
 
-  // Renderização (inalterada, exceto pela remoção do scroll interno)
   if (loadingTopics) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -111,7 +145,6 @@ function TopicListPanel({ user, cicloId, disciplinaId, registrosEstudo, discipli
 
   return (
     <div>
-      {/* Header com estatísticas */}
       <div className="mb-6">
         <h2 className="text-xl font-bold text-heading-color dark:text-dark-heading-color mb-2">
           {disciplinaNome || 'Tópicos da Disciplina'}
@@ -135,7 +168,6 @@ function TopicListPanel({ user, cicloId, disciplinaId, registrosEstudo, discipli
         </div>
       </div>
 
-      {/* Lista de Tópicos (sem scroll próprio) */}
       <div className="space-y-3 pr-2 pb-2">
         {topicArray.map(topicData => {
           const performance = topicData.totalQuestions > 0

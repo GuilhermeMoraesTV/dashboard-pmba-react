@@ -70,16 +70,16 @@ function DisciplinaDetalheModal({ disciplina, registrosEstudo, cicloId, user, on
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        // [CORREÇÃO 4] Aumentado z-index do backdrop
-        className="fixed inset-0 bg-black/70 z-50 backdrop-blur-sm"
+        className="fixed inset-0 bg-black/70 z-[60] backdrop-blur-sm flex items-center justify-center p-4"
+        onClick={onClose}
       >
         <motion.div
-          initial={{ y: "100vh", opacity: 0 }}
-          animate={{ y: "0vh", opacity: 1 }}
-          exit={{ y: "100vh", opacity: 0 }}
-          transition={{ duration: 0.5, type: "spring", bounce: 0.2 }}
-          // [CORREÇÃO 4] Aumentado z-index do conteúdo do modal
-          className="relative w-full h-full bg-background-color dark:bg-dark-background-color flex flex-col z-[60]"
+          initial={{ scale: 0.95, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          exit={{ scale: 0.95, opacity: 0 }}
+          transition={{ duration: 0.3 }}
+          className="relative w-full max-w-5xl max-h-[90vh] bg-background-color dark:bg-dark-background-color rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+          onClick={(e) => e.stopPropagation()}
         >
           <div className="flex-shrink-0 p-6 flex items-center justify-between border-b border-border-color dark:border-dark-border-color">
             <div>
@@ -129,8 +129,7 @@ function DisciplinaDetalheModal({ disciplina, registrosEstudo, cicloId, user, on
 
               <div className="bg-card-background-color dark:bg-dark-card-background-color rounded-xl shadow-lg p-4 md:p-6 border border-border-color dark:border-dark-border-color">
                   <TopicListPanel
-                      // [CORREÇÃO 2] Passando user.uid (string)
-                      user={user?.uid}
+                      user={user}
                       cicloId={cicloId}
                       disciplinaId={disciplina.id}
                       registrosEstudo={registrosDaDisciplina}

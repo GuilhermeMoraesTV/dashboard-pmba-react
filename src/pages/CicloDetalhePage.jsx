@@ -131,6 +131,12 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo }) {
       return dias.size;
   }, [registrosDoCiclo]);
 
+  const metaSemanalMinutos = useMemo(() => {
+    if (!disciplinas || disciplinas.length === 0) return 0;
+    return disciplinas.reduce((total, disciplina) => {
+      return total + (disciplina.tempoAlocadoSemanalMinutos || 0);
+    }, 0);
+  }, [disciplinas]);
 
   const handleViewDetails = (disciplina) => {
     setDisciplinaEmDetalhe(disciplina);
@@ -226,8 +232,7 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo }) {
               <div className="flex items-center gap-4 text-white/80 text-xs">
                 <p className="flex items-center gap-1.5">
                   <IconTarget className="w-4 h-4" />
-                  {/* [CORREÇÃO 1] Corrigido nome da propriedade */}
-                  Meta: {((ciclo.totalMetaMinutosSemanal || 0) / 60).toFixed(1)}h/semana
+                  Meta: {(metaSemanalMinutos / 60).toFixed(1)}h/semana
                 </p>
                 <p className="flex items-center gap-1.5">
                   <IconFire className="w-4 h-4" />
@@ -337,7 +342,7 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo }) {
             disciplina={disciplinaEmDetalhe}
             registrosEstudo={registrosDoCiclo}
             cicloId={cicloId}
-            user={user}
+            user={user.uid}
             onClose={handleDetalheModalClose}
             onQuickAddTopic={openRegistroModalWithTopic}
         />

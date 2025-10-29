@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../../firebaseConfig';
 import { collection, query, where, onSnapshot, orderBy, serverTimestamp } from 'firebase/firestore';
-import useTopicsDaDisciplina from '../../hooks/useTopicsDaDisciplina';
 
 const IconClose = () => (
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
@@ -12,7 +11,6 @@ const IconClose = () => (
 
 function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disciplinasDoCiclo, initialData }) {
 
-  // [CORREÇÃO 3] Função para converter minutos totais em {h, m}
   const minutesToHoursMinutes = (totalMinutes) => {
     if (totalMinutes === undefined || totalMinutes === null || totalMinutes <= 0) {
       return { horas: 0, minutos: 0 };
@@ -22,15 +20,14 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
     return { horas: h, minutos: m };
   };
 
-  // [CORREÇÃO 3] Estado inicial calcula h/m se vier do timer
   const initialTime = minutesToHoursMinutes(initialData?.tempoEstudadoMinutos);
 
   const [formData, setFormData] = useState({
     disciplinaId: initialData?.disciplinaId || '',
     topicoId: initialData?.topicoId || '',
     data: new Date().toISOString().split('T')[0],
-    horas: initialTime.horas, // Campo de horas
-    minutos: initialTime.minutos, // Campo de minutos
+    horas: initialTime.horas,
+    minutos: initialTime.minutos,
     questoesFeitas: initialData?.questoesFeitas || 0,
     acertos: initialData?.acertos || 0,
     tipoEstudo: initialData?.tipoEstudo || 'Teoria',
@@ -39,26 +36,56 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  // [CORREÇÃO 3] Verifica se o tempo veio do timer para desabilitar os campos
   const isTimeFromTimer = useMemo(() =>
     initialData?.tempoEstudadoMinutos !== undefined && initialData.tempoEstudadoMinutos > 0,
     [initialData]
   );
 
-  const { topics, loadingTopics } = useTopicsDaDisciplina(userId, cicloId, formData.disciplinaId);
+  const [topics, setTopics] = useState([]);
+  const [loadingTopics, setLoadingTopics] = useState(false);
 
   useEffect(() => {
-    if (formData.disciplinaId && !loadingTopics && topics.length === 0) {
-      setFormData(prev => ({ ...prev, topicoId: '' }));
+    if (!formData.disciplinaId || !userId || !cicloId) {
+      setTopics([]);
+      setLoadingTopics(false);
+      return;
     }
-  }, [formData.disciplinaId, loadingTopics, topics]);
+
+    console.log('Carregando tópicos no modal para disciplina:', formData.disciplinaId);
+
+    setLoadingTopics(true);
+    setTopics([]);
+
+    try {
+      const topicsRef = collection(db, 'users', userId, 'ciclos', cicloId, 'topicos');
+      const q = query(
+        topicsRef,
+        where('disciplinaId', '==', formData.disciplinaId),
+        orderBy('nome')
+      );
+
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        console.log('Tópicos carregados no modal:', data);
+        setTopics(data);
+        setLoadingTopics(false);
+      }, (error) => {
+        console.error("Erro ao carregar tópicos no modal:", error);
+        setLoadingTopics(false);
+      });
+
+      return () => unsubscribe();
+    } catch (error) {
+      console.error("Erro ao configurar listener de tópicos:", error);
+      setLoadingTopics(false);
+      setTopics([]);
+    }
+  }, [formData.disciplinaId, userId, cicloId]);
 
   const tiposDeEstudo = ['Teoria', 'Questões', 'Revisão', 'Resumo', 'Simulado', 'Outro'];
 
-  // [CORREÇÃO 3] Atualiza handleChange para aceitar horas e minutos
   const handleChange = (e) => {
     const { name, value, type } = e.target;
-    // Garante que valores numéricos sejam tratados como números
     const numericValue = type === 'number' ? Number(value) : value;
 
     setFormData(prev => ({ ...prev, [name]: numericValue }));
@@ -73,10 +100,8 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
     setLoading(true);
     setErrorMessage('');
 
-    // [CORREÇÃO 3] Calcula minutos totais a partir de horas e minutos do form
     const totalMinutesFromForm = (Number(formData.horas || 0) * 60) + Number(formData.minutos || 0);
 
-    // Validação usa os minutos calculados
     if (!formData.disciplinaId || !formData.data || (totalMinutesFromForm <= 0 && formData.questoesFeitas <= 0)) {
         setErrorMessage('Preencha os campos obrigatórios: Disciplina, Data e pelo menos Tempo (Horas/Minutos) ou Questões.');
         setLoading(false);
@@ -106,13 +131,12 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
       topicoNome: topicoNome || null,
       data: formData.data,
       timestamp: serverTimestamp(),
-      // [CORREÇÃO 3] Salva os minutos totais calculados
       tempoEstudadoMinutos: totalMinutesFromForm,
       questoesFeitas: Number(formData.questoesFeitas),
       acertos: Number(formData.acertos),
       tipoEstudo: formData.tipoEstudo,
-      duracaoMinutos: totalMinutesFromForm, // Campo antigo normalizado
-      questoesAcertadas: Number(formData.acertos), // Campo antigo normalizado
+      duracaoMinutos: totalMinutesFromForm,
+      questoesAcertadas: Number(formData.acertos),
     };
 
     try {
@@ -207,7 +231,6 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
             </div>
           </div>
 
-          {/* [CORREÇÃO 3] Campos de Data, Horas e Minutos */}
           <div className="grid grid-cols-3 gap-4 items-end">
             <div>
               <label htmlFor="data" className="block text-sm font-semibold mb-2 text-heading-color dark:text-dark-heading-color">Data *</label>
@@ -247,7 +270,7 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
                 value={formData.minutos}
                 onChange={handleChange}
                 min="0"
-                max="59" // Impede valores inválidos de minutos
+                max="59"
                 step="1"
                 disabled={isTimeFromTimer}
                 className="w-full p-2.5 border border-border-color dark:border-dark-border-color rounded-lg bg-background-color dark:bg-dark-background-color focus:ring-2 focus:ring-primary-color focus:border-primary-color transition disabled:opacity-50 disabled:bg-border-color dark:disabled:bg-dark-border-color"
