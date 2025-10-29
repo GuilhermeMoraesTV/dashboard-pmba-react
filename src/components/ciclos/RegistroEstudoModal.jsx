@@ -121,6 +121,36 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
     }
   };
 
+  // --- Lógica de Validação dos Inputs ---
+  const questoesNum = parseInt(questoesFeitas || 0);
+  const acertosNum = parseInt(acertos || 0);
+
+  const handleQuestoesChange = (e) => {
+    const novasQuestoesStr = e.target.value;
+    const novasQuestoesNum = parseInt(novasQuestoesStr || 0);
+
+    setQuestoesFeitas(novasQuestoesStr);
+
+    // Se o novo total de questões for menor que os acertos atuais,
+    // ajusta os acertos para o novo máximo.
+    if (acertosNum > novasQuestoesNum) {
+      setAcertos(novasQuestoesStr);
+    }
+  };
+
+  const handleAcertosChange = (e) => {
+    const novosAcertosStr = e.target.value;
+    const novosAcertosNum = parseInt(novosAcertosStr || 0);
+
+    // Não permite que o valor de acertos ultrapasse o total de questões
+    if (novosAcertosNum > questoesNum) {
+      setAcertos(String(questoesNum));
+    } else {
+      setAcertos(novosAcertosStr);
+    }
+  };
+
+
   return (
     <div className="fixed inset-0 bg-black/60 z-40 flex justify-center items-center" onClick={onClose}>
       <div className="bg-card-background-color dark:bg-dark-card-background-color p-8 rounded-lg shadow-xl z-50 w-full max-w-lg mx-4"
@@ -246,7 +276,7 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
                   type="number"
                   min="0"
                   value={questoesFeitas}
-                  onChange={(e) => setQuestoesFeitas(e.target.value)}
+                  onChange={handleQuestoesChange} // <-- CORREÇÃO
                   className="w-full p-2 rounded-lg bg-background-color dark:bg-dark-background-color border border-border-color dark:border-dark-border-color focus:outline-none focus:ring-2 focus:ring-primary-color"
                 />
               </div>
@@ -257,9 +287,9 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
                 <input
                   type="number"
                   min="0"
-                  max={questoesFeitas || 0}
+                  max={questoesNum} // <-- CORREÇÃO (usa o número parseado)
                   value={acertos}
-                  onChange={(e) => setAcertos(e.target.value)}
+                  onChange={handleAcertosChange} // <-- CORREÇÃO
                   className="w-full p-2 rounded-lg bg-background-color dark:bg-dark-background-color border border-border-color dark:border-dark-border-color focus:outline-none focus:ring-2 focus:ring-primary-color"
                 />
               </div>

@@ -212,7 +212,7 @@ function CalendarTab({ registrosEstudo = [], goalsHistory = [], onDeleteRegistro
           date={selectedDate.date}
           dayData={{ dayQuestions: selectedDate.dayQuestions, dayHours: selectedDate.dayHours }}
           onClose={() => setSelectedDate(null)}
-          onDeleteRegistro={onDeleteRegistro}
+          // onDeleteRegistro={onDeleteRegistro} // <-- REMOVIDO
         />
       )}
     </div>

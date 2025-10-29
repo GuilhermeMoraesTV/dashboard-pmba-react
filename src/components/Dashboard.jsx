@@ -259,7 +259,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   };
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen max-w-screen-2xl mx-auto">
       <NavSideBar
         activeTab={activeTab}
         setActiveTab={setActiveTab}

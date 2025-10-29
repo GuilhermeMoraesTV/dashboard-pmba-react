@@ -233,7 +233,7 @@ function Home({ registrosEstudo, goalsHistory, setActiveTab, onDeleteRegistro })
           date={selectedDate.date}
           dayData={{ dayQuestions: selectedDate.dayQuestions, dayHours: selectedDate.dayHours }}
           onClose={() => setSelectedDate(null)}
-          onDeleteRegistro={onDeleteRegistro}
+          // onDeleteRegistro={onDeleteRegistro} // <-- REMOVIDO
         />
       )}
     </div>

@@ -19,6 +19,7 @@
     @apply bg-dark-background-color text-dark-text-color;
   }
 
+
   h2 {
     /* Tradução de '2. GLOBAL STYLES' */
     @apply text-heading-color dark:text-dark-heading-color
