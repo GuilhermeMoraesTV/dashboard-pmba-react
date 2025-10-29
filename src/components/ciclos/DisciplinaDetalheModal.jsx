@@ -1,8 +1,7 @@
 import React, { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import TopicListPanel from './TopicListPanel'; // Reutilizando o painel de tópicos
+import TopicListPanel from './TopicListPanel';
 
-// --- Ícones ---
 const IconClose = () => (
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8">
       <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
@@ -24,13 +23,13 @@ const IconTrophy = () => (
   </svg>
 );
 
-// --- Helper para formatar Horas ---
+
 const formatDecimalHours = (minutos) => {
     if (!minutos || minutos < 0) return '0.0';
     return (minutos / 60).toFixed(1);
 };
 
-// --- Sub-componente Card de Estatística ---
+
 const StatCard = ({ icon, label, value, unit, colorClass }) => (
   <div className={`flex-1 p-5 rounded-xl bg-card-background-color dark:bg-dark-card-background-color border border-border-color dark:border-dark-border-color`}>
     <div className={`flex items-center justify-center w-12 h-12 rounded-full mb-3 ${colorClass}/10`}>
@@ -45,13 +44,11 @@ const StatCard = ({ icon, label, value, unit, colorClass }) => (
 
 function DisciplinaDetalheModal({ disciplina, registrosEstudo, cicloId, user, onClose, onQuickAddTopic }) {
 
-  // 1. Filtra os registros apenas para esta disciplina
   const registrosDaDisciplina = useMemo(() => {
     if (!registrosEstudo || !disciplina) return [];
     return registrosEstudo.filter(r => r.disciplinaId === disciplina.id);
   }, [registrosEstudo, disciplina]);
 
-  // 2. Calcula estatísticas gerais
   const stats = useMemo(() => {
     const totalMinutes = registrosDaDisciplina.reduce((sum, r) => sum + r.tempoEstudadoMinutos, 0);
     const totalQuestions = registrosDaDisciplina.reduce((sum, r) => sum + r.questoesFeitas, 0);
@@ -73,16 +70,17 @@ function DisciplinaDetalheModal({ disciplina, registrosEstudo, cicloId, user, on
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/70 z-40 backdrop-blur-sm"
+        // [CORREÇÃO 4] Aumentado z-index do backdrop
+        className="fixed inset-0 bg-black/70 z-50 backdrop-blur-sm"
       >
         <motion.div
           initial={{ y: "100vh", opacity: 0 }}
           animate={{ y: "0vh", opacity: 1 }}
           exit={{ y: "100vh", opacity: 0 }}
           transition={{ duration: 0.5, type: "spring", bounce: 0.2 }}
-          className="relative w-full h-full bg-background-color dark:bg-dark-background-color flex flex-col"
+          // [CORREÇÃO 4] Aumentado z-index do conteúdo do modal
+          className="relative w-full h-full bg-background-color dark:bg-dark-background-color flex flex-col z-[60]"
         >
-          {/* Header do Modal */}
           <div className="flex-shrink-0 p-6 flex items-center justify-between border-b border-border-color dark:border-dark-border-color">
             <div>
               <p className="text-sm font-semibold text-primary-color dark:text-dark-primary-color">
@@ -100,10 +98,8 @@ function DisciplinaDetalheModal({ disciplina, registrosEstudo, cicloId, user, on
             </button>
           </div>
 
-          {/* Conteúdo com Scroll */}
           <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
             <div className="max-w-6xl mx-auto">
-              {/* Seção de Estatísticas */}
               <h2 className="text-xl font-semibold text-heading-color dark:text-dark-heading-color mb-4">
                 Desempenho Geral (Total)
               </h2>
@@ -131,14 +127,13 @@ function DisciplinaDetalheModal({ disciplina, registrosEstudo, cicloId, user, on
                 />
               </div>
 
-              {/* Seção de Tópicos */}
               <div className="bg-card-background-color dark:bg-dark-card-background-color rounded-xl shadow-lg p-4 md:p-6 border border-border-color dark:border-dark-border-color">
-                  {/* [CORREÇÃO 1] Passando user.uid como userId */}
                   <TopicListPanel
-                      userId={user.uid} // <--- CORRIGIDO AQUI
+                      // [CORREÇÃO 2] Passando user.uid (string)
+                      user={user?.uid}
                       cicloId={cicloId}
                       disciplinaId={disciplina.id}
-                      registrosEstudo={registrosDaDisciplina} // Passa só os registros filtrados
+                      registrosEstudo={registrosDaDisciplina}
                       disciplinaNome="Progresso por Tópico"
                       onQuickAddTopic={onQuickAddTopic}
                   />

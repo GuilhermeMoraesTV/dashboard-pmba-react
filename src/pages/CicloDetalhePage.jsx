@@ -1,15 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../firebaseConfig';
 import { doc, collection, query, orderBy, onSnapshot } from 'firebase/firestore';
-import { AnimatePresence, motion } from 'framer-motion'; // Para animações
+import { AnimatePresence, motion } from 'framer-motion';
 
-// Componentes Reais do seu projeto
 import CicloVisual from '../components/ciclos/CicloVisual';
 import RegistroEstudoModal from '../components/ciclos/RegistroEstudoModal';
-import StudyTimer from '../components/ciclos/StudyTimer'; // [NOVO]
-import DisciplinaDetalheModal from '../components/ciclos/DisciplinaDetalheModal'; // [NOVO]
+import StudyTimer from '../components/ciclos/StudyTimer';
+import DisciplinaDetalheModal from '../components/ciclos/DisciplinaDetalheModal';
 
-// ==================== ÍCONES ====================
 const IconArrowLeft = () => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
     <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
@@ -43,7 +41,6 @@ const IconSwitch = () => (
 );
 
 
-// ==================== HELPERS ====================
 const dateToYMD_local = (date) => {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -51,7 +48,7 @@ const dateToYMD_local = (date) => {
   return `${year}-${month}-${day}`;
 };
 
-// ==================== COMPONENTE PRINCIPAL (PÁGINA) ====================
+
 function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo }) {
 
   const [ciclo, setCiclo] = useState(null);
@@ -61,14 +58,12 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo }) {
   const [loading, setLoading] = useState(true);
   const [showRegistroModal, setShowRegistroModal] = useState(false);
   const [registroPreenchido, setRegistroPreenchido] = useState(null);
-  const [viewModeCiclo, setViewModeCiclo] = useState('semanal'); // 'semanal' ou 'total'
+  const [viewModeCiclo, setViewModeCiclo] = useState('semanal');
 
-  // --- [NOVOS ESTADOS] ---
   const [disciplinaEmEstudo, setDisciplinaEmEstudo] = useState(null);
   const [disciplinaEmDetalhe, setDisciplinaEmDetalhe] = useState(null);
   const [selectedDisciplinaId, setSelectedDisciplinaId] = useState(null);
 
-  // --- Carregamento de Dados (sem alterações) ---
   useEffect(() => {
      if (!user || !cicloId) return;
      setLoading(true);
@@ -79,6 +74,10 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo }) {
        } else {
          setCiclo(null);
        }
+     }, (error) => {
+        console.error("Erro ao buscar ciclo:", error);
+        setCiclo(null);
+        setLoading(false);
      });
      return () => unsubscribe();
   }, [user, cicloId]);
@@ -89,6 +88,9 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo }) {
     const q = query(disciplinasRef, orderBy('nome'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setDisciplinas(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (error) => {
+        console.error("Erro ao buscar disciplinas:", error);
+        setDisciplinas([]);
     });
     return () => unsubscribe();
   }, [user, cicloId]);
@@ -106,13 +108,14 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo }) {
                 questoesFeitas: Number(data.questoesFeitas || 0),
                 acertos: Number(data.acertos || data.questoesAcertadas || 0),
                 data: typeof data.data === 'string' ? data.data : (data.data?.toDate ? dateToYMD_local(data.data.toDate()) : dateToYMD_local(new Date())),
-                tipoEstudo: data.tipoEstudo || 'Teoria', // Garante o campo
+                tipoEstudo: data.tipoEstudo || 'Teoria',
             };
         });
         setAllRegistrosEstudo(todosRegistros);
         setLoading(false);
      }, (error) => {
        console.error("Erro ao buscar registros:", error);
+       setAllRegistrosEstudo([]);
        setLoading(false);
      });
      return () => unsubscribe();
@@ -128,7 +131,6 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo }) {
       return dias.size;
   }, [registrosDoCiclo]);
 
-  // --- [HANDLERS ATUALIZADOS] ---
 
   const handleViewDetails = (disciplina) => {
     setDisciplinaEmDetalhe(disciplina);
@@ -136,23 +138,21 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo }) {
   };
 
   const handleStartStudy = (disciplina) => {
-    if (ciclo.ativo) {
+    if (ciclo?.ativo) {
         setDisciplinaEmEstudo(disciplina);
         setDisciplinaEmDetalhe(null);
         setSelectedDisciplinaId(null);
     }
   };
 
-  // [CORREÇÃO 1 - TELA BRANCA]
   const handleStopStudy = (tempoMinutos) => {
-    // Adiciona verificação para impedir double-click ou race condition
     if (!disciplinaEmEstudo) return;
 
-    const disciplina = disciplinaEmEstudo; // Pega o valor ANTES de limpar
-    setDisciplinaEmEstudo(null); // Fecha o timer
+    const disciplina = disciplinaEmEstudo;
+    setDisciplinaEmEstudo(null);
 
     setRegistroPreenchido({
-        disciplinaId: disciplina.id, // Agora isso é seguro
+        disciplinaId: disciplina.id,
         tempoEstudadoMinutos: Math.max(1, Math.round(tempoMinutos)),
     });
     setShowRegistroModal(true);
@@ -184,7 +184,6 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo }) {
     setSelectedDisciplinaId(null);
   };
 
-  // --- Renderização ---
 
   if (loading) {
     return (
@@ -206,7 +205,6 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo }) {
   return (
     <div className="relative flex flex-col flex-grow h-full overflow-y-auto custom-scrollbar">
 
-      {/* Header Fixo */}
       <div className="relative overflow-hidden bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 rounded-b-3xl shadow-lg p-6 flex-shrink-0">
         <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)', backgroundSize: '40px 40px' }}></div>
         <div className="relative z-10">
@@ -228,7 +226,8 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo }) {
               <div className="flex items-center gap-4 text-white/80 text-xs">
                 <p className="flex items-center gap-1.5">
                   <IconTarget className="w-4 h-4" />
-                  Meta: {((ciclo.totalMetaSemanalMinutos || 0) / 60).toFixed(1)}h/semana
+                  {/* [CORREÇÃO 1] Corrigido nome da propriedade */}
+                  Meta: {((ciclo.totalMetaMinutosSemanal || 0) / 60).toFixed(1)}h/semana
                 </p>
                 <p className="flex items-center gap-1.5">
                   <IconFire className="w-4 h-4" />
@@ -258,7 +257,6 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo }) {
         </div>
       )}
 
-      {/* Container do conteúdo principal (Roda OU Timer) */}
       <div className="flex flex-col flex-grow items-center p-4 md:p-6">
           <div className="w-full max-w-5xl bg-card-background-color dark:bg-dark-card-background-color rounded-xl shadow-lg p-4 md:p-6 border border-border-color dark:border-dark-border-color">
 
@@ -304,7 +302,6 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo }) {
       </div>
 
 
-      {/* Botão Flutuante (Registrar Manualmente) */}
       <AnimatePresence>
       {!disciplinaEmEstudo && (
         <motion.div
@@ -334,7 +331,6 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo }) {
       </AnimatePresence>
 
 
-      {/* Modal de Detalhes da Disciplina */}
       <AnimatePresence>
       {disciplinaEmDetalhe && (
         <DisciplinaDetalheModal
@@ -348,7 +344,6 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo }) {
       )}
       </AnimatePresence>
 
-      {/* Modal de Registro (Usado para registro manual e pós-timer) */}
       <AnimatePresence>
       {showRegistroModal && (
         <motion.div
