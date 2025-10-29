@@ -109,11 +109,14 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
       timestamp: Timestamp.now()
     };
 
+    console.log("📝 Salvando registro:", data); // DEBUG
+
     try {
       await addRegistroEstudo(data);
+      console.log("✅ Registro salvo com sucesso!"); // DEBUG
       onClose();
     } catch (error) {
-      console.error("Erro ao salvar registro:", error);
+      console.error("❌ Erro ao salvar registro:", error);
       alert("Erro ao salvar registro. Tente novamente.");
     }
   };

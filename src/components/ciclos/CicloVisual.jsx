@@ -1,21 +1,23 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../../firebaseConfig';
-import { collection, query, onSnapshot, orderBy, where, Timestamp } from 'firebase/firestore';
+import { collection, query, onSnapshot, orderBy, where } from 'firebase/firestore';
 
 // --- Funções Helper ---
 const getWeekRange = () => {
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const dayOfWeek = today.getDay(); // 0 (Dom) - 6 (Sáb)
+  const dayOfWeek = today.getDay();
   const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
   const startOfWeek = new Date(today);
   startOfWeek.setDate(today.getDate() + diffToMonday);
+  startOfWeek.setHours(0, 0, 0, 0);
   const endOfWeek = new Date(startOfWeek);
   endOfWeek.setDate(startOfWeek.getDate() + 6);
   endOfWeek.setHours(23, 59, 59, 999);
+
   return {
-    start: Timestamp.fromDate(startOfWeek),
-    end: Timestamp.fromDate(endOfWeek)
+    startStr: `${startOfWeek.getFullYear()}-${String(startOfWeek.getMonth() + 1).padStart(2, '0')}-${String(startOfWeek.getDate()).padStart(2, '0')}`,
+    endStr: `${endOfWeek.getFullYear()}-${String(endOfWeek.getMonth() + 1).padStart(2, '0')}-${String(endOfWeek.getDate()).padStart(2, '0')}`
   };
 };
 
@@ -41,8 +43,8 @@ const CicloSlice = ({
   radius,
   strokeWidth,
   isActive,
-  onHover, // Adicionado para passar do pai
-  onLeave  // Adicionado para passar do pai
+  onHover,
+  onLeave
 }) => {
   const circumference = 2 * Math.PI * radius;
   const goalStrokeDasharray = `${circumference * goalPercentage} ${circumference}`;
@@ -54,7 +56,6 @@ const CicloSlice = ({
   };
 
   return (
-    // Passa os handlers onHover/onLeave para o grupo
     <g style={style} className={`ciclo-slice-group ${isActive ? 'active' : ''}`} onMouseEnter={onHover} onMouseLeave={onLeave}>
       <circle
         className="ciclo-slice-goal"
@@ -64,14 +65,12 @@ const CicloSlice = ({
       <circle
         className="ciclo-slice-progress"
         cx="100" cy="100" r={radius} fill="transparent" stroke={color}
-        strokeWidth={isActive ? strokeWidth + 2 : strokeWidth + 0.5} // Efeito visual no anel
+        strokeWidth={isActive ? strokeWidth + 2 : strokeWidth + 0.5}
         strokeDasharray={progressStrokeDasharray} strokeLinecap="round"
       />
     </g>
   );
 };
-// --- Fim Sub-componente ---
-
 
 // --- Componente Principal "Roda" ---
 function CicloVisual({ cicloId, user, selectedDisciplinaId, onSelectDisciplina }) {
@@ -97,35 +96,53 @@ function CicloVisual({ cicloId, user, selectedDisciplinaId, onSelectDisciplina }
     return () => unsubscribe();
   }, [user, cicloId]);
 
-  // Hook Progresso
+  // Hook Progresso - CORRIGIDO
   useEffect(() => {
-    if (!user) return;
-    const { start, end } = getWeekRange();
+    if (!user || !cicloId) return;
+
+    const { startStr, endStr } = getWeekRange();
     const registrosRef = collection(db, 'users', user.uid, 'registrosEstudo');
-    const q = query(registrosRef, where('data', '>=', start), where('data', '<=', end));
+
+    // Query usando comparação de strings de data
+    const q = query(
+      registrosRef,
+      where('cicloId', '==', cicloId),
+      orderBy('data')
+    );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const newProgressMap = new Map();
+
       snapshot.forEach(doc => {
         const data = doc.data();
-        const { disciplinaId } = data;
+        let dateStr = data.data;
 
-        // NORMALIZAÇÃO: Aceita ambos os nomes de campo
-        const minutos = data.tempoEstudadoMinutos || data.duracaoMinutos || 0;
+        // Normalizar data
+        if (data.data && typeof data.data.toDate === 'function') {
+          const dateObj = data.data.toDate();
+          dateStr = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`;
+        }
 
-        const pertenceAoCiclo = disciplinas.some(d => d.id === disciplinaId);
-        if (pertenceAoCiclo && minutos > 0) {
-          newProgressMap.set(disciplinaId, (newProgressMap.get(disciplinaId) || 0) + minutos);
+        // Verificar se está na semana atual
+        if (dateStr >= startStr && dateStr <= endStr) {
+          const { disciplinaId } = data;
+          const minutos = Number(data.tempoEstudadoMinutos || 0);
+
+          if (disciplinaId && minutos > 0) {
+            newProgressMap.set(disciplinaId, (newProgressMap.get(disciplinaId) || 0) + minutos);
+          }
         }
       });
+
       setProgressMap(newProgressMap);
     }, (error) => {
       console.error("Erro progresso:", error);
     });
-    return () => unsubscribe();
-  }, [user, cicloId, disciplinas]);
 
-  // --- Lógica de Cálculo (useMemo Completo) ---
+    return () => unsubscribe();
+  }, [user, cicloId]);
+
+  // --- Lógica de Cálculo ---
   const { totalMetaMinutos, totalProgressMinutos, slices } = useMemo(() => {
     const calculatedTotalMetaMinutos = disciplinas.reduce((sum, d) => sum + (d.tempoAlocadoSemanalMinutos || 0), 0);
     const calculatedTotalProgressMinutos = Array.from(progressMap.values()).reduce((sum, m) => sum + m, 0);
@@ -157,12 +174,15 @@ function CicloVisual({ cicloId, user, selectedDisciplinaId, onSelectDisciplina }
         slices: calculatedSlices
     };
   }, [disciplinas, progressMap, hoveredDisciplinaNome, selectedDisciplinaId, radius, strokeWidth, gapAngle]);
-  // --- Fim Lógica de Cálculo ---
 
+  if (loading) {
+    return (
+      <div className="text-subtle-text-color dark:text-dark-subtle-text-color h-full flex items-center justify-center" style={{minHeight: '450px'}}>
+        Carregando ciclo...
+      </div>
+    );
+  }
 
-  if (loading) { return <div className="text-subtle-text-color dark:text-dark-subtle-text-color h-full flex items-center justify-center" style={{minHeight: '450px'}}>Carregando ciclo...</div>; }
-
-  // --- JSX Completo e Verificado ---
   return (
     <div className="h-full">
       <div className="flex flex-col lg:flex-row items-center lg:items-start" style={{ minHeight: '450px' }}>
@@ -171,7 +191,6 @@ function CicloVisual({ cicloId, user, selectedDisciplinaId, onSelectDisciplina }
         <div className="relative w-full max-w-[450px] lg:w-1/2" style={{ height: '450px' }}>
           <svg viewBox="0 0 200 200" width="100%" height="100%" style={{ transform: 'rotate(-90deg)' }}>
             {slices.map(slice => (
-              // Passa onHover e onLeave para o componente CicloSlice
               <CicloSlice
                 key={slice.key}
                 {...slice}
@@ -180,6 +199,7 @@ function CicloVisual({ cicloId, user, selectedDisciplinaId, onSelectDisciplina }
               />
             ))}
           </svg>
+
           {/* Texto no centro */}
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none w-2/3">
              {(selectedDisciplinaId || hoveredDisciplinaNome) ? (() => {
@@ -211,7 +231,7 @@ function CicloVisual({ cicloId, user, selectedDisciplinaId, onSelectDisciplina }
           </div>
         </div>
 
-        {/* Legenda Interativa (Direita) */}
+        {/* Legenda Interativa */}
         <div className="w-full lg:w-1/2 pl-0 lg:pl-12 mt-8 lg:mt-4 pr-4">
           <h3 className="text-lg font-semibold text-heading-color dark:text-dark-heading-color mb-4">
             Disciplinas do Ciclo
@@ -229,7 +249,6 @@ function CicloVisual({ cicloId, user, selectedDisciplinaId, onSelectDisciplina }
                       '--disciplina-color-transparent': hexToRgba(slice.color, 0.3)
                   }}
                 >
-                  {/* Div 1: Cor e Nome/Nível */}
                   <div className="flex items-center gap-3 w-full">
                     <span className="legend-dot" style={{ backgroundColor: slice.color }}></span>
                     <span className="flex-grow text-text-color dark:text-dark-text-color font-medium text-left">
@@ -243,14 +262,12 @@ function CicloVisual({ cicloId, user, selectedDisciplinaId, onSelectDisciplina }
                        </span>
                     </span>
                   </div>
-                  {/* Div 2: Barra de Progresso */}
                   <div className="w-full bg-background-color dark:bg-dark-background-color rounded-full h-2 my-1 border border-border-color dark:border-dark-border-color">
                     <div
                       className="h-full rounded-full"
                       style={{ width: `${slice.progressPercentage * 100}%`, backgroundColor: slice.color, transition: 'width 0.5s ease'}}
                     ></div>
                   </div>
-                  {/* Div 3: Textos Progresso/Meta */}
                   <div className="flex justify-between text-sm w-full">
                     <span className="font-semibold text-subtle-text-color dark:text-dark-subtle-text-color">
                       Prog: <span className='text-text-color dark:text-dark-text-color'>{(slice.progressMinutos / 60).toFixed(1)}h</span>

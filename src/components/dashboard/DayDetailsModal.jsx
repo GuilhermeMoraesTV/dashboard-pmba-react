@@ -1,6 +1,5 @@
 import React, { useMemo } from 'react';
 
-// Função para formatar o tempo (sem alteração)
 const formatTime = (minutes) => {
   if (!minutes || minutes === 0) return '0m';
   const h = Math.floor(minutes / 60);
@@ -13,25 +12,29 @@ const formatTime = (minutes) => {
 
 function DayDetailsModal({ date, dayData, onClose, onDeleteRegistro }) {
 
-  // Formata a data para exibição (ex: "25 de Outubro")
   const formattedDate = useMemo(() => {
     const [year, month, day] = date.split('-').map(Number);
     const dateObj = new Date(year, month - 1, day);
     return dateObj.toLocaleDateString('pt-BR', {
       day: 'numeric',
       month: 'long',
-      timeZone: 'UTC', // Garante que a data não mude por fuso
+      timeZone: 'UTC',
     });
   }, [date]);
 
-  // --- Cálculos Corrigidos ---
   const { totalHorasStr, totalQuestoes, totalAcertos, totalPercentual } = useMemo(() => {
-    // CORREÇÃO: Usa 'tempoEstudadoMinutos'
-    const totalMinutos = dayData.dayHours.reduce((acc, r) => acc + (r.tempoEstudadoMinutos || 0), 0);
+    const totalMinutos = dayData.dayHours.reduce((acc, r) => {
+      return acc + Number(r.tempoEstudadoMinutos || 0);
+    }, 0);
 
-    // CORREÇÃO: Usa 'questoesFeitas' e 'acertos'
-    const totalQuestoes = dayData.dayQuestions.reduce((acc, r) => acc + (r.questoesFeitas || 0), 0);
-    const totalAcertos = dayData.dayQuestions.reduce((acc, r) => acc + (r.acertos || 0), 0);
+    const totalQuestoes = dayData.dayQuestions.reduce((acc, r) => {
+      return acc + Number(r.questoesFeitas || 0);
+    }, 0);
+
+    const totalAcertos = dayData.dayQuestions.reduce((acc, r) => {
+      return acc + Number(r.acertos || 0);
+    }, 0);
+
     const totalPercentual = totalQuestoes > 0 ? (totalAcertos / totalQuestoes) * 100 : 0;
 
     return {
@@ -41,7 +44,6 @@ function DayDetailsModal({ date, dayData, onClose, onDeleteRegistro }) {
       totalPercentual,
     };
   }, [dayData]);
-  // --- FIM DA CORREÇÃO ---
 
   return (
     <div
@@ -87,11 +89,13 @@ function DayDetailsModal({ date, dayData, onClose, onDeleteRegistro }) {
                   <div className="text-sm">
                     <span className="font-medium text-heading-color dark:text-dark-heading-color">{r.disciplinaNome || `ID: ${r.disciplinaId}`}</span>
                     <span className="text-subtle-text-color dark:text-dark-subtle-text-color"> ({r.tipoEstudo})</span>
+                    {r.topicoNome && <span className="text-xs text-subtle-text-color dark:text-dark-subtle-text-color block">{r.topicoNome}</span>}
                   </div>
                   <div className="flex items-center gap-3">
-                    {/* CORREÇÃO: Usa 'tempoEstudadoMinutos' */}
-                    <span className="text-sm font-semibold text-text-color dark:text-dark-text-color">{formatTime(r.tempoEstudadoMinutos)}</span>
-                    <button onClick={() => onDeleteRegistro(r.id)} className="text-red-500 text-xs">Excluir</button>
+                    <span className="text-sm font-semibold text-text-color dark:text-dark-text-color">
+                      {formatTime(Number(r.tempoEstudadoMinutos || 0))}
+                    </span>
+                    <button onClick={() => onDeleteRegistro(r.id)} className="text-red-500 text-xs hover:brightness-125">Excluir</button>
                   </div>
                 </div>
               ))}
@@ -102,21 +106,27 @@ function DayDetailsModal({ date, dayData, onClose, onDeleteRegistro }) {
           {dayData.dayQuestions.length > 0 && (
             <div>
               <h3 className="font-semibold text-text-color dark:text-dark-text-color mb-2">Registros de Questões</h3>
-              {dayData.dayQuestions.map(r => (
-                <div key={r.id} className="flex justify-between items-center bg-background-color dark:bg-dark-background-color p-3 rounded-lg mb-2">
-                  <div className="text-sm">
-                    <span className="font-medium text-heading-color dark:text-dark-heading-color">{r.disciplinaNome || `ID: ${r.disciplinaId}`}</span>
-                    <span className="text-subtle-text-color dark:text-dark-subtle-text-color"> ({r.tipoEstudo})</span>
+              {dayData.dayQuestions.map(r => {
+                const questoes = Number(r.questoesFeitas || 0);
+                const acertos = Number(r.acertos || 0);
+                const percentual = questoes > 0 ? ((acertos / questoes) * 100).toFixed(0) : 0;
+
+                return (
+                  <div key={r.id} className="flex justify-between items-center bg-background-color dark:bg-dark-background-color p-3 rounded-lg mb-2">
+                    <div className="text-sm">
+                      <span className="font-medium text-heading-color dark:text-dark-heading-color">{r.disciplinaNome || `ID: ${r.disciplinaId}`}</span>
+                      <span className="text-subtle-text-color dark:text-dark-subtle-text-color"> ({r.tipoEstudo})</span>
+                      {r.topicoNome && <span className="text-xs text-subtle-text-color dark:text-dark-subtle-text-color block">{r.topicoNome}</span>}
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-semibold text-text-color dark:text-dark-text-color">
+                        {acertos} / {questoes} ({percentual}%)
+                      </span>
+                      <button onClick={() => onDeleteRegistro(r.id)} className="text-red-500 text-xs hover:brightness-125">Excluir</button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    {/* CORREÇÃO: Usa 'acertos' */}
-                    <span className="text-sm font-semibold text-text-color dark:text-dark-text-color">
-                      {r.acertos || 0} / {r.questoesFeitas} ({(( (r.acertos || 0) / r.questoesFeitas) * 100).toFixed(0)}%)
-                    </span>
-                    <button onClick={() => onDeleteRegistro(r.id)} className="text-red-500 text-xs">Excluir</button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

@@ -1,8 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import DayDetailsModal from './DayDetailsModal.jsx'; // Reutiliza o modal
-import Legend from './Legend.jsx'; // Importa a legenda
+import DayDetailsModal from './DayDetailsModal.jsx';
 
-// --- Funções Helper (Sem alteração) ---
+// Funções Helper
 const dateToYMD_local = (date) => {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -10,76 +9,79 @@ const dateToYMD_local = (date) => {
   return `${year}-${month}-${day}`;
 };
 
-const formatDecimalHours = (d) => {
-  if (!d || d < 0) return '0h 0m';
-  const totalMinutes = Math.round(d * 60);
-  const h = Math.floor(totalMinutes / 60);
-  const m = totalMinutes % 60;
+const formatDecimalHours = (minutos) => {
+  if (!minutos || minutos < 0) return '0h 0m';
+  const h = Math.floor(minutos / 60);
+  const m = Math.round(minutos % 60);
   return `${h}h ${m}m`;
 };
-// -------------------------------------
 
-
-function CalendarTab({ registrosEstudo, goalsHistory, onDeleteRegistro }) {
+function CalendarTab({ registrosEstudo = [], goalsHistory = [], onDeleteRegistro }) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(null);
 
-  // --- getGoalsForDate (Sem alteração) ---
+  console.log("📅 CalendarTab renderizado com", registrosEstudo?.length || 0, "registros"); // DEBUG
+
   const getGoalsForDate = (dateStr) => {
     if (!goalsHistory || goalsHistory.length === 0) return { questions: 0, hours: 0 };
     const sortedGoals = [...goalsHistory].sort((a, b) => new Date(b.startDate) - new Date(a.startDate));
     return sortedGoals.find(g => g.startDate <= dateStr) || { questions: 0, hours: 0 };
   };
 
-  // --- useMemo CORRIGIDO ---
+  // Processar registros
   const studyDays = useMemo(() => {
     const days = {};
-    try {
-      registrosEstudo.forEach(item => {
-        const dateStr = item.data;
-        if (!dateStr || typeof dateStr !== 'string' || dateStr.split('-').length !== 3) {
+
+    if (!registrosEstudo || registrosEstudo.length === 0) {
+      console.log("⚠️ Nenhum registro para processar");
+      return days;
+    }
+
+    console.log("🔄 Processando", registrosEstudo.length, "registros");
+
+    registrosEstudo.forEach(item => {
+      try {
+        const dateStr = item.data; // Já normalizado no Dashboard
+
+        if (!dateStr || typeof dateStr !== 'string') {
+          console.log("⚠️ Data inválida:", dateStr);
           return;
         }
 
-        days[dateStr] = days[dateStr] || { questions: 0, correct: 0, hours: 0 };
+        if (!days[dateStr]) {
+          days[dateStr] = { questions: 0, correct: 0, hours: 0 };
+        }
 
-        // NORMALIZAÇÃO
-        const minutos = item.tempoEstudadoMinutos || item.duracaoMinutos || 0;
-        const questoes = item.questoesFeitas || 0;
-        const acertos = item.acertos || item.questoesAcertadas || 0;
+        const minutos = Number(item.tempoEstudadoMinutos || 0);
+        const questoes = Number(item.questoesFeitas || 0);
+        const acertos = Number(item.acertos || 0);
 
         if (minutos > 0) {
-          days[dateStr].hours += (minutos / 60);
+          days[dateStr].hours += minutos;
         }
 
         if (questoes > 0) {
           days[dateStr].questions += questoes;
           days[dateStr].correct += acertos;
         }
-      });
-    } catch (error) {
-      console.error("Erro ao processar calendário:", error);
-    }
+      } catch (error) {
+        console.error("❌ Erro ao processar registro:", error, item);
+      }
+    });
+
+    console.log("✅ Dias processados:", Object.keys(days).length);
     return days;
   }, [registrosEstudo]);
-  // --- FIM DA CORREÇÃO ---
 
-
-  // --- handleDayClick CORRIGIDO ---
   const handleDayClick = (date) => {
-    // CORREÇÃO: Compara 'r.data' (string) diretamente com 'date' (string)
     const dayRegistros = registrosEstudo.filter(r => r.data === date);
-
-    // CORREÇÃO: Nomes de campo corretos
     const dayQuestions = dayRegistros.filter(r => (r.questoesFeitas || 0) > 0);
     const dayHours = dayRegistros.filter(r => (r.tempoEstudadoMinutos || 0) > 0);
 
+    console.log("🔍 Clique no dia:", date, "Registros:", dayRegistros.length);
     setSelectedDate({ date, dayQuestions, dayHours });
   };
-  // --- FIM DA CORREÇÃO ---
 
-
-  // Funções de navegação do calendário (sem alteração)
   const daysOfWeek = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
   const currentMonth = currentDate.getMonth();
   const currentYear = currentDate.getFullYear();
@@ -98,9 +100,9 @@ function CalendarTab({ registrosEstudo, goalsHistory, onDeleteRegistro }) {
     if (hasData) {
       const goalsForDay = getGoalsForDate(dateStr);
       const qGoal = goalsForDay?.questions || 0;
-      const hGoal = goalsForDay?.hours || 0;
-      const qGoalMet = dayData.questions >= qGoal;
-      const hGoalMet = dayData.hours >= hGoal;
+      const hGoal = (goalsForDay?.hours || 0) * 60; // Converter para minutos
+      const qGoalMet = qGoal === 0 || dayData.questions >= qGoal;
+      const hGoalMet = hGoal === 0 || dayData.hours >= hGoal;
 
       if (qGoalMet && hGoalMet) status = 'goal-met-both';
       else if (qGoalMet || hGoalMet) status = 'goal-met-one';
@@ -142,7 +144,7 @@ function CalendarTab({ registrosEstudo, goalsHistory, onDeleteRegistro }) {
           </div>
         ))}
 
-        {/* Dias em branco (offset) */}
+        {/* Dias em branco */}
         {Array.from({ length: firstDayOfMonth }).map((_, i) => (
           <div key={`empty-${i}`} className="border border-border-color dark:border-dark-border-color bg-background-color dark:bg-dark-background-color/50 min-h-[100px] rounded-md"></div>
         ))}
@@ -162,18 +164,18 @@ function CalendarTab({ registrosEstudo, goalsHistory, onDeleteRegistro }) {
               onClick={() => hasData && handleDayClick(dateStr)}
               className={`
                 border border-border-color dark:border-dark-border-color min-h-[100px] rounded-md p-2 text-left relative transition-all duration-150
-                ${status === 'goal-met-both' ? 'bg-goal-met-both' : ''}
-                ${status === 'goal-met-one' ? 'bg-goal-met-one' : ''}
-                ${status === 'goal-not-met' ? 'bg-goal-not-met' : ''}
+                ${status === 'goal-met-both' ? 'bg-green-200 dark:bg-green-800' : ''}
+                ${status === 'goal-met-one' ? 'bg-yellow-200 dark:bg-yellow-800' : ''}
+                ${status === 'goal-not-met' ? 'bg-red-200 dark:bg-red-800' : ''}
                 ${status === 'no-data' ? 'bg-background-color dark:bg-dark-background-color/50' : ''}
                 ${hasData ? 'cursor-pointer hover:brightness-110' : 'cursor-default'}
-                ${isToday ? 'shadow-[inset_0_0_0_2px_theme(colors.primary-color)]' : ''}
+                ${isToday ? 'ring-2 ring-primary-color' : ''}
               `}
             >
               <span className={`font-semibold text-sm ${isToday ? 'text-primary-color' : 'text-text-color dark:text-dark-text-color'}`}>
                 {dayNumber}
               </span>
-              {hasData && (
+              {hasData && studyDays[dateStr] && (
                 <div className="absolute bottom-2 left-2 right-2 text-xs text-text-color dark:text-dark-text-color">
                   {studyDays[dateStr].hours > 0 && (
                     <div className="font-medium">{formatDecimalHours(studyDays[dateStr].hours)}</div>
@@ -188,7 +190,21 @@ function CalendarTab({ registrosEstudo, goalsHistory, onDeleteRegistro }) {
         })}
       </div>
 
-      <Legend />
+      {/* Legenda */}
+      <div className="mt-6 flex flex-wrap gap-4 text-sm">
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 rounded bg-green-200 dark:bg-green-800"></div>
+          <span>Metas Atingidas</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 rounded bg-yellow-200 dark:bg-yellow-800"></div>
+          <span>Meta Parcial</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 rounded bg-red-200 dark:bg-red-800"></div>
+          <span>Abaixo da Meta</span>
+        </div>
+      </div>
 
       {/* Modal de Detalhes */}
       {selectedDate && (

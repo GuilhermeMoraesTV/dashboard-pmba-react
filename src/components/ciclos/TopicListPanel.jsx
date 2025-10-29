@@ -2,35 +2,44 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../../firebaseConfig';
 import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 
-// Função helper (copie se necessário)
-const formatDecimalHours = (d) => {
-    if (!d || d < 0) return '0h 0m'; // Formato mais curto
-    const totalMinutes = Math.round(d); // Já recebe minutos
+const formatDecimalHours = (minutos) => {
+    if (!minutos || minutos < 0) return '0h 0m';
+    const totalMinutes = Math.round(minutos);
     const h = Math.floor(totalMinutes / 60);
     const m = totalMinutes % 60;
     return `${h}h ${String(m).padStart(2, '0')}m`;
 };
 
-// Hook para buscar Tópicos da Disciplina (Reutilizado)
+// Hook para buscar Tópicos da Disciplina
 const useTopicsDaDisciplina = (user, cicloId, disciplinaId) => {
   const [topics, setTopics] = useState([]);
   const [loading, setLoading] = useState(false);
+
   useEffect(() => {
-    if (!user || !cicloId || !disciplinaId) { setTopics([]); setLoading(false); return; }
+    if (!user || !cicloId || !disciplinaId) {
+      setTopics([]);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     const topicsRef = collection(db, 'users', user.uid, 'ciclos', cicloId, 'topicos');
     const q = query(topicsRef, where('disciplinaId', '==', disciplinaId), orderBy('nome'));
+
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setTopics(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       setLoading(false);
-    }, (error) => { console.error("Erro ao buscar tópicos:", error); setLoading(false); });
+    }, (error) => {
+      console.error("Erro ao buscar tópicos:", error);
+      setLoading(false);
+    });
+
     return () => unsubscribe();
   }, [user, cicloId, disciplinaId]);
+
   return { topics, loadingTopics: loading };
 };
 
-
-// --- COMPONENTE PRINCIPAL DO PAINEL DE TÓPICOS ---
 function TopicListPanel({ user, cicloId, disciplinaId, registrosEstudo }) {
 
   // 1. Busca os tópicos da disciplina selecionada
@@ -50,16 +59,17 @@ function TopicListPanel({ user, cicloId, disciplinaId, registrosEstudo }) {
       });
     });
 
+    // Filtra registros da disciplina
     const registrosDaDisciplina = registrosEstudo.filter(r => r.disciplinaId === disciplinaId);
 
     registrosDaDisciplina.forEach(registro => {
       if (registro.topicoId && summaryMap.has(registro.topicoId)) {
         const topicData = summaryMap.get(registro.topicoId);
 
-        // NORMALIZAÇÃO: Aceita ambos os nomes
-        const minutos = registro.tempoEstudadoMinutos || registro.duracaoMinutos || 0;
-        const questoes = registro.questoesFeitas || 0;
-        const acertos = registro.acertos || registro.questoesAcertadas || 0;
+        // NORMALIZAÇÃO COMPLETA
+        const minutos = Number(registro.tempoEstudadoMinutos || 0);
+        const questoes = Number(registro.questoesFeitas || 0);
+        const acertos = Number(registro.acertos || 0);
 
         if (minutos > 0) {
           topicData.totalMinutes += minutos;
@@ -79,7 +89,17 @@ function TopicListPanel({ user, cicloId, disciplinaId, registrosEstudo }) {
   }
 
   if (topics.length === 0) {
-     return <p className="text-subtle-text-color dark:text-dark-subtle-text-color p-4">Nenhum tópico cadastrado para esta disciplina.</p>;
+     return (
+       <div className="flex flex-col items-center justify-center py-10 text-center">
+         <span className="text-4xl mb-3">📚</span>
+         <p className="text-subtle-text-color dark:text-dark-subtle-text-color font-semibold">
+           Nenhum tópico cadastrado
+         </p>
+         <p className="text-xs text-subtle-text-color dark:text-dark-subtle-text-color mt-1">
+           Adicione tópicos ao editar o ciclo
+         </p>
+       </div>
+     );
   }
 
   return (
@@ -87,7 +107,7 @@ function TopicListPanel({ user, cicloId, disciplinaId, registrosEstudo }) {
       <h2 className="text-xl font-bold text-heading-color dark:text-dark-heading-color mb-4">
         Tópicos da Disciplina
       </h2>
-      <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2"> {/* Limita altura e adiciona scroll */}
+      <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
         {Array.from(topicSummary.values()).map(topicData => {
           const performance = topicData.totalQuestions > 0
             ? ((topicData.totalCorrect / topicData.totalQuestions) * 100).toFixed(0) + '%'

@@ -9,9 +9,9 @@ import Home from './dashboard/Home';
 import GoalsTab from './dashboard/GoalsTab';
 import CalendarTab from './dashboard/CalendarTab';
 import CiclosPage from '../pages/CiclosPage';
-import ProfilePage from '../pages/ProfilePage'; // <-- 1. IMPORTAR
+import ProfilePage from '../pages/ProfilePage';
 
-// Função helper (sem alteração)
+// Função helper
 const dateToYMD = (date) => {
   const d = date.getDate();
   const m = date.getMonth() + 1;
@@ -30,7 +30,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     );
   }
 
-  // Estados (sem alteração)
+  // Estados
   const [activeTab, setActiveTab] = useState('home');
   const [goalsHistory, setGoalsHistory] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -40,9 +40,8 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   const [allRegistrosEstudo, setAllRegistrosEstudo] = useState([]);
   const [activeRegistrosEstudo, setActiveRegistrosEstudo] = useState([]);
 
-  // Redimensionamento (sem alteração)
+  // Redimensionamento
   useEffect(() => {
-    // ... (código existente)
     const handleResize = () => {
       if (window.innerWidth >= 1024) {
         setIsMobileOpen(false);
@@ -52,10 +51,9 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Busca ciclo ativo (sem alteração)
+  // Busca ciclo ativo
   useEffect(() => {
-    // ... (código existente)
-     if (!user) return;
+    if (!user) return;
 
     const ciclosRef = collection(db, 'users', user.uid, 'ciclos');
     const q = query(ciclosRef, where('ativo', '==', true), where('arquivado', '==', false));
@@ -63,49 +61,53 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       if (snapshot.empty) {
         setActiveCicloId(null);
-        // Não definir loading aqui para esperar os registros
       } else {
         const cicloAtivo = snapshot.docs[0];
         setActiveCicloId(cicloAtivo.id);
       }
     }, (error) => {
       console.error("Erro ao buscar ciclo ativo:", error);
-      setActiveCicloId(null); // Garante que fica nulo em caso de erro
-      // Não definir loading aqui para esperar os registros
+      setActiveCicloId(null);
     });
 
     return () => unsubscribe();
   }, [user]);
 
-  // Busca TODOS os registros (sem alteração)
+  // Busca TODOS os registros
   useEffect(() => {
-    // ... (código existente)
-     if (!user) return;
+    if (!user) return;
 
-    setLoading(true); // Controla o loading principal aqui
+    setLoading(true);
     const q = query(
       collection(db, 'users', user.uid, 'registrosEstudo'),
-      // Ordena por timestamp se existir, senão por data (para compatibilidade)
       orderBy('timestamp', 'desc')
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const todosRegistros = snapshot.docs.map(doc => {
         const data = doc.data();
-        // Normaliza os dados para garantir consistência e tratar dados antigos
+
+        // Normaliza a data
+        let dataStr = data.data;
+        if (data.data && typeof data.data.toDate === 'function') {
+          dataStr = dateToYMD(data.data.toDate());
+        }
+
         return {
           id: doc.id,
           ...data,
           // Garante que os campos usados nos cálculos existam e sejam números
-          tempoEstudadoMinutos: Number(data.tempoEstudadoMinutos || data.duracaoMinutos || 0),
+          tempoEstudadoMinutos: Number(data.tempoEstudadoMinutos || 0),
           questoesFeitas: Number(data.questoesFeitas || 0),
-          acertos: Number(data.acertos || data.questoesAcertadas || 0),
+          acertos: Number(data.acertos || 0),
           // Garante que a data seja uma string YYYY-MM-DD
-          data: typeof data.data === 'string' ? data.data : (data.data?.toDate ? dateToYMD(data.data.toDate()) : dateToYMD(new Date())),
+          data: dataStr,
         };
       });
+
+      console.log("📊 Total de registros carregados:", todosRegistros.length); // DEBUG
       setAllRegistrosEstudo(todosRegistros);
-      setLoading(false); // Loading termina após buscar registros
+      setLoading(false);
     }, (error) => {
       console.error("Erro ao buscar registros:", error);
       setLoading(false);
@@ -114,9 +116,8 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     return () => unsubscribe();
   }, [user]);
 
-  // Filtra registros do ciclo ativo (sem alteração)
+  // Filtra registros do ciclo ativo
   useEffect(() => {
-    // ... (código existente)
     if (loading) return;
 
     if (!activeCicloId) {
@@ -125,14 +126,14 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       const registrosFiltrados = allRegistrosEstudo.filter(
         (registro) => registro.cicloId === activeCicloId
       );
+      console.log("🎯 Registros do ciclo ativo:", registrosFiltrados.length); // DEBUG
       setActiveRegistrosEstudo(registrosFiltrados);
     }
   }, [activeCicloId, allRegistrosEstudo, loading]);
 
-  // Busca metas (sem alteração)
+  // Busca metas
   useEffect(() => {
-    // ... (código existente)
-     if (!user) return;
+    if (!user) return;
     const q = query(collection(db, 'users', user.uid, 'metas'), orderBy('startDate', 'desc'));
     const unsubscribeGoals = onSnapshot(q, (snapshot) => {
       setGoalsHistory(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
@@ -141,25 +142,24 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     return () => unsubscribeGoals();
   }, [user]);
 
-  // Funções de dados (addRegistro, deleteRegistro, deleteData, addGoal) (sem alteração)
+  // Funções de dados
   const addRegistroEstudo = async (data) => {
     try {
       const collectionRef = collection(db, 'users', user.uid, 'registrosEstudo');
       await addDoc(collectionRef, {
         ...data,
-        timestamp: Timestamp.now() // Adiciona timestamp para ordenação
+        timestamp: Timestamp.now()
       });
-      console.log("Registro salvo com sucesso!");
+      console.log("✅ Registro salvo com sucesso!");
     } catch (e) {
-      console.error('Erro ao adicionar registro:', e);
-      // Opcional: Mostrar um erro para o usuário
-      // throw e; // Re-lança se precisar tratar no modal
+      console.error('❌ Erro ao adicionar registro:', e);
     }
   };
 
   const deleteRegistro = async (id) => {
     try {
       await deleteDoc(doc(db, 'users', user.uid, 'registrosEstudo', id));
+      console.log("🗑️ Registro deletado:", id);
     } catch (e) {
       console.error('Erro ao deletar registro:', e);
     }
@@ -186,7 +186,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     }
   };
 
-  // Logout e Callback do Ciclo (sem alteração)
+  // Logout e Callback do Ciclo
   const handleLogout = () => {
     signOut(auth).catch((error) => console.error('Logout Error:', error));
   };
@@ -195,12 +195,10 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     setActiveCicloId(cicloId);
   };
 
-  // ============================================
-  // FUNÇÃO ATUALIZADA: renderTabContent
-  // ============================================
+  // RENDERIZAÇÃO DE CONTEÚDO
   const renderTabContent = () => {
-    // Mostra loading apenas se estiver carregando E na home (ou outra aba que dependa dos dados)
-    if (loading && (activeTab === 'home' || activeTab === 'calendar' || activeTab === 'profile')) {
+    // Loading só para abas que dependem de dados
+    if (loading && ['home', 'calendar'].includes(activeTab)) {
       return (
         <div className="flex justify-center items-center pt-20">
           <h2 className="text-xl font-semibold text-heading-color dark:text-dark-heading-color">
@@ -210,10 +208,12 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       );
     }
 
+    console.log("🔄 Renderizando aba:", activeTab); // DEBUG
+
     switch (activeTab) {
       case 'home':
         return <Home
-          registrosEstudo={activeRegistrosEstudo} // Passa só os do ciclo ativo
+          registrosEstudo={activeRegistrosEstudo}
           goalsHistory={goalsHistory}
           setActiveTab={setActiveTab}
           onDeleteRegistro={deleteRegistro}
@@ -227,8 +227,9 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         />;
 
       case 'calendar':
+        console.log("📅 Renderizando Calendário com", allRegistrosEstudo.length, "registros"); // DEBUG
         return <CalendarTab
-          registrosEstudo={allRegistrosEstudo} // Passa todos os registros
+          registrosEstudo={allRegistrosEstudo}
           goalsHistory={goalsHistory}
           onDeleteRegistro={deleteRegistro}
         />;
@@ -240,15 +241,12 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
           onCicloAtivado={handleCicloAtivado}
         />;
 
-      // --- 2. ADICIONADO CASE PARA 'profile' ---
       case 'profile':
         return <ProfilePage
           user={user}
-          // Passa todos os registros para histórico, se necessário
           allRegistrosEstudo={allRegistrosEstudo}
           onDeleteRegistro={deleteRegistro}
         />;
-      // --- FIM DA ADIÇÃO ---
 
       default:
         return <Home
@@ -260,7 +258,6 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     }
   };
 
-  // JSX (sem alteração visual)
   return (
     <div className="flex min-h-screen">
       <NavSideBar
@@ -279,7 +276,6 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
           isDarkMode={isDarkMode}
           toggleTheme={toggleTheme}
           userEmail={user ? user.email : ''}
-          // Passa a função para abrir o menu mobile no Header
           onMenuButtonClick={() => setIsMobileOpen(true)}
         />
         <main>
