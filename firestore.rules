@@ -1,0 +1,22 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Permite que o usuário leia e edite seu próprio perfil
+    match /users/{userId} {
+      allow read, update, delete: if request.auth.uid == userId;
+      allow create: if request.auth.uid != null;
+    }
+
+    // Esta regra protege TODAS as subcoleções (ciclos, metas, registrosEstudo, etc.)
+    // dentro de cada usuário.
+    match /users/{userId}/{document=**} {
+      allow read, write, delete: if request.auth.uid == userId;
+    }
+
+    // Bloqueia as coleções antigas na raiz
+    match /horas/{docId} { allow read, write: if false; }
+    match /metas/{docId} { allow read, write: if false; }
+    match /questoes/{docId} { allow read, write: if false; }
+  }
+}

@@ -6,45 +6,136 @@
 @tailwind utilities;
 
 /* ==========================================================================
-   2. ESTILOS DE BASE (TRADUÇÃO DO SEU index.css)
+   2. VARIÁVEIS DE CORES - TEMA MILITAR DARK
    ========================================================================== */
 @layer base {
+  :root {
+    /* Cores Primárias - Tema Militar */
+    --color-primary: #dc2626; /* Vermelho militar */
+    --color-primary-hover: #b91c1c;
+    --color-primary-light: #ef4444;
+
+    /* Cores de Fundo */
+    --color-background: #0a0a0a; /* Preto profundo */
+    --color-card-background: #1a1a1a; /* Cinza escuro */
+    --dark-background-color: #000000;
+    --dark-card-background-color: #0f0f0f;
+
+    /* Cores de Texto */
+    --color-text: #e5e7eb; /* Cinza claro */
+    --color-heading: #ffffff;
+    --color-subtle-text: #9ca3af;
+    --dark-text-color: #f3f4f6;
+    --dark-heading-color: #ffffff;
+    --dark-subtle-text-color: #6b7280;
+
+    /* Cores de Borda */
+    --color-border: #1f2937;
+    --dark-border-color: #374151;
+
+    /* Cores de Estado */
+    --color-success: #10b981; /* Verde */
+    --color-danger: #dc2626; /* Vermelho */
+    --color-warning: #f59e0b; /* Laranja */
+    --color-info: #3b82f6; /* Azul */
+
+    /* Sombras */
+    --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
+  }
+
+  /* Modo Dark (já é o padrão, mas mantido para compatibilidade) */
+  .dark {
+    --color-background: #000000;
+    --color-card-background: #0f0f0f;
+    --color-text: #f3f4f6;
+    --color-heading: #ffffff;
+  }
+}
+
+/* ==========================================================================
+   3. ESTILOS DE BASE
+   ========================================================================== */
+@layer base {
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
   body {
-    /* Tradução de '2. GLOBAL STYLES' */
-    @apply font-sans bg-background-color text-text-color;
+    @apply font-sans bg-[#0a0a0a] text-gray-100;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
-  /* Aplica as cores do dark mode automaticamente quando <html> tem a classe 'dark' */
-  .dark body {
-    @apply bg-dark-background-color text-dark-text-color;
+  h1, h2, h3, h4, h5, h6 {
+    @apply text-white font-bold;
   }
-
 
   h2 {
-    /* Tradução de '2. GLOBAL STYLES' */
-    @apply text-heading-color dark:text-dark-heading-color
-           mt-8 mb-4 pb-2
-           border-b-2 border-border-color dark:border-dark-border-color;
+    @apply mt-8 mb-4 pb-2 border-b-2 border-gray-800;
   }
 
   /* Estilos de input globais */
   input, select, textarea {
-    @apply bg-background-color dark:bg-dark-background-color
-           text-text-color dark:text-dark-text-color
-           border border-border-color dark:border-dark-border-color
-           rounded-lg;
+    @apply bg-[#1a1a1a] text-white border border-gray-800 rounded-lg;
+  }
+
+  input:focus, select:focus, textarea:focus {
+    @apply outline-none border-red-600 ring-1 ring-red-600;
   }
 
   /* Garante que botões não tenham fundo/borda padrão que interfira */
   button {
     @apply bg-transparent border-none;
   }
+
+  /* Links */
+  a {
+    @apply text-red-500 transition-colors;
+  }
+
+  a:hover {
+    @apply text-red-400;
+  }
 }
 
 /* ==========================================================================
-   17. TOOLTIP (Mantido)
+   4. SCROLLBAR PERSONALIZADA - TEMA DARK
    ========================================================================== */
+/* Para Webkit (Chrome, Safari, Edge) */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
 
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: rgba(220, 38, 38, 0.3); /* Vermelho militar transparente */
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(220, 38, 38, 0.5);
+}
+
+/* Para Firefox */
+@supports (scrollbar-color: auto) {
+  * {
+    scrollbar-color: rgba(220, 38, 38, 0.3) transparent;
+    scrollbar-width: thin;
+  }
+}
+
+/* ==========================================================================
+   5. TOOLTIP
+   ========================================================================== */
 [data-tooltip] {
   position: relative;
 }
@@ -55,7 +146,7 @@
   bottom: 125%;
   left: 50%;
   transform: translateX(-50%);
-  background-color: #2c3e50; /* Pode mudar para uma var(--cor) */
+  background-color: #1a1a1a;
   color: #fff;
   padding: 8px 12px;
   border-radius: 6px;
@@ -67,6 +158,7 @@
   transition: opacity 0.2s, visibility 0.2s;
   pointer-events: none;
   z-index: 10;
+  border: 1px solid #374151;
 }
 
 [data-tooltip]::before {
@@ -76,7 +168,7 @@
   left: 50%;
   transform: translateX(-50%) translateY(100%);
   border: 6px solid transparent;
-  border-top-color: #2c3e50; /* Pode mudar para uma var(--cor) */
+  border-top-color: #1a1a1a;
   opacity: 0;
   visibility: hidden;
   transition: opacity 0.2s, visibility 0.2s;
@@ -91,9 +183,8 @@
 }
 
 /* ==========================================================================
-   18. ANIMATIONS (Mantido)
+   6. ANIMATIONS
    ========================================================================== */
-
 @keyframes fadeInFromBottom {
   from {
     opacity: 0;
@@ -105,11 +196,42 @@
   }
 }
 
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes slideInFromLeft {
+  from {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideInFromRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
 .confetti {
   position: fixed;
   width: 10px;
   height: 10px;
-  background-color: #f00; /* Pode mudar para uma var(--cor) */
+  background-color: #dc2626;
   opacity: 0.7;
   z-index: 2000;
   pointer-events: none;
@@ -122,124 +244,153 @@
     opacity: 0;
   }
 }
+
 /* ==========================================================================
-   ESTILOS DO CICLO E LEGENDA (VERIFICAR/SUBSTITUIR ESTE BLOCO)
+   7. ESTILOS DO CICLO E LEGENDA
    ========================================================================== */
+.ciclo-slice-group {
+  transition: all 0.2s ease-out;
+  cursor: pointer;
+}
 
-/* --- Estilo da Roda (Progressivo e Segmentado) --- */
-.ciclo-slice-group { transition: all 0.2s ease-out; cursor: pointer; }
-.ciclo-slice-goal { opacity: 0.1; stroke-linecap: butt; }
-.ciclo-slice-progress { transition: all 0.5s ease-out; opacity: 1; }
-.ciclo-slice-group:not(.active) .ciclo-slice-progress { opacity: 0.5; }
-.ciclo-slice-group:not(.active) .ciclo-slice-goal { opacity: 0.05; }
-.ciclo-slice-group.active .ciclo-slice-goal { opacity: 0.2; }
-/* Espessura do anel de progresso é controlada via 'strokeWidth' no JSX */
+.ciclo-slice-goal {
+  opacity: 0.1;
+  stroke-linecap: butt;
+}
 
+.ciclo-slice-progress {
+  transition: all 0.5s ease-out;
+  opacity: 1;
+}
 
-/* --- Estilo da Legenda Interativa (CORRIGIDO PARA BUTTON) --- */
+.ciclo-slice-group:not(.active) .ciclo-slice-progress {
+  opacity: 0.5;
+}
+
+.ciclo-slice-group:not(.active) .ciclo-slice-goal {
+  opacity: 0.05;
+}
+
+.ciclo-slice-group.active .ciclo-slice-goal {
+  opacity: 0.2;
+}
+
+/* Legenda Interativa */
 .ciclo-legend-item {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem; /* 4px */
-  padding: 1rem; /* 16px */
-  border-radius: 0.75rem; /* 12px */
+  gap: 0.25rem;
+  padding: 1rem;
+  border-radius: 0.75rem;
   cursor: pointer;
-  transition: all 0.2s ease-out; /* Define a transição base */
+  transition: all 0.2s ease-out;
   border: 2px solid transparent;
   text-align: left;
   width: 100%;
-  background-color: var(--color-card-background, #FFFFFF);
-  box-shadow: var(--shadow-card-shadow, 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06));
+  background-color: #1a1a1a;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
 }
-.dark .ciclo-legend-item {
-  background-color: var(--dark-card-background-color, #1F2937);
-}
-.ciclo-legend-item:focus { outline: none; }
-.ciclo-legend-item:focus-visible { box-shadow: 0 0 0 2px var(--color-primary, #3B82F6); }
-.ciclo-legend-item .legend-dot { width: 0.75rem; height: 0.75rem; border-radius: 9999px; flex-shrink: 0; }
 
-/* Efeito HOVER (classe '.active') */
-/* Aplica uma borda sutil e levanta o card */
+.ciclo-legend-item:focus {
+  outline: none;
+}
+
+.ciclo-legend-item:focus-visible {
+  box-shadow: 0 0 0 2px #dc2626;
+}
+
+.ciclo-legend-item .legend-dot {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+
 .ciclo-legend-item.active {
-   border-color: var(--color-border, #E5E7EB);
-   transform: translateY(-2px); /* Levanta sutilmente */
-   /* Você pode adicionar um leve brilho se quiser:
-   box-shadow: var(--shadow-card-shadow), 0 0 8px rgba(0,0,0,0.1); */
-}
-.dark .ciclo-legend-item.active {
-   border-color: var(--dark-border-color, #374151);
-   /* box-shadow: var(--shadow-card-shadow), 0 0 8px rgba(255,255,255,0.05); */
+  border-color: #374151;
+  transform: translateY(-2px);
 }
 
-/* Efeito SELECIONADO (classe '.selected') */
-/* Aplica borda colorida mais grossa e sombra colorida */
 .ciclo-legend-item.selected {
   border-width: 2px;
-  /* Usa a cor da disciplina definida na prop 'style' */
-  border-color: var(--disciplina-color, var(--color-primary));
-  box-shadow: 0 0 15px 0px var(--disciplina-color, rgba(59, 130, 246, 0.4));
-  transform: scale(1.02); /* Leve zoom para destacar */
+  border-color: var(--disciplina-color, #dc2626);
+  box-shadow: 0 0 15px 0px var(--disciplina-color, rgba(220, 38, 38, 0.4));
+  transform: scale(1.02);
 }
 
-/* Combinação: Selecionado E Hover */
-/* Garante que o efeito selecionado (mais forte) prevaleça, mas mantém o 'lift' do hover */
 .ciclo-legend-item.selected.active {
-    /* Mantém a borda e sombra do .selected */
-    border-color: var(--disciplina-color, var(--color-primary));
-    box-shadow: 0 0 15px 0px var(--disciplina-color, rgba(59, 130, 246, 0.4));
-    /* Combina os transforms */
-    transform: scale(1.02) translateY(-2px);
+  border-color: var(--disciplina-color, #dc2626);
+  box-shadow: 0 0 15px 0px var(--disciplina-color, rgba(220, 38, 38, 0.4));
+  transform: scale(1.02) translateY(-2px);
 }
 
-/* ==================================================================
-   NOVOS ESTILOS DE SCROLLBAR PERSONALIZADA
-  ==================================================================
-*/
-
-/* Para Webkit (Chrome, Safari, Edge) */
-::-webkit-scrollbar {
-  width: 8px;  /* Largura para scroll vertical */
-  height: 8px; /* Altura para scroll horizontal */
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background-color: rgba(0, 0, 0, 0.2); /* Cor da barra no modo claro */
-  border-radius: 10px;
-  border: 2px solid transparent;
-  background-clip: content-box;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(0, 0, 0, 0.3);
-}
-
-/* Cor da barra no modo escuro */
-.dark ::-webkit-scrollbar-thumb {
-  background-color: rgba(255, 255, 255, 0.2);
-}
-
-.dark ::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(255, 255, 255, 0.3);
-}
-
-/* Para Firefox (Moderno) */
-/* Note: O Firefox suporta menos personalização */
-@supports (scrollbar-color: auto) {
-  * {
-    scrollbar-color: rgba(0, 0, 0, 0.3) transparent; /* thumb track */
-    scrollbar-width: thin;
-  }
-
-  .dark * {
-    scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
-  }
-}
-
-/* Helper para aplicar em divs com scroll (se necessário, mas o seletor * já deve pegar) */
+/* ==========================================================================
+   8. UTILITIES CUSTOMIZADAS
+   ========================================================================== */
 .custom-scrollbar {
-  /* O seletor * acima já aplica o scrollbar-width: thin; */
+  scrollbar-width: thin;
+}
+
+/* Efeito de brilho militar */
+.military-glow {
+  box-shadow: 0 0 10px rgba(220, 38, 38, 0.3),
+              0 0 20px rgba(220, 38, 38, 0.2),
+              0 0 30px rgba(220, 38, 38, 0.1);
+}
+
+/* Gradiente militar */
+.military-gradient {
+  background: linear-gradient(135deg, #1a1a1a 0%, #0a0a0a 100%);
+}
+
+/* Borda animada */
+@keyframes borderPulse {
+  0%, 100% {
+    border-color: rgba(220, 38, 38, 0.5);
+  }
+  50% {
+    border-color: rgba(220, 38, 38, 1);
+  }
+}
+
+.border-pulse {
+  animation: borderPulse 2s ease-in-out infinite;
+}
+
+/* Text shadow militar */
+.text-shadow-military {
+  text-shadow: 0 0 10px rgba(0, 0, 0, 0.8),
+               0 0 20px rgba(0, 0, 0, 0.6),
+               0 0 30px rgba(0, 0, 0, 0.4);
+}
+
+/* ==========================================================================
+   9. RESPONSIVIDADE
+   ========================================================================== */
+@media (max-width: 768px) {
+  body {
+    font-size: 14px;
+  }
+
+  h2 {
+    @apply text-xl;
+  }
+
+  .ciclo-legend-item {
+    padding: 0.75rem;
+  }
+}
+
+/* ==========================================================================
+   10. PRINT STYLES
+   ========================================================================== */
+@media print {
+  body {
+    background: white;
+    color: black;
+  }
+
+  .no-print {
+    display: none !important;
+  }
 }

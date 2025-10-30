@@ -5,20 +5,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
   <!-- SEO Meta Tags -->
-  <meta name="description" content="Plataforma de Estudos Avançada - Sistema completo de ciclos de estudo, registro de desempenho e acompanhamento de metas para concursos." />
-  <meta name="keywords" content="estudos, concurso, PMBA, ciclos de estudo, questões, desempenho" />
+  <meta name="description" content="Sistema de Treinamento PMBA - Plataforma completa de ciclos de estudo, registro de desempenho e acompanhamento de metas para concursos militares." />
+  <meta name="keywords" content="PMBA, estudos militares, concurso, ciclos de estudo, questões, desempenho, treinamento" />
   <meta name="author" content="Dashboard PMBA" />
 
   <!-- Open Graph / Facebook -->
   <meta property="og:type" content="website" />
-  <meta property="og:title" content="Dashboard PMBA - Plataforma de Estudos" />
-  <meta property="og:description" content="Sistema completo de ciclos de estudo e acompanhamento de desempenho" />
+  <meta property="og:title" content="PMBA - Sistema de Treinamento" />
+  <meta property="og:description" content="Sistema completo de ciclos de estudo e acompanhamento de desempenho militar" />
   <meta property="og:image" content="/logo-pmba.png" />
 
   <!-- Twitter -->
   <meta property="twitter:card" content="summary_large_image" />
-  <meta property="twitter:title" content="Dashboard PMBA - Plataforma de Estudos" />
-  <meta property="twitter:description" content="Sistema completo de ciclos de estudo e acompanhamento de desempenho" />
+  <meta property="twitter:title" content="PMBA - Sistema de Treinamento" />
+  <meta property="twitter:description" content="Sistema completo de ciclos de estudo e acompanhamento de desempenho militar" />
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="/logo-pmba.png" />
@@ -28,17 +28,17 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 
-  <!-- Google Fonts - Poppins -->
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <!-- Google Fonts - Inter (mais militar e moderno) -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
 
-  <!-- Theme Color -->
-  <meta name="theme-color" content="#3498db" />
-  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#2c3e50" />
+  <!-- Theme Color - Dark Militar -->
+  <meta name="theme-color" content="#0a0a0a" />
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#000000" />
 
   <!-- PWA Support -->
   <link rel="manifest" href="/manifest.json" />
 
-  <title>Dashboard PMBA - Plataforma de Estudos</title>
+  <title>PMBA - Sistema de Treinamento</title>
 
   <!-- Inline Critical CSS para melhor performance -->
   <style>
@@ -50,25 +50,59 @@
     }
 
     body {
-      font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
+      overflow: hidden;
     }
 
-    /* Loading Screen Styles */
+    /* Loading Screen Styles - Tema Militar Dark */
     #loading-screen {
       position: fixed;
       top: 0;
       left: 0;
       width: 100%;
       height: 100%;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: #0a0a0a;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       z-index: 9999;
       transition: opacity 0.5s ease-out;
+      overflow: hidden;
+    }
+
+    /* Padrão de fundo militar */
+    #loading-screen::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image: repeating-linear-gradient(
+        45deg,
+        transparent,
+        transparent 10px,
+        rgba(255, 255, 255, 0.02) 10px,
+        rgba(255, 255, 255, 0.02) 20px
+      );
+      opacity: 0.5;
+    }
+
+    /* Grade militar */
+    #loading-screen::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(220, 38, 38, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(220, 38, 38, 0.03) 1px, transparent 1px);
+      background-size: 50px 50px;
+      animation: gridMove 20s linear infinite;
+    }
+
+    @keyframes gridMove {
+      0% { transform: translate(0, 0); }
+      100% { transform: translate(50px, 50px); }
     }
 
     #loading-screen.fade-out {
@@ -76,28 +110,136 @@
       pointer-events: none;
     }
 
-    .loading-logo {
-      width: 120px;
-      height: 120px;
-      margin-bottom: 30px;
-      animation: pulse 2s ease-in-out infinite;
+    .loading-container {
+      position: relative;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
     }
 
+    /* Logo com efeito militar */
+    .loading-logo {
+      width: 140px;
+      height: 140px;
+      margin-bottom: 40px;
+      filter: drop-shadow(0 0 30px rgba(220, 38, 38, 0.4));
+      animation: logoEntrance 1s ease-out, logoPulse 3s ease-in-out infinite 1s;
+    }
+
+    @keyframes logoEntrance {
+      0% {
+        opacity: 0;
+        transform: scale(0.5) rotate(-10deg);
+      }
+      100% {
+        opacity: 1;
+        transform: scale(1) rotate(0deg);
+      }
+    }
+
+    @keyframes logoPulse {
+      0%, 100% {
+        transform: scale(1);
+        filter: drop-shadow(0 0 30px rgba(220, 38, 38, 0.4));
+      }
+      50% {
+        transform: scale(1.05);
+        filter: drop-shadow(0 0 40px rgba(220, 38, 38, 0.6));
+      }
+    }
+
+    /* Título PMBA */
+    .loading-title {
+      font-size: 48px;
+      font-weight: 900;
+      color: #ffffff;
+      letter-spacing: 8px;
+      margin-bottom: 10px;
+      text-shadow:
+        0 0 10px rgba(220, 38, 38, 0.5),
+        0 0 20px rgba(220, 38, 38, 0.3),
+        0 0 30px rgba(220, 38, 38, 0.2);
+      animation: titleGlow 2s ease-in-out infinite;
+    }
+
+    @keyframes titleGlow {
+      0%, 100% {
+        text-shadow:
+          0 0 10px rgba(220, 38, 38, 0.5),
+          0 0 20px rgba(220, 38, 38, 0.3),
+          0 0 30px rgba(220, 38, 38, 0.2);
+      }
+      50% {
+        text-shadow:
+          0 0 20px rgba(220, 38, 38, 0.7),
+          0 0 30px rgba(220, 38, 38, 0.5),
+          0 0 40px rgba(220, 38, 38, 0.3);
+      }
+    }
+
+    /* Linha divisória */
+    .loading-divider {
+      width: 100px;
+      height: 2px;
+      background: linear-gradient(
+        90deg,
+        transparent,
+        #dc2626,
+        transparent
+      );
+      margin-bottom: 15px;
+      animation: dividerExpand 1.5s ease-out;
+    }
+
+    @keyframes dividerExpand {
+      0% { width: 0; opacity: 0; }
+      100% { width: 100px; opacity: 1; }
+    }
+
+    /* Subtítulo */
+    .loading-subtitle {
+      color: #9ca3af;
+      font-size: 14px;
+      font-weight: 500;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      margin-bottom: 50px;
+      opacity: 0;
+      animation: fadeInUp 1s ease-out 0.3s forwards;
+    }
+
+    /* Container do spinner */
+    .loading-spinner-container {
+      position: relative;
+      width: 80px;
+      height: 80px;
+      margin-bottom: 30px;
+    }
+
+    /* Spinner externo */
     .loading-spinner {
+      position: absolute;
+      width: 80px;
+      height: 80px;
+      border: 3px solid rgba(220, 38, 38, 0.1);
+      border-top: 3px solid #dc2626;
+      border-radius: 50%;
+      animation: spin 1.2s linear infinite;
+    }
+
+    /* Spinner interno */
+    .loading-spinner-inner {
+      position: absolute;
       width: 60px;
       height: 60px;
-      border: 4px solid rgba(255, 255, 255, 0.3);
-      border-top: 4px solid white;
+      top: 10px;
+      left: 10px;
+      border: 3px solid rgba(220, 38, 38, 0.1);
+      border-bottom: 3px solid #ef4444;
       border-radius: 50%;
-      animation: spin 1s linear infinite;
-    }
-
-    .loading-text {
-      margin-top: 20px;
-      color: white;
-      font-size: 18px;
-      font-weight: 600;
-      letter-spacing: 1px;
+      animation: spin 1.5s linear infinite reverse;
     }
 
     @keyframes spin {
@@ -105,9 +247,85 @@
       100% { transform: rotate(360deg); }
     }
 
-    @keyframes pulse {
-      0%, 100% { transform: scale(1); opacity: 1; }
-      50% { transform: scale(1.05); opacity: 0.8; }
+    /* Texto de carregamento */
+    .loading-text {
+      color: #ffffff;
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      opacity: 0;
+      animation: fadeInUp 1s ease-out 0.5s forwards, textPulse 2s ease-in-out infinite 1.5s;
+    }
+
+    @keyframes fadeInUp {
+      0% {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      100% {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes textPulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    /* Pontos de loading */
+    .loading-dots {
+      display: inline-block;
+      margin-left: 5px;
+    }
+
+    .loading-dots span {
+      animation: dotPulse 1.4s ease-in-out infinite;
+      display: inline-block;
+    }
+
+    .loading-dots span:nth-child(2) {
+      animation-delay: 0.2s;
+    }
+
+    .loading-dots span:nth-child(3) {
+      animation-delay: 0.4s;
+    }
+
+    @keyframes dotPulse {
+      0%, 60%, 100% { opacity: 1; }
+      30% { opacity: 0.3; }
+    }
+
+    /* Progress bar */
+    .loading-progress {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 3px;
+      background: rgba(220, 38, 38, 0.1);
+      overflow: hidden;
+    }
+
+    .loading-progress-bar {
+      height: 100%;
+      background: linear-gradient(
+        90deg,
+        transparent,
+        #dc2626,
+        #ef4444,
+        #dc2626,
+        transparent
+      );
+      background-size: 200% 100%;
+      animation: progressSlide 1.5s ease-in-out infinite;
+    }
+
+    @keyframes progressSlide {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(100%); }
     }
 
     /* Hide root until loaded */
@@ -119,14 +337,122 @@
     #root.loaded {
       opacity: 1;
     }
+
+    /* Responsividade */
+    @media (max-width: 768px) {
+      .loading-title {
+        font-size: 36px;
+        letter-spacing: 6px;
+      }
+
+      .loading-logo {
+        width: 100px;
+        height: 100px;
+      }
+
+      .loading-subtitle {
+        font-size: 12px;
+        letter-spacing: 2px;
+      }
+
+      .loading-spinner-container {
+        width: 60px;
+        height: 60px;
+      }
+
+      .loading-spinner {
+        width: 60px;
+        height: 60px;
+      }
+
+      .loading-spinner-inner {
+        width: 45px;
+        height: 45px;
+        top: 7.5px;
+        left: 7.5px;
+      }
+    }
+
+    /* Cantos decorativos */
+    .corner-decoration {
+      position: absolute;
+      width: 60px;
+      height: 60px;
+      border: 2px solid rgba(220, 38, 38, 0.2);
+      pointer-events: none;
+      animation: cornerPulse 3s ease-in-out infinite;
+    }
+
+    .corner-decoration.top-left {
+      top: 30px;
+      left: 30px;
+      border-right: none;
+      border-bottom: none;
+    }
+
+    .corner-decoration.top-right {
+      top: 30px;
+      right: 30px;
+      border-left: none;
+      border-bottom: none;
+    }
+
+    .corner-decoration.bottom-left {
+      bottom: 30px;
+      left: 30px;
+      border-right: none;
+      border-top: none;
+    }
+
+    .corner-decoration.bottom-right {
+      bottom: 30px;
+      right: 30px;
+      border-left: none;
+      border-top: none;
+    }
+
+    @keyframes cornerPulse {
+      0%, 100% {
+        opacity: 0.3;
+        transform: scale(1);
+      }
+      50% {
+        opacity: 0.6;
+        transform: scale(1.1);
+      }
+    }
   </style>
 </head>
 <body>
 <!-- Loading Screen -->
 <div id="loading-screen">
-  <img src="public/logo-pmba.png" alt="Logo PMBA" class="loading-logo" />
-  <div class="loading-spinner"></div>
-  <p class="loading-text">Carregando...</p>
+  <!-- Cantos decorativos -->
+  <div class="corner-decoration top-left"></div>
+  <div class="corner-decoration top-right"></div>
+  <div class="corner-decoration bottom-left"></div>
+  <div class="corner-decoration bottom-right"></div>
+
+  <!-- Container principal -->
+  <div class="loading-container">
+    <img src="/logo-pmba.png" alt="Logo PMBA" class="loading-logo" />
+    <h1 class="loading-title">PMBA</h1>
+    <div class="loading-divider"></div>
+    <p class="loading-subtitle">Sistema de Treinamento</p>
+
+    <div class="loading-spinner-container">
+      <div class="loading-spinner"></div>
+      <div class="loading-spinner-inner"></div>
+    </div>
+
+    <p class="loading-text">
+      Carregando<span class="loading-dots"><span>.</span><span>.</span><span>.</span></span>
+    </p>
+  </div>
+
+  <!-- Barra de progresso -->
+  <div class="loading-progress">
+    <div class="loading-progress-bar"></div>
+  </div>
 </div>
 
 <!-- React Root -->
@@ -139,14 +465,16 @@
     const loadingScreen = document.getElementById('loading-screen');
     const root = document.getElementById('root');
 
+    // Tempo mínimo de exibição para melhor UX
     setTimeout(function() {
       loadingScreen.classList.add('fade-out');
       root.classList.add('loaded');
 
       setTimeout(function() {
         loadingScreen.style.display = 'none';
+        document.body.style.overflow = 'auto';
       }, 500);
-    }, 1000);
+    }, 1500); // Aumentado para 1.5s para mostrar as animações
   });
 
   // Service Worker Registration (PWA)
@@ -163,11 +491,13 @@
     });
   }
 
-  // Handle dark mode preference
-  if (localStorage.getItem('theme') === 'dark' ||
-      (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-    document.documentElement.classList.add('dark');
-  }
+  // Handle dark mode preference (sempre dark no tema militar)
+  document.documentElement.classList.add('dark');
+
+  // Previne flash de conteúdo
+  document.addEventListener('DOMContentLoaded', function() {
+    document.body.style.visibility = 'visible';
+  });
 </script>
 
 <!-- Main Application Script (Vite will inject this) -->

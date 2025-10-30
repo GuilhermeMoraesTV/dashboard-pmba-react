@@ -1,57 +1,73 @@
+/** @type {import('tailwindcss').Config} */
 export default {
-  // 1. Diga ao Tailwind onde encontrar seus arquivos
   content: [
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
-
-  // 3. Habilite o dark mode baseado em classe (o seu .dark-mode)
   darkMode: 'class',
-
   theme: {
     extend: {
-      // 4. Adicione sua fonte 'Poppins'
-      fontFamily: {
-        sans: ['Poppins', 'sans-serif'],
-      },
-
-      // 2. Mapeie TODAS as suas cores do :root
       colors: {
-        'primary-color': '#3498db',
-        'secondary-color': '#2c3e50',
-        'background-color': '#f4f6f9',
-        'card-background-color': '#ffffff',
-        'text-color': '#34495e',
-        'heading-color': '#2c3e50',
-        'subtle-text-color': '#7f8c8d',
-        'success-color': '#27ae60',
-        'danger-color': '#c0392b',
-        'warning-color': '#f39c12',
-        'excellent-color': '#08F7FE',
-        'border-color': '#e4e7ea',
-        'goal-met-both': '#2ecc71',
-        'goal-met-one': '#f1c40f',
-        'goal-not-met': '#e74c3c',
+        // Cores Primárias - Tema Militar
+        'primary-color': '#dc2626',
+        'primary-hover': '#b91c1c',
+        'primary-light': '#ef4444',
 
-        // Cores do Dark Mode
-        'dark': {
-          'primary-color': '#3498db',
-          'secondary-color': '#3B597C',
-          'background-color': '#2c3e50',
-          'card-background-color': '#34495e',
-          'text-color': '#ecf0f1',
-          'heading-color': '#ffffff',
-          'subtle-text-color': '#95a5a6',
-          'border-color': '#46607e',
-          'goal-met-both': '#27ae60',
-          'goal-met-one': '#f39c12',
-          'goal-not-met': '#c0392b',
-        }
+        // Cores de Fundo
+        'background-color': '#0a0a0a',
+        'card-background-color': '#1a1a1a',
+        'dark-background-color': '#000000',
+        'dark-card-background-color': '#0f0f0f',
+
+        // Cores de Texto
+        'text-color': '#e5e7eb',
+        'heading-color': '#ffffff',
+        'subtle-text-color': '#9ca3af',
+        'dark-text-color': '#f3f4f6',
+        'dark-heading-color': '#ffffff',
+        'dark-subtle-text-color': '#6b7280',
+
+        // Cores de Borda
+        'border-color': '#1f2937',
+        'dark-border-color': '#374151',
+
+        // Cores de Estado
+        'success-color': '#10b981',
+        'danger-color': '#dc2626',
+        'warning-color': '#f59e0b',
+        'info-color': '#3b82f6',
       },
-      // Mapeie sua sombra (pode ajustar 'md' para 'lg' se preferir)
       boxShadow: {
-        'card-shadow': '0 4px 6px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.1)',
-      }
+        'card-shadow': '0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2)',
+        'military': '0 0 10px rgba(220, 38, 38, 0.3), 0 0 20px rgba(220, 38, 38, 0.2)',
+      },
+      fontFamily: {
+        sans: ['Inter', 'system-ui', 'sans-serif'],
+      },
+      animation: {
+        'fade-in': 'fadeInFromBottom 0.5s ease-out',
+        'slide-in-left': 'slideInFromLeft 0.5s ease-out',
+        'slide-in-right': 'slideInFromRight 0.5s ease-out',
+        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+      },
+      keyframes: {
+        fadeInFromBottom: {
+          '0%': { opacity: '0', transform: 'translateY(20px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        slideInFromLeft: {
+          '0%': { transform: 'translateX(-100%)', opacity: '0' },
+          '100%': { transform: 'translateX(0)', opacity: '1' },
+        },
+        slideInFromRight: {
+          '0%': { transform: 'translateX(100%)', opacity: '0' },
+          '100%': { transform: 'translateX(0)', opacity: '1' },
+        },
+      },
+      backgroundImage: {
+        'military-gradient': 'linear-gradient(135deg, #1a1a1a 0%, #0a0a0a 100%)',
+        'military-pattern': 'repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,255,255,.05) 10px, rgba(255,255,255,.05) 20px)',
+      },
     },
   },
   plugins: [],
