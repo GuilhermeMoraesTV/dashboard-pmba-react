@@ -10,8 +10,9 @@ import GoalsTab from './dashboard/GoalsTab';
 import CalendarTab from './dashboard/CalendarTab';
 import CiclosPage from '../pages/CiclosPage';
 import ProfilePage from '../pages/ProfilePage';
+import HistoricoPage from '../pages/HistoricoPage'; // 1. Importar a nova página de Histórico
 
-// Função helper
+// Função helper (sem alteração)
 const dateToYMD = (date) => {
   const d = date.getDate();
   const m = date.getMonth() + 1;
@@ -30,7 +31,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     );
   }
 
-  // Estados
+  // Estados (sem alteração)
   const [activeTab, setActiveTab] = useState('home');
   const [goalsHistory, setGoalsHistory] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -40,7 +41,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   const [allRegistrosEstudo, setAllRegistrosEstudo] = useState([]);
   const [activeRegistrosEstudo, setActiveRegistrosEstudo] = useState([]);
 
-  // Redimensionamento
+  // Redimensionamento (sem alteração)
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth >= 1024) {
@@ -51,7 +52,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Busca ciclo ativo
+  // Busca ciclo ativo (sem alteração)
   useEffect(() => {
     if (!user) return;
 
@@ -73,7 +74,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     return () => unsubscribe();
   }, [user]);
 
-  // Busca TODOS os registros
+  // Busca TODOS os registros (sem alteração)
   useEffect(() => {
     if (!user) return;
 
@@ -116,7 +117,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     return () => unsubscribe();
   }, [user]);
 
-  // Filtra registros do ciclo ativo
+  // Filtra registros do ciclo ativo (sem alteração)
   useEffect(() => {
     if (loading) return;
 
@@ -131,7 +132,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     }
   }, [activeCicloId, allRegistrosEstudo, loading]);
 
-  // Busca metas
+  // Busca metas (sem alteração)
   useEffect(() => {
     if (!user) return;
     const q = query(collection(db, 'users', user.uid, 'metas'), orderBy('startDate', 'desc'));
@@ -142,7 +143,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     return () => unsubscribeGoals();
   }, [user]);
 
-  // Funções de dados
+  // Funções de dados (sem alteração)
   const addRegistroEstudo = async (data) => {
     try {
       const collectionRef = collection(db, 'users', user.uid, 'registrosEstudo');
@@ -186,7 +187,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     }
   };
 
-  // Logout e Callback do Ciclo
+  // Logout e Callback do Ciclo (sem alteração)
   const handleLogout = () => {
     signOut(auth).catch((error) => console.error('Logout Error:', error));
   };
@@ -195,9 +196,9 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     setActiveCicloId(cicloId);
   };
 
-  // RENDERIZAÇÃO DE CONTEÚDO
+  // RENDERIZAÇÃO DE CONTEÚDO (ATUALIZADO)
   const renderTabContent = () => {
-    // Loading só para abas que dependem de dados
+    // Loading (sem alteração)
     if (loading && ['home', 'calendar'].includes(activeTab)) {
       return (
         <div className="flex justify-center items-center pt-20">
@@ -241,11 +242,21 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
           onCicloAtivado={handleCicloAtivado}
         />;
 
+      // 2. Adicionado 'case' para a nova aba 'historico'
+      case 'historico':
+        return <HistoricoPage
+          user={user}
+          // A página de histórico que criamos busca os próprios dados
+          // e cuida das próprias exclusões, então só precisa do 'user'.
+        />;
+
+      // 3. 'case' de 'profile' ATUALIZADO (props removidas)
       case 'profile':
         return <ProfilePage
           user={user}
-          allRegistrosEstudo={allRegistrosEstudo}
-          onDeleteRegistro={deleteRegistro}
+          // As props 'allRegistrosEstudo' e 'onDeleteRegistro' foram removidas
+          // pois a 'ProfilePage' agora cuida apenas do perfil e
+          // dos ciclos arquivados, não do histórico de registros.
         />;
 
       default:
@@ -258,9 +269,11 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     }
   };
 
+  // LAYOUT (ATUALIZADO)
   return (
     <div className="flex min-h-screen max-w-screen-2xl mx-auto">
       <NavSideBar
+        user={user} // 4. Passando o 'user' completo
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         handleLogout={handleLogout}
@@ -272,18 +285,20 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
 
       <div className={`flex-grow max-w-[1400px] mx-auto w-full transition-[margin-left] duration-300 ease-in-out pt-[70px] px-3 md:px-6 lg:pt-6 lg:px-8 ${isSidebarExpanded ? 'lg:ml-[260px]' : 'lg:ml-[70px]'}`}>
         <Header
+          user={user} // 5. Passando o 'user' completo
           activeTab={activeTab}
           isDarkMode={isDarkMode}
           toggleTheme={toggleTheme}
-          userEmail={user ? user.email : ''}
-          onMenuButtonClick={() => setIsMobileOpen(true)}
+          // 'userEmail' e 'onMenuButtonClick' removidos,
+          // pois o 'Header' atualizado pega o nome do 'user'
+          // e a 'NavSideBar' tem seu próprio botão.
         />
         <main>
           {renderTabContent()}
         </main>
       </div>
 
-      {/* Overlay para fechar menu mobile */}
+      {/* Overlay (sem alteração) */}
       <div className={`block lg:hidden fixed inset-0 z-40 bg-black/50 transition-opacity duration-300 ease-in-out ${isMobileOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
         onClick={() => setIsMobileOpen(false)}
       ></div>

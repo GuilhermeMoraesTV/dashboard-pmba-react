@@ -1,105 +1,159 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
+import { Link, useNavigate } from 'react-router-dom'; // 1. Importe Link e useNavigate
+import { auth, db, storage } from '../firebaseConfig'; // 2. Importe os serviços reais
+import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
-// Ícones
+// --- Ícones (copiados do seu arquivo) ---
 const IconEmail = () => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
     <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
   </svg>
 );
-
 const IconPassword = () => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
     <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 0 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
   </svg>
 );
-
 const IconUser = () => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
     <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
   </svg>
 );
-
+// Ícone para Upload de Foto
+const IconCamera = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0ZM18.75 10.5h.008v.008h-.008V10.5Z" />
+  </svg>
+);
 const IconLoader = () => (
   <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
   </svg>
 );
-
 const IconCheck = () => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
     <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
   </svg>
 );
+// --- Fim Ícones ---
+
 
 function Signup() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+
+  // 3. Novos estados para foto
+  const [photo, setPhoto] = useState(null);
+  const [photoPreview, setPhotoPreview] = useState(null);
+
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [acceptTerms, setAcceptTerms] = useState(false);
 
-  // Validação de senha
+  const navigate = useNavigate(); // 4. Hook para redirecionar
+
+  // Validação de senha (sem alteração)
   const passwordRequirements = {
     length: password.length >= 6,
     uppercase: /[A-Z]/.test(password),
     lowercase: /[a-z]/.test(password),
     number: /[0-9]/.test(password),
   };
-
   const isPasswordValid = Object.values(passwordRequirements).every(req => req);
 
+  // 5. Função para lidar com a seleção da foto
+  const handlePhotoChange = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setPhoto(file);
+      setPhotoPreview(URL.createObjectURL(file));
+    }
+  };
+
+  // 6. Lógica de Cadastro REAL
   const handleSignup = async (e) => {
     e.preventDefault();
     setError('');
 
+    // --- Validações (sem alteração) ---
     if (!name.trim()) {
       setError('Por favor, preencha seu nome completo.');
       return;
     }
-
     if (password.length < 6) {
       setError('A senha precisa ter no mínimo 6 caracteres.');
       return;
     }
-
     if (!isPasswordValid) {
       setError('A senha não atende aos requisitos de segurança.');
       return;
     }
-
     if (password !== confirmPassword) {
       setError('As senhas não coincidem.');
       return;
     }
-
     if (!acceptTerms) {
       setError('Você precisa aceitar os Termos & Condições.');
       return;
     }
+    // --- Fim Validações ---
 
     setLoading(true);
 
-    // Simula o cadastro (substitua pela sua lógica do Firebase)
-    setTimeout(() => {
-      console.log('Cadastro realizado:', { name, email, password });
+    try {
+      // 1. Criar o usuário no Auth
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      let photoURL = null;
+
+      // 2. Fazer upload da foto (se existir)
+      if (photo) {
+        const storageRef = ref(storage, `profile_images/${user.uid}/${photo.name}`);
+        const snapshot = await uploadBytes(storageRef, photo);
+        photoURL = await getDownloadURL(snapshot.ref);
+      }
+
+      // 3. Atualizar o perfil do Auth (salva nome e foto no Auth)
+      await updateProfile(user, {
+        displayName: name,
+        photoURL: photoURL
+      });
+
+      // 4. Criar o documento do usuário no Firestore
+      const userDocRef = doc(db, 'users', user.uid);
+      await setDoc(userDocRef, {
+        uid: user.uid,
+        name: name,
+        email: email,
+        photoURL: photoURL,
+        createdAt: serverTimestamp()
+      });
+
       setLoading(false);
-    }, 2000);
+      navigate('/'); // Redireciona para o dashboard
+
+    } catch (err) {
+      setLoading(false);
+      console.error("Erro no cadastro:", err);
+      if (err.code === 'auth/email-already-in-use') {
+        setError('Este e-mail já está sendo utilizado.');
+      } else {
+        setError('Falha ao criar a conta. Tente novamente.');
+      }
+    }
   };
 
   return (
     <div className="flex min-h-screen bg-[#0a0a0a] relative overflow-hidden">
-      {/* Padrão de fundo militar */}
-      <div className="absolute inset-0 opacity-5">
-        <div className="absolute inset-0" style={{
-          backgroundImage: `repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,255,255,.05) 10px, rgba(255,255,255,.05) 20px)`
-        }}></div>
-      </div>
-
-      {/* LADO ESQUERDO: IMAGEM */}
+      {/* LADO ESQUERDO: IMAGEM (sem alteração) */}
       <motion.div
         initial={{ opacity: 0, x: -100 }}
         animate={{ opacity: 1, x: 0 }}
@@ -112,14 +166,10 @@ function Signup() {
           alt="PMBA"
           className="absolute inset-0 w-full h-full object-cover"
         />
-
-        {/* Overlay com efeito de grade */}
         <div className="absolute inset-0 z-20" style={{
           backgroundImage: `linear-gradient(rgba(10,10,10,0.4) 1px, transparent 1px), linear-gradient(90deg, rgba(10,10,10,0.4) 1px, transparent 1px)`,
           backgroundSize: '50px 50px'
         }}></div>
-
-        {/* Título na imagem */}
         <div className="absolute inset-0 z-30 flex flex-col items-center justify-center text-center px-8">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -145,7 +195,8 @@ function Signup() {
         className="w-full lg:w-1/2 flex items-center justify-center p-6 md:p-12 relative z-10 overflow-y-auto"
       >
         <div className="w-full max-w-md my-8">
-          {/* Logo */}
+
+          {/* Logo (sem alteração) */}
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -155,7 +206,7 @@ function Signup() {
             <img src="/logo-pmba.png" alt="Logo PMBA" className="h-16 w-auto" />
           </motion.div>
 
-          {/* Título */}
+          {/* Título (sem alteração) */}
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -179,7 +230,7 @@ function Signup() {
             onSubmit={handleSignup}
             className="space-y-5"
           >
-            {/* Mensagem de Erro */}
+            {/* Mensagem de Erro (sem alteração) */}
             {error && (
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
@@ -190,7 +241,40 @@ function Signup() {
               </motion.div>
             )}
 
-            {/* Input de Nome */}
+            {/* 7. Input de Foto de Perfil */}
+            <div>
+              <label className="block text-xs font-bold mb-2 text-gray-300 uppercase tracking-wider">
+                Foto de Perfil (Opcional)
+              </label>
+              <div className="flex items-center gap-4">
+                <motion.div
+                  className="w-20 h-20 rounded-full bg-[#1a1a1a] border border-gray-800 flex items-center justify-center text-gray-500 overflow-hidden"
+                  whileHover={{ scale: 1.05 }}
+                >
+                  {photoPreview ? (
+                    <img src={photoPreview} alt="Preview" className="w-full h-full object-cover" />
+                  ) : (
+                    <IconCamera />
+                  )}
+                </motion.div>
+                <label
+                  htmlFor="photo-upload"
+                  className="cursor-pointer p-3 rounded-lg bg-[#1a1a1a] text-gray-300 border border-gray-800 hover:border-red-600 hover:text-white transition-all text-sm font-medium"
+                >
+                  Selecionar Foto
+                  <input
+                    id="photo-upload"
+                    name="photo-upload"
+                    type="file"
+                    accept="image/*"
+                    onChange={handlePhotoChange}
+                    className="sr-only"
+                  />
+                </label>
+              </div>
+            </div>
+
+            {/* Input de Nome (sem alteração) */}
             <div>
               <label htmlFor="name" className="block text-xs font-bold mb-2 text-gray-300 uppercase tracking-wider">
                 Nome Completo
@@ -213,7 +297,7 @@ function Signup() {
               </div>
             </div>
 
-            {/* Input de E-mail */}
+            {/* Input de E-mail (sem alteração) */}
             <div>
               <label htmlFor="email" className="block text-xs font-bold mb-2 text-gray-300 uppercase tracking-wider">
                 E-mail
@@ -236,7 +320,7 @@ function Signup() {
               </div>
             </div>
 
-            {/* Input de Senha */}
+            {/* Inputs de Senha e Requisitos (sem alteração) */}
             <div>
               <label htmlFor="password" className="block text-xs font-bold mb-2 text-gray-300 uppercase tracking-wider">
                 Senha
@@ -257,8 +341,6 @@ function Signup() {
                   placeholder="••••••••"
                 />
               </div>
-
-              {/* Requisitos de Senha */}
               {password && (
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
@@ -300,8 +382,6 @@ function Signup() {
                 </motion.div>
               )}
             </div>
-
-            {/* Input de Confirmar Senha */}
             <div>
               <label htmlFor="confirmPassword" className="block text-xs font-bold mb-2 text-gray-300 uppercase tracking-wider">
                 Confirmar Senha
@@ -327,7 +407,7 @@ function Signup() {
               )}
             </div>
 
-            {/* Aceitar Termos */}
+            {/* Aceitar Termos (sem alteração) */}
             <div>
               <label className="flex items-start cursor-pointer group">
                 <input
@@ -349,7 +429,7 @@ function Signup() {
               </label>
             </div>
 
-            {/* Botão de Cadastrar */}
+            {/* Botão de Cadastrar (sem alteração) */}
             <div className="pt-2">
               <button
                 type="submit"
@@ -371,7 +451,7 @@ function Signup() {
             </div>
           </motion.form>
 
-          {/* Link de Login */}
+          {/* Link de Login (Modificado para usar <Link>) */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -390,12 +470,12 @@ function Signup() {
             </div>
             <p className="mt-4 text-sm text-gray-400">
               Já tem uma conta?{' '}
-              <a
-                href="/login"
+              <Link
+                to="/login"
                 className="font-bold text-red-500 hover:text-red-400 transition-colors uppercase tracking-wide"
               >
                 Entrar
-              </a>
+              </Link>
             </p>
           </motion.div>
         </div>

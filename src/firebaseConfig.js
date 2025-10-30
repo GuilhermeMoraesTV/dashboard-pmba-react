@@ -2,6 +2,7 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
+import { getStorage } from "firebase/storage";
 
 // SUAS CHAVES DE CONFIGURAÇÃO DO FIREBASE
 // COLE SEU OBJETO firebaseConfig AQUI
@@ -20,3 +21,4 @@ const app = initializeApp(firebaseConfig);
 // Exporte os serviços que vamos usar no resto da aplicação
 export const db = getFirestore(app);
 export const auth = getAuth(app);
+export const storage = getStorage(app);
