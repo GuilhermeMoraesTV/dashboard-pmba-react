@@ -2,14 +2,12 @@ rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
-    // Permite leitura de qualquer foto de perfil por usuários autenticados
+    // A regra deve corresponder ao caminho completo do arquivo
     match /profile_images/{userId}/{allPaths=**} {
+      // Qualquer usuário autenticado pode ler (para ver perfis)
       allow read: if request.auth != null;
-    }
 
-    // Permite escrita (upload, delete) apenas se o userId do upload
-    // for o mesmo do usuário autenticado.
-    match /profile_images/{userId} {
+      // Apenas o proprietário da pasta (userId) pode escrever
       allow write: if request.auth != null && request.auth.uid == userId;
     }
   }
