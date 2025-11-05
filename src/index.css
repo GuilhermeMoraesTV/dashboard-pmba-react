@@ -14,7 +14,6 @@
   }
 
   body {
-    /* Corrigido: Usando theme() para puxar as cores do config */
     background-color: theme('colors.background.light');
     color: theme('colors.text.DEFAULT');
     font-family: 'Inter', system-ui, sans-serif;
@@ -22,6 +21,29 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     transition: background-color 0.3s ease, color 0.3s ease;
+    position: relative;
+  }
+
+  /* CORREÇÃO (Linhas Diagonais):
+    A sintaxe do gradiente estava incorreta (ex: 20px antes de 10px).
+    Corrigido para o padrão 10px/20px que você queria.
+  */
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image: repeating-linear-gradient(
+      45deg,
+      transparent,
+      transparent 10px,
+      rgba(0, 0, 0, 0.03) 10px,
+      rgba(0, 0, 0, 0.03) 20px
+    );
+    pointer-events: none;
+    z-index: 0;
   }
 
   body.dark {
@@ -29,8 +51,20 @@
     color: theme('colors.text.dark-DEFAULT');
   }
 
+  /* CORREÇÃO (Linhas Diagonais):
+    A sintaxe do gradiente também estava incorreta aqui.
+  */
+  body.dark::before {
+    background-image: repeating-linear-gradient(
+      45deg,
+      transparent,
+      transparent 10px,
+      rgba(255, 255, 255, 0.02) 10px,
+      rgba(255, 255, 255, 0.02) 20px
+    );
+  }
+
   h1, h2, h3, h4, h5, h6 {
-    /* Corrigido: Usando theme() */
     color: theme('colors.text.heading');
     font-weight: bold;
   }
@@ -38,9 +72,9 @@
     color: theme('colors.text.dark-heading');
   }
 
-  h1 { font-size: 1.875rem; }
-  h2 { font-size: 1.5rem; margin-top: 1.5rem; margin-bottom: 0.75rem; }
-  h3 { font-size: 1.25rem; }
+  h1 { font-size: 1.75rem; }
+  h2 { font-size: 1.4rem; margin-top: 1.5rem; margin-bottom: 0.75rem; }
+  h3 { font-size: 1.15rem; }
 
   input[type="text"],
   input[type="email"],
@@ -49,11 +83,10 @@
   input[type="date"],
   textarea,
   select {
-    /* Corrigido: Usando theme() */
     background-color: theme('colors.card.light');
     color: theme('colors.text.DEFAULT');
     border: 1px solid theme('colors.border.light');
-    @apply rounded-lg px-4 py-2.5; /* @apply é seguro para classes que existem */
+    @apply rounded-lg px-3 py-2;
     font-family: inherit;
     transition: all 150ms ease;
   }
@@ -70,6 +103,7 @@
     border-color: theme('colors.border.dark');
   }
 
+  /* Esta parte está correta, ela usa 'primary', que agora é cinza */
   input:focus,
   textarea:focus,
   select:focus {
@@ -98,7 +132,6 @@
   }
 
   a {
-    /* Corrigido: Usando theme() */
     color: theme('colors.primary.DEFAULT');
     text-decoration: none;
     transition: color 150ms ease;
@@ -108,7 +141,6 @@
   }
 
   code {
-    /* Corrigido: Usando theme() */
     background-color: theme('colors.border.light');
     color: theme('colors.text.DEFAULT');
     @apply px-2 py-1 rounded text-sm;
@@ -120,7 +152,6 @@
   }
 
   pre {
-    /* Corrigido: Usando theme() */
     background-color: theme('colors.border.light');
     color: theme('colors.text.DEFAULT');
     @apply p-4 rounded-lg overflow-x-auto;
@@ -131,45 +162,7 @@
   }
 }
 
-/* Scrollbar (fora do @layer) */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background-color: theme('colors.border.light');
-  border-radius: 4px;
-  border: 2px solid transparent;
-  background-clip: content-box;
-}
-body.dark ::-webkit-scrollbar-thumb {
-   background-color: theme('colors.border.dark');
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background-color: theme('colors.text.subtle');
-}
-body.dark ::-webkit-scrollbar-thumb:hover {
-  background-color: theme('colors.text.dark-subtle');
-}
-
-@supports (scrollbar-color: auto) {
-  * {
-    scrollbar-width: thin;
-    scrollbar-color: theme('colors.border.light') transparent;
-  }
-
-  body.dark {
-    scrollbar-color: theme('colors.border.dark') transparent;
-  }
-}
-
-/* Keyframes (fora do @layer) */
+/* ... (keyframes - sem mudanças) ... */
 @keyframes fadeInFromBottom {
   from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: translateY(0); }
@@ -194,10 +187,8 @@ body.dark ::-webkit-scrollbar-thumb:hover {
   50% { transform: translateY(-10px); }
 }
 
-/* ==========================================================
-   Classes de Componentes - Movidas para @layer components
-   ========================================================== */
 @layer components {
+  /* ... (animações - sem mudanças) ... */
   .animate-fade-in {
     animation: fadeInFromBottom 0.4s ease-out;
   }
@@ -222,11 +213,12 @@ body.dark ::-webkit-scrollbar-thumb:hover {
   }
 
   .custom-card {
-    /* Corrigido: Usando theme() para cores personalizadas */
     background-color: theme('colors.card.light');
     border: 1px solid theme('colors.border.light');
-    @apply rounded-xl shadow-card-shadow p-6;
+    @apply rounded-xl shadow-card-shadow p-5;
     transition: all 150ms ease;
+    position: relative;
+    z-index: 1;
   }
   body.dark .custom-card {
     background-color: theme('colors.card.dark');
@@ -240,7 +232,6 @@ body.dark ::-webkit-scrollbar-thumb:hover {
     @apply inline-flex items-center gap-1 px-3 py-1;
     @apply rounded-full text-xs font-bold;
   }
-  /* Estas classes @apply estão corretas pois usam cores padrão do Tailwind */
   .badge-success {
     @apply bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400;
   }
@@ -250,10 +241,13 @@ body.dark ::-webkit-scrollbar-thumb:hover {
   .badge-warning {
     @apply bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400;
   }
+
+
   .badge-info {
-    @apply bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400;
+    @apply bg-neutral-100 dark:bg-neutral-900/30 text-neutral-600 dark:text-neutral-400;
   }
 
+  /* ... (ciclo-slice - sem mudanças) ... */
   .ciclo-slice-group {
     transition: all 0.2s ease-out;
     cursor: pointer;
@@ -277,7 +271,7 @@ body.dark ::-webkit-scrollbar-thumb:hover {
   }
 
   .ciclo-legend-item {
-    @apply flex flex-col gap-1 p-4 rounded-xl cursor-pointer;
+    @apply flex flex-col gap-1 p-3 rounded-xl cursor-pointer;
     @apply border-2 border-transparent w-full;
     background-color: theme('colors.card.light');
     @apply shadow-sm;
@@ -290,6 +284,7 @@ body.dark ::-webkit-scrollbar-thumb:hover {
   .ciclo-legend-item:focus {
     outline: none;
   }
+  /* Esta parte está correta, usa 'primary' */
   .ciclo-legend-item:focus-visible {
     @apply ring-2 ring-primary ring-offset-2;
   }
@@ -304,8 +299,14 @@ body.dark ::-webkit-scrollbar-thumb:hover {
 
   .ciclo-legend-item.selected {
     @apply border-2;
+    /* Esta parte está correta, usa 'primary' como fallback */
     border-color: var(--disciplina-color, theme('colors.primary.DEFAULT'));
-    box-shadow: 0 0 15px 0px var(--disciplina-color, rgba(59, 130, 246, 0.4));
+
+    /* CORREÇÃO (Causa do Azul):
+      O 'box-shadow' tinha uma cor azul (rgba(59, 130, 246, 0.4))
+      escrita diretamente. Troquei por uma cor cinza (rgba(115, 115, 115, 0.4)).
+    */
+    box-shadow: 0 0 15px 0px var(--disciplina-color, rgba(115, 115, 115, 0.4));
     transform: scale(1.02);
   }
   .ciclo-legend-item.selected.active {
@@ -313,19 +314,22 @@ body.dark ::-webkit-scrollbar-thumb:hover {
   }
 }
 
-/* Media queries (fora do @layer) */
+/* ... (media queries - sem mudanças) ... */
 @media (max-width: 768px) {
   body { font-size: 14px; }
-  h1 { font-size: 1.5rem; }
-  h2 { font-size: 1.25rem; }
-  h3 { font-size: 1rem; }
-  .ciclo-legend-item { padding: 0.75rem; }
+  h1 { font-size: 1.4rem; }
+  h2 { font-size: 1.15rem; }
+  h3 { font-size: 0.95rem; }
+  .ciclo-legend-item { padding: 0.65rem; }
 }
 
 @media print {
   body {
     background: white;
     color: black;
+  }
+  body::before {
+    display: none;
   }
   .no-print { display: none !important; }
 }

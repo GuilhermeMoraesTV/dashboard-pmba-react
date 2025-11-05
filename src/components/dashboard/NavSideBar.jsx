@@ -44,7 +44,7 @@ function NavSideBar({
         onMouseEnter={() => !isMobileOpen && setExpanded(true)}
         onMouseLeave={() => !isMobileOpen && setExpanded(false)}
       >
-        <div className="flex items-center justify-center min-h-[50px] overflow-hidden border-b border-border-light dark:border-border-dark px-4 pb-4 mb-4 mt-5 lg:mt-0">
+        <div className="flex items-center justify-center min-h-[50px] overflow-hidden px-4 mb-6 mt-5 lg:mt-4">
           <img
             src="/logo-pmba.png"
             alt="Logo"
@@ -59,7 +59,7 @@ function NavSideBar({
               return (
                 <li key={item.id}>
                   <button
-                    className={`flex items-center gap-4 w-[calc(100%-16px)] m-2 py-3 px-4 rounded-lg font-semibold whitespace-nowrap overflow-hidden transition-all duration-200 ${isActive ? 'bg-primary text-white shadow-md' : 'text-text-subtle dark:text-text-dark-subtle hover:bg-background-light dark:hover:bg-background-dark hover:text-text-DEFAULT dark:hover:text-text-dark-DEFAULT'}`}
+                    className={`flex items-center gap-4 w-[calc(100%-16px)] m-2 py-2.5 px-3.5 rounded-lg font-semibold whitespace-nowrap overflow-hidden transition-all duration-200 ${isActive ? 'bg-primary text-white shadow-md' : 'text-text-subtle dark:text-text-dark-subtle hover:bg-background-light dark:hover:bg-background-dark hover:text-text-DEFAULT dark:hover:text-text-dark-DEFAULT'}`}
                     onClick={() => {
                       setActiveTab(item.id);
                       setMobileOpen(false);
@@ -78,7 +78,7 @@ function NavSideBar({
 
         <div className="flex-shrink-0 border-t border-border-light dark:border-border-dark p-2">
           <button
-            className={`flex items-center gap-3 w-full p-3 rounded-lg whitespace-nowrap overflow-hidden transition-colors duration-200 text-text-subtle dark:text-text-dark-subtle hover:bg-background-light dark:hover:bg-background-dark hover:text-text-DEFAULT dark:hover:text-text-dark-DEFAULT ${activeTab === 'profile' ? 'bg-background-light dark:bg-background-dark text-text-heading dark:text-text-dark-heading' : ''}`}
+            className={`flex items-center gap-3 w-full p-2.5 rounded-lg whitespace-nowrap overflow-hidden transition-colors duration-200 text-text-subtle dark:text-text-dark-subtle hover:bg-background-light dark:hover:bg-background-dark hover:text-text-DEFAULT dark:hover:text-text-dark-DEFAULT ${activeTab === 'profile' ? 'bg-background-light dark:bg-background-dark text-text-heading dark:text-text-dark-heading' : ''}`}
             onClick={() => {
               setActiveTab('profile');
               setMobileOpen(false);
@@ -102,7 +102,7 @@ function NavSideBar({
           </button>
 
           <button
-            className={`flex items-center gap-4 w-full p-3 py-3 px-4 rounded-lg font-semibold whitespace-nowrap overflow-hidden transition-all duration-200 text-text-subtle dark:text-text-dark-subtle hover:bg-background-light dark:hover:bg-background-dark hover:text-text-DEFAULT dark:hover:text-text-dark-DEFAULT`}
+            className={`flex items-center gap-4 w-full p-2.5 py-2.5 px-3.5 rounded-lg font-semibold whitespace-nowrap overflow-hidden transition-all duration-200 text-text-subtle dark:text-text-dark-subtle hover:bg-background-light dark:hover:bg-background-dark hover:text-text-DEFAULT dark:hover:text-text-dark-DEFAULT`}
             onClick={handleLogout}
           >
             <span className="min-w-[24px] text-center"><LogOut size={20} /></span>

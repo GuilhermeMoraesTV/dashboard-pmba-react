@@ -149,67 +149,67 @@ function Home({ registrosEstudo, goalsHistory, setActiveTab, onDeleteRegistro })
 
   return (
     <div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
 
-        <div className="group bg-gradient-to-br from-blue-500 to-blue-600 dark:from-blue-600 dark:to-blue-700 rounded-xl shadow-card-shadow hover:shadow-card-hover p-6 flex flex-col min-h-[140px] transition-all duration-300 hover:-translate-y-1 border border-blue-400 dark:border-blue-500">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-2 bg-white/20 rounded-lg">
-              <Clock size={24} className="text-white" />
+        <div className="group bg-card-light dark:bg-card-dark rounded-xl shadow-sm hover:shadow-md p-4 flex flex-col min-h-[110px] transition-all duration-300 hover:-translate-y-0.5 border border-border-light dark:border-border-dark">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="p-1.5 bg-primary/10 rounded-lg">
+              <Clock size={18} className="text-primary" />
             </div>
-            <h3 className="text-sm text-white/90 uppercase font-semibold tracking-wide">
+            <h3 className="text-xs text-text-subtle dark:text-text-dark-subtle uppercase font-semibold tracking-wide">
               Tempo de Estudo
             </h3>
           </div>
-          <p className="text-4xl md:text-5xl font-bold text-white mt-auto self-end group-hover:scale-110 transition-transform">
+          <p className="text-3xl font-bold text-text-heading dark:text-text-dark-heading mt-auto self-end group-hover:scale-105 transition-transform">
             {formatDecimalHours(homeStats.totalTimeMinutes)}
           </p>
         </div>
 
-        <div className="group bg-gradient-to-br from-green-500 to-green-600 dark:from-green-600 dark:to-green-700 rounded-xl shadow-card-shadow hover:shadow-card-hover p-6 flex flex-col min-h-[140px] transition-all duration-300 hover:-translate-y-1 border border-green-400 dark:border-green-500">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-2 bg-white/20 rounded-lg">
-              <Target size={24} className="text-white" />
+        <div className="group bg-card-light dark:bg-card-dark rounded-xl shadow-sm hover:shadow-md p-4 flex flex-col min-h-[110px] transition-all duration-300 hover:-translate-y-0.5 border border-border-light dark:border-border-dark">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="p-1.5 bg-primary/10 rounded-lg">
+              <Target size={18} className="text-primary" />
             </div>
-            <h3 className="text-sm text-white/90 uppercase font-semibold tracking-wide">
+            <h3 className="text-xs text-text-subtle dark:text-text-dark-subtle uppercase font-semibold tracking-wide">
               Questões Resolvidas
             </h3>
           </div>
-          <p className="text-4xl md:text-5xl font-bold text-white mt-auto self-end group-hover:scale-110 transition-transform">
+          <p className="text-3xl font-bold text-text-heading dark:text-text-dark-heading mt-auto self-end group-hover:scale-105 transition-transform">
             {homeStats.performance.total}
           </p>
         </div>
 
-        <div className="group bg-gradient-to-br from-purple-500 to-purple-600 dark:from-purple-600 dark:to-purple-700 rounded-xl shadow-card-shadow hover:shadow-card-hover p-6 flex flex-col min-h-[140px] transition-all duration-300 hover:-translate-y-1 border border-purple-400 dark:border-purple-500">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-2 bg-white/20 rounded-lg">
-              <TrendingUp size={24} className="text-white" />
+        <div className="group bg-card-light dark:bg-card-dark rounded-xl shadow-sm hover:shadow-md p-4 flex flex-col min-h-[110px] transition-all duration-300 hover:-translate-y-0.5 border border-border-light dark:border-border-dark">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="p-1.5 bg-primary/10 rounded-lg">
+              <TrendingUp size={18} className="text-primary" />
             </div>
-            <h3 className="text-sm text-white/90 uppercase font-semibold tracking-wide">
+            <h3 className="text-xs text-text-subtle dark:text-text-dark-subtle uppercase font-semibold tracking-wide">
               Desempenho
             </h3>
           </div>
-          <div className="text-sm font-semibold flex flex-col gap-1 mb-2">
-            <span className="text-white/80">{homeStats.performance.correct} Acertos</span>
-            <span className="text-white/80">{homeStats.performance.wrong} Erros</span>
+          <div className="flex flex-col gap-0.5 mb-1">
+            <span className="text-xs font-medium text-success-color">{homeStats.performance.correct} Acertos</span>
+            <span className="text-xs font-medium text-danger-color">{homeStats.performance.wrong} Erros</span>
           </div>
-          <p className="text-4xl md:text-5xl font-bold text-white mt-auto self-end group-hover:scale-110 transition-transform">
+          <p className="text-3xl font-bold text-text-heading dark:text-text-dark-heading mt-auto self-end group-hover:scale-105 transition-transform">
             {homeStats.performance.percentage.toFixed(0)}%
           </p>
         </div>
 
-        <div className="bg-card-light dark:bg-card-dark rounded-xl shadow-card-shadow hover:shadow-card-hover p-6 col-span-1 md:col-span-2 lg:col-span-3 border border-border-light dark:border-border-dark transition-all duration-300">
-          <div className="flex items-center gap-3 mb-4">
-            <Flame size={24} className="text-orange-500" />
-            <h3 className="text-lg font-semibold text-text-heading dark:text-text-dark-heading">
+        <div className="bg-card-light dark:bg-card-dark rounded-xl shadow-sm hover:shadow-md p-4 col-span-1 md:col-span-2 lg:col-span-3 border border-border-light dark:border-border-dark transition-all duration-300">
+          <div className="flex items-center gap-2 mb-3">
+            <Flame size={20} className="text-orange-500" />
+            <h3 className="text-base font-semibold text-text-heading dark:text-text-dark-heading">
               Constância nos Estudos
             </h3>
           </div>
-          <p className="text-text-DEFAULT dark:text-text-dark-DEFAULT mb-4">
+          <p className="text-sm text-text-DEFAULT dark:text-text-dark-DEFAULT mb-3">
             Você está há <span className="font-bold text-green-500">
               {homeStats.streak} {homeStats.streak === 1 ? 'dia' : 'dias'}
             </span> sem falhar!
           </p>
-          <div className="flex gap-1 h-12">
+          <div className="flex gap-1 h-10">
             {homeStats.last14Days.map(day => (
               <div
                 key={day.date}

@@ -13,7 +13,6 @@ import CalendarTab from '../components/dashboard/CalendarTab';
 import CiclosPage from '../pages/CiclosPage';
 import ProfilePage from '../pages/ProfilePage';
 
-// Função helper
 const dateToYMD = (date) => {
   const d = date.getDate();
   const m = date.getMonth() + 1;
@@ -35,7 +34,6 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     );
   }
 
-  // ===== ESTADOS =====
   const [activeTab, setActiveTab] = useState('home');
   const [goalsHistory, setGoalsHistory] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -45,7 +43,6 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   const [allRegistrosEstudo, setAllRegistrosEstudo] = useState([]);
   const [activeRegistrosEstudo, setActiveRegistrosEstudo] = useState([]);
 
-  // ===== EFEITO: Redimensionamento =====
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth >= 1024) {
@@ -56,7 +53,6 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // ===== EFEITO: Busca ciclo ativo =====
   useEffect(() => {
     if (!user) return;
     const ciclosRef = collection(db, 'users', user.uid, 'ciclos');
@@ -77,7 +73,6 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     return () => unsubscribe();
   }, [user]);
 
-  // ===== EFEITO: Busca TODOS os registros =====
   useEffect(() => {
     if (!user) return;
     setLoading(true);
@@ -116,7 +111,6 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     return () => unsubscribe();
   }, [user]);
 
-  // ===== EFEITO: Filtra registros do ciclo ativo =====
   useEffect(() => {
     if (loading) return;
 
@@ -130,7 +124,6 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     }
   }, [activeCicloId, allRegistrosEstudo, loading]);
 
-  // ===== EFEITO: Busca metas =====
   useEffect(() => {
     if (!user) return;
 
@@ -146,7 +139,6 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     return () => unsubscribeGoals();
   }, [user]);
 
-  // ===== FUNÇÕES DE DADOS =====
   const addRegistroEstudo = async (data) => {
     try {
       const collectionRef = collection(db, 'users', user.uid, 'registrosEstudo');
@@ -183,13 +175,11 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       };
       const collectionRef = collection(db, 'users', user.uid, 'metas');
       await addDoc(collectionRef, newGoal);
-    } catch (e)
- {
+    } catch (e) {
       console.error('Erro ao adicionar meta:', e);
     }
   };
 
-  // ===== FUNÇÕES DE CONTROLE =====
   const handleLogout = () => {
     signOut(auth).catch((error) => console.error('Logout Error:', error));
   };
@@ -198,7 +188,6 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     setActiveCicloId(cicloId);
   };
 
-  // ===== RENDERIZAÇÃO DE CONTEÚDO =====
   const renderTabContent = () => {
     if (loading && ['home', 'calendar'].includes(activeTab)) {
       return (
@@ -267,11 +256,9 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     }
   };
 
-  // ===== RENDERIZAÇÃO PRINCIPAL =====
   return (
     <div className="flex min-h-screen bg-background-light dark:bg-background-dark text-text-DEFAULT dark:text-dark-DEFAULT transition-colors duration-300">
 
-      {/* ===== SIDEBAR ===== */}
       <NavSideBar
         user={user}
         activeTab={activeTab}
@@ -283,15 +270,13 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         setMobileOpen={setIsMobileOpen}
       />
 
-      {/* ===== CONTEÚDO PRINCIPAL ===== */}
       <div
         className={`
           flex-grow w-full transition-all duration-300 ease-in-out
-          pt-[70px] px-4 md:px-6 lg:pt-6 lg:px-8
+          pt-[70px] px-3 md:px-5 lg:pt-5 lg:px-6
           ${isSidebarExpanded ? 'lg:ml-[260px]' : 'lg:ml-[70px]'}
         `}
       >
-        {/* Header */}
         <Header
           user={user}
           activeTab={activeTab}
@@ -299,15 +284,13 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
           toggleTheme={toggleTheme}
         />
 
-        {/* Main Content */}
-        <main className="mt-6 max-w-7xl mx-auto">
+        <main className="mt-4 max-w-7xl mx-auto">
           <div className="animate-fade-in">
             {renderTabContent()}
           </div>
         </main>
       </div>
 
-      {/* ===== OVERLAY MOBILE ===== */}
       {isMobileOpen && (
         <div
           className="fixed inset-0 z-40 bg-black/50 lg:hidden transition-opacity duration-300"

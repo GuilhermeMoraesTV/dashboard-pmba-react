@@ -1,6 +1,5 @@
 import React, { useMemo } from 'react';
 
-// --- Funções Helper (Sem alteração) ---
 const dateToYMD_local = (date) => {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -18,8 +17,6 @@ const getStartOfWeek = () => {
   startOfWeek.setDate(today.getDate() + diffToMonday);
   return dateToYMD_local(startOfWeek);
 };
-// --- FIM DOS HELPERS ---
-
 
 function WeeklyGoalsPanel({ registrosEstudo, goalsHistory, setActiveTab }) {
 
@@ -30,7 +27,6 @@ function WeeklyGoalsPanel({ registrosEstudo, goalsHistory, setActiveTab }) {
         return [...goalsHistory].sort((a, b) => new Date(b.startDate) - new Date(a.startDate))[0];
     }, [goalsHistory]);
 
-    // --- useMemo CORRIGIDO ---
     const weeklyProgress = useMemo(() => {
       const startOfWeekStr = getStartOfWeek();
 
@@ -46,7 +42,6 @@ function WeeklyGoalsPanel({ registrosEstudo, goalsHistory, setActiveTab }) {
       let totalMinutes = 0;
 
       weeklyRegistros.forEach(item => {
-        // NORMALIZAÇÃO
         const questoes = item.questoesFeitas || 0;
         const minutos = item.tempoEstudadoMinutos || item.duracaoMinutos || 0;
 
@@ -79,7 +74,6 @@ function WeeklyGoalsPanel({ registrosEstudo, goalsHistory, setActiveTab }) {
         hoursPercent: hoursPercent
       };
     }, [registrosEstudo, activeGoal]);
-    // --- FIM DA CORREÇÃO ---
 
     const formatHours = (d) => {
         if (!d || d < 0) return '0.0';
@@ -87,47 +81,45 @@ function WeeklyGoalsPanel({ registrosEstudo, goalsHistory, setActiveTab }) {
     };
 
     return (
-        <div className="bg-card-background-color dark:bg-dark-card-background-color rounded-xl shadow-card-shadow p-4 md:p-6 col-span-1 md:col-span-1 lg:col-span-2">
-            <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold text-heading-color dark:text-dark-heading-color">
+        <div className="bg-card-light dark:bg-card-dark rounded-xl shadow-sm hover:shadow-md p-4 col-span-1 md:col-span-1 lg:col-span-2 border border-border-light dark:border-border-dark transition-all duration-300">
+            <div className="flex justify-between items-center mb-3">
+                <h3 className="text-base font-semibold text-text-heading dark:text-text-dark-heading">
                     Metas Semanais
                 </h3>
                 <button
                     onClick={() => setActiveTab('goals')}
-                    className="text-sm font-semibold text-primary-color hover:brightness-125"
+                    className="text-xs font-semibold text-primary hover:brightness-125 transition-all"
                 >
                     Definir Metas
                 </button>
             </div>
 
-            <div className="space-y-4">
-                {/* Meta de Horas */}
+            <div className="space-y-3">
                 <div>
-                    <div className="flex justify-between text-sm font-medium mb-1">
-                        <span className="text-subtle-text-color dark:text-dark-subtle-text-color">Horas de Estudo</span>
-                        <span className="text-heading-color dark:text-dark-heading-color">
+                    <div className="flex justify-between text-xs font-medium mb-1">
+                        <span className="text-text-subtle dark:text-text-dark-subtle">Horas de Estudo</span>
+                        <span className="text-text-heading dark:text-text-dark-heading">
                             {formatHours(weeklyProgress.currentHours)} / {formatHours(weeklyProgress.goalHours)}h
                         </span>
                     </div>
-                    <div className="w-full bg-border-color dark:bg-dark-border-color rounded-full h-2.5">
+                    <div className="w-full bg-border-light dark:bg-border-dark rounded-full h-2">
                         <div
-                            className="bg-primary-color h-2.5 rounded-full transition-all duration-500"
+                            className="bg-primary h-2 rounded-full transition-all duration-500"
                             style={{ width: `${weeklyProgress.hoursPercent}%` }}
                         ></div>
                     </div>
                 </div>
 
-                {/* Meta de Questões */}
                 <div>
-                    <div className="flex justify-between text-sm font-medium mb-1">
-                        <span className="text-subtle-text-color dark:text-dark-subtle-text-color">Questões Resolvidas</span>
-                        <span className="text-heading-color dark:text-dark-heading-color">
+                    <div className="flex justify-between text-xs font-medium mb-1">
+                        <span className="text-text-subtle dark:text-text-dark-subtle">Questões Resolvidas</span>
+                        <span className="text-text-heading dark:text-text-dark-heading">
                             {weeklyProgress.currentQuestions} / {weeklyProgress.goalQuestions}
                         </span>
                     </div>
-                    <div className="w-full bg-border-color dark:bg-dark-border-color rounded-full h-2.5">
+                    <div className="w-full bg-border-light dark:bg-border-dark rounded-full h-2">
                         <div
-                            className="bg-success-color h-2.5 rounded-full transition-all duration-500"
+                            className="bg-success-color h-2 rounded-full transition-all duration-500"
                             style={{ width: `${weeklyProgress.questionsPercent}%` }}
                         ></div>
                     </div>

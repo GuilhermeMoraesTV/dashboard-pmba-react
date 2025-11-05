@@ -49,12 +49,12 @@ function Header({ activeTab, isDarkMode, toggleTheme }) {
   };
 
   return (
-    <div className="flex items-center justify-between mb-6 pb-4 border-b-2 border-border-light dark:border-border-dark">
+    <div className="flex items-center justify-between mb-5 pb-3 border-b-2 border-border-light dark:border-border-dark relative z-10">
       <div>
-        <h1 className="text-2xl md:text-3xl font-bold text-text-heading dark:text-text-dark-heading mb-1">
+        <h1 className="text-xl md:text-2xl font-bold text-text-heading dark:text-text-dark-heading mb-1">
           {loading ? 'Olá!' : `Olá, ${displayName}!`}
         </h1>
-        <p className="text-sm text-text-subtle dark:text-text-dark-subtle flex items-center gap-2">
+        <p className="text-xs text-text-subtle dark:text-text-dark-subtle flex items-center gap-2">
           <span className="w-2 h-2 bg-primary rounded-full animate-pulse"></span>
           {getTabTitle()}
         </p>
@@ -62,19 +62,19 @@ function Header({ activeTab, isDarkMode, toggleTheme }) {
 
       <button
         onClick={toggleTheme}
-        className="group relative p-3 rounded-xl bg-card-light dark:bg-card-dark hover:bg-border-light dark:hover:bg-border-dark border border-border-light dark:border-border-dark transition-all duration-300 shadow-sm hover:shadow-md"
+        className="group relative p-2.5 rounded-xl bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 transition-all duration-300 shadow-sm hover:shadow-md"
         title={isDarkMode ? 'Ativar modo claro' : 'Ativar modo escuro'}
       >
-        <div className="relative w-6 h-6">
+        <div className="relative w-5 h-5">
           <Sun
-            size={24}
-            className={`absolute inset-0 text-yellow-500 transition-all duration-300 ${
+            size={20}
+            className={`absolute inset-0 text-gray-700 transition-all duration-300 ${
               isDarkMode ? 'opacity-0 rotate-90 scale-0' : 'opacity-100 rotate-0 scale-100'
             }`}
           />
           <Moon
-            size={24}
-            className={`absolute inset-0 text-blue-400 transition-all duration-300 ${
+            size={20}
+            className={`absolute inset-0 text-gray-300 transition-all duration-300 ${
               isDarkMode ? 'opacity-100 rotate-0 scale-100' : 'opacity-0 -rotate-90 scale-0'
             }`}
           />

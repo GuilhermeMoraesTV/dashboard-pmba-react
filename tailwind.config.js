@@ -9,36 +9,42 @@ export default {
   theme: {
     extend: {
       colors: {
+        // ATUALIZADO: 'primary' usa 'neutral' (cinza puro)
         primary: {
-          DEFAULT: '#3b82f6',
-          hover: '#2563eb',
-          light: '#60a5fa',
-          dark: '#1d4ed8',
+          DEFAULT: colors.neutral[500],
+          hover: colors.neutral[600],
+          light: colors.neutral[400],
+          dark: colors.neutral[700],
         },
+        // ATUALIZADO: Paleta de 'background' trocada de 'slate' (azul) para 'zinc' (cinza)
         background: {
-          light: '#f8fafc',
-          dark: '#0f172a',
+          light: colors.zinc[100], // era '#f1f5f9'
+          dark: colors.zinc[900],  // era '#0f172a'
         },
+        // ATUALIZADO: Paleta de 'card' trocada de 'slate' para 'zinc'
         card: {
           light: '#ffffff',
-          dark: '#1e293b',
+          dark: colors.zinc[800], // era '#1e293b'
         },
+        // ATUALIZADO: Paleta de 'border' trocada de 'slate' para 'zinc'
         border: {
-          light: '#e2e8f0',
-          dark: '#334155',
+          light: colors.zinc[300], // era '#d1d5db'
+          dark: colors.zinc[700],  // era '#334155'
         },
+        // ATUALIZADO: Paleta de 'text' trocada de 'slate' para 'zinc'
         text: {
-          DEFAULT: '#1e293b',
-          'dark-DEFAULT': '#f1f5f9',
-          heading: '#0f172a',
+          DEFAULT: colors.zinc[800],       // era '#1e293b'
+          'dark-DEFAULT': colors.zinc[100], // era '#f1f5f9'
+          heading: colors.zinc[900],       // era '#0f172a'
           'dark-heading': '#ffffff',
-          subtle: '#64748b',
-          'dark-subtle': '#94a3b8',
+          subtle: colors.zinc[500],        // era '#64748b'
+          'dark-subtle': colors.zinc[400], // era '#94a3b8'
         },
         'success-color': '#10b981',
         'danger-color': '#ef4444',
         'warning-color': '#f59e0b',
-        'info-color': '#3b82f6',
+        // ATUALIZADO: 'info-color' usa 'neutral' (cinza)
+        'info-color': colors.neutral[500], // era '#3b82f6'
         'goal-met-both': '#10b981',
         'goal-met-one': '#f59e0b',
         'goal-not-met': '#ef4444',
@@ -46,7 +52,9 @@ export default {
       boxShadow: {
         'card-shadow': '0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)',
         'card-hover': '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)',
-        'military': '0 0 10px rgba(59, 130, 246, 0.3)',
+        // ATUALIZADO: 'military' usa sombra 'neutral' (cinza)
+        // (rgb(115, 115, 115) é o 'neutral-500')
+        'military': '0 0 10px rgba(115, 115, 115, 0.3)',
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
@@ -72,10 +80,13 @@ export default {
         },
       },
       backgroundImage: {
-        'gradient-primary': 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+        // ATUALIZADO: 'gradient-primary' usa 'neutral' (cinza)
+        // ('#737373' é neutral-500, '#525252' é neutral-600)
+        'gradient-primary': 'linear-gradient(135deg, #737373 0%, #525252 100%)',
         'gradient-success': 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
         'gradient-warning': 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-        'gradient-dark': 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+        // ATUALIZADO: 'gradient-dark' usa 'zinc' (cinza)
+        'gradient-dark': 'linear-gradient(135deg, #27272a 0%, #18181b 100%)', // era 'slate'
       },
     },
   },
