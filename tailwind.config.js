@@ -1,59 +1,52 @@
-/** @type {import('tailwindcss').Config} */
-import colors from 'tailwindcss/colors'; // 1. Importe as cores do Tailwind
+import colors from 'tailwindcss/colors';
 
 export default {
   content: [
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
-  darkMode: 'class', // 2. Isso permite o Light/Dark
+  darkMode: 'class',
   theme: {
     extend: {
       colors: {
-        // --- Cores do Tema ---
-        // 'primary' será o vermelho militar
         primary: {
-          DEFAULT: '#dc2626', // red-600
-          hover: '#b91c1c',   // red-700
-          light: '#ef4444',   // red-500
+          DEFAULT: '#3b82f6',
+          hover: '#2563eb',
+          light: '#60a5fa',
+          dark: '#1d4ed8',
         },
-        // 3. Cores de fundo (Modo Light e Dark) - Cinza Suave
         background: {
-          light: colors.slate[100], // #f1f5f9 (Cinza claro)
-          dark: colors.slate[900],   // #0f172a (Cinza escuro "suave")
+          light: '#f8fafc',
+          dark: '#0f172a',
         },
-        // 4. Cores dos "Cards"
         card: {
-          light: colors.white,
-          dark: colors.slate[800],   // #1e293b (Um pouco mais claro que o fundo)
+          light: '#ffffff',
+          dark: '#1e293b',
         },
-        // 5. Cores de Borda
         border: {
-          light: colors.slate[200], // #e2e8f0
-          dark: colors.slate[700],  // #334155
+          light: '#e2e8f0',
+          dark: '#334155',
         },
-        // 6. Cores de Texto
         text: {
-          DEFAULT: colors.slate[800], // Cor principal (light mode)
-          'dark-DEFAULT': colors.slate[200], // Cor principal (dark mode)
-
-          heading: colors.slate[900],
-          'dark-heading': colors.white,
-
-          subtle: colors.slate[500],
-          'dark-subtle': colors.slate[400],
+          DEFAULT: '#1e293b',
+          'dark-DEFAULT': '#f1f5f9',
+          heading: '#0f172a',
+          'dark-heading': '#ffffff',
+          subtle: '#64748b',
+          'dark-subtle': '#94a3b8',
         },
-
-        // Cores de Estado (sem alteração)
         'success-color': '#10b981',
-        'danger-color': '#dc2626',
+        'danger-color': '#ef4444',
         'warning-color': '#f59e0b',
         'info-color': '#3b82f6',
+        'goal-met-both': '#10b981',
+        'goal-met-one': '#f59e0b',
+        'goal-not-met': '#ef4444',
       },
-      // Suas outras extensões (mantidas 100%)
       boxShadow: {
-        'card-shadow': '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)', // Sombra mais suave
-        'military': '0 0 10px rgba(220, 38, 38, 0.3), 0 0 20px rgba(220, 38, 38, 0.2)',
+        'card-shadow': '0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)',
+        'card-hover': '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)',
+        'military': '0 0 10px rgba(59, 130, 246, 0.3)',
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
@@ -79,9 +72,10 @@ export default {
         },
       },
       backgroundImage: {
-        // Estes provavelmente não serão mais usados, mas mantidos por segurança
-        'military-gradient': 'linear-gradient(135deg, #1a1a1a 0%, #0a0a0a 100%)',
-        'military-pattern': 'repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,255,255,.05) 10px, rgba(255,255,255,.05) 20px)',
+        'gradient-primary': 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+        'gradient-success': 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+        'gradient-warning': 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+        'gradient-dark': 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
       },
     },
   },

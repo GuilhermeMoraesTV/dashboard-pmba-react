@@ -183,7 +183,8 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       };
       const collectionRef = collection(db, 'users', user.uid, 'metas');
       await addDoc(collectionRef, newGoal);
-    } catch (e) {
+    } catch (e)
+ {
       console.error('Erro ao adicionar meta:', e);
     }
   };
@@ -268,7 +269,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
 
   // ===== RENDERIZAÇÃO PRINCIPAL =====
   return (
-    <div className="flex min-h-screen bg-background-color dark:bg-dark-background-color transition-colors duration-300">
+    <div className="flex min-h-screen bg-background-light dark:bg-background-dark text-text-DEFAULT dark:text-dark-DEFAULT transition-colors duration-300">
 
       {/* ===== SIDEBAR ===== */}
       <NavSideBar
@@ -292,6 +293,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       >
         {/* Header */}
         <Header
+          user={user}
           activeTab={activeTab}
           isDarkMode={isDarkMode}
           toggleTheme={toggleTheme}

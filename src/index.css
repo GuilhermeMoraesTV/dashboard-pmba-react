@@ -1,13 +1,7 @@
-/* ==========================================================================
-   1. DIRETIVAS DO TAILWIND
-   ========================================================================== */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* ==========================================================================
-   2. ESTILOS DE BASE
-   ========================================================================== */
 @layer base {
   * {
     margin: 0;
@@ -20,8 +14,9 @@
   }
 
   body {
-    background-color: #f8fafc;
-    color: #1e293b;
+    /* Corrigido: Usando theme() para puxar as cores do config */
+    background-color: theme('colors.background.light');
+    color: theme('colors.text.DEFAULT');
     font-family: 'Inter', system-ui, sans-serif;
     line-height: 1.6;
     -webkit-font-smoothing: antialiased;
@@ -30,44 +25,23 @@
   }
 
   body.dark {
-    background-color: #0f172a;
-    color: #f1f5f9;
+    background-color: theme('colors.background.dark');
+    color: theme('colors.text.dark-DEFAULT');
   }
 
   h1, h2, h3, h4, h5, h6 {
+    /* Corrigido: Usando theme() */
+    color: theme('colors.text.heading');
     font-weight: bold;
   }
-
-  h1 {
-    font-size: 1.875rem;
-    color: #0f172a;
+  body.dark h1, body.dark h2, body.dark h3, body.dark h4, body.dark h5, body.dark h6 {
+    color: theme('colors.text.dark-heading');
   }
 
-  body.dark h1 {
-    color: #ffffff;
-  }
+  h1 { font-size: 1.875rem; }
+  h2 { font-size: 1.5rem; margin-top: 1.5rem; margin-bottom: 0.75rem; }
+  h3 { font-size: 1.25rem; }
 
-  h2 {
-    font-size: 1.5rem;
-    margin-top: 1.5rem;
-    margin-bottom: 0.75rem;
-    color: #0f172a;
-  }
-
-  body.dark h2 {
-    color: #ffffff;
-  }
-
-  h3 {
-    font-size: 1.25rem;
-    color: #0f172a;
-  }
-
-  body.dark h3 {
-    color: #ffffff;
-  }
-
-  /* Inputs */
   input[type="text"],
   input[type="email"],
   input[type="password"],
@@ -75,11 +49,11 @@
   input[type="date"],
   textarea,
   select {
-    background-color: #ffffff;
-    color: #1e293b;
-    border: 1px solid #e2e8f0;
-    border-radius: 0.5rem;
-    padding: 0.625rem 1rem;
+    /* Corrigido: Usando theme() */
+    background-color: theme('colors.card.light');
+    color: theme('colors.text.DEFAULT');
+    border: 1px solid theme('colors.border.light');
+    @apply rounded-lg px-4 py-2.5; /* @apply é seguro para classes que existem */
     font-family: inherit;
     transition: all 150ms ease;
   }
@@ -91,94 +65,73 @@
   body.dark input[type="date"],
   body.dark textarea,
   body.dark select {
-    background-color: #1e293b;
-    color: #f1f5f9;
-    border-color: #334155;
+    background-color: theme('colors.card.dark');
+    color: theme('colors.text.dark-DEFAULT');
+    border-color: theme('colors.border.dark');
   }
 
   input:focus,
   textarea:focus,
   select:focus {
-    outline: none;
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-  }
-
-  body.dark input:focus,
-  body.dark textarea:focus,
-  body.dark select:focus {
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+    @apply outline-none ring-2 ring-primary border-primary;
   }
 
   input:disabled,
   textarea:disabled,
   select:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    background-color: #f1f5f9;
+    @apply opacity-50 cursor-not-allowed;
+    background-color: theme('colors.border.light');
   }
-
   body.dark input:disabled,
   body.dark textarea:disabled,
   body.dark select:disabled {
-    background-color: #334155;
+     background-color: theme('colors.border.dark');
   }
 
-  /* Botões */
   button {
     transition: all 150ms ease;
     font-weight: 600;
   }
 
   button:focus-visible {
-    outline: 2px solid transparent;
-    outline-offset: 2px;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1), 0 0 0 3px rgba(59, 130, 246, 0.5);
+    @apply outline-none ring-2 ring-primary ring-offset-2;
   }
 
-  /* Links */
   a {
-    color: #3b82f6;
+    /* Corrigido: Usando theme() */
+    color: theme('colors.primary.DEFAULT');
     text-decoration: none;
     transition: color 150ms ease;
   }
-
   a:hover {
-    color: #2563eb;
+     color: theme('colors.primary.hover');
   }
 
-  /* Code */
   code {
-    background-color: #f1f5f9;
-    color: #1e293b;
-    padding: 0.25rem 0.5rem;
-    border-radius: 0.25rem;
+    /* Corrigido: Usando theme() */
+    background-color: theme('colors.border.light');
+    color: theme('colors.text.DEFAULT');
+    @apply px-2 py-1 rounded text-sm;
     font-family: 'Monaco', 'Courier New', monospace;
-    font-size: 0.875rem;
   }
-
   body.dark code {
-    background-color: #334155;
-    color: #f1f5f9;
+    background-color: theme('colors.border.dark');
+    color: theme('colors.text.dark-DEFAULT');
   }
 
   pre {
-    background-color: #f1f5f9;
-    color: #1e293b;
-    padding: 1rem;
-    border-radius: 0.5rem;
-    overflow-x: auto;
+    /* Corrigido: Usando theme() */
+    background-color: theme('colors.border.light');
+    color: theme('colors.text.DEFAULT');
+    @apply p-4 rounded-lg overflow-x-auto;
   }
-
   body.dark pre {
-    background-color: #334155;
-    color: #f1f5f9;
+    background-color: theme('colors.border.dark');
+    color: theme('colors.text.dark-DEFAULT');
   }
 }
 
-/* ==========================================================================
-   3. SCROLLBAR PERSONALIZADA
-   ========================================================================== */
+/* Scrollbar (fora do @layer) */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -189,318 +142,196 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background-color: #cbd5e1;
+  background-color: theme('colors.border.light');
   border-radius: 4px;
   border: 2px solid transparent;
   background-clip: content-box;
 }
+body.dark ::-webkit-scrollbar-thumb {
+   background-color: theme('colors.border.dark');
+}
 
 ::-webkit-scrollbar-thumb:hover {
-  background-color: #94a3b8;
+  background-color: theme('colors.text.subtle');
 }
-
-body.dark ::-webkit-scrollbar-thumb {
-  background-color: #475569;
-}
-
 body.dark ::-webkit-scrollbar-thumb:hover {
-  background-color: #64748b;
+  background-color: theme('colors.text.dark-subtle');
 }
 
 @supports (scrollbar-color: auto) {
   * {
     scrollbar-width: thin;
-    scrollbar-color: #cbd5e1 transparent;
+    scrollbar-color: theme('colors.border.light') transparent;
   }
 
   body.dark {
-    scrollbar-color: #475569 transparent;
+    scrollbar-color: theme('colors.border.dark') transparent;
   }
 }
 
-/* ==========================================================================
-   4. ANIMATIONS
-   ========================================================================== */
+/* Keyframes (fora do @layer) */
 @keyframes fadeInFromBottom {
-  from {
-    opacity: 0;
-    transform: translateY(12px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
 }
-
 @keyframes slideInFromLeft {
-  from {
-    transform: translateX(-16px);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
+  from { transform: translateX(-16px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
 }
-
 @keyframes slideInFromRight {
-  from {
-    transform: translateX(16px);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
+  from { transform: translateX(16px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
 }
 
-@keyframes pulse {
-  0%, 100% {
+/* ==========================================================
+   Classes de Componentes - Movidas para @layer components
+   ========================================================== */
+@layer components {
+  .animate-fade-in {
+    animation: fadeInFromBottom 0.4s ease-out;
+  }
+  .animate-slide-in-left {
+    animation: slideInFromLeft 0.4s ease-out;
+  }
+  .animate-slide-in-right {
+    animation: slideInFromRight 0.4s ease-out;
+  }
+  .animate-pulse {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  .animate-spin {
+    animation: spin 1s linear infinite;
+  }
+  .animate-bounce {
+    animation: bounce 1s infinite;
+  }
+
+  .custom-scrollbar {
+    scrollbar-width: thin;
+  }
+
+  .custom-card {
+    /* Corrigido: Usando theme() para cores personalizadas */
+    background-color: theme('colors.card.light');
+    border: 1px solid theme('colors.border.light');
+    @apply rounded-xl shadow-card-shadow p-6;
+    transition: all 150ms ease;
+  }
+  body.dark .custom-card {
+    background-color: theme('colors.card.dark');
+    border-color: theme('colors.border.dark');
+  }
+  .custom-card:hover {
+    @apply shadow-card-hover;
+  }
+
+  .badge {
+    @apply inline-flex items-center gap-1 px-3 py-1;
+    @apply rounded-full text-xs font-bold;
+  }
+  /* Estas classes @apply estão corretas pois usam cores padrão do Tailwind */
+  .badge-success {
+    @apply bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400;
+  }
+  .badge-danger {
+    @apply bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400;
+  }
+  .badge-warning {
+    @apply bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400;
+  }
+  .badge-info {
+    @apply bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400;
+  }
+
+  .ciclo-slice-group {
+    transition: all 0.2s ease-out;
+    cursor: pointer;
+  }
+  .ciclo-slice-goal {
+    opacity: 0.1;
+    stroke-linecap: butt;
+  }
+  .ciclo-slice-progress {
+    transition: all 0.5s ease-out;
     opacity: 1;
   }
-  50% {
+  .ciclo-slice-group:not(.active) .ciclo-slice-progress {
     opacity: 0.5;
   }
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
+  .ciclo-slice-group:not(.active) .ciclo-slice-goal {
+    opacity: 0.05;
   }
-}
-
-@keyframes bounce {
-  0%, 100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-10px);
-  }
-}
-
-.animate-fade-in {
-  animation: fadeInFromBottom 0.4s ease-out;
-}
-
-.animate-slide-in-left {
-  animation: slideInFromLeft 0.4s ease-out;
-}
-
-.animate-slide-in-right {
-  animation: slideInFromRight 0.4s ease-out;
-}
-
-.animate-pulse {
-  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-}
-
-.animate-spin {
-  animation: spin 1s linear infinite;
-}
-
-.animate-bounce {
-  animation: bounce 1s infinite;
-}
-
-/* ==========================================================================
-   5. UTILITY CLASSES CUSTOMIZADAS
-   ========================================================================== */
-.custom-scrollbar {
-  scrollbar-width: thin;
-}
-
-.custom-card {
-  background-color: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 0.75rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
-  padding: 1.5rem;
-  transition: all 150ms ease;
-}
-
-body.dark .custom-card {
-  background-color: #1e293b;
-  border-color: #334155;
-}
-
-.custom-card:hover {
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07), 0 2px 4px rgba(0, 0, 0, 0.05);
-}
-
-.badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.25rem 0.75rem;
-  border-radius: 9999px;
-  font-size: 0.75rem;
-  font-weight: 700;
-}
-
-.badge-success {
-  background-color: #d1fae5;
-  color: #10b981;
-}
-
-body.dark .badge-success {
-  background-color: rgba(16, 185, 129, 0.2);
-  color: #10b981;
-}
-
-.badge-danger {
-  background-color: #fee2e2;
-  color: #ef4444;
-}
-
-body.dark .badge-danger {
-  background-color: rgba(239, 68, 68, 0.2);
-  color: #ef4444;
-}
-
-.badge-warning {
-  background-color: #fef3c7;
-  color: #f59e0b;
-}
-
-body.dark .badge-warning {
-  background-color: rgba(245, 158, 11, 0.2);
-  color: #f59e0b;
-}
-
-.badge-info {
-  background-color: #cffafe;
-  color: #06b6d4;
-}
-
-body.dark .badge-info {
-  background-color: rgba(6, 182, 212, 0.2);
-  color: #06b6d4;
-}
-
-/* ==========================================================================
-   6. CICLO E LEGENDA
-   ========================================================================== */
-.ciclo-slice-group {
-  transition: all 0.2s ease-out;
-  cursor: pointer;
-}
-
-.ciclo-slice-goal {
-  opacity: 0.1;
-  stroke-linecap: butt;
-}
-
-.ciclo-slice-progress {
-  transition: all 0.5s ease-out;
-  opacity: 1;
-}
-
-.ciclo-slice-group:not(.active) .ciclo-slice-progress {
-  opacity: 0.5;
-}
-
-.ciclo-slice-group:not(.active) .ciclo-slice-goal {
-  opacity: 0.05;
-}
-
-.ciclo-slice-group.active .ciclo-slice-goal {
-  opacity: 0.2;
-}
-
-.ciclo-legend-item {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  padding: 1rem;
-  border-radius: 0.75rem;
-  cursor: pointer;
-  transition: all 0.2s ease-out;
-  border: 2px solid transparent;
-  width: 100%;
-  background-color: #ffffff;
-  border-color: #e2e8f0;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-body.dark .ciclo-legend-item {
-  background-color: #1e293b;
-  border-color: #334155;
-}
-
-.ciclo-legend-item:focus {
-  outline: none;
-}
-
-.ciclo-legend-item:focus-visible {
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1), 0 0 0 3px rgba(59, 130, 246, 0.5);
-}
-
-.ciclo-legend-item.active {
-  border-color: #e2e8f0;
-  transform: translateY(-2px);
-}
-
-body.dark .ciclo-legend-item.active {
-  border-color: #334155;
-}
-
-.ciclo-legend-item.selected {
-  border-width: 2px;
-  border-color: var(--disciplina-color, #3b82f6);
-  box-shadow: 0 0 15px 0px var(--disciplina-color, rgba(59, 130, 246, 0.4));
-  transform: scale(1.02);
-}
-
-.ciclo-legend-item.selected.active {
-  transform: scale(1.02) translateY(-2px);
-}
-
-/* ==========================================================================
-   7. RESPONSIVIDADE
-   ========================================================================== */
-@media (max-width: 768px) {
-  body {
-    font-size: 14px;
-  }
-
-  h1 {
-    font-size: 1.5rem;
-  }
-
-  h2 {
-    font-size: 1.25rem;
-  }
-
-  h3 {
-    font-size: 1rem;
+  .ciclo-slice-group.active .ciclo-slice-goal {
+    opacity: 0.2;
   }
 
   .ciclo-legend-item {
-    padding: 0.75rem;
+    @apply flex flex-col gap-1 p-4 rounded-xl cursor-pointer;
+    @apply border-2 border-transparent w-full;
+    background-color: theme('colors.card.light');
+    @apply shadow-sm;
+    transition: all 0.2s ease-out;
+  }
+  body.dark .ciclo-legend-item {
+    background-color: theme('colors.card.dark');
+  }
+
+  .ciclo-legend-item:focus {
+    outline: none;
+  }
+  .ciclo-legend-item:focus-visible {
+    @apply ring-2 ring-primary ring-offset-2;
+  }
+
+  .ciclo-legend-item.active {
+    border-color: theme('colors.border.light');
+    transform: translateY(-2px);
+  }
+  body.dark .ciclo-legend-item.active {
+    border-color: theme('colors.border.dark');
+  }
+
+  .ciclo-legend-item.selected {
+    @apply border-2;
+    border-color: var(--disciplina-color, theme('colors.primary.DEFAULT'));
+    box-shadow: 0 0 15px 0px var(--disciplina-color, rgba(59, 130, 246, 0.4));
+    transform: scale(1.02);
+  }
+  .ciclo-legend-item.selected.active {
+    transform: scale(1.02) translateY(-2px);
   }
 }
 
-/* ==========================================================================
-   8. PRINT STYLES
-   ========================================================================== */
+/* Media queries (fora do @layer) */
+@media (max-width: 768px) {
+  body { font-size: 14px; }
+  h1 { font-size: 1.5rem; }
+  h2 { font-size: 1.25rem; }
+  h3 { font-size: 1rem; }
+  .ciclo-legend-item { padding: 0.75rem; }
+}
+
 @media print {
   body {
     background: white;
     color: black;
   }
-
-  .no-print {
-    display: none !important;
-  }
+  .no-print { display: none !important; }
 }
 
-/* ==========================================================================
-   9. ACESSIBILIDADE
-   ========================================================================== */
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
+  *, *::before, *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
