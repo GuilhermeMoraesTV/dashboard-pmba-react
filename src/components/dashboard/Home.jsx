@@ -151,10 +151,11 @@ function Home({ registrosEstudo, goalsHistory, setActiveTab, onDeleteRegistro })
     <div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
 
-        <div className="group bg-card-light dark:bg-card-dark rounded-xl shadow-sm hover:shadow-md p-4 flex flex-col min-h-[110px] transition-all duration-300 hover:-translate-y-0.5 border border-border-light dark:border-border-dark">
+        {/* Card 1: Tempo de Estudo */}
+        <div className="group bg-card-light dark:bg-card-dark rounded-xl shadow-card-shadow hover:shadow-card-hover p-4 flex flex-col min-h-[110px] transition-all duration-300 hover:-translate-y-0.5 border border-border-light dark:border-border-dark">
           <div className="flex items-center gap-2 mb-2">
-            <div className="p-1.5 bg-primary/10 rounded-lg">
-              <Clock size={18} className="text-primary" />
+            <div className="p-1.5 bg-neutral-500/10 rounded-lg">
+              <Clock size={18} className="text-neutral-500" />
             </div>
             <h3 className="text-xs text-text-subtle dark:text-text-dark-subtle uppercase font-semibold tracking-wide">
               Tempo de Estudo
@@ -165,10 +166,11 @@ function Home({ registrosEstudo, goalsHistory, setActiveTab, onDeleteRegistro })
           </p>
         </div>
 
-        <div className="group bg-card-light dark:bg-card-dark rounded-xl shadow-sm hover:shadow-md p-4 flex flex-col min-h-[110px] transition-all duration-300 hover:-translate-y-0.5 border border-border-light dark:border-border-dark">
+        {/* Card 2: Questões Resolvidas */}
+        <div className="group bg-card-light dark:bg-card-dark rounded-xl shadow-card-shadow hover:shadow-card-hover p-4 flex flex-col min-h-[110px] transition-all duration-300 hover:-translate-y-0.5 border border-border-light dark:border-border-dark">
           <div className="flex items-center gap-2 mb-2">
-            <div className="p-1.5 bg-primary/10 rounded-lg">
-              <Target size={18} className="text-primary" />
+            <div className="p-1.5 bg-neutral-500/10 rounded-lg">
+              <Target size={18} className="text-neutral-500" />
             </div>
             <h3 className="text-xs text-text-subtle dark:text-text-dark-subtle uppercase font-semibold tracking-wide">
               Questões Resolvidas
@@ -179,10 +181,11 @@ function Home({ registrosEstudo, goalsHistory, setActiveTab, onDeleteRegistro })
           </p>
         </div>
 
-        <div className="group bg-card-light dark:bg-card-dark rounded-xl shadow-sm hover:shadow-md p-4 flex flex-col min-h-[110px] transition-all duration-300 hover:-translate-y-0.5 border border-border-light dark:border-border-dark">
+        {/* Card 3: Desempenho */}
+        <div className="group bg-card-light dark:bg-card-dark rounded-xl shadow-card-shadow hover:shadow-card-hover p-4 flex flex-col min-h-[110px] transition-all duration-300 hover:-translate-y-0.5 border border-border-light dark:border-border-dark">
           <div className="flex items-center gap-2 mb-2">
-            <div className="p-1.5 bg-primary/10 rounded-lg">
-              <TrendingUp size={18} className="text-primary" />
+            <div className="p-1.5 bg-neutral-500/10 rounded-lg">
+              <TrendingUp size={18} className="text-neutral-500" />
             </div>
             <h3 className="text-xs text-text-subtle dark:text-text-dark-subtle uppercase font-semibold tracking-wide">
               Desempenho
@@ -197,15 +200,16 @@ function Home({ registrosEstudo, goalsHistory, setActiveTab, onDeleteRegistro })
           </p>
         </div>
 
-        <div className="bg-card-light dark:bg-card-dark rounded-xl shadow-sm hover:shadow-md p-4 col-span-1 md:col-span-2 lg:col-span-3 border border-border-light dark:border-border-dark transition-all duration-300">
+        {/* Card 4: Constância nos Estudos */}
+        <div className="bg-card-light dark:bg-card-dark rounded-xl shadow-card-shadow hover:shadow-card-hover p-4 col-span-1 md:col-span-2 lg:col-span-3 border border-border-light dark:border-border-dark transition-all duration-300">
           <div className="flex items-center gap-2 mb-3">
-            <Flame size={20} className="text-orange-500" />
+            <Flame size={20} className="text-warning-color" />
             <h3 className="text-base font-semibold text-text-heading dark:text-text-dark-heading">
               Constância nos Estudos
             </h3>
           </div>
           <p className="text-sm text-text-DEFAULT dark:text-text-dark-DEFAULT mb-3">
-            Você está há <span className="font-bold text-green-500">
+            Você está há <span className="font-bold text-success-color">
               {homeStats.streak} {homeStats.streak === 1 ? 'dia' : 'dias'}
             </span> sem falhar!
           </p>
@@ -214,7 +218,7 @@ function Home({ registrosEstudo, goalsHistory, setActiveTab, onDeleteRegistro })
               <div
                 key={day.date}
                 data-tooltip={day.title}
-                className={`flex-1 h-full transition-all duration-200 first:rounded-l-lg last:rounded-r-lg hover:brightness-110 ${day.status === 'goal-met-both' ? 'bg-green-500' : ''} ${day.status === 'goal-met-one' ? 'bg-yellow-500' : ''} ${day.status === 'goal-not-met' ? 'bg-red-500' : ''} ${day.status === 'no-data' ? 'bg-border-light dark:bg-border-dark opacity-50' : ''} ${day.date === dateToYMD_local(new Date()) ? 'ring-2 ring-primary ring-inset' : ''} ${day.hasData ? 'cursor-pointer hover:-translate-y-1 hover:shadow-lg' : ''}`}
+                className={`flex-1 h-full transition-all duration-200 first:rounded-l-lg last:rounded-r-lg hover:brightness-110 ${day.status === 'goal-met-both' ? 'bg-goal-met-both' : ''} ${day.status === 'goal-met-one' ? 'bg-goal-met-one' : ''} ${day.status === 'goal-not-met' ? 'bg-goal-not-met' : ''} ${day.status === 'no-data' ? 'bg-border-light dark:bg-border-dark opacity-50' : ''} ${day.date === dateToYMD_local(new Date()) ? 'ring-2 ring-primary ring-inset' : ''} ${day.hasData ? 'cursor-pointer hover:-translate-y-1 hover:shadow-lg' : ''}`}
                 onClick={() => day.hasData && handleDayClick(day.date)}
               ></div>
             ))}

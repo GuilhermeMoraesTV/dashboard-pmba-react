@@ -81,14 +81,14 @@ function WeeklyGoalsPanel({ registrosEstudo, goalsHistory, setActiveTab }) {
     };
 
     return (
-        <div className="bg-card-light dark:bg-card-dark rounded-xl shadow-sm hover:shadow-md p-4 col-span-1 md:col-span-1 lg:col-span-2 border border-border-light dark:border-border-dark transition-all duration-300">
+        <div className="bg-zinc-200 dark:bg-zinc-800 rounded-xl shadow-sm hover:shadow-md p-4 col-span-1 md:col-span-1 lg:col-span-2 border border-zinc-300 dark:border-zinc-700 transition-all duration-300">
             <div className="flex justify-between items-center mb-3">
-                <h3 className="text-base font-semibold text-text-heading dark:text-text-dark-heading">
+                <h3 className="text-base font-semibold text-zinc-800 dark:text-white">
                     Metas Semanais
                 </h3>
                 <button
                     onClick={() => setActiveTab('goals')}
-                    className="text-xs font-semibold text-primary hover:brightness-125 transition-all"
+                    className="text-xs font-semibold text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-400 transition-all"
                 >
                     Definir Metas
                 </button>
@@ -97,14 +97,14 @@ function WeeklyGoalsPanel({ registrosEstudo, goalsHistory, setActiveTab }) {
             <div className="space-y-3">
                 <div>
                     <div className="flex justify-between text-xs font-medium mb-1">
-                        <span className="text-text-subtle dark:text-text-dark-subtle">Horas de Estudo</span>
-                        <span className="text-text-heading dark:text-text-dark-heading">
+                        <span className="text-zinc-600 dark:text-zinc-400">Horas de Estudo</span>
+                        <span className="text-zinc-800 dark:text-white">
                             {formatHours(weeklyProgress.currentHours)} / {formatHours(weeklyProgress.goalHours)}h
                         </span>
                     </div>
-                    <div className="w-full bg-border-light dark:bg-border-dark rounded-full h-2">
+                    <div className="w-full bg-zinc-300 dark:bg-zinc-700 rounded-full h-2">
                         <div
-                            className="bg-primary h-2 rounded-full transition-all duration-500"
+                            className="bg-neutral-500 h-2 rounded-full transition-all duration-500"
                             style={{ width: `${weeklyProgress.hoursPercent}%` }}
                         ></div>
                     </div>
@@ -112,14 +112,14 @@ function WeeklyGoalsPanel({ registrosEstudo, goalsHistory, setActiveTab }) {
 
                 <div>
                     <div className="flex justify-between text-xs font-medium mb-1">
-                        <span className="text-text-subtle dark:text-text-dark-subtle">Questões Resolvidas</span>
-                        <span className="text-text-heading dark:text-text-dark-heading">
+                        <span className="text-zinc-600 dark:text-zinc-400">Questões Resolvidas</span>
+                        <span className="text-zinc-800 dark:text-white">
                             {weeklyProgress.currentQuestions} / {weeklyProgress.goalQuestions}
                         </span>
                     </div>
-                    <div className="w-full bg-border-light dark:bg-border-dark rounded-full h-2">
+                    <div className="w-full bg-zinc-300 dark:bg-zinc-700 rounded-full h-2">
                         <div
-                            className="bg-success-color h-2 rounded-full transition-all duration-500"
+                            className="bg-green-500 h-2 rounded-full transition-all duration-500"
                             style={{ width: `${weeklyProgress.questionsPercent}%` }}
                         ></div>
                     </div>

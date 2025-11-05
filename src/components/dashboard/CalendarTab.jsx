@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import DayDetailsModal from './DayDetailsModal.jsx';
 
-// Funções Helper
 const dateToYMD_local = (date) => {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -20,7 +19,7 @@ function CalendarTab({ registrosEstudo = [], goalsHistory = [], onDeleteRegistro
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(null);
 
-  console.log("📅 CalendarTab renderizado com", registrosEstudo?.length || 0, "registros"); // DEBUG
+  console.log("📅 CalendarTab renderizado com", registrosEstudo?.length || 0, "registros");
 
   const getGoalsForDate = (dateStr) => {
     if (!goalsHistory || goalsHistory.length === 0) return { questions: 0, hours: 0 };
@@ -28,7 +27,6 @@ function CalendarTab({ registrosEstudo = [], goalsHistory = [], onDeleteRegistro
     return sortedGoals.find(g => g.startDate <= dateStr) || { questions: 0, hours: 0 };
   };
 
-  // Processar registros
   const studyDays = useMemo(() => {
     const days = {};
 
@@ -41,7 +39,7 @@ function CalendarTab({ registrosEstudo = [], goalsHistory = [], onDeleteRegistro
 
     registrosEstudo.forEach(item => {
       try {
-        const dateStr = item.data; // Já normalizado no Dashboard
+        const dateStr = item.data;
 
         if (!dateStr || typeof dateStr !== 'string') {
           console.log("⚠️ Data inválida:", dateStr);
@@ -100,7 +98,7 @@ function CalendarTab({ registrosEstudo = [], goalsHistory = [], onDeleteRegistro
     if (hasData) {
       const goalsForDay = getGoalsForDate(dateStr);
       const qGoal = goalsForDay?.questions || 0;
-      const hGoal = (goalsForDay?.hours || 0) * 60; // Converter para minutos
+      const hGoal = (goalsForDay?.hours || 0) * 60;
       const qGoalMet = qGoal === 0 || dayData.questions >= qGoal;
       const hGoalMet = hGoal === 0 || dayData.hours >= hGoal;
 
@@ -112,44 +110,36 @@ function CalendarTab({ registrosEstudo = [], goalsHistory = [], onDeleteRegistro
   };
 
   return (
-    <div className="bg-card-background-color dark:bg-dark-card-background-color rounded-xl shadow-card-shadow p-4 md:p-6">
-      <h1 className="text-2xl font-semibold text-heading-color dark:text-dark-heading-color mb-6">
-        Calendário de Estudos
-      </h1>
-
-      {/* Header do Calendário */}
+    <div className="bg-zinc-200 dark:bg-zinc-800 rounded-xl shadow-card-shadow p-4 md:p-6 border border-zinc-300 dark:border-zinc-700">
       <div className="flex justify-between items-center mb-4">
         <button
           onClick={() => changeMonth(-1)}
-          className="px-4 py-2 bg-gray-200 dark:bg-dark-border-color rounded-lg font-semibold text-text-color dark:text-dark-text-color hover:brightness-95"
+          className="px-4 py-2 bg-zinc-300 dark:bg-zinc-700 rounded-lg font-semibold text-zinc-800 dark:text-white hover:bg-zinc-400 dark:hover:bg-zinc-600"
         >
           &larr; Anterior
         </button>
-        <h2 className="text-xl font-bold text-heading-color dark:text-dark-heading-color">
+        <h2 className="text-xl font-bold text-zinc-800 dark:text-white">
           {new Date(currentYear, currentMonth).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
         </h2>
         <button
           onClick={() => changeMonth(1)}
-          className="px-4 py-2 bg-gray-200 dark:bg-dark-border-color rounded-lg font-semibold text-text-color dark:text-dark-text-color hover:brightness-95"
+          className="px-4 py-2 bg-zinc-300 dark:bg-zinc-700 rounded-lg font-semibold text-zinc-800 dark:text-white hover:bg-zinc-400 dark:hover:bg-zinc-600"
         >
           Próximo &rarr;
         </button>
       </div>
 
-      {/* Grid do Calendário */}
       <div className="grid grid-cols-7 gap-1">
         {daysOfWeek.map(day => (
-          <div key={day} className="text-center font-semibold text-subtle-text-color dark:text-dark-subtle-text-color text-sm py-2">
+          <div key={day} className="text-center font-semibold text-zinc-600 dark:text-zinc-400 text-sm py-2">
             {day}
           </div>
         ))}
 
-        {/* Dias em branco */}
         {Array.from({ length: firstDayOfMonth }).map((_, i) => (
-          <div key={`empty-${i}`} className="border border-border-color dark:border-dark-border-color bg-background-color dark:bg-dark-background-color/50 min-h-[100px] rounded-md"></div>
+          <div key={`empty-${i}`} className="border border-zinc-400 dark:border-zinc-600 bg-zinc-100 dark:bg-zinc-900/50 min-h-[100px] rounded-md"></div>
         ))}
 
-        {/* Dias do Mês */}
         {Array.from({ length: daysInMonth }).map((_, day) => {
           const dayNumber = day + 1;
           const date = new Date(currentYear, currentMonth, dayNumber);
@@ -163,20 +153,20 @@ function CalendarTab({ registrosEstudo = [], goalsHistory = [], onDeleteRegistro
               disabled={!hasData}
               onClick={() => hasData && handleDayClick(dateStr)}
               className={`
-                border border-border-color dark:border-dark-border-color min-h-[100px] rounded-md p-2 text-left relative transition-all duration-150
+                border border-zinc-400 dark:border-zinc-600 min-h-[100px] rounded-md p-2 text-left relative transition-all duration-150
                 ${status === 'goal-met-both' ? 'bg-green-200 dark:bg-green-800' : ''}
                 ${status === 'goal-met-one' ? 'bg-yellow-200 dark:bg-yellow-800' : ''}
                 ${status === 'goal-not-met' ? 'bg-red-200 dark:bg-red-800' : ''}
-                ${status === 'no-data' ? 'bg-background-color dark:bg-dark-background-color/50' : ''}
+                ${status === 'no-data' ? 'bg-zinc-100 dark:bg-zinc-900/50' : ''}
                 ${hasData ? 'cursor-pointer hover:brightness-110' : 'cursor-default'}
-                ${isToday ? 'ring-2 ring-primary-color' : ''}
+                ${isToday ? 'ring-2 ring-neutral-500' : ''}
               `}
             >
-              <span className={`font-semibold text-sm ${isToday ? 'text-primary-color' : 'text-text-color dark:text-dark-text-color'}`}>
+              <span className={`font-semibold text-sm ${isToday ? 'text-neutral-500' : 'text-zinc-800 dark:text-white'}`}>
                 {dayNumber}
               </span>
               {hasData && studyDays[dateStr] && (
-                <div className="absolute bottom-2 left-2 right-2 text-xs text-text-color dark:text-dark-text-color">
+                <div className="absolute bottom-2 left-2 right-2 text-xs text-zinc-800 dark:text-white">
                   {studyDays[dateStr].hours > 0 && (
                     <div className="font-medium">{formatDecimalHours(studyDays[dateStr].hours)}</div>
                   )}
@@ -190,29 +180,26 @@ function CalendarTab({ registrosEstudo = [], goalsHistory = [], onDeleteRegistro
         })}
       </div>
 
-      {/* Legenda */}
       <div className="mt-6 flex flex-wrap gap-4 text-sm">
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 rounded bg-green-200 dark:bg-green-800"></div>
-          <span>Metas Atingidas</span>
+          <span className="text-zinc-700 dark:text-zinc-300">Metas Atingidas</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 rounded bg-yellow-200 dark:bg-yellow-800"></div>
-          <span>Meta Parcial</span>
+          <span className="text-zinc-700 dark:text-zinc-300">Meta Parcial</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 rounded bg-red-200 dark:bg-red-800"></div>
-          <span>Abaixo da Meta</span>
+          <span className="text-zinc-700 dark:text-zinc-300">Abaixo da Meta</span>
         </div>
       </div>
 
-      {/* Modal de Detalhes */}
       {selectedDate && (
         <DayDetailsModal
           date={selectedDate.date}
           dayData={{ dayQuestions: selectedDate.dayQuestions, dayHours: selectedDate.dayHours }}
           onClose={() => setSelectedDate(null)}
-          // onDeleteRegistro={onDeleteRegistro} // <-- REMOVIDO
         />
       )}
     </div>

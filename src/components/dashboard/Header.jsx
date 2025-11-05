@@ -1,41 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { auth, db } from '../../firebaseConfig';
-import { doc, getDoc } from 'firebase/firestore';
+import React from 'react';
 import { Sun, Moon } from 'lucide-react';
 
 function Header({ activeTab, isDarkMode, toggleTheme }) {
-  const [displayName, setDisplayName] = useState('');
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchUserName = async () => {
-      try {
-        if (auth.currentUser) {
-          if (auth.currentUser.displayName) {
-            setDisplayName(auth.currentUser.displayName);
-          } else {
-            const userDocRef = doc(db, 'users', auth.currentUser.uid);
-            const userDocSnap = await getDoc(userDocRef);
-            if (userDocSnap.exists() && userDocSnap.data().displayName) {
-              setDisplayName(userDocSnap.data().displayName);
-            } else if (userDocSnap.exists() && userDocSnap.data().name) {
-              setDisplayName(userDocSnap.data().name);
-            } else {
-              setDisplayName('Estudante');
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Erro ao buscar nome:', error);
-        setDisplayName('Estudante');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchUserName();
-  }, [auth.currentUser?.uid]);
-
   const getTabTitle = () => {
     const tabNames = {
       home: 'Dashboard',
@@ -51,36 +17,32 @@ function Header({ activeTab, isDarkMode, toggleTheme }) {
   return (
     <div className="flex items-center justify-between mb-5 pb-3 border-b-2 border-border-light dark:border-border-dark relative z-10">
       <div>
-        <h1 className="text-xl md:text-2xl font-bold text-text-heading dark:text-text-dark-heading mb-1">
-          {loading ? 'Olá!' : `Olá, ${displayName}!`}
-        </h1>
-        <p className="text-xs text-text-subtle dark:text-text-dark-subtle flex items-center gap-2">
-          <span className="w-2 h-2 bg-primary rounded-full animate-pulse"></span>
+        <h1 className="text-xl md:text-2xl font-bold text-zinc-800 dark:text-white">
           {getTabTitle()}
-        </p>
+        </h1>
       </div>
 
       <button
         onClick={toggleTheme}
-        className="group relative p-2.5 rounded-xl bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 transition-all duration-300 shadow-sm hover:shadow-md"
+        className="group relative p-2.5 rounded-xl bg-zinc-300 dark:bg-zinc-700 hover:bg-zinc-400 dark:hover:bg-zinc-600 border border-zinc-400 dark:border-zinc-600 transition-all duration-300 shadow-sm hover:shadow-md"
         title={isDarkMode ? 'Ativar modo claro' : 'Ativar modo escuro'}
       >
         <div className="relative w-5 h-5">
           <Sun
             size={20}
-            className={`absolute inset-0 text-gray-700 transition-all duration-300 ${
+            className={`absolute inset-0 text-zinc-700 transition-all duration-300 ${
               isDarkMode ? 'opacity-0 rotate-90 scale-0' : 'opacity-100 rotate-0 scale-100'
             }`}
           />
           <Moon
             size={20}
-            className={`absolute inset-0 text-gray-300 transition-all duration-300 ${
+            className={`absolute inset-0 text-zinc-200 transition-all duration-300 ${
               isDarkMode ? 'opacity-100 rotate-0 scale-100' : 'opacity-0 -rotate-90 scale-0'
             }`}
           />
         </div>
 
-        <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-text-heading dark:bg-text-dark-heading text-card-light dark:text-card-dark text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+        <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-zinc-800 dark:bg-zinc-200 text-white dark:text-zinc-800 text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
           {isDarkMode ? 'Modo Claro' : 'Modo Escuro'}
         </span>
       </button>
