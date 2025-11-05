@@ -1,55 +1,79 @@
-import React from 'react';
-import { Sun, Moon } from 'lucide-react'; // Mudei para ícones melhores
+// src/components/dashboard/Header.jsx
+import React, { useState, useEffect } from 'react';
+import { auth, db } from '../../firebaseConfig';
+import { doc, getDoc } from 'firebase/firestore';
+import { Sun, Moon } from 'lucide-react';
 
-// Mapeia os IDs das abas para títulos amigáveis
-const tabTitles = {
-  home: 'Dashboard de Performance',
-  ciclos: 'Meus Ciclos de Estudo',
-  goals: 'Minhas Metas',
-  calendar: 'Calendário de Estudos',
-  profile: 'Minha Conta e Perfil',
-  // 'historico' foi removido
-};
+function Header({ activeTab, isDarkMode, toggleTheme }) {
+  const [displayName, setDisplayName] = useState('');
+  const [loading, setLoading] = useState(true);
 
-// 1. 'user' não é mais necessário aqui
-const Header = ({ activeTab, isDarkMode, toggleTheme }) => {
-  const title = tabTitles[activeTab] || 'Dashboard';
+  useEffect(() => {
+    const fetchUserName = async () => {
+      try {
+        if (auth.currentUser) {
+          // Primeiro tenta do Auth
+          if (auth.currentUser.displayName) {
+            setDisplayName(auth.currentUser.displayName);
+          } else {
+            // Se não tiver, busca do Firestore
+            const userDocRef = doc(db, 'users', auth.currentUser.uid);
+            const userDocSnap = await getDoc(userDocRef);
+            if (userDocSnap.exists() && userDocSnap.data().displayName) {
+              setDisplayName(userDocSnap.data().displayName);
+            } else {
+              setDisplayName('Estudante');
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Erro ao buscar nome:', error);
+        setDisplayName('Estudante');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUserName();
+  }, [auth.currentUser?.uid]);
+
+  const getTabTitle = () => {
+    const tabNames = {
+      home: 'Início',
+      goals: 'Metas',
+      calendar: 'Calendário',
+      ciclos: 'Ciclos',
+      profile: 'Perfil',
+      historico: 'Histórico'
+    };
+    return tabNames[activeTab] || 'Dashboard';
+  };
 
   return (
-    <header className="flex flex-col md:flex-row justify-between items-start md:items-center
-                       mb-8 pb-4 border-b-2
-                       relative"
-    >
-      {/* 2. Conteúdo do Header (título) */}
+    <div className="flex items-center justify-between mb-8">
       <div>
-        <h1 className="m-0 text-2xl md:text-3xl font-bold">
-          {title}
+        <h1 className="text-3xl font-bold text-heading-color dark:text-dark-heading-color mb-1">
+          Olá, {displayName}!
         </h1>
-        {/* 3. Parágrafo com email/nome FOI REMOVIDO (Ponto 6) */}
+        <p className="text-subtle-text-color dark:text-dark-subtle-text-color">
+          {getTabTitle()}
+        </p>
       </div>
 
-      {/* Botão de Tema */}
+      {/* Toggle Tema */}
       <button
-        id="theme-toggle"
-        title="Alterar tema"
         onClick={toggleTheme}
-        className="
-          w-10 h-10 flex items-center justify-center cursor-pointer
-          rounded-full
-          bg-card text-text-subtle border
-          transition-colors duration-200
-          hover:bg-background hover:text-text
-
-          absolute top-0 right-0 mt-0 md:static md:mt-0"
+        className="p-3 rounded-lg bg-card-background-color dark:bg-dark-card-background-color hover:bg-border-color dark:hover:bg-dark-border-color transition-all"
+        title={isDarkMode ? 'Ativar modo claro' : 'Ativar modo escuro'}
       >
         {isDarkMode ? (
-          <Sun size={20} />
+          <Sun size={24} className="text-yellow-400" />
         ) : (
-          <Moon size={20} />
+          <Moon size={24} className="text-purple-400" />
         )}
       </button>
-    </header>
+    </div>
   );
-};
+}
 
 export default Header;

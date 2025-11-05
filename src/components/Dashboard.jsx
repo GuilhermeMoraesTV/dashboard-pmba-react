@@ -1,18 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { collection, onSnapshot, query, orderBy, addDoc, deleteDoc, doc, where, Timestamp } from 'firebase/firestore';
+import {
+  collection, onSnapshot, query, orderBy, addDoc, deleteDoc, doc, where, Timestamp
+} from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
 import { signOut } from 'firebase/auth';
 
-import NavSideBar from './dashboard/NavSideBar';
-import Header from './dashboard/Header';
-import Home from './dashboard/Home';
-import GoalsTab from './dashboard/GoalsTab';
-import CalendarTab from './dashboard/CalendarTab';
+import NavSideBar from '../components/dashboard/NavSideBar';
+import Header from '../components/dashboard/Header';
+import Home from '../components/dashboard/Home';
+import GoalsTab from '../components/dashboard/GoalsTab';
+import CalendarTab from '../components/dashboard/CalendarTab';
 import CiclosPage from '../pages/CiclosPage';
 import ProfilePage from '../pages/ProfilePage';
-// import HistoricoPage from '../pages/HistoricoPage'; // 1. Removido
 
-// Função helper (sem alteração)
+// Função helper
 const dateToYMD = (date) => {
   const d = date.getDate();
   const m = date.getMonth() + 1;
@@ -23,15 +24,18 @@ const dateToYMD = (date) => {
 function Dashboard({ user, isDarkMode, toggleTheme }) {
   if (!user) {
     return (
-      <div className="flex justify-center items-center min-h-screen bg-background">
-        <h2 className="text-2xl font-semibold text-heading">
-          Redirecionando...
-        </h2>
+      <div className="flex justify-center items-center min-h-screen bg-background-color dark:bg-dark-background-color">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-color mx-auto mb-4"></div>
+          <h2 className="text-xl font-semibold text-heading-color dark:text-dark-heading-color">
+            Redirecionando...
+          </h2>
+        </div>
       </div>
     );
   }
 
-  // Estados
+  // ===== ESTADOS =====
   const [activeTab, setActiveTab] = useState('home');
   const [goalsHistory, setGoalsHistory] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -41,7 +45,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   const [allRegistrosEstudo, setAllRegistrosEstudo] = useState([]);
   const [activeRegistrosEstudo, setActiveRegistrosEstudo] = useState([]);
 
-  // Redimensionamento (sem alteração)
+  // ===== EFEITO: Redimensionamento =====
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth >= 1024) {
@@ -52,11 +56,12 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Busca ciclo ativo (sem alteração)
+  // ===== EFEITO: Busca ciclo ativo =====
   useEffect(() => {
     if (!user) return;
     const ciclosRef = collection(db, 'users', user.uid, 'ciclos');
     const q = query(ciclosRef, where('ativo', '==', true), where('arquivado', '==', false));
+
     const unsubscribe = onSnapshot(q, (snapshot) => {
       if (snapshot.empty) {
         setActiveCicloId(null);
@@ -68,24 +73,29 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       console.error("Erro ao buscar ciclo ativo:", error);
       setActiveCicloId(null);
     });
+
     return () => unsubscribe();
   }, [user]);
 
-  // Busca TODOS os registros (sem alteração)
+  // ===== EFEITO: Busca TODOS os registros =====
   useEffect(() => {
     if (!user) return;
     setLoading(true);
+
     const q = query(
       collection(db, 'users', user.uid, 'registrosEstudo'),
       orderBy('timestamp', 'desc')
     );
+
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const todosRegistros = snapshot.docs.map(doc => {
         const data = doc.data();
         let dataStr = data.data;
+
         if (data.data && typeof data.data.toDate === 'function') {
           dataStr = dateToYMD(data.data.toDate());
         }
+
         return {
           id: doc.id,
           ...data,
@@ -95,18 +105,21 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
           data: dataStr,
         };
       });
+
       setAllRegistrosEstudo(todosRegistros);
       setLoading(false);
     }, (error) => {
       console.error("Erro ao buscar registros:", error);
       setLoading(false);
     });
+
     return () => unsubscribe();
   }, [user]);
 
-  // Filtra registros do ciclo ativo (sem alteração)
+  // ===== EFEITO: Filtra registros do ciclo ativo =====
   useEffect(() => {
     if (loading) return;
+
     if (!activeCicloId) {
       setActiveRegistrosEstudo([]);
     } else {
@@ -117,17 +130,23 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     }
   }, [activeCicloId, allRegistrosEstudo, loading]);
 
-  // Busca metas (sem alteração)
+  // ===== EFEITO: Busca metas =====
   useEffect(() => {
     if (!user) return;
-    const q = query(collection(db, 'users', user.uid, 'metas'), orderBy('startDate', 'desc'));
+
+    const q = query(
+      collection(db, 'users', user.uid, 'metas'),
+      orderBy('startDate', 'desc')
+    );
+
     const unsubscribeGoals = onSnapshot(q, (snapshot) => {
       setGoalsHistory(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     }, (error) => console.error("Erro ao buscar metas:", error));
+
     return () => unsubscribeGoals();
   }, [user]);
 
-  // Funções de dados (sem alteração)
+  // ===== FUNÇÕES DE DADOS =====
   const addRegistroEstudo = async (data) => {
     try {
       const collectionRef = collection(db, 'users', user.uid, 'registrosEstudo');
@@ -169,7 +188,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     }
   };
 
-  // Logout e Callback do Ciclo (sem alteração)
+  // ===== FUNÇÕES DE CONTROLE =====
   const handleLogout = () => {
     signOut(auth).catch((error) => console.error('Logout Error:', error));
   };
@@ -178,66 +197,82 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     setActiveCicloId(cicloId);
   };
 
-  // RENDERIZAÇÃO DE CONTEÚDO (ATUALIZADO)
+  // ===== RENDERIZAÇÃO DE CONTEÚDO =====
   const renderTabContent = () => {
     if (loading && ['home', 'calendar'].includes(activeTab)) {
       return (
         <div className="flex justify-center items-center pt-20">
-          <h2 className="text-xl font-semibold text-text-heading">
-            Carregando dados...
-          </h2>
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-color mx-auto mb-4"></div>
+            <p className="text-lg font-semibold text-heading-color dark:text-dark-heading-color">
+              Carregando dados...
+            </p>
+          </div>
         </div>
       );
     }
 
     switch (activeTab) {
       case 'home':
-        return <Home
-          registrosEstudo={activeRegistrosEstudo}
-          goalsHistory={goalsHistory}
-          setActiveTab={setActiveTab}
-          onDeleteRegistro={deleteRegistro}
-        />;
+        return (
+          <Home
+            registrosEstudo={activeRegistrosEstudo}
+            goalsHistory={goalsHistory}
+            setActiveTab={setActiveTab}
+            onDeleteRegistro={deleteRegistro}
+          />
+        );
       case 'goals':
-        return <GoalsTab
-          goalsHistory={goalsHistory}
-          onAddGoal={addGoal}
-          onDeleteGoal={(id) => deleteData('metas', id)}
-        />;
+        return (
+          <GoalsTab
+            goalsHistory={goalsHistory}
+            onAddGoal={addGoal}
+            onDeleteGoal={(id) => deleteData('metas', id)}
+          />
+        );
       case 'calendar':
-        return <CalendarTab
-          registrosEstudo={allRegistrosEstudo}
-          goalsHistory={goalsHistory}
-          onDeleteRegistro={deleteRegistro}
-        />;
+        return (
+          <CalendarTab
+            registrosEstudo={allRegistrosEstudo}
+            goalsHistory={goalsHistory}
+            onDeleteRegistro={deleteRegistro}
+          />
+        );
       case 'ciclos':
-        return <CiclosPage
-          user={user}
-          addRegistroEstudo={addRegistroEstudo}
-          onCicloAtivado={handleCicloAtivado}
-        />;
+        return (
+          <CiclosPage
+            user={user}
+            addRegistroEstudo={addRegistroEstudo}
+            onCicloAtivado={handleCicloAtivado}
+          />
+        );
       case 'profile':
-        // 2. Passando todos os registros para o Profile (Ponto 4)
-        return <ProfilePage
-          user={user}
-          allRegistrosEstudo={allRegistrosEstudo}
-          onDeleteRegistro={deleteRegistro}
-        />;
-      // 3. 'case historico' REMOVIDO (Ponto 4)
+        return (
+          <ProfilePage
+            user={user}
+            allRegistrosEstudo={allRegistrosEstudo}
+            onDeleteRegistro={deleteRegistro}
+          />
+        );
       default:
-        return <Home
-          registrosEstudo={activeRegistrosEstudo}
-          goalsHistory={goalsHistory}
-          setActiveTab={setActiveTab}
-          onDeleteRegistro={deleteRegistro}
-        />;
+        return (
+          <Home
+            registrosEstudo={activeRegistrosEstudo}
+            goalsHistory={goalsHistory}
+            setActiveTab={setActiveTab}
+            onDeleteRegistro={deleteRegistro}
+          />
+        );
     }
   };
 
+  // ===== RENDERIZAÇÃO PRINCIPAL =====
   return (
-    <div className="flex min-h-screen max-w-screen-2xl mx-auto">
+    <div className="flex min-h-screen bg-background-color dark:bg-dark-background-color transition-colors duration-300">
+
+      {/* ===== SIDEBAR ===== */}
       <NavSideBar
-        user={user} // Passa o 'user' completo
+        user={user}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         handleLogout={handleLogout}
@@ -247,23 +282,36 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         setMobileOpen={setIsMobileOpen}
       />
 
-      {/* Layout principal (aplicando cores suaves) */}
-      <div className={`flex-grow max-w-[1400px] mx-auto w-full transition-[margin-left] duration-300 ease-in-out pt-[70px] px-3 md:px-6 lg:pt-6 lg:px-8 ${isSidebarExpanded ? 'lg:ml-[260px]' : 'lg:ml-[70px]'}`}>
+      {/* ===== CONTEÚDO PRINCIPAL ===== */}
+      <div
+        className={`
+          flex-grow w-full transition-all duration-300 ease-in-out
+          pt-[70px] px-4 md:px-6 lg:pt-6 lg:px-8
+          ${isSidebarExpanded ? 'lg:ml-[260px]' : 'lg:ml-[70px]'}
+        `}
+      >
+        {/* Header */}
         <Header
           activeTab={activeTab}
           isDarkMode={isDarkMode}
           toggleTheme={toggleTheme}
-          // 'user' não é mais passado, pois o email/nome foi removido
         />
-        <main>
-          {renderTabContent()}
+
+        {/* Main Content */}
+        <main className="mt-6 max-w-7xl mx-auto">
+          <div className="animate-fade-in">
+            {renderTabContent()}
+          </div>
         </main>
       </div>
 
-      {/* Overlay */}
-      <div className={`block lg:hidden fixed inset-0 z-40 bg-black/50 transition-opacity duration-300 ease-in-out ${isMobileOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
-        onClick={() => setIsMobileOpen(false)}
-      ></div>
+      {/* ===== OVERLAY MOBILE ===== */}
+      {isMobileOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 lg:hidden transition-opacity duration-300"
+          onClick={() => setIsMobileOpen(false)}
+        />
+      )}
     </div>
   );
 }

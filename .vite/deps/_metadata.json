@@ -1,64 +1,76 @@
 {
-  "hash": "498bfc3a",
+  "hash": "94aaf71c",
   "configHash": "f1be53da",
-  "lockfileHash": "c047d6f4",
-  "browserHash": "0c5bb078",
+  "lockfileHash": "25d3a8c7",
+  "browserHash": "7da3a931",
   "optimized": {
     "firebase/app": {
       "src": "../../node_modules/firebase/app/dist/esm/index.esm.js",
       "file": "firebase_app.js",
-      "fileHash": "114e6767",
+      "fileHash": "b5a6f408",
       "needsInterop": false
     },
     "firebase/auth": {
       "src": "../../node_modules/firebase/auth/dist/esm/index.esm.js",
       "file": "firebase_auth.js",
-      "fileHash": "6d626a0d",
+      "fileHash": "17f55886",
       "needsInterop": false
     },
     "firebase/firestore": {
       "src": "../../node_modules/firebase/firestore/dist/esm/index.esm.js",
       "file": "firebase_firestore.js",
-      "fileHash": "92e7c20a",
+      "fileHash": "1f0636b9",
+      "needsInterop": false
+    },
+    "firebase/storage": {
+      "src": "../../node_modules/firebase/storage/dist/esm/index.esm.js",
+      "file": "firebase_storage.js",
+      "fileHash": "167eac43",
+      "needsInterop": false
+    },
+    "framer-motion": {
+      "src": "../../node_modules/framer-motion/dist/es/index.mjs",
+      "file": "framer-motion.js",
+      "fileHash": "a6fc1031",
+      "needsInterop": false
+    },
+    "lucide-react": {
+      "src": "../../node_modules/lucide-react/dist/esm/lucide-react.js",
+      "file": "lucide-react.js",
+      "fileHash": "175998ac",
       "needsInterop": false
     },
     "react": {
       "src": "../../node_modules/react/index.js",
       "file": "react.js",
-      "fileHash": "a675aa26",
+      "fileHash": "3eac07e1",
       "needsInterop": true
     },
     "react-dom/client": {
       "src": "../../node_modules/react-dom/client.js",
       "file": "react-dom_client.js",
-      "fileHash": "0ad87114",
+      "fileHash": "357c7e0c",
       "needsInterop": true
     },
-    "chart.js": {
-      "src": "../../node_modules/chart.js/dist/chart.js",
-      "file": "chart__js.js",
-      "fileHash": "cd7736e6",
-      "needsInterop": false
-    },
-    "chartjs-plugin-datalabels": {
-      "src": "../../node_modules/chartjs-plugin-datalabels/dist/chartjs-plugin-datalabels.esm.js",
-      "file": "chartjs-plugin-datalabels.js",
-      "fileHash": "273dd8f3",
+    "react-router-dom": {
+      "src": "../../node_modules/react-router-dom/dist/index.mjs",
+      "file": "react-router-dom.js",
+      "fileHash": "77db5ab5",
       "needsInterop": false
     }
   },
   "chunks": {
-    "chunk-IXG4W66X": {
-      "file": "chunk-IXG4W66X.js"
-    },
-    "chunk-J6KE6MJH": {
-      "file": "chunk-J6KE6MJH.js"
+    "chunk-JF7IVAG4": {
+      "file": "chunk-JF7IVAG4.js"
     },
     "chunk-KI7ILGMJ": {
       "file": "chunk-KI7ILGMJ.js"
     },
-    "chunk-BUSYA2B4": {
-      "file": "chunk-BUSYA2B4.js"
+    "chunk-4BPZ7PBZ": {
+      "file": "chunk-4BPZ7PBZ.js"
+    },
+    "chunk-G3PMV62Z": {
+      "file": "chunk-G3PMV62Z.js"
     }
   }
 }

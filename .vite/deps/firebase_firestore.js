@@ -23,7 +23,7 @@ import {
   registerVersion,
   updateEmulatorBanner
 } from "./chunk-KI7ILGMJ.js";
-import "./chunk-BUSYA2B4.js";
+import "./chunk-G3PMV62Z.js";
 
 // node_modules/@firebase/webchannel-wrapper/dist/bloom-blob/esm/bloom_blob_es2018.js
 var commonjsGlobal = typeof globalThis !== "undefined" ? globalThis : typeof window !== "undefined" ? window : typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : {};

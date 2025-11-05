@@ -6,200 +6,182 @@
 @tailwind utilities;
 
 /* ==========================================================================
-   2. ESTILOS DE BASE (TRADUÇÃO DO SEU index.css)
+   2. ESTILOS DE BASE
    ========================================================================== */
 @layer base {
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
   body {
-    /* Tradução de '2. GLOBAL STYLES' */
-    @apply font-sans bg-background-color text-text-color;
+    background-color: #f8fafc;
+    color: #1e293b;
+    font-family: 'Inter', system-ui, sans-serif;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    transition: background-color 0.3s ease, color 0.3s ease;
   }
 
-  /* Aplica as cores do dark mode automaticamente quando <html> tem a classe 'dark' */
-  .dark body {
-    @apply bg-dark-background-color text-dark-text-color;
+  body.dark {
+    background-color: #0f172a;
+    color: #f1f5f9;
   }
 
+  h1, h2, h3, h4, h5, h6 {
+    font-weight: bold;
+  }
+
+  h1 {
+    font-size: 1.875rem;
+    color: #0f172a;
+  }
+
+  body.dark h1 {
+    color: #ffffff;
+  }
 
   h2 {
-    /* Tradução de '2. GLOBAL STYLES' */
-    @apply text-heading-color dark:text-dark-heading-color
-           mt-8 mb-4 pb-2
-           border-b-2 border-border-color dark:border-dark-border-color;
+    font-size: 1.5rem;
+    margin-top: 1.5rem;
+    margin-bottom: 0.75rem;
+    color: #0f172a;
   }
 
-  /* Estilos de input globais */
-  input, select, textarea {
-    @apply bg-background-color dark:bg-dark-background-color
-           text-text-color dark:text-dark-text-color
-           border border-border-color dark:border-dark-border-color
-           rounded-lg;
+  body.dark h2 {
+    color: #ffffff;
   }
 
-  /* Garante que botões não tenham fundo/borda padrão que interfira */
+  h3 {
+    font-size: 1.25rem;
+    color: #0f172a;
+  }
+
+  body.dark h3 {
+    color: #ffffff;
+  }
+
+  /* Inputs */
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  input[type="date"],
+  textarea,
+  select {
+    background-color: #ffffff;
+    color: #1e293b;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    padding: 0.625rem 1rem;
+    font-family: inherit;
+    transition: all 150ms ease;
+  }
+
+  body.dark input[type="text"],
+  body.dark input[type="email"],
+  body.dark input[type="password"],
+  body.dark input[type="number"],
+  body.dark input[type="date"],
+  body.dark textarea,
+  body.dark select {
+    background-color: #1e293b;
+    color: #f1f5f9;
+    border-color: #334155;
+  }
+
+  input:focus,
+  textarea:focus,
+  select:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+
+  body.dark input:focus,
+  body.dark textarea:focus,
+  body.dark select:focus {
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+  }
+
+  input:disabled,
+  textarea:disabled,
+  select:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background-color: #f1f5f9;
+  }
+
+  body.dark input:disabled,
+  body.dark textarea:disabled,
+  body.dark select:disabled {
+    background-color: #334155;
+  }
+
+  /* Botões */
   button {
-    @apply bg-transparent border-none;
+    transition: all 150ms ease;
+    font-weight: 600;
+  }
+
+  button:focus-visible {
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1), 0 0 0 3px rgba(59, 130, 246, 0.5);
+  }
+
+  /* Links */
+  a {
+    color: #3b82f6;
+    text-decoration: none;
+    transition: color 150ms ease;
+  }
+
+  a:hover {
+    color: #2563eb;
+  }
+
+  /* Code */
+  code {
+    background-color: #f1f5f9;
+    color: #1e293b;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-family: 'Monaco', 'Courier New', monospace;
+    font-size: 0.875rem;
+  }
+
+  body.dark code {
+    background-color: #334155;
+    color: #f1f5f9;
+  }
+
+  pre {
+    background-color: #f1f5f9;
+    color: #1e293b;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    overflow-x: auto;
+  }
+
+  body.dark pre {
+    background-color: #334155;
+    color: #f1f5f9;
   }
 }
 
 /* ==========================================================================
-   17. TOOLTIP (Mantido)
+   3. SCROLLBAR PERSONALIZADA
    ========================================================================== */
-
-[data-tooltip] {
-  position: relative;
-}
-
-[data-tooltip]::after {
-  content: attr(data-tooltip);
-  position: absolute;
-  bottom: 125%;
-  left: 50%;
-  transform: translateX(-50%);
-  background-color: #2c3e50; /* Pode mudar para uma var(--cor) */
-  color: #fff;
-  padding: 8px 12px;
-  border-radius: 6px;
-  font-size: 0.85em;
-  font-weight: 500;
-  white-space: nowrap;
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity 0.2s, visibility 0.2s;
-  pointer-events: none;
-  z-index: 10;
-}
-
-[data-tooltip]::before {
-  content: '';
-  position: absolute;
-  bottom: 125%;
-  left: 50%;
-  transform: translateX(-50%) translateY(100%);
-  border: 6px solid transparent;
-  border-top-color: #2c3e50; /* Pode mudar para uma var(--cor) */
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity 0.2s, visibility 0.2s;
-  pointer-events: none;
-  z-index: 10;
-}
-
-[data-tooltip]:hover::after,
-[data-tooltip]:hover::before {
-  opacity: 1;
-  visibility: visible;
-}
-
-/* ==========================================================================
-   18. ANIMATIONS (Mantido)
-   ========================================================================== */
-
-@keyframes fadeInFromBottom {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.confetti {
-  position: fixed;
-  width: 10px;
-  height: 10px;
-  background-color: #f00; /* Pode mudar para uma var(--cor) */
-  opacity: 0.7;
-  z-index: 2000;
-  pointer-events: none;
-  animation: fall 3s linear forwards;
-}
-
-@keyframes fall {
-  to {
-    transform: translateY(100vh) rotate(360deg);
-    opacity: 0;
-  }
-}
-/* ==========================================================================
-   ESTILOS DO CICLO E LEGENDA (VERIFICAR/SUBSTITUIR ESTE BLOCO)
-   ========================================================================== */
-
-/* --- Estilo da Roda (Progressivo e Segmentado) --- */
-.ciclo-slice-group { transition: all 0.2s ease-out; cursor: pointer; }
-.ciclo-slice-goal { opacity: 0.1; stroke-linecap: butt; }
-.ciclo-slice-progress { transition: all 0.5s ease-out; opacity: 1; }
-.ciclo-slice-group:not(.active) .ciclo-slice-progress { opacity: 0.5; }
-.ciclo-slice-group:not(.active) .ciclo-slice-goal { opacity: 0.05; }
-.ciclo-slice-group.active .ciclo-slice-goal { opacity: 0.2; }
-/* Espessura do anel de progresso é controlada via 'strokeWidth' no JSX */
-
-
-/* --- Estilo da Legenda Interativa (CORRIGIDO PARA BUTTON) --- */
-.ciclo-legend-item {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem; /* 4px */
-  padding: 1rem; /* 16px */
-  border-radius: 0.75rem; /* 12px */
-  cursor: pointer;
-  transition: all 0.2s ease-out; /* Define a transição base */
-  border: 2px solid transparent;
-  text-align: left;
-  width: 100%;
-  background-color: var(--color-card-background, #FFFFFF);
-  box-shadow: var(--shadow-card-shadow, 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06));
-}
-.dark .ciclo-legend-item {
-  background-color: var(--dark-card-background-color, #1F2937);
-}
-.ciclo-legend-item:focus { outline: none; }
-.ciclo-legend-item:focus-visible { box-shadow: 0 0 0 2px var(--color-primary, #3B82F6); }
-.ciclo-legend-item .legend-dot { width: 0.75rem; height: 0.75rem; border-radius: 9999px; flex-shrink: 0; }
-
-/* Efeito HOVER (classe '.active') */
-/* Aplica uma borda sutil e levanta o card */
-.ciclo-legend-item.active {
-   border-color: var(--color-border, #E5E7EB);
-   transform: translateY(-2px); /* Levanta sutilmente */
-   /* Você pode adicionar um leve brilho se quiser:
-   box-shadow: var(--shadow-card-shadow), 0 0 8px rgba(0,0,0,0.1); */
-}
-.dark .ciclo-legend-item.active {
-   border-color: var(--dark-border-color, #374151);
-   /* box-shadow: var(--shadow-card-shadow), 0 0 8px rgba(255,255,255,0.05); */
-}
-
-/* Efeito SELECIONADO (classe '.selected') */
-/* Aplica borda colorida mais grossa e sombra colorida */
-.ciclo-legend-item.selected {
-  border-width: 2px;
-  /* Usa a cor da disciplina definida na prop 'style' */
-  border-color: var(--disciplina-color, var(--color-primary));
-  box-shadow: 0 0 15px 0px var(--disciplina-color, rgba(59, 130, 246, 0.4));
-  transform: scale(1.02); /* Leve zoom para destacar */
-}
-
-/* Combinação: Selecionado E Hover */
-/* Garante que o efeito selecionado (mais forte) prevaleça, mas mantém o 'lift' do hover */
-.ciclo-legend-item.selected.active {
-    /* Mantém a borda e sombra do .selected */
-    border-color: var(--disciplina-color, var(--color-primary));
-    box-shadow: 0 0 15px 0px var(--disciplina-color, rgba(59, 130, 246, 0.4));
-    /* Combina os transforms */
-    transform: scale(1.02) translateY(-2px);
-}
-
-/* ==================================================================
-   NOVOS ESTILOS DE SCROLLBAR PERSONALIZADA
-  ==================================================================
-*/
-
-/* Para Webkit (Chrome, Safari, Edge) */
 ::-webkit-scrollbar {
-  width: 8px;  /* Largura para scroll vertical */
-  height: 8px; /* Altura para scroll horizontal */
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
@@ -207,39 +189,320 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background-color: rgba(0, 0, 0, 0.2); /* Cor da barra no modo claro */
-  border-radius: 10px;
+  background-color: #cbd5e1;
+  border-radius: 4px;
   border: 2px solid transparent;
   background-clip: content-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(0, 0, 0, 0.3);
+  background-color: #94a3b8;
 }
 
-/* Cor da barra no modo escuro */
-.dark ::-webkit-scrollbar-thumb {
-  background-color: rgba(255, 255, 255, 0.2);
+body.dark ::-webkit-scrollbar-thumb {
+  background-color: #475569;
 }
 
-.dark ::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(255, 255, 255, 0.3);
+body.dark ::-webkit-scrollbar-thumb:hover {
+  background-color: #64748b;
 }
 
-/* Para Firefox (Moderno) */
-/* Note: O Firefox suporta menos personalização */
 @supports (scrollbar-color: auto) {
   * {
-    scrollbar-color: rgba(0, 0, 0, 0.3) transparent; /* thumb track */
     scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
   }
 
-  .dark * {
-    scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+  body.dark {
+    scrollbar-color: #475569 transparent;
   }
 }
 
-/* Helper para aplicar em divs com scroll (se necessário, mas o seletor * já deve pegar) */
+/* ==========================================================================
+   4. ANIMATIONS
+   ========================================================================== */
+@keyframes fadeInFromBottom {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInFromLeft {
+  from {
+    transform: translateX(-16px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideInFromRight {
+  from {
+    transform: translateX(16px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeInFromBottom 0.4s ease-out;
+}
+
+.animate-slide-in-left {
+  animation: slideInFromLeft 0.4s ease-out;
+}
+
+.animate-slide-in-right {
+  animation: slideInFromRight 0.4s ease-out;
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+.animate-bounce {
+  animation: bounce 1s infinite;
+}
+
+/* ==========================================================================
+   5. UTILITY CLASSES CUSTOMIZADAS
+   ========================================================================== */
 .custom-scrollbar {
-  /* O seletor * acima já aplica o scrollbar-width: thin; */
+  scrollbar-width: thin;
+}
+
+.custom-card {
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
+  padding: 1.5rem;
+  transition: all 150ms ease;
+}
+
+body.dark .custom-card {
+  background-color: #1e293b;
+  border-color: #334155;
+}
+
+.custom-card:hover {
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07), 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.badge-success {
+  background-color: #d1fae5;
+  color: #10b981;
+}
+
+body.dark .badge-success {
+  background-color: rgba(16, 185, 129, 0.2);
+  color: #10b981;
+}
+
+.badge-danger {
+  background-color: #fee2e2;
+  color: #ef4444;
+}
+
+body.dark .badge-danger {
+  background-color: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+}
+
+.badge-warning {
+  background-color: #fef3c7;
+  color: #f59e0b;
+}
+
+body.dark .badge-warning {
+  background-color: rgba(245, 158, 11, 0.2);
+  color: #f59e0b;
+}
+
+.badge-info {
+  background-color: #cffafe;
+  color: #06b6d4;
+}
+
+body.dark .badge-info {
+  background-color: rgba(6, 182, 212, 0.2);
+  color: #06b6d4;
+}
+
+/* ==========================================================================
+   6. CICLO E LEGENDA
+   ========================================================================== */
+.ciclo-slice-group {
+  transition: all 0.2s ease-out;
+  cursor: pointer;
+}
+
+.ciclo-slice-goal {
+  opacity: 0.1;
+  stroke-linecap: butt;
+}
+
+.ciclo-slice-progress {
+  transition: all 0.5s ease-out;
+  opacity: 1;
+}
+
+.ciclo-slice-group:not(.active) .ciclo-slice-progress {
+  opacity: 0.5;
+}
+
+.ciclo-slice-group:not(.active) .ciclo-slice-goal {
+  opacity: 0.05;
+}
+
+.ciclo-slice-group.active .ciclo-slice-goal {
+  opacity: 0.2;
+}
+
+.ciclo-legend-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 1rem;
+  border-radius: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s ease-out;
+  border: 2px solid transparent;
+  width: 100%;
+  background-color: #ffffff;
+  border-color: #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+body.dark .ciclo-legend-item {
+  background-color: #1e293b;
+  border-color: #334155;
+}
+
+.ciclo-legend-item:focus {
+  outline: none;
+}
+
+.ciclo-legend-item:focus-visible {
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1), 0 0 0 3px rgba(59, 130, 246, 0.5);
+}
+
+.ciclo-legend-item.active {
+  border-color: #e2e8f0;
+  transform: translateY(-2px);
+}
+
+body.dark .ciclo-legend-item.active {
+  border-color: #334155;
+}
+
+.ciclo-legend-item.selected {
+  border-width: 2px;
+  border-color: var(--disciplina-color, #3b82f6);
+  box-shadow: 0 0 15px 0px var(--disciplina-color, rgba(59, 130, 246, 0.4));
+  transform: scale(1.02);
+}
+
+.ciclo-legend-item.selected.active {
+  transform: scale(1.02) translateY(-2px);
+}
+
+/* ==========================================================================
+   7. RESPONSIVIDADE
+   ========================================================================== */
+@media (max-width: 768px) {
+  body {
+    font-size: 14px;
+  }
+
+  h1 {
+    font-size: 1.5rem;
+  }
+
+  h2 {
+    font-size: 1.25rem;
+  }
+
+  h3 {
+    font-size: 1rem;
+  }
+
+  .ciclo-legend-item {
+    padding: 0.75rem;
+  }
+}
+
+/* ==========================================================================
+   8. PRINT STYLES
+   ========================================================================== */
+@media print {
+  body {
+    background: white;
+    color: black;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+}
+
+/* ==========================================================================
+   9. ACESSIBILIDADE
+   ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
