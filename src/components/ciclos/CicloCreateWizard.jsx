@@ -80,7 +80,7 @@ function CicloCreateWizard({ onClose, user }) {
                 type="text"
                 value={nomeCiclo}
                 onChange={(e) => setNomeCiclo(e.target.value)}
-                className="w-full p-3 rounded bg-background-color dark:bg-dark-background-color text-text-color dark:text-dark-text-color border border-border-color dark:border-dark-border-color focus:outline-none focus:ring-2 focus:ring-primary-color"
+                className="w-full p-3 rounded bg-background-color dark:bg-dark-background-color text-text-color dark:text-dark-text-color border border-border-color dark:border-dark-border-color focus:outline-none focus:ring-2 focus:ring-primary"
                 placeholder="Ex: PMBA 2025 - Soldado"
               />
             </div>
@@ -91,7 +91,7 @@ function CicloCreateWizard({ onClose, user }) {
                 step="0.1"
                 value={cargaHoraria}
                 onChange={(e) => setCargaHoraria(e.target.value)}
-                className="w-full p-3 rounded bg-background-color dark:bg-dark-background-color text-text-color dark:text-dark-text-color border border-border-color dark:border-dark-border-color focus:outline-none focus:ring-2 focus:ring-primary-color"
+                className="w-full p-3 rounded bg-background-color dark:bg-dark-background-color text-text-color dark:text-dark-text-color border border-border-color dark:border-dark-border-color focus:outline-none focus:ring-2 focus:ring-primary"
                 placeholder="Ex: 30.5"
               />
             </div>
@@ -105,7 +105,7 @@ function CicloCreateWizard({ onClose, user }) {
                 <button
                     onClick={() => setStep(2)}
                     disabled={!isStep1Valid}
-                    className="px-6 py-2 bg-primary-color text-white rounded-lg font-semibold enabled:hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+                    className="px-6 py-2 bg-primary text-white rounded-lg font-semibold enabled:hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
                 >
                     Próximo
                 </button>
@@ -127,12 +127,12 @@ function CicloCreateWizard({ onClose, user }) {
                 value={nomeNovaDisciplina}
                 onChange={(e) => setNomeNovaDisciplina(e.target.value)}
                 placeholder="Nome da Disciplina"
-                className="flex-grow p-3 rounded bg-background-color dark:bg-dark-background-color text-text-color dark:text-dark-text-color border border-border-color dark:border-dark-border-color focus:outline-none focus:ring-2 focus:ring-primary-color"
+                className="flex-grow p-3 rounded bg-background-color dark:bg-dark-background-color text-text-color dark:text-dark-text-color border border-border-color dark:border-dark-border-color focus:outline-none focus:ring-2 focus:ring-primary"
               />
               <select
                 value={nivelNovaDisciplina}
                 onChange={(e) => setNivelNovaDisciplina(e.target.value)}
-                className="p-3 rounded bg-background-color dark:bg-dark-background-color text-text-color dark:text-dark-text-color border border-border-color dark:border-dark-border-color focus:outline-none focus:ring-2 focus:ring-primary-color"
+                className="p-3 rounded bg-background-color dark:bg-dark-background-color text-text-color dark:text-dark-text-color border border-border-color dark:border-dark-border-color focus:outline-none focus:ring-2 focus:ring-primary"
               >
                 <option value="Iniciante">Iniciante</option>
                 <option value="Medio">Médio</option>
@@ -193,7 +193,7 @@ function CicloCreateWizard({ onClose, user }) {
               <button
                 onClick={handleFinalSubmit}
                 disabled={!isStep2Valid || loading}
-                className="px-6 py-2 bg-primary-color text-white rounded-lg font-semibold enabled:hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+                className="px-6 py-2 bg-primary text-white rounded-lg font-semibold enabled:hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
               >
                 {loading ? "Salvando..." : "Finalizar e Criar Ciclo"}
               </button>

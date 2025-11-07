@@ -10,23 +10,22 @@ export default {
     extend: {
       colors: {
         primary: {
-          DEFAULT: colors.neutral[500],
-          hover: colors.neutral[600],
-          light: colors.neutral[400],
-          dark: colors.neutral[700],
+          DEFAULT: '#dc2626',
+          hover: '#b91c1c',
+          light: '#f97373',
+          dark: '#7f1d1d',
         },
         background: {
-          light: colors.zinc[100],
-          dark: '#18181b', // Sólido
+          light: '#e7e7eb',
+          dark: '#0a0a0a',
         },
-        // ATUALIZADO: Card sólido sem transparência
         card: {
-          light: '#f4f4f5', // Cinza bem claro
-          dark: '#27272a', // Cinza escuro sólido (zinc-800)
+          light: '#f1f1f5',
+          dark: '#1f1f23',
         },
         border: {
-          light: colors.zinc[300],
-          dark: '#3f3f46', // Sólido (zinc-700)
+          light: '#d4d4d8',
+          dark: '#34343a',
         },
         text: {
           DEFAULT: colors.zinc[900],
@@ -36,6 +35,18 @@ export default {
           subtle: colors.zinc[600],
           'dark-subtle': colors.zinc[300],
         },
+        'background-color': '#f1f1f5',
+        'dark-background-color': '#1f1f23',
+        'card-background-color': '#f1f1f5',
+        'dark-card-background-color': '#1f1f23',
+        'border-color': '#d4d4d8',
+        'dark-border-color': '#34343a',
+        'text-color': colors.zinc[900],
+        'dark-text-color': '#f4f4f5',
+        'subtle-text-color': colors.zinc[600],
+        'dark-subtle-text-color': colors.zinc[300],
+        'heading-color': colors.zinc[950],
+        'dark-heading-color': '#f7f7f7',
         'success-color': '#10b981',
         'danger-color': '#ef4444',
         'warning-color': '#f59e0b',

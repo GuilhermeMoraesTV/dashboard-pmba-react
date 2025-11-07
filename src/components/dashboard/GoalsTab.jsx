@@ -169,7 +169,7 @@ function GoalsTab({ onSetGoal, goalsHistory }) {
         </div>
 
         <div className="lg:col-span-1">
-           <div className="bg-zinc-200 dark:bg-zinc-800 rounded-xl shadow-sm p-5 border border-zinc-300 dark:border-zinc-700 transition-all duration-300 hover:shadow-md">
+           <div className="rounded-xl border border-border-light dark:border-border-dark bg-card-light dark:bg-card-dark shadow-sm p-5 transition-all duration-300 hover:shadow-md">
             <h2 className="text-lg font-semibold text-zinc-800 dark:text-white mb-3">
               Histórico de Metas
             </h2>
@@ -182,14 +182,14 @@ function GoalsTab({ onSetGoal, goalsHistory }) {
                   return (
                     <div
                       key={goal.id}
-                      className={`p-3.5 bg-zinc-100 dark:bg-zinc-900 rounded-lg border-2 transition-all duration-200 ${isActive ? 'border-neutral-500' : 'border-zinc-300 dark:border-zinc-700'}`}
+                      className={`p-3.5 rounded-lg border-2 transition-all duration-200 ${isActive ? 'border-primary' : 'border-border-light dark:border-border-dark'} bg-card-light dark:bg-card-dark`}
                     >
                       <div className="flex justify-between items-center mb-2">
-                        <p className={`text-xs font-semibold ${isActive ? 'text-neutral-500' : 'text-zinc-800 dark:text-white'}`}>
+                        <p className={`text-xs font-semibold ${isActive ? 'text-primary' : 'text-zinc-800 dark:text-white'}`}>
                           Iniciada em: {date.toLocaleDateString('pt-BR')}
                         </p>
                         {isActive && (
-                          <span className="text-xs font-bold bg-neutral-500/20 text-neutral-500 py-0.5 px-2 rounded-full">
+                          <span className="text-xs font-bold bg-primary-light text-primary-dark py-0.5 px-2 rounded-full">
                             ATIVA
                           </span>
                         )}

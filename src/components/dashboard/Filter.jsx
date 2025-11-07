@@ -20,12 +20,12 @@ const Filter = ({ activeFilter, setFilter }) => {
               py-2 px-4 rounded-lg font-semibold text-sm border
               transition-all duration-200
               ${activeFilter === f.key
-                ? 'bg-primary-color text-white border-primary-color' // Estado Ativo
+                ? 'bg-primary text-white border-primary' // Estado Ativo
                 : 'bg-card-background-color dark:bg-dark-card-background-color \
                    border-border-color dark:border-dark-border-color \
                    text-text-color dark:text-dark-text-color \
                    hover:bg-background-color dark:hover:bg-dark-background-color \
-                   hover:border-primary-color dark:hover:border-primary-color' // Estado Padrão
+                   hover:border-primary dark:hover:border-primary' // Estado Padrão
               }
             `}
             onClick={() => setFilter(f.key)}

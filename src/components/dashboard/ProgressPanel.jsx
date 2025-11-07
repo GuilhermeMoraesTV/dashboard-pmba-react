@@ -87,7 +87,7 @@ function ProgressPanel({ questionsData, hoursData, goalsHistory }) {
           {/* TRADUÇÃO de .progress-bar-fill e .completed */}
           <div
             className={`h-full rounded-full transition-all duration-500 ease-out
-                       ${qProgress >= 100 ? 'bg-success-color' : 'bg-primary-color'}`}
+                       ${qProgress >= 100 ? 'bg-success-color' : 'bg-primary'}`}
             style={{ width: `${qProgress}%` }}
           ></div>
         </div>
@@ -102,7 +102,7 @@ function ProgressPanel({ questionsData, hoursData, goalsHistory }) {
         <div className="bg-border-color dark:bg-dark-border-color rounded-full h-4 overflow-hidden">
           <div
             className={`h-full rounded-full transition-all duration-500 ease-out
-                       ${hProgress >= 100 ? 'bg-success-color' : 'bg-primary-color'}`}
+                       ${hProgress >= 100 ? 'bg-success-color' : 'bg-primary'}`}
             style={{ width: `${hProgress}%` }}
           ></div>
         </div>

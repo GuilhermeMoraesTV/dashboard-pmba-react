@@ -168,7 +168,7 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
         <form onSubmit={handleSubmit} id="registro-form" className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
 
           {errorMessage && (
-            <div className="p-3 bg-danger-color/10 border border-danger-color/30 rounded-lg text-danger-color text-sm">
+            <div className="p-3 rounded-lg text-danger-color text-sm bg-red-200 border border-red-500 dark:bg-red-900 dark:border-red-700 dark:text-red-200">
               {errorMessage}
             </div>
           )}
@@ -182,7 +182,7 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
                 value={formData.disciplinaId}
                 onChange={handleChange}
                 required
-                className="w-full p-2.5 border border-border-color dark:border-dark-border-color rounded-lg bg-background-color dark:bg-dark-background-color focus:ring-2 focus:ring-primary-color focus:border-primary-color transition"
+                className="w-full p-2.5 border border-border-color dark:border-dark-border-color rounded-lg bg-background-color dark:bg-dark-background-color focus:ring-2 focus:ring-primary focus:border-primary transition"
               >
                 <option value="">Selecione...</option>
                 {disciplinasDoCiclo.map(disc => (
@@ -199,7 +199,7 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
                 value={formData.topicoId}
                 onChange={handleChange}
                 disabled={!formData.disciplinaId || loadingTopics}
-                className="w-full p-2.5 border border-border-color dark:border-dark-border-color rounded-lg bg-background-color dark:bg-dark-background-color focus:ring-2 focus:ring-primary-color focus:border-primary-color transition disabled:opacity-50"
+                className="w-full p-2.5 border border-border-color dark:border-dark-border-color rounded-lg bg-background-color dark:bg-dark-background-color focus:ring-2 focus:ring-primary focus:border-primary transition disabled:opacity-50"
               >
                 <option value="">{loadingTopics ? 'Carregando...' : (topics.length > 0 ? 'Selecione o tópico...' : (selectedDisciplina ? 'Nenhum tópico' : 'Selecione a disciplina'))}</option>
                 {topics.map(topic => (
@@ -220,7 +220,7 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
                         className={`
                           px-4 py-2 rounded-full text-sm font-semibold transition-all border
                           ${formData.tipoEstudo === tipo
-                            ? 'bg-primary-color text-white border-transparent'
+                            ? 'bg-primary text-white border-transparent'
                             : 'bg-background-color dark:bg-dark-background-color border-border-color dark:border-dark-border-color hover:bg-border-color dark:hover:bg-dark-border-color'
                           }
                         `}
@@ -241,7 +241,7 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
                 value={formData.data}
                 onChange={handleChange}
                 required
-                className="w-full p-2.5 border border-border-color dark:border-dark-border-color rounded-lg bg-background-color dark:bg-dark-background-color focus:ring-2 focus:ring-primary-color focus:border-primary-color transition"
+                className="w-full p-2.5 border border-border-color dark:border-dark-border-color rounded-lg bg-background-color dark:bg-dark-background-color focus:ring-2 focus:ring-primary focus:border-primary transition"
               />
             </div>
 
@@ -256,7 +256,7 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
                 min="0"
                 step="1"
                 disabled={isTimeFromTimer}
-                className="w-full p-2.5 border border-border-color dark:border-dark-border-color rounded-lg bg-background-color dark:bg-dark-background-color focus:ring-2 focus:ring-primary-color focus:border-primary-color transition disabled:opacity-50 disabled:bg-border-color dark:disabled:bg-dark-border-color"
+                className="w-full p-2.5 border border-border-color dark:border-dark-border-color rounded-lg bg-background-color dark:bg-dark-background-color focus:ring-2 focus:ring-primary focus:border-primary transition disabled:opacity-50 disabled:bg-border-color dark:disabled:bg-dark-border-color"
                 placeholder="0"
               />
             </div>
@@ -273,7 +273,7 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
                 max="59"
                 step="1"
                 disabled={isTimeFromTimer}
-                className="w-full p-2.5 border border-border-color dark:border-dark-border-color rounded-lg bg-background-color dark:bg-dark-background-color focus:ring-2 focus:ring-primary-color focus:border-primary-color transition disabled:opacity-50 disabled:bg-border-color dark:disabled:bg-dark-border-color"
+                className="w-full p-2.5 border border-border-color dark:border-dark-border-color rounded-lg bg-background-color dark:bg-dark-background-color focus:ring-2 focus:ring-primary focus:border-primary transition disabled:opacity-50 disabled:bg-border-color dark:disabled:bg-dark-border-color"
                 placeholder="0"
               />
             </div>
@@ -294,7 +294,7 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
                 onChange={handleChange}
                 min="0"
                 step="1"
-                className="w-full p-2.5 border border-border-color dark:border-dark-border-color rounded-lg bg-background-color dark:bg-dark-background-color focus:ring-2 focus:ring-primary-color focus:border-primary-color transition"
+                className="w-full p-2.5 border border-border-color dark:border-dark-border-color rounded-lg bg-background-color dark:bg-dark-background-color focus:ring-2 focus:ring-primary focus:border-primary transition"
               />
             </div>
 
@@ -308,14 +308,14 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
                 onChange={handleChange}
                 min="0"
                 max={formData.questoesFeitas > 0 ? formData.questoesFeitas : undefined}
-                className="w-full p-2.5 border border-border-color dark:border-dark-border-color rounded-lg bg-background-color dark:bg-dark-background-color focus:ring-2 focus:ring-primary-color focus:border-primary-color transition"
+                className="w-full p-2.5 border border-border-color dark:border-dark-border-color rounded-lg bg-background-color dark:bg-dark-background-color focus:ring-2 focus:ring-primary focus:border-primary transition"
               />
             </div>
           </div>
 
         </form>
 
-        <div className="p-5 bg-background-color dark:bg-dark-background-color/50 border-t border-border-color dark:border-dark-border-color flex justify-end gap-3">
+        <div className="p-5 bg-background-color dark:bg-dark-background-color border-t border-border-color dark:border-dark-border-color flex justify-end gap-3">
           <button
             type="button"
             onClick={onClose}
@@ -328,7 +328,7 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
             type="submit"
             form="registro-form"
             disabled={loading}
-            className="px-5 py-2.5 rounded-lg text-sm font-semibold text-white bg-primary-color hover:bg-primary-hover transition flex items-center justify-center disabled:opacity-50"
+            className="px-5 py-2.5 rounded-lg text-sm font-semibold text-white bg-primary hover:bg-primary-hover transition flex items-center justify-center disabled:opacity-50"
           >
             {loading ? (
               <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">

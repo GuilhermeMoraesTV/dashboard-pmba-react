@@ -96,27 +96,12 @@ function StudyTimer({ disciplina, onStop, onCancel }) {
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.95 }}
       transition={{ duration: 0.3, ease: 'easeInOut' }}
-      className={`relative w-full h-full min-h-[450px] flex flex-col items-center justify-center bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 rounded-xl shadow-lg p-6 overflow-hidden
+      className={`relative w-full h-full min-h-[450px] flex flex-col items-center justify-center bg-gradient-to-br from-[#2d1010] via-[#111113] to-[#050506] rounded-xl shadow-lg p-6 overflow-hidden
                  ${isFullscreen ? 'fixed inset-0 z-[100] rounded-none' : ''}`}
     >
-        <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)', backgroundSize: '40px 40px' }}></div>
-        <div className="absolute inset-0 bg-black/10 backdrop-blur-sm"></div>
-
-        <motion.div
-            animate={{ scale: [1, 1.05, 1] }}
-            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-            className="absolute w-64 h-64 bg-white/5 rounded-full pointer-events-none"
-        ></motion.div>
-        <motion.div
-            animate={{ scale: [1, 1.1, 1] }}
-            transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut', delay: 0.5 }}
-            className="absolute w-80 h-80 bg-white/5 rounded-full pointer-events-none"
-        ></motion.div>
-
-
         <div className="relative z-10 flex flex-col items-center justify-center text-white text-center">
 
-            <p className="text-lg font-semibold text-white/80">Estudando</p>
+            <p className="text-lg font-semibold text-white">Estudando</p>
             <h2 className={`text-3xl font-bold text-white mb-4 truncate max-w-sm ${isFullscreen ? 'md:text-4xl lg:text-5xl max-w-xl' : ''}`}>
               {disciplina.nome}
             </h2>
@@ -129,7 +114,7 @@ function StudyTimer({ disciplina, onStop, onCancel }) {
                 <button
                     onClick={handleCancel}
                     title="Cancelar (não salva)"
-                    className={`flex items-center justify-center bg-white/20 hover:bg-white/30 backdrop-blur-lg rounded-full text-white transition-all duration-200 ease-in-out
+                    className={`flex items-center justify-center rounded-full border border-border-light dark:border-border-dark bg-card-light dark:bg-card-dark text-text-color dark:text-white transition-all duration-200 ease-in-out hover:bg-card-dark hover:text-white dark:hover:bg-[#1f1f23]
                                 ${isFullscreen ? 'w-20 h-20 md:w-24 md:h-24' : 'w-16 h-16'}`}
                 >
                     <IconCancel className={`${isFullscreen ? 'w-8 h-8 md:w-10 md:h-10' : 'w-6 h-6'}`}/>
@@ -138,7 +123,7 @@ function StudyTimer({ disciplina, onStop, onCancel }) {
                 <button
                     onClick={handleStop}
                     title="Parar e Registrar"
-                    className={`flex items-center justify-center bg-white hover:bg-gray-100 backdrop-blur-lg rounded-full text-danger-color shadow-lg transition-all duration-200 ease-in-out transform hover:scale-105
+                    className={`flex items-center justify-center rounded-full bg-primary text-white shadow-lg transition-all duration-200 ease-in-out transform hover:scale-105 hover:bg-primary-hover
                                 ${isFullscreen ? 'w-24 h-24 md:w-28 md:h-28' : 'w-20 h-20'}`}
                 >
                     <IconStop className={`${isFullscreen ? 'w-10 h-10 md:w-12 md:h-12' : 'w-6 h-6'}`}/>
@@ -147,7 +132,7 @@ function StudyTimer({ disciplina, onStop, onCancel }) {
                 <button
                     onClick={toggleFullscreen}
                     title={isFullscreen ? 'Sair do Modo Foco' : 'Modo Foco'}
-                    className={`flex items-center justify-center bg-white/20 hover:bg-white/30 backdrop-blur-lg rounded-full text-white transition-all duration-200 ease-in-out
+                    className={`flex items-center justify-center rounded-full border border-border-light dark:border-border-dark bg-card-light dark:bg-card-dark text-text-color dark:text-white transition-all duration-200 ease-in-out hover:bg-card-dark hover:text-white dark:hover:bg-[#1f1f23]
                                 ${isFullscreen ? 'w-20 h-20 md:w-24 md:h-24' : 'w-16 h-16'}`}
                 >
                     {isFullscreen

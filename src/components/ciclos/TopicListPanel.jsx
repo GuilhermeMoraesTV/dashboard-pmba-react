@@ -115,7 +115,7 @@ function TopicListPanel({ user, cicloId, disciplinaId, registrosEstudo, discipli
     return (
       <div className="flex items-center justify-center p-8">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-color mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
           <p className="text-subtle-text-color dark:text-dark-subtle-text-color">Carregando tópicos...</p>
         </div>
       </div>
@@ -125,7 +125,7 @@ function TopicListPanel({ user, cicloId, disciplinaId, registrosEstudo, discipli
   if (topics.length === 0) {
      return (
        <div className="flex flex-col items-center justify-center py-12 text-center">
-         <div className="w-20 h-20 rounded-full bg-primary-color/10 flex items-center justify-center mb-4">
+         <div className="w-20 h-20 rounded-full bg-primary-light flex items-center justify-center mb-4">
            <IconBook />
          </div>
          <h3 className="text-lg font-semibold text-heading-color dark:text-dark-heading-color mb-2">
@@ -158,11 +158,11 @@ function TopicListPanel({ user, cicloId, disciplinaId, registrosEstudo, discipli
           </div>
           <div className="flex-1 bg-border-color dark:bg-dark-border-color rounded-full h-2">
             <div
-              className="bg-primary-color h-full rounded-full transition-all duration-500"
+              className="bg-primary h-full rounded-full transition-all duration-500"
               style={{ width: `${completionPercentage}%` }}
             ></div>
           </div>
-          <span className="font-semibold text-primary-color">
+          <span className="font-semibold text-primary">
             {completionPercentage}%
           </span>
         </div>
@@ -182,14 +182,14 @@ function TopicListPanel({ user, cicloId, disciplinaId, registrosEstudo, discipli
               className={`
                 relative overflow-hidden rounded-lg border-2 transition-all duration-200
                 ${hasData
-                  ? 'bg-card-background-color dark:bg-dark-card-background-color border-primary-color/20 hover:border-primary-color/50 hover:shadow-lg'
+                  ? 'bg-card-background-color dark:bg-dark-card-background-color border-primary hover:border-primary-dark hover:shadow-lg'
                   : 'bg-background-color dark:bg-dark-background-color border-border-color dark:border-dark-border-color opacity-60'
                 }
               `}
             >
               {hasData && (
                 <div
-                  className="absolute inset-0 bg-primary-color/5 transition-all duration-500"
+                  className="absolute inset-0 bg-primary-light transition-all duration-500"
                   style={{
                     width: performance ? `${performance}%` : '100%',
                     opacity: 0.3
@@ -200,11 +200,11 @@ function TopicListPanel({ user, cicloId, disciplinaId, registrosEstudo, discipli
               <div className="relative p-4">
                 <div className="flex items-start justify-between mb-3">
                   <h4 className="font-semibold text-text-color dark:text-dark-text-color flex items-center gap-2 flex-1 min-w-0">
-                    <span className={`w-2 h-2 rounded-full ${hasData ? 'bg-primary-color' : 'bg-border-color dark:bg-dark-border-color'}`}></span>
+                    <span className={`w-2 h-2 rounded-full ${hasData ? 'bg-primary' : 'bg-border-color dark:bg-dark-border-color'}`}></span>
                     <span className="truncate">{topicData.nome}</span>
                   </h4>
                   {hasData && (
-                    <span className="text-xs font-bold bg-primary-color/20 text-primary-color px-2 py-1 rounded-full ml-2 flex-shrink-0">
+                    <span className="text-xs font-bold bg-primary-light text-primary-dark px-2 py-1 rounded-full ml-2 flex-shrink-0">
                       {topicData.registrosCount} {topicData.registrosCount === 1 ? 'registro' : 'registros'}
                     </span>
                   )}
@@ -219,7 +219,7 @@ function TopicListPanel({ user, cicloId, disciplinaId, registrosEstudo, discipli
                       <div className="text-xs text-subtle-text-color dark:text-dark-subtle-text-color mb-1">
                         Tempo
                       </div>
-                      <div className="font-bold text-sm text-primary-color">
+                      <div className="font-bold text-sm text-primary">
                         {formatDecimalHours(topicData.totalMinutes)}
                       </div>
                     </div>
@@ -267,8 +267,8 @@ function TopicListPanel({ user, cicloId, disciplinaId, registrosEstudo, discipli
                       onClick={() => onQuickAddTopic(disciplinaId, topicData)}
                       className={`flex items-center justify-center gap-2 text-sm font-semibold transition-colors w-full mt-4 p-2 rounded-lg
                         ${hasData
-                          ? 'text-primary-color hover:text-primary-hover bg-primary-color/10 hover:bg-primary-color/20'
-                          : 'text-subtle-text-color dark:text-dark-subtle-text-color hover:text-primary-color bg-background-color dark:bg-dark-background-color hover:bg-primary-color/10 border border-dashed border-border-color dark:border-dark-border-color'
+                          ? 'text-primary hover:text-primary-hover bg-primary-light hover:bg-primary-light'
+                          : 'text-subtle-text-color dark:text-dark-subtle-text-color hover:text-primary bg-background-color dark:bg-dark-background-color hover:bg-primary-light border border-dashed border-border-color dark:border-dark-border-color'
                         }
                       `}
                     >

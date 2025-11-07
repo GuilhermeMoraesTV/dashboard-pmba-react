@@ -57,7 +57,7 @@ function TopicsManagerModal({ disciplinaNome, initialTopics = [], onClose, onSav
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="text-xl font-bold text-heading-color dark:text-dark-heading-color mb-4">
-          Gerenciar Tópicos: <span className="text-primary-color">{disciplinaNome}</span>
+          Gerenciar Tópicos: <span className="text-primary">{disciplinaNome}</span>
         </h2>
 
         {/* Formulário para adicionar novo tópico */}
@@ -67,7 +67,7 @@ function TopicsManagerModal({ disciplinaNome, initialTopics = [], onClose, onSav
             value={newTopicName}
             onChange={(e) => setNewTopicName(e.target.value)}
             placeholder="Digite o nome do novo tópico"
-            className="flex-grow p-3 rounded bg-background-color dark:bg-dark-background-color text-text-color dark:text-dark-text-color border border-border-color dark:border-dark-border-color focus:outline-none focus:ring-2 focus:ring-primary-color"
+            className="flex-grow p-3 rounded bg-background-color dark:bg-dark-background-color text-text-color dark:text-dark-text-color border border-border-color dark:border-dark-border-color focus:outline-none focus:ring-2 focus:ring-primary"
           />
           <button type="submit" className="px-5 py-3 bg-green-500 text-white rounded font-semibold hover:bg-green-600">
             + Adicionar
@@ -117,7 +117,7 @@ function TopicsManagerModal({ disciplinaNome, initialTopics = [], onClose, onSav
           <button
             type="button"
             onClick={handleSaveChanges}
-            className="px-6 py-2 bg-primary-color text-white rounded-lg font-semibold hover:brightness-110"
+            className="px-6 py-2 bg-primary text-white rounded-lg font-semibold hover:brightness-110"
           >
             Salvar Tópicos ({topics.length})
           </button>

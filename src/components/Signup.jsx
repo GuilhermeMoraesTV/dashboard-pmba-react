@@ -1,74 +1,76 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Link, useNavigate } from 'react-router-dom'; // 1. Importe Link e useNavigate
-import { auth, db, storage } from '../firebaseConfig'; // 2. Importe os serviços reais
+import { Link, useNavigate } from 'react-router-dom';
+import { auth, db, storage } from '../firebaseConfig';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
-// --- Ícones (copiados do seu arquivo) ---
 const IconEmail = () => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
     <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
   </svg>
 );
+
 const IconPassword = () => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
     <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 0 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
   </svg>
 );
+
 const IconUser = () => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
     <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
   </svg>
 );
-// Ícone para Upload de Foto
+
 const IconCamera = () => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
     <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
     <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0ZM18.75 10.5h.008v.008h-.008V10.5Z" />
   </svg>
 );
+
 const IconLoader = () => (
-  <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+  <svg className="h-5 w-5 animate-spin text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
   </svg>
 );
+
 const IconCheck = () => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
     <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
   </svg>
 );
-// --- Fim Ícones ---
-
 
 function Signup() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-
-  // 3. Novos estados para foto
   const [photo, setPhoto] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
-
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [acceptTerms, setAcceptTerms] = useState(false);
 
-  const navigate = useNavigate(); // 4. Hook para redirecionar
+  const navigate = useNavigate();
 
-  // Validação de senha (sem alteração)
   const passwordRequirements = {
     length: password.length >= 6,
     uppercase: /[A-Z]/.test(password),
     lowercase: /[a-z]/.test(password),
     number: /[0-9]/.test(password),
   };
-  const isPasswordValid = Object.values(passwordRequirements).every(req => req);
+  const isPasswordValid = Object.values(passwordRequirements).every((req) => req);
+  const passwordRequirementDetails = [
+    { key: 'length', label: 'Mínimo de 6 caracteres' },
+    { key: 'uppercase', label: 'Ao menos uma letra maiúscula' },
+    { key: 'lowercase', label: 'Ao menos uma letra minúscula' },
+    { key: 'number', label: 'Ao menos um número' },
+  ];
 
-  // 5. Função para lidar com a seleção da foto
   const handlePhotoChange = (e) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
@@ -77,12 +79,10 @@ function Signup() {
     }
   };
 
-  // 6. Lógica de Cadastro REAL
   const handleSignup = async (e) => {
     e.preventDefault();
     setError('');
 
-    // --- Validações (sem alteração) ---
     if (!name.trim()) {
       setError('Por favor, preencha seu nome completo.');
       return;
@@ -103,46 +103,39 @@ function Signup() {
       setError('Você precisa aceitar os Termos & Condições.');
       return;
     }
-    // --- Fim Validações ---
 
     setLoading(true);
 
     try {
-      // 1. Criar o usuário no Auth
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
-
       let photoURL = null;
 
-      // 2. Fazer upload da foto (se existir)
       if (photo) {
         const storageRef = ref(storage, `profile_images/${user.uid}/${photo.name}`);
         const snapshot = await uploadBytes(storageRef, photo);
         photoURL = await getDownloadURL(snapshot.ref);
       }
 
-      // 3. Atualizar o perfil do Auth (salva nome e foto no Auth)
       await updateProfile(user, {
         displayName: name,
-        photoURL: photoURL
+        photoURL: photoURL,
       });
 
-      // 4. Criar o documento do usuário no Firestore
       const userDocRef = doc(db, 'users', user.uid);
       await setDoc(userDocRef, {
         uid: user.uid,
         name: name,
         email: email,
         photoURL: photoURL,
-        createdAt: serverTimestamp()
+        createdAt: serverTimestamp(),
       });
 
       setLoading(false);
-      navigate('/'); // Redireciona para o dashboard
-
+      navigate('/');
     } catch (err) {
       setLoading(false);
-      console.error("Erro no cadastro:", err);
+      console.error('Erro no cadastro:', err);
       if (err.code === 'auth/email-already-in-use') {
         setError('Este e-mail já está sendo utilizado.');
       } else {
@@ -152,334 +145,294 @@ function Signup() {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#0a0a0a] relative overflow-hidden">
-      {/* LADO ESQUERDO: IMAGEM (sem alteração) */}
-      <motion.div
-        initial={{ opacity: 0, x: -100 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.8, ease: "easeOut" }}
-        className="hidden lg:flex lg:w-1/2 relative overflow-hidden"
-      >
-        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#0a0a0a]/30 to-[#0a0a0a] z-10"></div>
-        <img
-          src="/imagem-login.png"
-          alt="PMBA"
-          className="absolute inset-0 w-full h-full object-cover"
-        />
-        <div className="absolute inset-0 z-20" style={{
-          backgroundImage: `linear-gradient(rgba(10,10,10,0.4) 1px, transparent 1px), linear-gradient(90deg, rgba(10,10,10,0.4) 1px, transparent 1px)`,
-          backgroundSize: '50px 50px'
-        }}></div>
-        <div className="absolute inset-0 z-30 flex flex-col items-center justify-center text-center px-8">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3, duration: 0.8 }}
-          >
-            <h1 className="text-6xl font-black text-white mb-4 tracking-wider" style={{ textShadow: '0 0 30px rgba(0,0,0,0.8), 0 0 60px rgba(0,0,0,0.6)' }}>
-              PMBA
-            </h1>
-            <div className="h-1 w-24 bg-gradient-to-r from-transparent via-red-600 to-transparent mx-auto mb-4"></div>
-            <p className="text-xl text-gray-200 font-light tracking-widest" style={{ textShadow: '0 0 20px rgba(0,0,0,0.9)' }}>
-              SISTEMA DE TREINAMENTO
-            </p>
-          </motion.div>
-        </div>
-      </motion.div>
+    <div className="relative flex min-h-screen items-center justify-center px-4 py-12 lg:px-12">
+      <div className="w-full max-w-6xl grid items-stretch gap-10 lg:grid-cols-5">
+        <motion.div
+          initial={{ opacity: 0, x: -80 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.8, ease: 'easeOut' }}
+          className="relative hidden lg:flex lg:col-span-2"
+        >
+          <div className="custom-card relative flex h-full w-full flex-col justify-between overflow-hidden bg-gradient-to-br from-[#1c1c21] via-[#101014] to-[#050506] text-white shadow-2xl">
+            <div className="absolute -top-16 -left-20 h-36 w-36 rotate-12 rounded-2xl border border-primary-dark bg-primary-dark"></div>
+            <div className="absolute top-28 -left-8 h-16 w-16 rotate-45 border border-primary-light"></div>
+            <div className="absolute bottom-10 -right-16 h-48 w-48 rotate-12 rounded-3xl border border-[#361313] bg-[#250d0d]"></div>
+            <div className="relative z-10">
+              <span className="text-xs font-semibold uppercase tracking-[0.35em] text-primary-light">Cadastro PMBA</span>
+              <h1 className="mt-6 text-3xl font-extrabold leading-tight">
+                Construa uma trajetória tática desde o primeiro acesso
+              </h1>
+              <p className="mt-4 text-sm text-zinc-300">
+                Uma experiência sólida, moderna e inspirada no campo operacional para configurar o seu painel militar em minutos.
+              </p>
+            </div>
+            <div className="relative z-10 mt-8 space-y-5">
+              <div className="flex gap-4 rounded-2xl border border-[#2b2b30] bg-[#151519] p-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-xl font-bold">1</div>
+                <div>
+                  <p className="text-lg font-semibold text-white">Cadastre-se com identidade profissional</p>
+                  <p className="text-sm text-zinc-400">Insira seus dados, personalize com foto e mantenha tudo sincronizado.</p>
+                </div>
+              </div>
+              <div className="flex gap-4 rounded-2xl border border-[#2b2b30] bg-[#151519] p-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-xl font-bold">2</div>
+                <div>
+                  <p className="text-lg font-semibold text-white">Defina metas e ciclos estratégicos</p>
+                  <p className="text-sm text-zinc-400">Estruture disciplinas, metas semanais e acompanhamentos detalhados.</p>
+                </div>
+              </div>
+              <div className="flex gap-4 rounded-2xl border border-[#2b2b30] bg-[#151519] p-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-xl font-bold">3</div>
+                <div>
+                  <p className="text-lg font-semibold text-white">Monitore resultados em tempo real</p>
+                  <p className="text-sm text-zinc-400">Dashboards sólidos, sem transparências, com foco em performance.</p>
+                </div>
+              </div>
+            </div>
+            <div className="relative z-10 mt-10 flex items-center gap-3 text-xs uppercase tracking-[0.35em] text-zinc-500">
+              <img src="/logo-pmba.png" alt="Logo PMBA" className="h-10 w-10 rounded-lg border border-[#2d2d30] bg-[#1a1a1d] object-contain p-2" />
+              <span>Pronto para evoluir diariamente</span>
+            </div>
+          </div>
+        </motion.div>
 
-      {/* LADO DIREITO: FORMULÁRIO */}
-      <motion.div
-        initial={{ opacity: 0, x: 100 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.8, ease: "easeOut" }}
-        className="w-full lg:w-1/2 flex items-center justify-center p-6 md:p-12 relative z-10 overflow-y-auto"
-      >
-        <div className="w-full max-w-md my-8">
+        <motion.div
+          initial={{ opacity: 0, x: 80 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.8, ease: 'easeOut' }}
+          className="flex lg:col-span-3"
+        >
+          <div className="custom-card relative w-full p-8 sm:p-10 lg:p-12">
+            <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <span className="text-xs font-semibold uppercase tracking-[0.35em] text-primary-light">Crie sua conta</span>
+                <h2 className="mt-3 text-3xl font-extrabold text-text-heading dark:text-text-dark-heading">
+                  Bem-vindo ao painel tático da PMBA
+                </h2>
+                <p className="mt-2 text-sm text-text-subtle dark:text-text-dark-subtle">
+                  Registre-se para desbloquear ciclos, metas e indicadores estratégicos em um ambiente profissional.
+                </p>
+              </div>
+              <div className="hidden sm:block">
+                <img src="/logo-pmba.png" alt="Escudo PMBA" className="h-16 w-16 rounded-xl border border-border-light dark:border-border-dark bg-card-light p-3 dark:bg-[#131316]" />
+              </div>
+            </div>
 
-          {/* Logo (sem alteração) */}
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2, duration: 0.6 }}
-            className="flex justify-center mb-8"
-          >
-            <img src="/logo-pmba.png" alt="Logo PMBA" className="h-16 w-auto" />
-          </motion.div>
-
-          {/* Título (sem alteração) */}
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3, duration: 0.6 }}
-            className="text-center mb-8"
-          >
-            <h2 className="text-3xl font-bold text-white mb-2 tracking-wide">
-              CRIAR CONTA
-            </h2>
-            <div className="h-0.5 w-16 bg-gradient-to-r from-transparent via-red-600 to-transparent mx-auto mb-3"></div>
-            <p className="text-sm text-gray-400 tracking-wide">
-              Preencha os dados para começar
-            </p>
-          </motion.div>
-
-          {/* Formulário */}
-          <motion.form
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4, duration: 0.6 }}
-            onSubmit={handleSignup}
-            className="space-y-5"
-          >
-            {/* Mensagem de Erro (sem alteração) */}
             {error && (
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm text-center font-medium backdrop-blur-sm"
+                className="mt-8 rounded-lg border border-red-600 bg-red-200 px-4 py-3 text-sm font-semibold text-red-800 dark:border-red-700 dark:bg-red-950 dark:text-red-200"
               >
                 {error}
               </motion.div>
             )}
 
-            {/* 7. Input de Foto de Perfil */}
-            <div>
-              <label className="block text-xs font-bold mb-2 text-gray-300 uppercase tracking-wider">
-                Foto de Perfil (Opcional)
-              </label>
-              <div className="flex items-center gap-4">
-                <motion.div
-                  className="w-20 h-20 rounded-full bg-[#1a1a1a] border border-gray-800 flex items-center justify-center text-gray-500 overflow-hidden"
-                  whileHover={{ scale: 1.05 }}
+            <motion.form
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15, duration: 0.6 }}
+              onSubmit={handleSignup}
+              className="mt-8 space-y-6"
+            >
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label htmlFor="name" className="mb-2 block text-xs font-semibold uppercase tracking-[0.3em] text-text-subtle dark:text-text-dark-subtle">
+                    Nome completo
+                  </label>
+                  <div className="relative group">
+                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-text-subtle transition-colors group-focus-within:text-primary-light dark:text-text-dark-subtle">
+                      <IconUser />
+                    </div>
+                    <input
+                      id="name"
+                      name="name"
+                      type="text"
+                      autoComplete="name"
+                      required
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      className="w-full rounded-lg border border-border-light bg-card-light p-3.5 pl-12 text-text-DEFAULT placeholder:text-text-subtle focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary dark:border-border-dark dark:bg-[#131316] dark:text-white dark:placeholder:text-text-dark-subtle"
+                      placeholder="Seu nome completo"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label htmlFor="email" className="mb-2 block text-xs font-semibold uppercase tracking-[0.3em] text-text-subtle dark:text-text-dark-subtle">
+                    E-mail
+                  </label>
+                  <div className="relative group">
+                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-text-subtle transition-colors group-focus-within:text-primary-light dark:text-text-dark-subtle">
+                      <IconEmail />
+                    </div>
+                    <input
+                      id="email"
+                      name="email"
+                      type="email"
+                      autoComplete="email"
+                      required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full rounded-lg border border-border-light bg-card-light p-3.5 pl-12 text-text-DEFAULT placeholder:text-text-subtle focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary dark:border-border-dark dark:bg-[#131316] dark:text-white dark:placeholder:text-text-dark-subtle"
+                      placeholder="seu.email@exemplo.com"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <span className="text-xs font-semibold uppercase tracking-[0.3em] text-text-subtle dark:text-text-dark-subtle">
+                  Foto de perfil (opcional)
+                </span>
+                <label
+                  htmlFor="photo"
+                  className="mt-2 flex cursor-pointer items-center gap-4 rounded-2xl border border-dashed border-border-light bg-card-light px-4 py-3 transition-colors hover:border-primary dark:border-border-dark dark:bg-[#131316]"
                 >
                   {photoPreview ? (
-                    <img src={photoPreview} alt="Preview" className="w-full h-full object-cover" />
+                    <img src={photoPreview} alt="Pré-visualização" className="h-16 w-16 rounded-xl border border-primary object-cover" />
                   ) : (
-                    <IconCamera />
+                    <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-primary text-white">
+                      <IconCamera />
+                    </div>
                   )}
-                </motion.div>
-                <label
-                  htmlFor="photo-upload"
-                  className="cursor-pointer p-3 rounded-lg bg-[#1a1a1a] text-gray-300 border border-gray-800 hover:border-red-600 hover:text-white transition-all text-sm font-medium"
-                >
-                  Selecionar Foto
+                  <div>
+                    <p className="text-sm font-semibold text-text-heading dark:text-text-dark-heading">Selecionar arquivo</p>
+                    <p className="text-xs text-text-subtle dark:text-text-dark-subtle">PNG ou JPG até 5 MB.</p>
+                  </div>
+                </label>
+                <input id="photo" type="file" accept="image/*" onChange={handlePhotoChange} className="hidden" />
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label htmlFor="password" className="mb-2 block text-xs font-semibold uppercase tracking-[0.3em] text-text-subtle dark:text-text-dark-subtle">
+                    Senha
+                  </label>
+                  <div className="relative group">
+                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-text-subtle transition-colors group-focus-within:text-primary-light dark:text-text-dark-subtle">
+                      <IconPassword />
+                    </div>
+                    <input
+                      id="password"
+                      name="password"
+                      type="password"
+                      autoComplete="new-password"
+                      required
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full rounded-lg border border-border-light bg-card-light p-3.5 pl-12 text-text-DEFAULT placeholder:text-text-subtle focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary dark:border-border-dark dark:bg-[#131316] dark:text-white dark:placeholder:text-text-dark-subtle"
+                      placeholder="Crie uma senha segura"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label htmlFor="confirmPassword" className="mb-2 block text-xs font-semibold uppercase tracking-[0.3em] text-text-subtle dark:text-text-dark-subtle">
+                    Confirmar senha
+                  </label>
+                  <div className="relative group">
+                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-text-subtle transition-colors group-focus-within:text-primary-light dark:text-text-dark-subtle">
+                      <IconPassword />
+                    </div>
+                    <input
+                      id="confirmPassword"
+                      name="confirmPassword"
+                      type="password"
+                      autoComplete="new-password"
+                      required
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="w-full rounded-lg border border-border-light bg-card-light p-3.5 pl-12 text-text-DEFAULT placeholder:text-text-subtle focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary dark:border-border-dark dark:bg-[#131316] dark:text-white dark:placeholder:text-text-dark-subtle"
+                      placeholder="Repita a senha"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-border-light bg-card-light p-4 dark:border-border-dark dark:bg-[#131316]">
+                <h3 className="text-sm font-semibold text-text-heading dark:text-text-dark-heading uppercase tracking-[0.25em]">
+                  Sua senha precisa conter
+                </h3>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  {passwordRequirementDetails.map((item) => {
+                    const satisfied = passwordRequirements[item.key];
+                    return (
+                      <div
+                        key={item.key}
+                        className={`flex items-center gap-3 rounded-xl border px-3 py-2 ${
+                          satisfied
+                            ? 'border-green-600 bg-green-200 text-green-900 dark:border-green-600 dark:bg-green-950 dark:text-green-200'
+                            : 'border-border-light bg-card-light text-text-subtle dark:border-border-dark dark:bg-[#19191d] dark:text-text-dark-subtle'
+                        }`}
+                      >
+                        <span
+                          className={`flex h-6 w-6 items-center justify-center rounded-lg text-xs font-bold ${
+                            satisfied
+                              ? 'bg-green-600 text-white'
+                              : 'bg-border-light text-text-subtle dark:bg-[#1f1f24] dark:text-text-dark-subtle'
+                          }`}
+                        >
+                          {satisfied ? <IconCheck /> : '•'}
+                        </span>
+                        <span className="text-sm font-medium">{item.label}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-border-light bg-card-light p-4 dark:border-border-dark dark:bg-[#131316]">
+                <label className="flex items-start gap-3 text-sm text-text-subtle dark:text-text-dark-subtle">
                   <input
-                    id="photo-upload"
-                    name="photo-upload"
-                    type="file"
-                    accept="image/*"
-                    onChange={handlePhotoChange}
-                    className="sr-only"
+                    id="terms"
+                    type="checkbox"
+                    checked={acceptTerms}
+                    onChange={(e) => setAcceptTerms(e.target.checked)}
+                    className="mt-1 h-5 w-5 rounded border-border-light bg-card-light text-primary focus:ring-primary focus:ring-offset-0 dark:border-border-dark dark:bg-[#1f1f24]"
                   />
+                  <span>
+                    Eu li e concordo com os <span className="font-semibold text-primary">Termos &amp; Condições</span> e a <span className="font-semibold text-primary">Política de Privacidade</span>.
+                  </span>
                 </label>
               </div>
-            </div>
 
-            {/* Input de Nome (sem alteração) */}
-            <div>
-              <label htmlFor="name" className="block text-xs font-bold mb-2 text-gray-300 uppercase tracking-wider">
-                Nome Completo
-              </label>
-              <div className="relative group">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-500 group-focus-within:text-red-500 transition-colors">
-                  <IconUser />
-                </div>
-                <input
-                  id="name"
-                  name="name"
-                  type="text"
-                  autoComplete="name"
-                  required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full p-3.5 pl-12 rounded-lg bg-[#1a1a1a] text-white border border-gray-800 focus:outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 transition-all placeholder:text-gray-600"
-                  placeholder="Digite seu nome completo"
-                />
-              </div>
-            </div>
-
-            {/* Input de E-mail (sem alteração) */}
-            <div>
-              <label htmlFor="email" className="block text-xs font-bold mb-2 text-gray-300 uppercase tracking-wider">
-                E-mail
-              </label>
-              <div className="relative group">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-500 group-focus-within:text-red-500 transition-colors">
-                  <IconEmail />
-                </div>
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full p-3.5 pl-12 rounded-lg bg-[#1a1a1a] text-white border border-gray-800 focus:outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 transition-all placeholder:text-gray-600"
-                  placeholder="seu.email@exemplo.com"
-                />
-              </div>
-            </div>
-
-            {/* Inputs de Senha e Requisitos (sem alteração) */}
-            <div>
-              <label htmlFor="password" className="block text-xs font-bold mb-2 text-gray-300 uppercase tracking-wider">
-                Senha
-              </label>
-              <div className="relative group">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-500 group-focus-within:text-red-500 transition-colors">
-                  <IconPassword />
-                </div>
-                <input
-                  id="password"
-                  name="password"
-                  type="password"
-                  autoComplete="new-password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full p-3.5 pl-12 rounded-lg bg-[#1a1a1a] text-white border border-gray-800 focus:outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 transition-all placeholder:text-gray-600"
-                  placeholder="••••••••"
-                />
-              </div>
-              {password && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  className="mt-3 space-y-2"
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="group relative flex w-full items-center justify-center overflow-hidden rounded-lg bg-primary px-5 py-3 text-sm font-bold uppercase tracking-[0.3em] text-white transition-all hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
                 >
-                  <div className="flex items-center gap-2 text-xs">
-                    <div className={`w-5 h-5 rounded flex items-center justify-center ${passwordRequirements.length ? 'bg-green-500/20 text-green-400' : 'bg-gray-800 text-gray-600'}`}>
-                      {passwordRequirements.length && <IconCheck />}
-                    </div>
-                    <span className={passwordRequirements.length ? 'text-green-400' : 'text-gray-500'}>
-                      Mínimo de 6 caracteres
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs">
-                    <div className={`w-5 h-5 rounded flex items-center justify-center ${passwordRequirements.uppercase ? 'bg-green-500/20 text-green-400' : 'bg-gray-800 text-gray-600'}`}>
-                      {passwordRequirements.uppercase && <IconCheck />}
-                    </div>
-                    <span className={passwordRequirements.uppercase ? 'text-green-400' : 'text-gray-500'}>
-                      Uma letra maiúscula
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs">
-                    <div className={`w-5 h-5 rounded flex items-center justify-center ${passwordRequirements.lowercase ? 'bg-green-500/20 text-green-400' : 'bg-gray-800 text-gray-600'}`}>
-                      {passwordRequirements.lowercase && <IconCheck />}
-                    </div>
-                    <span className={passwordRequirements.lowercase ? 'text-green-400' : 'text-gray-500'}>
-                      Uma letra minúscula
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs">
-                    <div className={`w-5 h-5 rounded flex items-center justify-center ${passwordRequirements.number ? 'bg-green-500/20 text-green-400' : 'bg-gray-800 text-gray-600'}`}>
-                      {passwordRequirements.number && <IconCheck />}
-                    </div>
-                    <span className={passwordRequirements.number ? 'text-green-400' : 'text-gray-500'}>
-                      Um número
-                    </span>
-                  </div>
-                </motion.div>
-              )}
-            </div>
-            <div>
-              <label htmlFor="confirmPassword" className="block text-xs font-bold mb-2 text-gray-300 uppercase tracking-wider">
-                Confirmar Senha
-              </label>
-              <div className="relative group">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-500 group-focus-within:text-red-500 transition-colors">
-                  <IconPassword />
-                </div>
-                <input
-                  id="confirmPassword"
-                  name="confirmPassword"
-                  type="password"
-                  autoComplete="new-password"
-                  required
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full p-3.5 pl-12 rounded-lg bg-[#1a1a1a] text-white border border-gray-800 focus:outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 transition-all placeholder:text-gray-600"
-                  placeholder="••••••••"
-                />
+                  <span className="relative z-10 flex items-center gap-2">
+                    {loading ? <IconLoader /> : null}
+                    {loading ? 'Criando conta...' : 'Criar conta'}
+                  </span>
+                  <span className="absolute inset-0 z-0 origin-left scale-x-0 bg-primary-dark transition-transform duration-300 ease-out group-hover:scale-x-100"></span>
+                </button>
               </div>
-              {confirmPassword && password !== confirmPassword && (
-                <p className="mt-2 text-xs text-red-400">As senhas não coincidem</p>
-              )}
-            </div>
+            </motion.form>
 
-            {/* Aceitar Termos (sem alteração) */}
-            <div>
-              <label className="flex items-start cursor-pointer group">
-                <input
-                  type="checkbox"
-                  checked={acceptTerms}
-                  onChange={(e) => setAcceptTerms(e.target.checked)}
-                  className="w-4 h-4 mt-0.5 rounded bg-[#1a1a1a] border-gray-800 text-red-600 focus:ring-red-600 focus:ring-offset-0 cursor-pointer"
-                />
-                <span className="ml-2 text-xs text-gray-400 group-hover:text-gray-300 transition-colors">
-                  Eu aceito os{' '}
-                  <a href="#" className="text-red-500 hover:text-red-400 underline">
-                    Termos & Condições
-                  </a>
-                  {' '}e a{' '}
-                  <a href="#" className="text-red-500 hover:text-red-400 underline">
-                    Política de Privacidade
-                  </a>
-                </span>
-              </label>
-            </div>
-
-            {/* Botão de Cadastrar (sem alteração) */}
-            <div className="pt-2">
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full relative group overflow-hidden p-4 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-lg font-bold tracking-wider uppercase text-sm shadow-lg shadow-red-900/50 hover:shadow-red-900/70 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
-              >
-                <span className="relative z-10 flex items-center justify-center">
-                  {loading ? (
-                    <>
-                      <IconLoader />
-                      <span className="ml-2">Cadastrando...</span>
-                    </>
-                  ) : (
-                    'Criar Conta'
-                  )}
-                </span>
-                <div className="absolute inset-0 bg-gradient-to-r from-red-700 to-red-800 transform scale-x-0 group-hover:scale-x-100 transition-transform origin-left"></div>
-              </button>
-            </div>
-          </motion.form>
-
-          {/* Link de Login (Modificado para usar <Link>) */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.6, duration: 0.6 }}
-            className="mt-8 text-center"
-          >
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-800"></div>
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="px-2 bg-[#0a0a0a] text-gray-500 tracking-wider">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.45, duration: 0.6 }}
+              className="mt-10"
+            >
+              <div className="relative flex items-center justify-center">
+                <span className="h-px w-full bg-border-light dark:bg-border-dark"></span>
+                <span className="mx-4 rounded-full bg-card-light px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-text-subtle dark:bg-[#131316] dark:text-text-dark-subtle">
                   Ou
                 </span>
+                <span className="h-px w-full bg-border-light dark:bg-border-dark"></span>
               </div>
-            </div>
-            <p className="mt-4 text-sm text-gray-400">
-              Já tem uma conta?{' '}
-              <Link
-                to="/login"
-                className="font-bold text-red-500 hover:text-red-400 transition-colors uppercase tracking-wide"
-              >
-                Entrar
-              </Link>
-            </p>
-          </motion.div>
-        </div>
-      </motion.div>
+              <p className="mt-6 text-center text-sm text-text-subtle dark:text-text-dark-subtle">
+                Já possui acesso?
+                <Link to="/login" className="ml-2 font-semibold uppercase tracking-[0.2em] text-primary hover:text-primary-light">
+                  Faça login
+                </Link>
+              </p>
+            </motion.div>
+          </div>
+        </motion.div>
+      </div>
     </div>
   );
 }

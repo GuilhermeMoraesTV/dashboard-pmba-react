@@ -25,7 +25,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     return (
       <div className="flex justify-center items-center min-h-screen bg-background-color dark:bg-dark-background-color">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-color mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
           <h2 className="text-xl font-semibold text-heading-color dark:text-dark-heading-color">
             Redirecionando...
           </h2>
@@ -193,7 +193,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       return (
         <div className="flex justify-center items-center pt-20">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-color mx-auto mb-4"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
             <p className="text-lg font-semibold text-heading-color dark:text-dark-heading-color">
               Carregando dados...
             </p>
