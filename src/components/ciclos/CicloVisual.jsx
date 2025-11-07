@@ -202,7 +202,7 @@ function CicloVisual({
                   <span className="text-xl font-bold text-heading-color dark:text-dark-heading-color transition-opacity break-words">
                     {activeSlice.disciplina.nome}
                   </span>
-                  <span className="block text-2xl font-bold text-primary-color">
+                  <span className="block text-2xl font-bold text-primary">
                     {(activeSlice.progressMinutos / 60).toFixed(1)}h
                     {viewMode === 'semanal' && (
                        <span className="text-lg font-normal text-subtle-text-color dark:text-dark-subtle-text-color">
@@ -213,7 +213,7 @@ function CicloVisual({
               </>
           ) : (
             <>
-              <span className="text-4xl font-bold text-primary-color">
+              <span className="text-4xl font-bold text-primary">
                 {(totalProgressMinutos / 60).toFixed(1)}h
               </span>
               {viewMode === 'semanal' && (
@@ -245,7 +245,7 @@ function CicloVisual({
                 className={`
                   flex items-center justify-between p-3 rounded-lg border-2 transition-all
                   ${slice.isActive ? 'bg-background-color dark:bg-dark-background-color' : 'bg-card-background-color dark:bg-dark-card-background-color'}
-                  ${selectedDisciplinaId === slice.disciplina.id ? 'border-primary-color' : 'border-border-color dark:border-dark-border-color'}
+                  ${selectedDisciplinaId === slice.disciplina.id ? 'border-primary' : 'border-border-color dark:border-dark-border-color'}
                 `}
                 style={{ '--disciplina-color': slice.color }}
               >

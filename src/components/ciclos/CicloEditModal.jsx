@@ -18,7 +18,7 @@ function EtapaInfoBasica({ nome, setNome, cargaHoraria, setCargaHoraria }) {
           value={nome}
           onChange={(e) => setNome(e.target.value)}
           placeholder="Ex: PMBA Pós-Edital"
-          className="w-full p-2 rounded-lg bg-background-color dark:bg-dark-background-color border border-border-color dark:border-dark-border-color focus:outline-none focus:ring-2 focus:ring-primary-color"
+          className="w-full p-2 rounded-lg bg-background-color dark:bg-dark-background-color border border-border-color dark:border-dark-border-color focus:outline-none focus:ring-2 focus:ring-primary"
         />
       </div>
       <div>
@@ -30,7 +30,7 @@ function EtapaInfoBasica({ nome, setNome, cargaHoraria, setCargaHoraria }) {
           value={cargaHoraria}
           onChange={(e) => setCargaHoraria(e.target.value)}
           placeholder="Ex: 25"
-          className="w-full p-2 rounded-lg bg-background-color dark:bg-dark-background-color border border-border-color dark:border-dark-border-color focus:outline-none focus:ring-2 focus:ring-primary-color"
+          className="w-full p-2 rounded-lg bg-background-color dark:bg-dark-background-color border border-border-color dark:border-dark-border-color focus:outline-none focus:ring-2 focus:ring-primary"
         />
       </div>
     </div>
@@ -80,7 +80,7 @@ function EtapaDisciplinas({ disciplinas, setDisciplinas, openTopicsManager }) {
           <div className="flex justify-between items-center mt-3">
             <button
               onClick={() => openTopicsManager(index)}
-              className="text-sm text-primary-color hover:underline"
+              className="text-sm text-primary hover:underline"
             >
               {disciplina.topicos.length} Tópicos
             </button>
@@ -95,7 +95,7 @@ function EtapaDisciplinas({ disciplinas, setDisciplinas, openTopicsManager }) {
       ))}
       <button
         onClick={addDisciplina}
-        className="mt-2 px-4 py-2 bg-primary-color/20 text-primary-color rounded-lg font-semibold hover:bg-primary-color/30"
+        className="mt-2 px-4 py-2 bg-primary-light text-primary-dark rounded-lg font-semibold hover:bg-primary-hover"
       >
         + Adicionar Disciplina
       </button>
@@ -118,7 +118,7 @@ function ValidationAlert({ message, onClose }) {
         </p>
         <button
           onClick={onClose}
-          className="w-full px-5 py-2 bg-primary-color text-white rounded-lg font-semibold hover:brightness-110 transition-all"
+          className="w-full px-5 py-2 bg-primary text-white rounded-lg font-semibold hover:brightness-110 transition-all"
         >
           Entendi
         </button>
@@ -265,7 +265,7 @@ function CicloEditModal({ onClose, user, ciclo }) {
               {etapa === 1 && (
                 <button
                   onClick={proximaEtapa}
-                  className="px-5 py-2 bg-primary-color text-white rounded-lg font-semibold shadow-lg hover:brightness-110"
+                  className="px-5 py-2 bg-primary text-white rounded-lg font-semibold shadow-lg hover:brightness-110"
                 >
                   Próximo
                 </button>

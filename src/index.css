@@ -20,30 +20,48 @@
     line-height: 1.6;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    transition: background-color 0.3s ease, color 0.3s ease;
+    transition: background-color 0.4s ease, color 0.4s ease;
+    min-height: 100vh;
     position: relative;
   }
 
-  /* CORREÇÃO (Linhas Diagonais):
-    A sintaxe do gradiente estava incorreta (ex: 20px antes de 10px).
-    Corrigido para o padrão 10px/20px que você queria.
-  */
-  body::before {
+  body::before,
+  body::after {
     content: '';
     position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    transition: opacity 0.5s ease, background 0.5s ease;
+  }
+
+  body::before {
+    background-color: theme('colors.background.light');
     background-image: repeating-linear-gradient(
       45deg,
       transparent,
       transparent 10px,
-      rgba(0, 0, 0, 0.03) 10px,
-      rgba(0, 0, 0, 0.03) 20px
+      rgba(15, 15, 20, 0.06) 10px,
+      rgba(15, 15, 20, 0.06) 20px
     );
-    pointer-events: none;
-    z-index: 0;
+    opacity: 1;
+  }
+
+  body::after {
+    background-image:
+      linear-gradient(rgba(220, 38, 38, 0.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(220, 38, 38, 0.06) 1px, transparent 1px);
+    background-size: 50px 50px;
+    animation: gridMove 20s linear infinite;
+    mix-blend-mode: normal;
+    opacity: 0.7;
+  }
+
+  #root {
+    position: relative;
+    z-index: 1;
+    min-height: 100vh;
+    isolation: isolate;
   }
 
   body.dark {
@@ -51,17 +69,23 @@
     color: theme('colors.text.dark-DEFAULT');
   }
 
-  /* CORREÇÃO (Linhas Diagonais):
-    A sintaxe do gradiente também estava incorreta aqui.
-  */
   body.dark::before {
+    background-color: theme('colors.background.dark');
     background-image: repeating-linear-gradient(
       45deg,
       transparent,
       transparent 10px,
-      rgba(255, 255, 255, 0.02) 10px,
-      rgba(255, 255, 255, 0.02) 20px
+      rgba(255, 255, 255, 0.08) 10px,
+      rgba(255, 255, 255, 0.08) 20px
     );
+    opacity: 1;
+  }
+
+  body.dark::after {
+    background-image:
+      linear-gradient(rgba(220, 38, 38, 0.12) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(220, 38, 38, 0.12) 1px, transparent 1px);
+    opacity: 0.85;
   }
 
   h1, h2, h3, h4, h5, h6 {
@@ -233,18 +257,18 @@
     @apply rounded-full text-xs font-bold;
   }
   .badge-success {
-    @apply bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400;
+    @apply bg-green-200 dark:bg-green-900 text-green-700 dark:text-green-300;
   }
   .badge-danger {
-    @apply bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400;
+    @apply bg-red-200 dark:bg-red-900 text-red-700 dark:text-red-300;
   }
   .badge-warning {
-    @apply bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400;
+    @apply bg-amber-200 dark:bg-amber-900 text-amber-700 dark:text-amber-200;
   }
 
 
   .badge-info {
-    @apply bg-neutral-100 dark:bg-neutral-900/30 text-neutral-600 dark:text-neutral-400;
+    @apply bg-neutral-200 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200;
   }
 
   /* ... (ciclo-slice - sem mudanças) ... */

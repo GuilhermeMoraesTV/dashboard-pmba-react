@@ -137,7 +137,7 @@ function HoursTab({ registrosEstudo, onAddRegistro, onDeleteRegistro, user }) {
                 value={selectedDisciplinaId}
                 onChange={(e) => setSelectedDisciplinaId(e.target.value)}
                 required
-                className="w-full p-3 rounded bg-background-color dark:bg-dark-background-color text-text-color dark:text-dark-text-color border border-border-color dark:border-dark-border-color focus:outline-none focus:ring-2 focus:ring-primary-color"
+                className="w-full p-3 rounded bg-background-color dark:bg-dark-background-color text-text-color dark:text-dark-text-color border border-border-color dark:border-dark-border-color focus:outline-none focus:ring-2 focus:ring-primary"
               >
                 <option value="">{loadingCiclos ? "Carregando..." : "Selecione a disciplina"}</option>
                 {disciplinas.map(disciplina => (
@@ -154,7 +154,7 @@ function HoursTab({ registrosEstudo, onAddRegistro, onDeleteRegistro, user }) {
                 value={hours}
                 onChange={(e) => setHours(e.target.value)}
                 required
-                className="w-full p-3 rounded bg-background-color dark:bg-dark-background-color text-text-color dark:text-dark-text-color border border-border-color dark:border-dark-border-color focus:outline-none focus:ring-2 focus:ring-primary-color"
+                className="w-full p-3 rounded bg-background-color dark:bg-dark-background-color text-text-color dark:text-dark-text-color border border-border-color dark:border-dark-border-color focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
 
@@ -165,13 +165,13 @@ function HoursTab({ registrosEstudo, onAddRegistro, onDeleteRegistro, user }) {
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
                 required
-                className="w-full p-3 rounded bg-background-color dark:bg-dark-background-color text-text-color dark:text-dark-text-color border border-border-color dark:border-dark-border-color focus:outline-none focus:ring-2 focus:ring-primary-color"
+                className="w-full p-3 rounded bg-background-color dark:bg-dark-background-color text-text-color dark:text-dark-text-color border border-border-color dark:border-dark-border-color focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
 
             <button
               type="submit"
-              className="w-full py-3 px-4 bg-primary-color text-white font-semibold rounded-lg shadow-lg hover:brightness-110 transition-all"
+              className="w-full py-3 px-4 bg-primary text-white font-semibold rounded-lg shadow-lg hover:brightness-110 transition-all"
             >
               Adicionar Registro
             </button>
@@ -184,7 +184,7 @@ function HoursTab({ registrosEstudo, onAddRegistro, onDeleteRegistro, user }) {
             <div className="space-y-2 text-text-color dark:text-dark-text-color">
                 <div className="flex justify-between items-baseline">
                     <span className="text-subtle-text-color dark:text-dark-subtle-text-color">Total de Horas:</span>
-                    <span className="font-semibold text-3xl text-primary-color">{formatDecimalHours(totalHours)}</span>
+                    <span className="font-semibold text-3xl text-primary">{formatDecimalHours(totalHours)}</span>
                 </div>
             </div>
         </div>
@@ -214,7 +214,7 @@ function HoursTab({ registrosEstudo, onAddRegistro, onDeleteRegistro, user }) {
                     <td className="p-3 text-text-color dark:text-dark-text-color font-medium">
                       {item.disciplinaNome}
                     </td>
-                    <td className="p-3 text-primary-color font-semibold">
+                    <td className="p-3 text-primary font-semibold">
                       {formatDecimalHours(item.duracaoMinutos / 60)}
                     </td>
                     <td className="p-3">

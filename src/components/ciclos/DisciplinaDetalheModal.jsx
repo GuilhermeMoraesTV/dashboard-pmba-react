@@ -32,7 +32,7 @@ const formatDecimalHours = (minutos) => {
 
 const StatCard = ({ icon, label, value, unit, colorClass }) => (
   <div className={`flex-1 p-5 rounded-xl bg-card-background-color dark:bg-dark-card-background-color border border-border-color dark:border-dark-border-color`}>
-    <div className={`flex items-center justify-center w-12 h-12 rounded-full mb-3 ${colorClass}/10`}>
+    <div className="flex items-center justify-center w-12 h-12 rounded-full mb-3 bg-card-light dark:bg-card-dark border border-border-light dark:border-border-dark">
       <span className={colorClass}>{icon}</span>
     </div>
     <p className="text-sm text-subtle-text-color dark:text-dark-subtle-text-color mb-1">{label}</p>
@@ -83,7 +83,7 @@ function DisciplinaDetalheModal({ disciplina, registrosEstudo, cicloId, user, on
         >
           <div className="flex-shrink-0 p-6 flex items-center justify-between border-b border-border-color dark:border-dark-border-color">
             <div>
-              <p className="text-sm font-semibold text-primary-color dark:text-dark-primary-color">
+              <p className="text-sm font-semibold text-primary dark:text-primary-light">
                 Detalhes da Disciplina
               </p>
               <h1 className="text-3xl font-bold text-heading-color dark:text-dark-heading-color">
@@ -109,7 +109,7 @@ function DisciplinaDetalheModal({ disciplina, registrosEstudo, cicloId, user, on
                   label="Tempo Total"
                   value={stats.totalHours}
                   unit="horas"
-                  colorClass="text-primary-color"
+                  colorClass="text-primary"
                 />
                 <StatCard
                   icon={<IconQuestions />}

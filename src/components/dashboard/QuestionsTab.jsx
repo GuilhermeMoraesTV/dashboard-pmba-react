@@ -126,7 +126,7 @@ function QuestionsTab({ registrosEstudo, onAddRegistro, onDeleteRegistro, user }
                 value={selectedDisciplinaId}
                 onChange={(e) => setSelectedDisciplinaId(e.target.value)}
                 required
-                className="w-full p-3 rounded bg-background-color dark:bg-dark-background-color text-text-color dark:text-dark-text-color border border-border-color dark:border-dark-border-color focus:outline-none focus:ring-2 focus:ring-primary-color"
+                className="w-full p-3 rounded bg-background-color dark:bg-dark-background-color text-text-color dark:text-dark-text-color border border-border-color dark:border-dark-border-color focus:outline-none focus:ring-2 focus:ring-primary"
               >
                 <option value="">{loadingCiclos ? "Carregando..." : "Selecione a disciplina"}</option>
                 {disciplinas.map(disciplina => (
@@ -143,7 +143,7 @@ function QuestionsTab({ registrosEstudo, onAddRegistro, onDeleteRegistro, user }
                   value={questions}
                   onChange={(e) => setQuestions(e.target.value)}
                   required
-                  className="w-full p-3 rounded bg-background-color dark:bg-dark-background-color text-text-color dark:text-dark-text-color border border-border-color dark:border-dark-border-color focus:outline-none focus:ring-2 focus:ring-primary-color"
+                  className="w-full p-3 rounded bg-background-color dark:bg-dark-background-color text-text-color dark:text-dark-text-color border border-border-color dark:border-dark-border-color focus:outline-none focus:ring-2 focus:ring-primary"
                 />
               </div>
               <div className="flex-1">
@@ -153,7 +153,7 @@ function QuestionsTab({ registrosEstudo, onAddRegistro, onDeleteRegistro, user }
                   value={correct}
                   onChange={(e) => setCorrect(e.target.value)}
                   required
-                  className="w-full p-3 rounded bg-background-color dark:bg-dark-background-color text-text-color dark:text-dark-text-color border border-border-color dark:border-dark-border-color focus:outline-none focus:ring-2 focus:ring-primary-color"
+                  className="w-full p-3 rounded bg-background-color dark:bg-dark-background-color text-text-color dark:text-dark-text-color border border-border-color dark:border-dark-border-color focus:outline-none focus:ring-2 focus:ring-primary"
                 />
               </div>
             </div>
@@ -165,13 +165,13 @@ function QuestionsTab({ registrosEstudo, onAddRegistro, onDeleteRegistro, user }
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
                 required
-                className="w-full p-3 rounded bg-background-color dark:bg-dark-background-color text-text-color dark:text-dark-text-color border border-border-color dark:border-dark-border-color focus:outline-none focus:ring-2 focus:ring-primary-color"
+                className="w-full p-3 rounded bg-background-color dark:bg-dark-background-color text-text-color dark:text-dark-text-color border border-border-color dark:border-dark-border-color focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
 
             <button
               type="submit"
-              className="w-full py-3 px-4 bg-primary-color text-white font-semibold rounded-lg shadow-lg hover:brightness-110 transition-all"
+              className="w-full py-3 px-4 bg-primary text-white font-semibold rounded-lg shadow-lg hover:brightness-110 transition-all"
             >
               Adicionar Registro
             </button>
@@ -192,7 +192,7 @@ function QuestionsTab({ registrosEstudo, onAddRegistro, onDeleteRegistro, user }
                 </div>
                 <div className="flex justify-between">
                     <span className="text-subtle-text-color dark:text-dark-subtle-text-color">Performance Geral:</span>
-                    <span className="font-semibold text-primary-color">{performance.toFixed(0)}%</span>
+                    <span className="font-semibold text-primary">{performance.toFixed(0)}%</span>
                 </div>
             </div>
         </div>

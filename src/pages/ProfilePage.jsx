@@ -34,7 +34,7 @@ import {
 
 // Placeholder para avatar
 const IconUserAvatar = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-10 h-10 text-primary-color">
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-10 h-10 text-primary">
     <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
   </svg>
 );
@@ -349,7 +349,7 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
             </div>
             <label
               htmlFor="profile-photo-upload"
-              className="absolute -bottom-2 -right-2 w-8 h-8 bg-primary-color text-white rounded-full flex items-center justify-center cursor-pointer hover:bg-primary-hover transition-all"
+              className="absolute -bottom-2 -right-2 w-8 h-8 bg-primary text-white rounded-full flex items-center justify-center cursor-pointer hover:bg-primary-hover transition-all"
               title="Trocar foto"
             >
               <Upload size={16} />
@@ -397,8 +397,8 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
       {message.text && (
         <div className={`p-4 rounded-lg ${
           message.type === 'success'
-            ? 'bg-green-500/10 text-green-400 border border-green-500/30'
-            : 'bg-red-500/10 text-red-400 border border-red-500/30'
+            ? 'bg-green-200 text-green-800 border border-green-500 dark:bg-green-900 dark:text-green-200 dark:border-green-700'
+            : 'bg-red-200 text-red-800 border border-red-500 dark:bg-red-900 dark:text-red-200 dark:border-red-700'
         }`}>
           {message.text}
         </div>
@@ -411,7 +411,7 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
             onClick={() => setAbaAtiva('info')}
             className={`px-6 py-3 font-semibold transition-all border-b-2 -mb-0.5 ${
               abaAtiva === 'info'
-                ? 'border-primary-color text-primary-color'
+                ? 'border-primary text-primary'
                 : 'border-transparent text-subtle-text-color hover:text-text-color'
             }`}
           >
@@ -421,7 +421,7 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
             onClick={() => setAbaAtiva('historico')}
             className={`px-6 py-3 font-semibold transition-all border-b-2 -mb-0.5 ${
               abaAtiva === 'historico'
-                ? 'border-primary-color text-primary-color'
+                ? 'border-primary text-primary'
                 : 'border-transparent text-subtle-text-color hover:text-text-color'
             }`}
           >
@@ -458,7 +458,7 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
                         setMessage({ type: '', text: '' });
                         setSenhaMessage({ type: '', text: '' });
                       }}
-                      className="text-primary-color hover:text-primary-hover font-semibold flex items-center text-sm"
+                      className="text-primary hover:text-primary-hover font-semibold flex items-center text-sm"
                     >
                       <Edit size={14} className="mr-1" /> Editar
                     </button>
@@ -470,13 +470,13 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
                       value={newEmail}
                       onChange={(e) => setNewEmail(e.target.value)}
                       placeholder="Novo e-mail"
-                      className="w-full p-3 rounded-lg bg-card-background-color dark:bg-dark-card-background-color border border-border-color dark:border-dark-border-color focus:outline-none focus:ring-2 focus:ring-primary-color text-text-color"
+                      className="w-full p-3 rounded-lg bg-card-background-color dark:bg-dark-card-background-color border border-border-color dark:border-dark-border-color focus:outline-none focus:ring-2 focus:ring-primary text-text-color"
                     />
                     <div className="flex gap-3">
                       <button
                         onClick={handleUpdateEmail}
                         disabled={loading}
-                        className="px-4 py-2 bg-primary-color text-white rounded-lg font-semibold hover:bg-primary-hover disabled:opacity-50 flex items-center justify-center"
+                        className="px-4 py-2 bg-primary text-white rounded-lg font-semibold hover:bg-primary-hover disabled:opacity-50 flex items-center justify-center"
                       >
                         {loading ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
                         <span className="ml-1">Enviar Verificação</span>
@@ -508,8 +508,8 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
                   {senhaMessage.text && (
                     <div className={`p-3 rounded-lg text-sm ${
                       senhaMessage.type === 'success'
-                        ? 'bg-green-500/10 text-green-400'
-                        : 'bg-red-500/10 text-red-400'
+                        ? 'bg-green-200 text-green-800 dark:bg-green-900 dark:text-green-200'
+                        : 'bg-red-200 text-red-800 dark:bg-red-900 dark:text-red-200'
                     }`}>
                       {senhaMessage.text}
                     </div>
@@ -554,14 +554,14 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
                           <button
                             title="Desarquivar Ciclo"
                             onClick={() => handleUnarchiveCycle(ciclo.id)}
-                            className="p-2 rounded-lg text-subtle-text-color hover:text-green-500 hover:bg-green-500/10 transition-colors"
+                            className="p-2 rounded-lg text-subtle-text-color hover:text-green-500 hover:bg-green-200 dark:hover:bg-green-900 transition-colors"
                           >
                             <ArchiveRestore size={18} />
                           </button>
                           <button
                             title="Excluir Ciclo"
                             onClick={() => handleDeleteCycle(ciclo.id)}
-                            className="p-2 rounded-lg text-subtle-text-color hover:text-red-500 hover:bg-red-500/10 transition-colors"
+                            className="p-2 rounded-lg text-subtle-text-color hover:text-red-500 hover:bg-red-200 dark:hover:bg-red-900 transition-colors"
                           >
                             <Trash2 size={18} />
                           </button>
@@ -585,7 +585,7 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
                   <p className="text-sm text-subtle-text-color dark:text-dark-subtle-text-color">
                     Conta criada há
                   </p>
-                  <p className="text-2xl font-bold text-primary-color">
+                  <p className="text-2xl font-bold text-primary">
                     {userStats.accountAge} dias
                   </p>
                 </div>
@@ -616,7 +616,7 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
           {/* Filtros */}
           <div className="bg-card-background-color dark:bg-dark-card-background-color rounded-xl shadow-card-shadow p-6 border border-border-color dark:border-dark-border-color">
             <div className="flex items-center gap-3 mb-4">
-              <FilterIcon size={20} className="text-primary-color" />
+              <FilterIcon size={20} className="text-primary" />
               <p className="text-sm font-semibold text-heading-color dark:text-dark-heading-color uppercase">
                 Filtrar por Ciclo
               </p>
@@ -626,7 +626,7 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
                 onClick={() => setCicloFiltro('')}
                 className={`px-4 py-2 rounded-lg font-semibold transition-all ${
                   cicloFiltro === ''
-                    ? 'bg-primary-color text-white'
+                    ? 'bg-primary text-white'
                     : 'bg-background-color dark:bg-dark-background-color text-text-color hover:bg-border-color'
                 }`}
               >
@@ -638,7 +638,7 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
                   onClick={() => setCicloFiltro(ciclo.id)}
                   className={`px-4 py-2 rounded-lg font-semibold transition-all ${
                     cicloFiltro === ciclo.id
-                      ? 'bg-primary-color text-white'
+                      ? 'bg-primary text-white'
                       : 'bg-background-color dark:bg-dark-background-color text-text-color hover:bg-border-color'
                   }`}
                 >
@@ -681,7 +681,7 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
                       <td className="p-3 text-heading-color dark:text-dark-heading-color font-semibold">
                         {registro.disciplinaNome || 'N/A'}
                       </td>
-                      <td className="p-3 text-primary-color font-semibold">
+                      <td className="p-3 text-primary font-semibold">
                         {formatarHoras(registro.tempoEstudadoMinutos || 0)}
                       </td>
                       <td className="p-3 text-text-color">
@@ -689,7 +689,7 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
                       </td>
                       <td className="p-3">
                         {registro.questoesFeitas > 0 ? (
-                          <span className="px-2 py-1 rounded text-xs font-bold bg-success-color/10 text-success-color">
+                          <span className="px-2 py-1 rounded text-xs font-bold bg-green-200 text-green-800 dark:bg-green-900 dark:text-green-200">
                             {registro.acertos || 0}/{registro.questoesFeitas || 0}
                           </span>
                         ) : (
@@ -699,14 +699,14 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
                       <td className="p-3 text-right flex gap-2 justify-end">
                         <button
                           onClick={() => setEditando({ ...registro })}
-                          className="p-2 rounded-lg text-blue-400 hover:bg-blue-500/10 transition-colors"
+                          className="p-2 rounded-lg text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900 transition-colors"
                           title="Editar"
                         >
                           <Edit size={18} />
                         </button>
                         <button
                           onClick={() => onDeleteRegistro(registro.id)}
-                          className="p-2 rounded-lg text-red-400 hover:bg-red-500/10 transition-colors"
+                          className="p-2 rounded-lg text-red-400 hover:bg-red-200 dark:hover:bg-red-900 transition-colors"
                           title="Excluir"
                         >
                           <Trash2 size={18} />
@@ -734,7 +734,7 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
                       type="date"
                       value={editando.data}
                       onChange={(e) => setEditando({ ...editando, data: e.target.value })}
-                      className="w-full p-3 rounded-lg bg-background-color dark:bg-dark-background-color border border-border-color focus:outline-none focus:ring-2 focus:ring-primary-color text-text-color"
+                      className="w-full p-3 rounded-lg bg-background-color dark:bg-dark-background-color border border-border-color focus:outline-none focus:ring-2 focus:ring-primary text-text-color"
                     />
                   </div>
 
@@ -744,7 +744,7 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
                       type="text"
                       value={editando.disciplinaNome}
                       onChange={(e) => setEditando({ ...editando, disciplinaNome: e.target.value })}
-                      className="w-full p-3 rounded-lg bg-background-color dark:bg-dark-background-color border border-border-color focus:outline-none focus:ring-2 focus:ring-primary-color text-text-color"
+                      className="w-full p-3 rounded-lg bg-background-color dark:bg-dark-background-color border border-border-color focus:outline-none focus:ring-2 focus:ring-primary text-text-color"
                     />
                   </div>
 
@@ -755,7 +755,7 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
                         type="number"
                         value={editando.tempoEstudadoMinutos}
                         onChange={(e) => setEditando({ ...editando, tempoEstudadoMinutos: e.target.value })}
-                        className="w-full p-3 rounded-lg bg-background-color dark:bg-dark-background-color border border-border-color focus:outline-none focus:ring-2 focus:ring-primary-color text-text-color"
+                        className="w-full p-3 rounded-lg bg-background-color dark:bg-dark-background-color border border-border-color focus:outline-none focus:ring-2 focus:ring-primary text-text-color"
                         min="0"
                       />
                     </div>
@@ -765,7 +765,7 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
                         type="number"
                         value={editando.questoesFeitas}
                         onChange={(e) => setEditando({ ...editando, questoesFeitas: e.target.value })}
-                        className="w-full p-3 rounded-lg bg-background-color dark:bg-dark-background-color border border-border-color focus:outline-none focus:ring-2 focus:ring-primary-color text-text-color"
+                        className="w-full p-3 rounded-lg bg-background-color dark:bg-dark-background-color border border-border-color focus:outline-none focus:ring-2 focus:ring-primary text-text-color"
                         min="0"
                       />
                     </div>
@@ -775,7 +775,7 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
                         type="number"
                         value={editando.acertos}
                         onChange={(e) => setEditando({ ...editando, acertos: e.target.value })}
-                        className="w-full p-3 rounded-lg bg-background-color dark:bg-dark-background-color border border-border-color focus:outline-none focus:ring-2 focus:ring-primary-color text-text-color"
+                        className="w-full p-3 rounded-lg bg-background-color dark:bg-dark-background-color border border-border-color focus:outline-none focus:ring-2 focus:ring-primary text-text-color"
                         min="0"
                       />
                     </div>
@@ -785,13 +785,13 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
                 <div className="flex gap-4 mt-8">
                   <button
                     onClick={handleSalvarEdicao}
-                    className="flex-1 px-6 py-3 bg-primary-color hover:bg-primary-hover text-white font-bold rounded-lg transition-all"
+                    className="flex-1 px-6 py-3 bg-primary hover:bg-primary-hover text-white font-bold rounded-lg transition-all"
                   >
                     💾 Salvar
                   </button>
                   <button
                     onClick={() => setEditando(null)}
-                    className="flex-1 px-6 py-3 bg-border-color dark:bg-dark-border-color text-text-color hover:bg-border-color/80 font-bold rounded-lg transition-all"
+                    className="flex-1 px-6 py-3 bg-border-color dark:bg-dark-border-color text-text-color hover:bg-border-color dark:hover:bg-dark-border-color font-bold rounded-lg transition-all"
                   >
                     ✕ Cancelar
                   </button>
@@ -803,7 +803,7 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
       )}
 
       {/* Zona de Perigo - Deletar Conta */}
-      <div className="bg-red-900/30 rounded-xl shadow-card-shadow p-6 border border-red-700 mt-12">
+      <div className="bg-gradient-to-br from-red-950 via-red-900 to-red-950 rounded-xl shadow-card-shadow p-6 border border-red-700 mt-12">
         <h2 className="text-xl font-bold text-red-300 mb-4">
           ⚠️ Zona de Perigo
         </h2>

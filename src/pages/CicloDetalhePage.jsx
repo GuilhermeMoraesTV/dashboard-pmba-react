@@ -203,7 +203,7 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo }) {
     return (
         <div className="flex flex-col flex-grow items-center justify-center p-6">
             <p className="text-danger-color mb-4">Ciclo não encontrado.</p>
-            <button onClick={onBack} className="text-primary-color underline">Voltar para Meus Ciclos</button>
+            <button onClick={onBack} className="text-primary underline">Voltar para Meus Ciclos</button>
         </div>
     );
   }
@@ -211,10 +211,9 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo }) {
   return (
     <div className="relative flex flex-col flex-grow h-full overflow-y-auto custom-scrollbar">
 
-      <div className="relative overflow-hidden bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 rounded-b-3xl shadow-lg p-6 flex-shrink-0">
-        <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)', backgroundSize: '40px 40px' }}></div>
+      <div className="relative overflow-hidden bg-gradient-to-br from-[#2d1010] via-[#111113] to-[#050506] rounded-b-3xl shadow-lg p-6 flex-shrink-0">
         <div className="relative z-10">
-          <button onClick={onBack} className="inline-flex items-center gap-2 text-white/90 hover:text-white mb-4 font-semibold transition-all hover:gap-3">
+          <button onClick={onBack} className="inline-flex items-center gap-2 text-white mb-4 font-semibold transition-all hover:gap-3">
             <IconArrowLeft /> Voltar para Meus Ciclos
           </button>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -224,12 +223,12 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo }) {
                   {ciclo.nome}
                 </h1>
                 {ciclo.ativo && (
-                  <span className="px-3 py-1 bg-white/20 backdrop-blur-sm text-white text-xs font-bold rounded-full animate-pulse flex-shrink-0">
+                  <span className="px-3 py-1 bg-primary text-white text-xs font-bold rounded-full flex-shrink-0">
                     ● ATIVO
                   </span>
                 )}
               </div>
-              <div className="flex items-center gap-4 text-white/80 text-xs">
+              <div className="flex items-center gap-4 text-white text-xs">
                 <p className="flex items-center gap-1.5">
                   <IconTarget className="w-4 h-4" />
                   Meta: {(metaSemanalMinutos / 60).toFixed(1)}h/semana
@@ -242,7 +241,7 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo }) {
             </div>
             <button
                 onClick={() => setViewModeCiclo(prev => prev === 'semanal' ? 'total' : 'semanal')}
-                className="flex items-center gap-2 px-3 py-1.5 bg-white/20 backdrop-blur-sm text-white text-xs font-semibold rounded-full hover:bg-white/30 transition-colors"
+                className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-border-light dark:border-border-dark bg-card-light dark:bg-card-dark text-text-color dark:text-white text-xs font-semibold transition-colors hover:bg-card-dark hover:text-white dark:hover:bg-[#1f1f23]"
                 title={viewModeCiclo === 'semanal' ? 'Ver Progresso Total' : 'Ver Progresso Semanal'}
             >
                 <IconSwitch className="w-4 h-4" />
@@ -318,7 +317,7 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo }) {
           <button
               onClick={() => ciclo.ativo && setShowRegistroModal(true)}
               disabled={!ciclo.ativo}
-              className={`flex items-center justify-center bg-primary-color text-white rounded-full p-4 shadow-lg hover:bg-primary-hover transition-all duration-300 ease-in-out
+              className={`flex items-center justify-center bg-primary text-white rounded-full p-4 shadow-lg hover:bg-primary-hover transition-all duration-300 ease-in-out
                          ${!ciclo.ativo ? 'opacity-50 cursor-not-allowed' : ''}
                          w-16 h-16 group-hover:w-48 group-hover:rounded-lg
                          group-hover:justify-start group-hover:gap-3`}

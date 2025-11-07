@@ -116,7 +116,7 @@ function HistoricoRegistrosPage({ user }) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-color mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
           <p className="text-subtle-text-color">Carregando registros...</p>
         </div>
       </div>
@@ -138,13 +138,13 @@ function HistoricoRegistrosPage({ user }) {
       {/* Filtros */}
       <div className="bg-card-background-color dark:bg-dark-card-background-color rounded-xl shadow-card-shadow p-6 border border-border-color dark:border-dark-border-color">
         <div className="flex items-center gap-4 flex-wrap">
-          <Filter size={20} className="text-primary-color" />
+          <Filter size={20} className="text-primary" />
           <div className="flex gap-2 flex-wrap">
             <button
               onClick={() => setCicloSelecionado('')}
               className={`px-4 py-2 rounded-lg font-semibold transition-all ${
                 cicloSelecionado === ''
-                  ? 'bg-primary-color text-white'
+                  ? 'bg-primary text-white'
                   : 'bg-background-color dark:bg-dark-background-color text-text-color hover:bg-border-color'
               }`}
             >
@@ -156,7 +156,7 @@ function HistoricoRegistrosPage({ user }) {
                 onClick={() => setCicloSelecionado(ciclo.id)}
                 className={`px-4 py-2 rounded-lg font-semibold transition-all ${
                   cicloSelecionado === ciclo.id
-                    ? 'bg-primary-color text-white'
+                    ? 'bg-primary text-white'
                     : 'bg-background-color dark:bg-dark-background-color text-text-color hover:bg-border-color'
                 }`}
               >
@@ -166,7 +166,7 @@ function HistoricoRegistrosPage({ user }) {
           </div>
         </div>
         <p className="text-sm text-subtle-text-color mt-4">
-          Total de registros filtrados: <span className="font-bold text-primary-color">{registrosFiltrados.length}</span>
+          Total de registros filtrados: <span className="font-bold text-primary">{registrosFiltrados.length}</span>
         </p>
       </div>
 
@@ -207,7 +207,7 @@ function HistoricoRegistrosPage({ user }) {
                   <td className="py-4 px-3 text-subtle-text-color">
                     {ciclosMap[registro.cicloId] || 'Desconhecido'}
                   </td>
-                  <td className="py-4 px-3 text-primary-color font-semibold">
+                  <td className="py-4 px-3 text-primary font-semibold">
                     {formatarHoras(registro.tempoEstudadoMinutos || 0)}
                   </td>
                   <td className="py-4 px-3">
@@ -216,7 +216,7 @@ function HistoricoRegistrosPage({ user }) {
                   <td className="py-4 px-3">
                     <span className={`px-2 py-1 rounded text-xs font-bold ${
                       registro.questoesFeitas > 0
-                        ? `${((registro.acertos / registro.questoesFeitas) * 100).toFixed(0)}% - text-success-color bg-success-color/10`
+                        ? 'bg-green-200 text-green-800 dark:bg-green-900 dark:text-green-200'
                         : 'text-subtle-text-color'
                     }`}>
                       {registro.acertos || 0}/{registro.questoesFeitas || 0}
@@ -225,14 +225,14 @@ function HistoricoRegistrosPage({ user }) {
                   <td className="py-4 px-3 text-right flex gap-2 justify-end">
                     <button
                       onClick={() => handleEdit(registro)}
-                      className="p-2 rounded-lg text-blue-400 hover:bg-blue-500/10 transition-colors"
+                      className="p-2 rounded-lg text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900 transition-colors"
                       title="Editar"
                     >
                       <Edit size={18} />
                     </button>
                     <button
                       onClick={() => handleDelete(registro.id)}
-                      className="p-2 rounded-lg text-red-400 hover:bg-red-500/10 transition-colors"
+                      className="p-2 rounded-lg text-red-400 hover:bg-red-200 dark:hover:bg-red-900 transition-colors"
                       title="Excluir"
                     >
                       <Trash2 size={18} />
@@ -260,7 +260,7 @@ function HistoricoRegistrosPage({ user }) {
                   type="date"
                   value={registroEditando.data}
                   onChange={(e) => setRegistroEditando({ ...registroEditando, data: e.target.value })}
-                  className="w-full p-3 rounded-lg bg-background-color dark:bg-dark-background-color border border-border-color focus:outline-none focus:ring-2 focus:ring-primary-color text-text-color"
+                  className="w-full p-3 rounded-lg bg-background-color dark:bg-dark-background-color border border-border-color focus:outline-none focus:ring-2 focus:ring-primary text-text-color"
                 />
               </div>
 
@@ -271,7 +271,7 @@ function HistoricoRegistrosPage({ user }) {
                     type="number"
                     value={registroEditando.tempoEstudadoMinutos}
                     onChange={(e) => setRegistroEditando({ ...registroEditando, tempoEstudadoMinutos: e.target.value })}
-                    className="w-full p-3 rounded-lg bg-background-color dark:bg-dark-background-color border border-border-color focus:outline-none focus:ring-2 focus:ring-primary-color text-text-color"
+                    className="w-full p-3 rounded-lg bg-background-color dark:bg-dark-background-color border border-border-color focus:outline-none focus:ring-2 focus:ring-primary text-text-color"
                   />
                 </div>
                 <div>
@@ -280,7 +280,7 @@ function HistoricoRegistrosPage({ user }) {
                     type="number"
                     value={registroEditando.questoesFeitas}
                     onChange={(e) => setRegistroEditando({ ...registroEditando, questoesFeitas: e.target.value })}
-                    className="w-full p-3 rounded-lg bg-background-color dark:bg-dark-background-color border border-border-color focus:outline-none focus:ring-2 focus:ring-primary-color text-text-color"
+                    className="w-full p-3 rounded-lg bg-background-color dark:bg-dark-background-color border border-border-color focus:outline-none focus:ring-2 focus:ring-primary text-text-color"
                   />
                 </div>
                 <div>
@@ -289,7 +289,7 @@ function HistoricoRegistrosPage({ user }) {
                     type="number"
                     value={registroEditando.acertos}
                     onChange={(e) => setRegistroEditando({ ...registroEditando, acertos: e.target.value })}
-                    className="w-full p-3 rounded-lg bg-background-color dark:bg-dark-background-color border border-border-color focus:outline-none focus:ring-2 focus:ring-primary-color text-text-color"
+                    className="w-full p-3 rounded-lg bg-background-color dark:bg-dark-background-color border border-border-color focus:outline-none focus:ring-2 focus:ring-primary text-text-color"
                   />
                 </div>
                 <div>
@@ -298,7 +298,7 @@ function HistoricoRegistrosPage({ user }) {
                     type="text"
                     value={registroEditando.topico || ''}
                     onChange={(e) => setRegistroEditando({ ...registroEditando, topico: e.target.value })}
-                    className="w-full p-3 rounded-lg bg-background-color dark:bg-dark-background-color border border-border-color focus:outline-none focus:ring-2 focus:ring-primary-color text-text-color"
+                    className="w-full p-3 rounded-lg bg-background-color dark:bg-dark-background-color border border-border-color focus:outline-none focus:ring-2 focus:ring-primary text-text-color"
                   />
                 </div>
               </div>
@@ -309,7 +309,7 @@ function HistoricoRegistrosPage({ user }) {
                   value={registroEditando.observacoes || ''}
                   onChange={(e) => setRegistroEditando({ ...registroEditando, observacoes: e.target.value })}
                   rows="4"
-                  className="w-full p-3 rounded-lg bg-background-color dark:bg-dark-background-color border border-border-color focus:outline-none focus:ring-2 focus:ring-primary-color text-text-color"
+                  className="w-full p-3 rounded-lg bg-background-color dark:bg-dark-background-color border border-border-color focus:outline-none focus:ring-2 focus:ring-primary text-text-color"
                 />
               </div>
             </div>
@@ -317,7 +317,7 @@ function HistoricoRegistrosPage({ user }) {
             <div className="flex gap-4 mt-8">
               <button
                 onClick={handleSave}
-                className="flex-1 px-6 py-3 bg-primary-color hover:bg-primary-hover text-white font-bold rounded-lg transition-all"
+                className="flex-1 px-6 py-3 bg-primary hover:bg-primary-hover text-white font-bold rounded-lg transition-all"
               >
                 💾 Salvar Alterações
               </button>
@@ -326,7 +326,7 @@ function HistoricoRegistrosPage({ user }) {
                   setModalOpen(false);
                   setRegistroEditando(null);
                 }}
-                className="flex-1 px-6 py-3 bg-border-color dark:bg-dark-border-color text-text-color hover:bg-border-color/80 font-bold rounded-lg transition-all"
+                className="flex-1 px-6 py-3 bg-border-color dark:bg-dark-border-color text-text-color hover:bg-border-color dark:hover:bg-dark-border-color font-bold rounded-lg transition-all"
               >
                 ✕ Cancelar
               </button>

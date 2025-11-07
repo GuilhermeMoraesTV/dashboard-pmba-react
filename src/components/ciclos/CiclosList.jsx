@@ -212,7 +212,7 @@ function CiclosList({ onCicloClick, user, onCicloAtivado }) {
                   <button
                     onClick={(e) => handleArquivar(e, ciclo)}
                     disabled={actionLoading}
-                    className="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 disabled:opacity-50"
+                    className="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900 disabled:opacity-50"
                   >
                     Arquivar Ciclo
                   </button>
