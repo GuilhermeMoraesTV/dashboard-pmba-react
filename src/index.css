@@ -22,39 +22,28 @@
     -moz-osx-font-smoothing: grayscale;
     transition: background-color 0.3s ease, color 0.3s ease;
     position: relative;
+    min-height: 100vh;
   }
 
-  /* CORREÇÃO (Linhas Diagonais):
-    A sintaxe do gradiente estava incorreta (ex: 20px antes de 10px).
-    Corrigido para o padrão 10px/20px que você queria.
-  */
-  body::before {
-    content: '';
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-image: repeating-linear-gradient(
-      45deg,
-      transparent,
-      transparent 10px,
-      rgba(0, 0, 0, 0.03) 10px,
-      rgba(0, 0, 0, 0.03) 20px
-    );
-    pointer-events: none;
-    z-index: 0;
-  }
-
-  body.dark {
+  html.dark body {
     background-color: theme('colors.background.dark');
     color: theme('colors.text.dark-DEFAULT');
   }
 
-  /* CORREÇÃO (Linhas Diagonais):
-    A sintaxe do gradiente também estava incorreta aqui.
-  */
-  body.dark::before {
+  #background-container {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    background: #0a0a0a;
+    z-index: -1;
+    overflow: hidden;
+  }
+
+  #background-container::before {
+    content: '';
+    position: absolute;
+    inset: 0;
     background-image: repeating-linear-gradient(
       45deg,
       transparent,
@@ -62,13 +51,30 @@
       rgba(255, 255, 255, 0.02) 10px,
       rgba(255, 255, 255, 0.02) 20px
     );
+    opacity: 0.5;
+  }
+
+  #background-container::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(220, 38, 38, 0.03) 1px, transparent 4px),
+      linear-gradient(90deg, rgba(220, 38, 38, 0.03) 1px, transparent 4px);
+    background-size: 50px 50px;
+    animation: gridMove 20s linear infinite;
   }
 
   h1, h2, h3, h4, h5, h6 {
     color: theme('colors.text.heading');
     font-weight: bold;
   }
-  body.dark h1, body.dark h2, body.dark h3, body.dark h4, body.dark h5, body.dark h6 {
+  html.dark body h1,
+  html.dark body h2,
+  html.dark body h3,
+  html.dark body h4,
+  html.dark body h5,
+  html.dark body h6 {
     color: theme('colors.text.dark-heading');
   }
 
@@ -91,13 +97,13 @@
     transition: all 150ms ease;
   }
 
-  body.dark input[type="text"],
-  body.dark input[type="email"],
-  body.dark input[type="password"],
-  body.dark input[type="number"],
-  body.dark input[type="date"],
-  body.dark textarea,
-  body.dark select {
+  html.dark body input[type="text"],
+  html.dark body input[type="email"],
+  html.dark body input[type="password"],
+  html.dark body input[type="number"],
+  html.dark body input[type="date"],
+  html.dark body textarea,
+  html.dark body select {
     background-color: theme('colors.card.dark');
     color: theme('colors.text.dark-DEFAULT');
     border-color: theme('colors.border.dark');
@@ -116,9 +122,9 @@
     @apply opacity-50 cursor-not-allowed;
     background-color: theme('colors.border.light');
   }
-  body.dark input:disabled,
-  body.dark textarea:disabled,
-  body.dark select:disabled {
+  html.dark body input:disabled,
+  html.dark body textarea:disabled,
+  html.dark body select:disabled {
      background-color: theme('colors.border.dark');
   }
 
@@ -146,7 +152,7 @@
     @apply px-2 py-1 rounded text-sm;
     font-family: 'Monaco', 'Courier New', monospace;
   }
-  body.dark code {
+  html.dark body code {
     background-color: theme('colors.border.dark');
     color: theme('colors.text.dark-DEFAULT');
   }
@@ -156,7 +162,7 @@
     color: theme('colors.text.DEFAULT');
     @apply p-4 rounded-lg overflow-x-auto;
   }
-  body.dark pre {
+  html.dark body pre {
     background-color: theme('colors.border.dark');
     color: theme('colors.text.dark-DEFAULT');
   }
@@ -220,7 +226,7 @@
     position: relative;
     z-index: 1;
   }
-  body.dark .custom-card {
+  html.dark body .custom-card {
     background-color: theme('colors.card.dark');
     border-color: theme('colors.border.dark');
   }
@@ -233,18 +239,18 @@
     @apply rounded-full text-xs font-bold;
   }
   .badge-success {
-    @apply bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400;
+    @apply bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300;
   }
   .badge-danger {
-    @apply bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400;
+    @apply bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300;
   }
   .badge-warning {
-    @apply bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400;
+    @apply bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300;
   }
 
 
   .badge-info {
-    @apply bg-neutral-100 dark:bg-neutral-900/30 text-neutral-600 dark:text-neutral-400;
+    @apply bg-neutral-200 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300;
   }
 
   /* ... (ciclo-slice - sem mudanças) ... */
@@ -277,7 +283,7 @@
     @apply shadow-sm;
     transition: all 0.2s ease-out;
   }
-  body.dark .ciclo-legend-item {
+  html.dark body .ciclo-legend-item {
     background-color: theme('colors.card.dark');
   }
 
@@ -293,7 +299,7 @@
     border-color: theme('colors.border.light');
     transform: translateY(-2px);
   }
-  body.dark .ciclo-legend-item.active {
+  html.dark body .ciclo-legend-item.active {
     border-color: theme('colors.border.dark');
   }
 

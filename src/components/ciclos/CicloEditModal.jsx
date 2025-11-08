@@ -95,7 +95,7 @@ function EtapaDisciplinas({ disciplinas, setDisciplinas, openTopicsManager }) {
       ))}
       <button
         onClick={addDisciplina}
-        className="mt-2 px-4 py-2 bg-primary-color/20 text-primary-color rounded-lg font-semibold hover:bg-primary-color/30"
+        className="mt-2 px-4 py-2 rounded-lg border border-border-color text-primary-color font-semibold transition-colors bg-background-color dark:bg-dark-background-color dark:border-dark-border-color hover:bg-border-color dark:hover:bg-dark-border-color"
       >
         + Adicionar Disciplina
       </button>

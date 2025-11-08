@@ -154,7 +154,7 @@ function Home({ registrosEstudo, goalsHistory, setActiveTab, onDeleteRegistro })
         {/* Card 1: Tempo de Estudo */}
         <div className="group bg-card-light dark:bg-card-dark rounded-xl shadow-card-shadow hover:shadow-card-hover p-4 flex flex-col min-h-[110px] transition-all duration-300 hover:-translate-y-0.5 border border-border-light dark:border-border-dark">
           <div className="flex items-center gap-2 mb-2">
-            <div className="p-1.5 bg-neutral-500/10 rounded-lg">
+            <div className="p-1.5 rounded-lg bg-neutral-200 dark:bg-neutral-800">
               <Clock size={18} className="text-neutral-500" />
             </div>
             <h3 className="text-xs text-text-subtle dark:text-text-dark-subtle uppercase font-semibold tracking-wide">
@@ -169,7 +169,7 @@ function Home({ registrosEstudo, goalsHistory, setActiveTab, onDeleteRegistro })
         {/* Card 2: Questões Resolvidas */}
         <div className="group bg-card-light dark:bg-card-dark rounded-xl shadow-card-shadow hover:shadow-card-hover p-4 flex flex-col min-h-[110px] transition-all duration-300 hover:-translate-y-0.5 border border-border-light dark:border-border-dark">
           <div className="flex items-center gap-2 mb-2">
-            <div className="p-1.5 bg-neutral-500/10 rounded-lg">
+            <div className="p-1.5 rounded-lg bg-neutral-200 dark:bg-neutral-800">
               <Target size={18} className="text-neutral-500" />
             </div>
             <h3 className="text-xs text-text-subtle dark:text-text-dark-subtle uppercase font-semibold tracking-wide">
@@ -184,7 +184,7 @@ function Home({ registrosEstudo, goalsHistory, setActiveTab, onDeleteRegistro })
         {/* Card 3: Desempenho */}
         <div className="group bg-card-light dark:bg-card-dark rounded-xl shadow-card-shadow hover:shadow-card-hover p-4 flex flex-col min-h-[110px] transition-all duration-300 hover:-translate-y-0.5 border border-border-light dark:border-border-dark">
           <div className="flex items-center gap-2 mb-2">
-            <div className="p-1.5 bg-neutral-500/10 rounded-lg">
+            <div className="p-1.5 rounded-lg bg-neutral-200 dark:bg-neutral-800">
               <TrendingUp size={18} className="text-neutral-500" />
             </div>
             <h3 className="text-xs text-text-subtle dark:text-text-dark-subtle uppercase font-semibold tracking-wide">

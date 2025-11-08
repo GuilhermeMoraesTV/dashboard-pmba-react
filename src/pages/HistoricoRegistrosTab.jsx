@@ -216,7 +216,7 @@ function HistoricoRegistrosPage({ user }) {
                   <td className="py-4 px-3">
                     <span className={`px-2 py-1 rounded text-xs font-bold ${
                       registro.questoesFeitas > 0
-                        ? `${((registro.acertos / registro.questoesFeitas) * 100).toFixed(0)}% - text-success-color bg-success-color/10`
+                        ? 'text-success-color bg-green-100 dark:bg-green-900'
                         : 'text-subtle-text-color'
                     }`}>
                       {registro.acertos || 0}/{registro.questoesFeitas || 0}
@@ -225,14 +225,14 @@ function HistoricoRegistrosPage({ user }) {
                   <td className="py-4 px-3 text-right flex gap-2 justify-end">
                     <button
                       onClick={() => handleEdit(registro)}
-                      className="p-2 rounded-lg text-blue-400 hover:bg-blue-500/10 transition-colors"
+                      className="p-2 rounded-lg text-blue-400 bg-background-color dark:bg-dark-background-color hover:bg-blue-100 dark:hover:bg-blue-900 transition-colors"
                       title="Editar"
                     >
                       <Edit size={18} />
                     </button>
                     <button
                       onClick={() => handleDelete(registro.id)}
-                      className="p-2 rounded-lg text-red-400 hover:bg-red-500/10 transition-colors"
+                      className="p-2 rounded-lg text-red-400 bg-background-color dark:bg-dark-background-color hover:bg-red-100 dark:hover:bg-red-900 transition-colors"
                       title="Excluir"
                     >
                       <Trash2 size={18} />
@@ -326,7 +326,7 @@ function HistoricoRegistrosPage({ user }) {
                   setModalOpen(false);
                   setRegistroEditando(null);
                 }}
-                className="flex-1 px-6 py-3 bg-border-color dark:bg-dark-border-color text-text-color hover:bg-border-color/80 font-bold rounded-lg transition-all"
+                className="flex-1 px-6 py-3 bg-border-color dark:bg-dark-border-color text-text-color hover:bg-border-color dark:hover:bg-dark-border-color font-bold rounded-lg transition-all"
               >
                 ✕ Cancelar
               </button>

@@ -224,7 +224,7 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo }) {
                   {ciclo.nome}
                 </h1>
                 {ciclo.ativo && (
-                  <span className="px-3 py-1 bg-white/20 backdrop-blur-sm text-white text-xs font-bold rounded-full animate-pulse flex-shrink-0">
+                  <span className="px-3 py-1 bg-neutral-200 dark:bg-neutral-700 backdrop-blur-sm text-white text-xs font-bold rounded-full animate-pulse flex-shrink-0">
                     ● ATIVO
                   </span>
                 )}
@@ -242,7 +242,7 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo }) {
             </div>
             <button
                 onClick={() => setViewModeCiclo(prev => prev === 'semanal' ? 'total' : 'semanal')}
-                className="flex items-center gap-2 px-3 py-1.5 bg-white/20 backdrop-blur-sm text-white text-xs font-semibold rounded-full hover:bg-white/30 transition-colors"
+                className="flex items-center gap-2 px-3 py-1.5 bg-neutral-200 dark:bg-neutral-700 backdrop-blur-sm text-white text-xs font-semibold rounded-full hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-colors"
                 title={viewModeCiclo === 'semanal' ? 'Ver Progresso Total' : 'Ver Progresso Semanal'}
             >
                 <IconSwitch className="w-4 h-4" />

@@ -168,7 +168,7 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
         <form onSubmit={handleSubmit} id="registro-form" className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
 
           {errorMessage && (
-            <div className="p-3 bg-danger-color/10 border border-danger-color/30 rounded-lg text-danger-color text-sm">
+            <div className="p-3 bg-red-100 dark:bg-red-900 border border-danger-color/30 rounded-lg text-danger-color text-sm">
               {errorMessage}
             </div>
           )}
@@ -315,7 +315,7 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
 
         </form>
 
-        <div className="p-5 bg-background-color dark:bg-dark-background-color/50 border-t border-border-color dark:border-dark-border-color flex justify-end gap-3">
+        <div className="p-5 bg-background-color dark:bg-dark-background-color border-t border-border-color dark:border-dark-border-color flex justify-end gap-3">
           <button
             type="button"
             onClick={onClose}

@@ -137,7 +137,7 @@ function CalendarTab({ registrosEstudo = [], goalsHistory = [], onDeleteRegistro
         ))}
 
         {Array.from({ length: firstDayOfMonth }).map((_, i) => (
-          <div key={`empty-${i}`} className="border border-zinc-400 dark:border-zinc-600 bg-zinc-100 dark:bg-zinc-900/50 min-h-[100px] rounded-md"></div>
+          <div key={`empty-${i}`} className="border border-zinc-400 dark:border-zinc-600 bg-zinc-100 dark:bg-zinc-900 min-h-[100px] rounded-md"></div>
         ))}
 
         {Array.from({ length: daysInMonth }).map((_, day) => {
@@ -157,7 +157,7 @@ function CalendarTab({ registrosEstudo = [], goalsHistory = [], onDeleteRegistro
                 ${status === 'goal-met-both' ? 'bg-green-200 dark:bg-green-800' : ''}
                 ${status === 'goal-met-one' ? 'bg-yellow-200 dark:bg-yellow-800' : ''}
                 ${status === 'goal-not-met' ? 'bg-red-200 dark:bg-red-800' : ''}
-                ${status === 'no-data' ? 'bg-zinc-100 dark:bg-zinc-900/50' : ''}
+                ${status === 'no-data' ? 'bg-zinc-100 dark:bg-zinc-900' : ''}
                 ${hasData ? 'cursor-pointer hover:brightness-110' : 'cursor-default'}
                 ${isToday ? 'ring-2 ring-neutral-500' : ''}
               `}
