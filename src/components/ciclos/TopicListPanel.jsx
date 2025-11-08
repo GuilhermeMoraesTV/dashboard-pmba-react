@@ -125,7 +125,7 @@ function TopicListPanel({ user, cicloId, disciplinaId, registrosEstudo, discipli
   if (topics.length === 0) {
      return (
        <div className="flex flex-col items-center justify-center py-12 text-center">
-         <div className="w-20 h-20 rounded-full bg-primary-color/10 flex items-center justify-center mb-4">
+         <div className="w-20 h-20 rounded-full bg-background-color dark:bg-dark-background-color flex items-center justify-center mb-4">
            <IconBook />
          </div>
          <h3 className="text-lg font-semibold text-heading-color dark:text-dark-heading-color mb-2">
@@ -182,17 +182,16 @@ function TopicListPanel({ user, cicloId, disciplinaId, registrosEstudo, discipli
               className={`
                 relative overflow-hidden rounded-lg border-2 transition-all duration-200
                 ${hasData
-                  ? 'bg-card-background-color dark:bg-dark-card-background-color border-primary-color/20 hover:border-primary-color/50 hover:shadow-lg'
-                  : 'bg-background-color dark:bg-dark-background-color border-border-color dark:border-dark-border-color opacity-60'
+                  ? 'bg-card-background-color dark:bg-dark-card-background-color border-primary-color hover:border-primary-color hover:shadow-lg'
+                  : 'bg-background-color dark:bg-dark-background-color border-border-color dark:border-dark-border-color'
                 }
               `}
             >
               {hasData && (
                 <div
-                  className="absolute inset-0 bg-primary-color/5 transition-all duration-500"
+                  className="absolute inset-y-0 left-0 bg-primary-light dark:bg-primary-dark transition-all duration-500"
                   style={{
-                    width: performance ? `${performance}%` : '100%',
-                    opacity: 0.3
+                    width: performance ? `${performance}%` : '100%'
                   }}
                 ></div>
               )}
@@ -204,7 +203,7 @@ function TopicListPanel({ user, cicloId, disciplinaId, registrosEstudo, discipli
                     <span className="truncate">{topicData.nome}</span>
                   </h4>
                   {hasData && (
-                    <span className="text-xs font-bold bg-primary-color/20 text-primary-color px-2 py-1 rounded-full ml-2 flex-shrink-0">
+                    <span className="text-xs font-bold rounded-full border border-primary-color text-primary-color bg-background-color dark:bg-dark-background-color px-2 py-1 ml-2 flex-shrink-0">
                       {topicData.registrosCount} {topicData.registrosCount === 1 ? 'registro' : 'registros'}
                     </span>
                   )}
@@ -267,8 +266,8 @@ function TopicListPanel({ user, cicloId, disciplinaId, registrosEstudo, discipli
                       onClick={() => onQuickAddTopic(disciplinaId, topicData)}
                       className={`flex items-center justify-center gap-2 text-sm font-semibold transition-colors w-full mt-4 p-2 rounded-lg
                         ${hasData
-                          ? 'text-primary-color hover:text-primary-hover bg-primary-color/10 hover:bg-primary-color/20'
-                          : 'text-subtle-text-color dark:text-dark-subtle-text-color hover:text-primary-color bg-background-color dark:bg-dark-background-color hover:bg-primary-color/10 border border-dashed border-border-color dark:border-dark-border-color'
+                          ? 'text-primary-color hover:text-primary-hover bg-background-color dark:bg-dark-background-color hover:bg-border-color dark:bg-dark-border-color'
+                          : 'text-subtle-text-color dark:text-dark-subtle-text-color hover:text-primary-color bg-background-color dark:bg-dark-background-color hover:bg-background-color dark:bg-dark-background-color border border-dashed border-border-color dark:border-dark-border-color'
                         }
                       `}
                     >

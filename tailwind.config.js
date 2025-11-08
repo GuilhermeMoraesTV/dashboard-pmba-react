@@ -17,16 +17,16 @@ export default {
         },
         background: {
           light: colors.zinc[100],
-          dark: '#18181b', // Sólido
+          dark: '#0a0a0a', // Fundo sólido conforme identidade visual
         },
-        // ATUALIZADO: Card sólido sem transparência
+        // ATUALIZADO: Cards sem transparência em ambos os temas
         card: {
-          light: '#f4f4f5', // Cinza bem claro
-          dark: '#27272a', // Cinza escuro sólido (zinc-800)
+          light: '#f4f4f5', // Cinza claro no modo light
+          dark: '#25282A', // Grafite sólido no modo dark
         },
         border: {
           light: colors.zinc[300],
-          dark: '#3f3f46', // Sólido (zinc-700)
+          dark: '#3b3f42',
         },
         text: {
           DEFAULT: colors.zinc[900],

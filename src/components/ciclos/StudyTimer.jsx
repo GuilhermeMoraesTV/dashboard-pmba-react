@@ -100,23 +100,23 @@ function StudyTimer({ disciplina, onStop, onCancel }) {
                  ${isFullscreen ? 'fixed inset-0 z-[100] rounded-none' : ''}`}
     >
         <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)', backgroundSize: '40px 40px' }}></div>
-        <div className="absolute inset-0 bg-black/10 backdrop-blur-sm"></div>
+        <div className="absolute inset-0 bg-neutral-900 backdrop-blur-sm"></div>
 
         <motion.div
             animate={{ scale: [1, 1.05, 1] }}
             transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-            className="absolute w-64 h-64 bg-white/5 rounded-full pointer-events-none"
+            className="absolute w-64 h-64 bg-neutral-200 dark:bg-neutral-700 rounded-full pointer-events-none"
         ></motion.div>
         <motion.div
             animate={{ scale: [1, 1.1, 1] }}
             transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut', delay: 0.5 }}
-            className="absolute w-80 h-80 bg-white/5 rounded-full pointer-events-none"
+            className="absolute w-80 h-80 bg-neutral-200 dark:bg-neutral-700 rounded-full pointer-events-none"
         ></motion.div>
 
 
         <div className="relative z-10 flex flex-col items-center justify-center text-white text-center">
 
-            <p className="text-lg font-semibold text-white/80">Estudando</p>
+            <p className="text-lg font-semibold text-zinc-200">Estudando</p>
             <h2 className={`text-3xl font-bold text-white mb-4 truncate max-w-sm ${isFullscreen ? 'md:text-4xl lg:text-5xl max-w-xl' : ''}`}>
               {disciplina.nome}
             </h2>
@@ -129,7 +129,7 @@ function StudyTimer({ disciplina, onStop, onCancel }) {
                 <button
                     onClick={handleCancel}
                     title="Cancelar (não salva)"
-                    className={`flex items-center justify-center bg-white/20 hover:bg-white/30 backdrop-blur-lg rounded-full text-white transition-all duration-200 ease-in-out
+                    className={`flex items-center justify-center bg-neutral-200 dark:bg-neutral-700 hover:bg-neutral-300 dark:hover:bg-neutral-600 backdrop-blur-lg rounded-full text-white transition-all duration-200 ease-in-out
                                 ${isFullscreen ? 'w-20 h-20 md:w-24 md:h-24' : 'w-16 h-16'}`}
                 >
                     <IconCancel className={`${isFullscreen ? 'w-8 h-8 md:w-10 md:h-10' : 'w-6 h-6'}`}/>
@@ -147,7 +147,7 @@ function StudyTimer({ disciplina, onStop, onCancel }) {
                 <button
                     onClick={toggleFullscreen}
                     title={isFullscreen ? 'Sair do Modo Foco' : 'Modo Foco'}
-                    className={`flex items-center justify-center bg-white/20 hover:bg-white/30 backdrop-blur-lg rounded-full text-white transition-all duration-200 ease-in-out
+                    className={`flex items-center justify-center bg-neutral-200 dark:bg-neutral-700 hover:bg-neutral-300 dark:hover:bg-neutral-600 backdrop-blur-lg rounded-full text-white transition-all duration-200 ease-in-out
                                 ${isFullscreen ? 'w-20 h-20 md:w-24 md:h-24' : 'w-16 h-16'}`}
                 >
                     {isFullscreen

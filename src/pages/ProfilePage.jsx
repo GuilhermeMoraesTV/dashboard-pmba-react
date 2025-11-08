@@ -397,8 +397,8 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
       {message.text && (
         <div className={`p-4 rounded-lg ${
           message.type === 'success'
-            ? 'bg-green-500/10 text-green-400 border border-green-500/30'
-            : 'bg-red-500/10 text-red-400 border border-red-500/30'
+            ? 'bg-green-100 dark:bg-green-900 text-green-400 border border-green-500 dark:border-green-700'
+            : 'bg-red-100 dark:bg-red-900 text-red-400 border border-red-500 dark:border-red-700'
         }`}>
           {message.text}
         </div>
@@ -508,8 +508,8 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
                   {senhaMessage.text && (
                     <div className={`p-3 rounded-lg text-sm ${
                       senhaMessage.type === 'success'
-                        ? 'bg-green-500/10 text-green-400'
-                        : 'bg-red-500/10 text-red-400'
+                        ? 'bg-green-100 dark:bg-green-900 text-green-400'
+                        : 'bg-red-100 dark:bg-red-900 text-red-400'
                     }`}>
                       {senhaMessage.text}
                     </div>
@@ -554,14 +554,14 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
                           <button
                             title="Desarquivar Ciclo"
                             onClick={() => handleUnarchiveCycle(ciclo.id)}
-                            className="p-2 rounded-lg text-subtle-text-color hover:text-green-500 hover:bg-green-500/10 transition-colors"
+                            className="p-2 rounded-lg text-subtle-text-color hover:text-green-500 hover:bg-green-100 dark:bg-green-900 transition-colors"
                           >
                             <ArchiveRestore size={18} />
                           </button>
                           <button
                             title="Excluir Ciclo"
                             onClick={() => handleDeleteCycle(ciclo.id)}
-                            className="p-2 rounded-lg text-subtle-text-color hover:text-red-500 hover:bg-red-500/10 transition-colors"
+                            className="p-2 rounded-lg text-subtle-text-color hover:text-red-500 hover:bg-red-100 dark:bg-red-900 transition-colors"
                           >
                             <Trash2 size={18} />
                           </button>
@@ -689,7 +689,7 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
                       </td>
                       <td className="p-3">
                         {registro.questoesFeitas > 0 ? (
-                          <span className="px-2 py-1 rounded text-xs font-bold bg-success-color/10 text-success-color">
+                          <span className="px-2 py-1 rounded text-xs font-bold bg-green-100 dark:bg-green-900 text-success-color">
                             {registro.acertos || 0}/{registro.questoesFeitas || 0}
                           </span>
                         ) : (
@@ -699,14 +699,14 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
                       <td className="p-3 text-right flex gap-2 justify-end">
                         <button
                           onClick={() => setEditando({ ...registro })}
-                          className="p-2 rounded-lg text-blue-400 hover:bg-blue-500/10 transition-colors"
+                          className="p-2 rounded-lg text-blue-400 bg-background-color dark:bg-dark-background-color hover:bg-blue-100 dark:hover:bg-blue-900 transition-colors"
                           title="Editar"
                         >
                           <Edit size={18} />
                         </button>
                         <button
                           onClick={() => onDeleteRegistro(registro.id)}
-                          className="p-2 rounded-lg text-red-400 hover:bg-red-500/10 transition-colors"
+                          className="p-2 rounded-lg text-red-400 bg-background-color dark:bg-dark-background-color hover:bg-red-100 dark:hover:bg-red-900 transition-colors"
                           title="Excluir"
                         >
                           <Trash2 size={18} />
@@ -791,7 +791,7 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
                   </button>
                   <button
                     onClick={() => setEditando(null)}
-                    className="flex-1 px-6 py-3 bg-border-color dark:bg-dark-border-color text-text-color hover:bg-border-color/80 font-bold rounded-lg transition-all"
+                    className="flex-1 px-6 py-3 bg-border-color dark:bg-dark-border-color text-text-color hover:bg-border-color dark:hover:bg-dark-border-color font-bold rounded-lg transition-all"
                   >
                     ✕ Cancelar
                   </button>
@@ -803,7 +803,7 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
       )}
 
       {/* Zona de Perigo - Deletar Conta */}
-      <div className="bg-red-900/30 rounded-xl shadow-card-shadow p-6 border border-red-700 mt-12">
+      <div className="bg-red-900 rounded-xl shadow-card-shadow p-6 border border-red-700 mt-12">
         <h2 className="text-xl font-bold text-red-300 mb-4">
           ⚠️ Zona de Perigo
         </h2>

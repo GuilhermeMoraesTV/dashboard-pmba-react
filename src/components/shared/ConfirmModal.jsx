@@ -47,7 +47,7 @@ function ConfirmModal({
 
         <div className="flex items-start space-x-4">
           {/* Ícone */}
-          <div className={`flex-shrink-0 w-12 h-12 flex items-center justify-center rounded-full ${isDestructive ? 'bg-red-100 dark:bg-red-900/30' : 'bg-primary-light/10'}`}>
+          <div className={`flex-shrink-0 w-12 h-12 flex items-center justify-center rounded-full ${isDestructive ? 'bg-red-100 dark:bg-red-900' : 'bg-primary-light dark:bg-primary-dark'}`}>
             <AlertTriangle size={24} className={`${isDestructive ? 'text-danger-color' : 'text-primary-color'}`} />
           </div>
 

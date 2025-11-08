@@ -1,28 +1,9 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom'; // Importado para o link "Cadastre-se"
+import { Mail, Lock, Loader2 } from 'lucide-react';
 import { auth } from '/src/firebaseConfig.js'; // CAMINHO ABSOLUTO CORRIGIDO
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth'; // Funções reais
-
-// --- Ícones (Sem alteração) ---
-const IconEmail = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
-  </svg>
-);
-const IconPassword = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 0 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
-  </svg>
-);
-const IconLoader = () => (
-  <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-  </svg>
-);
-// --- Fim Ícones ---
-
 
 // --- FUNÇÃO DE TRADUÇÃO DE ERROS (RE-ADICIONADA) ---
 const translateFirebaseError = (errorCode) => {
@@ -93,111 +74,79 @@ function Login() {
   // --- FIM ESQUECEU A SENHA ---
 
   return (
-    <div className="flex min-h-screen bg-[#0a0a0a] relative overflow-hidden">
-      {/* Padrão de fundo militar */}
-      <div className="absolute inset-0 opacity-5">
-        <div className="absolute inset-0" style={{
-          backgroundImage: `repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,255,255,.05) 10px, rgba(255,255,255,.05) 20px)`
-        }}></div>
-      </div>
-
-      {/* LADO ESQUERDO: IMAGEM (SEM O TEXTO) */}
-      <motion.div
-        initial={{ opacity: 0, x: -100 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.8, ease: "easeOut" }}
-        className="hidden lg:flex lg:w-1/2 relative overflow-hidden"
-      >
-        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#0a0a0a]/30 to-[#0a0a0a] z-10"></div>
-        <img
-          src="/imagem-login.png"
-          alt="PMBA"
-          className="absolute inset-0 w-full h-full object-cover"
-        />
-
-        {/* Overlay com efeito de grade */}
-        <div className="absolute inset-0 z-20" style={{
-          backgroundImage: `linear-gradient(rgba(10,10,10,0.4) 1px, transparent 1px), linear-gradient(90deg, rgba(10,10,10,0.4) 1px, transparent 1px)`,
-          backgroundSize: '50px 50px'
-        }}></div>
-
-        {/* --- TEXTO SOBRE A IMAGEM REMOVIDO --- */}
-
-      </motion.div>
-
-      {/* LADO DIREITO: FORMULÁRIO */}
-      <motion.div
-        initial={{ opacity: 0, x: 100 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.8, ease: "easeOut" }}
-        className="w-full lg:w-1/2 flex items-center justify-center p-6 md:p-12 relative z-10"
-      >
-        <div className="w-full max-w-md">
-          {/* Logo */}
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2, duration: 0.6 }}
-            className="flex justify-center mb-8"
-          >
-            <img src="/logo-pmba.png" alt="Logo PMBA" className="h-16 w-auto" />
-          </motion.div>
-
-          {/* Título (ALTERADO) */}
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3, duration: 0.6 }}
-            className="text-center mb-8"
-          >
-            <h2 className="text-3xl font-bold text-white mb-2 tracking-wide">
-              Acesse sua conta
+    <div className="relative z-10 flex min-h-screen items-center justify-center px-4 py-12">
+      <div className="grid w-full max-w-5xl gap-10 lg:grid-cols-2">
+        <motion.div
+          initial={{ opacity: 0, x: -40 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.6, ease: 'easeOut' }}
+          className="hidden overflow-hidden rounded-3xl border border-border-light bg-card-light shadow-card-shadow dark:border-border-dark dark:bg-card-dark lg:flex lg:flex-col"
+        >
+          <img
+            src="/imagem-login.png"
+            alt="Treinamento PMBA"
+            className="h-full w-full object-cover"
+          />
+          <div className="border-t border-border-light bg-card-light p-8 dark:border-border-dark dark:bg-card-dark">
+            <h2 className="text-2xl font-semibold text-text-heading dark:text-text-dark-heading">
+              Preparado para o próximo passo?
             </h2>
-            <div className="h-0.5 w-16 bg-gradient-to-r from-transparent via-red-600 to-transparent mx-auto mb-3"></div>
-            <p className="text-sm text-gray-400 tracking-wide">
-              Use seu e-mail e senha para continuar
+            <p className="mt-3 text-sm text-text-subtle dark:text-text-dark-subtle">
+              Acompanhe seus ciclos de estudo, metas e desempenho com uma experiência visual moderna e consistente.
             </p>
-          </motion.div>
+          </div>
+        </motion.div>
 
-          {/* Formulário */}
+        <motion.div
+          initial={{ opacity: 0, x: 40 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.6, ease: 'easeOut' }}
+          className="w-full rounded-3xl border border-border-light bg-card-light p-8 shadow-card-shadow dark:border-border-dark dark:bg-card-dark"
+        >
+          <div className="flex justify-center">
+            <img src="/logo-pmba.png" alt="Logo PMBA" className="h-16 w-auto" />
+          </div>
+
+          <div className="mt-8 text-center">
+            <h1 className="text-3xl font-bold text-text-heading dark:text-text-dark-heading">Acesse sua conta</h1>
+            <p className="mt-2 text-sm text-text-subtle dark:text-text-dark-subtle">
+              Use seu e-mail institucional para entrar na plataforma.
+            </p>
+          </div>
+
           <motion.form
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4, duration: 0.6 }}
+            transition={{ delay: 0.2, duration: 0.5, ease: 'easeOut' }}
             onSubmit={handleSubmit}
-            className="space-y-5"
+            className="mt-10 space-y-6"
           >
-            {/* Mensagem de Erro */}
             {error && (
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm text-center font-medium backdrop-blur-sm"
+                className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-600 dark:border-red-800 dark:bg-red-900 dark:text-red-200"
               >
                 {error}
               </motion.div>
             )}
 
-            {/* Mensagem de Sucesso */}
             {forgotPasswordSuccess && (
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="p-3 bg-green-500/10 border border-green-500/30 rounded-lg text-green-400 text-sm text-center font-medium backdrop-blur-sm"
+                className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm font-medium text-green-700 dark:border-green-800 dark:bg-green-900 dark:text-green-200"
               >
                 {forgotPasswordSuccess}
               </motion.div>
             )}
 
-            {/* Input de E-mail */}
             <div>
-              <label htmlFor="email" className="block text-xs font-bold mb-2 text-gray-300 uppercase tracking-wider">
+              <label htmlFor="email" className="block text-xs font-semibold uppercase tracking-wide text-text-subtle dark:text-text-dark-subtle">
                 E-mail
               </label>
-              <div className="relative group">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-500 group-focus-within:text-red-500 transition-colors">
-                  <IconEmail />
-                </div>
+              <div className="mt-2 flex items-center gap-3 rounded-xl border border-border-light bg-background-light px-4 py-3 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary dark:border-border-dark dark:bg-[#2b3033]">
+                <Mail className="h-5 w-5 text-neutral-500 dark:text-neutral-300" />
                 <input
                   id="email"
                   name="email"
@@ -206,21 +155,18 @@ function Login() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full p-3.5 pl-12 rounded-lg bg-[#1a1a1a] text-white border border-gray-800 focus:outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 transition-all placeholder:text-gray-600"
+                  className="w-full bg-transparent text-base text-text-DEFAULT placeholder:text-neutral-500 focus:outline-none dark:text-text-dark-DEFAULT"
                   placeholder="seu.email@exemplo.com"
                 />
               </div>
             </div>
 
-            {/* Input de Senha */}
             <div>
-              <label htmlFor="password" className="block text-xs font-bold mb-2 text-gray-300 uppercase tracking-wider">
+              <label htmlFor="password" className="block text-xs font-semibold uppercase tracking-wide text-text-subtle dark:text-text-dark-subtle">
                 Senha
               </label>
-              <div className="relative group">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-500 group-focus-within:text-red-500 transition-colors">
-                  <IconPassword />
-                </div>
+              <div className="mt-2 flex items-center gap-3 rounded-xl border border-border-light bg-background-light px-4 py-3 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary dark:border-border-dark dark:bg-[#2b3033]">
+                <Lock className="h-5 w-5 text-neutral-500 dark:text-neutral-300" />
                 <input
                   id="password"
                   name="password"
@@ -229,92 +175,69 @@ function Login() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full p-3.5 pl-12 rounded-lg bg-[#1a1a1a] text-white border border-gray-800 focus:outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 transition-all placeholder:text-gray-600"
+                  className="w-full bg-transparent text-base text-text-DEFAULT placeholder:text-neutral-500 focus:outline-none dark:text-text-dark-DEFAULT"
                   placeholder="••••••••"
                 />
               </div>
             </div>
 
-            {/* Remember Me e Esqueceu a Senha */}
-            <div className="flex items-center justify-between">
-              <label className="flex items-center cursor-pointer group">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <label className="flex items-center gap-2 text-sm text-text-subtle dark:text-text-dark-subtle">
                 <input
                   type="checkbox"
                   checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
-                  className="w-4 h-4 rounded bg-[#1a1a1a] border-gray-800 text-red-600 focus:ring-red-600 focus:ring-offset-0 cursor-pointer"
+                  className="h-4 w-4 rounded border border-border-light text-primary focus:ring-primary focus:ring-offset-0 dark:border-border-dark"
                 />
-                <span className="ml-2 text-sm text-gray-400 group-hover:text-gray-300 transition-colors">
-                  Lembrar-me
-                </span>
+                Lembrar-me
               </label>
               <button
                 type="button"
                 disabled={forgotPasswordLoading}
                 onClick={handleForgotPassword}
-                className="text-sm font-medium text-red-500 hover:text-red-400 transition-colors disabled:opacity-50"
+                className="text-sm font-semibold text-danger-color transition-colors hover:text-red-600 disabled:opacity-60"
               >
                 {forgotPasswordLoading ? 'Enviando...' : 'Esqueceu a senha?'}
               </button>
             </div>
 
-            {/* Botão de Login */}
-            <div className="pt-2">
-              <button
-                type="submit"
-                disabled={loading || forgotPasswordLoading}
-                className="w-full relative group overflow-hidden p-4 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-lg font-bold tracking-wider uppercase text-sm shadow-lg shadow-red-900/50 hover:shadow-red-900/70 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
-              >
-                <span className="relative z-10 flex items-center justify-center">
-                  {loading ? (
-                    <>
-                      <IconLoader />
-                      <span className="ml-2">Entrando...</span>
-                    </>
-                  ) : (
-                    'Entrar'
-                  )}
-                </span>
-                <div className="absolute inset-0 bg-gradient-to-r from-red-700 to-red-800 transform scale-x-0 group-hover:scale-x-100 transition-transform origin-left"></div>
-              </button>
-            </div>
+            <button
+              type="submit"
+              disabled={loading || forgotPasswordLoading}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-danger-color px-5 py-3 text-sm font-semibold uppercase tracking-wide text-white shadow-lg transition-colors hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : null}
+              {loading ? 'Entrando...' : 'Entrar'}
+            </button>
           </motion.form>
 
-          {/* Link de Cadastro (CORRIGIDO PARA <Link>) */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ delay: 0.6, duration: 0.6 }}
-            className="mt-8 text-center"
+            transition={{ delay: 0.4, duration: 0.5, ease: 'easeOut' }}
+            className="mt-10 text-center"
           >
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-800"></div>
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="px-2 bg-[#0a0a0a] text-gray-500 tracking-wider">
-                  Ou
-                </span>
-              </div>
+            <div className="relative flex items-center">
+              <div className="h-px flex-1 bg-border-light dark:bg-border-dark"></div>
+              <span className="mx-3 rounded-full bg-card-light px-3 py-1 text-xs font-semibold uppercase tracking-wide text-text-subtle dark:bg-card-dark dark:text-text-dark-subtle">
+                Ou
+              </span>
+              <div className="h-px flex-1 bg-border-light dark:bg-border-dark"></div>
             </div>
-            <p className="mt-4 text-sm text-gray-400">
-              Não tem uma conta?{' '}
+            <p className="mt-4 text-sm text-text-subtle dark:text-text-dark-subtle">
+              Não tem uma conta?
               <Link
                 to="/signup"
-                className="font-bold text-red-500 hover:text-red-400 transition-colors uppercase tracking-wide"
+                className="ml-1 font-semibold text-danger-color transition-colors hover:text-red-600"
               >
                 Cadastre-se
               </Link>
             </p>
           </motion.div>
-
-          {/* --- RODAPÉ REMOVIDO --- */}
-
-        </div>
-      </motion.div>
+        </motion.div>
+      </div>
     </div>
   );
 }
 
 export default Login;
-

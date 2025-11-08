@@ -1,47 +1,11 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom'; // 1. Importe Link e useNavigate
+import { Mail, Lock, User, Camera, Loader2, Check } from 'lucide-react';
 import { auth, db, storage } from '../firebaseConfig'; // 2. Importe os serviços reais
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-
-// --- Ícones (copiados do seu arquivo) ---
-const IconEmail = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
-  </svg>
-);
-const IconPassword = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 0 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
-  </svg>
-);
-const IconUser = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
-  </svg>
-);
-// Ícone para Upload de Foto
-const IconCamera = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
-    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0ZM18.75 10.5h.008v.008h-.008V10.5Z" />
-  </svg>
-);
-const IconLoader = () => (
-  <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-  </svg>
-);
-const IconCheck = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-  </svg>
-);
-// --- Fim Ícones ---
-
 
 function Signup() {
   const [name, setName] = useState('');
@@ -151,138 +115,75 @@ function Signup() {
     }
   };
 
+  const renderRequirementClass = (condition) =>
+    condition
+      ? 'border-green-300 bg-green-50 text-green-700 dark:border-green-700 dark:bg-green-900 dark:text-green-200'
+      : 'border-border-light bg-background-light text-text-subtle dark:border-border-dark dark:bg-[#2b3033] dark:text-text-dark-subtle';
+
   return (
-    <div className="flex min-h-screen bg-[#0a0a0a] relative overflow-hidden">
-      {/* LADO ESQUERDO: IMAGEM (sem alteração) */}
-      <motion.div
-        initial={{ opacity: 0, x: -100 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.8, ease: "easeOut" }}
-        className="hidden lg:flex lg:w-1/2 relative overflow-hidden"
-      >
-        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#0a0a0a]/30 to-[#0a0a0a] z-10"></div>
-        <img
-          src="/imagem-login.png"
-          alt="PMBA"
-          className="absolute inset-0 w-full h-full object-cover"
-        />
-        <div className="absolute inset-0 z-20" style={{
-          backgroundImage: `linear-gradient(rgba(10,10,10,0.4) 1px, transparent 1px), linear-gradient(90deg, rgba(10,10,10,0.4) 1px, transparent 1px)`,
-          backgroundSize: '50px 50px'
-        }}></div>
-        <div className="absolute inset-0 z-30 flex flex-col items-center justify-center text-center px-8">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3, duration: 0.8 }}
-          >
-            <h1 className="text-6xl font-black text-white mb-4 tracking-wider" style={{ textShadow: '0 0 30px rgba(0,0,0,0.8), 0 0 60px rgba(0,0,0,0.6)' }}>
-              PMBA
-            </h1>
-            <div className="h-1 w-24 bg-gradient-to-r from-transparent via-red-600 to-transparent mx-auto mb-4"></div>
-            <p className="text-xl text-gray-200 font-light tracking-widest" style={{ textShadow: '0 0 20px rgba(0,0,0,0.9)' }}>
-              SISTEMA DE TREINAMENTO
-            </p>
-          </motion.div>
-        </div>
-      </motion.div>
-
-      {/* LADO DIREITO: FORMULÁRIO */}
-      <motion.div
-        initial={{ opacity: 0, x: 100 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.8, ease: "easeOut" }}
-        className="w-full lg:w-1/2 flex items-center justify-center p-6 md:p-12 relative z-10 overflow-y-auto"
-      >
-        <div className="w-full max-w-md my-8">
-
-          {/* Logo (sem alteração) */}
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2, duration: 0.6 }}
-            className="flex justify-center mb-8"
-          >
-            <img src="/logo-pmba.png" alt="Logo PMBA" className="h-16 w-auto" />
-          </motion.div>
-
-          {/* Título (sem alteração) */}
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3, duration: 0.6 }}
-            className="text-center mb-8"
-          >
-            <h2 className="text-3xl font-bold text-white mb-2 tracking-wide">
-              CRIAR CONTA
+    <div className="relative z-10 flex min-h-screen items-center justify-center px-4 py-12">
+      <div className="grid w-full max-w-5xl gap-10 lg:grid-cols-2">
+        <motion.div
+          initial={{ opacity: 0, x: -40 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.6, ease: 'easeOut' }}
+          className="hidden overflow-hidden rounded-3xl border border-border-light bg-card-light shadow-card-shadow dark:border-border-dark dark:bg-card-dark lg:flex lg:flex-col"
+        >
+          <img
+            src="/imagem-login.png"
+            alt="Treinamento PMBA"
+            className="h-full w-full object-cover"
+          />
+          <div className="border-t border-border-light bg-card-light p-8 dark:border-border-dark dark:bg-card-dark">
+            <h2 className="text-2xl font-semibold text-text-heading dark:text-text-dark-heading">
+              Crie seu perfil de estudos
             </h2>
-            <div className="h-0.5 w-16 bg-gradient-to-r from-transparent via-red-600 to-transparent mx-auto mb-3"></div>
-            <p className="text-sm text-gray-400 tracking-wide">
-              Preencha os dados para começar
+            <p className="mt-3 text-sm text-text-subtle dark:text-text-dark-subtle">
+              Configure suas metas, acompanhe o desempenho e tenha uma visão completa da sua jornada na PMBA.
             </p>
-          </motion.div>
+          </div>
+        </motion.div>
 
-          {/* Formulário */}
+        <motion.div
+          initial={{ opacity: 0, x: 40 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.6, ease: 'easeOut' }}
+          className="w-full rounded-3xl border border-border-light bg-card-light p-8 shadow-card-shadow dark:border-border-dark dark:bg-card-dark"
+        >
+          <div className="flex justify-center">
+            <img src="/logo-pmba.png" alt="Logo PMBA" className="h-16 w-auto" />
+          </div>
+
+          <div className="mt-8 text-center">
+            <h1 className="text-3xl font-bold text-text-heading dark:text-text-dark-heading">Criar conta</h1>
+            <p className="mt-2 text-sm text-text-subtle dark:text-text-dark-subtle">
+              Complete as informações para acessar a plataforma de treinamento.
+            </p>
+          </div>
+
           <motion.form
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4, duration: 0.6 }}
+            transition={{ delay: 0.2, duration: 0.5, ease: 'easeOut' }}
             onSubmit={handleSignup}
-            className="space-y-5"
+            className="mt-10 space-y-6"
           >
-            {/* Mensagem de Erro (sem alteração) */}
             {error && (
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm text-center font-medium backdrop-blur-sm"
+                className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-600 dark:border-red-800 dark:bg-red-900 dark:text-red-200"
               >
                 {error}
               </motion.div>
             )}
 
-            {/* 7. Input de Foto de Perfil */}
             <div>
-              <label className="block text-xs font-bold mb-2 text-gray-300 uppercase tracking-wider">
-                Foto de Perfil (Opcional)
+              <label htmlFor="name" className="block text-xs font-semibold uppercase tracking-wide text-text-subtle dark:text-text-dark-subtle">
+                Nome completo
               </label>
-              <div className="flex items-center gap-4">
-                <motion.div
-                  className="w-20 h-20 rounded-full bg-[#1a1a1a] border border-gray-800 flex items-center justify-center text-gray-500 overflow-hidden"
-                  whileHover={{ scale: 1.05 }}
-                >
-                  {photoPreview ? (
-                    <img src={photoPreview} alt="Preview" className="w-full h-full object-cover" />
-                  ) : (
-                    <IconCamera />
-                  )}
-                </motion.div>
-                <label
-                  htmlFor="photo-upload"
-                  className="cursor-pointer p-3 rounded-lg bg-[#1a1a1a] text-gray-300 border border-gray-800 hover:border-red-600 hover:text-white transition-all text-sm font-medium"
-                >
-                  Selecionar Foto
-                  <input
-                    id="photo-upload"
-                    name="photo-upload"
-                    type="file"
-                    accept="image/*"
-                    onChange={handlePhotoChange}
-                    className="sr-only"
-                  />
-                </label>
-              </div>
-            </div>
-
-            {/* Input de Nome (sem alteração) */}
-            <div>
-              <label htmlFor="name" className="block text-xs font-bold mb-2 text-gray-300 uppercase tracking-wider">
-                Nome Completo
-              </label>
-              <div className="relative group">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-500 group-focus-within:text-red-500 transition-colors">
-                  <IconUser />
-                </div>
+              <div className="mt-2 flex items-center gap-3 rounded-xl border border-border-light bg-background-light px-4 py-3 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary dark:border-border-dark dark:bg-[#2b3033]">
+                <User className="h-5 w-5 text-neutral-500 dark:text-neutral-300" />
                 <input
                   id="name"
                   name="name"
@@ -291,21 +192,18 @@ function Signup() {
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full p-3.5 pl-12 rounded-lg bg-[#1a1a1a] text-white border border-gray-800 focus:outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 transition-all placeholder:text-gray-600"
-                  placeholder="Digite seu nome completo"
+                  className="w-full bg-transparent text-base text-text-DEFAULT placeholder:text-neutral-500 focus:outline-none dark:text-text-dark-DEFAULT"
+                  placeholder="Seu nome completo"
                 />
               </div>
             </div>
 
-            {/* Input de E-mail (sem alteração) */}
             <div>
-              <label htmlFor="email" className="block text-xs font-bold mb-2 text-gray-300 uppercase tracking-wider">
+              <label htmlFor="email" className="block text-xs font-semibold uppercase tracking-wide text-text-subtle dark:text-text-dark-subtle">
                 E-mail
               </label>
-              <div className="relative group">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-500 group-focus-within:text-red-500 transition-colors">
-                  <IconEmail />
-                </div>
+              <div className="mt-2 flex items-center gap-3 rounded-xl border border-border-light bg-background-light px-4 py-3 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary dark:border-border-dark dark:bg-[#2b3033]">
+                <Mail className="h-5 w-5 text-neutral-500 dark:text-neutral-300" />
                 <input
                   id="email"
                   name="email"
@@ -314,172 +212,144 @@ function Signup() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full p-3.5 pl-12 rounded-lg bg-[#1a1a1a] text-white border border-gray-800 focus:outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 transition-all placeholder:text-gray-600"
+                  className="w-full bg-transparent text-base text-text-DEFAULT placeholder:text-neutral-500 focus:outline-none dark:text-text-dark-DEFAULT"
                   placeholder="seu.email@exemplo.com"
                 />
               </div>
             </div>
 
-            {/* Inputs de Senha e Requisitos (sem alteração) */}
-            <div>
-              <label htmlFor="password" className="block text-xs font-bold mb-2 text-gray-300 uppercase tracking-wider">
-                Senha
-              </label>
-              <div className="relative group">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-500 group-focus-within:text-red-500 transition-colors">
-                  <IconPassword />
+            <div className="grid gap-6 sm:grid-cols-2">
+              <div>
+                <label htmlFor="password" className="block text-xs font-semibold uppercase tracking-wide text-text-subtle dark:text-text-dark-subtle">
+                  Senha
+                </label>
+                <div className="mt-2 flex items-center gap-3 rounded-xl border border-border-light bg-background-light px-4 py-3 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary dark:border-border-dark dark:bg-[#2b3033]">
+                  <Lock className="h-5 w-5 text-neutral-500 dark:text-neutral-300" />
+                  <input
+                    id="password"
+                    name="password"
+                    type="password"
+                    autoComplete="new-password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full bg-transparent text-base text-text-DEFAULT placeholder:text-neutral-500 focus:outline-none dark:text-text-dark-DEFAULT"
+                    placeholder="••••••••"
+                  />
                 </div>
-                <input
-                  id="password"
-                  name="password"
-                  type="password"
-                  autoComplete="new-password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full p-3.5 pl-12 rounded-lg bg-[#1a1a1a] text-white border border-gray-800 focus:outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 transition-all placeholder:text-gray-600"
-                  placeholder="••••••••"
-                />
               </div>
-              {password && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  className="mt-3 space-y-2"
-                >
-                  <div className="flex items-center gap-2 text-xs">
-                    <div className={`w-5 h-5 rounded flex items-center justify-center ${passwordRequirements.length ? 'bg-green-500/20 text-green-400' : 'bg-gray-800 text-gray-600'}`}>
-                      {passwordRequirements.length && <IconCheck />}
-                    </div>
-                    <span className={passwordRequirements.length ? 'text-green-400' : 'text-gray-500'}>
-                      Mínimo de 6 caracteres
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs">
-                    <div className={`w-5 h-5 rounded flex items-center justify-center ${passwordRequirements.uppercase ? 'bg-green-500/20 text-green-400' : 'bg-gray-800 text-gray-600'}`}>
-                      {passwordRequirements.uppercase && <IconCheck />}
-                    </div>
-                    <span className={passwordRequirements.uppercase ? 'text-green-400' : 'text-gray-500'}>
-                      Uma letra maiúscula
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs">
-                    <div className={`w-5 h-5 rounded flex items-center justify-center ${passwordRequirements.lowercase ? 'bg-green-500/20 text-green-400' : 'bg-gray-800 text-gray-600'}`}>
-                      {passwordRequirements.lowercase && <IconCheck />}
-                    </div>
-                    <span className={passwordRequirements.lowercase ? 'text-green-400' : 'text-gray-500'}>
-                      Uma letra minúscula
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs">
-                    <div className={`w-5 h-5 rounded flex items-center justify-center ${passwordRequirements.number ? 'bg-green-500/20 text-green-400' : 'bg-gray-800 text-gray-600'}`}>
-                      {passwordRequirements.number && <IconCheck />}
-                    </div>
-                    <span className={passwordRequirements.number ? 'text-green-400' : 'text-gray-500'}>
-                      Um número
-                    </span>
-                  </div>
-                </motion.div>
-              )}
-            </div>
-            <div>
-              <label htmlFor="confirmPassword" className="block text-xs font-bold mb-2 text-gray-300 uppercase tracking-wider">
-                Confirmar Senha
-              </label>
-              <div className="relative group">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-500 group-focus-within:text-red-500 transition-colors">
-                  <IconPassword />
+
+              <div>
+                <label htmlFor="confirmPassword" className="block text-xs font-semibold uppercase tracking-wide text-text-subtle dark:text-text-dark-subtle">
+                  Confirmar senha
+                </label>
+                <div className="mt-2 flex items-center gap-3 rounded-xl border border-border-light bg-background-light px-4 py-3 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary dark:border-border-dark dark:bg-[#2b3033]">
+                  <Lock className="h-5 w-5 text-neutral-500 dark:text-neutral-300" />
+                  <input
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    type="password"
+                    autoComplete="new-password"
+                    required
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="w-full bg-transparent text-base text-text-DEFAULT placeholder:text-neutral-500 focus:outline-none dark:text-text-dark-DEFAULT"
+                    placeholder="Repita a senha"
+                  />
                 </div>
-                <input
-                  id="confirmPassword"
-                  name="confirmPassword"
-                  type="password"
-                  autoComplete="new-password"
-                  required
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full p-3.5 pl-12 rounded-lg bg-[#1a1a1a] text-white border border-gray-800 focus:outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 transition-all placeholder:text-gray-600"
-                  placeholder="••••••••"
-                />
               </div>
-              {confirmPassword && password !== confirmPassword && (
-                <p className="mt-2 text-xs text-red-400">As senhas não coincidem</p>
-              )}
             </div>
 
-            {/* Aceitar Termos (sem alteração) */}
             <div>
-              <label className="flex items-start cursor-pointer group">
-                <input
-                  type="checkbox"
-                  checked={acceptTerms}
-                  onChange={(e) => setAcceptTerms(e.target.checked)}
-                  className="w-4 h-4 mt-0.5 rounded bg-[#1a1a1a] border-gray-800 text-red-600 focus:ring-red-600 focus:ring-offset-0 cursor-pointer"
-                />
-                <span className="ml-2 text-xs text-gray-400 group-hover:text-gray-300 transition-colors">
-                  Eu aceito os{' '}
-                  <a href="#" className="text-red-500 hover:text-red-400 underline">
-                    Termos & Condições
-                  </a>
-                  {' '}e a{' '}
-                  <a href="#" className="text-red-500 hover:text-red-400 underline">
-                    Política de Privacidade
-                  </a>
-                </span>
+              <span className="block text-xs font-semibold uppercase tracking-wide text-text-subtle dark:text-text-dark-subtle">
+                Foto de perfil (opcional)
+              </span>
+              <label className="mt-2 flex cursor-pointer items-center justify-between rounded-xl border border-dashed border-border-light bg-background-light px-4 py-3 text-sm font-medium text-text-subtle transition-colors hover:border-primary hover:text-text-DEFAULT dark:border-border-dark dark:bg-[#2b3033] dark:hover:border-primary">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-lg border border-border-light bg-card-light shadow-sm dark:border-border-dark dark:bg-card-dark">
+                    {photoPreview ? (
+                      <img src={photoPreview} alt="Pré-visualização" className="h-full w-full object-cover" />
+                    ) : (
+                      <Camera className="h-5 w-5 text-neutral-500 dark:text-neutral-300" />
+                    )}
+                  </div>
+                  <div className="text-left">
+                    <p>{photoPreview ? 'Alterar foto selecionada' : 'Selecionar imagem'}</p>
+                    <span className="text-xs text-text-subtle dark:text-text-dark-subtle">PNG ou JPG até 5MB</span>
+                  </div>
+                </div>
+                <input type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
               </label>
             </div>
 
-            {/* Botão de Cadastrar (sem alteração) */}
-            <div className="pt-2">
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full relative group overflow-hidden p-4 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-lg font-bold tracking-wider uppercase text-sm shadow-lg shadow-red-900/50 hover:shadow-red-900/70 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
-              >
-                <span className="relative z-10 flex items-center justify-center">
-                  {loading ? (
-                    <>
-                      <IconLoader />
-                      <span className="ml-2">Cadastrando...</span>
-                    </>
-                  ) : (
-                    'Criar Conta'
-                  )}
-                </span>
-                <div className="absolute inset-0 bg-gradient-to-r from-red-700 to-red-800 transform scale-x-0 group-hover:scale-x-100 transition-transform origin-left"></div>
-              </button>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <div className={`flex items-center gap-3 rounded-xl border px-3 py-2 text-sm ${renderRequirementClass(passwordRequirements.length)}`}>
+                <Check className={`h-4 w-4 ${passwordRequirements.length ? 'text-green-600 dark:text-green-200' : 'text-neutral-400'}`} />
+                Pelo menos 6 caracteres
+              </div>
+              <div className={`flex items-center gap-3 rounded-xl border px-3 py-2 text-sm ${renderRequirementClass(passwordRequirements.uppercase)}`}>
+                <Check className={`h-4 w-4 ${passwordRequirements.uppercase ? 'text-green-600 dark:text-green-200' : 'text-neutral-400'}`} />
+                Uma letra maiúscula
+              </div>
+              <div className={`flex items-center gap-3 rounded-xl border px-3 py-2 text-sm ${renderRequirementClass(passwordRequirements.lowercase)}`}>
+                <Check className={`h-4 w-4 ${passwordRequirements.lowercase ? 'text-green-600 dark:text-green-200' : 'text-neutral-400'}`} />
+                Uma letra minúscula
+              </div>
+              <div className={`flex items-center gap-3 rounded-xl border px-3 py-2 text-sm ${renderRequirementClass(passwordRequirements.number)}`}>
+                <Check className={`h-4 w-4 ${passwordRequirements.number ? 'text-green-600 dark:text-green-200' : 'text-neutral-400'}`} />
+                Um número
+              </div>
             </div>
+
+            <label className="flex items-center gap-3 text-sm text-text-subtle dark:text-text-dark-subtle">
+              <input
+                type="checkbox"
+                checked={acceptTerms}
+                onChange={(e) => setAcceptTerms(e.target.checked)}
+                className="h-4 w-4 rounded border border-border-light text-primary focus:ring-primary focus:ring-offset-0 dark:border-border-dark"
+              />
+              <span>
+                Eu concordo com os
+                <a href="#" className="ml-1 font-semibold text-danger-color hover:text-red-600">Termos &amp; Condições</a>
+                .
+              </span>
+            </label>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-danger-color px-5 py-3 text-sm font-semibold uppercase tracking-wide text-white shadow-lg transition-colors hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : null}
+              {loading ? 'Criando conta...' : 'Criar conta'}
+            </button>
           </motion.form>
 
-          {/* Link de Login (Modificado para usar <Link>) */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ delay: 0.6, duration: 0.6 }}
-            className="mt-8 text-center"
+            transition={{ delay: 0.4, duration: 0.5, ease: 'easeOut' }}
+            className="mt-10 text-center"
           >
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-800"></div>
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="px-2 bg-[#0a0a0a] text-gray-500 tracking-wider">
-                  Ou
-                </span>
-              </div>
+            <div className="relative flex items-center">
+              <div className="h-px flex-1 bg-border-light dark:bg-border-dark"></div>
+              <span className="mx-3 rounded-full bg-card-light px-3 py-1 text-xs font-semibold uppercase tracking-wide text-text-subtle dark:bg-card-dark dark:text-text-dark-subtle">
+                Já tem uma conta?
+              </span>
+              <div className="h-px flex-1 bg-border-light dark:bg-border-dark"></div>
             </div>
-            <p className="mt-4 text-sm text-gray-400">
-              Já tem uma conta?{' '}
+            <p className="mt-4 text-sm text-text-subtle dark:text-text-dark-subtle">
+              Faça o login para acessar a plataforma.
               <Link
                 to="/login"
-                className="font-bold text-red-500 hover:text-red-400 transition-colors uppercase tracking-wide"
+                className="ml-1 font-semibold text-danger-color transition-colors hover:text-red-600"
               >
                 Entrar
               </Link>
             </p>
           </motion.div>
-        </div>
-      </motion.div>
+        </motion.div>
+      </div>
     </div>
   );
 }

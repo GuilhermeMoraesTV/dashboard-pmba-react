@@ -59,44 +59,49 @@ function App() {
   }
 
   return (
-    <BrowserRouter>
-      <Suspense
-        fallback={
-          // Tela de carregamento para transição de rotas
-          <div className="flex justify-center items-center min-h-screen bg-background-color dark:bg-dark-background-color">
-            <h2 className="text-2xl font-semibold text-heading-color dark:text-dark-heading-color">
-              Carregando...
-            </h2>
-          </div>
-        }
-      >
-        <Routes>
-          <Route
-            path="/"
-            element={
-              user ? (
-                // Esta é a linha 42 que estava dando erro
-                <Dashboard
-                  user={user}
-                  isDarkMode={isDarkMode}
-                  toggleTheme={toggleTheme}
-                />
-              ) : (
-                <Navigate to="/login" />
-              )
+    <>
+      <div id="background-container" aria-hidden="true"></div>
+      <BrowserRouter>
+        <div className="relative z-10 min-h-screen">
+          <Suspense
+            fallback={
+              // Tela de carregamento para transição de rotas
+              <div className="relative z-10 flex justify-center items-center min-h-screen">
+                <h2 className="text-2xl font-semibold text-heading-color dark:text-dark-heading-color">
+                  Carregando...
+                </h2>
+              </div>
             }
-          />
-          <Route
-            path="/login"
-            element={user ? <Navigate to="/" /> : <Login />}
-          />
-          <Route
-            path="/signup"
-            element={user ? <Navigate to="/" /> : <Signup />}
-          />
-        </Routes>
-      </Suspense>
-    </BrowserRouter>
+          >
+            <Routes>
+              <Route
+                path="/"
+                element={
+                  user ? (
+                    // Esta é a linha 42 que estava dando erro
+                    <Dashboard
+                      user={user}
+                      isDarkMode={isDarkMode}
+                      toggleTheme={toggleTheme}
+                    />
+                  ) : (
+                    <Navigate to="/login" />
+                  )
+                }
+              />
+              <Route
+                path="/login"
+                element={user ? <Navigate to="/" /> : <Login />}
+              />
+              <Route
+                path="/signup"
+                element={user ? <Navigate to="/" /> : <Signup />}
+              />
+            </Routes>
+          </Suspense>
+        </div>
+      </BrowserRouter>
+    </>
   );
 }
 

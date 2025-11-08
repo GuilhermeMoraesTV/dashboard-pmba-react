@@ -189,7 +189,7 @@ function GoalsTab({ onSetGoal, goalsHistory }) {
                           Iniciada em: {date.toLocaleDateString('pt-BR')}
                         </p>
                         {isActive && (
-                          <span className="text-xs font-bold bg-neutral-500/20 text-neutral-500 py-0.5 px-2 rounded-full">
+                          <span className="text-xs font-bold rounded-full bg-neutral-200 py-0.5 px-2 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200">
                             ATIVA
                           </span>
                         )}
