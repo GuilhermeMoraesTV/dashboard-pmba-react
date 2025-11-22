@@ -9,74 +9,74 @@ export default {
   theme: {
     extend: {
       colors: {
-        primary: {
-          DEFAULT: colors.neutral[500],
-          hover: colors.neutral[600],
-          light: colors.neutral[400],
-          dark: colors.neutral[700],
+        // Nossa cor de destaque (Vermelho Sutil)
+        accent: {
+          DEFAULT: colors.red[500],
+          hover: colors.red[600],
+          light: colors.red[400],
+          soft: 'rgba(239, 68, 68, 0.1)', // Vermelho bem clarinho para fundos
         },
+        // Escala de Cinzas Profissionais (Zinco)
+        gray: colors.zinc,
+
+        // Cores Semânticas
         background: {
-          light: colors.zinc[100],
-          dark: '#18181b', // Sólido
+          light: '#f4f4f5', // Zinc-100
+          dark: '#09090b',  // Zinc-950 (Cinza muito escuro, não preto)
         },
-        // ATUALIZADO: Card sólido sem transparência
         card: {
-          light: '#f4f4f5', // Cinza bem claro
-          dark: '#27272a', // Cinza escuro sólido (zinc-800)
+          light: '#ffffff',
+          dark: '#18181b',  // Zinc-900
         },
         border: {
-          light: colors.zinc[300],
-          dark: '#3f3f46', // Sólido (zinc-700)
+          light: colors.zinc[200],
+          dark: colors.zinc[800],
         },
         text: {
-          DEFAULT: colors.zinc[900],
-          'dark-DEFAULT': '#ffffff',
-          heading: colors.zinc[950],
-          'dark-heading': '#ffffff',
-          subtle: colors.zinc[600],
-          'dark-subtle': colors.zinc[300],
+          primary: colors.zinc[900],
+          secondary: colors.zinc[500],
+          dark: {
+            primary: colors.zinc[50],
+            secondary: colors.zinc[400],
+          }
         },
-        'success-color': '#10b981',
-        'danger-color': '#ef4444',
-        'warning-color': '#f59e0b',
-        'info-color': colors.neutral[500],
-        'goal-met-both': '#10b981',
-        'goal-met-one': '#f59e0b',
-        'goal-not-met': '#ef4444',
-      },
-      boxShadow: {
-        'card-shadow': '0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)',
-        'card-hover': '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)',
-        'military': '0 0 10px rgba(115, 115, 115, 0.3)',
+
+        // Mantendo compatibilidade com seu código existente
+        primary: {
+          DEFAULT: colors.zinc[800], // Botões principais agora são cinza escuro no light
+          hover: colors.zinc[900],
+          light: colors.zinc[400],
+          dark: colors.zinc[200],    // No dark mode, primary vira claro
+        },
+        'success-color': '#10b981', // Emerald
+        'danger-color': '#ef4444',  // Red
+        'warning-color': '#f59e0b', // Amber
+
+        // Cores do Gráfico de 14 dias
+        'goal-met-both': '#10b981', // Verde
+        'goal-met-one': '#f59e0b',  // Laranja
+        'goal-not-met': '#ef4444',  // Vermelho
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
       },
+      boxShadow: {
+        'soft': '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)',
+        'glow': '0 0 15px rgba(239, 68, 68, 0.15)', // Brilho vermelho sutil
+      },
       animation: {
-        'fade-in': 'fadeInFromBottom 0.5s ease-out',
-        'slide-in-left': 'slideInFromLeft 0.5s ease-out',
-        'slide-in-right': 'slideInFromRight 0.5s ease-out',
-        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+        'fade-in': 'fadeIn 0.5s ease-out',
+        'slide-up': 'slideUp 0.5s ease-out',
       },
       keyframes: {
-        fadeInFromBottom: {
-          '0%': { opacity: '0', transform: 'translateY(20px)' },
+        fadeIn: {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
+        slideUp: {
+          '0%': { opacity: '0', transform: 'translateY(10px)' },
           '100%': { opacity: '1', transform: 'translateY(0)' },
         },
-        slideInFromLeft: {
-          '0%': { transform: 'translateX(-100%)', opacity: '0' },
-          '100%': { transform: 'translateX(0)', opacity: '1' },
-        },
-        slideInFromRight: {
-          '0%': { transform: 'translateX(100%)', opacity: '0' },
-          '100%': { transform: 'translateX(0)', opacity: '1' },
-        },
-      },
-      backgroundImage: {
-        'gradient-primary': 'linear-gradient(135deg, #737373 0%, #525252 100%)',
-        'gradient-success': 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-        'gradient-warning': 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-        'gradient-dark': 'linear-gradient(135deg, #27272a 0%, #18181b 100%)',
       },
     },
   },

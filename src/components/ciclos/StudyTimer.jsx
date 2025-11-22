@@ -1,163 +1,177 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { motion } from 'framer-motion';
-
-const IconStop = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
-      <path fillRule="evenodd" d="M4.5 7.5a3 3 0 0 1 3-3h9a3 3 0 0 1 3 3v9a3 3 0 0 1-3 3h-9a3 3 0 0 1-3-3v-9Z" clipRule="evenodd" />
-    </svg>
-);
-const IconCancel = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-    </svg>
-);
-const IconExpand = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
-    </svg>
-);
-const IconMinimize = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9 9V4.5M9 9H4.5M9 9 3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5M15 15l5.25 5.25" />
-    </svg>
-);
-
+import React, { useState, useEffect, useRef } from 'react';
+import { Play, Pause, Square, Maximize2, Minimize2, X } from 'lucide-react';
 
 const formatTime = (totalSeconds) => {
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
-
-  return [
-    hours,
-    minutes,
-    seconds
-  ]
-  .map(v => String(v).padStart(2, '0'))
-  .join(':');
+  return [hours, minutes, seconds].map(v => String(v).padStart(2, '0')).join(':');
 };
 
-function StudyTimer({ disciplina, onStop, onCancel }) {
+function StudyTimer({ disciplina, onStop, onCancel, isMinimized, onMaximize, onMinimize }) {
   const [seconds, setSeconds] = useState(0);
-  const startTime = useMemo(() => Date.now(), []);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const timerRef = useRef(null);
+  const [isPaused, setIsPaused] = useState(false);
+  const intervalRef = useRef(null);
 
+  // Inicia o timer
   useEffect(() => {
-    const interval = setInterval(() => {
-      setSeconds(Math.floor((Date.now() - startTime) / 1000));
-    }, 1000);
+    if (!isPaused) {
+      intervalRef.current = setInterval(() => {
+        setSeconds(s => s + 1);
+      }, 1000);
+    } else {
+      clearInterval(intervalRef.current);
+    }
+    return () => clearInterval(intervalRef.current);
+  }, [isPaused]);
 
-    const handleFullscreenChange = () => {
-      setIsFullscreen(document.fullscreenElement != null);
-    };
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-
-    return () => {
-      clearInterval(interval);
-      document.removeEventListener('fullscreenchange', handleFullscreenChange);
-    };
-  }, [startTime]);
-
+  // Função de Parar (Salvar)
   const handleStop = () => {
     const totalMinutos = Math.max(1, Math.round(seconds / 60));
-    if (isFullscreen && document.fullscreenElement) {
-        document.exitFullscreen();
-    }
-    onStop(totalMinutos);
+    onStop(totalMinutos); // Retorna os minutos para o pai salvar
   };
 
-  const handleCancel = () => {
-    if (isFullscreen && document.fullscreenElement) {
-        document.exitFullscreen();
-    }
-    onCancel();
-  };
+  // --- MODO BOLHA (MINIMIZADO) ---
+  // Mantivemos um z-index alto (60) para ficar sobre o conteúdo, mas abaixo de modais críticos se houver
+  if (isMinimized) {
+    return (
+      <div className="fixed bottom-24 right-4 z-[9999] animate-fade-in">
+        <div
+            className="bg-zinc-900/90 backdrop-blur-md border border-emerald-500/30 shadow-[0_0_20px_rgba(16,185,129,0.2)] rounded-2xl p-3 flex items-center gap-4 w-auto max-w-[300px] overflow-hidden hover:scale-105 transition-transform cursor-pointer"
+            onClick={onMaximize}
+        >
 
-  const toggleFullscreen = () => {
-    if (!timerRef.current) return;
+          {/* Indicador Pulsante */}
+          <div className="relative flex items-center justify-center w-10 h-10 bg-zinc-800 rounded-full shrink-0">
+             <div className={`absolute inset-0 rounded-full ${isPaused ? 'bg-amber-500/20' : 'bg-emerald-500/20 animate-ping'}`}></div>
+             <span className={`text-xs font-bold ${isPaused ? 'text-amber-500' : 'text-emerald-500'}`}>
+                {isPaused ? '||' : 'ON'}
+             </span>
+          </div>
 
-    if (!document.fullscreenElement) {
-      timerRef.current.requestFullscreen()
-        .then(() => setIsFullscreen(true))
-        .catch(err => console.error(`Erro ao entrar em tela cheia: ${err.message}`));
-    } else {
-      document.exitFullscreen()
-        .then(() => setIsFullscreen(false))
-        .catch(err => console.error(`Erro ao sair da tela cheia: ${err.message}`));
-    }
-  };
-
-
-  return (
-    <motion.div
-      ref={timerRef}
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.95 }}
-      transition={{ duration: 0.3, ease: 'easeInOut' }}
-      className={`relative w-full h-full min-h-[450px] flex flex-col items-center justify-center bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 rounded-xl shadow-lg p-6 overflow-hidden
-                 ${isFullscreen ? 'fixed inset-0 z-[100] rounded-none' : ''}`}
-    >
-        <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)', backgroundSize: '40px 40px' }}></div>
-        <div className="absolute inset-0 bg-black/10 backdrop-blur-sm"></div>
-
-        <motion.div
-            animate={{ scale: [1, 1.05, 1] }}
-            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-            className="absolute w-64 h-64 bg-white/5 rounded-full pointer-events-none"
-        ></motion.div>
-        <motion.div
-            animate={{ scale: [1, 1.1, 1] }}
-            transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut', delay: 0.5 }}
-            className="absolute w-80 h-80 bg-white/5 rounded-full pointer-events-none"
-        ></motion.div>
-
-
-        <div className="relative z-10 flex flex-col items-center justify-center text-white text-center">
-
-            <p className="text-lg font-semibold text-white/80">Estudando</p>
-            <h2 className={`text-3xl font-bold text-white mb-4 truncate max-w-sm ${isFullscreen ? 'md:text-4xl lg:text-5xl max-w-xl' : ''}`}>
-              {disciplina.nome}
-            </h2>
-
-            <div className={`font-mono text-7xl font-bold my-6 ${isFullscreen ? 'md:text-8xl lg:text-9xl my-10' : ''}`} style={{textShadow: '0 2px 10px rgba(0,0,0,0.2)'}}>
+          <div className="flex flex-col mr-2">
+             <span className="text-[10px] text-zinc-400 uppercase font-bold tracking-wider truncate max-w-[120px]">
+                {disciplina.nome}
+             </span>
+             <span className="text-xl font-mono font-bold text-white leading-none">
                 {formatTime(seconds)}
+             </span>
+          </div>
+
+          {/* Controles Mini */}
+          <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+             <button
+                onClick={() => setIsPaused(!isPaused)}
+                className={`p-2 rounded-full ${isPaused ? 'bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20' : 'bg-amber-500/10 text-amber-500 hover:bg-amber-500/20'}`}
+             >
+                {isPaused ? <Play size={14} fill="currentColor" /> : <Pause size={14} fill="currentColor" />}
+             </button>
+             <button
+                onClick={onMaximize}
+                className="p-2 rounded-full bg-zinc-800 text-zinc-400 hover:bg-zinc-700"
+             >
+                <Maximize2 size={14} />
+             </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // --- MODO FOCO (TELA CHEIA / EXPANDIDO) ---
+  return (
+    // AQUI ESTÁ A CORREÇÃO: Alterado de z-50 para z-[9999]
+    // Isso garante que ele fique acima da Sidebar (que geralmente é z-40 ou z-50)
+    <div className="fixed inset-0 z-[9999] bg-zinc-950 flex flex-col items-center justify-center animate-fade-in">
+
+        {/* Background Tático */}
+        <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, rgba(255,255,255,0.1) 1px, transparent 0)', backgroundSize: '40px 40px' }}></div>
+        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-emerald-500 to-transparent opacity-30"></div>
+
+        {/* Header do Timer */}
+        <div className="absolute top-6 right-6 flex gap-4 z-20">
+            <button
+                onClick={onMinimize}
+                className="flex items-center gap-2 text-zinc-400 hover:text-white transition-colors px-4 py-2 rounded-lg hover:bg-zinc-900/50 border border-transparent hover:border-zinc-800"
+            >
+                <Minimize2 size={20} />
+                <span className="text-sm font-medium hidden md:inline">Minimizar</span>
+            </button>
+        </div>
+
+        <div className="relative z-10 flex flex-col items-center text-center w-full max-w-4xl px-6">
+            {/* Badge de Status */}
+            <div className={`
+                mb-8 px-4 py-1.5 rounded-full border text-sm font-bold tracking-[0.2em] uppercase flex items-center gap-2
+                ${isPaused
+                    ? 'border-amber-500/30 text-amber-500 bg-amber-500/5'
+                    : 'border-emerald-500/30 text-emerald-500 bg-emerald-500/5'}
+            `}>
+                <span className={`w-2 h-2 rounded-full ${isPaused ? 'bg-amber-500' : 'bg-emerald-500 animate-pulse'}`}></span>
+                {isPaused ? 'Sessão Pausada' : 'Foco Absoluto'}
             </div>
 
-            <div className={`flex gap-4 ${isFullscreen ? 'md:gap-6 lg:gap-8' : ''}`}>
+            {/* Nome da Disciplina */}
+            <h2 className="text-2xl md:text-4xl font-bold text-zinc-300 mb-2 tracking-tight">
+              {disciplina.nome}
+            </h2>
+            <p className="text-zinc-500 text-sm uppercase tracking-widest mb-10">Cronômetro de Estudo</p>
+
+            {/* O Relógio Gigante */}
+            <div className="relative mb-16">
+                {/* Glow de fundo */}
+                <div className={`absolute -inset-10 blur-[60px] opacity-20 rounded-full transition-colors duration-700 ${isPaused ? 'bg-amber-500' : 'bg-emerald-500'}`}></div>
+
+                <div className={`
+                    text-[5rem] md:text-[8rem] lg:text-[10rem] font-mono font-bold leading-none tracking-tighter tabular-nums transition-colors duration-300
+                    ${isPaused ? 'text-zinc-500' : 'text-white'}
+                `} style={{ textShadow: isPaused ? 'none' : '0 0 30px rgba(16,185,129,0.3)' }}>
+                    {formatTime(seconds)}
+                </div>
+            </div>
+
+            {/* Controles Principais */}
+            <div className="flex items-center gap-6 md:gap-10">
+                {/* Botão Cancelar */}
                 <button
-                    onClick={handleCancel}
-                    title="Cancelar (não salva)"
-                    className={`flex items-center justify-center bg-white/20 hover:bg-white/30 backdrop-blur-lg rounded-full text-white transition-all duration-200 ease-in-out
-                                ${isFullscreen ? 'w-20 h-20 md:w-24 md:h-24' : 'w-16 h-16'}`}
+                    onClick={onCancel}
+                    className="group flex flex-col items-center gap-2 text-zinc-500 hover:text-red-500 transition-colors"
                 >
-                    <IconCancel className={`${isFullscreen ? 'w-8 h-8 md:w-10 md:h-10' : 'w-6 h-6'}`}/>
+                    <div className="w-14 h-14 md:w-16 md:h-16 rounded-full border-2 border-zinc-800 group-hover:border-red-500/50 flex items-center justify-center bg-zinc-900 transition-all">
+                        <X size={24} />
+                    </div>
+                    <span className="text-xs font-bold uppercase tracking-wider opacity-0 group-hover:opacity-100 transition-opacity">Cancelar</span>
                 </button>
 
+                {/* Botão Play/Pause (Central) */}
+                <button
+                    onClick={() => setIsPaused(!isPaused)}
+                    className={`
+                        w-24 h-24 md:w-32 md:h-32 rounded-full flex items-center justify-center shadow-2xl transition-all transform hover:scale-105 active:scale-95
+                        ${isPaused
+                            ? 'bg-emerald-500 hover:bg-emerald-400 text-zinc-950'
+                            : 'bg-amber-500 hover:bg-amber-400 text-zinc-950'}
+                    `}
+                >
+                    {isPaused
+                        ? <Play size={40} fill="currentColor" className="ml-2" />
+                        : <Pause size={40} fill="currentColor" />
+                    }
+                </button>
+
+                {/* Botão Parar/Salvar */}
                 <button
                     onClick={handleStop}
-                    title="Parar e Registrar"
-                    className={`flex items-center justify-center bg-white hover:bg-gray-100 backdrop-blur-lg rounded-full text-danger-color shadow-lg transition-all duration-200 ease-in-out transform hover:scale-105
-                                ${isFullscreen ? 'w-24 h-24 md:w-28 md:h-28' : 'w-20 h-20'}`}
+                    className="group flex flex-col items-center gap-2 text-zinc-500 hover:text-emerald-500 transition-colors"
                 >
-                    <IconStop className={`${isFullscreen ? 'w-10 h-10 md:w-12 md:h-12' : 'w-6 h-6'}`}/>
-                </button>
-
-                <button
-                    onClick={toggleFullscreen}
-                    title={isFullscreen ? 'Sair do Modo Foco' : 'Modo Foco'}
-                    className={`flex items-center justify-center bg-white/20 hover:bg-white/30 backdrop-blur-lg rounded-full text-white transition-all duration-200 ease-in-out
-                                ${isFullscreen ? 'w-20 h-20 md:w-24 md:h-24' : 'w-16 h-16'}`}
-                >
-                    {isFullscreen
-                        ? <IconMinimize className={`${isFullscreen ? 'w-8 h-8 md:w-10 md:h-10' : 'w-6 h-6'}`}/>
-                        : <IconExpand className={`${isFullscreen ? 'w-8 h-8 md:w-10 md:h-10' : 'w-6 h-6'}`}/>
-                    }
+                    <div className="w-14 h-14 md:w-16 md:h-16 rounded-full border-2 border-zinc-800 group-hover:border-emerald-500/50 flex items-center justify-center bg-zinc-900 transition-all">
+                        <Square size={24} fill="currentColor" />
+                    </div>
+                    <span className="text-xs font-bold uppercase tracking-wider opacity-0 group-hover:opacity-100 transition-opacity">Finalizar</span>
                 </button>
             </div>
         </div>
-    </motion.div>
+    </div>
   );
 }
 

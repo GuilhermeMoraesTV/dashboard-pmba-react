@@ -3,65 +3,79 @@
 @tailwind utilities;
 
 @layer base {
-  * {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-  }
-
-  html {
-    scroll-behavior: smooth;
+  :root {
+    color-scheme: light dark;
   }
 
   body {
-    background-color: theme('colors.background.light');
-    color: theme('colors.text.DEFAULT');
-    font-family: 'Inter', system-ui, sans-serif;
-    line-height: 1.6;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    transition: background-color 0.3s ease, color 0.3s ease;
-    position: relative;
+    @apply font-sans antialiased transition-colors duration-300;
+    @apply bg-background-light text-text-primary;
   }
 
-  /* CORREÇÃO (Linhas Diagonais):
-    A sintaxe do gradiente estava incorreta (ex: 20px antes de 10px).
-    Corrigido para o padrão 10px/20px que você queria.
-  */
-  body::before {
-    content: '';
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-image: repeating-linear-gradient(
-      45deg,
-      transparent,
-      transparent 10px,
-      rgba(0, 0, 0, 0.03) 10px,
-      rgba(0, 0, 0, 0.03) 20px
-    );
-    pointer-events: none;
-    z-index: 0;
-  }
-
+  /* DARK MODE: Cinza Profundo com gradiente sutil */
   body.dark {
-    background-color: theme('colors.background.dark');
-    color: theme('colors.text.dark-DEFAULT');
+    @apply bg-background-dark text-text-dark-primary;
+    /* Um brilho sutil no topo para dar profundidade */
+    background-image: radial-gradient(circle at 50% 0%, #27272a 0%, #09090b 50%);
+    background-attachment: fixed;
   }
 
-  /* CORREÇÃO (Linhas Diagonais):
-    A sintaxe do gradiente também estava incorreta aqui.
-  */
-  body.dark::before {
-    background-image: repeating-linear-gradient(
-      45deg,
-      transparent,
-      transparent 10px,
-      rgba(255, 255, 255, 0.02) 10px,
-      rgba(255, 255, 255, 0.02) 20px
-    );
+  /* Scrollbar minimalista */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-zinc-300 dark:bg-zinc-700 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-accent-light;
+  }
+}
+
+@layer components {
+  /* Estilo Padrão dos Cards */
+  .dashboard-card {
+    @apply bg-card-light dark:bg-card-dark;
+    @apply border border-border-light dark:border-border-dark;
+    @apply rounded-xl shadow-soft transition-all duration-300;
+  }
+
+  .dashboard-card:hover {
+    @apply border-accent-light/50 dark:border-accent-light/30 shadow-glow;
+    transform: translateY(-2px);
+  }
+
+  /* Inputs Modernos */
+  .input-modern {
+    @apply w-full bg-zinc-50 dark:bg-zinc-950;
+    @apply border border-border-light dark:border-border-dark;
+    @apply rounded-lg px-3 py-2 text-sm outline-none transition-all;
+    @apply text-text-primary dark:text-text-dark-primary;
+  }
+
+  .input-modern:focus {
+    @apply border-accent-light ring-1 ring-accent-light;
+  }
+
+  /* Botões */
+  .btn-primary {
+    @apply bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900;
+    @apply px-4 py-2 rounded-lg font-medium transition-all;
+    @apply hover:bg-zinc-700 dark:hover:bg-white;
+  }
+
+
+  /* Todo conteúdo fica acima do background */
+  #root {
+    position: relative;
+    z-index: 1;
   }
 
   h1, h2, h3, h4, h5, h6 {
@@ -103,7 +117,6 @@
     border-color: theme('colors.border.dark');
   }
 
-  /* Esta parte está correta, ela usa 'primary', que agora é cinza */
   input:focus,
   textarea:focus,
   select:focus {
@@ -162,7 +175,6 @@
   }
 }
 
-/* ... (keyframes - sem mudanças) ... */
 @keyframes fadeInFromBottom {
   from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: translateY(0); }
@@ -188,7 +200,6 @@
 }
 
 @layer components {
-  /* ... (animações - sem mudanças) ... */
   .animate-fade-in {
     animation: fadeInFromBottom 0.4s ease-out;
   }
@@ -241,13 +252,10 @@
   .badge-warning {
     @apply bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400;
   }
-
-
   .badge-info {
     @apply bg-neutral-100 dark:bg-neutral-900/30 text-neutral-600 dark:text-neutral-400;
   }
 
-  /* ... (ciclo-slice - sem mudanças) ... */
   .ciclo-slice-group {
     transition: all 0.2s ease-out;
     cursor: pointer;
@@ -284,7 +292,6 @@
   .ciclo-legend-item:focus {
     outline: none;
   }
-  /* Esta parte está correta, usa 'primary' */
   .ciclo-legend-item:focus-visible {
     @apply ring-2 ring-primary ring-offset-2;
   }
@@ -299,13 +306,7 @@
 
   .ciclo-legend-item.selected {
     @apply border-2;
-    /* Esta parte está correta, usa 'primary' como fallback */
     border-color: var(--disciplina-color, theme('colors.primary.DEFAULT'));
-
-    /* CORREÇÃO (Causa do Azul):
-      O 'box-shadow' tinha uma cor azul (rgba(59, 130, 246, 0.4))
-      escrita diretamente. Troquei por uma cor cinza (rgba(115, 115, 115, 0.4)).
-    */
     box-shadow: 0 0 15px 0px var(--disciplina-color, rgba(115, 115, 115, 0.4));
     transform: scale(1.02);
   }
@@ -314,7 +315,6 @@
   }
 }
 
-/* ... (media queries - sem mudanças) ... */
 @media (max-width: 768px) {
   body { font-size: 14px; }
   h1 { font-size: 1.4rem; }
@@ -328,7 +328,7 @@
     background: white;
     color: black;
   }
-  body::before {
+  body::before, body::after {
     display: none;
   }
   .no-print { display: none !important; }
@@ -341,3 +341,4 @@
     transition-duration: 0.01ms !important;
   }
 }
+

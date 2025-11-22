@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Link } from 'react-router-dom'; // Importado para o link "Cadastre-se"
-import { auth } from '/src/firebaseConfig.js'; // CAMINHO ABSOLUTO CORRIGIDO
-import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth'; // Funções reais
+import { Link } from 'react-router-dom';
+import { auth } from '/src/firebaseConfig.js';
+import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 
-// --- Ícones (Sem alteração) ---
 const IconEmail = () => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
     <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
@@ -21,10 +20,7 @@ const IconLoader = () => (
     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
   </svg>
 );
-// --- Fim Ícones ---
 
-
-// --- FUNÇÃO DE TRADUÇÃO DE ERROS (RE-ADICIONADA) ---
 const translateFirebaseError = (errorCode) => {
   switch (errorCode) {
     case 'auth/wrong-password':
@@ -39,8 +35,6 @@ const translateFirebaseError = (errorCode) => {
       return 'Falha ao fazer login. Verifique seus dados.';
   }
 };
-// --- FIM FUNÇÃO ---
-
 
 function Login() {
   const [email, setEmail] = useState('');
@@ -51,7 +45,6 @@ function Login() {
   const [forgotPasswordSuccess, setForgotPasswordSuccess] = useState('');
   const [forgotPasswordLoading, setForgotPasswordLoading] = useState(false);
 
-  // --- LÓGICA DE LOGIN (CORRIGIDA) ---
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -59,18 +52,14 @@ function Login() {
     setLoading(true);
 
     try {
-      // Lógica real do Firebase
       await signInWithEmailAndPassword(auth, email, password);
-      // O redirecionamento é tratado pelo App.jsx (que ouve o onAuthStateChanged)
     } catch (err) {
       console.error("Erro de login:", err.code);
       setError(translateFirebaseError(err.code));
     }
     setLoading(false);
   };
-  // --- FIM LÓGICA DE LOGIN ---
 
-  // --- ESQUECEU A SENHA (CORRIGIDO) ---
   const handleForgotPassword = async () => {
     if (!email) {
       setError('Por favor, digite seu e-mail no campo acima para redefinir a senha.');
@@ -81,7 +70,6 @@ function Login() {
     setForgotPasswordLoading(true);
 
     try {
-      // Lógica real do Firebase
       await sendPasswordResetEmail(auth, email);
       setForgotPasswordSuccess(`Link de redefinição enviado para ${email}. Verifique sua caixa de entrada.`);
     } catch (err) {
@@ -90,18 +78,15 @@ function Login() {
     }
     setForgotPasswordLoading(false);
   };
-  // --- FIM ESQUECEU A SENHA ---
 
   return (
     <div className="flex min-h-screen bg-[#0a0a0a] relative overflow-hidden">
-      {/* Padrão de fundo militar */}
       <div className="absolute inset-0 opacity-5">
         <div className="absolute inset-0" style={{
           backgroundImage: `repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,255,255,.05) 10px, rgba(255,255,255,.05) 20px)`
         }}></div>
       </div>
 
-      {/* LADO ESQUERDO: IMAGEM (SEM O TEXTO) */}
       <motion.div
         initial={{ opacity: 0, x: -100 }}
         animate={{ opacity: 1, x: 0 }}
@@ -114,18 +99,12 @@ function Login() {
           alt="PMBA"
           className="absolute inset-0 w-full h-full object-cover"
         />
-
-        {/* Overlay com efeito de grade */}
         <div className="absolute inset-0 z-20" style={{
           backgroundImage: `linear-gradient(rgba(10,10,10,0.4) 1px, transparent 1px), linear-gradient(90deg, rgba(10,10,10,0.4) 1px, transparent 1px)`,
           backgroundSize: '50px 50px'
         }}></div>
-
-        {/* --- TEXTO SOBRE A IMAGEM REMOVIDO --- */}
-
       </motion.div>
 
-      {/* LADO DIREITO: FORMULÁRIO */}
       <motion.div
         initial={{ opacity: 0, x: 100 }}
         animate={{ opacity: 1, x: 0 }}
@@ -133,7 +112,6 @@ function Login() {
         className="w-full lg:w-1/2 flex items-center justify-center p-6 md:p-12 relative z-10"
       >
         <div className="w-full max-w-md">
-          {/* Logo */}
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -143,7 +121,6 @@ function Login() {
             <img src="/logo-pmba.png" alt="Logo PMBA" className="h-16 w-auto" />
           </motion.div>
 
-          {/* Título (ALTERADO) */}
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -159,7 +136,6 @@ function Login() {
             </p>
           </motion.div>
 
-          {/* Formulário */}
           <motion.form
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -167,7 +143,6 @@ function Login() {
             onSubmit={handleSubmit}
             className="space-y-5"
           >
-            {/* Mensagem de Erro */}
             {error && (
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
@@ -178,7 +153,6 @@ function Login() {
               </motion.div>
             )}
 
-            {/* Mensagem de Sucesso */}
             {forgotPasswordSuccess && (
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
@@ -189,15 +163,11 @@ function Login() {
               </motion.div>
             )}
 
-            {/* Input de E-mail */}
             <div>
               <label htmlFor="email" className="block text-xs font-bold mb-2 text-gray-300 uppercase tracking-wider">
                 E-mail
               </label>
               <div className="relative group">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-500 group-focus-within:text-red-500 transition-colors">
-                  <IconEmail />
-                </div>
                 <input
                   id="email"
                   name="email"
@@ -209,18 +179,17 @@ function Login() {
                   className="w-full p-3.5 pl-12 rounded-lg bg-[#1a1a1a] text-white border border-gray-800 focus:outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 transition-all placeholder:text-gray-600"
                   placeholder="seu.email@exemplo.com"
                 />
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-500 group-focus-within:text-red-500 transition-colors">
+                  <IconEmail />
+                </div>
               </div>
             </div>
 
-            {/* Input de Senha */}
             <div>
               <label htmlFor="password" className="block text-xs font-bold mb-2 text-gray-300 uppercase tracking-wider">
                 Senha
               </label>
               <div className="relative group">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-500 group-focus-within:text-red-500 transition-colors">
-                  <IconPassword />
-                </div>
                 <input
                   id="password"
                   name="password"
@@ -232,10 +201,12 @@ function Login() {
                   className="w-full p-3.5 pl-12 rounded-lg bg-[#1a1a1a] text-white border border-gray-800 focus:outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 transition-all placeholder:text-gray-600"
                   placeholder="••••••••"
                 />
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-500 group-focus-within:text-red-500 transition-colors">
+                  <IconPassword />
+                </div>
               </div>
             </div>
 
-            {/* Remember Me e Esqueceu a Senha */}
             <div className="flex items-center justify-between">
               <label className="flex items-center cursor-pointer group">
                 <input
@@ -258,7 +229,6 @@ function Login() {
               </button>
             </div>
 
-            {/* Botão de Login */}
             <div className="pt-2">
               <button
                 type="submit"
@@ -280,7 +250,6 @@ function Login() {
             </div>
           </motion.form>
 
-          {/* Link de Cadastro (CORRIGIDO PARA <Link>) */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -307,9 +276,6 @@ function Login() {
               </Link>
             </p>
           </motion.div>
-
-          {/* --- RODAPÉ REMOVIDO --- */}
-
         </div>
       </motion.div>
     </div>
@@ -317,4 +283,3 @@ function Login() {
 }
 
 export default Login;
-

@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 
 import CicloVisual from '../components/ciclos/CicloVisual';
 import RegistroEstudoModal from '../components/ciclos/RegistroEstudoModal';
-import StudyTimer from '../components/ciclos/StudyTimer';
+// StudyTimer import REMOVED (It's now global in Dashboard)
 import DisciplinaDetalheModal from '../components/ciclos/DisciplinaDetalheModal';
 
 const IconArrowLeft = () => (
@@ -40,7 +40,6 @@ const IconSwitch = () => (
     </svg>
 );
 
-
 const dateToYMD_local = (date) => {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -48,8 +47,8 @@ const dateToYMD_local = (date) => {
   return `${year}-${month}-${day}`;
 };
 
-
-function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo }) {
+// Receive onStartStudy prop
+function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStudy }) {
 
   const [ciclo, setCiclo] = useState(null);
   const [disciplinas, setDisciplinas] = useState([]);
@@ -60,10 +59,10 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo }) {
   const [registroPreenchido, setRegistroPreenchido] = useState(null);
   const [viewModeCiclo, setViewModeCiclo] = useState('semanal');
 
-  const [disciplinaEmEstudo, setDisciplinaEmEstudo] = useState(null);
   const [disciplinaEmDetalhe, setDisciplinaEmDetalhe] = useState(null);
   const [selectedDisciplinaId, setSelectedDisciplinaId] = useState(null);
 
+  // ... (Effects for loading data remain the same)
   useEffect(() => {
      if (!user || !cicloId) return;
      setLoading(true);
@@ -143,29 +142,15 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo }) {
     setSelectedDisciplinaId(disciplina.id);
   };
 
+  // --- IMPORTANT CHANGE HERE ---
   const handleStartStudy = (disciplina) => {
-    if (ciclo?.ativo) {
-        setDisciplinaEmEstudo(disciplina);
+    if (ciclo?.ativo && onStartStudy) {
+        // Instead of setting local state, we call the Dashboard function
+        onStartStudy(disciplina);
+        // We can close details if open
         setDisciplinaEmDetalhe(null);
         setSelectedDisciplinaId(null);
     }
-  };
-
-  const handleStopStudy = (tempoMinutos) => {
-    if (!disciplinaEmEstudo) return;
-
-    const disciplina = disciplinaEmEstudo;
-    setDisciplinaEmEstudo(null);
-
-    setRegistroPreenchido({
-        disciplinaId: disciplina.id,
-        tempoEstudadoMinutos: Math.max(1, Math.round(tempoMinutos)),
-    });
-    setShowRegistroModal(true);
-  };
-
-  const handleCancelStudy = () => {
-    setDisciplinaEmEstudo(null);
   };
 
   const openRegistroModalWithTopic = (disciplinaId, topico) => {
@@ -265,50 +250,32 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo }) {
       <div className="flex flex-col flex-grow items-center p-4 md:p-6">
           <div className="w-full max-w-5xl bg-card-background-color dark:bg-dark-card-background-color rounded-xl shadow-lg p-4 md:p-6 border border-border-color dark:border-dark-border-color">
 
-              <AnimatePresence mode="wait">
-                {disciplinaEmEstudo ? (
-                    <motion.div
-                        key="timer"
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.9 }}
-                        transition={{ duration: 0.2 }}
-                        className="w-full"
-                    >
-                        <StudyTimer
-                            disciplina={disciplinaEmEstudo}
-                            onStop={handleStopStudy}
-                            onCancel={handleCancelStudy}
-                        />
-                    </motion.div>
-                ) : (
-                    <motion.div
-                        key="ciclo"
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.9 }}
-                        transition={{ duration: 0.2 }}
-                        className="w-full"
-                    >
-                        <CicloVisual
-                            selectedDisciplinaId={selectedDisciplinaId}
-                            onSelectDisciplina={setSelectedDisciplinaId}
-                            onViewDetails={handleViewDetails}
-                            onStartStudy={handleStartStudy}
-                            disciplinas={disciplinas}
-                            registrosEstudo={registrosDoCiclo}
-                            viewMode={viewModeCiclo}
-                            key={viewModeCiclo}
-                        />
-                    </motion.div>
-                )}
-              </AnimatePresence>
+              {/* REMOVED LOCAL TIMER LOGIC */}
+              <motion.div
+                  key="ciclo"
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  transition={{ duration: 0.2 }}
+                  className="w-full"
+              >
+                  <CicloVisual
+                      selectedDisciplinaId={selectedDisciplinaId}
+                      onSelectDisciplina={setSelectedDisciplinaId}
+                      onViewDetails={handleViewDetails}
+                      onStartStudy={handleStartStudy}
+                      disciplinas={disciplinas}
+                      registrosEstudo={registrosDoCiclo}
+                      viewMode={viewModeCiclo}
+                      key={viewModeCiclo}
+                  />
+              </motion.div>
           </div>
       </div>
 
 
       <AnimatePresence>
-      {!disciplinaEmEstudo && (
+        {/* Only show manual add button, no timer check needed here */}
         <motion.div
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -332,7 +299,6 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo }) {
               </span>
           </button>
         </motion.div>
-      )}
       </AnimatePresence>
 
 

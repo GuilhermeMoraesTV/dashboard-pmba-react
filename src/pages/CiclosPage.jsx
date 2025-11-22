@@ -2,27 +2,26 @@ import React, { useState } from 'react';
 import CiclosList from '../components/ciclos/CiclosList';
 import CicloDetalhePage from './CicloDetalhePage';
 
-// Recebe 'user', 'addRegistroEstudo' e a NOVA 'onCicloAtivado'
-function CiclosPage({ user, addRegistroEstudo, onCicloAtivado }) {
+// Receives 'onStartStudy' from Dashboard (to trigger global timer)
+function CiclosPage({ user, addRegistroEstudo, onCicloAtivado, onStartStudy }) {
   const [selectedCicloId, setSelectedCicloId] = useState(null);
 
   if (selectedCicloId) {
-    // Passa 'user' e 'addRegistroEstudo' para a página de Detalhe
     return (
       <CicloDetalhePage
         cicloId={selectedCicloId}
         onBack={() => setSelectedCicloId(null)}
         user={user}
-        addRegistroEstudo={addRegistroEstudo} // <-- Prop 'add' passada
+        addRegistroEstudo={addRegistroEstudo}
+        onStartStudy={onStartStudy} // <--- PASSING IT DOWN
       />
     );
   } else {
-    // Passa 'user' e a NOVA 'onCicloAtivado' para a página de Lista
     return (
       <CiclosList
         onCicloClick={(id) => setSelectedCicloId(id)}
         user={user}
-        onCicloAtivado={onCicloAtivado} // <-- Prop 'onCicloAtivado' passada
+        onCicloAtivado={onCicloAtivado}
       />
     );
   }
