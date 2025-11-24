@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Play, Pause, Square, Maximize2, Minimize2, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const formatTime = (totalSeconds) => {
   const hours = Math.floor(totalSeconds / 3600);
@@ -9,13 +10,30 @@ const formatTime = (totalSeconds) => {
 };
 
 function StudyTimer({ disciplina, onStop, onCancel, isMinimized, onMaximize, onMinimize }) {
+  // Estado de Preparação (3, 2, 1...)
+  const [isPreparing, setIsPreparing] = useState(true);
+  const [countdown, setCountdown] = useState(3);
+
   const [seconds, setSeconds] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const intervalRef = useRef(null);
 
-  // Inicia o timer
+  // Efeito de Contagem Regressiva Inicial
   useEffect(() => {
-    if (!isPaused) {
+    if (isPreparing) {
+      if (countdown > 0) {
+        const timer = setTimeout(() => setCountdown(c => c - 1), 1000);
+        return () => clearTimeout(timer);
+      } else {
+        // Fim da contagem, inicia o timer real
+        setIsPreparing(false);
+      }
+    }
+  }, [isPreparing, countdown]);
+
+  // Timer Real (Só roda se não estiver preparando)
+  useEffect(() => {
+    if (!isPreparing && !isPaused) {
       intervalRef.current = setInterval(() => {
         setSeconds(s => s + 1);
       }, 1000);
@@ -23,16 +41,14 @@ function StudyTimer({ disciplina, onStop, onCancel, isMinimized, onMaximize, onM
       clearInterval(intervalRef.current);
     }
     return () => clearInterval(intervalRef.current);
-  }, [isPaused]);
+  }, [isPaused, isPreparing]);
 
-  // Função de Parar (Salvar)
   const handleStop = () => {
     const totalMinutos = Math.max(1, Math.round(seconds / 60));
-    onStop(totalMinutos); // Retorna os minutos para o pai salvar
+    onStop(totalMinutos);
   };
 
   // --- MODO BOLHA (MINIMIZADO) ---
-  // Mantivemos um z-index alto (60) para ficar sobre o conteúdo, mas abaixo de modais críticos se houver
   if (isMinimized) {
     return (
       <div className="fixed bottom-24 right-4 z-[9999] animate-fade-in">
@@ -40,15 +56,12 @@ function StudyTimer({ disciplina, onStop, onCancel, isMinimized, onMaximize, onM
             className="bg-zinc-900/90 backdrop-blur-md border border-emerald-500/30 shadow-[0_0_20px_rgba(16,185,129,0.2)] rounded-2xl p-3 flex items-center gap-4 w-auto max-w-[300px] overflow-hidden hover:scale-105 transition-transform cursor-pointer"
             onClick={onMaximize}
         >
-
-          {/* Indicador Pulsante */}
           <div className="relative flex items-center justify-center w-10 h-10 bg-zinc-800 rounded-full shrink-0">
              <div className={`absolute inset-0 rounded-full ${isPaused ? 'bg-amber-500/20' : 'bg-emerald-500/20 animate-ping'}`}></div>
              <span className={`text-xs font-bold ${isPaused ? 'text-amber-500' : 'text-emerald-500'}`}>
                 {isPaused ? '||' : 'ON'}
              </span>
           </div>
-
           <div className="flex flex-col mr-2">
              <span className="text-[10px] text-zinc-400 uppercase font-bold tracking-wider truncate max-w-[120px]">
                 {disciplina.nome}
@@ -57,8 +70,6 @@ function StudyTimer({ disciplina, onStop, onCancel, isMinimized, onMaximize, onM
                 {formatTime(seconds)}
              </span>
           </div>
-
-          {/* Controles Mini */}
           <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
              <button
                 onClick={() => setIsPaused(!isPaused)}
@@ -78,12 +89,31 @@ function StudyTimer({ disciplina, onStop, onCancel, isMinimized, onMaximize, onM
     );
   }
 
-  // --- MODO FOCO (TELA CHEIA / EXPANDIDO) ---
-  return (
-    // AQUI ESTÁ A CORREÇÃO: Alterado de z-50 para z-[9999]
-    // Isso garante que ele fique acima da Sidebar (que geralmente é z-40 ou z-50)
-    <div className="fixed inset-0 z-[9999] bg-zinc-950 flex flex-col items-center justify-center animate-fade-in">
+  // --- TELA DE PREPARAÇÃO (3, 2, 1) ---
+  if (isPreparing) {
+      return (
+        <div className="fixed inset-0 z-[9999] bg-zinc-950 flex flex-col items-center justify-center">
+            <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, rgba(255,255,255,0.1) 1px, transparent 0)', backgroundSize: '40px 40px' }}></div>
 
+            <motion.div
+                key={countdown}
+                initial={{ scale: 0.5, opacity: 0 }}
+                animate={{ scale: 1.5, opacity: 1 }}
+                exit={{ scale: 2, opacity: 0 }}
+                transition={{ duration: 0.5 }}
+                className="text-[15rem] font-black text-white drop-shadow-[0_0_30px_rgba(16,185,129,0.5)]"
+            >
+                {countdown > 0 ? countdown : "GO!"}
+            </motion.div>
+
+            <p className="mt-8 text-zinc-500 text-xl uppercase tracking-[0.5em] font-bold">Preparar Foco</p>
+        </div>
+      );
+  }
+
+  // --- MODO FOCO (TIMER ATIVO) ---
+  return (
+    <div className="fixed inset-0 z-[9999] bg-zinc-950 flex flex-col items-center justify-center animate-fade-in">
         {/* Background Tático */}
         <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, rgba(255,255,255,0.1) 1px, transparent 0)', backgroundSize: '40px 40px' }}></div>
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-emerald-500 to-transparent opacity-30"></div>
@@ -132,7 +162,6 @@ function StudyTimer({ disciplina, onStop, onCancel, isMinimized, onMaximize, onM
 
             {/* Controles Principais */}
             <div className="flex items-center gap-6 md:gap-10">
-                {/* Botão Cancelar */}
                 <button
                     onClick={onCancel}
                     className="group flex flex-col items-center gap-2 text-zinc-500 hover:text-red-500 transition-colors"
@@ -143,7 +172,6 @@ function StudyTimer({ disciplina, onStop, onCancel, isMinimized, onMaximize, onM
                     <span className="text-xs font-bold uppercase tracking-wider opacity-0 group-hover:opacity-100 transition-opacity">Cancelar</span>
                 </button>
 
-                {/* Botão Play/Pause (Central) */}
                 <button
                     onClick={() => setIsPaused(!isPaused)}
                     className={`
@@ -159,7 +187,6 @@ function StudyTimer({ disciplina, onStop, onCancel, isMinimized, onMaximize, onM
                     }
                 </button>
 
-                {/* Botão Parar/Salvar */}
                 <button
                     onClick={handleStop}
                     className="group flex flex-col items-center gap-2 text-zinc-500 hover:text-emerald-500 transition-colors"

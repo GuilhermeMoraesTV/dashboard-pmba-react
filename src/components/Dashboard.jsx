@@ -12,7 +12,7 @@ import GoalsTab from '../components/dashboard/GoalsTab';
 import CalendarTab from '../components/dashboard/CalendarTab';
 import CiclosPage from '../pages/CiclosPage';
 import ProfilePage from '../pages/ProfilePage';
-import StudyTimer from '../components/ciclos/StudyTimer'; // <--- NOVO IMPORT
+import StudyTimer from '../components/ciclos/StudyTimer';
 
 const dateToYMD = (date) => {
   const d = date.getDate();
@@ -41,13 +41,12 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
 
   // Estados Globais
   const [activeCicloId, setActiveCicloId] = useState(null);
-  const [activeCicloData, setActiveCicloData] = useState(null); // Para pegar nome do ciclo
+  const [activeCicloData, setActiveCicloData] = useState(null);
   const [allRegistrosEstudo, setAllRegistrosEstudo] = useState([]);
   const [activeRegistrosEstudo, setActiveRegistrosEstudo] = useState([]);
 
-  // --- NOVO: Estado da Sessão de Estudo (Timer Global) ---
+  // Estado do Timer Global
   const [activeStudySession, setActiveStudySession] = useState(null);
-  // Exemplo de objeto: { disciplina: {id, nome}, isMinimized: false }
 
   useEffect(() => {
     const handleResize = () => {
@@ -79,7 +78,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     return () => unsubscribe();
   }, [user]);
 
-  // Busca Registros
+  // Busca Todos os Registros
   useEffect(() => {
     if (!user) return;
     setLoading(true);
@@ -107,6 +106,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     return () => unsubscribe();
   }, [user]);
 
+  // Filtra registros do ciclo ativo
   useEffect(() => {
     if (loading) return;
     if (!activeCicloId) {
@@ -116,6 +116,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     }
   }, [activeCicloId, allRegistrosEstudo, loading]);
 
+  // Busca Metas
   useEffect(() => {
     if (!user) return;
     const q = query(collection(db, 'users', user.uid, 'metas'), orderBy('startDate', 'desc'));
@@ -123,39 +124,81 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     return () => unsubscribe();
   }, [user]);
 
-  // --- Lógica de Timer Global ---
+  // --- FUNÇÕES DE AÇÃO ---
 
-  // Iniciar Timer (Chamado pela CiclosPage ou Atalho da Home)
+  const addRegistroEstudo = async (data) => {
+    try {
+      const collectionRef = collection(db, 'users', user.uid, 'registrosEstudo');
+      await addDoc(collectionRef, {
+        ...data,
+        timestamp: Timestamp.now()
+      });
+    } catch (e) {
+      console.error('Erro ao adicionar registro:', e);
+    }
+  };
+
   const handleStartStudy = (disciplina) => {
     setActiveStudySession({
         disciplina,
-        isMinimized: false // Começa Maximizado
+        isMinimized: false
     });
   };
 
-  // Finalizar Timer e Salvar
   const handleStopStudy = async (minutes) => {
     if (!activeStudySession) return;
 
-    // Salva no Firebase
-    try {
-        const data = {
-            cicloId: activeCicloId,
-            disciplinaId: activeStudySession.disciplina.id,
-            disciplinaNome: activeStudySession.disciplina.nome,
-            data: dateToYMD(new Date()),
-            tempoEstudadoMinutos: minutes,
-            questoesFeitas: 0, // Opcional: pode abrir modal pra perguntar questões depois
-            acertos: 0,
-            obs: 'Sessão cronometrada'
-        };
-        const collectionRef = collection(db, 'users', user.uid, 'registrosEstudo');
-        await addDoc(collectionRef, { ...data, timestamp: Timestamp.now() });
-
-        setActiveStudySession(null); // Fecha timer
-    } catch (e) {
-        console.error("Erro ao salvar estudo", e);
+    // Validação
+    if (!activeCicloId) {
+        alert("Nenhum ciclo ativo encontrado. Ative um ciclo antes de salvar.");
+        return;
     }
+
+    // Pergunta interativa
+    setTimeout(async () => {
+        const inputQ = window.prompt("⏱️ Sessão finalizada! Quantas questões você resolveu? (0 se apenas leitura)");
+
+        if (inputQ !== null) {
+            const questoes = parseInt(inputQ) || 0;
+            let acertos = 0;
+
+            if (questoes > 0) {
+                const inputA = window.prompt(`Das ${questoes} questões, quantas você acertou?`);
+                if (inputA !== null) acertos = parseInt(inputA) || 0;
+            }
+
+            try {
+                const data = {
+                    cicloId: activeCicloId,
+                    disciplinaId: activeStudySession.disciplina.id,
+                    disciplinaNome: activeStudySession.disciplina.nome,
+                    data: dateToYMD(new Date()),
+                    tempoEstudadoMinutos: minutes,
+                    questoesFeitas: questoes,
+                    acertos: acertos,
+                    obs: 'Sessão via Timer'
+                };
+                await addRegistroEstudo(data);
+                setActiveStudySession(null);
+            } catch (e) {
+                console.error("Erro ao salvar timer:", e);
+            }
+        } else {
+            // Se cancelar, salva só o tempo
+            const data = {
+                cicloId: activeCicloId,
+                disciplinaId: activeStudySession.disciplina.id,
+                disciplinaNome: activeStudySession.disciplina.nome,
+                data: dateToYMD(new Date()),
+                tempoEstudadoMinutos: minutes,
+                questoesFeitas: 0,
+                acertos: 0,
+                obs: 'Sessão via Timer (Sem questões)'
+            };
+            await addRegistroEstudo(data);
+            setActiveStudySession(null);
+        }
+    }, 100);
   };
 
   const handleCancelStudy = () => {
@@ -163,13 +206,6 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
           setActiveStudySession(null);
       }
   };
-
-  // Minimizar/Maximizar
-  const toggleTimerView = () => {
-      setActiveStudySession(prev => ({ ...prev, isMinimized: !prev.isMinimized }));
-  };
-
-  // --- Fim Lógica Timer ---
 
   const deleteRegistro = async (id) => {
     await deleteDoc(doc(db, 'users', user.uid, 'registrosEstudo', id));
@@ -192,7 +228,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     if (loading && ['home', 'calendar'].includes(activeTab)) {
       return (
         <div className="flex justify-center items-center h-64">
-           <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-accent"></div>
+           <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-accent mx-auto mb-4"></div>
         </div>
       );
     }
@@ -204,20 +240,27 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
                 registrosEstudo={activeRegistrosEstudo}
                 goalsHistory={goalsHistory}
                 setActiveTab={setActiveTab}
-                activeCicloData={activeCicloData} // Passando dados do ciclo
+                activeCicloData={activeCicloData}
                 onDeleteRegistro={deleteRegistro}
             />
         );
       case 'goals':
-        return <GoalsTab goalsHistory={goalsHistory} onAddGoal={addGoal} onDeleteGoal={(id) => deleteData('metas', id)} />;
+        return (
+          <GoalsTab
+            goalsHistory={goalsHistory}
+            onSetGoal={addGoal} // <--- CORREÇÃO AQUI (Era onAddGoal, agora é onSetGoal)
+            onDeleteGoal={(id) => deleteData('metas', id)}
+          />
+        );
       case 'calendar':
         return <CalendarTab registrosEstudo={allRegistrosEstudo} goalsHistory={goalsHistory} onDeleteRegistro={deleteRegistro} />;
       case 'ciclos':
         return (
             <CiclosPage
                 user={user}
-                onStartStudy={handleStartStudy} // Passando a função global de iniciar
+                onStartStudy={handleStartStudy}
                 onCicloAtivado={(id) => setActiveCicloId(id)}
+                addRegistroEstudo={addRegistroEstudo}
             />
         );
       case 'profile':
@@ -230,7 +273,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   return (
     <div className="flex min-h-screen bg-background-light dark:bg-background-dark text-text-primary dark:text-text-dark-primary transition-colors duration-300 overflow-x-hidden">
 
-      {/* O TIMER GLOBAL FICA AQUI, ACIMA DE TUDO */}
+      {/* Timer Global */}
       {activeStudySession && (
           <StudyTimer
               disciplina={activeStudySession.disciplina}
@@ -254,7 +297,15 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       />
 
       <div className={`flex-grow w-full transition-all duration-300 ease-in-out pt-[80px] px-4 md:px-8 lg:pt-8 pb-10 ${isSidebarExpanded ? 'lg:ml-[260px]' : 'lg:ml-[80px]'}`}>
-        <Header user={user} activeTab={activeTab} isDarkMode={isDarkMode} toggleTheme={toggleTheme} />
+        <Header
+            user={user}
+            activeTab={activeTab}
+            isDarkMode={isDarkMode}
+            toggleTheme={toggleTheme}
+            registrosEstudo={allRegistrosEstudo}
+            goalsHistory={goalsHistory}
+        />
+
         <main className="mt-6 max-w-7xl mx-auto animate-fade-in">
           {renderTabContent()}
         </main>

@@ -1,42 +1,57 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  Target, Clock, Trophy, Plus, Minus, Save, History,
+  Shield, Zap, Calendar, BarChart3, CheckCircle2, RotateCcw, Trash2
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
-const IconTarget = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-zinc-500 dark:text-zinc-400">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 1 1-3 0m3 0a1.5 1.5 0 1 0-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-9.75 0h3.75" />
-  </svg>
-);
-const IconClock = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-zinc-500 dark:text-zinc-400">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-  </svg>
-);
-const IconCheck = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-    <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-  </svg>
-);
-const IconTrophy = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-10 h-10 text-yellow-500">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
-  </svg>
-);
-const IconPlus = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-  </svg>
-);
-const IconMinus = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 12h-15" />
-  </svg>
-);
-const IconLoader = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 animate-spin">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
-  </svg>
-);
+// --- COMPONENTE DE CONTROLE (INPUT) ---
+const ControlCard = ({ label, value, onChange, icon: Icon, unit, step, min, max, colorClass }) => {
+  return (
+    <div className="bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-700/50 rounded-xl p-4 relative overflow-hidden group transition-all hover:border-zinc-300 dark:hover:border-zinc-600">
+      <div className="relative z-10 flex justify-between items-center mb-4">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-500 flex items-center gap-2">
+          <Icon size={14} className={colorClass} /> {label}
+        </h3>
+        <span className={`text-2xl font-black ${colorClass}`}>
+          {value} <span className="text-sm font-bold text-zinc-400">{unit}</span>
+        </span>
+      </div>
 
-function GoalsTab({ onSetGoal, goalsHistory }) {
+      <div className="relative z-10 flex items-center gap-3 bg-white dark:bg-zinc-950 p-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 shadow-inner">
+        <button
+          onClick={() => onChange(-step)}
+          className="p-3 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-red-500 transition-colors active:scale-95"
+        >
+          <Minus size={16} />
+        </button>
+
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          onChange={(e) => onChange(Number(e.target.value) - value)}
+          className="flex-1 h-2 bg-zinc-200 dark:bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-red-600"
+        />
+
+        <button
+          onClick={() => onChange(step)}
+          className="p-3 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-emerald-500 transition-colors active:scale-95"
+        >
+          <Plus size={16} />
+        </button>
+      </div>
+
+      <div className={`absolute -bottom-4 -right-4 opacity-5 group-hover:opacity-10 transition-opacity transform rotate-12 ${colorClass}`}>
+        <Icon size={80} />
+      </div>
+    </div>
+  );
+};
+
+function GoalsTab({ onSetGoal, goalsHistory, onDeleteGoal }) {
   const currentGoal = goalsHistory && goalsHistory[0];
   const [questionsGoal, setQuestionsGoal] = useState(0);
   const [hoursGoal, setHoursGoal] = useState(0);
@@ -49,8 +64,25 @@ function GoalsTab({ onSetGoal, goalsHistory }) {
     }
   }, [currentGoal]);
 
+  // --- CÁLCULOS DE PROJEÇÃO ---
+  const stats = useMemo(() => {
+    const weeklyHours = hoursGoal * 7;
+    const monthlyHours = hoursGoal * 30;
+    const weeklyQuestions = questionsGoal * 7;
+    const monthlyQuestions = questionsGoal * 30;
+
+    // Gamification
+    let level = { label: 'MANUTENÇÃO', color: 'text-blue-500', border: 'border-blue-500', bg: 'bg-blue-500' };
+    if (hoursGoal >= 2) level = { label: 'OPERACIONAL', color: 'text-emerald-500', border: 'border-emerald-500', bg: 'bg-emerald-500' };
+    if (hoursGoal >= 4) level = { label: 'INTENSIVO', color: 'text-amber-500', border: 'border-amber-500', bg: 'bg-amber-500' };
+    if (hoursGoal >= 6) level = { label: 'ELITE', color: 'text-red-600', border: 'border-red-600', bg: 'bg-red-600' };
+    if (hoursGoal >= 8) level = { label: 'INSANO', color: 'text-purple-600', border: 'border-purple-600', bg: 'bg-purple-600' };
+
+    return { weeklyHours, monthlyHours, weeklyQuestions, monthlyQuestions, level };
+  }, [hoursGoal, questionsGoal]);
+
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    if(e) e.preventDefault();
     setIsLoading(true);
     try {
       await onSetGoal({
@@ -64,155 +96,218 @@ function GoalsTab({ onSetGoal, goalsHistory }) {
     }
   };
 
+  const handleReactivate = (goal) => {
+      setQuestionsGoal(goal.questions || 0);
+      setHoursGoal(goal.hours || 0);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const handleQuestionsChange = (amount) => {
     setQuestionsGoal(q => Math.max(0, (parseInt(q, 10) || 0) + amount));
   };
   const handleHoursChange = (amount) => {
-    setHoursGoal(h => Math.max(0, (parseFloat(h) || 0) + amount));
+    setHoursGoal(h => Math.max(0, parseFloat(((parseFloat(h) || 0) + amount).toFixed(1))));
   };
 
   return (
-    <div>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    <div className="animate-fade-in space-y-8 pb-12">
 
-        <div className="lg:col-span-2 space-y-4">
-
-          <div className="bg-zinc-200 dark:bg-zinc-800 rounded-xl shadow-sm p-5 flex items-center gap-5 border border-zinc-300 dark:border-zinc-700 transition-all duration-300 hover:shadow-md">
-            <div className="flex-shrink-0 bg-yellow-100 dark:bg-yellow-900 p-3 rounded-full">
-              <IconTrophy />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold text-zinc-800 dark:text-white mb-1">
-                Ajuste seu Foco
-              </h2>
-              <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                Definir metas diárias é o primeiro passo para criar constância.
-                Sua meta atual é usada para medir seu progresso no calendário.
-              </p>
-            </div>
+      {/* HEADER */}
+      <div className="flex items-center gap-4 mb-8 relative overflow-hidden p-6 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
+          <div className="absolute -right-6 -top-6 text-red-500/5 pointer-events-none transform rotate-12">
+              <Target size={180} strokeWidth={1} />
           </div>
 
-          <div className="bg-zinc-200 dark:bg-zinc-800 rounded-xl shadow-sm p-5 border border-zinc-300 dark:border-zinc-700 transition-all duration-300 hover:shadow-md">
-            <div className="space-y-5">
+          <div className="w-16 h-16 bg-red-600 rounded-2xl flex items-center justify-center shadow-lg shadow-red-900/20 relative z-10">
+              <Target size={32} className="text-white" />
+          </div>
+          <div className="relative z-10">
+              <h1 className="text-3xl font-black text-zinc-900 dark:text-white uppercase tracking-tight">
+                  Estratégia & Metas
+              </h1>
+              <p className="text-zinc-500 dark:text-zinc-400 font-medium text-sm">
+                  Defina objetivos diários. O histórico preserva suas metas passadas.
+              </p>
+          </div>
+      </div>
 
-              <div>
-                <label htmlFor="questions-goal" className="block text-sm font-medium text-zinc-800 dark:text-white mb-2">
-                  Meta de Questões (por dia)
-                </label>
-                <div className="flex items-center gap-2">
-                  <button type="button" onClick={() => handleQuestionsChange(-10)} className="p-2.5 bg-zinc-300 dark:bg-zinc-700 border border-zinc-400 dark:border-zinc-600 rounded-lg hover:bg-zinc-400 dark:hover:bg-zinc-600 text-zinc-800 dark:text-white transition-all">
-                    <IconMinus />
-                  </button>
-                  <div className="relative flex-1">
-                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                      <IconTarget />
-                    </div>
-                    <input
-                      id="questions-goal"
-                      type="number" min="0"
-                      value={questionsGoal}
-                      onChange={(e) => setQuestionsGoal(e.target.value)}
-                      className="w-full p-2.5 pl-10 rounded-lg bg-zinc-100 dark:bg-zinc-900 border border-zinc-400 dark:border-zinc-600 focus:outline-none focus:ring-2 focus:ring-neutral-500 text-zinc-800 dark:text-white transition-all"
-                    />
-                  </div>
-                  <button type="button" onClick={() => handleQuestionsChange(10)} className="p-2.5 bg-zinc-300 dark:bg-zinc-700 border border-zinc-400 dark:border-zinc-600 rounded-lg hover:bg-zinc-400 dark:hover:bg-zinc-600 text-zinc-800 dark:text-white transition-all">
-                    <IconPlus />
-                  </button>
-                </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+        {/* ESQUERDA: CONTROLES */}
+        <div className="lg:col-span-2 space-y-6">
+
+          <div className="bg-white dark:bg-zinc-950 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-800 p-6 relative overflow-hidden">
+              <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${stats.level.bg}`}></div>
+
+              <div className="flex justify-between items-center mb-6 pl-2">
+                  <h2 className="text-lg font-bold text-zinc-800 dark:text-white flex items-center gap-2">
+                      <Zap size={18} className="text-amber-500" /> Configuração Diária
+                  </h2>
+                  <span className={`px-3 py-1 rounded-full text-[10px] font-black border ${stats.level.color} ${stats.level.border} bg-opacity-10 bg-zinc-100 dark:bg-zinc-900 uppercase tracking-wide`}>
+                      NÍVEL: {stats.level.label}
+                  </span>
               </div>
 
-              <div>
-                <label htmlFor="hours-goal" className="block text-sm font-medium text-zinc-800 dark:text-white mb-2">
-                  Meta de Horas (por dia)
-                </label>
-                <div className="flex items-center gap-2">
-                  <button type="button" onClick={() => handleHoursChange(-0.5)} className="p-2.5 bg-zinc-300 dark:bg-zinc-700 border border-zinc-400 dark:border-zinc-600 rounded-lg hover:bg-zinc-400 dark:hover:bg-zinc-600 text-zinc-800 dark:text-white transition-all">
-                    <IconMinus />
-                  </button>
-                  <div className="relative flex-1">
-                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                      <IconClock />
-                    </div>
-                    <input
-                      id="hours-goal"
-                      type="number" step="0.5" min="0"
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <ControlCard
+                      label="Meta de Horas"
                       value={hoursGoal}
-                      onChange={(e) => setHoursGoal(e.target.value)}
-                      className="w-full p-2.5 pl-10 rounded-lg bg-zinc-100 dark:bg-zinc-900 border border-zinc-400 dark:border-zinc-600 focus:outline-none focus:ring-2 focus:ring-neutral-500 text-zinc-800 dark:text-white transition-all"
-                    />
-                  </div>
-                   <button type="button" onClick={() => handleHoursChange(0.5)} className="p-2.5 bg-zinc-300 dark:bg-zinc-700 border border-zinc-400 dark:border-zinc-600 rounded-lg hover:bg-zinc-400 dark:hover:bg-zinc-600 text-zinc-800 dark:text-white transition-all">
-                    <IconPlus />
-                  </button>
-                </div>
+                      unit="h/dia"
+                      icon={Clock}
+                      onChange={handleHoursChange}
+                      step={0.5} min={0} max={16}
+                      colorClass="text-amber-500"
+                  />
+                  <ControlCard
+                      label="Meta de Questões"
+                      value={questionsGoal}
+                      unit="q/dia"
+                      icon={Target}
+                      onChange={handleQuestionsChange}
+                      step={5} min={0} max={200}
+                      colorClass="text-emerald-500"
+                  />
               </div>
 
-              <button
-                onClick={handleSubmit}
-                disabled={isLoading}
-                className="w-full flex items-center justify-center gap-2 px-5 py-2.5 bg-neutral-500 text-white rounded-lg font-semibold shadow-sm hover:bg-neutral-600 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
-              >
-                {isLoading ? (
-                  <>
-                    <IconLoader />
-                    Salvando...
-                  </>
-                ) : (
-                  <>
-                    <IconCheck />
-                    Salvar e Ativar Nova Meta
-                  </>
-                )}
-              </button>
-            </div>
+              {/* PROJEÇÃO */}
+              <div className="mt-8 p-5 bg-zinc-50 dark:bg-zinc-900/30 rounded-xl border border-zinc-200 dark:border-zinc-800">
+                  <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+                      <BarChart3 size={14} /> Projeção de Impacto
+                  </h3>
+                  <div className="grid grid-cols-2 gap-4">
+                      <div className="flex items-center justify-between p-3 bg-white dark:bg-zinc-950 rounded-lg border border-zinc-200 dark:border-zinc-800/50">
+                          <div>
+                              <p className="text-[10px] text-zinc-400 font-bold uppercase">Semanal (7 dias)</p>
+                              <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Consistência</p>
+                          </div>
+                          <div className="text-right">
+                              <p className="text-lg font-black text-zinc-800 dark:text-white">{stats.weeklyHours.toFixed(1)}h</p>
+                              <p className="text-xs font-bold text-emerald-500">{stats.weeklyQuestions} qst</p>
+                          </div>
+                      </div>
+                      <div className="flex items-center justify-between p-3 bg-white dark:bg-zinc-950 rounded-lg border border-zinc-200 dark:border-zinc-800/50">
+                          <div>
+                              <p className="text-[10px] text-zinc-400 font-bold uppercase">Mensal (30 dias)</p>
+                              <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Evolução</p>
+                          </div>
+                          <div className="text-right">
+                              <p className="text-lg font-black text-zinc-800 dark:text-white">{stats.monthlyHours.toFixed(1)}h</p>
+                              <p className="text-xs font-bold text-emerald-500">{stats.monthlyQuestions} qst</p>
+                          </div>
+                      </div>
+                  </div>
+              </div>
+
+              <div className="mt-6 flex justify-end">
+                  <button
+                    onClick={handleSubmit}
+                    disabled={isLoading}
+                    className="group relative px-8 py-4 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold shadow-xl hover:shadow-red-900/20 transition-all transform hover:-translate-y-1 active:translate-y-0 flex items-center gap-3 overflow-hidden disabled:opacity-70 disabled:cursor-not-allowed"
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700"></div>
+                    {isLoading ? 'Salvando...' : (
+                        <>
+                            <Save size={20} />
+                            <span className="uppercase tracking-wide">Confirmar Nova Meta</span>
+                        </>
+                    )}
+                  </button>
+              </div>
           </div>
         </div>
 
+        {/* DIREITA: HISTÓRICO INTERATIVO */}
         <div className="lg:col-span-1">
-           <div className="bg-zinc-200 dark:bg-zinc-800 rounded-xl shadow-sm p-5 border border-zinc-300 dark:border-zinc-700 transition-all duration-300 hover:shadow-md">
-            <h2 className="text-lg font-semibold text-zinc-800 dark:text-white mb-3">
-              Histórico de Metas
-            </h2>
-            <div className="space-y-2.5 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+           <div className="bg-white dark:bg-zinc-950 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-800 p-6 h-full flex flex-col relative overflow-hidden">
+             <div className="absolute -top-10 -right-10 text-zinc-100 dark:text-zinc-900 pointer-events-none transform -rotate-12">
+                <History size={150} strokeWidth={1} />
+            </div>
+
+            <div className="flex items-center justify-between mb-6 relative z-10">
+                <h2 className="text-lg font-bold text-zinc-800 dark:text-white flex items-center gap-2">
+                  <History size={20} className="text-red-500" /> Logs de Missão
+                </h2>
+                <span className="text-[10px] font-black text-zinc-400 bg-zinc-100 dark:bg-zinc-900 px-2 py-1 rounded uppercase tracking-wide">
+                    Histórico
+                </span>
+            </div>
+
+            <div className="space-y-3 flex-1 overflow-y-auto pr-2 custom-scrollbar max-h-[600px] relative z-10">
               {goalsHistory && goalsHistory.length > 0 ? (
                 goalsHistory.map((goal, index) => {
                   const isActive = index === 0;
                   const date = new Date(goal.startDate?.includes('-') ? goal.startDate + 'T03:00:00' : (goal.timestamp?.toDate() || goal.startDate));
 
                   return (
-                    <div
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.05 }}
                       key={goal.id}
-                      className={`p-3.5 bg-zinc-100 dark:bg-zinc-900 rounded-lg border-2 transition-all duration-200 ${isActive ? 'border-neutral-500' : 'border-zinc-300 dark:border-zinc-700'}`}
+                      className={`
+                        relative p-4 rounded-xl border transition-all duration-300 group
+                        ${isActive
+                            ? 'bg-red-50 dark:bg-red-900/10 border-red-500/30 shadow-sm'
+                            : 'bg-zinc-50 dark:bg-zinc-900/50 border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700'
+                        }
+                      `}
                     >
-                      <div className="flex justify-between items-center mb-2">
-                        <p className={`text-xs font-semibold ${isActive ? 'text-neutral-500' : 'text-zinc-800 dark:text-white'}`}>
-                          Iniciada em: {date.toLocaleDateString('pt-BR')}
-                        </p>
-                        {isActive && (
-                          <span className="text-xs font-bold bg-neutral-500/20 text-neutral-500 py-0.5 px-2 rounded-full">
-                            ATIVA
+                      <div className="flex justify-between items-start mb-3">
+                        <div>
+                            <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-0.5">DATA DE INÍCIO</p>
+                            <p className="text-xs font-mono text-zinc-600 dark:text-zinc-300 font-bold flex items-center gap-1">
+                              <Calendar size={12} /> {date.toLocaleDateString('pt-BR')}
+                            </p>
+                        </div>
+
+                        {isActive ? (
+                          <span className="text-[9px] font-black bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400 py-1 px-2 rounded flex items-center gap-1">
+                            <CheckCircle2 size={10} /> ATIVA
                           </span>
+                        ) : (
+                            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                {/* Botão Excluir */}
+                                <button
+                                    onClick={() => {
+                                        if(window.confirm("Tem certeza que deseja excluir este registro de meta do histórico?")) {
+                                            onDeleteGoal(goal.id);
+                                        }
+                                    }}
+                                    className="p-1.5 rounded-md bg-zinc-200 dark:bg-zinc-800 text-zinc-400 hover:text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                                    title="Excluir Registro"
+                                >
+                                    <Trash2 size={14} />
+                                </button>
+
+                                {/* Botão Reativar */}
+                                <button
+                                    onClick={() => handleReactivate(goal)}
+                                    className="text-[9px] font-bold bg-white dark:bg-zinc-800 text-indigo-500 border border-indigo-200 dark:border-indigo-900 py-1.5 px-2 rounded flex items-center gap-1 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 shadow-sm"
+                                >
+                                    <RotateCcw size={10} /> USAR
+                                </button>
+                            </div>
                         )}
                       </div>
-                      <div className="flex justify-between items-center text-xs gap-3">
-                        <span className="flex items-center gap-1.5 text-zinc-600 dark:text-zinc-400">
-                          <IconTarget />
-                          <span className="font-medium text-zinc-800 dark:text-white">{goal.questions || 0}</span>
-                          qst
-                        </span>
-                        <span className="flex items-center gap-1.5 text-zinc-600 dark:text-zinc-400">
-                          <IconClock />
-                          <span className="font-medium text-zinc-800 dark:text-white">{goal.hours || 0}</span>
-                          h
-                        </span>
+
+                      <div className="grid grid-cols-2 gap-2">
+                          <div className="flex flex-col items-center bg-white dark:bg-zinc-950 p-2 rounded-lg border border-zinc-100 dark:border-zinc-800">
+                              <span className="text-[10px] text-zinc-400 font-bold uppercase">Horas</span>
+                              <span className="text-sm font-black text-zinc-800 dark:text-white">{goal.hours || 0}h</span>
+                          </div>
+                          <div className="flex flex-col items-center bg-white dark:bg-zinc-950 p-2 rounded-lg border border-zinc-100 dark:border-zinc-800">
+                              <span className="text-[10px] text-zinc-400 font-bold uppercase">Questões</span>
+                              <span className="text-sm font-black text-zinc-800 dark:text-white">{goal.questions || 0}q</span>
+                          </div>
                       </div>
-                    </div>
+                    </motion.div>
                   );
                 })
               ) : (
-                <p className="text-zinc-600 dark:text-zinc-400 text-sm text-center py-10">
-                  Nenhuma meta definida ainda.
-                </p>
+                <div className="text-center py-10 text-zinc-400">
+                    <Shield size={40} className="mx-auto mb-2 opacity-20" />
+                    <p className="text-sm">Nenhuma estratégia definida.</p>
+                </div>
               )}
             </div>
           </div>

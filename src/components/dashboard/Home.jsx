@@ -1,7 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import DisciplineSummaryTable from './DisciplineSummaryTable.jsx';
 import DayDetailsModal from './DayDetailsModal.jsx';
-import DailyTacticalHUD from './DailyTacticalHUD.jsx';
 import { Clock, Target, TrendingUp, Flame, Calendar, CheckCircle2, XCircle } from 'lucide-react';
 
 const dateToYMD_local = (date) => {
@@ -169,11 +168,8 @@ function Home({ registrosEstudo, goalsHistory, setActiveTab, onDeleteRegistro })
   return (
     <div className="space-y-4 md:space-y-6 animate-slide-up pb-8 relative">
 
-      {/* HUD Tático Flutuante - Agora é a única visualização de meta */}
-      <DailyTacticalHUD registrosEstudo={registrosEstudo} goalsHistory={goalsHistory} />
-
-      {/* Grid Principal - Adicionado padding top para o HUD não cobrir */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6 pt-4">
+      {/* Grid Principal (Agora mais próximo do topo, pois o HUD flutuante foi removido) */}
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6 pt-0">
 
         <StatCard
           icon={Clock}

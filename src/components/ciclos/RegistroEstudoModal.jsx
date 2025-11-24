@@ -1,13 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../../firebaseConfig';
 import { collection, query, where, onSnapshot, orderBy, serverTimestamp } from 'firebase/firestore';
-
-const IconClose = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-    </svg>
-);
-
+import { X, Save, Clock, Target, BookOpen, List, Calendar, AlertTriangle } from 'lucide-react';
 
 function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disciplinasDoCiclo, initialData }) {
 
@@ -35,14 +29,13 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
 
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [topics, setTopics] = useState([]);
+  const [loadingTopics, setLoadingTopics] = useState(false);
 
   const isTimeFromTimer = useMemo(() =>
     initialData?.tempoEstudadoMinutos !== undefined && initialData.tempoEstudadoMinutos > 0,
     [initialData]
   );
-
-  const [topics, setTopics] = useState([]);
-  const [loadingTopics, setLoadingTopics] = useState(false);
 
   useEffect(() => {
     if (!formData.disciplinaId || !userId || !cicloId) {
@@ -50,8 +43,6 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
       setLoadingTopics(false);
       return;
     }
-
-    console.log('Carregando tópicos no modal para disciplina:', formData.disciplinaId);
 
     setLoadingTopics(true);
     setTopics([]);
@@ -66,17 +57,16 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
 
       const unsubscribe = onSnapshot(q, (snapshot) => {
         const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        console.log('Tópicos carregados no modal:', data);
         setTopics(data);
         setLoadingTopics(false);
       }, (error) => {
-        console.error("Erro ao carregar tópicos no modal:", error);
+        console.error("Erro ao carregar tópicos:", error);
         setLoadingTopics(false);
       });
 
       return () => unsubscribe();
     } catch (error) {
-      console.error("Erro ao configurar listener de tópicos:", error);
+      console.error("Erro ao configurar listener:", error);
       setLoadingTopics(false);
       setTopics([]);
     }
@@ -87,12 +77,8 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
   const handleChange = (e) => {
     const { name, value, type } = e.target;
     const numericValue = type === 'number' ? Number(value) : value;
-
     setFormData(prev => ({ ...prev, [name]: numericValue }));
-
-    if (name === 'disciplinaId') {
-        setFormData(prev => ({ ...prev, topicoId: '' }));
-    }
+    if (name === 'disciplinaId') setFormData(prev => ({ ...prev, topicoId: '' }));
   };
 
   const handleSubmit = async (e) => {
@@ -103,30 +89,18 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
     const totalMinutesFromForm = (Number(formData.horas || 0) * 60) + Number(formData.minutos || 0);
 
     if (!formData.disciplinaId || !formData.data || (totalMinutesFromForm <= 0 && formData.questoesFeitas <= 0)) {
-        setErrorMessage('Preencha os campos obrigatórios: Disciplina, Data e pelo menos Tempo (Horas/Minutos) ou Questões.');
+        setErrorMessage('Preencha: Disciplina, Data e pelo menos Tempo ou Questões.');
         setLoading(false);
         return;
     }
-
-    if (formData.minutos < 0 || formData.minutos >= 60) {
-        setErrorMessage('Os minutos devem estar entre 0 e 59.');
-        setLoading(false);
-        return;
-    }
-     if (formData.horas < 0) {
-        setErrorMessage('As horas não podem ser negativas.');
-        setLoading(false);
-        return;
-    }
-
 
     const disciplinaNome = disciplinasDoCiclo.find(d => d.id === formData.disciplinaId)?.nome || 'Desconhecida';
     const topicoNome = topics.find(t => t.id === formData.topicoId)?.nome || '';
 
     const registro = {
-      cicloId: cicloId,
+      cicloId,
       disciplinaId: formData.disciplinaId,
-      disciplinaNome: disciplinaNome,
+      disciplinaNome,
       topicoId: formData.topicoId || null,
       topicoNome: topicoNome || null,
       data: formData.data,
@@ -144,73 +118,112 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
       setLoading(false);
       onClose();
     } catch (error) {
-      console.error("Erro ao registrar estudo: ", error);
-      setErrorMessage('Erro ao salvar o registro. Tente novamente.');
+      console.error("Erro ao registrar:", error);
+      setErrorMessage('Erro ao salvar. Tente novamente.');
       setLoading(false);
     }
   };
 
-  const selectedDisciplina = disciplinasDoCiclo.find(d => d.id === formData.disciplinaId);
-
   return (
-    <div className="fixed inset-0 bg-black/60 z-50 flex justify-center items-center backdrop-blur-sm p-4">
-      <div className="bg-card-background-color dark:bg-dark-card-background-color rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex justify-center items-center p-4 animate-fade-in" onClick={onClose}>
 
-        <div className="flex justify-between items-center p-5 border-b border-border-color dark:border-dark-border-color">
-          <h2 className="text-xl font-bold text-heading-color dark:text-dark-heading-color">
-            Registrar Estudo
-          </h2>
-          <button onClick={onClose} className="text-subtle-text-color dark:text-dark-subtle-text-color hover:text-danger-color dark:hover:text-dark-danger-color transition-colors">
-            <IconClose />
-          </button>
+      {/* CARD PRINCIPAL */}
+      <div
+        className="bg-white dark:bg-zinc-950 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+
+        {/* --- HEADER TÁTICO COM ÍCONE INTEGRADO --- */}
+        <div className="relative flex justify-between items-center p-6 border-b border-zinc-100 dark:border-zinc-800 overflow-hidden bg-zinc-50/50 dark:bg-zinc-900/50">
+
+            {/* Marca D'água (Contida no Header) */}
+            <div className="absolute -right-6 -top-6 text-red-500/10 dark:text-red-500/5 pointer-events-none transform rotate-12">
+                <Save size={140} strokeWidth={1.5} />
+            </div>
+
+            <div className="flex items-center gap-4 relative z-10">
+                <div className="w-12 h-12 bg-red-500/10 text-red-600 dark:text-red-500 rounded-xl flex items-center justify-center shadow-sm ring-1 ring-red-500/20">
+                    <Save size={24} />
+                </div>
+                <div>
+                    <h2 className="text-xl font-black text-zinc-900 dark:text-white uppercase tracking-tight leading-none">
+                      Registrar Missão
+                    </h2>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium mt-1">
+                      Documentação de progresso operacional.
+                    </p>
+                </div>
+            </div>
+
+            <button
+              onClick={onClose}
+              className="relative z-10 p-2 text-zinc-400 hover:text-red-500 hover:bg-white dark:hover:bg-zinc-800 rounded-full transition-all border border-transparent hover:border-zinc-200 dark:hover:border-zinc-700"
+            >
+              <X size={24} />
+            </button>
         </div>
 
-        <form onSubmit={handleSubmit} id="registro-form" className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
+        {/* --- FORMULÁRIO --- */}
+        <form onSubmit={handleSubmit} id="registro-form" className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar relative z-10">
 
           {errorMessage && (
-            <div className="p-3 bg-danger-color/10 border border-danger-color/30 rounded-lg text-danger-color text-sm">
+            <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-500 text-sm font-medium flex items-center gap-2 animate-pulse">
+              <AlertTriangle size={18} />
               {errorMessage}
             </div>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="disciplinaId" className="block text-sm font-semibold mb-2 text-heading-color dark:text-dark-heading-color">Disciplina *</label>
-              <select
-                id="disciplinaId"
-                name="disciplinaId"
-                value={formData.disciplinaId}
-                onChange={handleChange}
-                required
-                className="w-full p-2.5 border border-border-color dark:border-dark-border-color rounded-lg bg-background-color dark:bg-dark-background-color focus:ring-2 focus:ring-primary-color focus:border-primary-color transition"
-              >
-                <option value="">Selecione...</option>
-                {disciplinasDoCiclo.map(disc => (
-                  <option key={disc.id} value={disc.id}>{disc.nome}</option>
-                ))}
-              </select>
-            </div>
+          {/* SEÇÃO 1: O QUE ESTUDOU? */}
+          <div className="space-y-4">
+              <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2 mb-2">
+                  <BookOpen size={14} /> Alvo do Estudo
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="group">
+                  <label className="block text-sm font-bold text-zinc-700 dark:text-zinc-300 mb-1.5">Disciplina</label>
+                  <select
+                    name="disciplinaId"
+                    value={formData.disciplinaId}
+                    onChange={handleChange}
+                    required
+                    className="w-full p-3 border border-zinc-200 dark:border-zinc-700 rounded-xl bg-zinc-50 dark:bg-zinc-900/50 focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all outline-none text-zinc-800 dark:text-white font-medium appearance-none"
+                  >
+                    <option value="">Selecione a matéria...</option>
+                    {disciplinasDoCiclo.map(disc => (
+                      <option key={disc.id} value={disc.id}>{disc.nome}</option>
+                    ))}
+                  </select>
+                </div>
 
-            <div>
-              <label htmlFor="topicoId" className="block text-sm font-semibold mb-2 text-heading-color dark:text-dark-heading-color">Tópico (Opcional)</label>
-              <select
-                id="topicoId"
-                name="topicoId"
-                value={formData.topicoId}
-                onChange={handleChange}
-                disabled={!formData.disciplinaId || loadingTopics}
-                className="w-full p-2.5 border border-border-color dark:border-dark-border-color rounded-lg bg-background-color dark:bg-dark-background-color focus:ring-2 focus:ring-primary-color focus:border-primary-color transition disabled:opacity-50"
-              >
-                <option value="">{loadingTopics ? 'Carregando...' : (topics.length > 0 ? 'Selecione o tópico...' : (selectedDisciplina ? 'Nenhum tópico' : 'Selecione a disciplina'))}</option>
-                {topics.map(topic => (
-                  <option key={topic.id} value={topic.id}>{topic.nome}</option>
-                ))}
-              </select>
-            </div>
+                <div className="group">
+                  <label className="block text-sm font-bold text-zinc-700 dark:text-zinc-300 mb-1.5">Tópico <span className="text-zinc-400 font-normal text-xs">(Opcional)</span></label>
+                  <div className="relative">
+                      <select
+                        name="topicoId"
+                        value={formData.topicoId}
+                        onChange={handleChange}
+                        disabled={!formData.disciplinaId || loadingTopics}
+                        className="w-full p-3 border border-zinc-200 dark:border-zinc-700 rounded-xl bg-zinc-50 dark:bg-zinc-900/50 focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all outline-none text-zinc-800 dark:text-white font-medium disabled:opacity-50 appearance-none"
+                      >
+                        <option value="">{loadingTopics ? 'Carregando...' : (topics.length > 0 ? 'Selecione o tópico...' : 'Geral / Nenhum')}</option>
+                        {topics.map(topic => (
+                          <option key={topic.id} value={topic.id}>{topic.nome}</option>
+                        ))}
+                      </select>
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-400">
+                          <List size={16} />
+                      </div>
+                  </div>
+                </div>
+              </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-semibold mb-2 text-heading-color dark:text-dark-heading-color">Tipo de Estudo *</label>
+          {/* SEÇÃO 2: TIPO E DATA */}
+          <div className="space-y-4">
+            <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2 mb-2">
+                  <List size={14} /> Detalhes da Operação
+            </h3>
+
             <div className="flex flex-wrap gap-2">
                 {tiposDeEstudo.map(tipo => (
                     <button
@@ -218,10 +231,10 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
                         type="button"
                         onClick={() => setFormData(prev => ({...prev, tipoEstudo: tipo}))}
                         className={`
-                          px-4 py-2 rounded-full text-sm font-semibold transition-all border
+                          px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wide transition-all border
                           ${formData.tipoEstudo === tipo
-                            ? 'bg-primary-color text-white border-transparent'
-                            : 'bg-background-color dark:bg-dark-background-color border-border-color dark:border-dark-border-color hover:bg-border-color dark:hover:bg-dark-border-color'
+                            ? 'bg-red-600 text-white border-red-600 shadow-lg shadow-red-500/20'
+                            : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border-transparent hover:bg-zinc-200 dark:hover:bg-zinc-700'
                           }
                         `}
                     >
@@ -229,98 +242,89 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
                     </button>
                 ))}
             </div>
-          </div>
 
-          <div className="grid grid-cols-3 gap-4 items-end">
-            <div>
-              <label htmlFor="data" className="block text-sm font-semibold mb-2 text-heading-color dark:text-dark-heading-color">Data *</label>
-              <input
-                type="date"
-                id="data"
-                name="data"
-                value={formData.data}
-                onChange={handleChange}
-                required
-                className="w-full p-2.5 border border-border-color dark:border-dark-border-color rounded-lg bg-background-color dark:bg-dark-background-color focus:ring-2 focus:ring-primary-color focus:border-primary-color transition"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="horas" className="block text-sm font-semibold mb-2 text-heading-color dark:text-dark-heading-color">Horas</label>
-              <input
-                type="number"
-                id="horas"
-                name="horas"
-                value={formData.horas}
-                onChange={handleChange}
-                min="0"
-                step="1"
-                disabled={isTimeFromTimer}
-                className="w-full p-2.5 border border-border-color dark:border-dark-border-color rounded-lg bg-background-color dark:bg-dark-background-color focus:ring-2 focus:ring-primary-color focus:border-primary-color transition disabled:opacity-50 disabled:bg-border-color dark:disabled:bg-dark-border-color"
-                placeholder="0"
-              />
-            </div>
-
-             <div>
-              <label htmlFor="minutos" className="block text-sm font-semibold mb-2 text-heading-color dark:text-dark-heading-color">Minutos</label>
-              <input
-                type="number"
-                id="minutos"
-                name="minutos"
-                value={formData.minutos}
-                onChange={handleChange}
-                min="0"
-                max="59"
-                step="1"
-                disabled={isTimeFromTimer}
-                className="w-full p-2.5 border border-border-color dark:border-dark-border-color rounded-lg bg-background-color dark:bg-dark-background-color focus:ring-2 focus:ring-primary-color focus:border-primary-color transition disabled:opacity-50 disabled:bg-border-color dark:disabled:bg-dark-border-color"
-                placeholder="0"
-              />
+            <div className="pt-2">
+                <label className="block text-sm font-bold text-zinc-700 dark:text-zinc-300 mb-1.5 flex items-center gap-2">
+                    <Calendar size={16} className="text-red-500"/> Data da Realização
+                </label>
+                <input
+                    type="date"
+                    name="data"
+                    value={formData.data}
+                    onChange={handleChange}
+                    required
+                    className="w-full p-3 border border-zinc-200 dark:border-zinc-700 rounded-xl bg-zinc-50 dark:bg-zinc-900/50 focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all outline-none text-zinc-800 dark:text-white font-bold"
+                />
             </div>
           </div>
-          {isTimeFromTimer && (
-              <p className="text-xs text-subtle-text-color dark:text-dark-subtle-text-color -mt-4">Tempo registrado pelo timer.</p>
-          )}
 
+          {/* SEÇÃO 3: MÉTRICAS (TEMPO E QUESTÕES) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-2">
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="questoesFeitas" className="block text-sm font-semibold mb-2 text-heading-color dark:text-dark-heading-color">Questões Feitas</label>
-              <input
-                type="number"
-                id="questoesFeitas"
-                name="questoesFeitas"
-                value={formData.questoesFeitas}
-                onChange={handleChange}
-                min="0"
-                step="1"
-                className="w-full p-2.5 border border-border-color dark:border-dark-border-color rounded-lg bg-background-color dark:bg-dark-background-color focus:ring-2 focus:ring-primary-color focus:border-primary-color transition"
-              />
-            </div>
+              {/* TEMPO */}
+              <div className="space-y-4 bg-zinc-50 dark:bg-zinc-900/30 p-4 rounded-2xl border border-zinc-100 dark:border-zinc-800">
+                  <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2">
+                      <Clock size={14} className="text-amber-500" /> Tempo de Foco
+                  </h3>
+                  <div className="flex gap-3 items-end">
+                      <div className="flex-1">
+                          <label className="text-xs font-semibold text-zinc-500 mb-1 block">Horas</label>
+                          <input
+                            type="number" name="horas" value={formData.horas} onChange={handleChange}
+                            min="0" disabled={isTimeFromTimer}
+                            className="w-full p-3 text-center text-xl font-black border border-zinc-200 dark:border-zinc-700 rounded-xl bg-white dark:bg-zinc-900 focus:ring-2 focus:ring-amber-500 outline-none transition-all disabled:opacity-50"
+                            placeholder="0"
+                          />
+                      </div>
+                      <span className="text-zinc-400 font-bold pb-4">:</span>
+                      <div className="flex-1">
+                          <label className="text-xs font-semibold text-zinc-500 mb-1 block">Minutos</label>
+                          <input
+                            type="number" name="minutos" value={formData.minutos} onChange={handleChange}
+                            min="0" max="59" disabled={isTimeFromTimer}
+                            className="w-full p-3 text-center text-xl font-black border border-zinc-200 dark:border-zinc-700 rounded-xl bg-white dark:bg-zinc-900 focus:ring-2 focus:ring-amber-500 outline-none transition-all disabled:opacity-50"
+                            placeholder="0"
+                          />
+                      </div>
+                  </div>
+                  {isTimeFromTimer && <p className="text-xs text-amber-500 font-medium text-center">* Cronometrado automaticamente</p>}
+              </div>
 
-            <div>
-              <label htmlFor="acertos" className="block text-sm font-semibold mb-2 text-heading-color dark:text-dark-heading-color">Acertos</label>
-              <input
-                type="number"
-                id="acertos"
-                name="acertos"
-                value={formData.acertos}
-                onChange={handleChange}
-                min="0"
-                max={formData.questoesFeitas > 0 ? formData.questoesFeitas : undefined}
-                className="w-full p-2.5 border border-border-color dark:border-dark-border-color rounded-lg bg-background-color dark:bg-dark-background-color focus:ring-2 focus:ring-primary-color focus:border-primary-color transition"
-              />
-            </div>
+              {/* QUESTÕES */}
+              <div className="space-y-4 bg-zinc-50 dark:bg-zinc-900/30 p-4 rounded-2xl border border-zinc-100 dark:border-zinc-800">
+                  <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2">
+                      <Target size={14} className="text-emerald-500" /> Performance
+                  </h3>
+                  <div className="flex gap-3">
+                      <div className="flex-1">
+                          <label className="text-xs font-semibold text-zinc-500 mb-1 block">Feitas</label>
+                          <input
+                            type="number" name="questoesFeitas" value={formData.questoesFeitas} onChange={handleChange}
+                            min="0"
+                            className="w-full p-3 text-center text-xl font-black border border-zinc-200 dark:border-zinc-700 rounded-xl bg-white dark:bg-zinc-900 focus:ring-2 focus:ring-emerald-500 outline-none transition-all"
+                          />
+                      </div>
+                      <div className="flex-1">
+                          <label className="text-xs font-semibold text-zinc-500 mb-1 block">Acertos</label>
+                          <input
+                            type="number" name="acertos" value={formData.acertos} onChange={handleChange}
+                            min="0" max={formData.questoesFeitas}
+                            className="w-full p-3 text-center text-xl font-black border border-zinc-200 dark:border-zinc-700 rounded-xl bg-white dark:bg-zinc-900 focus:ring-2 focus:ring-emerald-500 outline-none transition-all"
+                          />
+                      </div>
+                  </div>
+              </div>
           </div>
 
         </form>
 
-        <div className="p-5 bg-background-color dark:bg-dark-background-color/50 border-t border-border-color dark:border-dark-border-color flex justify-end gap-3">
+        {/* --- FOOTER --- */}
+        <div className="p-6 bg-zinc-50 dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800 flex justify-end gap-4 relative z-20">
           <button
             type="button"
             onClick={onClose}
             disabled={loading}
-            className="px-5 py-2.5 rounded-lg text-sm font-semibold text-text-color dark:text-dark-text-color bg-card-background-color dark:bg-dark-card-background-color border border-border-color dark:border-dark-border-color hover:bg-border-color dark:hover:bg-dark-border-color transition disabled:opacity-50"
+            className="px-6 py-3 rounded-xl text-sm font-bold text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors disabled:opacity-50"
           >
             Cancelar
           </button>
@@ -328,14 +332,9 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
             type="submit"
             form="registro-form"
             disabled={loading}
-            className="px-5 py-2.5 rounded-lg text-sm font-semibold text-white bg-primary-color hover:bg-primary-hover transition flex items-center justify-center disabled:opacity-50"
+            className="px-8 py-3 rounded-xl text-sm font-bold uppercase tracking-wide text-white bg-red-600 hover:bg-red-700 shadow-lg shadow-red-600/30 transition-all transform hover:-translate-y-0.5 active:translate-y-0 flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
           >
-            {loading ? (
-              <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-            ) : 'Salvar Registro'}
+            {loading ? 'Salvando...' : <><Save size={18} /> Confirmar Registro</>}
           </button>
         </div>
       </div>

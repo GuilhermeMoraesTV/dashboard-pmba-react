@@ -1,52 +1,86 @@
 import React, { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import TopicListPanel from './TopicListPanel';
-
-const IconClose = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-    </svg>
-);
-const IconClock = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-  </svg>
-);
-const IconQuestions = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 5.25h.008v.008H12v-.008Z" />
-  </svg>
-);
-const IconTrophy = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 18.75h-9m9 0a3 3 0 0 1 3 3h-15a3 3 0 0 1 3-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 0 1-.982-3.172M9.497 14.25a7.454 7.454 0 0 0 .981-3.172M5.25 4.236c-.982.143-1.954.317-2.916.52A6.003 6.003 0 0 0 7.73 9.728M5.25 4.236V4.5c0 2.108.966 3.99 2.48 5.228M5.25 4.236V2.721C7.456 2.41 9.71 2.25 12 2.25c2.291 0 4.545.16 6.75.47v1.516M7.73 9.728a6.726 6.726 0 0 0 2.748 1.35m8.272-6.842V4.5c0 2.108-.966 3.99-2.48 5.228m2.48-5.492a46.32 46.32 0 0 1 2.916.52 6.003 6.003 0 0 1-5.395 4.972m0 0a6.726 6.726 0 0 1-2.749 1.35m0 0a6.772 6.772 0 0 1-3.044 0" />
-  </svg>
-);
-
+import { X, Clock, Target, Trophy, BookOpen, BarChart3, TrendingUp, Activity, Calendar } from 'lucide-react';
 
 const formatDecimalHours = (minutos) => {
     if (!minutos || minutos < 0) return '0.0';
     return (minutos / 60).toFixed(1);
 };
 
+// Componente de Card de Estatística Tático
+const StatCard = ({ icon: Icon, label, value, unit, subValue, colorClass, bgClass, borderColor }) => (
+  <div className={`flex-1 p-5 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 relative overflow-hidden group hover:-translate-y-1 transition-transform duration-300 shadow-sm`}>
+    <div className={`absolute top-0 left-0 w-full h-1 ${borderColor}`}></div>
 
-const StatCard = ({ icon, label, value, unit, colorClass }) => (
-  <div className={`flex-1 p-5 rounded-xl bg-card-background-color dark:bg-dark-card-background-color border border-border-color dark:border-dark-border-color`}>
-    <div className={`flex items-center justify-center w-12 h-12 rounded-full mb-3 ${colorClass}/10`}>
-      <span className={colorClass}>{icon}</span>
+    <div className="flex justify-between items-start relative z-10">
+        <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1">{label}</p>
+            <p className="text-3xl font-black text-zinc-800 dark:text-white">
+                {value} <span className="text-lg font-bold text-zinc-400">{unit}</span>
+            </p>
+            {subValue && <p className="text-xs font-medium text-zinc-400 mt-1">{subValue}</p>}
+        </div>
+        <div className={`p-3 rounded-lg ${bgClass} ${colorClass}`}>
+            <Icon size={24} />
+        </div>
     </div>
-    <p className="text-sm text-subtle-text-color dark:text-dark-subtle-text-color mb-1">{label}</p>
-    <p className="text-3xl font-bold text-heading-color dark:text-dark-heading-color">
-      {value} <span className="text-lg font-medium">{unit}</span>
-    </p>
+
+    <div className={`absolute -bottom-4 -right-4 opacity-10 transform rotate-12 scale-150 ${colorClass}`}>
+        <Icon size={80} />
+    </div>
   </div>
 );
+
+// Componente de Gráfico de Barras (Correção: Janela Fixa de 7 Dias)
+const ActivityChart = ({ data }) => {
+    // Calcula o máximo para escala (mínimo de 1h visual para não quebrar se tudo for 0)
+    const maxVal = Math.max(...data.map(d => d.val), 0.5);
+
+    return (
+        <div className="h-40 flex items-end justify-between gap-3 mt-4 px-2 pb-2">
+            {data.map((day, i) => (
+                <div key={i} className="flex flex-col items-center flex-1 group h-full justify-end">
+                    {/* Área da Barra */}
+                    <div className="relative w-full flex items-end justify-center h-full">
+
+                        {/* Trilho de Fundo (Opcional, para dar volume) */}
+                        <div className="absolute bottom-0 w-1.5 bg-zinc-100 dark:bg-zinc-800/50 h-full rounded-full opacity-50"></div>
+
+                        {/* A Barra */}
+                        <div
+                            className={`
+                                w-full max-w-[18px] rounded-t-md transition-all duration-700 ease-out relative
+                                ${day.val > 0 ? 'bg-indigo-500 dark:bg-indigo-500 shadow-lg shadow-indigo-500/20' : 'bg-zinc-200 dark:bg-zinc-800'}
+                            `}
+                            style={{ height: day.val > 0 ? `${(day.val / maxVal) * 100}%` : '4px' }} // 4px se vazio
+                        >
+                             {/* Tooltip Flutuante */}
+                             <div className="opacity-0 group-hover:opacity-100 absolute -top-12 left-1/2 -translate-x-1/2 bg-zinc-800 text-white text-[10px] px-3 py-1.5 rounded-lg shadow-xl pointer-events-none transition-all transform translate-y-2 group-hover:translate-y-0 whitespace-nowrap z-20 flex flex-col items-center border border-zinc-700">
+                                <span className="font-bold text-zinc-300 mb-0.5">{day.label}</span>
+                                <span className="text-indigo-400 font-black text-xs">{day.val.toFixed(1)}h</span>
+                                {/* Seta do Tooltip */}
+                                <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-zinc-800 border-r border-b border-zinc-700 rotate-45"></div>
+                             </div>
+                        </div>
+                    </div>
+
+                    {/* Data no Eixo X */}
+                    <span className={`text-[10px] mt-3 uppercase tracking-wider font-bold ${day.isToday ? 'text-indigo-500' : 'text-zinc-400'}`}>
+                        {day.shortDate}
+                    </span>
+                </div>
+            ))}
+        </div>
+    );
+};
 
 function DisciplinaDetalheModal({ disciplina, registrosEstudo, cicloId, user, onClose, onQuickAddTopic }) {
 
   const registrosDaDisciplina = useMemo(() => {
     if (!registrosEstudo || !disciplina) return [];
-    return registrosEstudo.filter(r => r.disciplinaId === disciplina.id);
+    // Garante ordenação por data
+    return registrosEstudo.filter(r => r.disciplinaId === disciplina.id).sort((a, b) => new Date(a.data) - new Date(b.data));
   }, [registrosEstudo, disciplina]);
 
   const stats = useMemo(() => {
@@ -55,10 +89,41 @@ function DisciplinaDetalheModal({ disciplina, registrosEstudo, cicloId, user, on
     const totalCorrect = registrosDaDisciplina.reduce((sum, r) => sum + r.acertos, 0);
     const performance = totalQuestions > 0 ? (totalCorrect / totalQuestions) * 100 : 0;
 
+    const totalHours = totalMinutes / 60;
+    const speed = totalHours > 0 ? (totalQuestions / totalHours).toFixed(1) : 0;
+
+    // --- CORREÇÃO LÓGICA DO GRÁFICO ---
+    // Cria um mapa de dados: "YYYY-MM-DD" -> Minutos
+    const daysMap = {};
+    registrosDaDisciplina.forEach(r => {
+        // Pega apenas a parte da data (YYYY-MM-DD) com segurança
+        const dateKey = typeof r.data === 'string' ? r.data.split('T')[0] : new Date().toISOString().split('T')[0];
+        daysMap[dateKey] = (daysMap[dateKey] || 0) + r.tempoEstudadoMinutos;
+    });
+
+    // Gera os últimos 7 dias FIXOS (incluindo hoje)
+    const chartData = [];
+    for (let i = 6; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        const dateStr = d.toISOString().split('T')[0]; // Chave YYYY-MM-DD
+
+        const val = (daysMap[dateStr] || 0) / 60; // Converte para Horas
+
+        chartData.push({
+            label: d.toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric' }), // Ex: "Seg, 24"
+            shortDate: d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }), // Ex: "24/11"
+            val: val,
+            isToday: i === 0
+        });
+    }
+
     return {
       totalHours: formatDecimalHours(totalMinutes),
       totalQuestions: totalQuestions,
       performance: performance.toFixed(0),
+      speed,
+      chartData
     };
   }, [registrosDaDisciplina]);
 
@@ -70,75 +135,120 @@ function DisciplinaDetalheModal({ disciplina, registrosEstudo, cicloId, user, on
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/70 z-[60] backdrop-blur-sm flex items-center justify-center p-4"
+        className="fixed inset-0 bg-black/80 z-[70] backdrop-blur-sm flex items-center justify-center p-4"
         onClick={onClose}
       >
         <motion.div
-          initial={{ scale: 0.95, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          exit={{ scale: 0.95, opacity: 0 }}
-          transition={{ duration: 0.3 }}
-          className="relative w-full max-w-5xl max-h-[90vh] bg-background-color dark:bg-dark-background-color rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+          initial={{ scale: 0.95, opacity: 0, y: 20 }}
+          animate={{ scale: 1, opacity: 1, y: 0 }}
+          exit={{ scale: 0.95, opacity: 0, y: 20 }}
+          transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+          className="relative w-full max-w-6xl max-h-[90vh] bg-zinc-50 dark:bg-zinc-950 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 flex flex-col overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="flex-shrink-0 p-6 flex items-center justify-between border-b border-border-color dark:border-dark-border-color">
-            <div>
-              <p className="text-sm font-semibold text-primary-color dark:text-dark-primary-color">
-                Detalhes da Disciplina
-              </p>
-              <h1 className="text-3xl font-bold text-heading-color dark:text-dark-heading-color">
-                {disciplina.nome}
-              </h1>
+
+          {/* --- HEADER --- */}
+          <div className="flex-shrink-0 p-6 flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 relative overflow-hidden">
+            <div className="absolute -top-6 -right-6 text-zinc-100 dark:text-zinc-800 pointer-events-none">
+                <BookOpen size={180} strokeWidth={1} />
             </div>
-            <button
-              onClick={onClose}
-              className="p-3 rounded-full text-subtle-text-color dark:text-dark-subtle-text-color hover:bg-border-color dark:hover:bg-dark-border-color transition-colors"
-            >
-              <IconClose />
+
+            <div className="relative z-10 flex items-center gap-4">
+                <div className="w-14 h-14 bg-zinc-100 dark:bg-zinc-800 rounded-2xl flex items-center justify-center border border-zinc-200 dark:border-zinc-700 shadow-sm">
+                    <BookOpen size={28} className="text-red-600 dark:text-red-500" />
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-red-600 dark:text-red-500 uppercase tracking-widest mb-0.5">
+                    Relatório Tático
+                  </p>
+                  <h1 className="text-2xl md:text-3xl font-black text-zinc-900 dark:text-white uppercase tracking-tight">
+                    {disciplina.nome}
+                  </h1>
+                </div>
+            </div>
+
+            <button onClick={onClose} className="relative z-10 p-2 rounded-full text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-red-500 transition-all">
+              <X size={24} />
             </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
-            <div className="max-w-6xl mx-auto">
-              <h2 className="text-xl font-semibold text-heading-color dark:text-dark-heading-color mb-4">
-                Desempenho Geral (Total)
-              </h2>
-              <div className="flex flex-col md:flex-row gap-4 mb-8">
-                <StatCard
-                  icon={<IconClock />}
-                  label="Tempo Total"
-                  value={stats.totalHours}
-                  unit="horas"
-                  colorClass="text-primary-color"
-                />
-                <StatCard
-                  icon={<IconQuestions />}
-                  label="Questões Totais"
-                  value={stats.totalQuestions}
-                  unit="questões"
-                  colorClass="text-success-color"
-                />
-                <StatCard
-                  icon={<IconTrophy />}
-                  label="Acerto Médio"
-                  value={stats.performance}
-                  unit="%"
-                  colorClass="text-warning-color"
-                />
-              </div>
+          {/* --- CONTEÚDO --- */}
+          <div className="flex-1 overflow-y-auto custom-scrollbar p-6 md:p-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
-              <div className="bg-card-background-color dark:bg-dark-card-background-color rounded-xl shadow-lg p-4 md:p-6 border border-border-color dark:border-dark-border-color">
-                  <TopicListPanel
-                      user={user}
-                      cicloId={cicloId}
-                      disciplinaId={disciplina.id}
-                      registrosEstudo={registrosDaDisciplina}
-                      disciplinaNome="Progresso por Tópico"
-                      onQuickAddTopic={onQuickAddTopic}
-                  />
-              </div>
+                {/* COLUNA ESQUERDA: ESTATÍSTICAS + GRÁFICO */}
+                <div className="lg:col-span-1 space-y-6">
+
+                    {/* Cards Principais */}
+                    <div className="grid grid-cols-1 gap-4">
+                        <StatCard
+                            icon={Clock}
+                            label="Tempo Total"
+                            value={stats.totalHours}
+                            unit="h"
+                            colorClass="text-amber-500"
+                            bgClass="bg-amber-500/10"
+                            borderColor="bg-amber-500"
+                        />
+                        <StatCard
+                            icon={Target}
+                            label="Questões Totais"
+                            value={stats.totalQuestions}
+                            unit="q"
+                            subValue={`Ritmo: ~${stats.speed} q/h`}
+                            colorClass="text-emerald-500"
+                            bgClass="bg-emerald-500/10"
+                            borderColor="bg-emerald-500"
+                        />
+                        <StatCard
+                            icon={Trophy}
+                            label="Precisão"
+                            value={stats.performance}
+                            unit="%"
+                            colorClass="text-red-500"
+                            bgClass="bg-red-500/10"
+                            borderColor="bg-red-500"
+                        />
+                    </div>
+
+                    {/* Gráfico de Evolução (Agora Corrigido) */}
+                    <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-5 shadow-sm">
+                        <div className="flex items-center justify-between mb-2">
+                            <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2">
+                                <TrendingUp size={14} /> Evolução (Últimos 7 dias)
+                            </h3>
+                        </div>
+                        <ActivityChart data={stats.chartData} />
+                    </div>
+                </div>
+
+                {/* COLUNA DIREITA: TÓPICOS */}
+                <div className="lg:col-span-2 space-y-6">
+                    <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-800 overflow-hidden flex flex-col h-full min-h-[500px]">
+                        <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 flex justify-between items-center bg-zinc-50/50 dark:bg-zinc-900/50">
+                             <h2 className="text-sm font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-2">
+                                <Activity size={16} className="text-indigo-500" /> Detalhamento por Tópico
+                            </h2>
+                        </div>
+
+                        <div className="flex-1 p-4">
+                             <TopicListPanel
+                                user={user}
+                                cicloId={cicloId}
+                                disciplinaId={disciplina.id}
+                                registrosEstudo={registrosDaDisciplina}
+                                disciplinaNome=""
+                                onQuickAddTopic={onQuickAddTopic}
+                            />
+                        </div>
+                    </div>
+                </div>
             </div>
           </div>
+
+          {/* Footer Decorativo */}
+          <div className="h-2 w-full bg-gradient-to-r from-red-600 via-zinc-800 to-red-600"></div>
+
         </motion.div>
       </motion.div>
     </AnimatePresence>
