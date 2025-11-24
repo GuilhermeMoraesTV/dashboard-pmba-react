@@ -248,7 +248,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         return (
           <GoalsTab
             goalsHistory={goalsHistory}
-            onSetGoal={addGoal} // <--- CORREÇÃO AQUI (Era onAddGoal, agora é onSetGoal)
+            onSetGoal={addGoal}
             onDeleteGoal={(id) => deleteData('metas', id)}
           />
         );
@@ -297,6 +297,8 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       />
 
       <div className={`flex-grow w-full transition-all duration-300 ease-in-out pt-[80px] px-4 md:px-8 lg:pt-8 pb-10 ${isSidebarExpanded ? 'lg:ml-[260px]' : 'lg:ml-[80px]'}`}>
+
+        {/* --- AQUI A MUDANÇA IMPORTANTE --- */}
         <Header
             user={user}
             activeTab={activeTab}
@@ -304,6 +306,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
             toggleTheme={toggleTheme}
             registrosEstudo={allRegistrosEstudo}
             goalsHistory={goalsHistory}
+            activeCicloId={activeCicloId} // <--- PASSANDO O ID DO CICLO
         />
 
         <main className="mt-6 max-w-7xl mx-auto animate-fade-in">

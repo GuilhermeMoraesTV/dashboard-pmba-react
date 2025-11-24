@@ -9,11 +9,13 @@ const IconEmail = () => (
     <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
   </svg>
 );
+
 const IconPassword = () => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
     <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 0 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
   </svg>
 );
+
 const IconLoader = () => (
   <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -163,11 +165,15 @@ function Login() {
               </motion.div>
             )}
 
+            {/* CAMPO DE EMAIL REFORMULADO */}
             <div>
               <label htmlFor="email" className="block text-xs font-bold mb-2 text-gray-300 uppercase tracking-wider">
                 E-mail
               </label>
-              <div className="relative group">
+              <div className="flex items-center w-full rounded-lg bg-[#1a1a1a] border border-gray-800 focus-within:border-red-600 focus-within:ring-1 focus-within:ring-red-600 transition-all overflow-hidden group">
+                <div className="pl-4 pr-3 py-3.5 text-gray-500 group-focus-within:text-red-500 transition-colors flex items-center justify-center bg-[#1a1a1a]">
+                   <IconEmail />
+                </div>
                 <input
                   id="email"
                   name="email"
@@ -176,20 +182,21 @@ function Login() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full p-3.5 pl-12 rounded-lg bg-[#1a1a1a] text-white border border-gray-800 focus:outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 transition-all placeholder:text-gray-600"
+                  className="w-full py-3.5 pr-4 bg-[#1a1a1a] text-white focus:outline-none placeholder:text-gray-600"
                   placeholder="seu.email@exemplo.com"
                 />
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-500 group-focus-within:text-red-500 transition-colors">
-                  <IconEmail />
-                </div>
               </div>
             </div>
 
+            {/* CAMPO DE SENHA REFORMULADO */}
             <div>
               <label htmlFor="password" className="block text-xs font-bold mb-2 text-gray-300 uppercase tracking-wider">
                 Senha
               </label>
-              <div className="relative group">
+              <div className="flex items-center w-full rounded-lg bg-[#1a1a1a] border border-gray-800 focus-within:border-red-600 focus-within:ring-1 focus-within:ring-red-600 transition-all overflow-hidden group">
+                <div className="pl-4 pr-3 py-3.5 text-gray-500 group-focus-within:text-red-500 transition-colors flex items-center justify-center bg-[#1a1a1a]">
+                  <IconPassword />
+                </div>
                 <input
                   id="password"
                   name="password"
@@ -198,12 +205,9 @@ function Login() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full p-3.5 pl-12 rounded-lg bg-[#1a1a1a] text-white border border-gray-800 focus:outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 transition-all placeholder:text-gray-600"
+                  className="w-full py-3.5 pr-4 bg-[#1a1a1a] text-white focus:outline-none placeholder:text-gray-600"
                   placeholder="••••••••"
                 />
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-500 group-focus-within:text-red-500 transition-colors">
-                  <IconPassword />
-                </div>
               </div>
             </div>
 

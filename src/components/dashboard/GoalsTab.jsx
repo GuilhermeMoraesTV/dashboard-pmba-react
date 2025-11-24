@@ -225,7 +225,7 @@ function GoalsTab({ onSetGoal, goalsHistory, onDeleteGoal }) {
 
             <div className="flex items-center justify-between mb-6 relative z-10">
                 <h2 className="text-lg font-bold text-zinc-800 dark:text-white flex items-center gap-2">
-                  <History size={20} className="text-red-500" /> Logs de Missão
+                  <History size={20} className="text-red-500" /> Histórico de Metas
                 </h2>
                 <span className="text-[10px] font-black text-zinc-400 bg-zinc-100 dark:bg-zinc-900 px-2 py-1 rounded uppercase tracking-wide">
                     Histórico

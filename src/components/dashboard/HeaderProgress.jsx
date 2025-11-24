@@ -9,7 +9,7 @@ const dateToYMD = (date) => {
     return `${y}-${m}-${d}`;
 };
 
-function HeaderProgress({ registrosEstudo, goalsHistory }) {
+function HeaderProgress({ registrosEstudo, goalsHistory, activeCicloId }) {
     const [isExpanded, setIsExpanded] = useState(false);
     const [showCelebration, setShowCelebration] = useState(false);
     const wasCompleteRef = useRef(false);
@@ -18,6 +18,7 @@ function HeaderProgress({ registrosEstudo, goalsHistory }) {
     useEffect(() => { setMounted(true); }, []);
 
     const stats = useMemo(() => {
+        // Pega a meta mais recente definida
         const activeGoal = goalsHistory && goalsHistory.length > 0
             ? [...goalsHistory].sort((a, b) => new Date(b.startDate) - new Date(a.startDate))[0]
             : { questions: 0, hours: 0 };
@@ -29,8 +30,13 @@ function HeaderProgress({ registrosEstudo, goalsHistory }) {
         let todayH = 0;
         let todayQ = 0;
 
+        // --- FILTRAGEM INTELIGENTE ---
         registrosEstudo.forEach(reg => {
-            if (reg.data === todayStr) {
+            // Verifica se é hoje E se pertence ao ciclo ativo
+            const isToday = reg.data === todayStr;
+            const isCurrentCycle = activeCicloId ? reg.cicloId === activeCicloId : true; // Se não tiver activeCicloId, conta tudo (fallback)
+
+            if (isToday && isCurrentCycle) {
                 todayH += (Number(reg.tempoEstudadoMinutos) || Number(reg.duracaoMinutos) || 0) / 60;
                 todayQ += (Number(reg.questoesFeitas) || 0);
             }
@@ -41,6 +47,8 @@ function HeaderProgress({ registrosEstudo, goalsHistory }) {
 
         const isCompleteH = goalH === 0 || percH >= 100;
         const isCompleteQ = goalQ === 0 || percQ >= 100;
+
+        // Completo apenas se tiver meta definida e atingida
         const isComplete = isCompleteH && isCompleteQ && (goalH > 0 || goalQ > 0);
         const hasActivity = todayH > 0 || todayQ > 0;
 
@@ -53,7 +61,7 @@ function HeaderProgress({ registrosEstudo, goalsHistory }) {
         else if (hasActivity) state = 'working'; // Em andamento
 
         return { todayH, todayQ, goalH, goalQ, percH, percQ, isComplete, hasActivity, overallProgress, state };
-    }, [registrosEstudo, goalsHistory]);
+    }, [registrosEstudo, goalsHistory, activeCicloId]); // Recalcula quando o ID do ciclo mudar
 
     // Efeito de Celebração
     useEffect(() => {
@@ -76,7 +84,7 @@ function HeaderProgress({ registrosEstudo, goalsHistory }) {
             colorClass: 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400',
             barClass: 'bg-zinc-300 dark:bg-zinc-600',
             borderClass: 'hover:border-zinc-300 dark:hover:border-zinc-600',
-            label: 'Aguardando Início'
+            label: 'Inicie seu Progresso'
         },
         working: {
             icon: Clock,
@@ -261,7 +269,7 @@ function HeaderProgress({ registrosEstudo, goalsHistory }) {
                                         `}>
                                             {stats.state === 'close'
                                                 ? <span className="flex items-center justify-center gap-1"><Flame size={12}/> Falta pouco! Mantenha o foco.</span>
-                                                : <span>Restam <strong>{(stats.goalH - stats.todayH).toFixed(1)}h</strong> e <strong>{Math.max(0, stats.goalQ - stats.todayQ)}</strong> questões.</span>
+                                                : <span>Restam <strong>{(Math.max(0, stats.goalH - stats.todayH)).toFixed(1)}h</strong> e <strong>{Math.max(0, stats.goalQ - stats.todayQ)}</strong> questões.</span>
                                             }
                                         </div>
                                     </div>

@@ -147,10 +147,10 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
                 </div>
                 <div>
                     <h2 className="text-xl font-black text-zinc-900 dark:text-white uppercase tracking-tight leading-none">
-                      Registrar Missão
+                      Registrar Estudo
                     </h2>
                     <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium mt-1">
-                      Documentação de progresso operacional.
+                      Documentação de progresso.
                     </p>
                 </div>
             </div>
@@ -221,7 +221,7 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
           {/* SEÇÃO 2: TIPO E DATA */}
           <div className="space-y-4">
             <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2 mb-2">
-                  <List size={14} /> Detalhes da Operação
+                  <List size={14} /> Tipo do Estudo
             </h3>
 
             <div className="flex flex-wrap gap-2">
@@ -293,7 +293,7 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
               {/* QUESTÕES */}
               <div className="space-y-4 bg-zinc-50 dark:bg-zinc-900/30 p-4 rounded-2xl border border-zinc-100 dark:border-zinc-800">
                   <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2">
-                      <Target size={14} className="text-emerald-500" /> Performance
+                      <Target size={14} className="text-emerald-500" /> Questões
                   </h3>
                   <div className="flex gap-3">
                       <div className="flex-1">

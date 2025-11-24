@@ -1,65 +1,35 @@
 import React from 'react';
-import { Sun, Moon } from 'lucide-react';
+import { Bell, Moon, Sun, Menu } from 'lucide-react';
 import HeaderProgress from './HeaderProgress';
 
-function Header({ activeTab, isDarkMode, toggleTheme, registrosEstudo, goalsHistory }) {
-  const getTabTitle = () => {
-    const tabNames = {
-      home: 'Dashboard',
-      goals: 'Metas de Estudo',
-      calendar: 'Calendário',
-      ciclos: 'Ciclos de Estudo',
-      profile: 'Perfil',
-      historico: 'Histórico'
-    };
-    return tabNames[activeTab] || 'Dashboard';
-  };
-
+function Header({ user, activeTab, isDarkMode, toggleTheme, registrosEstudo, goalsHistory, activeCicloId }) {
   return (
-    // ALTERAÇÃO AQUI: z-40 garante que o Header (e seus dropdowns) fiquem ACIMA dos cards da Home (z-20)
-    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 pb-4 border-b border-zinc-200 dark:border-zinc-800 relative z-40">
-
-      {/* Título da Página */}
-      <div>
-        <h1 className="text-2xl font-black text-zinc-800 dark:text-white uppercase tracking-tight">
-          {getTabTitle()}
+    <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <div className="flex flex-col">
+        <h1 className="text-2xl font-bold text-gray-800 dark:text-white">
+          Olá, {user.displayName ? user.displayName.split(' ')[0] : 'Estudante'}! 👋
         </h1>
-        <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400 hidden md:block">
-          Sistema de Gestão de Estudos
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          Vamos evoluir hoje?
         </p>
       </div>
 
-      {/* Área Direita: Progresso + Tema */}
       <div className="flex items-center gap-4 self-end md:self-auto">
+        {/* A condição {activeTab === 'home' && ...} foi removida para aparecer sempre */}
+        <HeaderProgress
+            registrosEstudo={registrosEstudo}
+            goalsHistory={goalsHistory}
+            activeCicloId={activeCicloId}
+        />
 
-        {/* Componente de Progresso */}
-        <HeaderProgress registrosEstudo={registrosEstudo} goalsHistory={goalsHistory} />
-
-        <div className="h-8 w-px bg-zinc-300 dark:bg-zinc-700 mx-1 hidden md:block"></div>
-
-        {/* Botão de Tema */}
         <button
           onClick={toggleTheme}
-          className="group relative p-2.5 rounded-xl bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 border border-zinc-300 dark:border-zinc-700 transition-all duration-300 shadow-sm"
-          title={isDarkMode ? 'Ativar modo claro' : 'Ativar modo escuro'}
+          className="p-2 rounded-full bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-zinc-700 transition-colors shrink-0"
         >
-          <div className="relative w-5 h-5">
-            <Sun
-              size={20}
-              className={`absolute inset-0 text-amber-500 transition-all duration-300 ${
-                isDarkMode ? 'opacity-0 rotate-90 scale-0' : 'opacity-100 rotate-0 scale-100'
-              }`}
-            />
-            <Moon
-              size={20}
-              className={`absolute inset-0 text-indigo-400 transition-all duration-300 ${
-                isDarkMode ? 'opacity-100 rotate-0 scale-100' : 'opacity-0 -rotate-90 scale-0'
-              }`}
-            />
-          </div>
+          {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
         </button>
       </div>
-    </div>
+    </header>
   );
 }
 

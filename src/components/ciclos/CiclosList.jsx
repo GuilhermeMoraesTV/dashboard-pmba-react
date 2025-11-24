@@ -16,7 +16,9 @@ import {
   Calendar,
   Target,
   ArrowRight,
-  Map
+  Map,
+  RotateCw,
+  Trophy // Adicionei Trophy para dar um ar mais de "Conquista"
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -34,7 +36,7 @@ function ModalConfirmacaoArquivamento({ ciclo, onClose, onConfirm, loading }) {
                 <Archive size={32} />
             </div>
             <h2 className="text-xl font-black text-zinc-900 dark:text-white uppercase tracking-tight">
-              Arquivar Operação?
+              Arquivar Ciclo?
             </h2>
         </div>
 
@@ -67,16 +69,17 @@ function ModalConfirmacaoArquivamento({ ciclo, onClose, onConfirm, loading }) {
 
 // --- COMPONENTE DE CARD TÁTICO ---
 const CicloCard = ({ ciclo, onClick, onMenuToggle, isMenuOpen, onAction }) => {
+    const concluidos = ciclo.conclusoes || 0;
+
     return (
         <div
             onClick={() => onClick(ciclo.id)}
             className="group relative bg-white dark:bg-zinc-900/50 rounded-2xl p-6 cursor-pointer border border-zinc-200 dark:border-zinc-800 overflow-hidden transition-all duration-500 hover:-translate-y-1 hover:shadow-2xl"
         >
-            {/* 1. Borda Vermelha no Hover (Igual Home) */}
+            {/* 1. Borda Vermelha no Hover */}
             <div className="absolute left-0 top-0 bottom-0 w-1 bg-transparent group-hover:bg-red-500 transition-colors duration-300 z-20"></div>
 
-            {/* 2. Ícone de Fundo Gigante (CORRIGIDO PARA MODO CLARO) */}
-            {/* Aumentei a opacidade base para 10% no modo claro e 15% no hover */}
+            {/* 2. Ícone de Fundo Gigante */}
             <div className="absolute -bottom-6 -right-6 text-red-500/15 dark:text-red-500/5 transition-all duration-700 ease-out group-hover:scale-125 group-hover:rotate-[-10deg] group-hover:text-red-500/15 dark:group-hover:text-red-500/10 z-0 pointer-events-none">
                 {ciclo.ativo ? <Target strokeWidth={1.5} size={140} /> : <BookOpen strokeWidth={1.5} size={140} />}
             </div>
@@ -84,25 +87,37 @@ const CicloCard = ({ ciclo, onClick, onMenuToggle, isMenuOpen, onAction }) => {
             {/* Conteúdo (z-10) */}
             <div className="relative z-10">
 
-                {/* Header do Card */}
-                <div className="flex justify-between items-start mb-4">
-                    {/* Badge de Status */}
-                    <div className={`
-                        px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-widest border
-                        ${ciclo.ativo
-                            ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.2)]'
-                            : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 border-zinc-200 dark:border-zinc-700'
-                        }
-                    `}>
-                        {ciclo.ativo ? (
-                            <span className="flex items-center gap-1.5">
+                {/* Header do Card: Status + Contador + Menu */}
+                <div className="flex justify-between items-start mb-6">
+                    <div className="flex flex-wrap gap-2">
+                        {/* Badge de Status */}
+                        <div className={`
+                            px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-widest border flex items-center gap-1.5
+                            ${ciclo.ativo
+                                ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.2)]'
+                                : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 border-zinc-200 dark:border-zinc-700'
+                            }
+                        `}>
+                            {ciclo.ativo && (
                                 <span className="relative flex h-1.5 w-1.5">
                                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                                   <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
                                 </span>
-                                CICLO ATIVO
-                            </span>
-                        ) : 'CICLO INATIVO'}
+                            )}
+                            {ciclo.ativo ? 'ATIVO' : 'INATIVO'}
+                        </div>
+
+                        {/* --- CONTADOR DE CICLOS REALIZADOS (NOVO LUGAR ESPECIAL) --- */}
+                        <div className={`
+                            px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-widest border flex items-center gap-1.5 transition-all
+                            ${concluidos > 0
+                                ? 'bg-amber-500/10 text-amber-600 dark:text-amber-500 border-amber-500/20 shadow-[0_0_10px_rgba(245,158,11,0.2)]'
+                                : 'bg-zinc-50 dark:bg-zinc-800/50 text-zinc-400 border-zinc-200 dark:border-zinc-700'
+                            }
+                        `} title="Total de vezes que este ciclo foi fechado 100%">
+                            {concluidos > 0 ? <Trophy size={12} /> : <RotateCw size={12} />}
+                            <span>{concluidos} {concluidos === 1 ? 'Conclusão' : 'Conclusões'}</span>
+                        </div>
                     </div>
 
                     {/* Botão Menu */}
@@ -176,7 +191,7 @@ const CicloCard = ({ ciclo, onClick, onMenuToggle, isMenuOpen, onAction }) => {
                 {/* Footer Ação */}
                 <div className="flex items-center justify-between pt-4 border-t border-zinc-100 dark:border-zinc-800/50">
                     <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest group-hover:text-red-500 transition-colors">
-                        Acessar
+                        Acessar Ciclo
                     </span>
                     <div className={`
                         w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300
@@ -292,7 +307,7 @@ function CiclosList({ onCicloClick, user, onCicloAtivado }) {
         <div>
             <h1 className="text-2xl md:text-3xl font-black text-zinc-800 dark:text-white uppercase tracking-tight flex items-center gap-3">
                 <Map className="text-red-600 dark:text-red-500" size={32} />
-                Ciclos Operacionais
+                Meus Ciclos
             </h1>
             <p className="text-zinc-500 dark:text-zinc-400 text-sm font-medium mt-1">
                 Planejamento estratégico e tático dos seus estudos.
@@ -308,7 +323,7 @@ function CiclosList({ onCicloClick, user, onCicloAtivado }) {
           <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500"></div>
 
           <Plus size={20} className="group-hover:rotate-90 transition-transform" />
-          <span>Nova Missão</span>
+          <span>Novo Ciclo</span>
         </button>
       </div>
 
@@ -333,9 +348,9 @@ function CiclosList({ onCicloClick, user, onCicloAtivado }) {
             <div className="w-20 h-20 bg-zinc-200 dark:bg-zinc-800 rounded-full flex items-center justify-center mb-4 text-zinc-400">
                 <BookOpen size={40} />
             </div>
-            <h3 className="text-xl font-bold text-zinc-700 dark:text-zinc-300 mb-2">Nenhuma missão encontrada</h3>
+            <h3 className="text-xl font-bold text-zinc-700 dark:text-zinc-300 mb-2">Nenhum ciclo cadastrado ainda</h3>
             <p className="text-zinc-500 max-w-md mb-6 text-sm">
-                Sua base de operações está vazia. Inicie um novo ciclo para começar a rastrear seu progresso.
+                Inicie um novo ciclo para começar a rastrear seu progresso.
             </p>
             <button
                 onClick={() => setShowCreateModal(true)}

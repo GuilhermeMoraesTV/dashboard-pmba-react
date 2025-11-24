@@ -1,6 +1,18 @@
 import React, { useState, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  ChevronLeft,
+  ChevronRight,
+  Calendar as CalendarIcon,
+  Clock,
+  Target,
+  Flame,
+  Trophy,
+  CheckCircle2
+} from 'lucide-react';
 import DayDetailsModal from './DayDetailsModal.jsx';
 
+// --- Funções Auxiliares ---
 const dateToYMD_local = (date) => {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -9,42 +21,47 @@ const dateToYMD_local = (date) => {
 };
 
 const formatDecimalHours = (minutos) => {
-  if (!minutos || minutos < 0) return '0h 0m';
+  if (!minutos || minutos < 0) return '0h';
   const h = Math.floor(minutos / 60);
   const m = Math.round(minutos % 60);
+  if (h === 0) return `${m}m`;
   return `${h}h ${m}m`;
 };
+
+// --- Componente de Card de Estatística ---
+const StatCard = ({ icon: Icon, label, value, subValue, colorClass = "text-zinc-600" }) => (
+  <div className="flex items-center gap-2 md:gap-3 p-2 md:p-3 bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-300 dark:border-zinc-700/50 rounded-xl shadow-sm min-w-[110px] flex-1 relative overflow-hidden">
+    <div className={`p-1.5 md:p-2 rounded-lg bg-white dark:bg-zinc-700 shadow-sm border border-zinc-100 dark:border-zinc-600 ${colorClass} relative z-10`}>
+      <Icon size={20} strokeWidth={2.5} />
+    </div>
+    <div className="flex flex-col relative z-10">
+      <span className="text-[10px] md:text-xs font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider">{label}</span>
+      <span className="text-base md:text-lg font-extrabold text-zinc-800 dark:text-white leading-tight">{value}</span>
+      {subValue && <span className="text-[10px] text-zinc-500 font-medium hidden md:inline-block">{subValue}</span>}
+    </div>
+  </div>
+);
 
 function CalendarTab({ registrosEstudo = [], goalsHistory = [], onDeleteRegistro }) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(null);
 
-  console.log("📅 CalendarTab renderizado com", registrosEstudo?.length || 0, "registros");
-
-  const getGoalsForDate = (dateStr) => {
-    if (!goalsHistory || goalsHistory.length === 0) return { questions: 0, hours: 0 };
-    const sortedGoals = [...goalsHistory].sort((a, b) => new Date(b.startDate) - new Date(a.startDate));
-    return sortedGoals.find(g => g.startDate <= dateStr) || { questions: 0, hours: 0 };
-  };
-
-  const studyDays = useMemo(() => {
+  // --- Processamento de Dados ---
+  const { studyDays, currentStreak, monthlyStats } = useMemo(() => {
     const days = {};
+    let streak = 0;
+
+    const currentMonthStats = { hours: 0, questions: 0, correct: 0, daysStudied: 0 };
+    const currentMonthKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
 
     if (!registrosEstudo || registrosEstudo.length === 0) {
-      console.log("⚠️ Nenhum registro para processar");
-      return days;
+      return { studyDays: {}, currentStreak: 0, monthlyStats: currentMonthStats };
     }
-
-    console.log("🔄 Processando", registrosEstudo.length, "registros");
 
     registrosEstudo.forEach(item => {
       try {
         const dateStr = item.data;
-
-        if (!dateStr || typeof dateStr !== 'string') {
-          console.log("⚠️ Data inválida:", dateStr);
-          return;
-        }
+        if (!dateStr) return;
 
         if (!days[dateStr]) {
           days[dateStr] = { questions: 0, correct: 0, hours: 0 };
@@ -54,40 +71,40 @@ function CalendarTab({ registrosEstudo = [], goalsHistory = [], onDeleteRegistro
         const questoes = Number(item.questoesFeitas || 0);
         const acertos = Number(item.acertos || 0);
 
-        if (minutos > 0) {
-          days[dateStr].hours += minutos;
-        }
+        days[dateStr].hours += minutos;
+        days[dateStr].questions += questoes;
+        days[dateStr].correct += acertos;
 
-        if (questoes > 0) {
-          days[dateStr].questions += questoes;
-          days[dateStr].correct += acertos;
+        if (dateStr.startsWith(currentMonthKey)) {
+          currentMonthStats.hours += minutos;
+          currentMonthStats.questions += questoes;
+          currentMonthStats.correct += acertos;
         }
-      } catch (error) {
-        console.error("❌ Erro ao processar registro:", error, item);
-      }
+      } catch (e) { console.error(e); }
     });
 
-    console.log("✅ Dias processados:", Object.keys(days).length);
-    return days;
-  }, [registrosEstudo]);
+    currentMonthStats.daysStudied = Object.keys(days).filter(d => d.startsWith(currentMonthKey) && (days[d].hours > 0 || days[d].questions > 0)).length;
 
-  const handleDayClick = (date) => {
-    const dayRegistros = registrosEstudo.filter(r => r.data === date);
-    const dayQuestions = dayRegistros.filter(r => (r.questoesFeitas || 0) > 0);
-    const dayHours = dayRegistros.filter(r => (r.tempoEstudadoMinutos || 0) > 0);
+    // Streak Logic
+    const todayStr = dateToYMD_local(new Date());
+    const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
+    let checkDate = new Date();
+    if (!days[todayStr]) checkDate = yesterday;
 
-    console.log("🔍 Clique no dia:", date, "Registros:", dayRegistros.length);
-    setSelectedDate({ date, dayQuestions, dayHours });
-  };
+    while (true) {
+      const dStr = dateToYMD_local(checkDate);
+      if (days[dStr] && (days[dStr].hours > 0 || days[dStr].questions > 0)) {
+        streak++; checkDate.setDate(checkDate.getDate() - 1);
+      } else break;
+    }
 
-  const daysOfWeek = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-  const currentMonth = currentDate.getMonth();
-  const currentYear = currentDate.getFullYear();
-  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-  const firstDayOfMonth = new Date(currentYear, currentMonth, 1).getDay();
+    return { studyDays: days, currentStreak: streak, monthlyStats: currentMonthStats };
+  }, [registrosEstudo, currentDate]);
 
-  const changeMonth = (offset) => {
-    setCurrentDate(new Date(currentYear, currentMonth + offset, 1));
+  const getGoalsForDate = (dateStr) => {
+    if (!goalsHistory || goalsHistory.length === 0) return { questions: 0, hours: 0 };
+    const sortedGoals = [...goalsHistory].sort((a, b) => new Date(b.startDate) - new Date(a.startDate));
+    return sortedGoals.find(g => g.startDate <= dateStr) || { questions: 0, hours: 0 };
   };
 
   const getDayStatus = (dateStr) => {
@@ -99,6 +116,7 @@ function CalendarTab({ registrosEstudo = [], goalsHistory = [], onDeleteRegistro
       const goalsForDay = getGoalsForDate(dateStr);
       const qGoal = goalsForDay?.questions || 0;
       const hGoal = (goalsForDay?.hours || 0) * 60;
+
       const qGoalMet = qGoal === 0 || dayData.questions >= qGoal;
       const hGoalMet = hGoal === 0 || dayData.hours >= hGoal;
 
@@ -109,99 +127,221 @@ function CalendarTab({ registrosEstudo = [], goalsHistory = [], onDeleteRegistro
     return { status, hasData };
   };
 
+  const handleDayClick = (dateStr) => {
+    const dayRegistros = registrosEstudo.filter(r => r.data === dateStr);
+    const dayQuestions = dayRegistros.filter(r => (r.questoesFeitas || 0) > 0);
+    const dayHours = dayRegistros.filter(r => (r.tempoEstudadoMinutos || 0) > 0);
+    setSelectedDate({ date: dateStr, dayQuestions, dayHours });
+  };
+
+  const changeMonth = (offset) => {
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + offset, 1));
+  };
+
+  const daysOfWeek = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+  const currentMonth = currentDate.getMonth();
+  const currentYear = currentDate.getFullYear();
+  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+  const firstDayOfMonth = new Date(currentYear, currentMonth, 1).getDay();
+  const todayStr = dateToYMD_local(new Date());
+
+  const accuracyMonth = monthlyStats.questions > 0
+    ? Math.round((monthlyStats.correct / monthlyStats.questions) * 100)
+    : 0;
+
   return (
-    <div className="bg-zinc-200 dark:bg-zinc-800 rounded-xl shadow-card-shadow p-4 md:p-6 border border-zinc-300 dark:border-zinc-700">
-      <div className="flex justify-between items-center mb-4">
-        <button
-          onClick={() => changeMonth(-1)}
-          className="px-4 py-2 bg-zinc-300 dark:bg-zinc-700 rounded-lg font-semibold text-zinc-800 dark:text-white hover:bg-zinc-400 dark:hover:bg-zinc-600"
-        >
-          &larr; Anterior
-        </button>
-        <h2 className="text-xl font-bold text-zinc-800 dark:text-white">
-          {new Date(currentYear, currentMonth).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
-        </h2>
-        <button
-          onClick={() => changeMonth(1)}
-          className="px-4 py-2 bg-zinc-300 dark:bg-zinc-700 rounded-lg font-semibold text-zinc-800 dark:text-white hover:bg-zinc-400 dark:hover:bg-zinc-600"
-        >
-          Próximo &rarr;
-        </button>
-      </div>
+    <div className="space-y-4">
 
-      <div className="grid grid-cols-7 gap-1">
-        {daysOfWeek.map(day => (
-          <div key={day} className="text-center font-semibold text-zinc-600 dark:text-zinc-400 text-sm py-2">
-            {day}
-          </div>
-        ))}
-
-        {Array.from({ length: firstDayOfMonth }).map((_, i) => (
-          <div key={`empty-${i}`} className="border border-zinc-400 dark:border-zinc-600 bg-zinc-100 dark:bg-zinc-900/50 min-h-[100px] rounded-md"></div>
-        ))}
-
-        {Array.from({ length: daysInMonth }).map((_, day) => {
-          const dayNumber = day + 1;
-          const date = new Date(currentYear, currentMonth, dayNumber);
-          const dateStr = dateToYMD_local(date);
-          const { status, hasData } = getDayStatus(dateStr);
-          const isToday = dateToYMD_local(new Date()) === dateStr;
-
-          return (
-            <button
-              key={dateStr}
-              disabled={!hasData}
-              onClick={() => hasData && handleDayClick(dateStr)}
-              className={`
-                border border-zinc-400 dark:border-zinc-600 min-h-[100px] rounded-md p-2 text-left relative transition-all duration-150
-                ${status === 'goal-met-both' ? 'bg-green-200 dark:bg-green-800' : ''}
-                ${status === 'goal-met-one' ? 'bg-yellow-200 dark:bg-yellow-800' : ''}
-                ${status === 'goal-not-met' ? 'bg-red-200 dark:bg-red-800' : ''}
-                ${status === 'no-data' ? 'bg-zinc-100 dark:bg-zinc-900/50' : ''}
-                ${hasData ? 'cursor-pointer hover:brightness-110' : 'cursor-default'}
-                ${isToday ? 'ring-2 ring-neutral-500' : ''}
-              `}
-            >
-              <span className={`font-semibold text-sm ${isToday ? 'text-neutral-500' : 'text-zinc-800 dark:text-white'}`}>
-                {dayNumber}
-              </span>
-              {hasData && studyDays[dateStr] && (
-                <div className="absolute bottom-2 left-2 right-2 text-xs text-zinc-800 dark:text-white">
-                  {studyDays[dateStr].hours > 0 && (
-                    <div className="font-medium">{formatDecimalHours(studyDays[dateStr].hours)}</div>
-                  )}
-                  {studyDays[dateStr].questions > 0 && (
-                    <div className="font-medium">{studyDays[dateStr].questions} Qst.</div>
-                  )}
-                </div>
-              )}
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="mt-6 flex flex-wrap gap-4 text-sm">
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded bg-green-200 dark:bg-green-800"></div>
-          <span className="text-zinc-700 dark:text-zinc-300">Metas Atingidas</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded bg-yellow-200 dark:bg-yellow-800"></div>
-          <span className="text-zinc-700 dark:text-zinc-300">Meta Parcial</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded bg-red-200 dark:bg-red-800"></div>
-          <span className="text-zinc-700 dark:text-zinc-300">Abaixo da Meta</span>
-        </div>
-      </div>
-
-      {selectedDate && (
-        <DayDetailsModal
-          date={selectedDate.date}
-          dayData={{ dayQuestions: selectedDate.dayQuestions, dayHours: selectedDate.dayHours }}
-          onClose={() => setSelectedDate(null)}
+      {/* --- Cabeçalho de Stats --- */}
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3"
+      >
+        <StatCard
+          icon={Flame}
+          label="Sequência"
+          value={`${currentStreak} dias`}
+          colorClass="text-orange-600 bg-orange-50 dark:bg-orange-900/30 dark:text-orange-400"
         />
-      )}
+        <StatCard
+          icon={Clock}
+          label="Horas (Mês)"
+          value={formatDecimalHours(monthlyStats.hours)}
+          colorClass="text-blue-600 bg-blue-50 dark:bg-blue-900/30 dark:text-blue-400"
+        />
+        <StatCard
+          icon={CheckCircle2}
+          label="Questões (Mês)"
+          value={monthlyStats.questions}
+          subValue={`${accuracyMonth}% acertos`}
+          colorClass="text-emerald-600 bg-emerald-50 dark:bg-emerald-900/30 dark:text-emerald-400"
+        />
+        <StatCard
+          icon={Trophy}
+          label="Dias Úteis"
+          value={`${monthlyStats.daysStudied}/${daysInMonth}`}
+          colorClass="text-red-600 bg-red-50 dark:bg-red-900/30 dark:text-red-500"
+        />
+      </motion.div>
+
+      {/* --- Container do Calendário --- */}
+      <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-zinc-300 dark:border-zinc-800 overflow-hidden relative">
+
+        {/* --- MARCA D'ÁGUA GIGANTE (RESTAURADA) --- */}
+        <div className="absolute top-[-30px] right-[-10px] opacity-15 dark:opacity-15 pointer-events-none">
+          <CalendarIcon size={160} className="text-red-600" />
+        </div>
+
+        {/* Header do Mês */}
+        <div className="p-4 flex flex-col md:flex-row justify-between items-center gap-3 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50 relative z-10">
+          <div className="flex items-center gap-3">
+             <div className="p-2 bg-red-600 rounded-lg shadow-md text-white">
+                <CalendarIcon size={20} />
+             </div>
+             <div>
+               <h2 className="text-xl font-extrabold text-zinc-800 dark:text-white capitalize leading-none tracking-tight">
+                 {new Date(currentYear, currentMonth).toLocaleDateString('pt-BR', { month: 'long' })}
+               </h2>
+               <p className="text-xs text-zinc-500 dark:text-zinc-400 font-semibold mt-0.5">
+                 {currentYear}
+               </p>
+             </div>
+          </div>
+
+          <div className="flex items-center gap-1 bg-white dark:bg-zinc-800 p-1 rounded-lg border border-zinc-300 dark:border-zinc-700 shadow-sm">
+            <button
+              onClick={() => changeMonth(-1)}
+              className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-md transition-all text-zinc-700 dark:text-zinc-300"
+            >
+              <ChevronLeft size={18} />
+            </button>
+            <span className="px-3 text-xs font-bold text-zinc-700 dark:text-zinc-300 min-w-[80px] text-center">
+              {new Date(currentYear, currentMonth).toLocaleDateString('pt-BR', { month: 'short' }).toUpperCase()}
+            </span>
+            <button
+              onClick={() => changeMonth(1)}
+              className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-md transition-all text-zinc-700 dark:text-zinc-300"
+            >
+              <ChevronRight size={18} />
+            </button>
+          </div>
+        </div>
+
+        {/* Corpo do Calendário */}
+        <div className="p-4 bg-zinc-100/50 dark:bg-zinc-900 relative z-10">
+          <div className="grid grid-cols-7 mb-2">
+            {daysOfWeek.map(day => (
+              <div key={day} className="text-center text-[10px] md:text-xs font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider">
+                {day}
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-7 gap-1.5 md:gap-2">
+            {Array.from({ length: firstDayOfMonth }).map((_, i) => (
+              <div key={`empty-${i}`} className="min-h-[64px] md:min-h-[85px] bg-zinc-200/30 dark:bg-zinc-800/20 rounded-lg border border-transparent"></div>
+            ))}
+
+            {Array.from({ length: daysInMonth }).map((_, day) => {
+              const dayNumber = day + 1;
+              const dateObj = new Date(currentYear, currentMonth, dayNumber);
+              const dateStr = dateToYMD_local(dateObj);
+              const { status, hasData } = getDayStatus(dateStr);
+              const isToday = todayStr === dateStr;
+
+              // Base Styles
+              let cardClasses = "bg-white dark:bg-zinc-800 border-zinc-300 dark:border-zinc-700 shadow-sm";
+              let textClasses = "text-zinc-700 dark:text-zinc-300";
+
+              if (hasData) {
+                if (status === 'goal-met-both') {
+                  cardClasses = "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-400 dark:border-emerald-700 shadow-sm";
+                  textClasses = "text-emerald-800 dark:text-emerald-400";
+                } else if (status === 'goal-met-one') {
+                  cardClasses = "bg-amber-50 dark:bg-amber-900/20 border-amber-400 dark:border-amber-700 shadow-sm";
+                  textClasses = "text-amber-800 dark:text-amber-400";
+                } else {
+                  cardClasses = "bg-red-50 dark:bg-red-900/10 border-red-300 dark:border-red-900/30 shadow-sm";
+                  textClasses = "text-red-800 dark:text-red-400";
+                }
+              }
+
+              if (isToday) {
+                cardClasses += " ring-2 ring-red-600 ring-offset-2 ring-offset-zinc-100 dark:ring-offset-zinc-900 z-10 font-bold";
+              }
+
+              return (
+                <motion.button
+                  layout
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: day * 0.005 }}
+                  key={dateStr}
+                  disabled={!hasData}
+                  onClick={() => hasData && handleDayClick(dateStr)}
+                  className={`
+                    relative rounded-lg border p-1.5 md:p-2 text-left flex flex-col justify-between
+                    min-h-[64px] md:min-h-[85px] transition-all duration-200 group
+                    ${cardClasses}
+                    ${hasData ? 'cursor-pointer hover:shadow-md hover:-translate-y-0.5 hover:brightness-95' : 'cursor-default opacity-80'}
+                  `}
+                >
+                  <div className="flex justify-between items-start">
+                    <span className={`text-sm md:text-base font-bold leading-none ${isToday ? 'text-red-600' : textClasses}`}>
+                      {dayNumber}
+                    </span>
+                  </div>
+
+                  {hasData && studyDays[dateStr] && (
+                    <div className="space-y-0.5 mt-1">
+                      {studyDays[dateStr].hours > 0 && (
+                        <div className="flex items-center gap-1 text-[10px] font-bold text-zinc-700 dark:text-zinc-300 truncate">
+                           <Clock size={10} className={status === 'goal-met-both' ? 'text-emerald-600' : 'text-zinc-500'} />
+                           {formatDecimalHours(studyDays[dateStr].hours)}
+                        </div>
+                      )}
+                      {studyDays[dateStr].questions > 0 && (
+                        <div className="flex items-center gap-1 text-[10px] font-bold text-zinc-700 dark:text-zinc-300 truncate">
+                           <Target size={10} className={status === 'goal-met-both' ? 'text-emerald-600' : 'text-zinc-500'} />
+                           {studyDays[dateStr].questions} Qst.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </motion.button>
+              );
+            })}
+          </div>
+
+          {/* Legenda Atualizada (Bolinha Vermelha Escura) */}
+          <div className="mt-4 flex flex-wrap gap-4 text-xs border-t border-zinc-200 dark:border-zinc-800 pt-3 justify-center">
+            <div className="flex items-center gap-1.5">
+              <div className="w-3 h-3 rounded-full bg-emerald-500 border border-emerald-600 shadow-sm"></div>
+              <span className="text-zinc-700 dark:text-zinc-300 font-semibold">Meta Concluida </span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-3 h-3 rounded-full bg-amber-500 border border-amber-600 shadow-sm"></div>
+              <span className="text-zinc-700 dark:text-zinc-300 font-semibold">Meta Parcial</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              {/* CORRIGIDO AQUI: De bg-red-100 para bg-red-600 */}
+              <div className="w-3 h-3 rounded-full bg-red-600 border border-red-700 shadow-sm"></div>
+              <span className="text-zinc-700 dark:text-zinc-300 font-semibold">Meta Incompleta</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <AnimatePresence>
+        {selectedDate && (
+          <DayDetailsModal
+            date={selectedDate.date}
+            dayData={{ dayQuestions: selectedDate.dayQuestions, dayHours: selectedDate.dayHours }}
+            onClose={() => setSelectedDate(null)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

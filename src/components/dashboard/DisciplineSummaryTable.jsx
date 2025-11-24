@@ -113,7 +113,7 @@ function DisciplineSummaryTable({ registrosEstudo }) {
       <div className="flex flex-row justify-between items-center gap-3 min-h-[40px] px-1">
         <h3 className="text-xs font-bold uppercase tracking-wider text-text-secondary dark:text-text-dark-secondary flex items-center gap-2">
             <BarChart2 size={18} className="text-indigo-500" />
-            Ranking Tático
+            Ranking de Disciplinas
         </h3>
 
         <div className="flex bg-zinc-200 dark:bg-zinc-900 p-1 rounded-lg">
