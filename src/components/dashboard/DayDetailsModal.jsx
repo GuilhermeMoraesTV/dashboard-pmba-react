@@ -291,7 +291,7 @@ function DayDetailsModal({ date, dayData, goals = { questions: 0, hours: 0 }, on
             <div className="bg-white dark:bg-zinc-800/80 rounded-lg p-3 flex-1 border border-zinc-200 dark:border-zinc-700/50 shadow-sm flex flex-col justify-center">
               <div className="flex items-center gap-1.5 text-zinc-500 dark:text-zinc-400 text-[10px] uppercase font-bold tracking-wider"><CheckCircle2 size={12} /> Questões</div>
               <div className="text-xl font-bold text-zinc-800 dark:text-white mt-0.5 flex items-baseline gap-1">
-                {stats.totalQst} <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">({stats.totalAcertos} ok)</span>
+                {stats.totalQst}
               </div>
             </div>
             <div className="bg-white dark:bg-zinc-800/80 rounded-lg p-3 flex-1 border border-zinc-200 dark:border-zinc-700/50 shadow-sm flex flex-col justify-center">
@@ -329,9 +329,7 @@ function DayDetailsModal({ date, dayData, goals = { questions: 0, hours: 0 }, on
                   `}>
                     {metaStatus.message}
                   </h3>
-                  <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
-                    Confira abaixo o progresso em relação ao planejado.
-                  </p>
+
                 </div>
               </div>
 

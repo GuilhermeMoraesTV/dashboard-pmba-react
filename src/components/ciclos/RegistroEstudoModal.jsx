@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { db } from '../../firebaseConfig';
-import { collection, query, where, onSnapshot, orderBy, serverTimestamp } from 'firebase/firestore';
+import React, { useState, useMemo } from 'react';
+import { serverTimestamp } from 'firebase/firestore';
 import { X, Save, Clock, Target, BookOpen, List, Calendar, AlertTriangle } from 'lucide-react';
 
-function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disciplinasDoCiclo, initialData }) {
+function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, disciplinasDoCiclo, initialData }) {
 
   const minutesToHoursMinutes = (totalMinutes) => {
     if (totalMinutes === undefined || totalMinutes === null || totalMinutes <= 0) {
@@ -18,7 +17,6 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
 
   const [formData, setFormData] = useState({
     disciplinaId: initialData?.disciplinaId || '',
-    topicoId: initialData?.topicoId || '',
     data: new Date().toISOString().split('T')[0],
     horas: initialTime.horas,
     minutos: initialTime.minutos,
@@ -29,48 +27,11 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
 
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-  const [topics, setTopics] = useState([]);
-  const [loadingTopics, setLoadingTopics] = useState(false);
 
   const isTimeFromTimer = useMemo(() =>
     initialData?.tempoEstudadoMinutos !== undefined && initialData.tempoEstudadoMinutos > 0,
     [initialData]
   );
-
-  useEffect(() => {
-    if (!formData.disciplinaId || !userId || !cicloId) {
-      setTopics([]);
-      setLoadingTopics(false);
-      return;
-    }
-
-    setLoadingTopics(true);
-    setTopics([]);
-
-    try {
-      const topicsRef = collection(db, 'users', userId, 'ciclos', cicloId, 'topicos');
-      const q = query(
-        topicsRef,
-        where('disciplinaId', '==', formData.disciplinaId),
-        orderBy('nome')
-      );
-
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setTopics(data);
-        setLoadingTopics(false);
-      }, (error) => {
-        console.error("Erro ao carregar tópicos:", error);
-        setLoadingTopics(false);
-      });
-
-      return () => unsubscribe();
-    } catch (error) {
-      console.error("Erro ao configurar listener:", error);
-      setLoadingTopics(false);
-      setTopics([]);
-    }
-  }, [formData.disciplinaId, userId, cicloId]);
 
   const tiposDeEstudo = ['Teoria', 'Questões', 'Revisão', 'Resumo', 'Simulado', 'Outro'];
 
@@ -78,7 +39,6 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
     const { name, value, type } = e.target;
     const numericValue = type === 'number' ? Number(value) : value;
     setFormData(prev => ({ ...prev, [name]: numericValue }));
-    if (name === 'disciplinaId') setFormData(prev => ({ ...prev, topicoId: '' }));
   };
 
   const handleSubmit = async (e) => {
@@ -95,14 +55,11 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
     }
 
     const disciplinaNome = disciplinasDoCiclo.find(d => d.id === formData.disciplinaId)?.nome || 'Desconhecida';
-    const topicoNome = topics.find(t => t.id === formData.topicoId)?.nome || '';
 
     const registro = {
       cicloId,
       disciplinaId: formData.disciplinaId,
       disciplinaNome,
-      topicoId: formData.topicoId || null,
-      topicoNome: topicoNome || null,
       data: formData.data,
       timestamp: serverTimestamp(),
       tempoEstudadoMinutos: totalMinutesFromForm,
@@ -133,10 +90,10 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
         onClick={(e) => e.stopPropagation()}
       >
 
-        {/* --- HEADER TÁTICO COM ÍCONE INTEGRADO --- */}
+        {/* --- HEADER TÁTICO --- */}
         <div className="relative flex justify-between items-center p-6 border-b border-zinc-100 dark:border-zinc-800 overflow-hidden bg-zinc-50/50 dark:bg-zinc-900/50">
 
-            {/* Marca D'água (Contida no Header) */}
+            {/* Marca D'água */}
             <div className="absolute -right-6 -top-6 text-red-500/10 dark:text-red-500/5 pointer-events-none transform rotate-12">
                 <Save size={140} strokeWidth={1.5} />
             </div>
@@ -149,9 +106,7 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
                     <h2 className="text-xl font-black text-zinc-900 dark:text-white uppercase tracking-tight leading-none">
                       Registrar Estudo
                     </h2>
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium mt-1">
-                      Documentação de progresso.
-                    </p>
+
                 </div>
             </div>
 
@@ -173,12 +128,11 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
             </div>
           )}
 
-          {/* SEÇÃO 1: O QUE ESTUDOU? */}
+          {/* SEÇÃO 1: DISCIPLINA E DATA (LADO A LADO) */}
           <div className="space-y-4">
-              <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2 mb-2">
-                  <BookOpen size={14} /> Alvo do Estudo
-              </h3>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* DISCIPLINA */}
                 <div className="group">
                   <label className="block text-sm font-bold text-zinc-700 dark:text-zinc-300 mb-1.5">Disciplina</label>
                   <select
@@ -195,30 +149,24 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
                   </select>
                 </div>
 
+                {/* DATA */}
                 <div className="group">
-                  <label className="block text-sm font-bold text-zinc-700 dark:text-zinc-300 mb-1.5">Tópico <span className="text-zinc-400 font-normal text-xs">(Opcional)</span></label>
-                  <div className="relative">
-                      <select
-                        name="topicoId"
-                        value={formData.topicoId}
+                    <label className="block text-sm font-bold text-zinc-700 dark:text-zinc-300 mb-1.5 flex items-center gap-2">
+                         Data da Realização
+                    </label>
+                    <input
+                        type="date"
+                        name="data"
+                        value={formData.data}
                         onChange={handleChange}
-                        disabled={!formData.disciplinaId || loadingTopics}
-                        className="w-full p-3 border border-zinc-200 dark:border-zinc-700 rounded-xl bg-zinc-50 dark:bg-zinc-900/50 focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all outline-none text-zinc-800 dark:text-white font-medium disabled:opacity-50 appearance-none"
-                      >
-                        <option value="">{loadingTopics ? 'Carregando...' : (topics.length > 0 ? 'Selecione o tópico...' : 'Geral / Nenhum')}</option>
-                        {topics.map(topic => (
-                          <option key={topic.id} value={topic.id}>{topic.nome}</option>
-                        ))}
-                      </select>
-                      <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-400">
-                          <List size={16} />
-                      </div>
-                  </div>
+                        required
+                        className="w-full p-3 border border-zinc-200 dark:border-zinc-700 rounded-xl bg-zinc-50 dark:bg-zinc-900/50 focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all outline-none text-zinc-800 dark:text-white font-bold"
+                    />
                 </div>
               </div>
           </div>
 
-          {/* SEÇÃO 2: TIPO E DATA */}
+          {/* SEÇÃO 2: TIPO DE ESTUDO */}
           <div className="space-y-4">
             <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2 mb-2">
                   <List size={14} /> Tipo do Estudo
@@ -241,20 +189,6 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
                         {tipo}
                     </button>
                 ))}
-            </div>
-
-            <div className="pt-2">
-                <label className="block text-sm font-bold text-zinc-700 dark:text-zinc-300 mb-1.5 flex items-center gap-2">
-                    <Calendar size={16} className="text-red-500"/> Data da Realização
-                </label>
-                <input
-                    type="date"
-                    name="data"
-                    value={formData.data}
-                    onChange={handleChange}
-                    required
-                    className="w-full p-3 border border-zinc-200 dark:border-zinc-700 rounded-xl bg-zinc-50 dark:bg-zinc-900/50 focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all outline-none text-zinc-800 dark:text-white font-bold"
-                />
             </div>
           </div>
 

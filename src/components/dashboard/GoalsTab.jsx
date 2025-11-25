@@ -64,14 +64,12 @@ function GoalsTab({ onSetGoal, goalsHistory, onDeleteGoal }) {
     }
   }, [currentGoal]);
 
-  // --- CÁLCULOS DE PROJEÇÃO ---
   const stats = useMemo(() => {
     const weeklyHours = hoursGoal * 7;
     const monthlyHours = hoursGoal * 30;
     const weeklyQuestions = questionsGoal * 7;
     const monthlyQuestions = questionsGoal * 30;
 
-    // Gamification
     let level = { label: 'MANUTENÇÃO', color: 'text-blue-500', border: 'border-blue-500', bg: 'bg-blue-500' };
     if (hoursGoal >= 2) level = { label: 'OPERACIONAL', color: 'text-emerald-500', border: 'border-emerald-500', bg: 'bg-emerald-500' };
     if (hoursGoal >= 4) level = { label: 'INTENSIVO', color: 'text-amber-500', border: 'border-amber-500', bg: 'bg-amber-500' };
@@ -112,30 +110,22 @@ function GoalsTab({ onSetGoal, goalsHistory, onDeleteGoal }) {
   return (
     <div className="animate-fade-in space-y-8 pb-12">
 
-      {/* HEADER */}
-      <div className="flex items-center gap-4 mb-8 relative overflow-hidden p-6 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
-          <div className="absolute -right-6 -top-6 text-red-500/5 pointer-events-none transform rotate-12">
-              <Target size={180} strokeWidth={1} />
-          </div>
+      {/* --- CABEÇALHO INTERNO DA PÁGINA (PADRONIZADO) --- */}
+      <div className="mb-8 border-b border-zinc-200 dark:border-zinc-800 pb-6">
+        <div className="flex items-center gap-3 mb-2">
+            <div className="p-2.5 bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-500 rounded-xl">
+                <Target size={28} strokeWidth={2} />
+            </div>
+            <h1 className="text-3xl font-black text-zinc-800 dark:text-white tracking-tight uppercase">
+                Estratégia & Metas
+            </h1>
+        </div>
 
-          <div className="w-16 h-16 bg-red-600 rounded-2xl flex items-center justify-center shadow-lg shadow-red-900/20 relative z-10">
-              <Target size={32} className="text-white" />
-          </div>
-          <div className="relative z-10">
-              <h1 className="text-3xl font-black text-zinc-900 dark:text-white uppercase tracking-tight">
-                  Estratégia & Metas
-              </h1>
-              <p className="text-zinc-500 dark:text-zinc-400 font-medium text-sm">
-                  Defina objetivos diários. O histórico preserva suas metas passadas.
-              </p>
-          </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
-        {/* ESQUERDA: CONTROLES */}
         <div className="lg:col-span-2 space-y-6">
-
           <div className="bg-white dark:bg-zinc-950 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-800 p-6 relative overflow-hidden">
               <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${stats.level.bg}`}></div>
 
@@ -169,7 +159,6 @@ function GoalsTab({ onSetGoal, goalsHistory, onDeleteGoal }) {
                   />
               </div>
 
-              {/* PROJEÇÃO */}
               <div className="mt-8 p-5 bg-zinc-50 dark:bg-zinc-900/30 rounded-xl border border-zinc-200 dark:border-zinc-800">
                   <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-4 flex items-center gap-2">
                       <BarChart3 size={14} /> Projeção de Impacto
@@ -177,7 +166,7 @@ function GoalsTab({ onSetGoal, goalsHistory, onDeleteGoal }) {
                   <div className="grid grid-cols-2 gap-4">
                       <div className="flex items-center justify-between p-3 bg-white dark:bg-zinc-950 rounded-lg border border-zinc-200 dark:border-zinc-800/50">
                           <div>
-                              <p className="text-[10px] text-zinc-400 font-bold uppercase">Semanal (7 dias)</p>
+                              <p className="text-[10px] text-zinc-400 font-bold uppercase">Semanal</p>
                               <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Consistência</p>
                           </div>
                           <div className="text-right">
@@ -187,7 +176,7 @@ function GoalsTab({ onSetGoal, goalsHistory, onDeleteGoal }) {
                       </div>
                       <div className="flex items-center justify-between p-3 bg-white dark:bg-zinc-950 rounded-lg border border-zinc-200 dark:border-zinc-800/50">
                           <div>
-                              <p className="text-[10px] text-zinc-400 font-bold uppercase">Mensal (30 dias)</p>
+                              <p className="text-[10px] text-zinc-400 font-bold uppercase">Mensal</p>
                               <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Evolução</p>
                           </div>
                           <div className="text-right">
@@ -216,7 +205,6 @@ function GoalsTab({ onSetGoal, goalsHistory, onDeleteGoal }) {
           </div>
         </div>
 
-        {/* DIREITA: HISTÓRICO INTERATIVO */}
         <div className="lg:col-span-1">
            <div className="bg-white dark:bg-zinc-950 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-800 p-6 h-full flex flex-col relative overflow-hidden">
              <div className="absolute -top-10 -right-10 text-zinc-100 dark:text-zinc-900 pointer-events-none transform -rotate-12">
@@ -225,10 +213,10 @@ function GoalsTab({ onSetGoal, goalsHistory, onDeleteGoal }) {
 
             <div className="flex items-center justify-between mb-6 relative z-10">
                 <h2 className="text-lg font-bold text-zinc-800 dark:text-white flex items-center gap-2">
-                  <History size={20} className="text-red-500" /> Histórico de Metas
+                  <History size={20} className="text-red-500" /> Histórico
                 </h2>
                 <span className="text-[10px] font-black text-zinc-400 bg-zinc-100 dark:bg-zinc-900 px-2 py-1 rounded uppercase tracking-wide">
-                    Histórico
+                    Registro
                 </span>
             </div>
 
@@ -266,7 +254,6 @@ function GoalsTab({ onSetGoal, goalsHistory, onDeleteGoal }) {
                           </span>
                         ) : (
                             <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                {/* Botão Excluir */}
                                 <button
                                     onClick={() => {
                                         if(window.confirm("Tem certeza que deseja excluir este registro de meta do histórico?")) {
@@ -279,7 +266,6 @@ function GoalsTab({ onSetGoal, goalsHistory, onDeleteGoal }) {
                                     <Trash2 size={14} />
                                 </button>
 
-                                {/* Botão Reativar */}
                                 <button
                                     onClick={() => handleReactivate(goal)}
                                     className="text-[9px] font-bold bg-white dark:bg-zinc-800 text-indigo-500 border border-indigo-200 dark:border-indigo-900 py-1.5 px-2 rounded flex items-center gap-1 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 shadow-sm"

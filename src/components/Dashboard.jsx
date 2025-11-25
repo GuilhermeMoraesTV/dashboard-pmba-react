@@ -45,6 +45,9 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   const [allRegistrosEstudo, setAllRegistrosEstudo] = useState([]);
   const [activeRegistrosEstudo, setActiveRegistrosEstudo] = useState([]);
 
+  // Estado para forçar a abertura do ciclo visual
+  const [forceOpenVisual, setForceOpenVisual] = useState(false);
+
   // Estado do Timer Global
   const [activeStudySession, setActiveStudySession] = useState(null);
 
@@ -148,13 +151,11 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   const handleStopStudy = async (minutes) => {
     if (!activeStudySession) return;
 
-    // Validação
     if (!activeCicloId) {
         alert("Nenhum ciclo ativo encontrado. Ative um ciclo antes de salvar.");
         return;
     }
 
-    // Pergunta interativa
     setTimeout(async () => {
         const inputQ = window.prompt("⏱️ Sessão finalizada! Quantas questões você resolveu? (0 se apenas leitura)");
 
@@ -184,7 +185,6 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
                 console.error("Erro ao salvar timer:", e);
             }
         } else {
-            // Se cancelar, salva só o tempo
             const data = {
                 cicloId: activeCicloId,
                 disciplinaId: activeStudySession.disciplina.id,
@@ -224,6 +224,28 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     signOut(auth).catch((error) => console.error('Logout Error:', error));
   };
 
+  // *** FUNÇÃO ATUALIZADA: Navega direto para o ciclo visual ***
+  const handleGoToActiveCycle = () => {
+    if (activeCicloId) {
+      setForceOpenVisual(true); // Sinaliza para abrir visual
+      setActiveTab('ciclos');
+
+      // Reseta o sinalizador após um tempo para permitir navegação normal depois
+      setTimeout(() => setForceOpenVisual(false), 1000);
+    } else {
+      // Se não houver ciclo ativo, vai para a lista de ciclos
+      setActiveTab('ciclos');
+    }
+  };
+
+  // Função para resetar a tab ao clicar no menu lateral
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    if (tab !== 'ciclos') {
+      setForceOpenVisual(false);
+    }
+  };
+
   const renderTabContent = () => {
     if (loading && ['home', 'calendar'].includes(activeTab)) {
       return (
@@ -239,7 +261,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
             <Home
                 registrosEstudo={activeRegistrosEstudo}
                 goalsHistory={goalsHistory}
-                setActiveTab={setActiveTab}
+                setActiveTab={handleGoToActiveCycle} // *** FUNÇÃO ATUALIZADA AQUI ***
                 activeCicloData={activeCicloData}
                 onDeleteRegistro={deleteRegistro}
             />
@@ -261,12 +283,14 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
                 onStartStudy={handleStartStudy}
                 onCicloAtivado={(id) => setActiveCicloId(id)}
                 addRegistroEstudo={addRegistroEstudo}
+                activeCicloId={activeCicloId}
+                forceOpenVisual={forceOpenVisual} // *** PASSA A PROP AQUI ***
             />
         );
       case 'profile':
         return <ProfilePage user={user} allRegistrosEstudo={allRegistrosEstudo} onDeleteRegistro={deleteRegistro} />;
       default:
-        return <Home registrosEstudo={activeRegistrosEstudo} goalsHistory={goalsHistory} setActiveTab={setActiveTab} onDeleteRegistro={deleteRegistro} />;
+        return <Home registrosEstudo={activeRegistrosEstudo} goalsHistory={goalsHistory} setActiveTab={handleGoToActiveCycle} activeCicloData={activeCicloData} onDeleteRegistro={deleteRegistro} />;
     }
   };
 
@@ -288,7 +312,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       <NavSideBar
         user={user}
         activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        setActiveTab={handleTabChange}
         handleLogout={handleLogout}
         isExpanded={isSidebarExpanded}
         setExpanded={setIsSidebarExpanded}
@@ -298,7 +322,6 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
 
       <div className={`flex-grow w-full transition-all duration-300 ease-in-out pt-[80px] px-4 md:px-8 lg:pt-8 pb-10 ${isSidebarExpanded ? 'lg:ml-[260px]' : 'lg:ml-[80px]'}`}>
 
-        {/* --- AQUI A MUDANÇA IMPORTANTE --- */}
         <Header
             user={user}
             activeTab={activeTab}
@@ -306,7 +329,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
             toggleTheme={toggleTheme}
             registrosEstudo={allRegistrosEstudo}
             goalsHistory={goalsHistory}
-            activeCicloId={activeCicloId} // <--- PASSANDO O ID DO CICLO
+            activeCicloId={activeCicloId}
         />
 
         <main className="mt-6 max-w-7xl mx-auto animate-fade-in">

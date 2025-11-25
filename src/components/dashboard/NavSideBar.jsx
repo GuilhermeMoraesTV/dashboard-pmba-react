@@ -13,7 +13,7 @@ function NavSideBar({
 }) {
 
   const navItems = [
-    { id: 'home', label: 'Dashboard', icon: <Home size={22} /> },
+    { id: 'home', label: 'Home', icon: <Home size={22} /> },
     { id: 'ciclos', label: 'Meus Ciclos', icon: <RefreshCw size={22} /> },
     { id: 'goals', label: 'Metas', icon: <Target size={22} /> },
     { id: 'calendar', label: 'Calendário', icon: <Calendar size={22} /> },

@@ -8,7 +8,8 @@ import {
   Target,
   Flame,
   Trophy,
-  CheckCircle2
+  CheckCircle2,
+  CalendarDays // Ícone específico para o cabeçalho
 } from 'lucide-react';
 import DayDetailsModal from './DayDetailsModal.jsx';
 
@@ -30,7 +31,7 @@ const formatDecimalHours = (minutos) => {
 
 // --- Componente de Card de Estatística ---
 const StatCard = ({ icon: Icon, label, value, subValue, colorClass = "text-zinc-600" }) => (
-  <div className="flex items-center gap-2 md:gap-3 p-2 md:p-3 bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-300 dark:border-zinc-700/50 rounded-xl shadow-sm min-w-[110px] flex-1 relative overflow-hidden">
+  <div className="flex items-center gap-2 md:gap-3 p-2 md:p-3 bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700/50 rounded-xl shadow-sm min-w-[110px] flex-1 relative overflow-hidden">
     <div className={`p-1.5 md:p-2 rounded-lg bg-white dark:bg-zinc-700 shadow-sm border border-zinc-100 dark:border-zinc-600 ${colorClass} relative z-10`}>
       <Icon size={20} strokeWidth={2.5} />
     </div>
@@ -150,13 +151,26 @@ function CalendarTab({ registrosEstudo = [], goalsHistory = [], onDeleteRegistro
     : 0;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-8 animate-fade-in pb-12">
 
-      {/* --- Cabeçalho de Stats --- */}
+      {/* --- CABEÇALHO INTERNO (PADRONIZADO) --- */}
+      <div className="mb-4 border-b border-zinc-200 dark:border-zinc-800 pb-6">
+        <div className="flex items-center gap-3 mb-2">
+            <div className="p-2.5 bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-500 rounded-xl">
+                <CalendarDays size={28} strokeWidth={2} />
+            </div>
+            <h1 className="text-3xl font-black text-zinc-800 dark:text-white tracking-tight uppercase">
+                Calendário de Estudos
+            </h1>
+        </div>
+
+      </div>
+
+      {/* --- Stats Grid --- */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3"
+        className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4"
       >
         <StatCard
           icon={Flame}
@@ -179,7 +193,7 @@ function CalendarTab({ registrosEstudo = [], goalsHistory = [], onDeleteRegistro
         />
         <StatCard
           icon={Trophy}
-          label="Dias Úteis"
+          label="Dias de Estudo"
           value={`${monthlyStats.daysStudied}/${daysInMonth}`}
           colorClass="text-red-600 bg-red-50 dark:bg-red-900/30 dark:text-red-500"
         />
@@ -188,9 +202,9 @@ function CalendarTab({ registrosEstudo = [], goalsHistory = [], onDeleteRegistro
       {/* --- Container do Calendário --- */}
       <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-zinc-300 dark:border-zinc-800 overflow-hidden relative">
 
-        {/* --- MARCA D'ÁGUA GIGANTE (RESTAURADA) --- */}
-        <div className="absolute top-[-30px] right-[-10px] opacity-15 dark:opacity-15 pointer-events-none">
-          <CalendarIcon size={160} className="text-red-600" />
+        {/* Marca D'água */}
+        <div className="absolute top-[-30px] right-[-10px] opacity-[0.03] dark:opacity-[0.05] pointer-events-none">
+          <CalendarIcon size={200} className="text-red-600" />
         </div>
 
         {/* Header do Mês */}
@@ -250,7 +264,7 @@ function CalendarTab({ registrosEstudo = [], goalsHistory = [], onDeleteRegistro
               const { status, hasData } = getDayStatus(dateStr);
               const isToday = todayStr === dateStr;
 
-              // Base Styles
+              // Estilos base
               let cardClasses = "bg-white dark:bg-zinc-800 border-zinc-300 dark:border-zinc-700 shadow-sm";
               let textClasses = "text-zinc-700 dark:text-zinc-300";
 
@@ -314,18 +328,17 @@ function CalendarTab({ registrosEstudo = [], goalsHistory = [], onDeleteRegistro
             })}
           </div>
 
-          {/* Legenda Atualizada (Bolinha Vermelha Escura) */}
+          {/* Legenda */}
           <div className="mt-4 flex flex-wrap gap-4 text-xs border-t border-zinc-200 dark:border-zinc-800 pt-3 justify-center">
             <div className="flex items-center gap-1.5">
               <div className="w-3 h-3 rounded-full bg-emerald-500 border border-emerald-600 shadow-sm"></div>
-              <span className="text-zinc-700 dark:text-zinc-300 font-semibold">Meta Concluida </span>
+              <span className="text-zinc-700 dark:text-zinc-300 font-semibold">Meta Concluída</span>
             </div>
             <div className="flex items-center gap-1.5">
               <div className="w-3 h-3 rounded-full bg-amber-500 border border-amber-600 shadow-sm"></div>
               <span className="text-zinc-700 dark:text-zinc-300 font-semibold">Meta Parcial</span>
             </div>
             <div className="flex items-center gap-1.5">
-              {/* CORRIGIDO AQUI: De bg-red-100 para bg-red-600 */}
               <div className="w-3 h-3 rounded-full bg-red-600 border border-red-700 shadow-sm"></div>
               <span className="text-zinc-700 dark:text-zinc-300 font-semibold">Meta Incompleta</span>
             </div>
@@ -338,6 +351,7 @@ function CalendarTab({ registrosEstudo = [], goalsHistory = [], onDeleteRegistro
           <DayDetailsModal
             date={selectedDate.date}
             dayData={{ dayQuestions: selectedDate.dayQuestions, dayHours: selectedDate.dayHours }}
+            goals={getGoalsForDate(selectedDate.date)}
             onClose={() => setSelectedDate(null)}
           />
         )}

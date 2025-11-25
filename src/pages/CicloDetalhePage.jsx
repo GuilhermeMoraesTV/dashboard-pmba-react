@@ -163,7 +163,7 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
                 onClick={onBack}
                 className="flex items-center gap-2 text-zinc-500 hover:text-zinc-800 dark:hover:text-white text-xs font-bold uppercase tracking-wider transition-colors"
               >
-                <ArrowLeft size={16} /> Voltar à Base
+                <ArrowLeft size={16} /> Voltar
               </button>
 
               {/* Botão de Toggle Semanal/Total */}
