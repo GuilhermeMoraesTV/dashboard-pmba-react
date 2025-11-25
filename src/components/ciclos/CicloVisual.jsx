@@ -16,6 +16,30 @@ const dateToYMD = (date) => {
   return date.toISOString().split('T')[0];
 };
 
+// --- HELPER: Formatador Inteligente de Horas ---
+const formatVisualHours = (minutes) => {
+  if (!minutes || isNaN(minutes)) return '0h';
+
+  let totalMinutes = Math.round(Number(minutes));
+
+  // Lógica de arredondamento visual (imã)
+  const remainder = totalMinutes % 60;
+  if (remainder > 50) {
+    totalMinutes = Math.ceil(totalMinutes / 60) * 60;
+  }
+
+  const hours = Math.floor(totalMinutes / 60);
+  const mins = totalMinutes % 60;
+
+  if (hours === 0) {
+      return `${mins}m`;
+  } else if (mins === 0) {
+      return `${hours}h`;
+  }
+
+  return `${hours}h ${mins}m`;
+};
+
 // --- COMPONENTE DE SEGMENTO (BLOCO) ---
 const CicloSegment = ({
   startAngle,
@@ -57,7 +81,6 @@ const CicloSegment = ({
       className="cursor-pointer group"
       style={{ opacity: isActive ? 1 : 0.9, transition: 'opacity 0.3s ease' }}
     >
-      {/* Bloco completo com cor baseada no progresso */}
       <motion.path
         initial={{ d: createArc(startAngle, startAngle, radius) }}
         animate={{ d: bgPath }}
@@ -67,8 +90,6 @@ const CicloSegment = ({
         strokeWidth={strokeWidth}
         strokeLinecap="butt"
       />
-
-      {/* Overlay de Hover */}
       {isActive && (
         <path
           d={bgPath}
@@ -129,39 +150,41 @@ function CicloVisual({
   const data = useMemo(() => {
     if (!disciplinas.length) return [];
 
-    const totalMeta = disciplinas.reduce((acc, d) => acc + (d.tempoAlocadoSemanalMinutos || 0), 0);
+    const totalMetaRaw = disciplinas.reduce((acc, d) => acc + Number(d.tempoAlocadoSemanalMinutos || 0), 0);
+    const totalMeta = Math.round(totalMetaRaw);
+
     const startOfWeek = getStartOfWeek();
     const startOfWeekStr = dateToYMD(startOfWeek);
 
     let currentAngle = 0;
 
     return disciplinas.map((disciplina) => {
-      const metaMinutos = disciplina.tempoAlocadoSemanalMinutos || 0;
+      const metaMinutos = Number(disciplina.tempoAlocadoSemanalMinutos || 0);
       const angle = totalMeta > 0 ? (metaMinutos / totalMeta) * 360 : 0;
 
       let progressMinutos = 0;
       registrosEstudo.forEach(reg => {
         if (reg.disciplinaId === disciplina.id) {
+          const minutosReg = Number(reg.tempoEstudadoMinutos || 0);
           if (viewMode === 'semanal') {
             if (reg.data >= startOfWeekStr) {
-              progressMinutos += reg.tempoEstudadoMinutos;
+              progressMinutos += minutosReg;
             }
           } else {
-            progressMinutos += reg.tempoEstudadoMinutos;
+            progressMinutos += minutosReg;
           }
         }
       });
 
       const percentage = metaMinutos > 0 ? (progressMinutos / metaMinutos) * 100 : 0;
 
-      // Definir cor baseada no progresso
       let color;
       if (percentage === 0) {
-        color = '#71717a'; // Cinza (zinc-500)
+        color = '#71717a';
       } else if (percentage >= 100) {
-        color = '#10b981'; // Verde (emerald-500)
+        color = '#10b981';
       } else {
-        color = '#eab308'; // Amarelo (yellow-500)
+        color = '#eab308';
       }
 
       const segmentData = {
@@ -191,12 +214,10 @@ function CicloVisual({
 
   return (
     <div className="w-full">
-      {/* --- CONTEÚDO PRINCIPAL --- */}
-      <div className="flex flex-col xl:flex-row items-center xl:items-center justify-center gap-8 lg:gap-20 w-full px-4 animate-fade-in">
+      <div className="flex flex-col xl:flex-row items-center xl:items-start justify-center gap-6 xl:gap-8 w-full px-4 animate-fade-in">
+
         {/* --- ÁREA DO GRÁFICO --- */}
-        <div className="relative flex-shrink-0 group">
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120%] h-[120%] border border-zinc-300 dark:border-zinc-800 rounded-full opacity-40"></div>
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[85%] h-[85%] border border-dashed border-zinc-300 dark:border-zinc-700 rounded-full opacity-30 animate-[spin_60s_linear_infinite]"></div>
+        <div className="relative flex-shrink-0 group xl:-mt-10">
 
           <div className="w-[280px] h-[280px] sm:w-[320px] sm:h-[320px] md:w-[420px] md:h-[420px] lg:w-[500px] lg:h-[500px]">
             <svg viewBox="0 0 100 100" className="w-full h-full overflow-visible drop-shadow-lg">
@@ -237,16 +258,15 @@ function CicloVisual({
 
                         <div className="flex items-baseline justify-center">
                           <span className="text-[6.5px] md:text-[9.5px] font-black text-zinc-800 dark:text-white leading-none tracking-tighter">
-                            {(totalEstudado / 60).toFixed(1)}
+                            {formatVisualHours(totalEstudado)}
                           </span>
-                          <span className="text-[2.2px] md:text-[3.2px] font-bold text-zinc-500 ml-0.5">h</span>
                         </div>
 
                         <div className="w-6 h-[0.5px] bg-zinc-300 dark:bg-zinc-700 my-1"></div>
 
                         <div className="flex flex-col items-center">
                           <span className="text-[2.2px] md:text-[3.2px] font-bold text-zinc-400 uppercase tracking-wide">
-                            Meta: {(totalMeta / 60).toFixed(1)}h
+                            Meta: {formatVisualHours(totalMeta)}
                           </span>
                         </div>
                       </motion.div>
@@ -273,13 +293,12 @@ function CicloVisual({
 
                         <div className="flex items-baseline justify-center mt-1">
                           <span className="text-[6px] md:text-[9px] font-black text-zinc-800 dark:text-white leading-none">
-                            {(activeDisciplina.progressMinutos / 60).toFixed(1)}
+                            {formatVisualHours(activeDisciplina.progressMinutos)}
                           </span>
-                          <span className="text-[2.2px] md:text-[3.2px] font-bold text-zinc-500 ml-0.5">h</span>
                         </div>
 
                         <div className="text-[2.2px] md:text-[3.2px] font-bold text-zinc-400 mt-0.5">
-                          / {(activeDisciplina.metaMinutos / 60).toFixed(1)}h
+                          / {formatVisualHours(activeDisciplina.metaMinutos)}
                         </div>
                       </motion.div>
                     )}
@@ -299,7 +318,8 @@ function CicloVisual({
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 20 }}
-                className="bg-white dark:bg-zinc-900 rounded-2xl p-6 border border-zinc-200 dark:border-zinc-800 shadow-xl relative overflow-hidden"
+                // ALTERAÇÃO: bg-zinc-50 (Cinza Claro) em vez de bg-white no light mode
+                className="bg-zinc-50 dark:bg-zinc-900 rounded-2xl p-6 border border-zinc-200 dark:border-zinc-800 shadow-xl relative overflow-hidden"
               >
                 <div className="absolute left-0 top-0 bottom-0 w-1.5" style={{ backgroundColor: activeDisciplina.color }}></div>
 
@@ -309,22 +329,22 @@ function CicloVisual({
                       {activeDisciplina.disciplina.nome}
                     </h3>
                     <span
-                      className="px-2 py-1 rounded text-[10px] font-black uppercase tracking-wide bg-zinc-100 dark:bg-zinc-800"
+                      className="px-2 py-1 rounded text-[10px] font-black uppercase tracking-wide bg-white dark:bg-zinc-800 border border-zinc-100 dark:border-zinc-700"
                       style={{ color: activeDisciplina.color }}
                     >
                       {activeDisciplina.percentage.toFixed(0)}%
                     </span>
                   </div>
 
-                  {/* BARRA DE PROGRESSO */}
                   <div className="mb-6">
                     <div className="flex justify-between text-xs mb-1.5">
                       <span className="font-bold text-zinc-500">Progresso</span>
                       <span className="font-bold text-zinc-800 dark:text-white">
-                        {(activeDisciplina.progressMinutos / 60).toFixed(1)}h / {(activeDisciplina.metaMinutos / 60).toFixed(1)}h
+                        {formatVisualHours(activeDisciplina.progressMinutos)} / {formatVisualHours(activeDisciplina.metaMinutos)}
                       </span>
                     </div>
-                    <div className="w-full h-3 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+                    {/* ALTERAÇÃO: bg-zinc-200 para a trilha da barra para contrastar com o fundo cinza */}
+                    <div className="w-full h-3 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
                       <motion.div
                         className="h-full rounded-full"
                         style={{ backgroundColor: activeDisciplina.color }}
@@ -336,20 +356,22 @@ function CicloVisual({
                   </div>
 
                   <div className="grid grid-cols-2 gap-4 mb-6">
-                    <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-3 border border-zinc-100 dark:border-zinc-700/50">
+                    {/* ALTERAÇÃO: Cards internos agora são brancos (bg-white) para destacar sobre o fundo cinza */}
+                    <div className="bg-white dark:bg-zinc-800/50 rounded-xl p-3 border border-zinc-200 dark:border-zinc-700/50 shadow-sm">
                       <div className="flex items-center gap-2 text-zinc-400 text-[10px] font-bold uppercase mb-1">
                         <Clock size={12} /> Realizado
                       </div>
                       <p className="text-lg font-black text-zinc-800 dark:text-white">
-                        {(activeDisciplina.progressMinutos / 60).toFixed(1)}h
+                        {formatVisualHours(activeDisciplina.progressMinutos)}
                       </p>
                     </div>
-                    <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-3 border border-zinc-100 dark:border-zinc-700/50">
+                    {/* ALTERAÇÃO: Cards internos agora são brancos (bg-white) */}
+                    <div className="bg-white dark:bg-zinc-800/50 rounded-xl p-3 border border-zinc-200 dark:border-zinc-700/50 shadow-sm">
                       <div className="flex items-center gap-2 text-zinc-400 text-[10px] font-bold uppercase mb-1">
-                        <Target size={12} /> Meta
+                        <Target size={12} /> Meta Total
                       </div>
                       <p className="text-lg font-black text-zinc-800 dark:text-white">
-                        {(activeDisciplina.metaMinutos / 60).toFixed(1)}h
+                        {formatVisualHours(activeDisciplina.metaMinutos)}
                       </p>
                     </div>
                   </div>
@@ -363,7 +385,7 @@ function CicloVisual({
                     </button>
                     <button
                       onClick={() => onViewDetails(activeDisciplina.disciplina)}
-                      className="px-4 py-3 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 rounded-xl font-bold text-xs uppercase tracking-wide hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors border border-zinc-200 dark:border-zinc-700"
+                      className="px-4 py-3 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 rounded-xl font-bold text-xs uppercase tracking-wide hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors border border-zinc-200 dark:border-zinc-700 shadow-sm"
                     >
                       Detalhes
                     </button>

@@ -5,6 +5,7 @@ import {
 import { db, auth } from '../firebaseConfig';
 import { signOut } from 'firebase/auth';
 
+// Componentes
 import NavSideBar from '../components/dashboard/NavSideBar';
 import Header from '../components/dashboard/Header';
 import Home from '../components/dashboard/Home';
@@ -13,6 +14,7 @@ import CalendarTab from '../components/dashboard/CalendarTab';
 import CiclosPage from '../pages/CiclosPage';
 import ProfilePage from '../pages/ProfilePage';
 import StudyTimer from '../components/ciclos/StudyTimer';
+import TimerFinishModal from '../components/ciclos/TimerFinishModal'; // Modal de Finalização
 
 const dateToYMD = (date) => {
   const d = date.getDate();
@@ -33,24 +35,25 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     );
   }
 
+  // --- ESTADOS DE NAVEGAÇÃO E UI ---
   const [activeTab, setActiveTab] = useState('home');
-  const [goalsHistory, setGoalsHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [forceOpenVisual, setForceOpenVisual] = useState(false);
 
-  // Estados Globais
+  // --- ESTADOS DE DADOS ---
+  const [goalsHistory, setGoalsHistory] = useState([]);
   const [activeCicloId, setActiveCicloId] = useState(null);
   const [activeCicloData, setActiveCicloData] = useState(null);
   const [allRegistrosEstudo, setAllRegistrosEstudo] = useState([]);
   const [activeRegistrosEstudo, setActiveRegistrosEstudo] = useState([]);
 
-  // Estado para forçar a abertura do ciclo visual
-  const [forceOpenVisual, setForceOpenVisual] = useState(false);
-
-  // Estado do Timer Global
+  // --- ESTADOS DO TIMER E MODAIS ---
   const [activeStudySession, setActiveStudySession] = useState(null);
+  const [finishModalData, setFinishModalData] = useState(null); // { minutes, disciplinaNome }
 
+  // Resize Listener
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth >= 1024) setIsMobileOpen(false);
@@ -59,7 +62,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Busca Ciclo Ativo
+  // 1. Busca Ciclo Ativo
   useEffect(() => {
     if (!user) return;
     const ciclosRef = collection(db, 'users', user.uid, 'ciclos');
@@ -81,7 +84,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     return () => unsubscribe();
   }, [user]);
 
-  // Busca Todos os Registros
+  // 2. Busca Todos os Registros
   useEffect(() => {
     if (!user) return;
     setLoading(true);
@@ -109,7 +112,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     return () => unsubscribe();
   }, [user]);
 
-  // Filtra registros do ciclo ativo
+  // 3. Filtra registros do ciclo ativo
   useEffect(() => {
     if (loading) return;
     if (!activeCicloId) {
@@ -119,7 +122,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     }
   }, [activeCicloId, allRegistrosEstudo, loading]);
 
-  // Busca Metas
+  // 4. Busca Metas
   useEffect(() => {
     if (!user) return;
     const q = query(collection(db, 'users', user.uid, 'metas'), orderBy('startDate', 'desc'));
@@ -141,6 +144,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     }
   };
 
+  // Inicia o Timer (Vindo da página de Ciclos)
   const handleStartStudy = (disciplina) => {
     setActiveStudySession({
         disciplina,
@@ -148,7 +152,8 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     });
   };
 
-  const handleStopStudy = async (minutes) => {
+  // [MODIFICADO] Solicita parada do Timer -> Abre o Modal com NOME DA DISCIPLINA
+  const handleStopStudyRequest = (minutes) => {
     if (!activeStudySession) return;
 
     if (!activeCicloId) {
@@ -156,49 +161,40 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         return;
     }
 
-    setTimeout(async () => {
-        const inputQ = window.prompt("⏱️ Sessão finalizada! Quantas questões você resolveu? (0 se apenas leitura)");
+    // Passamos também o nome da disciplina para o modal exibir
+    setFinishModalData({
+      minutes,
+      disciplinaNome: activeStudySession.disciplina.nome
+    });
+  };
 
-        if (inputQ !== null) {
-            const questoes = parseInt(inputQ) || 0;
-            let acertos = 0;
+  // [NOVO] Confirmação vinda do Modal de Finalização
+  const handleConfirmFinishStudy = async (questionsResult) => {
+    if (!activeStudySession || !finishModalData) return;
 
-            if (questoes > 0) {
-                const inputA = window.prompt(`Das ${questoes} questões, quantas você acertou?`);
-                if (inputA !== null) acertos = parseInt(inputA) || 0;
-            }
+    const { minutes } = finishModalData;
+    const { questions, correct } = questionsResult;
 
-            try {
-                const data = {
-                    cicloId: activeCicloId,
-                    disciplinaId: activeStudySession.disciplina.id,
-                    disciplinaNome: activeStudySession.disciplina.nome,
-                    data: dateToYMD(new Date()),
-                    tempoEstudadoMinutos: minutes,
-                    questoesFeitas: questoes,
-                    acertos: acertos,
-                    obs: 'Sessão via Timer'
-                };
-                await addRegistroEstudo(data);
-                setActiveStudySession(null);
-            } catch (e) {
-                console.error("Erro ao salvar timer:", e);
-            }
-        } else {
-            const data = {
-                cicloId: activeCicloId,
-                disciplinaId: activeStudySession.disciplina.id,
-                disciplinaNome: activeStudySession.disciplina.nome,
-                data: dateToYMD(new Date()),
-                tempoEstudadoMinutos: minutes,
-                questoesFeitas: 0,
-                acertos: 0,
-                obs: 'Sessão via Timer (Sem questões)'
-            };
-            await addRegistroEstudo(data);
-            setActiveStudySession(null);
-        }
-    }, 100);
+    try {
+        const data = {
+            cicloId: activeCicloId,
+            disciplinaId: activeStudySession.disciplina.id,
+            disciplinaNome: activeStudySession.disciplina.nome,
+            data: dateToYMD(new Date()),
+            tempoEstudadoMinutos: minutes,
+            questoesFeitas: questions,
+            acertos: correct,
+            obs: 'Sessão via Timer'
+        };
+
+        await addRegistroEstudo(data);
+
+        // Limpa estados após salvar
+        setFinishModalData(null);
+        setActiveStudySession(null);
+    } catch (e) {
+        console.error("Erro ao salvar timer:", e);
+    }
   };
 
   const handleCancelStudy = () => {
@@ -224,21 +220,19 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     signOut(auth).catch((error) => console.error('Logout Error:', error));
   };
 
-  // *** FUNÇÃO ATUALIZADA: Navega direto para o ciclo visual ***
+  // --- NAVEGAÇÃO INTELIGENTE ---
+
+  // Navega direto para o ciclo visual (Card da Home)
   const handleGoToActiveCycle = () => {
     if (activeCicloId) {
-      setForceOpenVisual(true); // Sinaliza para abrir visual
+      setForceOpenVisual(true);
       setActiveTab('ciclos');
-
-      // Reseta o sinalizador após um tempo para permitir navegação normal depois
       setTimeout(() => setForceOpenVisual(false), 1000);
     } else {
-      // Se não houver ciclo ativo, vai para a lista de ciclos
       setActiveTab('ciclos');
     }
   };
 
-  // Função para resetar a tab ao clicar no menu lateral
   const handleTabChange = (tab) => {
     setActiveTab(tab);
     if (tab !== 'ciclos') {
@@ -246,6 +240,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     }
   };
 
+  // --- RENDERIZAÇÃO DAS ABAS ---
   const renderTabContent = () => {
     if (loading && ['home', 'calendar'].includes(activeTab)) {
       return (
@@ -261,7 +256,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
             <Home
                 registrosEstudo={activeRegistrosEstudo}
                 goalsHistory={goalsHistory}
-                setActiveTab={handleGoToActiveCycle} // *** FUNÇÃO ATUALIZADA AQUI ***
+                setActiveTab={handleGoToActiveCycle}
                 activeCicloData={activeCicloData}
                 onDeleteRegistro={deleteRegistro}
             />
@@ -284,29 +279,39 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
                 onCicloAtivado={(id) => setActiveCicloId(id)}
                 addRegistroEstudo={addRegistroEstudo}
                 activeCicloId={activeCicloId}
-                forceOpenVisual={forceOpenVisual} // *** PASSA A PROP AQUI ***
+                forceOpenVisual={forceOpenVisual}
             />
         );
       case 'profile':
         return <ProfilePage user={user} allRegistrosEstudo={allRegistrosEstudo} onDeleteRegistro={deleteRegistro} />;
       default:
-        return <Home registrosEstudo={activeRegistrosEstudo} goalsHistory={goalsHistory} setActiveTab={handleGoToActiveCycle} activeCicloData={activeCicloData} onDeleteRegistro={deleteRegistro} />;
+        return <Home registrosEstudo={activeRegistrosEstudo} goalsHistory={goalsHistory} setActiveTab={handleGoToActiveCycle} onDeleteRegistro={deleteRegistro} />;
     }
   };
 
   return (
     <div className="flex min-h-screen bg-background-light dark:bg-background-dark text-text-primary dark:text-text-dark-primary transition-colors duration-300 overflow-x-hidden">
 
-      {/* Timer Global */}
+      {/* --- MODAIS GLOBAIS E TIMER --- */}
+
       {activeStudySession && (
           <StudyTimer
               disciplina={activeStudySession.disciplina}
               isMinimized={activeStudySession.isMinimized}
-              onStop={handleStopStudy}
+              onStop={handleStopStudyRequest}
               onCancel={handleCancelStudy}
               onMaximize={() => setActiveStudySession(prev => ({...prev, isMinimized: false}))}
               onMinimize={() => setActiveStudySession(prev => ({...prev, isMinimized: true}))}
           />
+      )}
+
+      {finishModalData && (
+        <TimerFinishModal
+          timeMinutes={finishModalData.minutes}
+          disciplinaNome={finishModalData.disciplinaNome} // [NOVO] Passando o nome da disciplina
+          onConfirm={handleConfirmFinishStudy}
+          onCancel={() => setFinishModalData(null)}
+        />
       )}
 
       <NavSideBar

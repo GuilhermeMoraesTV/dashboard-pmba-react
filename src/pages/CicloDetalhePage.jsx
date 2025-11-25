@@ -5,14 +5,12 @@ import { AnimatePresence, motion } from 'framer-motion';
 
 import CicloVisual from '../components/ciclos/CicloVisual';
 import RegistroEstudoModal from '../components/ciclos/RegistroEstudoModal';
-import StudyTimer from '../components/ciclos/StudyTimer';
 import DisciplinaDetalheModal from '../components/ciclos/DisciplinaDetalheModal';
 
 import {
   ArrowLeft,
   Plus,
-  RefreshCw,
-  Clock
+  RefreshCw
 } from 'lucide-react';
 
 const dateToYMD_local = (date) => {
@@ -33,6 +31,29 @@ const getStartOfWeek = () => {
 
 const dateToYMD = (date) => {
   return date.toISOString().split('T')[0];
+};
+
+// --- HELPER: Formatador Inteligente ---
+const formatVisualNumber = (minutes) => {
+  if (!minutes || isNaN(minutes)) return '0h';
+
+  let totalMinutes = Math.round(Number(minutes));
+
+  const remainder = totalMinutes % 60;
+  if (remainder > 50) {
+    totalMinutes = Math.ceil(totalMinutes / 60) * 60;
+  }
+
+  const hours = Math.floor(totalMinutes / 60);
+  const mins = totalMinutes % 60;
+
+  if (hours === 0) {
+      return `${mins}m`;
+  } else if (mins === 0) {
+      return `${hours}h`;
+  }
+
+  return `${hours}h ${mins}m`;
 };
 
 function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStudy }) {
@@ -98,11 +119,6 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
       return allRegistrosEstudo.filter(reg => reg.cicloId === cicloId);
   }, [allRegistrosEstudo, cicloId, loading]);
 
-  const metaSemanalMinutos = useMemo(() => {
-    if (!disciplinas || disciplinas.length === 0) return 0;
-    return disciplinas.reduce((total, disciplina) => total + (disciplina.tempoAlocadoSemanalMinutos || 0), 0);
-  }, [disciplinas]);
-
   // Cálculo do progresso geral
   const { totalEstudado, totalMeta, progressoGeral } = useMemo(() => {
     if (!disciplinas.length) return { totalEstudado: 0, totalMeta: 0, progressoGeral: 0 };
@@ -110,22 +126,25 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
     const startOfWeek = getStartOfWeek();
     const startOfWeekStr = dateToYMD(startOfWeek);
 
-    const totalMeta = disciplinas.reduce((acc, d) => acc + (d.tempoAlocadoSemanalMinutos || 0), 0);
+    const totalMetaRaw = disciplinas.reduce((acc, d) => acc + Number(d.tempoAlocadoSemanalMinutos || 0), 0);
+    const totalMetaCalc = Math.round(totalMetaRaw);
 
-    let totalEstudado = 0;
+    let totalEstudadoCalc = 0;
     registrosDoCiclo.forEach(reg => {
+      const minutos = Number(reg.tempoEstudadoMinutos);
       if (viewModeCiclo === 'semanal') {
         if (reg.data >= startOfWeekStr) {
-          totalEstudado += reg.tempoEstudadoMinutos;
+          totalEstudadoCalc += minutos;
         }
       } else {
-        totalEstudado += reg.tempoEstudadoMinutos;
+        totalEstudadoCalc += minutos;
       }
     });
 
-    const progressoGeral = totalMeta > 0 ? (totalEstudado / totalMeta) * 100 : 0;
+    totalEstudadoCalc = Math.round(totalEstudadoCalc);
+    const progresso = totalMetaCalc > 0 ? (totalEstudadoCalc / totalMetaCalc) * 100 : 0;
 
-    return { totalEstudado, totalMeta, progressoGeral };
+    return { totalEstudado: totalEstudadoCalc, totalMeta: totalMetaCalc, progressoGeral: progresso };
   }, [disciplinas, registrosDoCiclo, viewModeCiclo]);
 
   const handleViewDetails = (disciplina) => {
@@ -157,7 +176,7 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
     <div className="relative flex flex-col h-full animate-fade-in">
 
       {/* --- CABEÇALHO TÁTICO COMPLETO --- */}
-      <div className="mb-12">
+      <div className="mb-4">
           <div className="flex items-center justify-between mb-4">
               <button
                 onClick={onBack}
@@ -166,7 +185,6 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
                 <ArrowLeft size={16} /> Voltar
               </button>
 
-              {/* Botão de Toggle Semanal/Total */}
               <button
                   onClick={() => setViewModeCiclo(prev => prev === 'semanal' ? 'total' : 'semanal')}
                   className="flex items-center justify-center gap-2 px-4 py-2 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-xs font-bold uppercase tracking-wide rounded-xl hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
@@ -176,7 +194,9 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
               </button>
           </div>
 
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white dark:bg-zinc-900 p-6 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
+          {/* ALTERAÇÃO: Fundo alterado para bg-zinc-50 (cinza claro) e borda reforçada */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-zinc-50 dark:bg-zinc-900 px-6 py-2 rounded-2xl border border-zinc-300 dark:border-zinc-800 shadow-sm">
+
               {/* Lado Esquerdo: Nome e Status */}
               <div className="flex-1">
                   <div className="flex items-center gap-3">
@@ -202,8 +222,7 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
                           Meta {viewModeCiclo === 'semanal' ? 'Semanal' : 'Total'}
                       </p>
                       <p className="text-2xl font-black text-zinc-800 dark:text-white font-mono">
-                          {(totalMeta / 60).toFixed(1)}
-                          <span className="text-sm text-zinc-400 ml-1">h</span>
+                          {formatVisualNumber(totalMeta)}
                       </p>
                   </div>
 
@@ -216,8 +235,7 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
                           Realizado
                       </p>
                       <p className="text-2xl font-black text-zinc-800 dark:text-white font-mono">
-                          {(totalEstudado / 60).toFixed(1)}
-                          <span className="text-sm text-zinc-400 ml-1">h</span>
+                          {formatVisualNumber(totalEstudado)}
                       </p>
                   </div>
 
@@ -226,7 +244,7 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
 
                   {/* Círculo de Progresso */}
                   <div className="relative">
-                      <svg className="w-20 h-20 -rotate-90">
+                      <svg className="w-28 h-28 -rotate-90" viewBox="0 0 80 80">
                           <circle
                               cx="40"
                               cy="40"
@@ -252,7 +270,7 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
                           />
                       </svg>
                       <div className="absolute inset-0 flex flex-col items-center justify-center">
-                          <span className={`text-lg font-black ${progressoGeral >= 100 ? 'text-emerald-500' : progressoGeral > 0 ? 'text-yellow-500' : 'text-zinc-400'}`}>
+                          <span className={`text-2xl font-black ${progressoGeral >= 100 ? 'text-emerald-500' : progressoGeral > 0 ? 'text-yellow-500' : 'text-zinc-400'}`}>
                               {progressoGeral.toFixed(0)}%
                           </span>
                       </div>
@@ -262,7 +280,8 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
       </div>
 
       {/* Área Principal: Gráfico e Detalhes */}
-      <div className="flex-grow mt-8">
+      {/* ALTERAÇÃO: Aumentado para mt-20 (80px) para garantir o afastamento */}
+      <div className="flex-grow mt-20">
           <CicloVisual
               selectedDisciplinaId={selectedDisciplinaId}
               onSelectDisciplina={setSelectedDisciplinaId}
@@ -275,7 +294,7 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
           />
       </div>
 
-      {/* Botão Flutuante de Registro (Só aparece se ciclo ativo) */}
+      {/* Botão Flutuante */}
       {ciclo.ativo && (
           <motion.button
               onClick={() => setShowRegistroModal(true)}

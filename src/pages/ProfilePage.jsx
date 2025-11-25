@@ -10,7 +10,7 @@ import {
 } from 'firebase/auth';
 import {
   collection, query, where, orderBy, onSnapshot, getDocs,
-  doc, updateDoc, deleteDoc
+  doc, updateDoc, deleteDoc, setDoc
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -103,6 +103,20 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
   const [todosCiclos, setTodosCiclos] = useState([]); // Carrega todos os ciclos para referência
   const [loadingCiclos, setLoadingCiclos] = useState(true);
 
+  // --- NOVO: Auto-hide Message ---
+  // Este efeito roda sempre que 'message' muda.
+  // Se houver texto, cria um timer de 5 segundos para limpar.
+  useEffect(() => {
+    if (message.text) {
+        const timer = setTimeout(() => {
+            setMessage({ type: '', text: '' });
+        }, 5000); // 5000ms = 5 segundos
+
+        // Cleanup: Se o componente desmontar ou a mensagem mudar antes dos 5s, limpa o timer antigo
+        return () => clearTimeout(timer);
+    }
+  }, [message]);
+
   // Cálculo de Estatísticas Gerais
   const stats = useMemo(() => {
     const totalRegistros = allRegistrosEstudo.length;
@@ -135,17 +149,14 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
 
   // --- LÓGICA PRINCIPAL DE AGRUPAMENTO DO HISTÓRICO ---
   const groupedHistory = useMemo(() => {
-      if (loadingCiclos) return []; // Aguarda carregar ciclos para filtrar corretamente
+      if (loadingCiclos) return [];
 
       const groups = {};
-      const ciclosMap = new Map(todosCiclos.map(c => [c.id, c])); // Mapa rápido
+      const ciclosMap = new Map(todosCiclos.map(c => [c.id, c]));
 
       allRegistrosEstudo.forEach(reg => {
           const cId = reg.cicloId;
 
-          // --- FILTRO DE INTEGRIDADE ---
-          // Se o registro tem um ID de ciclo, mas esse ciclo não está na lista (foi excluído),
-          // nós ignoramos este registro na visualização.
           if (cId && !ciclosMap.has(cId)) {
               return;
           }
@@ -153,11 +164,9 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
           const effectiveId = cId || 'sem-ciclo';
           let cNome = 'Geral / Sem Ciclo';
 
-          // Tenta pegar o nome oficial do ciclo ativo/arquivado
           if (cId && ciclosMap.has(cId)) {
               cNome = ciclosMap.get(cId).nome;
           } else if (reg.cicloNome) {
-              // Fallback para nome gravado no registro (caso raro de registro sem ID mas com nome)
               cNome = reg.cicloNome;
           }
 
@@ -213,22 +222,28 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
 
   // --- Ações ---
   const handleUpdatePhoto = async () => {
-    if (!photo) return;
-    setPhotoLoading(true);
-    try {
-      const storageRef = ref(storage, `profile_images/${user.uid}/${photo.name}`);
-      const snapshot = await uploadBytes(storageRef, photo);
-      const photoURL = await getDownloadURL(snapshot.ref);
-      await updateProfile(auth.currentUser, { photoURL });
-      await updateDoc(doc(db, 'users', user.uid), { photoURL });
-      setMessage({ type: 'success', text: 'Foto de perfil atualizada.' });
-      setPhoto(null);
-    } catch (error) {
-      setMessage({ type: 'error', text: 'Falha ao atualizar foto.' });
-    } finally {
-      setPhotoLoading(false);
-    }
-  };
+      if (!photo) return;
+      setPhotoLoading(true);
+      try {
+        const storageRef = ref(storage, `profile_images/${user.uid}/${photo.name}`);
+        const snapshot = await uploadBytes(storageRef, photo);
+        const photoURL = await getDownloadURL(snapshot.ref);
+
+        await updateProfile(auth.currentUser, { photoURL });
+        // Usando setDoc com merge para evitar erro se o doc não existir
+        await setDoc(doc(db, 'users', user.uid), { photoURL }, { merge: true });
+
+        await auth.currentUser.reload();
+
+        setMessage({ type: 'success', text: 'Foto de perfil atualizada.' });
+        setPhoto(null);
+      } catch (error) {
+        console.error("Erro detalhado:", error);
+        setMessage({ type: 'error', text: 'Falha ao atualizar foto.' });
+      } finally {
+        setPhotoLoading(false);
+      }
+    };
 
   const handleUpdateEmail = async () => {
     if (!newEmail || newEmail === user.email) return;
@@ -350,6 +365,8 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
         )}
       </AnimatePresence>
 
+      {/* ... Restante do código (Dashboard e Configurações) permanece igual ... */}
+
       {/* --- DASHBOARD DE ESTATÍSTICAS --- */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard
@@ -390,7 +407,7 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
                     <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 bg-white/20 dark:bg-zinc-900/10">
                         <LayoutDashboard size={24} className="text-white dark:text-zinc-900" />
                     </div>
-                    <h4 className="text-lg font-black text-white dark:text-zinc-900 uppercase leading-none">Histórico Detalhado</h4>
+                    <h4 className="text-lg font-black text-white dark:text-zinc-900 uppercase leading-none">Histórico de Registros</h4>
                     <p className="text-[10px] font-bold text-white/60 dark:text-zinc-500 uppercase tracking-wide mt-1 group-hover:translate-x-1 transition-transform">Acessar Registros por Ciclo →</p>
                 </div>
            </motion.button>
