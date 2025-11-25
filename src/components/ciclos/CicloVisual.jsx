@@ -56,22 +56,40 @@ const CicloSegment = ({
   const toRad = (deg) => (deg * Math.PI) / 180;
 
   const createArc = (start, end, r) => {
+    // Se o arco for zero ou muito pequeno, retorna um ponto que é animável (M x y).
+    if (Math.abs(end - start) < 0.001) {
+        const startRad = toRad(start - 90);
+        const x1 = 50 + r * Math.cos(startRad);
+        const y1 = 50 + r * Math.sin(startRad);
+        // MoveTo (M) é o ponto de início, que pode ser animado.
+        return ["M", x1, y1].join(" ");
+    }
+
     if (Math.abs(end - start) >= 360) end = start + 359.99;
+
     const startRad = toRad(start - 90);
     const endRad = toRad(end - 90);
     const x1 = 50 + r * Math.cos(startRad);
     const y1 = 50 + r * Math.sin(startRad);
     const x2 = 50 + r * Math.cos(endRad);
     const y2 = 50 + r * Math.sin(endRad);
+
     const largeArcFlag = end - start <= 180 ? 0 : 1;
-    return ["M", x1, y1, "A", r, r, 0, largeArcFlag, 1, x2, y2].join(" ");
+    const sweepFlag = 1;
+
+    return ["M", x1, y1, "A", r, r, 0, largeArcFlag, sweepFlag, x2, y2].join(" ");
   };
 
   const gap = 3;
-  const visualAngle = angle > gap ? angle - gap : angle;
+  // Se o ângulo for muito pequeno, ele fica com 0, senão ele tem o ângulo menos o gap.
+  const visualAngle = angle > gap ? angle - gap : 0;
   const strokeWidth = 14;
 
   const bgPath = createArc(startAngle, startAngle + visualAngle, radius);
+
+  // O initialPath deve ser sempre o ponto inicial, garantindo uma animação suave
+  const initialPath = createArc(startAngle, startAngle, radius);
+
 
   return (
     <g
@@ -82,7 +100,7 @@ const CicloSegment = ({
       style={{ opacity: isActive ? 1 : 0.9, transition: 'opacity 0.3s ease' }}
     >
       <motion.path
-        initial={{ d: createArc(startAngle, startAngle, radius) }}
+        initial={{ d: initialPath }}
         animate={{ d: bgPath }}
         transition={{ duration: 0.8, ease: "circOut" }}
         fill="none"
@@ -117,8 +135,9 @@ const WeeklyProgressRing = ({ percentage }) => {
         cx="50" cy="50" r={radius}
         fill="none"
         stroke="currentColor"
-        strokeWidth="1.5"
+        strokeWidth="2.5"
         className="text-zinc-300 dark:text-zinc-700 opacity-60"
+        transform="rotate(-90 50 50)"
       />
       <motion.circle
         cx="50" cy="50" r={radius}
@@ -143,12 +162,15 @@ function CicloVisual({
   onStartStudy,
   disciplinas,
   registrosEstudo,
-  viewMode
+  viewMode,
+  isLoading
 }) {
   const [hoveredId, setHoveredId] = useState(null);
 
   const data = useMemo(() => {
     if (!disciplinas.length) return [];
+
+    // ... (Lógica de cálculo de dados mantida)
 
     const totalMetaRaw = disciplinas.reduce((acc, d) => acc + Number(d.tempoAlocadoSemanalMinutos || 0), 0);
     const totalMeta = Math.round(totalMetaRaw);
@@ -212,17 +234,20 @@ function CicloVisual({
   const totalMeta = data.reduce((acc, d) => acc + d.metaMinutos, 0);
   const progressoGeral = totalMeta > 0 ? (totalEstudado / totalMeta) * 100 : 0;
 
+  if (!disciplinas.length) {
+     return <div className="text-zinc-500 text-center py-10">Nenhuma disciplina alocada neste ciclo.</div>;
+  }
+
   return (
     <div className="w-full">
       <div className="flex flex-col xl:flex-row items-center xl:items-start justify-center gap-6 xl:gap-8 w-full px-4 animate-fade-in">
 
         {/* --- ÁREA DO GRÁFICO --- */}
-        <div className="relative flex-shrink-0 group xl:-mt-10">
+        {/* ID ADICIONADO AQUI: ciclo-radar-chart */}
+        <div id="ciclo-radar-chart" className="relative flex-shrink-0 group xl:-mt-10">
 
           <div className="w-[280px] h-[280px] sm:w-[320px] sm:h-[320px] md:w-[420px] md:h-[420px] lg:w-[500px] lg:h-[500px]">
             <svg viewBox="0 0 100 100" className="w-full h-full overflow-visible drop-shadow-lg">
-              {!data.length && <circle cx="50" cy="50" r="40" stroke="#e4e4e7" strokeWidth="14" fill="transparent" opacity="0.8" />}
-
               {data.map((seg) => {
                 const { key, ...props } = seg;
                 return (
@@ -241,7 +266,8 @@ function CicloVisual({
               <WeeklyProgressRing percentage={progressoGeral} />
 
               {/* --- INFO CENTRAL --- */}
-              <foreignObject x="15" y="15" width="70" height="70" className="pointer-events-none">
+              {/* ID ADICIONADO AQUI: ciclo-center-info */}
+              <foreignObject id="ciclo-center-info" x="15" y="15" width="70" height="70" className="pointer-events-none">
                 <div className="w-full h-full flex flex-col items-center justify-center text-center rounded-full backdrop-blur-sm">
                   <AnimatePresence mode="wait">
                     {!activeDisciplina ? (
@@ -310,7 +336,8 @@ function CicloVisual({
         </div>
 
         {/* --- PAINEL LATERAL DE DETALHES --- */}
-        <div className="w-full max-w-lg flex flex-col gap-6 justify-center min-h-[280px]">
+        {/* ID ADICIONADO AQUI: ciclo-details-panel */}
+        <div id="ciclo-details-panel" className="w-full max-w-lg flex flex-col gap-6 justify-center min-h-[280px]">
           <AnimatePresence mode="wait">
             {activeDisciplina ? (
               <motion.div
@@ -318,7 +345,6 @@ function CicloVisual({
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 20 }}
-                // ALTERAÇÃO: bg-zinc-50 (Cinza Claro) em vez de bg-white no light mode
                 className="bg-zinc-50 dark:bg-zinc-900 rounded-2xl p-6 border border-zinc-200 dark:border-zinc-800 shadow-xl relative overflow-hidden"
               >
                 <div className="absolute left-0 top-0 bottom-0 w-1.5" style={{ backgroundColor: activeDisciplina.color }}></div>
@@ -393,13 +419,14 @@ function CicloVisual({
                 </div>
               </motion.div>
             ) : (
-              <div className="hidden xl:flex flex-col items-center justify-center h-full bg-zinc-50 dark:bg-zinc-900/30 rounded-2xl border-2 border-dashed border-zinc-300 dark:border-zinc-800 text-zinc-400 p-8 text-center">
+              // CORREÇÃO AQUI: Removendo 'hidden xl:flex' para que o painel seja visível em mobile.
+              <div className="flex flex-col items-center justify-center h-full bg-zinc-50 dark:bg-zinc-900/30 rounded-2xl border-2 border-dashed border-zinc-300 dark:border-zinc-800 text-zinc-400 p-8 text-center">
                 <div className="w-12 h-12 bg-zinc-200 dark:bg-zinc-800 rounded-full flex items-center justify-center mb-3 text-zinc-400">
                   <Target size={24} />
                 </div>
                 <p className="font-bold text-zinc-600 dark:text-zinc-300 text-sm">Central Tática</p>
                 <p className="text-xs mt-1 max-w-[200px]">
-                  Passe o mouse sobre os blocos do radar para ver o progresso detalhado de cada disciplina.
+                  Clique em um bloco do radar para ver o progresso detalhado, iniciar o cronômetro ou registrar atividades.
                 </p>
               </div>
             )}

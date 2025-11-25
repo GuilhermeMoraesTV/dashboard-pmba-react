@@ -477,19 +477,7 @@
     }, 1500); // Aumentado para 1.5s para mostrar as animações
   });
 
-  // Service Worker Registration (PWA)
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', function() {
-      navigator.serviceWorker.register('/sw.js').then(
-        function(registration) {
-          console.log('ServiceWorker registration successful');
-        },
-        function(err) {
-          console.log('ServiceWorker registration failed: ', err);
-        }
-      );
-    });
-  }
+
 
   // Handle dark mode preference (sempre dark no tema militar)
   document.documentElement.classList.add('dark');

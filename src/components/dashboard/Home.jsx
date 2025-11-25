@@ -11,8 +11,7 @@ import {
   XCircle,
   Play,
   Zap,
-  BookOpen,
-  ArrowRight
+  BookOpen
 } from 'lucide-react';
 
 const dateToYMD_local = (date) => {
@@ -49,12 +48,13 @@ const StatCard = ({ icon: Icon, title, value, subValue, className = "" }) => (
   </div>
 );
 
-// --- CARD DE CICLO ATIVO (FINAL - ALINHADO) ---
+// --- CARD DE CICLO ATIVO ---
 const ActiveCycleCard = ({ activeCicloData, onClick }) => {
   const hasCycle = !!activeCicloData;
 
   return (
     <div
+      id="active-cycle-card" // ID ADICIONADO PARA O TOUR
       onClick={onClick}
       className={`
         relative overflow-hidden group p-4 h-[110px] md:h-[140px]
@@ -68,18 +68,13 @@ const ActiveCycleCard = ({ activeCicloData, onClick }) => {
     >
       {hasCycle ? (
         <>
-          {/* Background Decorativo */}
           <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10 mix-blend-overlay pointer-events-none"></div>
           <div className="absolute -right-10 -top-10 text-white/5 group-hover:text-white/10 transition-all duration-700 transform group-hover:rotate-[30deg] group-hover:scale-150 pointer-events-none">
             <Zap size={140} fill="currentColor" />
           </div>
 
-          {/* --- CONTEÚDO ALINHADO EM LINHA (ROW) --- */}
           <div className="relative z-10 w-full flex items-center justify-between gap-4">
-
-            {/* ESQUERDA: Indicador + Nome do Ciclo */}
             <div className="flex flex-col justify-center flex-1 min-w-0">
-               {/* O snippet que você pediu, ajustado para ficar acima do nome ou ao lado dependendo do tamanho */}
                <div className="flex items-center gap-2 mb-1 opacity-90">
                   <div className="w-2.5 h-2.5 rounded-full bg-green-400 animate-pulse shadow-[0_0_8px_rgba(74,222,128,0.9)] border border-white/30 shrink-0"></div>
                   <span className="text-[10px] font-bold uppercase tracking-widest text-white/80">Ciclo Ativo</span>
@@ -90,18 +85,15 @@ const ActiveCycleCard = ({ activeCicloData, onClick }) => {
                </h2>
             </div>
 
-            {/* DIREITA: Botão de Ação Alinhado */}
             <div className="flex flex-col items-center justify-center shrink-0 gap-1">
                <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-white text-red-600 shadow-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
                   <Play size={20} fill="currentColor" className="ml-1" />
                </div>
                <span className="text-[9px] font-bold uppercase text-white/90">Iniciar</span>
             </div>
-
           </div>
         </>
       ) : (
-        // Estado Vazio
         <div className="flex flex-col items-center justify-center w-full text-center gap-2">
           <BookOpen size={24} className="opacity-40" />
           <div>
@@ -139,13 +131,11 @@ function Home({ registrosEstudo, goalsHistory, setActiveTab, activeCicloData, on
 
       registrosEstudo.forEach(item => {
         const dateStr = item.data;
-        if (!dateStr || typeof dateStr !== 'string' || dateStr.split('-').length !== 3) return;
-
+        if (!dateStr) return;
         studyDays[dateStr] = studyDays[dateStr] || { questions: 0, correct: 0, hours: 0 };
-
         const questoes = item.questoesFeitas || 0;
-        const acertadas = item.acertos || item.questoesAcertadas || 0;
-        const minutos = item.tempoEstudadoMinutos || item.duracaoMinutos || 0;
+        const acertadas = item.acertos || 0;
+        const minutos = item.tempoEstudadoMinutos || 0;
 
         if (questoes > 0) {
           studyDays[dateStr].questions += questoes;
@@ -153,7 +143,6 @@ function Home({ registrosEstudo, goalsHistory, setActiveTab, activeCicloData, on
           totalQuestions += questoes;
           totalCorrect += acertadas;
         }
-
         if (minutos > 0) {
           studyDays[dateStr].hours += (minutos / 60);
           totalTimeMinutes += minutos;
@@ -164,28 +153,21 @@ function Home({ registrosEstudo, goalsHistory, setActiveTab, activeCicloData, on
       const today = new Date();
       const yesterday = new Date();
       yesterday.setDate(today.getDate() - 1);
-
       const lastStudyDay = Object.keys(studyDays).sort().pop();
+
       if (lastStudyDay === dateToYMD_local(today) || lastStudyDay === dateToYMD_local(yesterday)) {
         for (let i = 0; i < 90; i++) {
           const dateToCheck = new Date();
           dateToCheck.setDate(today.getDate() - i);
           const dateStr = dateToYMD_local(dateToCheck);
           const dayData = studyDays[dateStr];
-
           if (dayData) {
             const goalsForDay = getGoalsForDate(dateStr);
             const qGoalMet = dayData.questions > 0 && dayData.questions >= (goalsForDay.questions || 0);
             const hGoalMet = dayData.hours > 0 && dayData.hours >= (goalsForDay.hours || 0);
-            if (qGoalMet || hGoalMet) {
-              currentStreak++;
-            } else {
-              if (i === 0 && dateStr === dateToYMD_local(today)) continue;
-              break;
-            }
-          } else {
-            if (i > 0) break;
-          }
+            if (qGoalMet || hGoalMet) currentStreak++;
+            else { if (i === 0 && dateStr === dateToYMD_local(today)) continue; break; }
+          } else { if (i > 0) break; }
         }
       }
 
@@ -196,29 +178,17 @@ function Home({ registrosEstudo, goalsHistory, setActiveTab, activeCicloData, on
         const dayData = studyDays[dateStr];
         let status = 'no-data';
         const hasData = !!dayData && (dayData.questions > 0 || dayData.hours > 0);
-
         if (hasData) {
           const goalsForDay = getGoalsForDate(dateStr);
           const qGoal = goalsForDay?.questions || 0;
           const hGoal = goalsForDay?.hours || 0;
           const qGoalMet = dayData.questions >= qGoal;
           const hGoalMet = dayData.hours >= hGoal;
-
           if (qGoalMet && hGoalMet) status = 'goal-met-both';
           else if (qGoalMet || hGoalMet) status = 'goal-met-one';
           else status = 'goal-not-met';
         }
-
-        return {
-          date: dateStr,
-          status,
-          hasData,
-          title: new Date(dateStr + 'T03:00:00').toLocaleDateString('pt-BR', {
-            weekday: 'short',
-            day: '2-digit',
-            month: 'short'
-          })
-        };
+        return { date: dateStr, status, hasData };
       });
 
       return {
@@ -233,13 +203,8 @@ function Home({ registrosEstudo, goalsHistory, setActiveTab, activeCicloData, on
         totalTimeMinutes: totalTimeMinutes,
       };
     } catch (error) {
-      console.error("Erro ao calcular estatísticas:", error);
-      return {
-        streak: 0,
-        last14Days: [],
-        performance: { correct: 0, wrong: 0, percentage: 0, total: 0 },
-        totalTimeMinutes: 0
-      };
+      console.error(error);
+      return { streak: 0, last14Days: [], performance: { correct: 0, wrong: 0, percentage: 0, total: 0 }, totalTimeMinutes: 0 };
     }
   }, [registrosEstudo, goalsHistory]);
 
@@ -247,20 +212,17 @@ function Home({ registrosEstudo, goalsHistory, setActiveTab, activeCicloData, on
     <div className="space-y-4 md:space-y-6 animate-slide-up pb-8 relative">
 
       {/* Grid Principal */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 pt-0">
-
+      <div id="home-stats-grid" className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 pt-0">
         <StatCard
           icon={Clock}
           title="Tempo de Estudo"
           value={formatDecimalHours(homeStats.totalTimeMinutes)}
         />
-
         <StatCard
           icon={Target}
           title="Questões Feitas"
           value={homeStats.performance.total}
         />
-
         <StatCard
           icon={TrendingUp}
           title="Precisão Geral"
@@ -304,6 +266,8 @@ function Home({ registrosEstudo, goalsHistory, setActiveTab, activeCicloData, on
                 </div>
               </div>
             </div>
+
+            {/* Heatmap 14 dias */}
             <div className="flex flex-col w-full lg:flex-1 lg:ml-12 z-20 relative justify-between min-h-[80px] md:min-h-[100px]">
               <div className="flex justify-end w-full mb-1 md:mb-2">
                 <span className="text-[9px] md:text-[10px] font-bold uppercase tracking-widest text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-800/50 px-2 py-1 rounded-md border border-zinc-200 dark:border-zinc-700/50">
@@ -323,14 +287,10 @@ function Home({ registrosEstudo, goalsHistory, setActiveTab, activeCicloData, on
                         ${day.status === 'goal-met-one' ? 'bg-amber-500 h-[75%] shadow-[0_0_15px_rgba(245,158,11,0.25)]' : ''}
                         ${day.status === 'goal-not-met' ? 'bg-red-500 h-[40%] shadow-[0_0_15px_rgba(239,68,68,0.25)]' : ''}
                         ${day.status === 'no-data' ? 'bg-zinc-200 dark:bg-zinc-800/50 h-[15%]' : ''}
-                        ${day.date === dateToYMD_local(new Date()) ? 'ring-1 md:ring-2 ring-red-500 ring-offset-1 md:ring-offset-2 ring-offset-card-light dark:ring-offset-card-dark' : ''}
+                        ${day.date === dateToYMD_local(new Date()) ? 'ring-1 md:ring-2 ring-red-500' : ''}
                         ${day.hasData ? 'active:scale-95' : 'cursor-default opacity-60'}
                       `}
-                    >
-                         {day.date === dateToYMD_local(new Date()) && (
-                             <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-1 h-1 md:w-1.5 md:h-1.5 bg-red-500 rounded-full"></div>
-                         )}
-                    </div>
+                    ></div>
                   </div>
                 ))}
               </div>
@@ -338,7 +298,6 @@ function Home({ registrosEstudo, goalsHistory, setActiveTab, activeCicloData, on
         </div>
       </div>
 
-      {/* Discipline Ranking */}
       <DisciplineSummaryTable registrosEstudo={registrosEstudo} />
 
       {selectedDate && (

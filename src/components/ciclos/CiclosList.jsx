@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../../firebaseConfig';
 import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
-import CicloCreateWizard from './CicloCreateWizard';
-import { useCiclos } from '../../hooks/useCiclos';
+import CicloCreateWizard from '../ciclos/CicloCreateWizard';
 import CicloEditModal from './CicloEditModal';
+import { useCiclos } from '../../hooks/useCiclos';
 import {
   MoreVertical,
   Plus,
@@ -155,6 +155,7 @@ function CiclosList({ onCicloClick, user, onCicloAtivado }) {
       if (action === 'ativar') {
           if (actionLoading) return;
           const sucesso = await ativarCiclo(ciclo.id);
+          // Chama o handler que fará a navegação se o ciclo foi ativado
           if (sucesso && onCicloAtivado) onCicloAtivado(ciclo.id);
       } else if (action === 'editar') { setCicloParaEditar(ciclo);
       } else if (action === 'arquivar') { setCicloParaArquivar(ciclo); }
@@ -170,7 +171,10 @@ function CiclosList({ onCicloClick, user, onCicloAtivado }) {
     <div className="p-0 min-h-[50vh] animate-fade-in pb-12">
       <AnimatePresence>
         {cicloParaArquivar && <ModalConfirmacaoArquivamento ciclo={cicloParaArquivar} onClose={() => setCicloParaArquivar(null)} onConfirm={handleConfirmarArquivamento} loading={actionLoading} />}
-        {showCreateModal && <CicloCreateWizard onClose={() => setShowCreateModal(false)} user={user} />}
+
+        {/* CORREÇÃO AQUI: PASSANDO onCicloAtivado para o Wizard */}
+        {showCreateModal && <CicloCreateWizard onClose={() => setShowCreateModal(false)} user={user} onCicloAtivado={onCicloAtivado} />}
+
         {cicloParaEditar && <CicloEditModal onClose={() => setCicloParaEditar(null)} user={user} ciclo={cicloParaEditar} />}
       </AnimatePresence>
 

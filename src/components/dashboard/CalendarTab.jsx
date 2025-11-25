@@ -200,7 +200,7 @@ function CalendarTab({ registrosEstudo = [], goalsHistory = [], onDeleteRegistro
       </motion.div>
 
       {/* --- Container do Calendário --- */}
-      <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-zinc-300 dark:border-zinc-800 overflow-hidden relative">
+      <div id="calendar-grid" className="bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-zinc-300 dark:border-zinc-800 overflow-hidden relative">
 
         {/* Marca D'água */}
         <div className="absolute top-[-30px] right-[-10px] opacity-[0.03] dark:opacity-[0.05] pointer-events-none">

@@ -14,7 +14,8 @@ import CalendarTab from '../components/dashboard/CalendarTab';
 import CiclosPage from '../pages/CiclosPage';
 import ProfilePage from '../pages/ProfilePage';
 import StudyTimer from '../components/ciclos/StudyTimer';
-import TimerFinishModal from '../components/ciclos/TimerFinishModal'; // Modal de Finalização
+import TimerFinishModal from '../components/ciclos/TimerFinishModal';
+import OnboardingTour from '../components/shared/OnboardingTour';
 
 const dateToYMD = (date) => {
   const d = date.getDate();
@@ -42,16 +43,65 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [forceOpenVisual, setForceOpenVisual] = useState(false);
 
+  // --- ESTADOS DO TOUR ---
+  const [tourState, setTourState] = useState({
+    isActive: false,
+    type: 'main' // 'main' ou 'cycle_visual'
+  });
+
   // --- ESTADOS DE DADOS ---
   const [goalsHistory, setGoalsHistory] = useState([]);
   const [activeCicloId, setActiveCicloId] = useState(null);
   const [activeCicloData, setActiveCicloData] = useState(null);
   const [allRegistrosEstudo, setAllRegistrosEstudo] = useState([]);
   const [activeRegistrosEstudo, setActiveRegistrosEstudo] = useState([]);
-
-  // --- ESTADOS DO TIMER E MODAIS ---
   const [activeStudySession, setActiveStudySession] = useState(null);
-  const [finishModalData, setFinishModalData] = useState(null); // { minutes, disciplinaNome }
+  const [finishModalData, setFinishModalData] = useState(null);
+
+  // --- LÓGICA DO TOUR PRINCIPAL (CORRIGIDA) ---
+  // 1. TOUR PRINCIPAL (Ativado APENAS na primeira vez)
+  useEffect(() => {
+    if (!user) return;
+
+    // Removemos a lógica de teste e reativamos a verificação do localStorage
+    const hasSeenMainTour = localStorage.getItem(`onboarding_main_${user.uid}`);
+
+    if (!hasSeenMainTour) {
+        const timer = setTimeout(() => {
+            setTourState({ isActive: true, type: 'main' });
+        }, 1500); // Pequeno delay para garantir que o layout esteja pronto
+
+        return () => clearTimeout(timer);
+    }
+  }, [user]);
+
+  // 2. TOUR DO CICLO (Ativado APENAS na aba 'ciclos' se for o primeiro acesso)
+  useEffect(() => {
+    if (activeCicloId && user) {
+        // Se a aba 'ciclos' for aberta e o ciclo ativo existir:
+        if (activeTab === 'ciclos') {
+             const hasSeenCycleTour = localStorage.getItem(`onboarding_cycle_${user.uid}`);
+
+             if (!hasSeenCycleTour) {
+                 // Pequeno atraso para dar tempo de renderizar o CicloVisual
+                 const timer = setTimeout(() => setTourState({ isActive: true, type: 'cycle_visual' }), 1000);
+                 return () => clearTimeout(timer);
+             }
+        }
+    }
+  }, [activeCicloId, activeTab, user]);
+
+  const handleTourFinish = () => {
+    // Reativamos a persistência no localStorage
+    if (user) {
+        if (tourState.type === 'main') {
+            localStorage.setItem(`onboarding_main_${user.uid}`, 'true');
+        } else if (tourState.type === 'cycle_visual') {
+            localStorage.setItem(`onboarding_cycle_${user.uid}`, 'true');
+        }
+    }
+    setTourState({ ...tourState, isActive: false });
+  };
 
   // Resize Listener
   useEffect(() => {
@@ -144,7 +194,6 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     }
   };
 
-  // Inicia o Timer (Vindo da página de Ciclos)
   const handleStartStudy = (disciplina) => {
     setActiveStudySession({
         disciplina,
@@ -152,26 +201,20 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     });
   };
 
-  // [MODIFICADO] Solicita parada do Timer -> Abre o Modal com NOME DA DISCIPLINA
   const handleStopStudyRequest = (minutes) => {
     if (!activeStudySession) return;
-
     if (!activeCicloId) {
         alert("Nenhum ciclo ativo encontrado. Ative um ciclo antes de salvar.");
         return;
     }
-
-    // Passamos também o nome da disciplina para o modal exibir
     setFinishModalData({
       minutes,
       disciplinaNome: activeStudySession.disciplina.nome
     });
   };
 
-  // [NOVO] Confirmação vinda do Modal de Finalização
   const handleConfirmFinishStudy = async (questionsResult) => {
     if (!activeStudySession || !finishModalData) return;
-
     const { minutes } = finishModalData;
     const { questions, correct } = questionsResult;
 
@@ -186,10 +229,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
             acertos: correct,
             obs: 'Sessão via Timer'
         };
-
         await addRegistroEstudo(data);
-
-        // Limpa estados após salvar
         setFinishModalData(null);
         setActiveStudySession(null);
     } catch (e) {
@@ -216,23 +256,39 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     await addDoc(collection(db, 'users', user.uid, 'metas'), newGoal);
   };
 
+  // Função de Logout (reintroduzida)
   const handleLogout = () => {
     signOut(auth).catch((error) => console.error('Logout Error:', error));
   };
 
-  // --- NAVEGAÇÃO INTELIGENTE ---
+  /**
+   * Função para lidar com a criação ou reativação de um ciclo.
+   * Redireciona para a aba 'ciclos' e força a visualização do radar.
+   * Não precisa definir o activeCicloId, pois o listener do Firestore o fará.
+   * @param {string} cicloId O ID do ciclo criado/ativado (Opcional, usado apenas para garantir o acionamento)
+   */
+  const handleCicloCreationOrActivation = (cicloId) => {
+     // 1. Navega para a aba 'ciclos'
+     setActiveTab('ciclos');
 
-  // Navega direto para o ciclo visual (Card da Home)
+     // 2. Força a abertura da visualização do ciclo (radar)
+     setForceOpenVisual(true);
+
+     // 3. Reseta o flag após um curto período
+     setTimeout(() => setForceOpenVisual(false), 1000);
+  };
+
   const handleGoToActiveCycle = () => {
     if (activeCicloId) {
-      setForceOpenVisual(true);
-      setActiveTab('ciclos');
-      setTimeout(() => setForceOpenVisual(false), 1000);
+      // Se já tem um ciclo ativo, usa o handler de navegação (que força a visualização)
+      handleCicloCreationOrActivation(activeCicloId);
     } else {
+      // Se não tem ciclo, apenas navega para a lista de ciclos
       setActiveTab('ciclos');
     }
   };
 
+  // Função centralizada para troca de abas
   const handleTabChange = (tab) => {
     setActiveTab(tab);
     if (tab !== 'ciclos') {
@@ -240,7 +296,6 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     }
   };
 
-  // --- RENDERIZAÇÃO DAS ABAS ---
   const renderTabContent = () => {
     if (loading && ['home', 'calendar'].includes(activeTab)) {
       return (
@@ -272,11 +327,13 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       case 'calendar':
         return <CalendarTab registrosEstudo={allRegistrosEstudo} goalsHistory={goalsHistory} onDeleteRegistro={deleteRegistro} />;
       case 'ciclos':
+        // A lógica dentro de CiclosPage que decide se exibe a lista ou a visualização
+        // deve ser baseada em activeCicloId e forceOpenVisual
         return (
             <CiclosPage
                 user={user}
                 onStartStudy={handleStartStudy}
-                onCicloAtivado={(id) => setActiveCicloId(id)}
+                onCicloAtivado={handleCicloCreationOrActivation} // Passamos o handler para ser chamado APÓS a criação/ativação
                 addRegistroEstudo={addRegistroEstudo}
                 activeCicloId={activeCicloId}
                 forceOpenVisual={forceOpenVisual}
@@ -292,7 +349,15 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   return (
     <div className="flex min-h-screen bg-background-light dark:bg-background-dark text-text-primary dark:text-text-dark-primary transition-colors duration-300 overflow-x-hidden">
 
-      {/* --- MODAIS GLOBAIS E TIMER --- */}
+      {/* --- TOUR INTERATIVO --- */}
+      <OnboardingTour
+         isActive={tourState.isActive}
+         tourType={tourState.type}
+         activeTab={activeTab}
+         setActiveTab={handleTabChange}
+         onClose={handleTourFinish}
+         onFinish={handleTourFinish}
+      />
 
       {activeStudySession && (
           <StudyTimer
@@ -308,7 +373,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       {finishModalData && (
         <TimerFinishModal
           timeMinutes={finishModalData.minutes}
-          disciplinaNome={finishModalData.disciplinaNome} // [NOVO] Passando o nome da disciplina
+          disciplinaNome={finishModalData.disciplinaNome}
           onConfirm={handleConfirmFinishStudy}
           onCancel={() => setFinishModalData(null)}
         />

@@ -27,10 +27,8 @@ function Sidebar({ questionsData, hoursData }) {
     }))
     .sort((a, b) => b.perc - a.perc);
 
-  // Lógica para o ranking de horas (simplificada por enquanto)
-
   return (
-    <aside className="sidebar">
+    <aside className="sidebar" id="sidebar-ranking">
       <div className="card" style={{ animationDelay: '0.3s' }}>
         <h2>Ranking por Aproveitamento</h2>
         <ul className="ranking-list" id="questions-ranking-list">
@@ -56,7 +54,6 @@ function Sidebar({ questionsData, hoursData }) {
       <div className="card" style={{ animationDelay: '0.4s' }}>
         <h2>Ranking de Horas</h2>
         <ul className="ranking-list" id="hours-ranking-list">
-          {/* Lógica do ranking de horas virá aqui */}
           <li>Em breve...</li>
         </ul>
       </div>

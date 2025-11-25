@@ -8,22 +8,27 @@ import { motion, AnimatePresence } from 'framer-motion';
 // --- COMPONENTE DE CONTROLE (INPUT) ---
 const ControlCard = ({ label, value, onChange, icon: Icon, unit, step, min, max, colorClass }) => {
   return (
-    <div className="bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-700/50 rounded-xl p-4 relative overflow-hidden group transition-all hover:border-zinc-300 dark:hover:border-zinc-600">
-      <div className="relative z-10 flex justify-between items-center mb-4">
+    // Reduzindo padding em mobile (p-3) e ajustando a altura dos elementos
+    <div className="bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-700/50 rounded-xl p-3 sm:p-4 relative overflow-hidden group transition-all hover:border-zinc-300 dark:hover:border-zinc-600">
+      <div className="relative z-10 flex justify-between items-center mb-3 sm:mb-4">
         <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-500 flex items-center gap-2">
-          <Icon size={14} className={colorClass} /> {label}
+          <Icon size={14} className={colorClass} /> <span className="hidden sm:inline">{label}</span>
+          {/* Exibe apenas a primeira palavra no mobile para economizar espaço */}
+          <span className="sm:hidden">{label.split(' ')[0]}</span>
         </h3>
-        <span className={`text-2xl font-black ${colorClass}`}>
+        {/* Fontes reduzidas em mobile (text-xl) */}
+        <span className={`text-xl sm:text-2xl font-black ${colorClass}`}>
           {value} <span className="text-sm font-bold text-zinc-400">{unit}</span>
         </span>
       </div>
 
-      <div className="relative z-10 flex items-center gap-3 bg-white dark:bg-zinc-950 p-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 shadow-inner">
+      {/* Input e Botões mais compactos */}
+      <div className="relative z-10 flex items-center gap-2 sm:gap-3 bg-white dark:bg-zinc-950 p-1 sm:p-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 shadow-inner">
         <button
           onClick={() => onChange(-step)}
-          className="p-3 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-red-500 transition-colors active:scale-95"
+          className="p-2 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-red-500 transition-colors active:scale-95"
         >
-          <Minus size={16} />
+          <Minus size={14} /> {/* Ícone menor */}
         </button>
 
         <input
@@ -38,14 +43,16 @@ const ControlCard = ({ label, value, onChange, icon: Icon, unit, step, min, max,
 
         <button
           onClick={() => onChange(step)}
-          className="p-3 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-emerald-500 transition-colors active:scale-95"
+          className="p-2 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-emerald-500 transition-colors active:scale-95"
         >
-          <Plus size={16} />
+          <Plus size={14} /> {/* Ícone menor */}
         </button>
       </div>
 
+      {/* CORREÇÃO AQUI: O tamanho base é 60 (para mobile). O lg:size-100 aplica um tamanho grande, mas não exagerado (400px).
+          A classe sm:size-80 anterior estava sendo aplicada no desktop, causando o problema. */}
       <div className={`absolute -bottom-4 -right-4 opacity-5 group-hover:opacity-10 transition-opacity transform rotate-12 ${colorClass}`}>
-        <Icon size={80} />
+        <Icon size={60} className="lg:size-100 md:size-80" />
       </div>
     </div>
   );
@@ -108,37 +115,41 @@ function GoalsTab({ onSetGoal, goalsHistory, onDeleteGoal }) {
   };
 
   return (
-    <div className="animate-fade-in space-y-8 pb-12">
+    <div className="animate-fade-in space-y-6 sm:space-y-8 pb-12"> {/* Margem vertical menor */}
 
       {/* --- CABEÇALHO INTERNO DA PÁGINA (PADRONIZADO) --- */}
-      <div className="mb-8 border-b border-zinc-200 dark:border-zinc-800 pb-6">
+      <div className="mb-4 sm:mb-8 border-b border-zinc-200 dark:border-zinc-800 pb-4 sm:pb-6"> {/* Padding e margem menores */}
         <div className="flex items-center gap-3 mb-2">
             <div className="p-2.5 bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-500 rounded-xl">
-                <Target size={28} strokeWidth={2} />
+                {/* CORREÇÃO AQUI: Removemos o className="sm:size-28" que estava deixando o ícone gigante no desktop */}
+                <Target size={24} strokeWidth={2} />
             </div>
-            <h1 className="text-3xl font-black text-zinc-800 dark:text-white tracking-tight uppercase">
+            <h1 className="text-2xl sm:text-3xl font-black text-zinc-800 dark:text-white tracking-tight uppercase"> {/* Título menor */}
                 Estratégia & Metas
             </h1>
         </div>
-
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      {/* Layout principal: 1 coluna em mobile, 3 colunas em desktop */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
 
+        {/* 1. Configuração Diária */}
         <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white dark:bg-zinc-950 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-800 p-6 relative overflow-hidden">
+          <div id="goals-controls" className="bg-white dark:bg-zinc-950 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-800 p-4 sm:p-6 relative overflow-hidden"> {/* Padding reduzido */}
               <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${stats.level.bg}`}></div>
 
-              <div className="flex justify-between items-center mb-6 pl-2">
-                  <h2 className="text-lg font-bold text-zinc-800 dark:text-white flex items-center gap-2">
-                      <Zap size={18} className="text-amber-500" /> Configuração Diária
+              <div className="flex justify-between items-center mb-4 sm:mb-6 pl-2"> {/* Margem reduzida */}
+                  <h2 className="text-base sm:text-lg font-bold text-zinc-800 dark:text-white flex items-center gap-2"> {/* Título menor */}
+                      {/* CORREÇÃO AQUI: Removemos o className="sm:size-18" */}
+                      <Zap size={16} className="text-amber-500" /> Configuração Diária
                   </h2>
-                  <span className={`px-3 py-1 rounded-full text-[10px] font-black border ${stats.level.color} ${stats.level.border} bg-opacity-10 bg-zinc-100 dark:bg-zinc-900 uppercase tracking-wide`}>
+                  <span className={`px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-[9px] sm:text-[10px] font-black border ${stats.level.color} ${stats.level.border} bg-opacity-10 bg-zinc-100 dark:bg-zinc-900 uppercase tracking-wide`}> {/* Level menor */}
                       NÍVEL: {stats.level.label}
                   </span>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* AQUI ESTÁ A CORREÇÃO CRUCIAL: Adicionar o ID para o destaque mobile */}
+              <div id="goals-controls-inner" className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                   <ControlCard
                       label="Meta de Horas"
                       value={hoursGoal}
@@ -159,29 +170,30 @@ function GoalsTab({ onSetGoal, goalsHistory, onDeleteGoal }) {
                   />
               </div>
 
-              <div className="mt-8 p-5 bg-zinc-50 dark:bg-zinc-900/30 rounded-xl border border-zinc-200 dark:border-zinc-800">
-                  <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+              {/* Projeção de Impacto */}
+              <div className="mt-6 sm:mt-8 p-4 sm:p-5 bg-zinc-50 dark:bg-zinc-900/30 rounded-xl border border-zinc-200 dark:border-zinc-800"> {/* Padding reduzido */}
+                  <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-3 sm:mb-4 flex items-center gap-2">
                       <BarChart3 size={14} /> Projeção de Impacto
                   </h3>
-                  <div className="grid grid-cols-2 gap-4">
-                      <div className="flex items-center justify-between p-3 bg-white dark:bg-zinc-950 rounded-lg border border-zinc-200 dark:border-zinc-800/50">
+                  <div className="grid grid-cols-2 gap-3 sm:gap-4"> {/* Gap reduzido */}
+                      <div className="flex items-center justify-between p-2 sm:p-3 bg-white dark:bg-zinc-950 rounded-lg border border-zinc-200 dark:border-zinc-800/50"> {/* Padding reduzido */}
                           <div>
                               <p className="text-[10px] text-zinc-400 font-bold uppercase">Semanal</p>
                               <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Consistência</p>
                           </div>
                           <div className="text-right">
-                              <p className="text-lg font-black text-zinc-800 dark:text-white">{stats.weeklyHours.toFixed(1)}h</p>
-                              <p className="text-xs font-bold text-emerald-500">{stats.weeklyQuestions} qst</p>
+                              <p className="text-base sm:text-lg font-black text-zinc-800 dark:text-white">{stats.weeklyHours.toFixed(1)}h</p> {/* Fonte reduzida */}
+                              <p className="text-[10px] sm:text-xs font-bold text-emerald-500">{stats.weeklyQuestions} qst</p> {/* Fonte reduzida */}
                           </div>
                       </div>
-                      <div className="flex items-center justify-between p-3 bg-white dark:bg-zinc-950 rounded-lg border border-zinc-200 dark:border-zinc-800/50">
+                      <div className="flex items-center justify-between p-2 sm:p-3 bg-white dark:bg-zinc-950 rounded-lg border border-zinc-200 dark:border-zinc-800/50"> {/* Padding reduzido */}
                           <div>
                               <p className="text-[10px] text-zinc-400 font-bold uppercase">Mensal</p>
                               <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Evolução</p>
                           </div>
                           <div className="text-right">
-                              <p className="text-lg font-black text-zinc-800 dark:text-white">{stats.monthlyHours.toFixed(1)}h</p>
-                              <p className="text-xs font-bold text-emerald-500">{stats.monthlyQuestions} qst</p>
+                              <p className="text-base sm:text-lg font-black text-zinc-800 dark:text-white">{stats.monthlyHours.toFixed(1)}h</p> {/* Fonte reduzida */}
+                              <p className="text-[10px] sm:text-xs font-bold text-emerald-500">{stats.monthlyQuestions} qst</p> {/* Fonte reduzida */}
                           </div>
                       </div>
                   </div>
@@ -191,12 +203,13 @@ function GoalsTab({ onSetGoal, goalsHistory, onDeleteGoal }) {
                   <button
                     onClick={handleSubmit}
                     disabled={isLoading}
-                    className="group relative px-8 py-4 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold shadow-xl hover:shadow-red-900/20 transition-all transform hover:-translate-y-1 active:translate-y-0 flex items-center gap-3 overflow-hidden disabled:opacity-70 disabled:cursor-not-allowed"
+                    className="group relative px-6 py-3 sm:px-8 sm:py-4 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold shadow-xl hover:shadow-red-900/20 transition-all transform hover:-translate-y-0.5 active:translate-y-0 flex items-center gap-3 overflow-hidden disabled:opacity-70 disabled:cursor-not-allowed text-xs sm:text-sm"
                   >
                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700"></div>
                     {isLoading ? 'Salvando...' : (
                         <>
-                            <Save size={20} />
+                            {/* CORREÇÃO AQUI: Removemos o className="sm:size-20" */}
+                            <Save size={16} />
                             <span className="uppercase tracking-wide">Confirmar Nova Meta</span>
                         </>
                     )}
@@ -205,22 +218,26 @@ function GoalsTab({ onSetGoal, goalsHistory, onDeleteGoal }) {
           </div>
         </div>
 
+        {/* 2. Histórico */}
         <div className="lg:col-span-1">
-           <div className="bg-white dark:bg-zinc-950 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-800 p-6 h-full flex flex-col relative overflow-hidden">
+           <div className="bg-white dark:bg-zinc-950 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-800 p-4 sm:p-6 h-full flex flex-col relative overflow-hidden"> {/* Padding reduzido */}
              <div className="absolute -top-10 -right-10 text-zinc-100 dark:text-zinc-900 pointer-events-none transform -rotate-12">
-                <History size={150} strokeWidth={1} />
+                {/* CORREÇÃO AQUI: Removemos o className="sm:size-150" */}
+                <History size={100} strokeWidth={1} />
             </div>
 
             <div className="flex items-center justify-between mb-6 relative z-10">
                 <h2 className="text-lg font-bold text-zinc-800 dark:text-white flex items-center gap-2">
-                  <History size={20} className="text-red-500" /> Histórico
+                  {/* CORREÇÃO AQUI: Removemos o className="sm:size-20" */}
+                  <History size={18} className="text-red-500" /> Histórico
                 </h2>
-                <span className="text-[10px] font-black text-zinc-400 bg-zinc-100 dark:bg-zinc-900 px-2 py-1 rounded uppercase tracking-wide">
+                <span className="text-[9px] font-black text-zinc-400 bg-zinc-100 dark:bg-zinc-900 px-2 py-0.5 rounded uppercase tracking-wide"> {/* Fonte menor */}
                     Registro
                 </span>
             </div>
 
-            <div className="space-y-3 flex-1 overflow-y-auto pr-2 custom-scrollbar max-h-[600px] relative z-10">
+            {/* Lista do Histórico */}
+            <div className="space-y-3 flex-1 overflow-y-auto pr-2 custom-scrollbar max-h-[400px] sm:max-h-[600px] relative z-10"> {/* Altura máxima controlada */}
               {goalsHistory && goalsHistory.length > 0 ? (
                 goalsHistory.map((goal, index) => {
                   const isActive = index === 0;
@@ -233,7 +250,7 @@ function GoalsTab({ onSetGoal, goalsHistory, onDeleteGoal }) {
                       transition={{ delay: index * 0.05 }}
                       key={goal.id}
                       className={`
-                        relative p-4 rounded-xl border transition-all duration-300 group
+                        relative p-3 sm:p-4 rounded-xl border transition-all duration-300 group
                         ${isActive
                             ? 'bg-red-50 dark:bg-red-900/10 border-red-500/30 shadow-sm'
                             : 'bg-zinc-50 dark:bg-zinc-900/50 border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700'
@@ -242,15 +259,16 @@ function GoalsTab({ onSetGoal, goalsHistory, onDeleteGoal }) {
                     >
                       <div className="flex justify-between items-start mb-3">
                         <div>
-                            <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-0.5">DATA DE INÍCIO</p>
+                            <p className="text-[9px] font-bold uppercase tracking-wider text-zinc-400 mb-0.5">DATA DE INÍCIO</p> {/* Fonte menor */}
                             <p className="text-xs font-mono text-zinc-600 dark:text-zinc-300 font-bold flex items-center gap-1">
-                              <Calendar size={12} /> {date.toLocaleDateString('pt-BR')}
+                              {/* CORREÇÃO AQUI: Removemos o className="sm:size-12" */}
+                              <Calendar size={10} /> {date.toLocaleDateString('pt-BR')}
                             </p>
                         </div>
 
                         {isActive ? (
-                          <span className="text-[9px] font-black bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400 py-1 px-2 rounded flex items-center gap-1">
-                            <CheckCircle2 size={10} /> ATIVA
+                          <span className="text-[8px] font-black bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400 py-0.5 px-1.5 rounded flex items-center gap-1"> {/* Fonte menor */}
+                            <CheckCircle2 size={9} /> ATIVA
                           </span>
                         ) : (
                             <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -260,17 +278,17 @@ function GoalsTab({ onSetGoal, goalsHistory, onDeleteGoal }) {
                                             onDeleteGoal(goal.id);
                                         }
                                     }}
-                                    className="p-1.5 rounded-md bg-zinc-200 dark:bg-zinc-800 text-zinc-400 hover:text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                                    className="p-1 rounded-md bg-zinc-200 dark:bg-zinc-800 text-zinc-400 hover:text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
                                     title="Excluir Registro"
                                 >
-                                    <Trash2 size={14} />
+                                    <Trash2 size={12} /> {/* Ícone menor */}
                                 </button>
 
                                 <button
                                     onClick={() => handleReactivate(goal)}
-                                    className="text-[9px] font-bold bg-white dark:bg-zinc-800 text-indigo-500 border border-indigo-200 dark:border-indigo-900 py-1.5 px-2 rounded flex items-center gap-1 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 shadow-sm"
+                                    className="text-[8px] font-bold bg-white dark:bg-zinc-800 text-indigo-500 border border-indigo-200 dark:border-indigo-900 py-1 px-2 rounded flex items-center gap-1 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 shadow-sm"
                                 >
-                                    <RotateCcw size={10} /> USAR
+                                    <RotateCcw size={9} /> USAR {/* Ícone e fonte menor */}
                                 </button>
                             </div>
                         )}
@@ -291,7 +309,8 @@ function GoalsTab({ onSetGoal, goalsHistory, onDeleteGoal }) {
                 })
               ) : (
                 <div className="text-center py-10 text-zinc-400">
-                    <Shield size={40} className="mx-auto mb-2 opacity-20" />
+                    {/* CORREÇÃO AQUI: Removemos o className="sm:size-40" */}
+                    <Shield size={32} className="mx-auto mb-2 opacity-20" />
                     <p className="text-sm">Nenhuma estratégia definida.</p>
                 </div>
               )}

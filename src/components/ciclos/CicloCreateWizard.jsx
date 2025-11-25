@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useCiclos } from '../../hooks/useCiclos';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -150,7 +150,7 @@ const CyclePreview = ({ disciplinas, totalHours }) => {
 };
 
 // --- COMPONENTE PRINCIPAL ---
-function CicloCreateWizard({ onClose, user }) {
+function CicloCreateWizard({ onClose, user, onCicloAtivado }) {
   const [step, setStep] = useState(1);
 
   // STEP 1
@@ -166,6 +166,7 @@ function CicloCreateWizard({ onClose, user }) {
   const [nomeNovaDisciplina, setNomeNovaDisciplina] = useState('');
   const [pesoNovaDisciplina, setPesoNovaDisciplina] = useState(1);
 
+  // Alterada para usar a função que retorna o ID do ciclo criado
   const { criarCiclo, loading } = useCiclos(user);
 
   // Lógica Horas
@@ -196,6 +197,7 @@ function CicloCreateWizard({ onClose, user }) {
 
   const handleRemoveDisciplina = (id) => setDisciplinas(disciplinas.filter(d => d.id !== id));
 
+  // CORREÇÃO AQUI: Chamar onCicloAtivado com o ID retornado
   const handleFinalSubmit = async () => {
     if (horasTotais <= 0 || disciplinas.length === 0) {
         alert("Verifique a carga horária e se adicionou disciplinas.");
@@ -206,7 +208,18 @@ function CicloCreateWizard({ onClose, user }) {
       cargaHorariaTotal: horasTotais,
       disciplinas: disciplinasComHoras.map(d => ({ ...d, tempoAlocadoSemanalMinutos: d.horasCalculadas * 60 })),
     };
-    if (await criarCiclo(cicloData)) onClose();
+
+    const novoCicloId = await criarCiclo(cicloData);
+
+    if (novoCicloId) {
+        // 1. Fechar o modal
+        onClose();
+
+        // 2. Notificar o Dashboard para navegar para a visualização do ciclo
+        if (onCicloAtivado) {
+             onCicloAtivado(novoCicloId);
+        }
+    }
   };
 
   const isWide = step === 2 || step === 3;
@@ -334,8 +347,8 @@ function CicloCreateWizard({ onClose, user }) {
                           </form>
                       </div>
 
-                      {/* Lista */}
-                      <div className="flex-1 overflow-y-auto custom-scrollbar bg-zinc-50 dark:bg-zinc-900/30 rounded-2xl border border-zinc-100 dark:border-zinc-800 p-2 min-h-[200px]">
+                      {/* Lista (ÁREA CORRIGIDA) */}
+                      <div className="flex-1 overflow-y-auto custom-scrollbar bg-zinc-50 dark:bg-zinc-900/30 rounded-2xl border border-zinc-100 dark:border-zinc-800 p-2 max-h-[50vh] lg:max-h-full">
                           {disciplinas.length === 0 ? (
                               <div className="h-full flex flex-col items-center justify-center opacity-40 text-zinc-500">
                                   <BookOpen size={32} className="mb-2"/>

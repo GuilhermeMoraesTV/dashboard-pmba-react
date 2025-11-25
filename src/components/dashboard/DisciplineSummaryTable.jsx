@@ -135,7 +135,7 @@ function DisciplineSummaryTable({ registrosEstudo }) {
       {!hasData ? (
           <div className="dashboard-card p-6 flex flex-col items-center justify-center text-zinc-400 h-full">
              <BarChart2 size={48} className="mb-4 opacity-20" />
-             <p className="text-base font-medium">Sem dados de missão neste ciclo.</p>
+             <p className="text-base font-medium">Sem dados de disciplinas neste ciclo.</p>
           </div>
       ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-full flex-1 min-h-0">

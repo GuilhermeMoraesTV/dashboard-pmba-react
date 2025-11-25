@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
-import { Clock, Target, Trophy, ChevronDown, CheckCircle2, Activity, Flame, Medal, AlertCircle } from 'lucide-react';
+import { Clock, Target, Trophy, ChevronDown, CheckCircle2, Activity, Flame, Medal, AlertCircle, HelpCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const dateToYMD = (date) => {
@@ -9,7 +9,7 @@ const dateToYMD = (date) => {
     return `${y}-${m}-${d}`;
 };
 
-function HeaderProgress({ registrosEstudo, goalsHistory, activeCicloId }) {
+function HeaderProgress({ registrosEstudo, goalsHistory, activeCicloId, onTriggerGuide }) {
     const [isExpanded, setIsExpanded] = useState(false);
     const [showCelebration, setShowCelebration] = useState(false);
     const wasCompleteRef = useRef(false);
@@ -46,21 +46,21 @@ function HeaderProgress({ registrosEstudo, goalsHistory, activeCicloId }) {
         const isCompleteQ = goalQ === 0 || percQ >= 100;
 
         const isComplete = isCompleteH && isCompleteQ && (goalH > 0 || goalQ > 0);
-        const isPartialComplete = (isCompleteH || isCompleteQ) && !isComplete && (goalH > 0 || goalQ > 0); // Nova lógica para parcial
+        const isPartialComplete = (isCompleteH || isCompleteQ) && !isComplete && (goalH > 0 || goalQ > 0);
         const hasActivity = todayH > 0 || todayQ > 0;
 
         const overallProgress = (goalH > 0 || goalQ > 0) ? ((percH + percQ) / 2) : 0;
 
         let state = 'idle';
         if (isComplete) state = 'complete';
-        else if (isPartialComplete) state = 'partial'; // Novo estado: Parcialmente completo
+        else if (isPartialComplete) state = 'partial';
         else if (overallProgress >= 80) state = 'close';
         else if (hasActivity) state = 'working';
 
         return { todayH, todayQ, goalH, goalQ, percH, percQ, isComplete, isPartialComplete, hasActivity, overallProgress, state };
     }, [registrosEstudo, goalsHistory, activeCicloId]);
 
-    // Efeito de Celebração (Dispara se completou tudo)
+    // Efeito de Celebração
     useEffect(() => {
         if (mounted) {
             if (stats.isComplete && !wasCompleteRef.current) {
@@ -91,17 +91,17 @@ function HeaderProgress({ registrosEstudo, goalsHistory, activeCicloId }) {
             label: 'Em Progresso',
             animation: ''
         },
-        partial: { // Novo estado visual
+        partial: {
             icon: Medal,
             colorClass: 'bg-amber-500 text-white shadow-lg shadow-amber-500/20',
             barClass: 'bg-gradient-to-r from-amber-400 to-amber-600',
             borderClass: 'border-amber-500/30 bg-amber-50/50 dark:bg-amber-900/10',
             label: 'Meta Parcial!',
-            animation: 'animate-pulse' // Pulsa suavemente
+            animation: 'animate-pulse'
         },
         close: {
             icon: Flame,
-            colorClass: 'bg-orange-500 text-white shadow-lg shadow-orange-500/20 animate-bounce', // Pula se estiver quase lá
+            colorClass: 'bg-orange-500 text-white shadow-lg shadow-orange-500/20 animate-bounce',
             barClass: 'bg-gradient-to-r from-orange-500 to-red-500',
             borderClass: 'border-orange-500/30 bg-orange-50/50 dark:bg-orange-900/10',
             label: 'Reta Final!',
@@ -150,12 +150,15 @@ function HeaderProgress({ registrosEstudo, goalsHistory, activeCicloId }) {
 
     return (
         <div
+            id="header-progress-root" /* ID ADICIONADO PARA O TOUR: Raiz do componente */
             className="relative z-30"
             onMouseEnter={() => setIsExpanded(true)}
             onMouseLeave={() => setIsExpanded(false)}
         >
             {/* --- BARRA COMPACTA (HEADER) --- */}
-            <div className={`
+            <div
+                id="header-progress-bar" /* ID ADICIONADO PARA O TOUR: Barra visível */
+                className={`
                 flex items-center gap-4 px-4 py-2 bg-white dark:bg-zinc-900
                 border border-zinc-200 dark:border-zinc-800 rounded-xl cursor-pointer
                 transition-all duration-300 shadow-sm hover:shadow-md relative overflow-hidden
@@ -188,20 +191,34 @@ function HeaderProgress({ registrosEstudo, goalsHistory, activeCicloId }) {
                             animate={{ width: `${stats.overallProgress}%` }}
                             transition={{ duration: 1 }}
                         />
-                        {/* Indicador de Meta Parcial na Barra (Se uma estiver completa e a outra não, mostra um split visual) */}
+                        {/* Indicador de Meta Parcial na Barra */}
                         {stats.isPartialComplete && (
-                             <div className="absolute top-0 right-0 bottom-0 w-1/2 border-l-2 border-white/20 h-full"></div>
+                            <div className="absolute top-0 right-0 bottom-0 w-1/2 border-l-2 border-white/20 h-full"></div>
                         )}
                     </div>
                 </div>
 
-                <ChevronDown size={16} className={`text-zinc-400 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />
+                <div className="flex items-center gap-2 border-l border-zinc-200 dark:border-zinc-700 pl-4 ml-2">
+                    {/* Botão de Ajuda do Guia */}
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            if (onTriggerGuide) onTriggerGuide();
+                        }}
+                        className="text-zinc-300 hover:text-blue-500 transition-colors"
+                        title="Ver guia do progresso"
+                    >
+                        <HelpCircle size={16} />
+                    </button>
+                    <ChevronDown size={16} className={`text-zinc-400 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />
+                </div>
             </div>
 
             {/* --- DROPDOWN DE DETALHES --- */}
             <AnimatePresence>
                 {isExpanded && (
                     <motion.div
+                        id="header-progress-expanded" /* ID ADICIONADO PARA O TOUR: Painel dropdown */
                         initial={{ opacity: 0, y: 10, scale: 0.98 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 10, scale: 0.98 }}
@@ -217,7 +234,10 @@ function HeaderProgress({ registrosEstudo, goalsHistory, activeCicloId }) {
                             <div className="p-4">
                                 <div className="grid grid-cols-2 gap-3">
                                     {/* Card Horas */}
-                                    <div className={`bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-3 border flex flex-col items-center relative overflow-hidden transition-colors ${stats.percH >= 100 ? 'border-emerald-500/30 bg-emerald-50/30 dark:bg-emerald-900/10' : 'border-zinc-100 dark:border-zinc-800'}`}>
+                                    <div
+                                        id="header-stats-hours" /* ID ADICIONADO PARA O TOUR: Card de horas */
+                                        className={`bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-3 border flex flex-col items-center relative overflow-hidden transition-colors ${stats.percH >= 100 ? 'border-emerald-500/30 bg-emerald-50/30 dark:bg-emerald-900/10' : 'border-zinc-100 dark:border-zinc-800'}`}
+                                    >
                                         {stats.percH >= 100 && <div className="absolute top-0 right-0 p-1.5"><CheckCircle2 size={14} className="text-emerald-500" /></div>}
                                         <div className="mb-2">
                                             <ProgressRing percent={stats.percH} color="text-amber-500" icon={Clock} />
@@ -239,7 +259,10 @@ function HeaderProgress({ registrosEstudo, goalsHistory, activeCicloId }) {
                                     </div>
 
                                     {/* Card Questões */}
-                                    <div className={`bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-3 border flex flex-col items-center relative overflow-hidden transition-colors ${stats.percQ >= 100 ? 'border-emerald-500/30 bg-emerald-50/30 dark:bg-emerald-900/10' : 'border-zinc-100 dark:border-zinc-800'}`}>
+                                    <div
+                                        id="header-stats-questions" /* ID ADICIONADO PARA O TOUR: Card de questões */
+                                        className={`bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-3 border flex flex-col items-center relative overflow-hidden transition-colors ${stats.percQ >= 100 ? 'border-emerald-500/30 bg-emerald-50/30 dark:bg-emerald-900/10' : 'border-zinc-100 dark:border-zinc-800'}`}
+                                    >
                                         {stats.percQ >= 100 && <div className="absolute top-0 right-0 p-1.5"><CheckCircle2 size={14} className="text-emerald-500" /></div>}
                                         <div className="mb-2">
                                             <ProgressRing percent={stats.percQ} color="text-emerald-500" icon={Target} />
@@ -260,7 +283,7 @@ function HeaderProgress({ registrosEstudo, goalsHistory, activeCicloId }) {
                                     </div>
                                 </div>
 
-                                {/* Rodapé Informativo (Reativo e Contextual) */}
+                                {/* Rodapé Informativo */}
                                 {!stats.isComplete && (
                                     <div className="mt-4">
                                         <div className={`
@@ -269,7 +292,7 @@ function HeaderProgress({ registrosEstudo, goalsHistory, activeCicloId }) {
                                             ${stats.state === 'partial' ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400' : ''}
                                             ${stats.state === 'working' || stats.state === 'idle' ? 'bg-zinc-50 dark:bg-zinc-800/50 border-zinc-100 dark:border-zinc-800 text-zinc-500' : ''}
                                         `}>
-                                            {stats.state === 'close' && <span className="flex items-center justify-center gap-1"><Flame size={12} className="animate-pulse"/> Falta pouco! Finalize a missão.</span>}
+                                            {stats.state === 'close' && <span className="flex items-center justify-center gap-1"><Flame size={12} className="animate-pulse" /> Falta pouco! Finalize a missão.</span>}
                                             {stats.state === 'partial' && <span className="flex items-center justify-center gap-1"><Medal size={12} /> Ótimo! Uma meta já foi. Complete a outra.</span>}
                                             {(stats.state === 'working' || stats.state === 'idle') && <span>Restam <strong>{(Math.max(0, stats.goalH - stats.todayH)).toFixed(1)}h</strong> e <strong>{Math.max(0, stats.goalQ - stats.todayQ)}</strong> questões.</span>}
                                         </div>
