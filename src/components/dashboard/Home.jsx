@@ -118,7 +118,9 @@ function Home({ registrosEstudo, goalsHistory, setActiveTab, activeCicloData, on
 
   const getGoalsForDate = (dateStr) => {
     if (!goalsHistory || goalsHistory.length === 0) return { questions: 0, hours: 0 };
+    // Ordena as metas pela data de início para encontrar a meta vigente
     const sortedGoals = [...goalsHistory].sort((a, b) => new Date(b.startDate) - new Date(a.startDate));
+    // Retorna a meta mais recente que começou antes ou no dia em questão
     return sortedGoals.find(g => g.startDate <= dateStr) || { questions: 0, hours: 0 };
   };
 
@@ -129,10 +131,11 @@ function Home({ registrosEstudo, goalsHistory, setActiveTab, activeCicloData, on
       let totalCorrect = 0;
       let totalTimeMinutes = 0;
 
+      // 1. Processa todos os registros para agrupar por dia
       registrosEstudo.forEach(item => {
         const dateStr = item.data;
         if (!dateStr) return;
-        studyDays[dateStr] = studyDays[dateStr] || { questions: 0, correct: 0, hours: 0 };
+        studyDays[dateStr] = studyDays[dateStr] || { questions: 0, correct: 0, hours: 0, minutes: 0 };
         const questoes = item.questoesFeitas || 0;
         const acertadas = item.acertos || 0;
         const minutos = item.tempoEstudadoMinutos || 0;
@@ -145,45 +148,71 @@ function Home({ registrosEstudo, goalsHistory, setActiveTab, activeCicloData, on
         }
         if (minutos > 0) {
           studyDays[dateStr].hours += (minutos / 60);
+          studyDays[dateStr].minutes += minutos; // Salva minutos totais do dia
           totalTimeMinutes += minutos;
         }
       });
 
+      // 2. CÁLCULO DA SEQUÊNCIA (STREAK) - Lógica Corrigida para Meta Completa
       let currentStreak = 0;
       const today = new Date();
-      const yesterday = new Date();
-      yesterday.setDate(today.getDate() - 1);
-      const lastStudyDay = Object.keys(studyDays).sort().pop();
+      const todayStr = dateToYMD_local(today);
 
-      if (lastStudyDay === dateToYMD_local(today) || lastStudyDay === dateToYMD_local(yesterday)) {
-        for (let i = 0; i < 90; i++) {
+      // Itera por até 90 dias, começando pelo dia atual (i=0) e voltando
+      for (let i = 0; i < 90; i++) {
           const dateToCheck = new Date();
           dateToCheck.setDate(today.getDate() - i);
           const dateStr = dateToYMD_local(dateToCheck);
           const dayData = studyDays[dateStr];
-          if (dayData) {
-            const goalsForDay = getGoalsForDate(dateStr);
-            const qGoalMet = dayData.questions > 0 && dayData.questions >= (goalsForDay.questions || 0);
-            const hGoalMet = dayData.hours > 0 && dayData.hours >= (goalsForDay.hours || 0);
-            if (qGoalMet || hGoalMet) currentStreak++;
-            else { if (i === 0 && dateStr === dateToYMD_local(today)) continue; break; }
-          } else { if (i > 0) break; }
-        }
+          const goalsForDay = getGoalsForDate(dateStr);
+
+          // Metas (convertidas para minutos)
+          const qGoal = goalsForDay.questions || 0;
+          const hGoalMinutes = (goalsForDay.hours || 0) * 60;
+
+          // Condição de Meta Cumprida: (tempo >= meta tempo) E (questões >= meta questões)
+          // Se a meta de horas for 0, considera cumprida. Se a meta de questões for 0, considera cumprida.
+          const isTimeGoalMet = hGoalMinutes === 0 || (dayData && dayData.minutes >= hGoalMinutes);
+          const isQuestionGoalMet = qGoal === 0 || (dayData && dayData.questions >= qGoal);
+
+          // A SEQUÊNCIA SÓ CONTA SE AS DUAS METAS FOREM CUMPRIDAS (E ambas forem > 0, ou consideradas cumpridas se 0)
+          const goalMet = isTimeGoalMet && isQuestionGoalMet;
+
+          if (goalMet) {
+              // Meta cumprida, a sequência continua
+              currentStreak++;
+          } else {
+              // Meta não cumprida ou sem dados de estudo.
+              if (dateStr === todayStr && !dayData) {
+                  // Se for hoje e não houver dados, permite continuar a verificar o dia anterior.
+                  // A sequência de hoje está "pendente".
+                  continue;
+              } else {
+                  // Se for um dia passado e a meta não foi cumprida/não houve dados,
+                  // OU se for hoje e houve dados mas a meta não foi atingida, a sequência termina.
+                  break;
+              }
+          }
       }
 
+      // 3. Cálculos para o Heatmap dos últimos 14 dias (Ajustado para usar a nova lógica)
       const last14Days = Array.from({ length: 14 }).map((_, i) => {
         const date = new Date();
         date.setDate(new Date().getDate() - (13 - i));
         const dateStr = dateToYMD_local(date);
         const dayData = studyDays[dateStr];
         let status = 'no-data';
-        const hasData = !!dayData && (dayData.questions > 0 || dayData.hours > 0);
+        const hasData = !!dayData && (dayData.questions > 0 || dayData.minutes > 0);
+
         if (hasData) {
           const goalsForDay = getGoalsForDate(dateStr);
           const qGoal = goalsForDay?.questions || 0;
-          const hGoal = goalsForDay?.hours || 0;
+          const hGoalMinutes = (goalsForDay?.hours || 0) * 60;
+
           const qGoalMet = dayData.questions >= qGoal;
-          const hGoalMet = dayData.hours >= hGoal;
+          const hGoalMet = dayData.minutes >= hGoalMinutes;
+
+          // O status do heatmap ainda usa a lógica 'met-both' ou 'met-one' para visualização do dia
           if (qGoalMet && hGoalMet) status = 'goal-met-both';
           else if (qGoalMet || hGoalMet) status = 'goal-met-one';
           else status = 'goal-not-met';

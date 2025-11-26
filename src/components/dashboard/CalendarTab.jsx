@@ -29,9 +29,10 @@ const formatDecimalHours = (minutos) => {
   return `${h}h ${m}m`;
 };
 
-// --- Componente de Card de Estatística ---
+// --- Componente de Card de Estatística (REVERTIDO para layout COMPACTO) ---
 const StatCard = ({ icon: Icon, label, value, subValue, colorClass = "text-zinc-600" }) => (
   <div className="flex items-center gap-2 md:gap-3 p-2 md:p-3 bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700/50 rounded-xl shadow-sm min-w-[110px] flex-1 relative overflow-hidden">
+    {/* ESTE É O QUADRADO COLORIDO QUE ESTAVA FALTANDO */}
     <div className={`p-1.5 md:p-2 rounded-lg bg-white dark:bg-zinc-700 shadow-sm border border-zinc-100 dark:border-zinc-600 ${colorClass} relative z-10`}>
       <Icon size={20} strokeWidth={2.5} />
     </div>
@@ -43,15 +44,23 @@ const StatCard = ({ icon: Icon, label, value, subValue, colorClass = "text-zinc-
   </div>
 );
 
+
 function CalendarTab({ registrosEstudo = [], goalsHistory = [], onDeleteRegistro }) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(null);
 
-  // --- Processamento de Dados ---
+  // CORREÇÃO: Função getGoalsForDate movida para o topo do escopo do componente
+  const getGoalsForDate = (dateStr) => {
+    if (!goalsHistory || goalsHistory.length === 0) return { questions: 0, hours: 0 };
+    // Ordena as metas pela data de início para encontrar a meta vigente
+    const sortedGoals = [...goalsHistory].sort((a, b) => new Date(b.startDate) - new Date(a.startDate));
+    // Retorna a meta mais recente que começou antes ou no dia em questão
+    return sortedGoals.find(g => g.startDate <= dateStr) || { questions: 0, hours: 0 };
+  };
+
+  // --- Processamento de Dados (Agora useMemo pode acessar getGoalsForDate) ---
   const { studyDays, currentStreak, monthlyStats } = useMemo(() => {
     const days = {};
-    let streak = 0;
-
     const currentMonthStats = { hours: 0, questions: 0, correct: 0, daysStudied: 0 };
     const currentMonthKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
 
@@ -65,6 +74,7 @@ function CalendarTab({ registrosEstudo = [], goalsHistory = [], onDeleteRegistro
         if (!dateStr) return;
 
         if (!days[dateStr]) {
+          // 'hours' neste objeto armazena a SOMA TOTAL DOS MINUTOS DE ESTUDO
           days[dateStr] = { questions: 0, correct: 0, hours: 0 };
         }
 
@@ -86,27 +96,51 @@ function CalendarTab({ registrosEstudo = [], goalsHistory = [], onDeleteRegistro
 
     currentMonthStats.daysStudied = Object.keys(days).filter(d => d.startsWith(currentMonthKey) && (days[d].hours > 0 || days[d].questions > 0)).length;
 
-    // Streak Logic
-    const todayStr = dateToYMD_local(new Date());
-    const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
-    let checkDate = new Date();
-    if (!days[todayStr]) checkDate = yesterday;
+    // --- CÁLCULO DA SEQUÊNCIA (STREAK) - Lógica de Meta Completa (E) ---
+    let streak = 0;
+    const today = new Date();
+    const todayStr = dateToYMD_local(today);
 
-    while (true) {
-      const dStr = dateToYMD_local(checkDate);
-      if (days[dStr] && (days[dStr].hours > 0 || days[dStr].questions > 0)) {
-        streak++; checkDate.setDate(checkDate.getDate() - 1);
-      } else break;
+    // Itera por até 90 dias, começando pelo dia atual (i=0) e voltando
+    for (let i = 0; i < 90; i++) {
+        const dateToCheck = new Date();
+        dateToCheck.setDate(today.getDate() - i);
+        const dStr = dateToYMD_local(dateToCheck);
+        const dayData = days[dStr];
+
+        const hasData = !!dayData;
+
+        if (hasData) {
+            const goalsForDay = getGoalsForDate(dStr);
+            const qGoal = goalsForDay.questions || 0;
+            const hGoalMinutes = (goalsForDay.hours || 0) * 60;
+
+            // Condições de cumprimento (Meta 0 é considerada cumprida)
+            const isTimeGoalMet = hGoalMinutes === 0 || dayData.hours >= hGoalMinutes; // dayData.hours é em minutos
+            const isQuestionGoalMet = qGoal === 0 || dayData.questions >= qGoal;
+
+            // A SEQUÊNCIA SÓ CONTA SE AS DUAS METAS FOREM CUMPRIDAS (E)
+            const goalMet = isTimeGoalMet && isQuestionGoalMet;
+
+            if (goalMet) {
+                streak++;
+            } else {
+                // Se a meta NÃO foi batida, encerra a sequência
+                break;
+            }
+        } else {
+            // Se não houver dados, o streak para, a menos que seja hoje
+            if (dStr === todayStr) {
+                continue; // Se for hoje sem estudo, pula e verifica o dia anterior (streak não quebra)
+            } else {
+                break; // Se for um dia passado e não houve estudo, encerra.
+            }
+        }
     }
 
     return { studyDays: days, currentStreak: streak, monthlyStats: currentMonthStats };
-  }, [registrosEstudo, currentDate]);
+  }, [registrosEstudo, currentDate, getGoalsForDate]);
 
-  const getGoalsForDate = (dateStr) => {
-    if (!goalsHistory || goalsHistory.length === 0) return { questions: 0, hours: 0 };
-    const sortedGoals = [...goalsHistory].sort((a, b) => new Date(b.startDate) - new Date(a.startDate));
-    return sortedGoals.find(g => g.startDate <= dateStr) || { questions: 0, hours: 0 };
-  };
 
   const getDayStatus = (dateStr) => {
     const dayData = studyDays[dateStr];
@@ -121,6 +155,7 @@ function CalendarTab({ registrosEstudo = [], goalsHistory = [], onDeleteRegistro
       const qGoalMet = qGoal === 0 || dayData.questions >= qGoal;
       const hGoalMet = hGoal === 0 || dayData.hours >= hGoal;
 
+      // Mantemos a distinção Goal-Met-One para a visualização do calendário (Heatmap)
       if (qGoalMet && hGoalMet) status = 'goal-met-both';
       else if (qGoalMet || hGoalMet) status = 'goal-met-one';
       else status = 'goal-not-met';

@@ -17,6 +17,9 @@ import StudyTimer from '../components/ciclos/StudyTimer';
 import TimerFinishModal from '../components/ciclos/TimerFinishModal';
 import OnboardingTour from '../components/shared/OnboardingTour';
 
+// CORREÇÃO DO FUSO HORÁRIO: Função para formatar o objeto Date (que já é local) para YYYY-MM-DD
+// Se o registro é antigo e o campo `data` era um Timestamp, essa função garante
+// que a conversão use os componentes de data (Dia, Mês, Ano) no fuso horário local do usuário.
 const dateToYMD = (date) => {
   const d = date.getDate();
   const m = date.getMonth() + 1;
@@ -134,7 +137,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     return () => unsubscribe();
   }, [user]);
 
-  // 2. Busca Todos os Registros
+  // 2. Busca Todos os Registros (Lógica de data ajustada para fuso horário)
   useEffect(() => {
     if (!user) return;
     setLoading(true);
@@ -143,17 +146,27 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const todosRegistros = snapshot.docs.map(doc => {
         const data = doc.data();
-        let dataStr = data.data;
+        let dataStr = data.data; // O novo modal já salva a data como string YYYY-MM-DD aqui.
+
+        // Lógica de compatibilidade para registros antigos onde 'data' era um Timestamp
         if (data.data && typeof data.data.toDate === 'function') {
-          dataStr = dateToYMD(data.data.toDate());
+           // Se for um Timestamp, converte para Date local.
+           // Usa a função local `dateToYMD` para formatar (que deve respeitar o fuso local)
+           dataStr = dateToYMD(data.data.toDate());
         }
+
+        // Se a data ainda estiver ausente, tenta o campo timestamp (último recurso)
+        if (!dataStr && data.timestamp && typeof data.timestamp.toDate === 'function') {
+             dataStr = dateToYMD(data.timestamp.toDate());
+        }
+
         return {
           id: doc.id,
           ...data,
           tempoEstudadoMinutos: Number(data.tempoEstudadoMinutos || 0),
           questoesFeitas: Number(data.questoesFeitas || 0),
           acertos: Number(data.acertos || 0),
-          data: dataStr,
+          data: dataStr, // Usa a string YYYY-MM-DD local
         };
       });
       setAllRegistrosEstudo(todosRegistros);

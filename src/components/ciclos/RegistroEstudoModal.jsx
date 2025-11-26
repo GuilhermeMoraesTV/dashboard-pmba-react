@@ -2,6 +2,17 @@ import React, { useState, useMemo } from 'react';
 import { serverTimestamp } from 'firebase/firestore';
 import { X, Save, Clock, Target, BookOpen, List, Calendar, AlertTriangle } from 'lucide-react';
 
+// Função utilitária para obter a data local no formato YYYY-MM-DD,
+// evitando o problema de fuso horário do toISOString().
+const getLocalDateString = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    // getMonth() é 0-indexed.
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
 function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, disciplinasDoCiclo, initialData }) {
 
   const minutesToHoursMinutes = (totalMinutes) => {
@@ -17,7 +28,8 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, disciplinasD
 
   const [formData, setFormData] = useState({
     disciplinaId: initialData?.disciplinaId || '',
-    data: new Date().toISOString().split('T')[0],
+    // CORRIGIDO: Usa a função local para garantir que a data inicial seja a do dia local.
+    data: initialData?.data || getLocalDateString(),
     horas: initialTime.horas,
     minutos: initialTime.minutos,
     questoesFeitas: initialData?.questoesFeitas || 0,
@@ -60,8 +72,9 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, disciplinasD
       cicloId,
       disciplinaId: formData.disciplinaId,
       disciplinaNome,
+      // O campo 'data' (string YYYY-MM-DD) é o que define o dia de estudo.
       data: formData.data,
-      timestamp: serverTimestamp(),
+      timestamp: serverTimestamp(), // Mantém o timestamp UTC para o momento exato do registro.
       tempoEstudadoMinutos: totalMinutesFromForm,
       questoesFeitas: Number(formData.questoesFeitas),
       acertos: Number(formData.acertos),
