@@ -1,3 +1,5 @@
+// pages/CicloDetalhePage.js
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../firebaseConfig';
 import { doc, collection, query, orderBy, onSnapshot } from 'firebase/firestore';
@@ -6,12 +8,17 @@ import { AnimatePresence, motion } from 'framer-motion';
 import CicloVisual from '../components/ciclos/CicloVisual';
 import RegistroEstudoModal from '../components/ciclos/RegistroEstudoModal';
 import DisciplinaDetalheModal from '../components/ciclos/DisciplinaDetalheModal';
+import ModalConclusaoCiclo from '../components/ciclos/ModalConclusaoCiclo'; // Importado
+import { useCiclos } from '../hooks/useCiclos';
 
 import {
   ArrowLeft,
   Plus,
-  RefreshCw
+  RefreshCw,
+  Trophy,
+  Target
 } from 'lucide-react';
+
 
 const dateToYMD_local = (date) => {
   const year = date.getFullYear();
@@ -33,7 +40,6 @@ const dateToYMD = (date) => {
   return date.toISOString().split('T')[0];
 };
 
-// --- HELPER: Formatador Inteligente ---
 const formatVisualNumber = (minutes) => {
   if (!minutes || isNaN(minutes)) return '0h';
 
@@ -70,28 +76,50 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
   const [disciplinaEmDetalhe, setDisciplinaEmDetalhe] = useState(null);
   const [selectedDisciplinaId, setSelectedDisciplinaId] = useState(null);
 
-  // --- Efeitos de Carregamento ---
+  const [showConclusaoModal, setShowConclusaoModal] = useState(false);
+
+  const { concluirCicloSemanal, loading: cicloActionLoading, error: cicloActionError } = useCiclos(user);
+
+  const [cicloLoaded, setCicloLoaded] = useState(false);
+  const [disciplinasLoaded, setDisciplinasLoaded] = useState(false);
+  const [registrosLoaded, setRegistrosLoaded] = useState(false);
+
+  // --- EFEITO 1: CARREGAR CICLO (Doc principal) ---
   useEffect(() => {
      if (!user || !cicloId) return;
-     setLoading(true);
      const cicloRef = doc(db, 'users', user.uid, 'ciclos', cicloId);
      const unsubscribe = onSnapshot(cicloRef, (doc) => {
-       if (doc.exists()) setCiclo({ id: doc.id, ...doc.data() });
-       else setCiclo(null);
-     }, (error) => { console.error(error); setLoading(false); });
+       if (doc.exists()) {
+           const data = doc.data();
+           setCiclo({
+               id: doc.id,
+               ...data,
+               // Garantir que a carga horária e conclusoes sejam números ou 0
+               cargaHorariaSemanalTotal: Number(data.cargaHorariaSemanalTotal || 0),
+               conclusoes: Number(data.conclusoes || 0)
+           });
+           setCicloLoaded(true);
+       } else {
+           setCiclo(null);
+           setCicloLoaded(true);
+       }
+     }, (error) => { console.error(error); setCicloLoaded(true); });
      return () => unsubscribe();
   }, [user, cicloId]);
 
+  // --- EFEITO 2: CARREGAR DISCIPLINAS (Subcoleção) ---
   useEffect(() => {
     if (!user || !cicloId) return;
     const disciplinasRef = collection(db, 'users', user.uid, 'ciclos', cicloId, 'disciplinas');
     const q = query(disciplinasRef, orderBy('nome'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setDisciplinas(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    }, (error) => console.error(error));
+      setDisciplinasLoaded(true);
+    }, (error) => { console.error(error); setDisciplinasLoaded(true); });
     return () => unsubscribe();
   }, [user, cicloId]);
 
+  // --- EFEITO 3: CARREGAR REGISTROS DE ESTUDO (Global) ---
   useEffect(() => {
      if (!user) return;
      const q = query(collection(db, 'users', user.uid, 'registrosEstudo'), orderBy('timestamp', 'desc'));
@@ -106,46 +134,86 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
                 acertos: Number(data.acertos || data.questoesAcertadas || 0),
                 data: typeof data.data === 'string' ? data.data : (data.data?.toDate ? dateToYMD_local(data.data.toDate()) : dateToYMD_local(new Date())),
                 tipoEstudo: data.tipoEstudo || 'Teoria',
+                timestamp: data.timestamp?.toDate ? data.timestamp.toDate() : new Date(0),
+                conclusaoId: data.conclusaoId || null,
             };
         });
         setAllRegistrosEstudo(todosRegistros);
-        setLoading(false);
-     });
+        setRegistrosLoaded(true);
+     }, (error) => { console.error(error); setRegistrosLoaded(true); });
      return () => unsubscribe();
   }, [user]);
 
+  // --- EFEITO DE COORDENAÇÃO: Finaliza o Loading ---
+  useEffect(() => {
+      if (cicloLoaded && disciplinasLoaded && registrosLoaded) {
+          setLoading(false);
+      }
+  }, [cicloLoaded, disciplinasLoaded, registrosLoaded]);
+
+  // --- FILTRO DE REGISTROS ATIVOS (Exclui os que já foram concluídos/resetados) ---
+  const registrosAtivosDoCiclo = useMemo(() => {
+      if (!allRegistrosEstudo.length) return [];
+      return allRegistrosEstudo.filter(reg => reg.cicloId === cicloId && !reg.conclusaoId);
+  }, [allRegistrosEstudo, cicloId]);
+
+  // O `registrosDoCiclo` (USADO NO MODAL DE DETALHES) mostra TUDO
   const registrosDoCiclo = useMemo(() => {
-      if (loading) return [];
-      return allRegistrosEstudo.filter(reg => reg.cicloId === cicloId);
-  }, [allRegistrosEstudo, cicloId, loading]);
+    if (!allRegistrosEstudo.length) return [];
+    return allRegistrosEstudo.filter(reg => reg.cicloId === cicloId);
+  }, [allRegistrosEstudo, cicloId]);
 
-  // Cálculo do progresso geral
-  const { totalEstudado, totalMeta, progressoGeral } = useMemo(() => {
-    if (!disciplinas.length) return { totalEstudado: 0, totalMeta: 0, progressoGeral: 0 };
+  // --- BLOCO: Filtro de Registros pelo Período Ativo (Semanal ou Total) ---
+  const registrosDoPeriodo = useMemo(() => {
+    if (!disciplinas.length) return [];
 
+    if (viewModeCiclo === 'total') {
+      return registrosAtivosDoCiclo;
+    }
+
+    // Filtro Semanal (usando registros ativos)
     const startOfWeek = getStartOfWeek();
     const startOfWeekStr = dateToYMD(startOfWeek);
 
+    return registrosAtivosDoCiclo.filter(reg => {
+      return reg.data >= startOfWeekStr;
+    });
+
+  }, [registrosAtivosDoCiclo, viewModeCiclo, disciplinas]);
+  // FIM DO BLOCO DE FILTRO
+
+
+  // Cálculo do progresso geral (Meta calculada a partir das disciplinas)
+  const { totalEstudado, totalMeta, progressoGeral } = useMemo(() => {
+    if (!disciplinas.length) return { totalEstudado: 0, totalMeta: 0, progressoGeral: 0 };
+
+    // Meta é a soma de tempoAlocadoSemanalMinutos de TODAS as disciplinas
     const totalMetaRaw = disciplinas.reduce((acc, d) => acc + Number(d.tempoAlocadoSemanalMinutos || 0), 0);
     const totalMetaCalc = Math.round(totalMetaRaw);
 
-    let totalEstudadoCalc = 0;
-    registrosDoCiclo.forEach(reg => {
-      const minutos = Number(reg.tempoEstudadoMinutos);
-      if (viewModeCiclo === 'semanal') {
-        if (reg.data >= startOfWeekStr) {
-          totalEstudadoCalc += minutos;
-        }
-      } else {
-        totalEstudadoCalc += minutos;
-      }
-    });
+    // Estudado é a soma dos registros ATIVOS no período (registrosDoPeriodo)
+    const totalEstudadoCalc = Math.round(registrosDoPeriodo.reduce((acc, reg) => acc + Number(reg.tempoEstudadoMinutos), 0));
 
-    totalEstudadoCalc = Math.round(totalEstudadoCalc);
     const progresso = totalMetaCalc > 0 ? (totalEstudadoCalc / totalMetaCalc) * 100 : 0;
 
     return { totalEstudado: totalEstudadoCalc, totalMeta: totalMetaCalc, progressoGeral: progresso };
-  }, [disciplinas, registrosDoCiclo, viewModeCiclo]);
+  }, [disciplinas, registrosDoPeriodo]);
+
+  // --- HANDLER DE CONCLUSÃO ---
+  const handleConcluirCiclo = async () => {
+    if (cicloActionLoading) return;
+
+    setShowConclusaoModal(false);
+
+    const sucesso = await concluirCicloSemanal(cicloId);
+
+    if (sucesso) {
+        onBack(); // Volta para a lista
+    } else if (cicloActionError) {
+        alert(`Erro ao concluir: ${cicloActionError}`);
+    }
+  };
+
 
   const handleViewDetails = (disciplina) => {
     setDisciplinaEmDetalhe(disciplina);
@@ -172,6 +240,8 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
   if (loading) return <div className="flex justify-center p-10"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-red-500"></div></div>;
   if (!ciclo) return <div className="p-10 text-center text-zinc-500">Ciclo não encontrado.</div>;
 
+  const showEmptyMessage = !disciplinas.length;
+
   return (
     <div className="relative flex flex-col h-full animate-fade-in">
 
@@ -185,16 +255,28 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
                 <ArrowLeft size={16} /> Voltar
               </button>
 
-              <button
-                  onClick={() => setViewModeCiclo(prev => prev === 'semanal' ? 'total' : 'semanal')}
-                  className="flex items-center justify-center gap-2 px-4 py-2 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-xs font-bold uppercase tracking-wide rounded-xl hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
-              >
-                  <RefreshCw size={16} />
-                  {viewModeCiclo === 'semanal' ? 'Visão Semanal' : 'Visão Total'}
-              </button>
+              <div className="flex items-center gap-3">
+                  {/* BOTÃO DE CONCLUSÃO CONDICIONAL */}
+                  {ciclo.ativo && progressoGeral >= 100 && (
+                      <button
+                          onClick={() => setShowConclusaoModal(true)}
+                          disabled={cicloActionLoading}
+                          className="flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 text-white text-xs font-bold uppercase tracking-wide rounded-xl shadow-md hover:bg-emerald-700 transition-colors"
+                      >
+                          <Trophy size={16} /> Concluir ({ciclo.conclusoes}x)
+                      </button>
+                  )}
+
+                  <button
+                      onClick={() => setViewModeCiclo(prev => prev === 'semanal' ? 'total' : 'semanal')}
+                      className="flex items-center justify-center gap-2 px-4 py-2 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-xs font-bold uppercase tracking-wide rounded-xl hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+                  >
+                      <RefreshCw size={16} />
+                      {viewModeCiclo === 'semanal' ? 'Visão Semanal' : 'Visão Total'}
+                  </button>
+              </div>
           </div>
 
-          {/* ALTERAÇÃO: Fundo alterado para bg-zinc-50 (cinza claro) e borda reforçada */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-zinc-50 dark:bg-zinc-900 px-6 py-2 rounded-2xl border border-zinc-300 dark:border-zinc-800 shadow-sm">
 
               {/* Lado Esquerdo: Nome e Status */}
@@ -216,17 +298,16 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
 
               {/* Lado Direito: Estatísticas e Progresso */}
               <div className="flex items-center gap-6">
-                  {/* Meta Semanal */}
+                  {/* Meta Semanal/Total */}
                   <div className="text-center">
                       <p className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-1">
                           Meta {viewModeCiclo === 'semanal' ? 'Semanal' : 'Total'}
                       </p>
                       <p className="text-2xl font-black text-zinc-800 dark:text-white font-mono">
-                          {formatVisualNumber(totalMeta)}
+                          {formatVisualNumber(totalMeta)} {/* <-- Usa a meta CALCULADA */}
                       </p>
                   </div>
 
-                  {/* Divisor */}
                   <div className="w-px h-12 bg-zinc-200 dark:bg-zinc-700"></div>
 
                   {/* Realizado */}
@@ -239,7 +320,6 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
                       </p>
                   </div>
 
-                  {/* Divisor */}
                   <div className="w-px h-12 bg-zinc-200 dark:bg-zinc-700"></div>
 
                   {/* Círculo de Progresso */}
@@ -279,20 +359,29 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
           </div>
       </div>
 
-      {/* Área Principal: Gráfico e Detalhes */}
-      {/* ALTERAÇÃO: Aumentado para mt-20 (80px) para garantir o afastamento */}
-      <div className="flex-grow mt-20">
-          <CicloVisual
-              selectedDisciplinaId={selectedDisciplinaId}
-              onSelectDisciplina={setSelectedDisciplinaId}
-              onViewDetails={handleViewDetails}
-              onStartStudy={handleStartStudy}
-              disciplinas={disciplinas}
-              registrosEstudo={registrosDoCiclo}
-              viewMode={viewModeCiclo}
-              key={viewModeCiclo}
-          />
-      </div>
+      {/* --- RENDERIZAÇÃO CONDICIONAL DO CICLO VISUAL --- */}
+      {showEmptyMessage ? (
+        <div className="flex flex-col items-center justify-center py-20 text-center bg-zinc-50 dark:bg-zinc-900/50 rounded-3xl border-2 border-dashed border-zinc-200 dark:border-zinc-800 mt-8">
+            <Target size={48} className="text-zinc-300 mb-4" />
+            <h3 className="text-xl font-bold text-zinc-700 dark:text-zinc-300 mb-1">Ciclo Sem Disciplinas</h3>
+            <p className="text-zinc-500 text-sm mb-6">Parece que este ciclo ainda não tem disciplinas configuradas. Edite o ciclo para adicionar suas matérias!</p>
+        </div>
+      ) : (
+          <div className="flex-grow mt-20">
+              <CicloVisual
+                  selectedDisciplinaId={selectedDisciplinaId}
+                  onSelectDisciplina={setSelectedDisciplinaId}
+                  onViewDetails={handleViewDetails}
+                  onStartStudy={handleStartStudy}
+                  disciplinas={disciplinas}
+                  registrosEstudo={registrosDoPeriodo}
+                  viewMode={viewModeCiclo}
+                  ciclo={ciclo}
+                  key={viewModeCiclo}
+              />
+          </div>
+      )}
+
 
       {/* Botão Flutuante */}
       {ciclo.ativo && (
@@ -311,6 +400,15 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
 
       {/* Modais */}
       <AnimatePresence>
+        {showConclusaoModal && (
+            <ModalConclusaoCiclo
+                ciclo={ciclo}
+                onClose={() => setShowConclusaoModal(false)}
+                onConfirm={handleConcluirCiclo}
+                loading={cicloActionLoading}
+                progressoGeral={progressoGeral}
+            />
+        )}
         {disciplinaEmDetalhe && (
             <DisciplinaDetalheModal
                 disciplina={disciplinaEmDetalhe}

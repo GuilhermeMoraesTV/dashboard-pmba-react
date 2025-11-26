@@ -22,7 +22,6 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// --- MODAL DE CONFIRMAÇÃO ---
 function ModalConfirmacaoArquivamento({ ciclo, onClose, onConfirm, loading }) {
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex justify-center items-center p-4 animate-fade-in" onClick={onClose}>
@@ -52,7 +51,6 @@ function ModalConfirmacaoArquivamento({ ciclo, onClose, onConfirm, loading }) {
   );
 }
 
-// --- CARD TÁTICO ---
 const CicloCard = ({ ciclo, onClick, onMenuToggle, isMenuOpen, onAction }) => {
     const concluidos = ciclo.conclusoes || 0;
 
@@ -155,10 +153,12 @@ function CiclosList({ onCicloClick, user, onCicloAtivado }) {
       if (action === 'ativar') {
           if (actionLoading) return;
           const sucesso = await ativarCiclo(ciclo.id);
-          // Chama o handler que fará a navegação se o ciclo foi ativado
           if (sucesso && onCicloAtivado) onCicloAtivado(ciclo.id);
-      } else if (action === 'editar') { setCicloParaEditar(ciclo);
-      } else if (action === 'arquivar') { setCicloParaArquivar(ciclo); }
+      } else if (action === 'editar') {
+          setCicloParaEditar(ciclo);
+      } else if (action === 'arquivar') {
+          setCicloParaArquivar(ciclo);
+      }
   };
 
   const handleConfirmarArquivamento = async () => {
@@ -172,13 +172,11 @@ function CiclosList({ onCicloClick, user, onCicloAtivado }) {
       <AnimatePresence>
         {cicloParaArquivar && <ModalConfirmacaoArquivamento ciclo={cicloParaArquivar} onClose={() => setCicloParaArquivar(null)} onConfirm={handleConfirmarArquivamento} loading={actionLoading} />}
 
-        {/* CORREÇÃO AQUI: PASSANDO onCicloAtivado para o Wizard */}
         {showCreateModal && <CicloCreateWizard onClose={() => setShowCreateModal(false)} user={user} onCicloAtivado={onCicloAtivado} />}
 
         {cicloParaEditar && <CicloEditModal onClose={() => setCicloParaEditar(null)} user={user} ciclo={cicloParaEditar} />}
       </AnimatePresence>
 
-      {/* --- CABEÇALHO INTERNO DA PÁGINA --- */}
       <div className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-zinc-200 dark:border-zinc-800 pb-6">
         <div>
             <div className="flex items-center gap-3 mb-2">
@@ -189,7 +187,6 @@ function CiclosList({ onCicloClick, user, onCicloAtivado }) {
                     Meus Ciclos
                 </h1>
             </div>
-
         </div>
 
         <button
@@ -203,7 +200,6 @@ function CiclosList({ onCicloClick, user, onCicloAtivado }) {
         </button>
       </div>
 
-      {/* Resto do conteúdo (Erro, Loading, Empty, Lista) */}
       {actionError && <div className="mb-6 p-4 bg-red-100 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 rounded-xl flex items-center gap-3"><AlertTriangle size={20} /><p>{actionError}</p></div>}
 
       {loadingList ? (

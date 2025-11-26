@@ -15,6 +15,8 @@ import {
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { AnimatePresence, motion } from 'framer-motion';
 
+import { useCiclos } from '../hooks/useCiclos'; // Adicionado para Actions
+
 import {
   User, Save, X, BarChart2, Archive, Loader2, Upload, Trash2,
   Calendar, Clock, CheckSquare, History, Shield, Mail, Key,
@@ -76,6 +78,47 @@ const StatCard = ({ icon: Icon, label, value, subtext, colorClass, delay }) => (
     </motion.div>
 );
 
+// --- NOVO: Modal de Confirmação de Exclusão Permanente ---
+function ModalConfirmacaoExclusao({ ciclo, onClose, onConfirm, loading }) {
+    if (!ciclo) return null;
+    return (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[10000] flex justify-center items-center p-4 animate-fade-in" onClick={onClose}>
+            <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                className="bg-white dark:bg-zinc-950 p-0 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 w-full max-w-md relative overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="bg-red-500/10 p-6 flex flex-col items-center border-b border-red-500/20">
+                    <div className="w-16 h-16 bg-red-500/20 text-red-600 dark:text-red-500 rounded-full flex items-center justify-center mb-4 shadow-[0_0_15px_rgba(239,68,68,0.4)]">
+                        <Trash2 size={32} />
+                    </div>
+                    <h2 className="text-xl font-black text-zinc-900 dark:text-white uppercase tracking-tight">
+                        Excluir Permanentemente?
+                    </h2>
+                </div>
+                <div className="p-6 text-center">
+                    <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-6">
+                        O ciclo <strong className="text-red-600 dark:text-red-400 font-bold">"{ciclo.nome}"</strong> será <strong className="text-red-600">apagado permanentemente</strong> do Firebase, incluindo todas as suas disciplinas e tópicos.
+                    </p>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-500 font-medium mb-6">
+                        **Esta ação não pode ser desfeita.** Seus registros de estudo (horas) permanecerão no histórico geral.
+                    </p>
+                    <div className="flex gap-3">
+                        <button onClick={onClose} disabled={loading} className="flex-1 px-4 py-3 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 rounded-xl font-bold text-xs uppercase tracking-wider hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors">Cancelar</button>
+                        <button onClick={onConfirm} disabled={loading} className="flex-1 px-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold text-xs uppercase tracking-wider shadow-lg shadow-red-900/20 transition-all flex items-center justify-center gap-2">
+                            {loading ? "Apagando..." : "Confirmar Exclusão"}
+                        </button>
+                    </div>
+                </div>
+            </motion.div>
+        </div>
+    );
+}
+// --- FIM DO NOVO MODAL ---
+
+
 function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
   // --- Estados ---
   const [isEditingEmail, setIsEditingEmail] = useState(false);
@@ -103,16 +146,20 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
   const [todosCiclos, setTodosCiclos] = useState([]); // Carrega todos os ciclos para referência
   const [loadingCiclos, setLoadingCiclos] = useState(true);
 
+  // NOVO: Estados para Confirmação de Exclusão de Ciclo
+  const [cicloParaExcluir, setCicloParaExcluir] = useState(null);
+  const [showDeleteCycleConfirm, setShowDeleteCycleConfirm] = useState(false);
+
+  // NOVO: Hook para ações de ciclo
+  const { excluirCicloPermanente, loading: cicloActionLoading } = useCiclos(user);
+
+
   // --- NOVO: Auto-hide Message ---
-  // Este efeito roda sempre que 'message' muda.
-  // Se houver texto, cria um timer de 5 segundos para limpar.
   useEffect(() => {
     if (message.text) {
         const timer = setTimeout(() => {
             setMessage({ type: '', text: '' });
-        }, 5000); // 5000ms = 5 segundos
-
-        // Cleanup: Se o componente desmontar ou a mensagem mudar antes dos 5s, limpa o timer antigo
+        }, 5000);
         return () => clearTimeout(timer);
     }
   }, [message]);
@@ -220,7 +267,7 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
     setPhotoPreview(user?.photoURL);
   }, [user?.photoURL]);
 
-  // --- Ações ---
+  // --- Handlers de Ações ---
   const handleUpdatePhoto = async () => {
       if (!photo) return;
       setPhotoLoading(true);
@@ -230,7 +277,6 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
         const photoURL = await getDownloadURL(snapshot.ref);
 
         await updateProfile(auth.currentUser, { photoURL });
-        // Usando setDoc com merge para evitar erro se o doc não existir
         await setDoc(doc(db, 'users', user.uid), { photoURL }, { merge: true });
 
         await auth.currentUser.reload();
@@ -282,6 +328,30 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
   const handleUnarchive = async (id) => {
       await updateDoc(doc(db, 'users', user.uid, 'ciclos', id), { arquivado: false });
   };
+
+  // Ação que abre o modal de confirmação
+  const handleDeletePermanent = (ciclo) => {
+      setCicloParaExcluir(ciclo);
+      setShowDeleteCycleConfirm(true);
+  };
+
+  // Ação que CONFIRMA a exclusão permanente (chamada pelo modal)
+  const handleConfirmPermanentDelete = async () => {
+      if (!cicloParaExcluir || cicloActionLoading) return;
+
+      const { id, nome } = cicloParaExcluir;
+      setShowDeleteCycleConfirm(false); // Fecha o modal antes de começar o processamento
+
+      const sucesso = await excluirCicloPermanente(id);
+
+      if (sucesso) {
+          setMessage({ type: 'success', text: `Ciclo "${nome}" excluído permanentemente.` });
+      } else {
+          setMessage({ type: 'error', text: `Falha ao excluir ciclo.` });
+      }
+      setCicloParaExcluir(null);
+  };
+
 
   const formatTime = (min) => {
       const h = Math.floor(min / 60);
@@ -364,8 +434,6 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
             </motion.div>
         )}
       </AnimatePresence>
-
-      {/* ... Restante do código (Dashboard e Configurações) permanece igual ... */}
 
       {/* --- DASHBOARD DE ESTATÍSTICAS --- */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -547,6 +615,18 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
 
       {/* --- MODAIS DE DADOS --- */}
 
+      {/* MODAL DE CONFIRMAÇÃO DE EXCLUSÃO (Ciclo) */}
+      <AnimatePresence>
+        {showDeleteCycleConfirm && (
+            <ModalConfirmacaoExclusao
+                ciclo={cicloParaExcluir}
+                onClose={() => {setShowDeleteCycleConfirm(false); setCicloParaExcluir(null);}}
+                onConfirm={handleConfirmPermanentDelete}
+                loading={cicloActionLoading}
+            />
+        )}
+      </AnimatePresence>
+
       {/* HISTÓRICO AVANÇADO */}
       <Modal
         isOpen={showHistoryModal}
@@ -682,12 +762,24 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
                                   <p className="text-[10px] text-zinc-400 uppercase tracking-wide font-bold">Arquivado</p>
                               </div>
                           </div>
-                          <button
-                            onClick={() => handleUnarchive(ciclo.id)}
-                            className="px-4 py-2 text-xs font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl hover:bg-emerald-100 transition-colors flex items-center gap-2"
-                          >
-                              <ArchiveRestore size={14}/> Restaurar
-                          </button>
+                          <div className="flex gap-2">
+                              {/* Botão de Restaurar */}
+                              <button
+                                onClick={() => handleUnarchive(ciclo.id)}
+                                className="px-4 py-2 text-xs font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl hover:bg-emerald-100 transition-colors flex items-center gap-2"
+                              >
+                                  <ArchiveRestore size={14}/> Restaurar
+                              </button>
+                              {/* Botão de Excluir Permanente (Chama o handler que abre o modal) */}
+                              <button
+                                onClick={() => handleDeletePermanent(ciclo)}
+                                disabled={cicloActionLoading}
+                                className="p-2 text-xs font-bold text-red-600 bg-red-50 dark:bg-red-900/20 rounded-xl hover:bg-red-100 transition-colors flex items-center gap-2"
+                                title="Excluir Permanentemente"
+                              >
+                                  <Trash2 size={16}/>
+                              </button>
+                          </div>
                       </div>
                   ))}
               </div>

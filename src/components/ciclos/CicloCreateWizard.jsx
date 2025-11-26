@@ -1,16 +1,16 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react'; // Adicionado useRef
+// components/ciclos/CicloCreateWizard.js
+
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useCiclos } from '../../hooks/useCiclos';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, CheckCircle2, Target, Clock,
   ArrowRight, ArrowLeft, Layers, Plus, Trash2,
   Grid, Type, Minus, BookOpen,
-  // Novos Imports
   Star, HelpCircle
 } from 'lucide-react';
 
 // --- DEFINIÇÃO DOS NÍVEIS E PESOS (5 Estrelas) ---
-// O peso é inversamente proporcional ao rating (nível de proficiência).
 const STAR_RATING_OPTIONS = Array.from({ length: 5 }, (_, i) => {
     const rating = i + 1;
     const peso = 6 - rating;
@@ -25,12 +25,11 @@ const STAR_RATING_OPTIONS = Array.from({ length: 5 }, (_, i) => {
     return { rating, peso, proficiencyLabel };
 });
 
-// --- DADOS PARA O TOOLTIP (INCLUINDO O NÍVEL 0) ---
 const getTooltipData = (currentRating) => {
     const data = [
         {
             rating: 0,
-            peso: 6, // Maior peso
+            peso: 6,
             proficiencyLabel: 'Não Avaliado/Inicial',
         },
         ...STAR_RATING_OPTIONS
@@ -38,7 +37,6 @@ const getTooltipData = (currentRating) => {
 
     return data.map(item => {
         const barWidth = (item.peso / 6) * 100;
-        // Cores de Alto Peso (Vermelho) para Baixo Peso (Verde)
         const barColor = item.peso >= 5 ? 'bg-red-600' :
                          item.peso === 4 ? 'bg-amber-500' :
                          item.peso === 3 ? 'bg-yellow-400' :
@@ -84,18 +82,13 @@ const ScheduleGrid = ({ availability, setAvailability }) => {
   const days = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
   const hours = Array.from({ length: 24 }, (_, i) => i);
 
-  // ESTADOS PARA O DRAG-SELECTION
   const [isDragging, setIsDragging] = useState(false);
-  // O estado inicial da célula (selecionar ou deselecionar)
   const [dragAction, setDragAction] = useState(null);
 
-  // Função centralizada para adicionar ou remover um slot
   const toggleSlot = (dayIndex, hour, action = null) => {
     const key = `${dayIndex}-${hour}`;
     setAvailability(prev => {
         const newAvailability = { ...prev };
-
-        // Define a ação se não foi fornecida (primeiro clique)
         const currentAction = action !== null ? action : !newAvailability[key];
 
         if (currentAction) {
@@ -105,41 +98,30 @@ const ScheduleGrid = ({ availability, setAvailability }) => {
         }
         return newAvailability;
     });
-    return action !== null ? action : !availability[key]; // Retorna a ação executada
+    return action !== null ? action : !availability[key];
   };
 
-  // 1. Início do Arrastamento (Mouse Down)
   const handleDragStart = (e, dayIndex, hour) => {
-    // Evita que o drag do navegador inicie
     e.preventDefault();
-
-    // Determina a ação inicial (selecionar ou deselecionar)
     const initialAction = !availability[`${dayIndex}-${hour}`];
     setDragAction(initialAction);
     setIsDragging(true);
-
-    // Executa a ação no slot clicado
     toggleSlot(dayIndex, hour, initialAction);
   };
 
-  // 2. Durante o Arrastamento (Mouse Enter)
   const handleDragEnter = (dayIndex, hour) => {
     if (isDragging && dragAction !== null) {
-        // Aplica a mesma ação (selecionar/deselecionar) a todos os slots que o mouse entra
         toggleSlot(dayIndex, hour, dragAction);
     }
   };
 
-  // 3. Fim do Arrastamento (Mouse Up)
   const handleDragEnd = () => {
     setIsDragging(false);
     setDragAction(null);
   };
 
-  // Adiciona listeners globais para garantir que o drag pare mesmo se o mouse sair da grade
   useEffect(() => {
     window.addEventListener('mouseup', handleDragEnd);
-    // Adicionado o touch up para suporte mobile/tablet
     window.addEventListener('touchend', handleDragEnd);
     return () => {
       window.removeEventListener('mouseup', handleDragEnd);
@@ -149,8 +131,7 @@ const ScheduleGrid = ({ availability, setAvailability }) => {
 
 
   return (
-    <div className="h-full flex flex-col" onMouseLeave={handleDragEnd}> {/* Garante que pare se sair da área */}
-      {/* Header dos Dias */}
+    <div className="h-full flex flex-col" onMouseLeave={handleDragEnd}>
       <div className="grid grid-cols-8 gap-1 pr-2 mb-2 flex-shrink-0 bg-zinc-50 dark:bg-zinc-900/50 pt-2 pb-1 sticky top-0 z-10">
         <div className="text-[10px] font-black text-zinc-300 uppercase text-center pt-2">H</div>
         {days.map((d, i) => (
@@ -158,40 +139,34 @@ const ScheduleGrid = ({ availability, setAvailability }) => {
         ))}
       </div>
 
-      {/* Corpo da Grade (Scrollável) */}
       <div className="overflow-y-auto custom-scrollbar flex-1 pr-1 h-[300px]">
         <div className="space-y-1">
           {hours.map((h) => (
             <div key={h} className="grid grid-cols-8 gap-1 items-center">
-              {/* Coluna Hora */}
               <div className="text-xs sm:text-sm font-bold text-zinc-400 text-center">
                 {h.toString().padStart(2, '0')}h
               </div>
 
-              {/* Células */}
               {days.map((d, dayIndex) => {
                 const isSelected = availability[`${dayIndex}-${h}`];
                 return (
-                  <div // Mudado para div para suportar eventos de mouse/touch drag
+                  <div
                     key={`${dayIndex}-${h}`}
-                    // Mouse/Touch events para drag-selection
                     onMouseDown={(e) => handleDragStart(e, dayIndex, h)}
                     onMouseEnter={() => handleDragEnter(dayIndex, h)}
                     onTouchStart={(e) => handleDragStart(e, dayIndex, h)}
                     onTouchMove={(e) => {
-                        // Lógica de touch move para simular mouseEnter
                         if (!isDragging) return;
                         const touch = e.touches[0];
                         const element = document.elementFromPoint(touch.clientX, touch.clientY);
 
-                        // Verifica se o elemento é uma célula de slot
                         if (element && element.dataset.slot) {
                             const [dIndex, hVal] = element.dataset.slot.split('-').map(Number);
                             handleDragEnter(dIndex, hVal);
                         }
                     }}
                     onMouseUp={handleDragEnd}
-                    data-slot={`${dayIndex}-${h}`} // Data attribute para identificação no touchMove
+                    data-slot={`${dayIndex}-${h}`}
                     className={`
                       h-10 w-full rounded-md transition-all duration-100 border relative flex items-center justify-center group cursor-pointer
                       ${isSelected
@@ -216,7 +191,6 @@ const CyclePreview = ({ disciplinas, totalHours }) => {
 
   const data = useMemo(() => {
     if (!disciplinas.length) return [];
-    // Disciplinas agora vêm com o campo `peso` (calculado a partir do rating)
     const totalWeight = disciplinas.reduce((acc, d) => acc + d.peso, 0);
     let currentAngle = 0;
     return disciplinas.map((d, index) => {
@@ -294,27 +268,24 @@ function CicloCreateWizard({ onClose, user, onCicloAtivado }) {
   // STEP 3
   const [disciplinas, setDisciplinas] = useState([]);
   const [nomeNovaDisciplina, setNomeNovaDisciplina] = useState('');
-  // Nível de Proficiência agora é um rating de 0 a 5 (numérico)
   const [ratingNovaDisciplina, setRatingNovaDisciplina] = useState(1);
 
-  // Alterada para usar a função que retorna o ID do ciclo criado
   const { criarCiclo, loading } = useCiclos(user);
 
-  // Lógica Horas
+  // Lógica Horas (Garantia de que a entrada manual é um número)
   const horasTotais = useMemo(() => {
-    if (metodoCargaHoraria === 'manual') return parseFloat(cargaHorariaManual) || 0;
+    // BARREIRA DE SEGURANÇA: Força o input manual a ser um número válido, ou 0.
+    const manualHours = parseFloat(cargaHorariaManual) || 0;
+
+    if (metodoCargaHoraria === 'manual') return manualHours;
     return Object.keys(availabilityGrid).length;
   }, [metodoCargaHoraria, cargaHorariaManual, availabilityGrid]);
 
   // Lógica Disciplinas
   const disciplinasComHoras = useMemo(() => {
-      // Re-calcula o peso a partir do rating para o Preview, garantindo que o peso esteja sempre atualizado
       const disciplinasComPeso = disciplinas.map(d => {
-        // O rating (d.nivel) pode ser 0. Se for 0, o peso deve ser 6.
         const rating = d.nivel || d.rating || 0;
         const peso = 6 - rating;
-
-        // Garante que o nível salvo é o rating numérico
         return { ...d, nivel: rating, peso: peso };
       });
 
@@ -329,23 +300,20 @@ function CicloCreateWizard({ onClose, user, onCicloAtivado }) {
     e.preventDefault();
     if (!nomeNovaDisciplina.trim()) return;
 
-    // Calcula o peso. Se nivelNumerico=0, peso=6 (prioridade máxima)
     const nivelNumerico = ratingNovaDisciplina;
     const peso = 6 - nivelNumerico;
 
     setDisciplinas([
       ...disciplinas,
-      // Passa o nível (o rating numérico) e o peso calculado.
       {
         id: Date.now(),
         nome: nomeNovaDisciplina.trim(),
         peso: peso,
-        nivel: nivelNumerico, // O campo 'nivel' agora armazena o rating numérico (0 a 5)
+        nivel: nivelNumerico,
         topicos: []
       },
     ]);
     setNomeNovaDisciplina('');
-    // Reseta o rating para o padrão (1 estrela) após adicionar
     setRatingNovaDisciplina(1);
   };
 
@@ -356,20 +324,24 @@ function CicloCreateWizard({ onClose, user, onCicloAtivado }) {
         alert("Verifique a carga horária e se adicionou disciplinas.");
         return;
     }
+
+    // Mapeia para o formato que o useCiclos.js espera
     const cicloData = {
       nome: nomeCiclo,
-      cargaHorariaTotal: horasTotais,
-      // A lista de disciplinasComHoras já tem o campo `nivel` preenchido com o rating numérico
-      disciplinas: disciplinasComHoras.map(d => ({ ...d, tempoAlocadoSemanalMinutos: d.horasCalculadas * 60 })),
+      // Barreira de segurança: Garante que o total de horas enviado é um número válido
+      cargaHorariaTotal: Number(horasTotais),
+      disciplinas: disciplinasComHoras.map(d => ({
+          nome: d.nome,
+          nivel: d.nivel,
+          // Barreira de segurança: Garante que o valor final (minutos) é um número válido
+          tempoAlocadoSemanalMinutos: Math.round(Number(d.horasCalculadas || 0) * 60)
+      })),
     };
 
     const novoCicloId = await criarCiclo(cicloData);
 
     if (novoCicloId) {
-        // 1. Fechar o modal
         onClose();
-
-        // 2. Notificar o Dashboard para navegar para a visualização do ciclo
         if (onCicloAtivado) {
              onCicloAtivado(novoCicloId);
         }
@@ -379,24 +351,19 @@ function CicloCreateWizard({ onClose, user, onCicloAtivado }) {
   const isWide = step === 2 || step === 3;
   const maxWidthClass = isWide ? 'max-w-5xl' : 'max-w-md';
 
-  // Componente de Estrelas Reativo (usado dentro do formulário)
   const StarRatingSelector = () => (
-    // Ajuste de layout: Removido espaçamento desnecessário e flex-1 dos botões
     <div className="flex bg-zinc-50 dark:bg-zinc-800 p-1 rounded-xl border border-zinc-200 dark:border-zinc-700 space-x-0.5">
         {STAR_RATING_OPTIONS.map(item => (
             <button
                 key={item.rating}
                 type="button"
                 onClick={() => {
-                    // LÓGICA DE DESSELEÇÃO: Se o rating atual for 1 E o usuário clicar na estrela 1, o rating zera (nível 0).
                     if (ratingNovaDisciplina === 1 && item.rating === 1) {
                         setRatingNovaDisciplina(0);
                     } else {
-                        // Senão, define o rating normalmente.
                         setRatingNovaDisciplina(item.rating);
                     }
                 }}
-                // Botão compacto, sem flex-1
                 className={`p-1.5 transition-colors duration-200 rounded-lg
                     ${ratingNovaDisciplina === item.rating
                         ? 'bg-red-600/10 dark:bg-red-700/20'
@@ -404,14 +371,13 @@ function CicloCreateWizard({ onClose, user, onCicloAtivado }) {
                 }
             >
                 <Star
-                    // Tamanho reduzido para 16px
                     size={16}
                     fill="currentColor"
                     strokeWidth={0}
                     className={`
                       ${ratingNovaDisciplina >= item.rating
-                          ? 'text-yellow-500' // Estrela preenchida (amarela)
-                          : 'text-zinc-300 dark:text-zinc-600' // Estrela vazia
+                          ? 'text-yellow-500'
+                          : 'text-zinc-300 dark:text-zinc-600'
                       }
                     `}
                 />
@@ -420,7 +386,6 @@ function CicloCreateWizard({ onClose, user, onCicloAtivado }) {
     </div>
   );
 
-  // GERAÇÃO DOS DADOS DO TOOLTIP
   const tooltipData = useMemo(() => getTooltipData(ratingNovaDisciplina), [ratingNovaDisciplina]);
 
   return (
@@ -542,7 +507,7 @@ function CicloCreateWizard({ onClose, user, onCicloAtivado }) {
                              />
                              {/* SELETOR DE RATING E BOTÃO DE ADICIONAR */}
                              <div className="flex items-center gap-3">
-                                <div className="flex flex-col gap-1"> {/* CORREÇÃO: Removeu 'flex-1' para fixar o espaçamento */}
+                                <div className="flex flex-col gap-1">
                                     <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300 flex items-center gap-1.5">
                                         Nível de Proficiência (Estrelas)
                                         {/* Tooltip */}

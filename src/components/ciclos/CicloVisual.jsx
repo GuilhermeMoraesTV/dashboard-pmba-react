@@ -2,20 +2,6 @@ import React, { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Play, Clock, Target } from 'lucide-react';
 
-// --- Utilitário de Data ---
-const getStartOfWeek = () => {
-  const now = new Date();
-  const dayOfWeek = now.getDay();
-  const diff = now.getDate() - dayOfWeek;
-  const start = new Date(now.setDate(diff));
-  start.setHours(0, 0, 0, 0);
-  return start;
-};
-
-const dateToYMD = (date) => {
-  return date.toISOString().split('T')[0];
-};
-
 // --- HELPER: Formatador Inteligente de Horas ---
 const formatVisualHours = (minutes) => {
   if (!minutes || isNaN(minutes)) return '0h';
@@ -161,22 +147,19 @@ function CicloVisual({
   onViewDetails,
   onStartStudy,
   disciplinas,
-  registrosEstudo,
+  registrosEstudo, // LISTA JÁ FILTRADA PELO CicloDetalhePage
   viewMode,
+  ciclo,
   isLoading
 }) {
   const [hoveredId, setHoveredId] = useState(null);
 
   const data = useMemo(() => {
+    // A única checagem aqui é se as disciplinas foram carregadas.
     if (!disciplinas.length) return [];
-
-    // ... (Lógica de cálculo de dados mantida)
 
     const totalMetaRaw = disciplinas.reduce((acc, d) => acc + Number(d.tempoAlocadoSemanalMinutos || 0), 0);
     const totalMeta = Math.round(totalMetaRaw);
-
-    const startOfWeek = getStartOfWeek();
-    const startOfWeekStr = dateToYMD(startOfWeek);
 
     let currentAngle = 0;
 
@@ -185,16 +168,13 @@ function CicloVisual({
       const angle = totalMeta > 0 ? (metaMinutos / totalMeta) * 360 : 0;
 
       let progressMinutos = 0;
+
+      // Itera sobre a lista de REGISTROS JÁ FILTRADA (registrosEstudo)
       registrosEstudo.forEach(reg => {
         if (reg.disciplinaId === disciplina.id) {
           const minutosReg = Number(reg.tempoEstudadoMinutos || 0);
-          if (viewMode === 'semanal') {
-            if (reg.data >= startOfWeekStr) {
-              progressMinutos += minutosReg;
-            }
-          } else {
-            progressMinutos += minutosReg;
-          }
+          // SIMPLESMENTE SOMA. O FILTRO DE DATA ESTÁ NO PAI.
+          progressMinutos += minutosReg;
         }
       });
 
@@ -223,7 +203,7 @@ function CicloVisual({
       currentAngle += angle;
       return segmentData;
     });
-  }, [disciplinas, registrosEstudo, viewMode]);
+  }, [disciplinas, registrosEstudo, viewMode, ciclo]);
 
   const activeDisciplina = useMemo(() => {
     const id = hoveredId || selectedDisciplinaId;
@@ -235,6 +215,7 @@ function CicloVisual({
   const progressoGeral = totalMeta > 0 ? (totalEstudado / totalMeta) * 100 : 0;
 
   if (!disciplinas.length) {
+     // A mensagem de "Nenhuma disciplina alocada" deve ser exibida pelo pai.
      return <div className="text-zinc-500 text-center py-10">Nenhuma disciplina alocada neste ciclo.</div>;
   }
 
@@ -419,7 +400,7 @@ function CicloVisual({
                 </div>
               </motion.div>
             ) : (
-              // CORREÇÃO AQUI: Removendo 'hidden xl:flex' para que o painel seja visível em mobile.
+              // Painel Central Tática (Visível)
               <div className="flex flex-col items-center justify-center h-full bg-zinc-50 dark:bg-zinc-900/30 rounded-2xl border-2 border-dashed border-zinc-300 dark:border-zinc-800 text-zinc-400 p-8 text-center">
                 <div className="w-12 h-12 bg-zinc-200 dark:bg-zinc-800 rounded-full flex items-center justify-center mb-3 text-zinc-400">
                   <Target size={24} />
