@@ -251,9 +251,13 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   };
 
   const handleCancelStudy = () => {
-      if(window.confirm("Deseja cancelar essa sessão? O tempo não será salvo.")) {
+
           setActiveStudySession(null);
-      }
+
+  };
+
+  const handleConfirmCancelStudy = () => {
+      setActiveStudySession(null);
   };
 
   const deleteRegistro = async (id) => {
@@ -377,7 +381,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
               disciplina={activeStudySession.disciplina}
               isMinimized={activeStudySession.isMinimized}
               onStop={handleStopStudyRequest}
-              onCancel={handleCancelStudy}
+              onCancel={handleConfirmCancelStudy}
               onMaximize={() => setActiveStudySession(prev => ({...prev, isMinimized: false}))}
               onMinimize={() => setActiveStudySession(prev => ({...prev, isMinimized: true}))}
           />
