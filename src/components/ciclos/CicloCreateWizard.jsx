@@ -261,8 +261,10 @@ function CicloCreateWizard({ onClose, user, onCicloAtivado }) {
   const [nomeCiclo, setNomeCiclo] = useState('');
 
   // STEP 2
-  const [metodoCargaHoraria, setMetodoCargaHoraria] = useState('manual');
-  const [cargaHorariaManual, setCargaHorariaManual] = useState(24);
+  // ALTERADO: Padrão para 'grade' (Interativo)
+  const [metodoCargaHoraria, setMetodoCargaHoraria] = useState('grade');
+  // ALTERADO: Padrão para 0
+  const [cargaHorariaManual, setCargaHorariaManual] = useState(0);
   const [availabilityGrid, setAvailabilityGrid] = useState({});
 
   // STEP 3
@@ -278,6 +280,7 @@ function CicloCreateWizard({ onClose, user, onCicloAtivado }) {
     const manualHours = parseFloat(cargaHorariaManual) || 0;
 
     if (metodoCargaHoraria === 'manual') return manualHours;
+    // Se for 'grade', retorna a contagem de slots selecionados
     return Object.keys(availabilityGrid).length;
   }, [metodoCargaHoraria, cargaHorariaManual, availabilityGrid]);
 
@@ -456,11 +459,11 @@ function CicloCreateWizard({ onClose, user, onCicloAtivado }) {
                 initial={{opacity:0, x:20}} animate={{opacity:1, x:0}} exit={{opacity:0, x:-20}}
                 className="flex-1 flex flex-col p-4 sm:p-6"
               >
-                {/* Tabs */}
+                {/* Tabs - ORDEM ALTERADA */}
                 <div className="flex justify-center mb-4 flex-shrink-0">
                     <div className="flex p-1 bg-zinc-100 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800">
-                        <button onClick={() => setMetodoCargaHoraria('manual')} className={`px-4 py-2 rounded-lg text-xs font-bold uppercase transition-all flex items-center gap-2 ${metodoCargaHoraria === 'manual' ? 'bg-white dark:bg-zinc-800 shadow text-red-600 dark:text-white' : 'text-zinc-400'}`}><Type size={14}/> Manual</button>
                         <button onClick={() => setMetodoCargaHoraria('grade')} className={`px-4 py-2 rounded-lg text-xs font-bold uppercase transition-all flex items-center gap-2 ${metodoCargaHoraria === 'grade' ? 'bg-white dark:bg-zinc-800 shadow text-emerald-600 dark:text-white' : 'text-zinc-400'}`}><Grid size={14}/> Interativo</button>
+                        <button onClick={() => setMetodoCargaHoraria('manual')} className={`px-4 py-2 rounded-lg text-xs font-bold uppercase transition-all flex items-center gap-2 ${metodoCargaHoraria === 'manual' ? 'bg-white dark:bg-zinc-800 shadow text-red-600 dark:text-white' : 'text-zinc-400'}`}><Type size={14}/> Manual</button>
                     </div>
                 </div>
 
