@@ -254,11 +254,7 @@ function ShareCard({ stats, userName, dayData, goals, isDarkMode }) {
             <div className="absolute top-[-25px] right-[-25px] rotate-12 pointer-events-none" style={{ color: watermarkColor, opacity: calendarOpacity }}>
                 <Calendar size={150} />
             </div>
-            {/* Mascote (SOLDADO) - Posicionado no centro/fundo, OPACIDADE MAIOR */}
-            <div className="absolute left-1/2 bottom-0 transform -translate-x-1/2 pointer-events-none" style={{ opacity: soldierOpacity, transform: 'translateX(-50%)' }}>
-                <img src={MASCOTE_URL} alt="Mascote" className="w-40 h-auto" style={{ filter: soldierFilter }} />
-            </div>
-
+            
             <div className="relative z-10 space-y-3">
 
                 {/* === TOP HEADER E DATA === */}
