@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import DisciplineSummaryTable from './DisciplineSummaryTable.jsx';
 import DayDetailsModal from './DayDetailsModal.jsx';
 import {
@@ -11,7 +11,8 @@ import {
   XCircle,
   Play,
   Zap,
-  BookOpen
+  BookOpen,
+  AlertTriangle
 } from 'lucide-react';
 
 const dateToYMD_local = (date) => {
@@ -108,6 +109,7 @@ const ActiveCycleCard = ({ activeCicloData, onClick }) => {
 
 function Home({ registrosEstudo, goalsHistory, setActiveTab, activeCicloData, onDeleteRegistro }) {
   const [selectedDate, setSelectedDate] = useState(null);
+  const [showGoalAlert, setShowGoalAlert] = useState(false); // Novo estado para o alerta
 
   const handleDayClick = (date) => {
     const dayRegistros = registrosEstudo.filter(r => r.data === date);
@@ -120,9 +122,24 @@ function Home({ registrosEstudo, goalsHistory, setActiveTab, activeCicloData, on
     if (!goalsHistory || goalsHistory.length === 0) return { questions: 0, hours: 0 };
     // Ordena as metas pela data de início para encontrar a meta vigente
     const sortedGoals = [...goalsHistory].sort((a, b) => new Date(b.startDate) - new Date(a.startDate));
-    // Retorna a meta mais recente que começou antes ou no dia em questão
-    return sortedGoals.find(g => g.startDate <= dateStr) || { questions: 0, hours: 0 };
+    // Retorna a meta mais recente que começou antes ou NO dia em questão
+    const goal = sortedGoals.find(g => g.startDate <= dateStr) || { questions: 0, hours: 0 };
+    return goal;
   };
+
+  // Efeito para mostrar alerta se houver registros mas nenhuma meta definida
+  useEffect(() => {
+    const hasRecords = registrosEstudo.length > 0;
+    const hasGoals = goalsHistory.length > 0;
+
+    // Se há registros mas não há metas definidas no histórico, mostre o alerta.
+    if (hasRecords && !hasGoals) {
+        setShowGoalAlert(true);
+    } else {
+        setShowGoalAlert(false);
+    }
+  }, [registrosEstudo.length, goalsHistory.length]);
+
 
   const homeStats = useMemo(() => {
     try {
@@ -130,6 +147,17 @@ function Home({ registrosEstudo, goalsHistory, setActiveTab, activeCicloData, on
       let totalQuestions = 0;
       let totalCorrect = 0;
       let totalTimeMinutes = 0;
+
+      // **Verifica se há algum registro em todos os tempos para a lógica de streak**
+      const hasAnyRecordsOverall = registrosEstudo.length > 0;
+      const hasDefinedGoals = goalsHistory.length > 0;
+
+      // Determina a data de início da primeira meta para bloquear a contagem retroativa
+      const oldestGoal = hasDefinedGoals
+        ? [...goalsHistory].sort((a, b) => new Date(a.startDate) - new Date(b.startDate))[0]
+        : null;
+      const firstGoalDateStr = oldestGoal ? oldestGoal.startDate : null;
+
 
       // 1. Processa todos os registros para agrupar por dia
       registrosEstudo.forEach(item => {
@@ -153,12 +181,10 @@ function Home({ registrosEstudo, goalsHistory, setActiveTab, activeCicloData, on
         }
       });
 
-      // 2. CÁLCULO DA SEQUÊNCIA (STREAK) - Lógica Corrigida para Novo Usuário
+      // 2. CÁLCULO DA SEQUÊNCIA (STREAK) - Lógica Definitiva
       let currentStreak = 0;
       const today = new Date();
       const todayStr = dateToYMD_local(today);
-      // **CORREÇÃO: Nova flag para checar se o usuário já definiu metas alguma vez**
-      const hasDefinedGoals = goalsHistory.length > 0;
 
       // Itera por até 90 dias, começando pelo dia atual (i=0) e voltando
       for (let i = 0; i < 90; i++) {
@@ -166,59 +192,60 @@ function Home({ registrosEstudo, goalsHistory, setActiveTab, activeCicloData, on
           dateToCheck.setDate(today.getDate() - i);
           const dateStr = dateToYMD_local(dateToCheck);
           const dayData = studyDays[dateStr];
+          const hasStudyData = !!dayData && (dayData.minutes > 0 || dayData.questions > 0);
           const goalsForDay = getGoalsForDate(dateStr);
 
           // Metas (convertidas para minutos)
           const qGoal = goalsForDay.questions || 0;
           const hGoalMinutes = (goalsForDay.hours || 0) * 60;
 
-          // **INÍCIO DA CORREÇÃO DO BUG DO STREAK PARA NOVOS USUÁRIOS**
-          let isTimeGoalMet = false;
-          let isQuestionGoalMet = false;
+          let goalMet = false;
 
-          // Lógica do Tempo:
-          if (hGoalMinutes === 0) {
-              // Meta de tempo é 0.
-              // Conta como Met se: JÁ tem metas definidas (dia de descanso) OU tem dados para o dia (estudou sem meta).
-              isTimeGoalMet = hasDefinedGoals || (dayData && dayData.minutes > 0);
+          if (!hasDefinedGoals) {
+              // CENÁRIO 1: USUÁRIO SEM NENHUMA META DEFINIDA
+              if (dateStr === todayStr && hasStudyData) {
+                  // Se estudou hoje, dá o benefício da dúvida (streak = 1)
+                  goalMet = true;
+              } else {
+                  // Se for dia passado ou não estudou hoje, a sequência termina/não começa.
+                  break;
+              }
           } else {
-              // Meta de tempo é > 0. Requer dados E cumprimento.
-              isTimeGoalMet = dayData && dayData.minutes >= hGoalMinutes;
+              // CENÁRIO 2: USUÁRIO COM METAS DEFINIDAS
+
+              // **BLOQUEIO CRÍTICO:** Se a data é anterior à data da primeira meta definida, a streak para.
+              if (firstGoalDateStr && dateStr < firstGoalDateStr) {
+                  break;
+              }
+
+              // Lógica de Cumprimento:
+              // Se a meta é 0, considera batida. Se a meta é > 0, exige que os dados batam.
+              const isTimeGoalMet = hGoalMinutes === 0 || (dayData && dayData.minutes >= hGoalMinutes);
+              const isQuestionGoalMet = qGoal === 0 || (dayData && dayData.questions >= qGoal);
+
+              // O dia só conta se as DUAS metas (ou as metas > 0) forem cumpridas.
+              goalMet = isTimeGoalMet && isQuestionGoalMet;
           }
-
-          // Lógica das Questões:
-          if (qGoal === 0) {
-              // Meta de questões é 0.
-              // Conta como Met se: JÁ tem metas definidas (dia de descanso) OU tem dados para o dia (estudou sem meta).
-              isQuestionGoalMet = hasDefinedGoals || (dayData && dayData.questions > 0);
-          } else {
-              // Meta de questões é > 0. Requer dados E cumprimento.
-              isQuestionGoalMet = dayData && dayData.questions >= qGoal;
-          }
-          // **FIM DA CORREÇÃO DO BUG DO STREAK PARA NOVOS USUÁRIOS**
-
-
-          // A SEQUÊNCIA SÓ CONTA SE AS DUAS METAS FOREM CUMPRIDAS
-          const goalMet = isTimeGoalMet && isQuestionGoalMet;
 
           if (goalMet) {
-              // Meta cumprida, a sequência continua
               currentStreak++;
           } else {
-              // Meta não cumprida ou sem dados de estudo.
-              if (dateStr === todayStr && !dayData) {
-                  // Se for hoje e não houver dados, permite continuar a verificar o dia anterior.
-                  // A sequência de hoje está "pendente".
+              // Se for hoje e não houver dados de estudo (a meta está pendente), continua a verificar o dia anterior.
+              if (dateStr === todayStr && !hasStudyData) {
                   continue;
               } else {
-                  // Se for um dia passado e a meta não foi cumprida/não houve dados,
-                  // OU se for hoje e houve dados mas a meta não foi atingida, a sequência termina.
+                  // Se for dia passado ou a meta não foi atingida, a sequência termina.
                   break;
               }
           }
       }
 
-      // 3. Cálculos para o Heatmap dos últimos 14 dias (Ajustado para usar a nova lógica)
+      // Zera a streak se não houver metas e nem estudos (segurança para o primeiro acesso)
+      if (!hasDefinedGoals && !hasAnyRecordsOverall) {
+          currentStreak = 0;
+      }
+
+      // 3. Cálculos para o Heatmap dos últimos 14 dias (sem alteração na lógica de visualização)
       const last14Days = Array.from({ length: 14 }).map((_, i) => {
         const date = new Date();
         date.setDate(new Date().getDate() - (13 - i));
@@ -262,6 +289,16 @@ function Home({ registrosEstudo, goalsHistory, setActiveTab, activeCicloData, on
 
   return (
     <div className="space-y-4 md:space-y-6 animate-slide-up pb-8 relative">
+
+      {/* ALERTA DE METAS - Novo elemento */}
+      {showGoalAlert && (
+          <div className="p-4 bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-300 rounded-xl flex items-center gap-3 border border-yellow-300 dark:border-yellow-700 transition-all">
+              <AlertTriangle size={20} className="shrink-0" />
+              <p className="text-sm font-medium">
+                  **Atenção!** Você tem registros de estudo, mas nenhuma meta definida. Defina suas metas em <span className="font-bold">Metas</span> para que sua sequência de constância seja calculada corretamente!
+              </p>
+          </div>
+      )}
 
       {/* Grid Principal */}
       <div id="home-stats-grid" className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 pt-0">
