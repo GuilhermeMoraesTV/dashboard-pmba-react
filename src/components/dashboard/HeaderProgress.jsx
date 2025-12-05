@@ -1,5 +1,7 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
-import { Trophy, ChevronDown, Activity, Flame, Medal } from 'lucide-react';
+// Ícones removidos: Clock, Target, HelpCircle. Share2 movido para uso exclusivo no dropdown.
+// O ícone ChevronDown foi mantido para o controle de expansão.
+import { Trophy, ChevronDown, Activity, Flame, Medal, Share2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // --- UTILITÁRIOS E CONSTANTES ---
@@ -191,20 +193,16 @@ function HeaderProgress({ registrosEstudo, goalsHistory, activeCicloId, onTrigge
     const StatusIcon = currentConfig.icon;
     const { percH, percQ, todayH_HHMM, todayQ, goalH, goalQ, state, remainingH_HHMM, hasActivity, isCompleteH, isCompleteQ } = stats;
 
-    // --- SUB-COMPONENTE: ÍCONE DE STATUS COMPACTO (LÓGICA DE COR CORRIGIDA) ---
+    // --- SUB-COMPONENTE: ÍCONE DE STATUS COMPACTO ---
+    // A lógica de cor foi mantida, mas os ícones internos de Tempo e Questões foram removidos
     const StatusBadge = ({ Icon, percent, isQuestionIcon = false, isTimeIcon = false }) => {
         let iconColorClass = 'text-zinc-500'; // Padrão: Neutro (sem estudo)
 
         if (percent >= 100) {
             iconColorClass = 'text-emerald-500'; // Prioridade 1: Meta batida (VERDE)
         } else if (hasActivity) {
-            // Prioridade 2: Em andamento (AZUL)
-            iconColorClass = 'text-blue-500';
-
-            // Exceção: Se for ícone de status principal, usa a cor do estado (Amber/Orange)
-            if (!isQuestionIcon && !isTimeIcon) {
-                iconColorClass = currentConfig.colorClass;
-            }
+            // Usa a cor do estado principal (Azul, Âmbar, Laranja, etc.)
+            iconColorClass = currentConfig.colorClass;
         }
 
         // Se não há atividade e não está completo, mantém zinc-500.
@@ -251,7 +249,7 @@ function HeaderProgress({ registrosEstudo, goalsHistory, activeCicloId, onTrigge
                 <div className="relative flex items-center gap-1 pr-2 sm:gap-3 sm:pr-3 border-r border-white/10 shrink-0">
                     <StatusBadge Icon={StatusIcon} percent={stats.overallProgress} />
                     {stats.hasActivity && stats.state !== 'complete' && (
-                        <div className="absolute top-0.5 right-1 w-2 h-2 rounded-full ${currentConfig.colorClass.replace('text-', 'bg-')} animate-ping-slow"></div>
+                        <div className={`absolute top-0.5 right-1 w-2 h-2 rounded-full ${currentConfig.colorClass.replace('text-', 'bg-')} animate-ping-slow`}></div>
                     )}
                 </div>
 
@@ -282,10 +280,14 @@ function HeaderProgress({ registrosEstudo, goalsHistory, activeCicloId, onTrigge
                     </div>
                 </div>
 
-                {/* 3. Status Icons Condensados (REMOVIDO) */}
-                {/* 4. Ação */}
+                {/* 3. Status Icons Condensados (REMOVIDOS) - Mantendo a estrutura para a Ação */}
+                <div className="flex items-center gap-0.5 pl-1 sm:gap-1.5 sm:pl-3 ml-1 shrink-0">
+                    {/* Ícones de Clock e Target removidos daqui */}
+                </div>
+
+                {/* 4. Ação (ChevronDown) - O botão HelpCircle foi removido */}
                 <div className="flex items-center gap-0.5 pl-1 sm:pl-3 border-l border-white/10 shrink-0">
-                    {/* Botão de Ajuda/Guia REMOVIDO */}
+                    {/* Botão HelpCircle removido */}
                     <ChevronDown size={14} className={`text-zinc-500 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''} sm:w-4 sm:h-4`} />
                 </div>
             </motion.div>
@@ -311,11 +313,20 @@ function HeaderProgress({ registrosEstudo, goalsHistory, activeCicloId, onTrigge
                             </div>
                         ) : (
                             <div className="space-y-4">
-                                {/* Títulos e Status + BOTÃO DE COMPARTILHAR (REMOVIDO) */}
+                                {/* Títulos e Status + BOTÃO DE COMPARTILHAR */}
                                 <div className='flex justify-between items-center border-b border-zinc-700 pb-3'>
                                     <h3 className='text-lg font-black'>Progresso Diário</h3>
                                     <div className="flex items-center gap-2">
-                                        {/* Botão de Compartilhamento REMOVIDO */}
+                                        {/* Botão de Compartilhamento - Permanece visível apenas se houver atividade, conforme a lógica original */}
+                                        {hasActivity && (
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); onShareGoal(stats); }}
+                                                className="p-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 transition-colors text-zinc-300"
+                                                title="Compartilhar Meta"
+                                            >
+                                                <Share2 size={16} />
+                                            </button>
+                                        )}
                                         <span className={`text-sm font-bold ${currentConfig.colorClass}`}>{currentConfig.label}</span>
                                     </div>
                                 </div>
