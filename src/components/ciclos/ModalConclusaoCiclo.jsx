@@ -33,13 +33,13 @@ function ModalConclusaoCiclo({ ciclo, onConfirm, onClose, loading, progressoGera
                                 Ciclo Completo!
                             </h2>
                             <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1 font-medium">
-                                Você alcançou **{progressoGeral.toFixed(0)}%** do ciclo semanal.
+                                Você alcançou {progressoGeral.toFixed(0)}% do ciclo semanal.
                             </p>
                         </div>
 
                         <div className="text-center">
                             <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-6">
-                                Ao confirmar, você registra a **{((ciclo.conclusoes || 0) + 1)}ª conclusão** do ciclo <strong className="text-zinc-900 dark:text-white">"{ciclo.nome}"</strong> e zera o seu progresso de horas para recomeçar.
+                                Ao confirmar, você registra a <strong className="text-zinc-900 dark:text-white">{((ciclo.conclusoes || 0) + 1)}ª </strong> conclusão do ciclo <strong className="text-zinc-900 dark:text-white">"{ciclo.nome}"</strong> e zera o seu progresso de horas para recomeçar.
                             </p>
                             <ul className="text-left mb-6 text-xs text-zinc-700 dark:text-zinc-300 space-y-2 px-4">
                                 <li className="flex items-start gap-2"><Trophy size={14} className="text-emerald-500 flex-shrink-0 mt-0.5" /> <span className="font-bold">Contabiliza esta conclusão no histórico.</span></li>

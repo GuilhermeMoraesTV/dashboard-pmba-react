@@ -153,10 +153,12 @@ function Home({ registrosEstudo, goalsHistory, setActiveTab, activeCicloData, on
         }
       });
 
-      // 2. CÁLCULO DA SEQUÊNCIA (STREAK) - Lógica Corrigida para Meta Completa
+      // 2. CÁLCULO DA SEQUÊNCIA (STREAK) - Lógica Corrigida para Novo Usuário
       let currentStreak = 0;
       const today = new Date();
       const todayStr = dateToYMD_local(today);
+      // **CORREÇÃO: Nova flag para checar se o usuário já definiu metas alguma vez**
+      const hasDefinedGoals = goalsHistory.length > 0;
 
       // Itera por até 90 dias, começando pelo dia atual (i=0) e voltando
       for (let i = 0; i < 90; i++) {
@@ -170,12 +172,33 @@ function Home({ registrosEstudo, goalsHistory, setActiveTab, activeCicloData, on
           const qGoal = goalsForDay.questions || 0;
           const hGoalMinutes = (goalsForDay.hours || 0) * 60;
 
-          // Condição de Meta Cumprida: (tempo >= meta tempo) E (questões >= meta questões)
-          // Se a meta de horas for 0, considera cumprida. Se a meta de questões for 0, considera cumprida.
-          const isTimeGoalMet = hGoalMinutes === 0 || (dayData && dayData.minutes >= hGoalMinutes);
-          const isQuestionGoalMet = qGoal === 0 || (dayData && dayData.questions >= qGoal);
+          // **INÍCIO DA CORREÇÃO DO BUG DO STREAK PARA NOVOS USUÁRIOS**
+          let isTimeGoalMet = false;
+          let isQuestionGoalMet = false;
 
-          // A SEQUÊNCIA SÓ CONTA SE AS DUAS METAS FOREM CUMPRIDAS (E ambas forem > 0, ou consideradas cumpridas se 0)
+          // Lógica do Tempo:
+          if (hGoalMinutes === 0) {
+              // Meta de tempo é 0.
+              // Conta como Met se: JÁ tem metas definidas (dia de descanso) OU tem dados para o dia (estudou sem meta).
+              isTimeGoalMet = hasDefinedGoals || (dayData && dayData.minutes > 0);
+          } else {
+              // Meta de tempo é > 0. Requer dados E cumprimento.
+              isTimeGoalMet = dayData && dayData.minutes >= hGoalMinutes;
+          }
+
+          // Lógica das Questões:
+          if (qGoal === 0) {
+              // Meta de questões é 0.
+              // Conta como Met se: JÁ tem metas definidas (dia de descanso) OU tem dados para o dia (estudou sem meta).
+              isQuestionGoalMet = hasDefinedGoals || (dayData && dayData.questions > 0);
+          } else {
+              // Meta de questões é > 0. Requer dados E cumprimento.
+              isQuestionGoalMet = dayData && dayData.questions >= qGoal;
+          }
+          // **FIM DA CORREÇÃO DO BUG DO STREAK PARA NOVOS USUÁRIOS**
+
+
+          // A SEQUÊNCIA SÓ CONTA SE AS DUAS METAS FOREM CUMPRIDAS
           const goalMet = isTimeGoalMet && isQuestionGoalMet;
 
           if (goalMet) {

@@ -1,5 +1,3 @@
-// components/shared/ShareCard.js (CÓDIGO COMPLETO E CORRIGIDO)
-
 import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import {
@@ -146,17 +144,29 @@ function ShareCard({ stats, userName, dayData, goals, isDarkMode }) {
         const dayHours = dayData?.dayHours || [];
         const dayQuestions = dayData?.dayQuestions || [];
 
-        const allRecords = [
-            ...dayHours,
-            ...dayQuestions
-        ];
+        // ***** CORREÇÃO DO BUG 1: DEDUPLICAÇÃO DE REGISTROS *****
+        const uniqueRecordsMap = new Map();
+
+        // Combina e garante que cada registro seja processado apenas uma vez, usando o ID como chave.
+        [...dayHours, ...dayQuestions].forEach(r => {
+            // Utilizamos r.id, que deve ser o ID do documento do Firebase e, portanto, único.
+            if (r.id) {
+                 uniqueRecordsMap.set(r.id, r);
+            } else {
+                 // Fallback seguro, se o ID estiver faltando.
+                 uniqueRecordsMap.set(JSON.stringify(r), r);
+            }
+        });
+
+        const recordsToProcess = Array.from(uniqueRecordsMap.values());
 
         let totalMinutos = 0;
         let totalQst = 0;
         let totalAcertos = 0;
         const breakdown = {};
 
-        allRecords.forEach(r => {
+        // Processa o array deduplicado
+        recordsToProcess.forEach(r => {
             const min = Number(r.tempoEstudadoMinutos || 0);
             const qst = Number(r.questoesFeitas || 0);
             const acrt = Number(r.acertos || 0);
@@ -169,6 +179,7 @@ function ShareCard({ stats, userName, dayData, goals, isDarkMode }) {
             if (!breakdown[disc]) breakdown[disc] = { name: disc, minutes: 0 };
             breakdown[disc].minutes += min;
         });
+        // ***************** FIM DA CORREÇÃO 1 *****************
 
         const accuracy = totalQst > 0 ? (totalAcertos / totalQst) * 100 : 0;
         const breakdownArray = Object.values(breakdown);
@@ -180,6 +191,7 @@ function ShareCard({ stats, userName, dayData, goals, isDarkMode }) {
         };
     }, [dayData]);
 
+    // A lógica de metaStatus estava correta, mas recebia dados duplicados.
     const metaStatus = useMemo(() => {
         const hoursGoalMinutes = (goals.hours || 0) * 60;
         const questionsGoal = (goals.questions || 0);

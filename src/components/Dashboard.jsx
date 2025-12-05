@@ -1,5 +1,3 @@
-// Dashboard.js (CÓDIGO COMPLETO E FINAL)
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   collection, onSnapshot, query, orderBy, addDoc, deleteDoc, doc, where, Timestamp
@@ -182,7 +180,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   }, [allRegistrosEstudo, todayStr]);
 
 
-  // --- FUNÇÕES DE AÇÃO RESTAURADAS ---
+  // --- FUNÇÕES DE AÇÃO ---
 
   const addRegistroEstudo = async (data) => {
     try {
@@ -247,11 +245,33 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     await addDoc(collection(db, 'users', user.uid, 'metas'), newGoal);
   };
 
+  // **INÍCIO DA CORREÇÃO 1.1: Funções para controle do Onboarding e salvamento da flag (Genérica)**
+  const handleTourCloseOrFinish = (type) => {
+    if (user) {
+      // Salva a flag de visualização de forma específica para o tour type
+      localStorage.setItem(`onboarding_seen_${user.uid}_${type}`, 'true');
+    }
+    setTourState({ isActive: false, type: 'main' }); // Reseta o estado do tour
+  };
+  // **FIM DA CORREÇÃO 1.1**
+
+  // **INÍCIO DA CORREÇÃO 2.1: Iniciar o tour Ciclos após ativação/criação**
   const handleCicloCreationOrActivation = (cicloId) => {
      setActiveTab('ciclos');
      setForceOpenVisual(true);
      setTimeout(() => setForceOpenVisual(false), 1000);
+
+     // LÓGICA DE INÍCIO DO TOUR DE CICLO
+     if (user) {
+        const cycleTourSeen = localStorage.getItem(`onboarding_seen_${user.uid}_cycle_visual`);
+        // Se o usuário não viu o tour de ciclo, inicie-o
+        if (!cycleTourSeen) {
+            setTourState({ isActive: true, type: 'cycle_visual' });
+        }
+     }
   };
+  // **FIM DA CORREÇÃO 2.1**
+
 
   const handleGoToActiveCycle = () => {
     if (activeCicloId) {
@@ -338,6 +358,29 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     };
     setSharePreviewData(previewData);
   };
+
+
+  // **INÍCIO DA CORREÇÃO 1.2: Lógica para iniciar o tour principal apenas para novos usuários**
+  useEffect(() => {
+    // 1. Espera o usuário e o carregamento inicial dos registros
+    if (!user || loading) return;
+
+    const tourType = 'main';
+    // 2. Verifica se a flag de visualização já foi setada para este usuário
+    const hasSeen = localStorage.getItem(`onboarding_seen_${user.uid}_${tourType}`);
+
+    // 3. Critério de novo usuário: Sem histórico de metas E sem registros de estudo
+    const isTrulyNew = goalsHistory.length === 0 && allRegistrosEstudo.length === 0;
+
+    if (!hasSeen && isTrulyNew) {
+      // Se for um usuário novo e não viu, ativa o tour.
+      setTourState({ isActive: true, type: tourType });
+    } else if (!isTrulyNew && !hasSeen) {
+      // Se não for realmente novo e a flag não está setada (usuário antigo), marca como visto silenciosamente.
+      handleTourCloseOrFinish(tourType);
+    }
+  }, [user, loading, goalsHistory.length, allRegistrosEstudo.length]);
+  // **FIM DA CORREÇÃO 1.2**
 
   // --- Firebase e Ciclos (restante inalterado) ---
   useEffect(() => {
@@ -492,14 +535,14 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         <main className="mt-6 max-w-7xl mx-auto animate-fade-in">{renderTabContent()}</main>
       </div>
 
-      {/* --- RESTAURADO: TOUR INTERATIVO, TIMER, MODAIS --- */}
+      {/* --- RESTAURADO: TOUR INTERATIVO, TIMER, MODAIS (CORRIGIDO ONCLOSE/ONFINISH) --- */}
       <OnboardingTour
          isActive={tourState.isActive}
          tourType={tourState.type}
          activeTab={activeTab}
          setActiveTab={handleTabChange}
-         onClose={() => setTourState({ isActive: false, type: 'main' })}
-         onFinish={() => setTourState({ isActive: false, type: 'main' })}
+         onClose={() => handleTourCloseOrFinish(tourState.type)}
+         onFinish={() => handleTourCloseOrFinish(tourState.type)}
       />
 
       {activeStudySession && (

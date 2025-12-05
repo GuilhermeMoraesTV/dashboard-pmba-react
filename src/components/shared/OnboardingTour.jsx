@@ -30,7 +30,8 @@ const TOURS = {
       title: 'Configuração de Metas',
       content: 'Defina sua carga horária e meta de questões diárias. O sistema ajustará seu nível de intensidade baseado na sua disponibilidade.',
       fallbackAlignment: 'top-right',
-      fallbackMascotSide: 'left',
+      hasMascot: true,
+      mascotSide: 'right',
       mobileTargetId: 'goals-controls-inner',
     },
     // ----------------------------------------------------------------
@@ -41,7 +42,7 @@ const TOURS = {
       tab: 'home', // Volta para a tela Home, onde o Header é mais visível e relevante
       targetId: 'header-progress-bar',
       title: 'Progresso Diário (Monitoramento)',
-      content: 'Agora que suas metas estão definidas, utilize esta barra no topo para acompanhar se o objetivo do dia (Tempo e Questões) está sendo cumprido. Passe o mouse sobre ela para ver os detalhes.',
+      content: 'Depois de definir suas metas, utilize esta barra no topo para acompanhar se o objetivo do dia (Tempo e Questões) está sendo cumprido. Depois de iniciar seus estudo poderá também compartilhar seu relatório de progresso diário salvando como PDF.',
       alignment: 'bottom',
       hasMascot: true,
       mascotSide: 'right'

@@ -1,5 +1,3 @@
-// pages/CicloDetalhePage.js
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../firebaseConfig';
 import { doc, collection, query, orderBy, onSnapshot } from 'firebase/firestore';
@@ -16,7 +14,8 @@ import {
   Plus,
   RefreshCw,
   Trophy,
-  Target
+  Target,
+  AlertTriangle
 } from 'lucide-react';
 
 
@@ -184,23 +183,70 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
 
 
   // Cálculo do progresso geral (Meta calculada a partir das disciplinas)
-  const { totalEstudado, totalMeta, progressoGeral } = useMemo(() => {
-    if (!disciplinas.length) return { totalEstudado: 0, totalMeta: 0, progressoGeral: 0 };
+  const { totalEstudado, totalMeta, progressoGeral, registrosPorDisciplina } = useMemo(() => {
+    if (!disciplinas.length) return { totalEstudado: 0, totalMeta: 0, progressoGeral: 0, registrosPorDisciplina: {} };
 
     // Meta é a soma de tempoAlocadoSemanalMinutos de TODAS as disciplinas
     const totalMetaRaw = disciplinas.reduce((acc, d) => acc + Number(d.tempoAlocadoSemanalMinutos || 0), 0);
     const totalMetaCalc = Math.round(totalMetaRaw);
 
-    // Estudado é a soma dos registros ATIVOS no período (registrosDoPeriodo)
-    const totalEstudadoCalc = Math.round(registrosDoPeriodo.reduce((acc, reg) => acc + Number(reg.tempoEstudadoMinutos), 0));
+    // 1. Calcular total estudado E registrar por disciplina
+    const registrosPorDisciplina = {};
+    let totalEstudadoCalc = 0;
+
+    registrosDoPeriodo.forEach(reg => {
+        const minutos = Number(reg.tempoEstudadoMinutos);
+        totalEstudadoCalc += minutos;
+
+        const discId = reg.disciplinaId;
+        if (discId) {
+            registrosPorDisciplina[discId] = (registrosPorDisciplina[discId] || 0) + minutos;
+        }
+    });
+
+    totalEstudadoCalc = Math.round(totalEstudadoCalc);
 
     const progresso = totalMetaCalc > 0 ? (totalEstudadoCalc / totalMetaCalc) * 100 : 0;
 
-    return { totalEstudado: totalEstudadoCalc, totalMeta: totalMetaCalc, progressoGeral: progresso };
+    return { totalEstudado: totalEstudadoCalc, totalMeta: totalMetaCalc, progressoGeral: progresso, registrosPorDisciplina };
   }, [disciplinas, registrosDoPeriodo]);
+
+  // ***** INÍCIO DA CORREÇÃO (NOVA LÓGICA DE VERIFICAÇÃO INDIVIDUAL) *****
+  const isAllDisciplinesMet = useMemo(() => {
+      // Usa optional chaining para evitar crash se ciclo for null
+      if (!ciclo?.ativo) return false;
+      if (viewModeCiclo !== 'semanal') return false;
+
+      if (disciplinas.length === 0) return false;
+      if (totalMeta === 0) return false;
+
+      // Itera sobre as disciplinas para verificar o progresso individual
+      const allMet = disciplinas.every(disciplina => {
+          const metaMinutos = Number(disciplina.tempoAlocadoSemanalMinutos || 0);
+          const estudadoMinutos = registrosPorDisciplina[disciplina.id] || 0;
+
+          if (metaMinutos > 0) {
+              return estudadoMinutos >= metaMinutos;
+          }
+          return true;
+      });
+
+      return allMet;
+  }, [disciplinas, registrosPorDisciplina, ciclo?.ativo, totalMeta, viewModeCiclo]);
+
+  // A condição final para mostrar o botão de conclusão
+  // CORREÇÃO APLICADA AQUI: Usando optional chaining em `ciclo`
+  const canConcludeCiclo = ciclo?.ativo && progressoGeral >= 100 && isAllDisciplinesMet;
+
+  // ***** FIM DA CORREÇÃO (NOVA LÓGICA DE VERIFICAÇÃO INDIVIDUAL) *****
 
   // --- HANDLER DE CONCLUSÃO ---
   const handleConcluirCiclo = async () => {
+    // Garante que a verificação final é feita antes de confirmar
+    if (!canConcludeCiclo) {
+         alert("Não é possível concluir. As metas individuais de todas as disciplinas não foram atingidas.");
+         return;
+    }
     if (cicloActionLoading) return;
 
     setShowConclusaoModal(false);
@@ -257,14 +303,21 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
 
               <div className="flex items-center gap-3">
                   {/* BOTÃO DE CONCLUSÃO CONDICIONAL */}
-                  {ciclo.ativo && progressoGeral >= 100 && (
+                  {ciclo.ativo && canConcludeCiclo && (
                       <button
                           onClick={() => setShowConclusaoModal(true)}
                           disabled={cicloActionLoading}
                           className="flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 text-white text-xs font-bold uppercase tracking-wide rounded-xl shadow-md hover:bg-emerald-700 transition-colors"
                       >
-                          <Trophy size={16} /> Concluir ({ciclo.conclusoes}x)
+                          <Trophy size={16} /> Concluir Ciclo ({ciclo.conclusoes}x)
                       </button>
+                  )}
+
+                  {/* ALERTA DE META INDIVIDUAL FALTANDO */}
+                  {ciclo.ativo && progressoGeral >= 100 && !isAllDisciplinesMet && viewModeCiclo === 'semanal' && (
+                     <div className="flex items-center gap-2 px-4 py-2 bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400 text-xs font-bold uppercase tracking-wide rounded-xl shadow-md border border-red-300 dark:border-red-700">
+                         <AlertTriangle size={16} /> Todas Disciplinas precisam ser concluidas!
+                     </div>
                   )}
 
                   <button
@@ -340,7 +393,7 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
                               r="34"
                               fill="none"
                               stroke="currentColor"
-                              className={progressoGeral >= 100 ? 'text-emerald-500' : progressoGeral > 0 ? 'text-yellow-500' : 'text-zinc-400'}
+                              className={progressoGeral >= 100 && isAllDisciplinesMet ? 'text-emerald-500' : progressoGeral > 0 ? 'text-yellow-500' : 'text-zinc-400'}
                               strokeWidth="6"
                               strokeLinecap="round"
                               strokeDasharray={2 * Math.PI * 34}
@@ -350,7 +403,7 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
                           />
                       </svg>
                       <div className="absolute inset-0 flex flex-col items-center justify-center">
-                          <span className={`text-2xl font-black ${progressoGeral >= 100 ? 'text-emerald-500' : progressoGeral > 0 ? 'text-yellow-500' : 'text-zinc-400'}`}>
+                          <span className={`text-2xl font-black ${progressoGeral >= 100 && isAllDisciplinesMet ? 'text-emerald-500' : progressoGeral > 0 ? 'text-yellow-500' : 'text-zinc-400'}`}>
                               {progressoGeral.toFixed(0)}%
                           </span>
                       </div>
@@ -373,7 +426,11 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
                   onSelectDisciplina={setSelectedDisciplinaId}
                   onViewDetails={handleViewDetails}
                   onStartStudy={handleStartStudy}
-                  disciplinas={disciplinas}
+                  disciplinas={disciplinas.map(d => ({
+                      ...d,
+                      // Passa o progresso de cada disciplina para o CicloVisual
+                      progressoEstudadoMinutos: registrosPorDisciplina[d.id] || 0
+                  }))}
                   registrosEstudo={registrosDoPeriodo}
                   viewMode={viewModeCiclo}
                   ciclo={ciclo}
