@@ -1,23 +1,21 @@
+// Header.js (CÓDIGO COMPLETO E CORRIGIDO)
+
 import React from 'react';
 import { Moon, Sun } from 'lucide-react';
 import HeaderProgress from './HeaderProgress';
 
-function Header({ user, activeTab, isDarkMode, toggleTheme, registrosEstudo, goalsHistory, activeCicloId }) {
+function Header({ user, activeTab, isDarkMode, toggleTheme, registrosEstudo, goalsHistory, activeCicloId, onShareGoal }) {
 
   const firstName = user.displayName ? user.displayName.split(' ')[0] : 'Estudante';
   const showWelcome = activeTab === 'home';
 
   return (
-    // ALTERAÇÃO AQUI: Mudado de 'flex-col md:flex-row' para 'flex' direto com 'items-center'
-    // Isso garante que fiquem na mesma linha horizontal
     <header className="flex justify-between items-center w-full gap-2 md:gap-4 h-16 md:h-auto">
 
       {/* Lado Esquerdo: Título ou Espaçador */}
       <div className="flex items-center">
         {showWelcome ? (
           <div className="flex flex-col">
-            {/* Texto ajustado para mobile: some o subtítulo e diminui o título se necessário,
-                ou esconde totalmente em telas muito pequenas se colidir com o widget */}
             <h1 className="text-lg md:text-2xl font-bold text-zinc-800 dark:text-white transition-colors leading-tight">
               Olá, {firstName}! <span className="hidden md:inline"></span>
             </h1>
@@ -26,13 +24,11 @@ function Header({ user, activeTab, isDarkMode, toggleTheme, registrosEstudo, goa
             </p>
           </div>
         ) : (
-           // Mantém um espaço mínimo se necessário, ou removido
            <div className="w-1"></div>
         )}
       </div>
 
       {/* Lado Direito: Ações (Widget + Tema) */}
-      {/* Removido 'self-end', agora alinhado pelo pai */}
       <div className="flex items-center gap-2 md:gap-4">
 
         {/* Wrapper para garantir que o widget não quebre o layout em telas minúsculas */}
@@ -41,6 +37,7 @@ function Header({ user, activeTab, isDarkMode, toggleTheme, registrosEstudo, goa
                 registrosEstudo={registrosEstudo}
                 goalsHistory={goalsHistory}
                 activeCicloId={activeCicloId}
+                onShareGoal={onShareGoal} // Última prop, sem vírgula ou caractere extra após ela
             />
         </div>
 

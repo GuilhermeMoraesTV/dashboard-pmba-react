@@ -1,6 +1,8 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
-import { Clock, Target, Trophy, ChevronDown, CheckCircle2, Activity, Flame, Medal, AlertCircle, HelpCircle } from 'lucide-react';
+import { Clock, Target, Trophy, ChevronDown, CheckCircle2, Activity, Flame, Medal, HelpCircle, Share2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+
+// --- UTILITÁRIOS E CONSTANTES ---
 
 const dateToYMD = (date) => {
     const y = date.getFullYear();
@@ -9,7 +11,63 @@ const dateToYMD = (date) => {
     return `${y}-${m}-${d}`;
 };
 
-function HeaderProgress({ registrosEstudo, goalsHistory, activeCicloId, onTriggerGuide }) {
+// Converte horas decimais para HH:MM
+const formatHoursToHHMM = (hoursDecimal) => {
+    if (hoursDecimal <= 0) return { hours: 0, minutes: 0, display: '0h 0m' };
+
+    const totalMinutes = Math.round(hoursDecimal * 60);
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+
+    let display = '';
+    if (hours > 0) {
+        display += `${hours}h`;
+    }
+    // Adiciona minutos apenas se > 0 ou se as horas forem 0 (para evitar '0h')
+    if (minutes > 0 || hours > 0) {
+        if (hours > 0 && minutes > 0) display += ' ';
+        if (hours === 0 && minutes === 0) display = '0h';
+        else if (minutes > 0) display += `${minutes}m`;
+    }
+    if (hours === 0 && minutes === 0) return { hours: 0, minutes: 0, display: '0h' };
+
+    return { hours, minutes, display };
+};
+
+// --- COMPONENTE: PROGRESS RING MAIOR (DETALHES) ---
+const DetailedProgressRing = ({ percent, colorClass, value, unit }) => {
+    const r = 50;
+    const c = 2 * Math.PI * r;
+    const offset = c - (percent / 100) * c;
+    const isDone = percent >= 100;
+
+    return (
+        <div className="relative flex flex-col items-center justify-center w-full max-w-[120px] h-[120px] mx-auto">
+            <svg viewBox="0 0 106 106" className="w-full h-full transform -rotate-90">
+                <circle cx="53" cy="53" r={r} stroke="currentColor" strokeWidth="6" fill="transparent" className="text-zinc-800 dark:text-zinc-700 opacity-50" />
+                <motion.circle
+                    initial={{ strokeDashoffset: c }}
+                    animate={{ strokeDashoffset: offset }}
+                    transition={{ duration: 1.5, ease: "easeOut" }}
+                    cx="53" cy="53" r={r} stroke="currentColor" strokeWidth="6" fill="transparent"
+                    strokeDasharray={c} strokeLinecap="round"
+                    className={`transition-colors duration-500 ${isDone ? 'text-emerald-500' : colorClass} ${percent > 0 ? 'drop-shadow-lg' : ''}`}
+                />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+                <span className={`text-2xl font-black leading-none ${isDone ? 'text-emerald-500' : 'text-white'}`}>
+                    {value}
+                </span>
+                <span className={`text-[10px] font-bold uppercase ${isDone ? 'text-emerald-400' : 'text-zinc-400'}`}>
+                    {unit}
+                </span>
+            </div>
+        </div>
+    );
+};
+
+// --- COMPONENTE PRINCIPAL ---
+function HeaderProgress({ registrosEstudo, goalsHistory, activeCicloId, onTriggerGuide, onShareGoal }) {
     const [isExpanded, setIsExpanded] = useState(false);
     const [showCelebration, setShowCelebration] = useState(false);
     const wasCompleteRef = useRef(false);
@@ -18,6 +76,7 @@ function HeaderProgress({ registrosEstudo, goalsHistory, activeCicloId, onTrigge
     useEffect(() => { setMounted(true); }, []);
 
     const stats = useMemo(() => {
+        // ... (Lógica de Stats inalterada)
         const activeGoal = goalsHistory && goalsHistory.length > 0
             ? [...goalsHistory].sort((a, b) => new Date(b.startDate) - new Date(a.startDate))[0]
             : { questions: 0, hours: 0 };
@@ -26,7 +85,7 @@ function HeaderProgress({ registrosEstudo, goalsHistory, activeCicloId, onTrigge
         const goalQ = parseInt(activeGoal.questions || 0);
 
         const todayStr = dateToYMD(new Date());
-        let todayH = 0;
+        let todayH = 0; // Total de horas em decimal
         let todayQ = 0;
 
         registrosEstudo.forEach(reg => {
@@ -51,13 +110,23 @@ function HeaderProgress({ registrosEstudo, goalsHistory, activeCicloId, onTrigge
 
         const overallProgress = (goalH > 0 || goalQ > 0) ? ((percH + percQ) / 2) : 0;
 
+        // Formato HH:MM para exibição
+        const todayH_HHMM = formatHoursToHHMM(todayH);
+        const remainingH = Math.max(0, goalH - todayH);
+        const remainingH_HHMM = formatHoursToHHMM(remainingH);
+
+
         let state = 'idle';
         if (isComplete) state = 'complete';
         else if (isPartialComplete) state = 'partial';
         else if (overallProgress >= 80) state = 'close';
         else if (hasActivity) state = 'working';
 
-        return { todayH, todayQ, goalH, goalQ, percH, percQ, isComplete, isPartialComplete, hasActivity, overallProgress, state };
+        return {
+            todayH, todayQ, goalH, goalQ, percH, percQ,
+            isComplete, isPartialComplete, hasActivity, overallProgress, state,
+            todayH_HHMM, remainingH_HHMM, isCompleteH, isCompleteQ
+        };
     }, [registrosEstudo, goalsHistory, activeCicloId]);
 
     // Efeito de Celebração
@@ -74,74 +143,81 @@ function HeaderProgress({ registrosEstudo, goalsHistory, activeCicloId, onTrigge
         }
     }, [stats.isComplete, mounted]);
 
+    // --- CONFIGURAÇÃO VISUAL NEO-BRUTALISTA/GLOW ---
     const statusConfig = {
         idle: {
             icon: Activity,
-            colorClass: 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400',
-            barClass: 'bg-zinc-300 dark:bg-zinc-600',
-            borderClass: 'hover:border-zinc-300 dark:hover:border-zinc-600',
+            colorClass: 'text-zinc-400',
+            barClass: 'bg-zinc-600',
+            glowColor: 'shadow-zinc-700/50',
+            glowAnimation: 'shadow-zinc-700/50 hover:shadow-zinc-700/70',
             label: 'Sem atividade',
-            animation: ''
         },
         working: {
             icon: Clock,
-            colorClass: 'bg-blue-500 text-white shadow-lg shadow-blue-500/20',
+            colorClass: 'text-blue-500',
             barClass: 'bg-blue-500',
-            borderClass: 'border-blue-500/20 bg-blue-50/50 dark:bg-blue-900/10',
+            glowColor: 'shadow-blue-500/50',
+            glowAnimation: 'animate-pulse-slow shadow-blue-500/50 hover:shadow-blue-500/70',
             label: 'Em Progresso',
-            animation: ''
         },
         partial: {
             icon: Medal,
-            colorClass: 'bg-amber-500 text-white shadow-lg shadow-amber-500/20',
-            barClass: 'bg-gradient-to-r from-amber-400 to-amber-600',
-            borderClass: 'border-amber-500/30 bg-amber-50/50 dark:bg-amber-900/10',
+            colorClass: 'text-amber-500',
+            barClass: 'bg-gradient-to-r from-amber-400 to-orange-500',
+            glowColor: 'shadow-amber-500/50',
+            glowAnimation: 'animate-pulse-slow shadow-amber-500/50 hover:shadow-amber-500/70',
             label: 'Meta Parcial!',
-            animation: 'animate-pulse'
         },
         close: {
             icon: Flame,
-            colorClass: 'bg-orange-500 text-white shadow-lg shadow-orange-500/20 animate-bounce',
-            barClass: 'bg-gradient-to-r from-orange-500 to-red-500',
-            borderClass: 'border-orange-500/30 bg-orange-50/50 dark:bg-orange-900/10',
+            colorClass: 'text-orange-500',
+            barClass: 'bg-gradient-to-r from-orange-500 to-red-600',
+            glowColor: 'shadow-red-600/50',
+            glowAnimation: 'animate-pulse-slow shadow-red-600/50 hover:shadow-red-600/70',
             label: 'Reta Final!',
-            animation: ''
         },
         complete: {
             icon: Trophy,
-            colorClass: 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20',
-            barClass: 'bg-gradient-to-r from-emerald-400 to-emerald-600',
-            borderClass: 'border-emerald-500/40 bg-emerald-50/50 dark:bg-emerald-900/10',
+            colorClass: 'text-emerald-500',
+            barClass: 'bg-gradient-to-r from-emerald-400 to-green-600',
+            glowColor: 'shadow-emerald-500/50',
+            glowAnimation: 'shadow-emerald-500/50 hover:shadow-emerald-500/70',
             label: 'Meta Batida',
-            animation: ''
         }
     };
 
     const currentConfig = statusConfig[stats.state];
     const StatusIcon = currentConfig.icon;
+    const { percH, percQ, todayH_HHMM, todayQ, goalH, goalQ, state, remainingH_HHMM, hasActivity, isCompleteH, isCompleteQ } = stats;
 
-    const ProgressRing = ({ percent, color, icon: Icon }) => {
-        const r = 22;
-        const c = 2 * Math.PI * r;
-        const offset = c - (percent / 100) * c;
-        const isDone = percent >= 100;
+    // --- SUB-COMPONENTE: ÍCONE DE STATUS COMPACTO (LÓGICA DE COR CORRIGIDA) ---
+    const StatusBadge = ({ Icon, percent, isQuestionIcon = false, isTimeIcon = false }) => {
+        let iconColorClass = 'text-zinc-500'; // Padrão: Neutro (sem estudo)
+
+        if (percent >= 100) {
+            iconColorClass = 'text-emerald-500'; // Prioridade 1: Meta batida (VERDE)
+        } else if (hasActivity) {
+            // Prioridade 2: Em andamento (AZUL)
+            iconColorClass = 'text-blue-500';
+
+            // Exceção: Se for ícone de status principal, usa a cor do estado (Amber/Orange)
+            if (!isQuestionIcon && !isTimeIcon) {
+                iconColorClass = currentConfig.colorClass;
+            }
+        }
+
+        // Se não há atividade e não está completo, mantém zinc-500.
 
         return (
-            <div className="relative flex items-center justify-center w-14 h-14">
-                <svg className="w-full h-full transform -rotate-90">
-                    <circle cx="28" cy="28" r={r} stroke="currentColor" strokeWidth="4" fill="transparent" className="text-zinc-100 dark:text-zinc-800" />
-                    <motion.circle
-                        initial={{ strokeDashoffset: c }}
-                        animate={{ strokeDashoffset: offset }}
-                        transition={{ duration: 1.5, ease: "easeOut" }}
-                        cx="28" cy="28" r={r} stroke="currentColor" strokeWidth="4" fill="transparent"
-                        strokeDasharray={c} strokeLinecap="round"
-                        className={`transition-colors duration-500 ${isDone ? 'text-emerald-500' : color}`}
-                    />
-                </svg>
-                <div className={`absolute inset-0 flex items-center justify-center ${isDone ? 'text-emerald-500' : 'text-zinc-500 dark:text-zinc-400'}`}>
-                    {isDone ? <CheckCircle2 size={20} className="animate-bounce" /> : <Icon size={18} />}
-                </div>
+            <div
+                className={`
+                    p-1 rounded-lg shrink-0
+                    ${iconColorClass}
+                    transition-all duration-300
+                `}
+            >
+                <Icon size={16} className="w-4 h-4 sm:w-5 sm:h-5" strokeWidth={2.5} />
             </div>
         );
     };
@@ -150,151 +226,177 @@ function HeaderProgress({ registrosEstudo, goalsHistory, activeCicloId, onTrigge
 
     return (
         <div
-            id="header-progress-root" /* ID ADICIONADO PARA O TOUR: Raiz do componente */
+            id="header-progress-root"
             className="relative z-30"
             onMouseEnter={() => setIsExpanded(true)}
             onMouseLeave={() => setIsExpanded(false)}
         >
-            {/* --- BARRA COMPACTA (HEADER) --- */}
-            <div
-                id="header-progress-bar" /* ID ADICIONADO PARA O TOUR: Barra visível */
+            {/* --- BARRA COMPACTA (DESIGN DE CÁPSULA NEUROMÓRFICA) --- */}
+            <motion.div
+                id="header-progress-bar"
                 className={`
-                flex items-center gap-4 px-4 py-2 bg-white dark:bg-zinc-900
-                border border-zinc-200 dark:border-zinc-800 rounded-xl cursor-pointer
-                transition-all duration-300 shadow-sm hover:shadow-md relative overflow-hidden
-                ${currentConfig.borderClass}
-            `}>
-                {/* Efeito de Brilho/Shimmer se tiver atividade */}
-                {stats.hasActivity && (
-                    <div className={`absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full ${stats.state === 'complete' ? 'animate-[shimmer_2s_infinite]' : 'animate-[shimmer_4s_infinite]'}`}></div>
-                )}
-
-                {/* Ícone de Status Reativo */}
-                <div className={`p-2 rounded-lg flex items-center justify-center transition-all duration-300 ${currentConfig.colorClass} ${currentConfig.animation}`}>
-                    <StatusIcon size={20} />
+                    flex items-center gap-1 px-2 py-2 sm:gap-2 sm:px-4 sm:py-2
+                    bg-zinc-800/80 backdrop-blur-md
+                    border border-white/5 rounded-xl cursor-pointer
+                    transition-all duration-300 relative overflow-hidden
+                    ${currentConfig.glowAnimation}
+                `}
+                style={{
+                    boxShadow: `0 0 15px ${currentConfig.glowColor.split('shadow-')[1].replace('/', ' ')}, 0 0 1px ${currentConfig.glowColor.split('shadow-')[1].replace('/', ' ')}`
+                }}
+                initial={{ scale: 1 }}
+                whileHover={{ scale: 1.01 }}
+            >
+                {/* 1. Status Principal */}
+                <div className="relative flex items-center gap-1 pr-2 sm:gap-3 sm:pr-3 border-r border-white/10 shrink-0">
+                    <StatusBadge Icon={StatusIcon} percent={stats.overallProgress} />
+                    {stats.hasActivity && stats.state !== 'complete' && (
+                        <div className={`absolute top-0.5 right-1 w-2 h-2 rounded-full ${currentConfig.colorClass.replace('text-', 'bg-')} animate-ping-slow`}></div>
+                    )}
                 </div>
 
-                <div className="flex flex-col min-w-[150px]">
-                    <div className="flex justify-between items-end mb-1 w-full">
-                        <span className={`text-[10px] font-black uppercase tracking-widest ${stats.state === 'partial' ? 'text-amber-600 dark:text-amber-500' : 'text-zinc-400 dark:text-zinc-500'}`}>
+                {/* 2. Progresso Central */}
+                <div className="flex flex-col flex-1 min-w-[70px] sm:min-w-[160px]"> {/* Reduzido o min-w em mobile */}
+                    <div className="flex justify-between items-center w-full">
+                        {/* Texto de Status Oculto em Mobile */}
+                        <span className="text-[10px] font-bold text-zinc-400 uppercase truncate hidden sm:block">
                             {currentConfig.label}
                         </span>
-                        <span className="text-sm font-black text-zinc-800 dark:text-white leading-none">
+                        {/* Status principal em Mobile */}
+                        <span className="text-[10px] font-bold text-zinc-400 uppercase truncate sm:hidden">
+                            {stats.state === 'idle' ? 'Inativo' : currentConfig.label.split(' ')[0]}
+                        </span>
+
+                        <span className={`text-sm font-black leading-none ${currentConfig.colorClass} sm:text-xl`}>
                             {stats.overallProgress.toFixed(0)}%
                         </span>
                     </div>
 
-                    <div className="h-2 w-full bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden border border-zinc-100 dark:border-zinc-700 relative">
+                    <div className="h-1.5 w-full bg-zinc-700 rounded-full overflow-hidden relative mt-1">
                         <motion.div
                             className={`h-full rounded-full absolute top-0 left-0 ${currentConfig.barClass}`}
                             initial={{ width: 0 }}
                             animate={{ width: `${stats.overallProgress}%` }}
                             transition={{ duration: 1 }}
                         />
-                        {/* Indicador de Meta Parcial na Barra */}
-                        {stats.isPartialComplete && (
-                            <div className="absolute top-0 right-0 bottom-0 w-1/2 border-l-2 border-white/20 h-full"></div>
-                        )}
                     </div>
                 </div>
 
-                <div className="flex items-center gap-2 border-l border-zinc-200 dark:border-zinc-700 pl-4 ml-2">
-                    {/* Botão de Ajuda do Guia */}
+                {/* 3. Status Icons Condensados (Clock e Target) - Mais Compacto */}
+                <div className="flex items-center gap-0.5 pl-1 sm:gap-1.5 sm:pl-3 border-l border-white/10 ml-1 shrink-0">
+                    {/* Horas (Clock) - Azul se em andamento / VERDE se isCompleteH */}
+                    <StatusBadge
+                        Icon={Clock}
+                        percent={percH}
+                        isTimeIcon={true}
+                    />
+                    {/* Questões (Target) - Azul se em andamento / VERDE se isCompleteQ */}
+                    <StatusBadge
+                        Icon={Target}
+                        percent={percQ}
+                        isQuestionIcon={true}
+                    />
+                </div>
+
+                {/* 4. Ação */}
+                <div className="flex items-center gap-0.5 pl-1 sm:pl-3 border-l border-white/10 shrink-0">
                     <button
                         onClick={(e) => {
                             e.stopPropagation();
                             if (onTriggerGuide) onTriggerGuide();
                         }}
-                        className="text-zinc-300 hover:text-blue-500 transition-colors"
+                        className="text-zinc-500 hover:text-blue-500 transition-colors p-1"
                         title="Ver guia do progresso"
                     >
-                        <HelpCircle size={16} />
+                        <HelpCircle size={14} className="sm:w-4 sm:h-4" /> {/* Ícone menor */}
                     </button>
-                    <ChevronDown size={16} className={`text-zinc-400 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />
+                    <ChevronDown size={14} className={`text-zinc-500 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''} sm:w-4 sm:h-4`} />
                 </div>
-            </div>
+            </motion.div>
 
-            {/* --- DROPDOWN DE DETALHES --- */}
+            {/* --- DROPDOWN DE DETALHES (DESIGN DE PAINEL FOSCO) --- */}
             <AnimatePresence>
                 {isExpanded && (
                     <motion.div
-                        id="header-progress-expanded" /* ID ADICIONADO PARA O TOUR: Painel dropdown */
+                        id="header-progress-expanded"
                         initial={{ opacity: 0, y: 10, scale: 0.98 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 10, scale: 0.98 }}
-                        className="absolute top-full right-0 mt-3 w-[360px] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl overflow-hidden ring-1 ring-black/5 z-40"
+                        className="absolute top-full right-0 mt-3 w-72 sm:w-[380px] p-5
+                                 bg-zinc-800/80 backdrop-blur-md
+                                 border border-white/5 rounded-2xl shadow-2xl
+                                 ring-1 ring-white/5 z-40 text-white"
                     >
                         {showCelebration ? (
-                            <div className="flex flex-col items-center justify-center py-8 animate-fade-in bg-emerald-50/50 dark:bg-emerald-900/10">
-                                <Trophy size={64} className="text-yellow-500 drop-shadow-xl animate-bounce mb-4" />
-                                <h3 className="text-2xl font-black text-zinc-800 dark:text-white tracking-tight">META CUMPRIDA!</h3>
-                                <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400 uppercase tracking-wide">Desempenho Excelente</p>
+                            <div className="flex flex-col items-center justify-center py-8 bg-emerald-900/10 rounded-xl">
+                                <Trophy size={64} className="text-yellow-400 drop-shadow-xl animate-bounce mb-4" />
+                                <h3 className="text-xl sm:text-2xl font-black tracking-tight">META CUMPRIDA!</h3>
+                                <p className="text-sm font-medium text-emerald-400 uppercase tracking-wide">Desempenho Excelente</p>
                             </div>
                         ) : (
-                            <div className="p-4">
-                                <div className="grid grid-cols-2 gap-3">
-                                    {/* Card Horas */}
-                                    <div
-                                        id="header-stats-hours" /* ID ADICIONADO PARA O TOUR: Card de horas */
-                                        className={`bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-3 border flex flex-col items-center relative overflow-hidden transition-colors ${stats.percH >= 100 ? 'border-emerald-500/30 bg-emerald-50/30 dark:bg-emerald-900/10' : 'border-zinc-100 dark:border-zinc-800'}`}
-                                    >
-                                        {stats.percH >= 100 && <div className="absolute top-0 right-0 p-1.5"><CheckCircle2 size={14} className="text-emerald-500" /></div>}
-                                        <div className="mb-2">
-                                            <ProgressRing percent={stats.percH} color="text-amber-500" icon={Clock} />
-                                        </div>
-                                        <div className="text-center w-full">
-                                            <span className="text-[10px] font-bold text-zinc-400 uppercase block mb-1 tracking-wide">Tempo</span>
-                                            <div className="flex items-baseline justify-center gap-0.5 mb-2">
-                                                <span className={`text-2xl font-black leading-none ${stats.percH >= 100 ? 'text-emerald-600 dark:text-emerald-400' : 'text-zinc-800 dark:text-white'}`}>
-                                                    {stats.todayH.toFixed(1)}
-                                                </span>
-                                                <span className="text-xs font-bold text-zinc-400">h</span>
-                                            </div>
-                                            <div className="inline-flex items-center justify-center px-2 py-1 bg-zinc-100 dark:bg-zinc-800 rounded-md border border-zinc-200 dark:border-zinc-700 w-full">
-                                                <span className="text-[10px] font-bold text-zinc-500 uppercase flex items-center gap-1">
-                                                    <Target size={10} /> Meta: {stats.goalH}h
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Card Questões */}
-                                    <div
-                                        id="header-stats-questions" /* ID ADICIONADO PARA O TOUR: Card de questões */
-                                        className={`bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-3 border flex flex-col items-center relative overflow-hidden transition-colors ${stats.percQ >= 100 ? 'border-emerald-500/30 bg-emerald-50/30 dark:bg-emerald-900/10' : 'border-zinc-100 dark:border-zinc-800'}`}
-                                    >
-                                        {stats.percQ >= 100 && <div className="absolute top-0 right-0 p-1.5"><CheckCircle2 size={14} className="text-emerald-500" /></div>}
-                                        <div className="mb-2">
-                                            <ProgressRing percent={stats.percQ} color="text-emerald-500" icon={Target} />
-                                        </div>
-                                        <div className="text-center w-full">
-                                            <span className="text-[10px] font-bold text-zinc-400 uppercase block mb-1 tracking-wide">Questões</span>
-                                            <div className="flex items-baseline justify-center gap-0.5 mb-2">
-                                                <span className={`text-2xl font-black leading-none ${stats.percQ >= 100 ? 'text-emerald-600 dark:text-emerald-400' : 'text-zinc-800 dark:text-white'}`}>
-                                                    {stats.todayQ}
-                                                </span>
-                                            </div>
-                                            <div className="inline-flex items-center justify-center px-2 py-1 bg-zinc-100 dark:bg-zinc-800 rounded-md border border-zinc-200 dark:border-zinc-700 w-full">
-                                                <span className="text-[10px] font-bold text-zinc-500 uppercase flex items-center gap-1">
-                                                    <Target size={10} /> Meta: {stats.goalQ}
-                                                </span>
-                                            </div>
-                                        </div>
+                            <div className="space-y-4">
+                                {/* Títulos e Status + BOTÃO DE COMPARTILHAR */}
+                                <div className='flex justify-between items-center border-b border-zinc-700 pb-3'>
+                                    <h3 className='text-lg font-black'>Progresso Diário</h3>
+                                    <div className="flex items-center gap-2">
+                                        {/* Botão de Compartilhamento - Visível apenas se houver atividade */}
+                                        {hasActivity && (
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); onShareGoal(stats); }}
+                                                className="p-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 transition-colors text-zinc-300"
+                                                title="Compartilhar Meta"
+                                            >
+                                                <Share2 size={16} />
+                                            </button>
+                                        )}
+                                        <span className={`text-sm font-bold ${currentConfig.colorClass}`}>{currentConfig.label}</span>
                                     </div>
                                 </div>
 
-                                {/* Rodapé Informativo */}
+                                {/* Cards de Progresso em Círculo (Tempo e Questões) */}
+                                <div className="grid grid-cols-2 gap-4">
+                                    {/* Card Horas (Laranja/Âmbar) */}
+                                    <div
+                                        id="header-stats-hours"
+                                        className="flex flex-col items-center p-3 bg-zinc-700/50 rounded-xl border border-white/10 shadow-lg shadow-zinc-900/50"
+                                    >
+                                        <span className="text-xs font-bold text-zinc-400 uppercase block mb-2">Tempo</span>
+                                        <DetailedProgressRing
+                                            percent={percH}
+                                            colorClass={'text-amber-500'}
+                                            value={todayH_HHMM.display}
+                                            unit={`Meta: ${goalH}h`}
+                                        />
+                                    </div>
+
+                                    {/* Card Questões (Verde/Esmeralda) */}
+                                    <div
+                                        id="header-stats-questions"
+                                        className="flex flex-col items-center p-3 bg-zinc-700/50 rounded-xl border border-white/10 shadow-lg shadow-zinc-900/50"
+                                    >
+                                        <span className="text-xs font-bold text-zinc-400 uppercase block mb-2">Questões</span>
+                                        <DetailedProgressRing
+                                            percent={percQ}
+                                            colorClass={'text-emerald-500'}
+                                            value={todayQ}
+                                            unit={`Meta: ${goalQ}`}
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Rodapé Informativo Estilizado */}
                                 {!stats.isComplete && (
                                     <div className="mt-4">
                                         <div className={`
-                                            text-center py-2 px-3 rounded-lg border text-xs font-medium transition-colors duration-300
-                                            ${stats.state === 'close' ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800 text-orange-700 dark:text-orange-400' : ''}
-                                            ${stats.state === 'partial' ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400' : ''}
-                                            ${stats.state === 'working' || stats.state === 'idle' ? 'bg-zinc-50 dark:bg-zinc-800/50 border-zinc-100 dark:border-zinc-800 text-zinc-500' : ''}
+                                            text-center py-2 px-3 rounded-lg text-xs font-medium
+                                            bg-zinc-700/70 border border-white/10
+                                            ${stats.state === 'close' ? 'shadow-lg shadow-red-500/20 text-red-400' : ''}
+                                            ${stats.state === 'partial' ? 'shadow-lg shadow-amber-500/20 text-amber-400' : ''}
+                                            ${stats.state === 'working' || stats.state === 'idle' ? 'text-zinc-300' : ''}
                                         `}>
-                                            {stats.state === 'close' && <span className="flex items-center justify-center gap-1"><Flame size={12} className="animate-pulse" /> Falta pouco! Finalize a missão.</span>}
-                                            {stats.state === 'partial' && <span className="flex items-center justify-center gap-1"><Medal size={12} /> Ótimo! Uma meta já foi. Complete a outra.</span>}
-                                            {(stats.state === 'working' || stats.state === 'idle') && <span>Restam <strong>{(Math.max(0, stats.goalH - stats.todayH)).toFixed(1)}h</strong> e <strong>{Math.max(0, stats.goalQ - stats.todayQ)}</strong> questões.</span>}
+                                            {stats.state === 'close' && <span className="flex items-center justify-center gap-1"><Flame size={12} className="text-red-500" /> Falta pouco! Finalize a missão.</span>}
+                                            {stats.state === 'partial' && <span className="flex items-center justify-center gap-1"><Medal size={12} className="text-amber-500" /> Ótimo! Uma meta já foi. Complete a outra.</span>}
+                                            {(stats.state === 'working' || stats.state === 'idle') && <span>Restam <strong>{remainingH_HHMM.display}</strong> e <strong>{Math.max(0, goalQ - todayQ)}</strong> questões.</span>}
                                         </div>
                                     </div>
                                 )}

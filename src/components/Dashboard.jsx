@@ -1,9 +1,18 @@
-import React, { useState, useEffect } from 'react';
+// Dashboard.js (CÓDIGO COMPLETO E FINAL)
+
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   collection, onSnapshot, query, orderBy, addDoc, deleteDoc, doc, where, Timestamp
 } from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
 import { signOut } from 'firebase/auth';
+
+// Dependências
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
+import { AnimatePresence, motion } from 'framer-motion';
+import { X, CheckCircle2, Download, Calendar } from 'lucide-react';
+import ShareCard from '../components/shared/ShareCard';
 
 // Componentes
 import NavSideBar from '../components/dashboard/NavSideBar';
@@ -17,14 +26,107 @@ import StudyTimer from '../components/ciclos/StudyTimer';
 import TimerFinishModal from '../components/ciclos/TimerFinishModal';
 import OnboardingTour from '../components/shared/OnboardingTour';
 
-// CORREÇÃO DO FUSO HORÁRIO: Função para formatar o objeto Date (que já é local) para YYYY-MM-DD
-// Se o registro é antigo e o campo `data` era um Timestamp, essa função garante
-// que a conversão use os componentes de data (Dia, Mês, Ano) no fuso horário local do usuário.
 const dateToYMD = (date) => {
   const d = date.getDate();
   const m = date.getMonth() + 1;
   const y = date.getFullYear();
   return '' + y + '-' + (m <= 9 ? '0' + m : m) + '-' + (d <= 9 ? '0' + d : d);
+};
+
+// --- ALERTA DE DOWNLOAD ---
+const DownloadAlert = ({ isVisible, onDismiss }) => (
+  <AnimatePresence>
+    {isVisible && (
+      <motion.div
+        initial={{ y: 50, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        exit={{ y: 50, opacity: 0 }}
+        transition={{ duration: 0.3 }}
+        className="fixed bottom-10 left-1/2 transform -translate-x-1/2 z-[10000] p-4 rounded-xl bg-emerald-600 shadow-xl text-white flex items-center gap-3"
+      >
+        <CheckCircle2 size={24} />
+        <span className="font-bold">Download do Cartão iniciado!</span>
+        <motion.button whileHover={{ scale: 1.1 }} onClick={onDismiss} className="text-white/80 hover:text-white">
+          <X size={18} />
+        </motion.button>
+      </motion.div>
+    )}
+  </AnimatePresence>
+);
+
+// --- MODAL DE PREVIEW DO SHARECARD (Altura corrigida) ---
+const ShareCardPreviewModal = ({ data, onClose, onDownload }) => {
+  if (!data) return null;
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+      >
+        <motion.div
+          className="absolute inset-0 bg-zinc-900/70 backdrop-blur-sm"
+          onClick={onClose}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+        />
+
+        <motion.div
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          exit={{ scale: 0.9, opacity: 0 }}
+          transition={{ duration: 0.3, ease: 'easeOut' }}
+          // CORREÇÃO: max-h ajustado para caber em telas menores
+          className="relative bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 w-[95%] max-w-lg p-4 sm:p-6 flex flex-col items-center max-h-[90vh] overflow-y-auto"
+        >
+          <div className="absolute top-3 right-3">
+            <button
+              onClick={onClose}
+              className="p-2 rounded-full bg-white/60 dark:bg-zinc-800/60 hover:bg-red-100 dark:hover:bg-red-900/30 text-zinc-600 hover:text-red-600 transition-all"
+            >
+              <X size={18} />
+            </button>
+          </div>
+
+          <h2 className="text-xl font-bold text-zinc-800 dark:text-white mt-4 mb-1">Preview do Cartão</h2>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4 text-center">
+            Visualize como ficará seu cartão antes de baixar.
+          </p>
+
+          {/* ShareCard Preview - O cartão renderiza aqui para a captura */}
+          <div id="share-card-capture-target" className="mb-4">
+            <ShareCard
+              stats={data.stats}
+              userName={data.userName}
+              dayData={data.dayData}
+              goals={data.goals}
+              isDarkMode={data.isDarkMode}
+              disableAnimations={true}
+            />
+          </div>
+
+          {/* Botões */}
+          <div className="flex gap-3 mt-2 mb-2 shrink-0 download-button-wrapper"> {/* Adicionado download-button-wrapper */}
+            <button
+              onClick={onDownload}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-600 text-white font-semibold shadow hover:bg-red-700 transition-all"
+            >
+              <Download size={16} /> Baixar PDF
+            </button>
+            <button
+              onClick={onClose}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 font-semibold hover:bg-zinc-300 dark:hover:bg-zinc-700 transition-all"
+            >
+              <X size={16} /> Fechar
+            </button>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
 };
 
 function Dashboard({ user, isDarkMode, toggleTheme }) {
@@ -46,172 +148,53 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [forceOpenVisual, setForceOpenVisual] = useState(false);
 
-  // --- ESTADOS DO TOUR ---
+  const [sharePreviewData, setSharePreviewData] = useState(null);
+  const [isDownloadAlertVisible, setIsDownloadAlertVisible] = useState(false);
+
+  // --- RESTAURADO: ESTADOS DO TOUR ---
   const [tourState, setTourState] = useState({
     isActive: false,
-    type: 'main' // 'main' ou 'cycle_visual'
+    type: 'main'
   });
 
-  // --- ESTADOS DE DADOS ---
+  // --- RESTAURADO: ESTADOS DE DADOS DA SESSÃO ---
+  const [activeStudySession, setActiveStudySession] = useState(null);
+  const [finishModalData, setFinishModalData] = useState(null);
+
+
+  // --- ESTADOS DE DADOS FIREBASE ---
   const [goalsHistory, setGoalsHistory] = useState([]);
   const [activeCicloId, setActiveCicloId] = useState(null);
   const [activeCicloData, setActiveCicloData] = useState(null);
   const [allRegistrosEstudo, setAllRegistrosEstudo] = useState([]);
   const [activeRegistrosEstudo, setActiveRegistrosEstudo] = useState([]);
-  const [activeStudySession, setActiveStudySession] = useState(null);
-  const [finishModalData, setFinishModalData] = useState(null);
 
-  // --- LÓGICA DO TOUR PRINCIPAL (CORRIGIDA) ---
-  // 1. TOUR PRINCIPAL (Ativado APENAS na primeira vez)
-  useEffect(() => {
-    if (!user) return;
+  // Agrupa os registros do dia atual para passar ao ShareCard
+  const todayStr = dateToYMD(new Date());
 
-    // Removemos a lógica de teste e reativamos a verificação do localStorage
-    const hasSeenMainTour = localStorage.getItem(`onboarding_main_${user.uid}`);
+  const dayToShareData = useMemo(() => {
+    const todayRecords = allRegistrosEstudo.filter(r => r.data === todayStr);
 
-    if (!hasSeenMainTour) {
-        const timer = setTimeout(() => {
-            setTourState({ isActive: true, type: 'main' });
-        }, 1500); // Pequeno delay para garantir que o layout esteja pronto
-
-        return () => clearTimeout(timer);
-    }
-  }, [user]);
-
-  // 2. TOUR DO CICLO (Ativado APENAS na aba 'ciclos' se for o primeiro acesso)
-  useEffect(() => {
-    if (activeCicloId && user) {
-        // Se a aba 'ciclos' for aberta e o ciclo ativo existir:
-        if (activeTab === 'ciclos') {
-             const hasSeenCycleTour = localStorage.getItem(`onboarding_cycle_${user.uid}`);
-
-             if (!hasSeenCycleTour) {
-                 // Pequeno atraso para dar tempo de renderizar o CicloVisual
-                 const timer = setTimeout(() => setTourState({ isActive: true, type: 'cycle_visual' }), 1000);
-                 return () => clearTimeout(timer);
-             }
-        }
-    }
-  }, [activeCicloId, activeTab, user]);
-
-  const handleTourFinish = () => {
-    // Reativamos a persistência no localStorage
-    if (user) {
-        if (tourState.type === 'main') {
-            localStorage.setItem(`onboarding_main_${user.uid}`, 'true');
-        } else if (tourState.type === 'cycle_visual') {
-            localStorage.setItem(`onboarding_cycle_${user.uid}`, 'true');
-        }
-    }
-    setTourState({ ...tourState, isActive: false });
-  };
-
-  // Resize Listener
-  useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth >= 1024) setIsMobileOpen(false);
+    return {
+      dayHours: todayRecords.filter(r => (Number(r.tempoEstudadoMinutos) || Number(r.duracaoMinutos)) > 0),
+      dayQuestions: todayRecords.filter(r => (Number(r.questoesFeitas) || 0) > 0),
     };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  }, [allRegistrosEstudo, todayStr]);
 
-  // 1. Busca Ciclo Ativo
-  useEffect(() => {
-    if (!user) return;
-    const ciclosRef = collection(db, 'users', user.uid, 'ciclos');
-    const q = query(ciclosRef, where('ativo', '==', true), where('arquivado', '==', false));
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      if (snapshot.empty) {
-        setActiveCicloId(null);
-        setActiveCicloData(null);
-      } else {
-        const cicloDoc = snapshot.docs[0];
-        setActiveCicloId(cicloDoc.id);
-        setActiveCicloData({ id: cicloDoc.id, ...cicloDoc.data() });
-      }
-    }, (error) => {
-      console.error("Erro ao buscar ciclo ativo:", error);
-    });
-
-    return () => unsubscribe();
-  }, [user]);
-
-  // 2. Busca Todos os Registros (Lógica de data ajustada para fuso horário)
-  useEffect(() => {
-    if (!user) return;
-    setLoading(true);
-    const q = query(collection(db, 'users', user.uid, 'registrosEstudo'), orderBy('timestamp', 'desc'));
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const todosRegistros = snapshot.docs.map(doc => {
-        const data = doc.data();
-        let dataStr = data.data; // O novo modal já salva a data como string YYYY-MM-DD aqui.
-
-        // Lógica de compatibilidade para registros antigos onde 'data' era um Timestamp
-        if (data.data && typeof data.data.toDate === 'function') {
-           // Se for um Timestamp, converte para Date local.
-           // Usa a função local `dateToYMD` para formatar (que deve respeitar o fuso local)
-           dataStr = dateToYMD(data.data.toDate());
-        }
-
-        // Se a data ainda estiver ausente, tenta o campo timestamp (último recurso)
-        if (!dataStr && data.timestamp && typeof data.timestamp.toDate === 'function') {
-             dataStr = dateToYMD(data.timestamp.toDate());
-        }
-
-        return {
-          id: doc.id,
-          ...data,
-          tempoEstudadoMinutos: Number(data.tempoEstudadoMinutos || 0),
-          questoesFeitas: Number(data.questoesFeitas || 0),
-          acertos: Number(data.acertos || 0),
-          data: dataStr, // Usa a string YYYY-MM-DD local
-        };
-      });
-      setAllRegistrosEstudo(todosRegistros);
-      setLoading(false);
-    });
-    return () => unsubscribe();
-  }, [user]);
-
-  // 3. Filtra registros do ciclo ativo
-  useEffect(() => {
-    if (loading) return;
-    if (!activeCicloId) {
-      setActiveRegistrosEstudo([]);
-    } else {
-      setActiveRegistrosEstudo(allRegistrosEstudo.filter(r => r.cicloId === activeCicloId));
-    }
-  }, [activeCicloId, allRegistrosEstudo, loading]);
-
-  // 4. Busca Metas
-  useEffect(() => {
-    if (!user) return;
-    const q = query(collection(db, 'users', user.uid, 'metas'), orderBy('startDate', 'desc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => setGoalsHistory(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
-    return () => unsubscribe();
-  }, [user]);
-
-  // --- FUNÇÕES DE AÇÃO ---
+  // --- FUNÇÕES DE AÇÃO RESTAURADAS ---
 
   const addRegistroEstudo = async (data) => {
     try {
       const collectionRef = collection(db, 'users', user.uid, 'registrosEstudo');
-      await addDoc(collectionRef, {
-        ...data,
-        timestamp: Timestamp.now()
-      });
+      await addDoc(collectionRef, { ...data, timestamp: Timestamp.now() });
     } catch (e) {
       console.error('Erro ao adicionar registro:', e);
     }
   };
 
   const handleStartStudy = (disciplina) => {
-    setActiveStudySession({
-        disciplina,
-        isMinimized: false
-    });
+    setActiveStudySession({ disciplina, isMinimized: false });
   };
 
   const handleStopStudyRequest = (minutes) => {
@@ -220,10 +203,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         alert("Nenhum ciclo ativo encontrado. Ative um ciclo antes de salvar.");
         return;
     }
-    setFinishModalData({
-      minutes,
-      disciplinaNome: activeStudySession.disciplina.nome
-    });
+    setFinishModalData({ minutes, disciplinaNome: activeStudySession.disciplina.nome });
   };
 
   const handleConfirmFinishStudy = async (questionsResult) => {
@@ -250,12 +230,6 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     }
   };
 
-  const handleCancelStudy = () => {
-
-          setActiveStudySession(null);
-
-  };
-
   const handleConfirmCancelStudy = () => {
       setActiveStudySession(null);
   };
@@ -273,39 +247,20 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     await addDoc(collection(db, 'users', user.uid, 'metas'), newGoal);
   };
 
-  // Função de Logout (reintroduzida)
-  const handleLogout = () => {
-    signOut(auth).catch((error) => console.error('Logout Error:', error));
-  };
-
-  /**
-   * Função para lidar com a criação ou reativação de um ciclo.
-   * Redireciona para a aba 'ciclos' e força a visualização do radar.
-   * Não precisa definir o activeCicloId, pois o listener do Firestore o fará.
-   * @param {string} cicloId O ID do ciclo criado/ativado (Opcional, usado apenas para garantir o acionamento)
-   */
   const handleCicloCreationOrActivation = (cicloId) => {
-     // 1. Navega para a aba 'ciclos'
      setActiveTab('ciclos');
-
-     // 2. Força a abertura da visualização do ciclo (radar)
      setForceOpenVisual(true);
-
-     // 3. Reseta o flag após um curto período
      setTimeout(() => setForceOpenVisual(false), 1000);
   };
 
   const handleGoToActiveCycle = () => {
     if (activeCicloId) {
-      // Se já tem um ciclo ativo, usa o handler de navegação (que força a visualização)
       handleCicloCreationOrActivation(activeCicloId);
     } else {
-      // Se não tem ciclo, apenas navega para a lista de ciclos
       setActiveTab('ciclos');
     }
   };
 
-  // Função centralizada para troca de abas
   const handleTabChange = (tab) => {
     setActiveTab(tab);
     if (tab !== 'ciclos') {
@@ -313,25 +268,148 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     }
   };
 
+  const handleLogout = () => {
+    signOut(auth).catch((error) => console.error('Logout Error:', error));
+  };
+
+  // --- DOWNLOAD PDF (desativa animações) ---
+  const showDownloadSuccess = () => {
+    setIsDownloadAlertVisible(true);
+    const timer = setTimeout(() => setIsDownloadAlertVisible(false), 3500);
+    return () => clearTimeout(timer);
+  };
+
+  const handleDownloadPDF = async () => {
+    const element = document.getElementById('share-card-capture-target');
+    if (!element) return alert('Erro ao capturar cartão.');
+
+    // Remove o botão de download dentro do modal de preview para não aparecer no PDF
+    const buttonWrapper = document.querySelector('.download-button-wrapper');
+    if (buttonWrapper) buttonWrapper.style.display = 'none';
+
+    try {
+      // Usar a mesma lógica de cálculo de alta escala e conversão para MM
+      const targetWidthPx = 340; // Tamanho fixo do ShareCard
+      const targetHeightPx = element.offsetHeight;
+      const scaleFactor = 4.0;
+
+      const canvas = await html2canvas(element, {
+        scale: scaleFactor,
+        useCORS: true,
+        backgroundColor: sharePreviewData.isDarkMode ? '#18181b' : '#ffffff'
+      });
+
+      const pxToMm = 0.264583;
+      const pdfWidthMm = targetWidthPx * pxToMm;
+      const pdfHeightMm = targetHeightPx * pxToMm;
+
+      const imgData = canvas.toDataURL('image/jpeg', 1.0);
+
+      const pdf = new jsPDF({
+          orientation: 'p',
+          unit: 'mm',
+          format: [pdfWidthMm, pdfHeightMm]
+      });
+
+      pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidthMm, pdfHeightMm);
+      pdf.save(`Progresso_${dateToYMD(new Date())}.pdf`);
+
+      setSharePreviewData(null); // Fecha o modal após o download
+      showDownloadSuccess();
+
+    } catch (e) {
+      console.error('Erro ao gerar PDF:', e);
+      alert('Falha ao gerar PDF.');
+    } finally {
+      // RESTAURA o botão de download, caso ele não tenha sido fechado
+      if (buttonWrapper) buttonWrapper.style.display = 'flex';
+    }
+  };
+
+
+  // --- Abrir preview ---
+  const handleShareGoal = (stats) => {
+    const previewData = {
+      stats: stats,
+      userName: user.displayName || 'Estudante',
+      dayData: dayToShareData,
+      goals: goalsHistory[0] || { questions: 0, hours: 0 },
+      isDarkMode: isDarkMode
+    };
+    setSharePreviewData(previewData);
+  };
+
+  // --- Firebase e Ciclos (restante inalterado) ---
+  useEffect(() => {
+    if (!user) return;
+    const ciclosRef = collection(db, 'users', user.uid, 'ciclos');
+    const q = query(ciclosRef, where('ativo', '==', true), where('arquivado', '==', false));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      if (snapshot.empty) {
+        setActiveCicloId(null);
+        setActiveCicloData(null);
+      } else {
+        const cicloDoc = snapshot.docs[0];
+        setActiveCicloId(cicloDoc.id);
+        setActiveCicloData({ id: cicloDoc.id, ...cicloDoc.data() });
+      }
+    });
+    return () => unsubscribe();
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    setLoading(true);
+    const q = query(collection(db, 'users', user.uid, 'registrosEstudo'), orderBy('timestamp', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const registros = snapshot.docs.map(doc => {
+        const data = doc.data();
+        let dataStr = data.data;
+        if (data.data && typeof data.data.toDate === 'function') dataStr = dateToYMD(data.data.toDate());
+        if (!dataStr && data.timestamp && typeof data.timestamp.toDate === 'function')
+          dataStr = dateToYMD(data.timestamp.toDate());
+        return { id: doc.id, ...data, data: dataStr, tempoEstudadoMinutos: data.tempoEstudadoMinutos, questoesFeitas: data.questoesFeitas, acertos: data.acertos };
+      });
+      setAllRegistrosEstudo(registros);
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, [user]);
+
+  useEffect(() => {
+    if (loading) return;
+    if (!activeCicloId) setActiveRegistrosEstudo([]);
+    else setActiveRegistrosEstudo(allRegistrosEstudo.filter(r => r.cicloId === activeCicloId));
+  }, [activeCicloId, allRegistrosEstudo, loading]);
+
+  useEffect(() => {
+    if (!user) return;
+    const q = query(collection(db, 'users', user.uid, 'metas'), orderBy('startDate', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) =>
+      setGoalsHistory(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })))
+    );
+    return () => unsubscribe();
+  }, [user]);
+
+  // --- Render Tabs ---
   const renderTabContent = () => {
     if (loading && ['home', 'calendar'].includes(activeTab)) {
       return (
         <div className="flex justify-center items-center h-64">
-           <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-accent mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-accent mx-auto mb-4"></div>
         </div>
       );
     }
-
     switch (activeTab) {
       case 'home':
         return (
-            <Home
-                registrosEstudo={activeRegistrosEstudo}
-                goalsHistory={goalsHistory}
-                setActiveTab={handleGoToActiveCycle}
-                activeCicloData={activeCicloData}
-                onDeleteRegistro={deleteRegistro}
-            />
+          <Home
+            registrosEstudo={activeRegistrosEstudo}
+            goalsHistory={goalsHistory}
+            setActiveTab={handleGoToActiveCycle}
+            activeCicloData={activeCicloData}
+            onDeleteRegistro={deleteRegistro}
+          />
         );
       case 'goals':
         return (
@@ -344,36 +422,84 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       case 'calendar':
         return <CalendarTab registrosEstudo={allRegistrosEstudo} goalsHistory={goalsHistory} onDeleteRegistro={deleteRegistro} />;
       case 'ciclos':
-        // A lógica dentro de CiclosPage que decide se exibe a lista ou a visualização
-        // deve ser baseada em activeCicloId e forceOpenVisual
         return (
-            <CiclosPage
-                user={user}
-                onStartStudy={handleStartStudy}
-                onCicloAtivado={handleCicloCreationOrActivation} // Passamos o handler para ser chamado APÓS a criação/ativação
-                addRegistroEstudo={addRegistroEstudo}
-                activeCicloId={activeCicloId}
-                forceOpenVisual={forceOpenVisual}
-            />
+          <CiclosPage
+            user={user}
+            onStartStudy={handleStartStudy}
+            onCicloAtivado={handleCicloCreationOrActivation}
+            addRegistroEstudo={addRegistroEstudo}
+            activeCicloId={activeCicloId}
+            forceOpenVisual={forceOpenVisual}
+          />
         );
       case 'profile':
         return <ProfilePage user={user} allRegistrosEstudo={allRegistrosEstudo} onDeleteRegistro={deleteRegistro} />;
       default:
-        return <Home registrosEstudo={activeRegistrosEstudo} goalsHistory={goalsHistory} setActiveTab={handleGoToActiveCycle} onDeleteRegistro={deleteRegistro} />;
+        return null;
     }
   };
+
 
   return (
     <div className="flex min-h-screen bg-background-light dark:bg-background-dark text-text-primary dark:text-text-dark-primary transition-colors duration-300 overflow-x-hidden">
 
-      {/* --- TOUR INTERATIVO --- */}
+      <DownloadAlert isVisible={isDownloadAlertVisible} onDismiss={() => setIsDownloadAlertVisible(false)} />
+
+      <ShareCardPreviewModal
+        data={sharePreviewData}
+        onClose={() => setSharePreviewData(null)}
+        onDownload={handleDownloadPDF}
+      />
+
+      {/* --- Elemento Invisível para Captura (Fora da tela) --- */}
+      {/* Renderiza o ShareCard na opacidade zero para captura do PDF */}
+      {sharePreviewData && (
+          <div className="fixed top-0 left-0 -translate-x-full z-[-1000] opacity-0">
+             <ShareCard
+                 stats={sharePreviewData.stats}
+                 userName={user.displayName || 'Estudante'}
+                 dayData={sharePreviewData.dayData}
+                 goals={sharePreviewData.goals}
+                 isDarkMode={sharePreviewData.isDarkMode}
+             />
+          </div>
+      )}
+      {/* -------------------------------------------------- */}
+
+      <NavSideBar
+        user={user}
+        activeTab={activeTab}
+        setActiveTab={handleTabChange}
+        handleLogout={handleLogout}
+        isExpanded={isSidebarExpanded}
+        setExpanded={setIsSidebarExpanded}
+        isMobileOpen={isMobileOpen}
+        setMobileOpen={setIsMobileOpen}
+      />
+
+      <div className={`flex-grow w-full transition-all duration-300 pt-[80px] px-4 md:px-8 lg:pt-8 pb-10 ${isSidebarExpanded ? 'lg:ml-[260px]' : 'lg:ml-[80px]'}`}>
+
+        <Header
+          user={user}
+          activeTab={activeTab}
+          isDarkMode={isDarkMode}
+          toggleTheme={toggleTheme}
+          registrosEstudo={allRegistrosEstudo}
+          goalsHistory={goalsHistory}
+          activeCicloId={activeCicloId}
+          onShareGoal={handleShareGoal}
+        />
+        <main className="mt-6 max-w-7xl mx-auto animate-fade-in">{renderTabContent()}</main>
+      </div>
+
+      {/* --- RESTAURADO: TOUR INTERATIVO, TIMER, MODAIS --- */}
       <OnboardingTour
          isActive={tourState.isActive}
          tourType={tourState.type}
          activeTab={activeTab}
          setActiveTab={handleTabChange}
-         onClose={handleTourFinish}
-         onFinish={handleTourFinish}
+         onClose={() => setTourState({ isActive: false, type: 'main' })}
+         onFinish={() => setTourState({ isActive: false, type: 'main' })}
       />
 
       {activeStudySession && (
@@ -396,36 +522,11 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         />
       )}
 
-      <NavSideBar
-        user={user}
-        activeTab={activeTab}
-        setActiveTab={handleTabChange}
-        handleLogout={handleLogout}
-        isExpanded={isSidebarExpanded}
-        setExpanded={setIsSidebarExpanded}
-        isMobileOpen={isMobileOpen}
-        setMobileOpen={setIsMobileOpen}
-      />
-
-      <div className={`flex-grow w-full transition-all duration-300 ease-in-out pt-[80px] px-4 md:px-8 lg:pt-8 pb-10 ${isSidebarExpanded ? 'lg:ml-[260px]' : 'lg:ml-[80px]'}`}>
-
-        <Header
-            user={user}
-            activeTab={activeTab}
-            isDarkMode={isDarkMode}
-            toggleTheme={toggleTheme}
-            registrosEstudo={allRegistrosEstudo}
-            goalsHistory={goalsHistory}
-            activeCicloId={activeCicloId}
-        />
-
-        <main className="mt-6 max-w-7xl mx-auto animate-fade-in">
-          {renderTabContent()}
-        </main>
-      </div>
-
       {isMobileOpen && (
-        <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden transition-opacity duration-300" onClick={() => setIsMobileOpen(false)} />
+        <div
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden"
+          onClick={() => setIsMobileOpen(false)}
+        />
       )}
     </div>
   );
