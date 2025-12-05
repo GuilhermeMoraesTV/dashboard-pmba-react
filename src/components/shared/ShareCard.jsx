@@ -7,7 +7,7 @@ import {
   BookOpen, BrainCircuit, Sparkles, Activity
 } from 'lucide-react';
 
-const MASCOTE_URL = "/soldado.png";
+
 
 // --- Helpers ---
 const formatTime = (minutes) => {
@@ -267,7 +267,7 @@ function ShareCard({ stats, userName, dayData, goals, isDarkMode }) {
                         {formattedDate}
                     </p>
                     <h1 className="text-lg font-black uppercase tracking-widest mt-0.5" style={{ color: primaryTextColor }}>
-                        Progresso de {firstName}
+                        Relatório Diario de {firstName}
                     </h1>
                 </div>
 
@@ -334,10 +334,7 @@ function ShareCard({ stats, userName, dayData, goals, isDarkMode }) {
                     </div>
                 )}
 
-                {/* Footer Final */}
-                <div className="mt-4 text-center text-xs font-medium pt-3 border-t" style={{ borderColor: isDarkMode ? '#3f3f46' : '#d4d4d8', color: primaryTextColor }}>
-                    #FardaCerta Sua disciplina é a chave para a aprovação!
-                </div>
+
             </div>
         </div>
     );

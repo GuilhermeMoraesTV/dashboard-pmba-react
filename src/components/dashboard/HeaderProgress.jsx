@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
-import { Clock, Target, Trophy, ChevronDown, CheckCircle2, Activity, Flame, Medal, HelpCircle, Share2 } from 'lucide-react';
+import { Trophy, ChevronDown, Activity, Flame, Medal } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // --- UTILITÁRIOS E CONSTANTES ---
@@ -154,7 +154,7 @@ function HeaderProgress({ registrosEstudo, goalsHistory, activeCicloId, onTrigge
             label: 'Sem atividade',
         },
         working: {
-            icon: Clock,
+            icon: Activity, // Alterado de Clock para Activity
             colorClass: 'text-blue-500',
             barClass: 'bg-blue-500',
             glowColor: 'shadow-blue-500/50',
@@ -251,7 +251,7 @@ function HeaderProgress({ registrosEstudo, goalsHistory, activeCicloId, onTrigge
                 <div className="relative flex items-center gap-1 pr-2 sm:gap-3 sm:pr-3 border-r border-white/10 shrink-0">
                     <StatusBadge Icon={StatusIcon} percent={stats.overallProgress} />
                     {stats.hasActivity && stats.state !== 'complete' && (
-                        <div className={`absolute top-0.5 right-1 w-2 h-2 rounded-full ${currentConfig.colorClass.replace('text-', 'bg-')} animate-ping-slow`}></div>
+                        <div className="absolute top-0.5 right-1 w-2 h-2 rounded-full ${currentConfig.colorClass.replace('text-', 'bg-')} animate-ping-slow"></div>
                     )}
                 </div>
 
@@ -282,34 +282,10 @@ function HeaderProgress({ registrosEstudo, goalsHistory, activeCicloId, onTrigge
                     </div>
                 </div>
 
-                {/* 3. Status Icons Condensados (Clock e Target) - Mais Compacto */}
-                <div className="flex items-center gap-0.5 pl-1 sm:gap-1.5 sm:pl-3 border-l border-white/10 ml-1 shrink-0">
-                    {/* Horas (Clock) - Azul se em andamento / VERDE se isCompleteH */}
-                    <StatusBadge
-                        Icon={Clock}
-                        percent={percH}
-                        isTimeIcon={true}
-                    />
-                    {/* Questões (Target) - Azul se em andamento / VERDE se isCompleteQ */}
-                    <StatusBadge
-                        Icon={Target}
-                        percent={percQ}
-                        isQuestionIcon={true}
-                    />
-                </div>
-
+                {/* 3. Status Icons Condensados (REMOVIDO) */}
                 {/* 4. Ação */}
                 <div className="flex items-center gap-0.5 pl-1 sm:pl-3 border-l border-white/10 shrink-0">
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            if (onTriggerGuide) onTriggerGuide();
-                        }}
-                        className="text-zinc-500 hover:text-blue-500 transition-colors p-1"
-                        title="Ver guia do progresso"
-                    >
-                        <HelpCircle size={14} className="sm:w-4 sm:h-4" /> {/* Ícone menor */}
-                    </button>
+                    {/* Botão de Ajuda/Guia REMOVIDO */}
                     <ChevronDown size={14} className={`text-zinc-500 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''} sm:w-4 sm:h-4`} />
                 </div>
             </motion.div>
@@ -323,9 +299,9 @@ function HeaderProgress({ registrosEstudo, goalsHistory, activeCicloId, onTrigge
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 10, scale: 0.98 }}
                         className="absolute top-full right-0 mt-3 w-72 sm:w-[380px] p-5
-                                 bg-zinc-800/80 backdrop-blur-md
-                                 border border-white/5 rounded-2xl shadow-2xl
-                                 ring-1 ring-white/5 z-40 text-white"
+                                     bg-zinc-800/80 backdrop-blur-md
+                                     border border-white/5 rounded-2xl shadow-2xl
+                                     ring-1 ring-white/5 z-40 text-white"
                     >
                         {showCelebration ? (
                             <div className="flex flex-col items-center justify-center py-8 bg-emerald-900/10 rounded-xl">
@@ -335,20 +311,11 @@ function HeaderProgress({ registrosEstudo, goalsHistory, activeCicloId, onTrigge
                             </div>
                         ) : (
                             <div className="space-y-4">
-                                {/* Títulos e Status + BOTÃO DE COMPARTILHAR */}
+                                {/* Títulos e Status + BOTÃO DE COMPARTILHAR (REMOVIDO) */}
                                 <div className='flex justify-between items-center border-b border-zinc-700 pb-3'>
                                     <h3 className='text-lg font-black'>Progresso Diário</h3>
                                     <div className="flex items-center gap-2">
-                                        {/* Botão de Compartilhamento - Visível apenas se houver atividade */}
-                                        {hasActivity && (
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); onShareGoal(stats); }}
-                                                className="p-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 transition-colors text-zinc-300"
-                                                title="Compartilhar Meta"
-                                            >
-                                                <Share2 size={16} />
-                                            </button>
-                                        )}
+                                        {/* Botão de Compartilhamento REMOVIDO */}
                                         <span className={`text-sm font-bold ${currentConfig.colorClass}`}>{currentConfig.label}</span>
                                     </div>
                                 </div>
