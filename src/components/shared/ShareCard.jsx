@@ -1,13 +1,9 @@
 import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import {
-  Trophy, Clock, Target, Calendar, PieChart, Medal, TrendingUp, AlertCircle, CheckCircle2,
-  BookOpen, BrainCircuit, Sparkles, Activity
+  Trophy, Clock, Target, Calendar, Medal, TrendingUp
 } from 'lucide-react';
 
-
-
-// --- Helpers ---
 const formatTime = (minutes) => {
   if (!minutes || minutes === 0) return '0m';
   const h = Math.floor(minutes / 60);
@@ -16,13 +12,12 @@ const formatTime = (minutes) => {
   return `${m}m`;
 };
 
-// --- Cores para o gráfico ---
 const CHART_COLORS = [
   '#ef4444', '#f59e0b', '#3b82f6', '#10b981',
   '#8b5cf6', '#ec4899', '#6366f1', '#71717a'
 ];
 
-// --- Donut Chart (Correção Definitiva de Truncamento) ---
+// --- Donut Chart CORRIGIDO para exibir detalhes ---
 const DonutChart = ({ data, totalMinutes, isDarkMode }) => {
   const radius = 35;
   const circumference = 2 * Math.PI * radius;
@@ -69,14 +64,23 @@ const DonutChart = ({ data, totalMinutes, isDarkMode }) => {
            <span className="text-sm font-bold leading-tight">{formatTime(totalMinutes)}</span>
         </div>
       </div>
-      <div className="flex-1 w-full grid grid-cols-1 gap-y-1.5">
+      <div className="flex-1 w-full grid grid-cols-1 gap-y-2">
         {segments.map((seg, i) => (
           <div key={i} className="flex items-start justify-between text-sm">
             <div className="flex items-start gap-2 flex-1 min-w-0">
-              <span className="w-3 h-3 rounded-full shrink-0 mt-0.5" style={{ backgroundColor: seg.color }}></span>
-              <span className="font-medium text-xs break-words flex-1 min-w-0" style={{ color: textColor }}>{seg.name}</span>
+              <span className="w-3 h-3 rounded-full shrink-0 mt-1" style={{ backgroundColor: seg.color }}></span>
+
+              {/* CORREÇÃO 4: Exibindo horas e questões detalhadas */}
+              <div className="flex flex-col min-w-0">
+                  <span className="font-medium text-xs break-words" style={{ color: textColor }}>{seg.name}</span>
+                  <span className="text-[10px]" style={{ color: zincColor }}>
+                     {formatTime(seg.minutes)}
+                     {seg.questions > 0 && ` • ${seg.questions} qst`}
+                  </span>
+              </div>
+
             </div>
-            <span className="text-xs font-medium whitespace-nowrap shrink-0" style={{ color: zincColor }}>{Math.round(seg.percentTime)}%</span>
+            <span className="text-xs font-medium whitespace-nowrap shrink-0 mt-0.5" style={{ color: zincColor }}>{Math.round(seg.percentTime)}%</span>
           </div>
         ))}
       </div>
@@ -84,7 +88,6 @@ const DonutChart = ({ data, totalMinutes, isDarkMode }) => {
   );
 };
 
-// --- Barra de Meta (Adaptada para Captura Estática) ---
 const GoalProgress = ({ label, currentMinutes, targetMinutes, icon: Icon, colorClass, isTime = false, isDarkMode }) => {
   const percentage = Math.min((currentMinutes / targetMinutes) * 100, 100);
   const isMet = currentMinutes >= targetMinutes;
@@ -99,7 +102,6 @@ const GoalProgress = ({ label, currentMinutes, targetMinutes, icon: Icon, colorC
     <div className="space-y-1.5">
       <div className="flex justify-between items-end text-sm">
         <div className="flex items-center gap-2 font-semibold text-xs" style={{ color: textColor }}>
-          {/* Cor do ícone ajustada: se atingida, usa a cor de sucesso; senão, cinza */}
           <Icon size={14} className={isMet ? colorClass : (isDarkMode ? 'text-zinc-400' : 'text-zinc-500')} />
           <span>{label}</span>
         </div>
@@ -121,8 +123,6 @@ const GoalProgress = ({ label, currentMinutes, targetMinutes, icon: Icon, colorC
   );
 };
 
-
-// --- ShareCard (Refletindo estilo do DayDetailsModal) ---
 function ShareCard({ stats, userName, dayData, goals, isDarkMode }) {
 
     const firstName = userName.split(' ')[0];
@@ -144,16 +144,12 @@ function ShareCard({ stats, userName, dayData, goals, isDarkMode }) {
         const dayHours = dayData?.dayHours || [];
         const dayQuestions = dayData?.dayQuestions || [];
 
-        // ***** CORREÇÃO DO BUG 1: DEDUPLICAÇÃO DE REGISTROS *****
         const uniqueRecordsMap = new Map();
 
-        // Combina e garante que cada registro seja processado apenas uma vez, usando o ID como chave.
         [...dayHours, ...dayQuestions].forEach(r => {
-            // Utilizamos r.id, que deve ser o ID do documento do Firebase e, portanto, único.
             if (r.id) {
                  uniqueRecordsMap.set(r.id, r);
             } else {
-                 // Fallback seguro, se o ID estiver faltando.
                  uniqueRecordsMap.set(JSON.stringify(r), r);
             }
         });
@@ -165,7 +161,6 @@ function ShareCard({ stats, userName, dayData, goals, isDarkMode }) {
         let totalAcertos = 0;
         const breakdown = {};
 
-        // Processa o array deduplicado
         recordsToProcess.forEach(r => {
             const min = Number(r.tempoEstudadoMinutos || 0);
             const qst = Number(r.questoesFeitas || 0);
@@ -176,10 +171,11 @@ function ShareCard({ stats, userName, dayData, goals, isDarkMode }) {
             totalAcertos += acrt;
 
             const disc = r.disciplinaNome || 'Geral';
-            if (!breakdown[disc]) breakdown[disc] = { name: disc, minutes: 0 };
+            // CORREÇÃO 4: Inicializa com questions: 0
+            if (!breakdown[disc]) breakdown[disc] = { name: disc, minutes: 0, questions: 0 };
             breakdown[disc].minutes += min;
+            breakdown[disc].questions += qst; // Soma as questões
         });
-        // ***************** FIM DA CORREÇÃO 1 *****************
 
         const accuracy = totalQst > 0 ? (totalAcertos / totalQst) * 100 : 0;
         const breakdownArray = Object.values(breakdown);
@@ -191,7 +187,6 @@ function ShareCard({ stats, userName, dayData, goals, isDarkMode }) {
         };
     }, [dayData]);
 
-    // A lógica de metaStatus estava correta, mas recebia dados duplicados.
     const metaStatus = useMemo(() => {
         const hoursGoalMinutes = (goals.hours || 0) * 60;
         const questionsGoal = (goals.questions || 0);
@@ -227,12 +222,11 @@ function ShareCard({ stats, userName, dayData, goals, isDarkMode }) {
         };
     }, [goals, dayStats]);
 
-    // --- Configuração de Cores/Temas ---
     const currentCardStyle = {
-        success: { color: '#10b981', secondary: isDarkMode ? '#1e3a2d' : '#ecfdf5', iconBg: isDarkMode ? '#059669' : '#a7f3d0' }, // Emerald
-        partial: { color: '#f59e0b', secondary: isDarkMode ? '#4a3605' : '#fff7ed', iconBg: isDarkMode ? '#d97706' : '#fed7aa' }, // Amber
-        fail: { color: '#ef4444', secondary: isDarkMode ? '#451616' : '#fef2f2', iconBg: isDarkMode ? '#b91c1c' : '#fecaca' }, // Red
-        neutral: { color: '#3b82f6', secondary: isDarkMode ? '#172554' : '#eff6ff', iconBg: isDarkMode ? '#2563eb' : '#bfdbfe' } // Blue
+        success: { color: '#10b981', secondary: isDarkMode ? '#1e3a2d' : '#ecfdf5', iconBg: isDarkMode ? '#059669' : '#a7f3d0' },
+        partial: { color: '#f59e0b', secondary: isDarkMode ? '#4a3605' : '#fff7ed', iconBg: isDarkMode ? '#d97706' : '#fed7aa' },
+        fail: { color: '#ef4444', secondary: isDarkMode ? '#451616' : '#fef2f2', iconBg: isDarkMode ? '#b91c1c' : '#fecaca' },
+        neutral: { color: '#3b82f6', secondary: isDarkMode ? '#172554' : '#eff6ff', iconBg: isDarkMode ? '#2563eb' : '#bfdbfe' }
     }[metaStatus.verdict];
 
     const backgroundColor = isDarkMode ? '#18181b' : '#ffffff';
@@ -243,11 +237,8 @@ function ShareCard({ stats, userName, dayData, goals, isDarkMode }) {
     const targetHoursMinutes = (goals.hours || 0) * 60;
     const targetQuestions = (goals.questions || 0);
 
-    // Configuração da cor do Mascote/Watermark
     const watermarkColor = isDarkMode ? '#ffffff' : '#18181b';
     const calendarOpacity = '0.20';
-    const soldierOpacity = '0.35'; // AUMENTO DE OPACIDADE PARA SER VISÍVEL
-    const soldierFilter = isDarkMode ? 'brightness(0.9)' : 'grayscale(100%) opacity(0.5)'; // FILTRO LIGHT MODE AJUSTADO
 
 
     return (
@@ -261,15 +252,12 @@ function ShareCard({ stats, userName, dayData, goals, isDarkMode }) {
                 color: primaryTextColor
             }}
         >
-            {/* --- Mascote (Soldado) Watermark --- */}
-            {/* Ícone de Marca D'água (CALENDÁRIO) */}
             <div className="absolute top-[-25px] right-[-25px] rotate-12 pointer-events-none" style={{ color: watermarkColor, opacity: calendarOpacity }}>
                 <Calendar size={150} />
             </div>
-            
+
             <div className="relative z-10 space-y-3">
 
-                {/* === TOP HEADER E DATA === */}
                 <div className="text-center">
                      <p className="text-xs font-bold uppercase tracking-widest text-zinc-500">
                         {formattedDate}
@@ -279,7 +267,6 @@ function ShareCard({ stats, userName, dayData, goals, isDarkMode }) {
                     </h1>
                 </div>
 
-                {/* === VEREDITO & PROGRESSO CENTRAL === */}
                 <div className="p-3 rounded-xl border shadow-sm" style={{ backgroundColor: currentCardStyle.secondary, borderColor: currentCardStyle.color }}>
                     <div className="flex items-center gap-4 relative z-10">
                         <div className="p-2 rounded-full shrink-0" style={{ backgroundColor: currentCardStyle.iconBg, color: currentCardStyle.color }}>
@@ -296,8 +283,6 @@ function ShareCard({ stats, userName, dayData, goals, isDarkMode }) {
                     </div>
                 </div>
 
-
-                {/* === METAS BATIDAS (Goal Progress Bars) === */}
                 {metaStatus.hasGoals && (
                     <div className="space-y-3 p-3 rounded-xl border" style={{ backgroundColor: secondaryBgColor, borderColor: isDarkMode ? '#3f3f46' : '#e4e4e7' }}>
                         <p className="text-xs font-bold uppercase tracking-widest text-zinc-500 mb-2">METAS DIÁRIAS</p>
@@ -308,7 +293,7 @@ function ShareCard({ stats, userName, dayData, goals, isDarkMode }) {
                             icon={Clock}
                             currentMinutes={dayStats.totalMinutos}
                             targetMinutes={targetHoursMinutes}
-                            colorClass={metaStatus.hoursMet ? "text-emerald-500" : "text-blue-500"} // CORREÇÃO HORAS: Verde se batida, Azul se em andamento
+                            colorClass={metaStatus.hoursMet ? "text-emerald-500" : "text-blue-500"}
                             isTime={true}
                             isDarkMode={isDarkMode}
                           />
@@ -319,7 +304,7 @@ function ShareCard({ stats, userName, dayData, goals, isDarkMode }) {
                             icon={Target}
                             currentMinutes={dayStats.totalQst}
                             targetMinutes={targetQuestions}
-                            colorClass={metaStatus.questionsMet ? "text-emerald-500" : "text-blue-500"} // CORREÇÃO QUESTÕES: Verde se batida, Azul se em andamento
+                            colorClass={metaStatus.questionsMet ? "text-emerald-500" : "text-blue-500"}
                             isTime={false}
                             isDarkMode={isDarkMode}
                           />
@@ -333,15 +318,12 @@ function ShareCard({ stats, userName, dayData, goals, isDarkMode }) {
                     </div>
                 )}
 
-
-                {/* === DETALHES DE DISCIPLINAS (Donut Chart) === */}
                 {dayStats.totalMinutos > 0 && (
                     <div className="space-y-3 p-3 rounded-xl border" style={{ backgroundColor: secondaryBgColor, borderColor: isDarkMode ? '#3f3f46' : '#e4e4e7' }}>
                         <p className="text-xs font-bold uppercase tracking-widest text-zinc-500">DISTRIBUIÇÃO POR MATÉRIA</p>
                         <DonutChart data={disciplinaBreakdown} totalMinutes={dayStats.totalMinutos} isDarkMode={isDarkMode} />
                     </div>
                 )}
-
 
             </div>
         </div>

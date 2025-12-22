@@ -1,5 +1,3 @@
-// hooks/useCiclos.js (APENAS as funções criarCiclo e excluirCicloPermanente foram alteradas/adicionadas)
-
 import { useState } from 'react';
 import { db } from '../firebaseConfig';
 import {
@@ -11,12 +9,10 @@ import {
   where,
   getDocs,
   updateDoc,
-  deleteDoc, // ADICIONADO
-  getDoc,
-  collectionGroup
+  deleteDoc,
+  getDoc
 } from 'firebase/firestore';
 
-// --- NOVO MAPA DE PESOS BASEADO NO RATING NUMÉRICO ---
 const RATING_PESO_MAP = {
   0: 6,
   1: 5,
@@ -25,7 +21,6 @@ const RATING_PESO_MAP = {
   4: 2,
   5: 1,
 };
-
 
 const calcularDistribuicao = (disciplinas, cargaHorariaTotalMinutos) => {
   let totalPesos = 0;
@@ -64,7 +59,6 @@ export const useCiclos = (user) => {
     });
   };
 
-  // 1. FUNÇÃO criarCiclo
   const criarCiclo = async (cicloData) => {
     if (!user) {
       setError("Usuário não autenticado");
@@ -207,10 +201,11 @@ export const useCiclos = (user) => {
 
       for (const disciplina of disciplinasComTempo) {
         let disciplinaRef;
-
         const tempoAlocadoNumerico = Number(disciplina.tempoAlocadoMinutos || 0);
 
-        if (disciplina.id) {
+        // CORREÇÃO 2: Verificamos se o ID é uma string temporária (criada no front)
+        // Se for temp, tratamos como criação nova.
+        if (disciplina.id && !String(disciplina.id).startsWith('temp-')) {
           disciplinaRef = doc(db, 'users', user.uid, 'ciclos', cicloId, 'disciplinas', disciplina.id);
           batch.update(disciplinaRef, {
             nome: disciplina.nome,
@@ -219,12 +214,14 @@ export const useCiclos = (user) => {
           });
           disciplinasEditadasIds.add(disciplina.id);
         } else {
+          // Cria nova disciplina se não tiver ID ou for temp
           disciplinaRef = doc(collection(db, 'users', user.uid, 'ciclos', cicloId, 'disciplinas'));
           batch.set(disciplinaRef, {
             nome: disciplina.nome,
             nivelProficiencia: disciplina.nivel || disciplina.nivelProficiencia || 0,
             tempoAlocadoSemanalMinutos: tempoAlocadoNumerico,
           });
+          // Atualiza o ID local para usar nas dependencias (topicos)
           disciplina.id = disciplinaRef.id;
         }
 
@@ -277,7 +274,6 @@ export const useCiclos = (user) => {
     }
   };
 
-  // 3. FUNÇÃO concluirCicloSemanal (Lógica de Reset)
   const concluirCicloSemanal = async (cicloId) => {
       if (!user) {
           setError("Usuário não autenticado");
@@ -325,7 +321,6 @@ export const useCiclos = (user) => {
       }
     };
 
-  // 4. NOVA FUNÇÃO: excluirCicloPermanente
   const excluirCicloPermanente = async (cicloId) => {
     if (!user) {
       setError("Usuário não autenticado");
@@ -337,24 +332,18 @@ export const useCiclos = (user) => {
       const batch = writeBatch(db);
       const cicloRef = doc(db, 'users', user.uid, 'ciclos', cicloId);
 
-      // A. Excluir Disciplinas
       const disciplinasRef = collection(db, 'users', user.uid, 'ciclos', cicloId, 'disciplinas');
       const disciplinasSnapshot = await getDocs(disciplinasRef);
       disciplinasSnapshot.docs.forEach(doc => {
         batch.delete(doc.ref);
       });
 
-      // B. Excluir Tópicos (Assumindo que estão em uma subcoleção do ciclo)
       const topicosRef = collection(db, 'users', user.uid, 'ciclos', cicloId, 'topicos');
       const topicosSnapshot = await getDocs(topicosRef);
       topicosSnapshot.docs.forEach(doc => {
         batch.delete(doc.ref);
       });
 
-      // NOTA: Os registrosEstudo são mantidos com o cicloId, mas o ciclo em si não existe mais.
-      // Se desejar excluir os registros de estudo também, adicione a lógica aqui.
-
-      // C. Excluir Documento Principal do Ciclo
       batch.delete(cicloRef);
 
       await batch.commit();
@@ -375,7 +364,7 @@ export const useCiclos = (user) => {
     arquivarCiclo,
     editarCiclo,
     concluirCicloSemanal,
-    excluirCicloPermanente, // ADICIONADO
+    excluirCicloPermanente,
     loading,
     error
   };

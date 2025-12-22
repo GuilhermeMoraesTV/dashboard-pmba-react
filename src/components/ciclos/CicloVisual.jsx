@@ -386,9 +386,9 @@ function CicloVisual({
                   <div className="flex gap-3">
                     <button
                       onClick={() => onStartStudy(activeDisciplina.disciplina)}
-                      className="flex-1 py-3 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-xl font-bold text-xs uppercase tracking-wide shadow-lg hover:shadow-xl transition-all hover:-translate-y-0.5 flex items-center justify-center gap-2"
+                      className="flex-1 py-3 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-xl font-bold text-xls uppercase tracking-wide shadow-lg hover:shadow-xl transition-all hover:-translate-y-0.5 flex items-center justify-center gap-2"
                     >
-                      <Play size={14} fill="currentColor" /> Iniciar
+                      <Play size={25} fill="currentColor" /> Iniciar Estudo
                     </button>
                     <button
                       onClick={() => onViewDetails(activeDisciplina.disciplina)}

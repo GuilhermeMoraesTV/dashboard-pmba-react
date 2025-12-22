@@ -6,58 +6,55 @@ import { AnimatePresence, motion } from 'framer-motion';
 import CicloVisual from '../components/ciclos/CicloVisual';
 import RegistroEstudoModal from '../components/ciclos/RegistroEstudoModal';
 import DisciplinaDetalheModal from '../components/ciclos/DisciplinaDetalheModal';
-import ModalConclusaoCiclo from '../components/ciclos/ModalConclusaoCiclo'; // Importado
+import ModalConclusaoCiclo from '../components/ciclos/ModalConclusaoCiclo';
 import { useCiclos } from '../hooks/useCiclos';
 
 import {
   ArrowLeft,
   Plus,
-  RefreshCw,
   Trophy,
   Target,
-  AlertTriangle
+  AlertTriangle,
+  CalendarDays,
+  Flag // Ícone para a Meta/Fim
 } from 'lucide-react';
 
-
+// --- FUNÇÕES AUXILIARES DE DATA ---
 const dateToYMD_local = (date) => {
+  if (!date) return '';
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 };
 
-const getStartOfWeek = () => {
-  const now = new Date();
-  const dayOfWeek = now.getDay();
-  const diff = now.getDate() - dayOfWeek;
-  const start = new Date(now.setDate(diff));
-  start.setHours(0, 0, 0, 0);
-  return start;
-};
-
-const dateToYMD = (date) => {
-  return date.toISOString().split('T')[0];
+// Função Robusta para Pegar Data do Firebase
+const getSafeDate = (field) => {
+    if (!field) return null;
+    if (field.toDate && typeof field.toDate === 'function') {
+        return field.toDate();
+    }
+    if (field instanceof Date) {
+        return field;
+    }
+    const d = new Date(field);
+    if (!isNaN(d.getTime())) {
+        return d;
+    }
+    return null;
 };
 
 const formatVisualNumber = (minutes) => {
   if (!minutes || isNaN(minutes)) return '0h';
-
   let totalMinutes = Math.round(Number(minutes));
-
   const remainder = totalMinutes % 60;
   if (remainder > 50) {
     totalMinutes = Math.ceil(totalMinutes / 60) * 60;
   }
-
   const hours = Math.floor(totalMinutes / 60);
   const mins = totalMinutes % 60;
-
-  if (hours === 0) {
-      return `${mins}m`;
-  } else if (mins === 0) {
-      return `${hours}h`;
-  }
-
+  if (hours === 0) return `${mins}m`;
+  else if (mins === 0) return `${hours}h`;
   return `${hours}h ${mins}m`;
 };
 
@@ -70,7 +67,6 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
   const [loading, setLoading] = useState(true);
   const [showRegistroModal, setShowRegistroModal] = useState(false);
   const [registroPreenchido, setRegistroPreenchido] = useState(null);
-  const [viewModeCiclo, setViewModeCiclo] = useState('semanal');
 
   const [disciplinaEmDetalhe, setDisciplinaEmDetalhe] = useState(null);
   const [selectedDisciplinaId, setSelectedDisciplinaId] = useState(null);
@@ -83,19 +79,21 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
   const [disciplinasLoaded, setDisciplinasLoaded] = useState(false);
   const [registrosLoaded, setRegistrosLoaded] = useState(false);
 
-  // --- EFEITO 1: CARREGAR CICLO (Doc principal) ---
+  // --- EFEITO 1: CARREGAR CICLO ---
   useEffect(() => {
      if (!user || !cicloId) return;
      const cicloRef = doc(db, 'users', user.uid, 'ciclos', cicloId);
      const unsubscribe = onSnapshot(cicloRef, (doc) => {
        if (doc.exists()) {
            const data = doc.data();
+           const rawDate = getSafeDate(data.ultimaConclusao) || getSafeDate(data.dataCriacao) || new Date();
+
            setCiclo({
                id: doc.id,
                ...data,
-               // Garantir que a carga horária e conclusoes sejam números ou 0
                cargaHorariaSemanalTotal: Number(data.cargaHorariaSemanalTotal || 0),
-               conclusoes: Number(data.conclusoes || 0)
+               conclusoes: Number(data.conclusoes || 0),
+               dataInicioAtual: rawDate
            });
            setCicloLoaded(true);
        } else {
@@ -106,7 +104,7 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
      return () => unsubscribe();
   }, [user, cicloId]);
 
-  // --- EFEITO 2: CARREGAR DISCIPLINAS (Subcoleção) ---
+  // --- EFEITO 2: CARREGAR DISCIPLINAS ---
   useEffect(() => {
     if (!user || !cicloId) return;
     const disciplinasRef = collection(db, 'users', user.uid, 'ciclos', cicloId, 'disciplinas');
@@ -118,22 +116,25 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
     return () => unsubscribe();
   }, [user, cicloId]);
 
-  // --- EFEITO 3: CARREGAR REGISTROS DE ESTUDO (Global) ---
+  // --- EFEITO 3: CARREGAR REGISTROS ---
   useEffect(() => {
      if (!user) return;
      const q = query(collection(db, 'users', user.uid, 'registrosEstudo'), orderBy('timestamp', 'desc'));
      const unsubscribe = onSnapshot(q, (snapshot) => {
         const todosRegistros = snapshot.docs.map(doc => {
             const data = doc.data();
+            const rawRegDate = getSafeDate(data.data);
+            const rawTimestamp = getSafeDate(data.timestamp);
+
             return {
                 id: doc.id,
                 ...data,
                 tempoEstudadoMinutos: Number(data.tempoEstudadoMinutos || data.duracaoMinutos || 0),
                 questoesFeitas: Number(data.questoesFeitas || 0),
                 acertos: Number(data.acertos || data.questoesAcertadas || 0),
-                data: typeof data.data === 'string' ? data.data : (data.data?.toDate ? dateToYMD_local(data.data.toDate()) : dateToYMD_local(new Date())),
+                data: rawRegDate ? dateToYMD_local(rawRegDate) : (data.data || dateToYMD_local(new Date())),
                 tipoEstudo: data.tipoEstudo || 'Teoria',
-                timestamp: data.timestamp?.toDate ? data.timestamp.toDate() : new Date(0),
+                timestamp: rawTimestamp || new Date(0),
                 conclusaoId: data.conclusaoId || null,
             };
         });
@@ -143,54 +144,30 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
      return () => unsubscribe();
   }, [user]);
 
-  // --- EFEITO DE COORDENAÇÃO: Finaliza o Loading ---
   useEffect(() => {
       if (cicloLoaded && disciplinasLoaded && registrosLoaded) {
           setLoading(false);
       }
   }, [cicloLoaded, disciplinasLoaded, registrosLoaded]);
 
-  // --- FILTRO DE REGISTROS ATIVOS (Exclui os que já foram concluídos/resetados) ---
+  // --- LÓGICA DE FILTROS ---
   const registrosAtivosDoCiclo = useMemo(() => {
       if (!allRegistrosEstudo.length) return [];
       return allRegistrosEstudo.filter(reg => reg.cicloId === cicloId && !reg.conclusaoId);
   }, [allRegistrosEstudo, cicloId]);
 
-  // O `registrosDoCiclo` (USADO NO MODAL DE DETALHES) mostra TUDO
-  const registrosDoCiclo = useMemo(() => {
-    if (!allRegistrosEstudo.length) return [];
-    return allRegistrosEstudo.filter(reg => reg.cicloId === cicloId);
-  }, [allRegistrosEstudo, cicloId]);
-
-  // --- BLOCO: Filtro de Registros pelo Período Ativo (Semanal ou Total) ---
   const registrosDoPeriodo = useMemo(() => {
-    if (!disciplinas.length) return [];
-
-    if (viewModeCiclo === 'total') {
       return registrosAtivosDoCiclo;
-    }
-
-    // Filtro Semanal (usando registros ativos)
-    const startOfWeek = getStartOfWeek();
-    const startOfWeekStr = dateToYMD(startOfWeek);
-
-    return registrosAtivosDoCiclo.filter(reg => {
-      return reg.data >= startOfWeekStr;
-    });
-
-  }, [registrosAtivosDoCiclo, viewModeCiclo, disciplinas]);
-  // FIM DO BLOCO DE FILTRO
+  }, [registrosAtivosDoCiclo]);
 
 
-  // Cálculo do progresso geral (Meta calculada a partir das disciplinas)
+  // Cálculo do progresso
   const { totalEstudado, totalMeta, progressoGeral, registrosPorDisciplina } = useMemo(() => {
     if (!disciplinas.length) return { totalEstudado: 0, totalMeta: 0, progressoGeral: 0, registrosPorDisciplina: {} };
 
-    // Meta é a soma de tempoAlocadoSemanalMinutos de TODAS as disciplinas
     const totalMetaRaw = disciplinas.reduce((acc, d) => acc + Number(d.tempoAlocadoSemanalMinutos || 0), 0);
     const totalMetaCalc = Math.round(totalMetaRaw);
 
-    // 1. Calcular total estudado E registrar por disciplina
     const registrosPorDisciplina = {};
     let totalEstudadoCalc = 0;
 
@@ -205,22 +182,18 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
     });
 
     totalEstudadoCalc = Math.round(totalEstudadoCalc);
-
     const progresso = totalMetaCalc > 0 ? (totalEstudadoCalc / totalMetaCalc) * 100 : 0;
 
     return { totalEstudado: totalEstudadoCalc, totalMeta: totalMetaCalc, progressoGeral: progresso, registrosPorDisciplina };
   }, [disciplinas, registrosDoPeriodo]);
 
-  // ***** INÍCIO DA CORREÇÃO (NOVA LÓGICA DE VERIFICAÇÃO INDIVIDUAL) *****
-  const isAllDisciplinesMet = useMemo(() => {
-      // Usa optional chaining para evitar crash se ciclo for null
-      if (!ciclo?.ativo) return false;
-      if (viewModeCiclo !== 'semanal') return false;
 
+  // Verificação de Metas
+  const isAllDisciplinesMet = useMemo(() => {
+      if (!ciclo?.ativo) return false;
       if (disciplinas.length === 0) return false;
       if (totalMeta === 0) return false;
 
-      // Itera sobre as disciplinas para verificar o progresso individual
       const allMet = disciplinas.every(disciplina => {
           const metaMinutos = Number(disciplina.tempoAlocadoSemanalMinutos || 0);
           const estudadoMinutos = registrosPorDisciplina[disciplina.id] || 0;
@@ -232,17 +205,12 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
       });
 
       return allMet;
-  }, [disciplinas, registrosPorDisciplina, ciclo?.ativo, totalMeta, viewModeCiclo]);
+  }, [disciplinas, registrosPorDisciplina, ciclo?.ativo, totalMeta]);
 
-  // A condição final para mostrar o botão de conclusão
-  // CORREÇÃO APLICADA AQUI: Usando optional chaining em `ciclo`
   const canConcludeCiclo = ciclo?.ativo && progressoGeral >= 100 && isAllDisciplinesMet;
 
-  // ***** FIM DA CORREÇÃO (NOVA LÓGICA DE VERIFICAÇÃO INDIVIDUAL) *****
 
-  // --- HANDLER DE CONCLUSÃO ---
   const handleConcluirCiclo = async () => {
-    // Garante que a verificação final é feita antes de confirmar
     if (!canConcludeCiclo) {
          alert("Não é possível concluir. As metas individuais de todas as disciplinas não foram atingidas.");
          return;
@@ -250,11 +218,10 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
     if (cicloActionLoading) return;
 
     setShowConclusaoModal(false);
-
     const sucesso = await concluirCicloSemanal(cicloId);
 
     if (sucesso) {
-        onBack(); // Volta para a lista
+        onBack();
     } else if (cicloActionError) {
         alert(`Erro ao concluir: ${cicloActionError}`);
     }
@@ -288,10 +255,29 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
 
   const showEmptyMessage = !disciplinas.length;
 
+  // --- CÁLCULO DAS DATAS (INÍCIO E META) ---
+  let formattedStartDate = '...';
+  let formattedEndDate = '...';
+
+  if (ciclo.dataInicioAtual) {
+      // Formata data de Início
+      const startDay = ciclo.dataInicioAtual.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+      const startWeekDay = ciclo.dataInicioAtual.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '');
+      formattedStartDate = `${startWeekDay}, ${startDay}`;
+
+      // Calcula e formata data Meta (+7 dias)
+      const endDate = new Date(ciclo.dataInicioAtual);
+      endDate.setDate(endDate.getDate() + 7);
+
+      const endDay = endDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+      const endWeekDay = endDate.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '');
+      formattedEndDate = `${endWeekDay}, ${endDay}`;
+  }
+
+
   return (
     <div className="relative flex flex-col h-full animate-fade-in">
 
-      {/* --- CABEÇALHO TÁTICO COMPLETO --- */}
       <div className="mb-4">
           <div className="flex items-center justify-between mb-4">
               <button
@@ -302,68 +288,75 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
               </button>
 
               <div className="flex items-center gap-3">
-                  {/* BOTÃO DE CONCLUSÃO CONDICIONAL */}
                   {ciclo.ativo && canConcludeCiclo && (
                       <button
                           onClick={() => setShowConclusaoModal(true)}
                           disabled={cicloActionLoading}
-                          className="flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 text-white text-xs font-bold uppercase tracking-wide rounded-xl shadow-md hover:bg-emerald-700 transition-colors"
+                          className="flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 text-white text-xs font-bold uppercase tracking-wide rounded-xl shadow-md hover:bg-emerald-700 transition-colors animate-pulse"
                       >
-                          <Trophy size={16} /> Concluir Ciclo ({ciclo.conclusoes}x)
+                          <Trophy size={16} /> Concluir Missão ({ciclo.conclusoes}x)
                       </button>
                   )}
 
-                  {/* ALERTA DE META INDIVIDUAL FALTANDO */}
-                  {ciclo.ativo && progressoGeral >= 100 && !isAllDisciplinesMet && viewModeCiclo === 'semanal' && (
+                  {ciclo.ativo && progressoGeral >= 100 && !isAllDisciplinesMet && (
                      <div className="flex items-center gap-2 px-4 py-2 bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400 text-xs font-bold uppercase tracking-wide rounded-xl shadow-md border border-red-300 dark:border-red-700">
-                         <AlertTriangle size={16} /> Todas Disciplinas precisam ser concluidas!
+                         <AlertTriangle size={16} /> Complete todas as matérias!
                      </div>
                   )}
-
-                  <button
-                      onClick={() => setViewModeCiclo(prev => prev === 'semanal' ? 'total' : 'semanal')}
-                      className="flex items-center justify-center gap-2 px-4 py-2 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-xs font-bold uppercase tracking-wide rounded-xl hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
-                  >
-                      <RefreshCw size={16} />
-                      {viewModeCiclo === 'semanal' ? 'Visão Semanal' : 'Visão Total'}
-                  </button>
               </div>
           </div>
 
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-zinc-50 dark:bg-zinc-900 px-6 py-2 rounded-2xl border border-zinc-300 dark:border-zinc-800 shadow-sm">
-
-              {/* Lado Esquerdo: Nome e Status */}
               <div className="flex-1">
-                  <div className="flex items-center gap-3">
-                      <h1 className="text-3xl font-black text-zinc-900 dark:text-white uppercase tracking-tight">
-                          {ciclo.nome}
-                      </h1>
-                      {ciclo.ativo ? (
-                          <span className="flex h-3 w-3 relative">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
-                          </span>
-                      ) : (
-                          <span className="px-2 py-0.5 rounded bg-zinc-200 dark:bg-zinc-800 text-[10px] font-bold text-zinc-500 uppercase">Arquivado</span>
-                      )}
+                  <div className="flex flex-col gap-1.5">
+                      <div className="flex items-center gap-3">
+                          <h1 className="text-3xl font-black text-zinc-900 dark:text-white uppercase tracking-tight">
+                              {ciclo.nome}
+                          </h1>
+                          {ciclo.ativo ? (
+                              <span className="flex h-3 w-3 relative">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                              </span>
+                          ) : (
+                              <span className="px-2 py-0.5 rounded bg-zinc-200 dark:bg-zinc-800 text-[10px] font-bold text-zinc-500 uppercase">Arquivado</span>
+                          )}
+                      </div>
+
+                      {/* --- NOVO VISUAL: DATAS (INÍCIO E META) --- */}
+                      <div className="flex items-center gap-4">
+                          {/* Data Início */}
+                          <div className="flex items-center gap-1.5 text-zinc-400">
+                              <CalendarDays size={12} />
+                              <p className="text-[10px] font-bold uppercase tracking-wide">
+                                  Início: <span className="text-zinc-600 dark:text-zinc-300">{formattedStartDate}</span>
+                              </p>
+                          </div>
+
+                          {/* Data Meta (Fim Previsto) */}
+                          <div className="flex items-center gap-1.5 text-zinc-400">
+                              <Flag size={12} />
+                              <p className="text-[10px] font-bold uppercase tracking-wide">
+                                  Meta: <span className="text-zinc-600 dark:text-zinc-300">{formattedEndDate}</span>
+                              </p>
+                          </div>
+                      </div>
+
                   </div>
               </div>
 
-              {/* Lado Direito: Estatísticas e Progresso */}
               <div className="flex items-center gap-6">
-                  {/* Meta Semanal/Total */}
                   <div className="text-center">
                       <p className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-1">
-                          Meta {viewModeCiclo === 'semanal' ? 'Semanal' : 'Total'}
+                          Meta do Ciclo
                       </p>
                       <p className="text-2xl font-black text-zinc-800 dark:text-white font-mono">
-                          {formatVisualNumber(totalMeta)} {/* <-- Usa a meta CALCULADA */}
+                          {formatVisualNumber(totalMeta)}
                       </p>
                   </div>
 
                   <div className="w-px h-12 bg-zinc-200 dark:bg-zinc-700"></div>
 
-                  {/* Realizado */}
                   <div className="text-center">
                       <p className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-1">
                           Realizado
@@ -375,7 +368,6 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
 
                   <div className="w-px h-12 bg-zinc-200 dark:bg-zinc-700"></div>
 
-                  {/* Círculo de Progresso */}
                   <div className="relative">
                       <svg className="w-28 h-28 -rotate-90" viewBox="0 0 80 80">
                           <circle
@@ -412,7 +404,6 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
           </div>
       </div>
 
-      {/* --- RENDERIZAÇÃO CONDICIONAL DO CICLO VISUAL --- */}
       {showEmptyMessage ? (
         <div className="flex flex-col items-center justify-center py-20 text-center bg-zinc-50 dark:bg-zinc-900/50 rounded-3xl border-2 border-dashed border-zinc-200 dark:border-zinc-800 mt-8">
             <Target size={48} className="text-zinc-300 mb-4" />
@@ -428,19 +419,15 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
                   onStartStudy={handleStartStudy}
                   disciplinas={disciplinas.map(d => ({
                       ...d,
-                      // Passa o progresso de cada disciplina para o CicloVisual
                       progressoEstudadoMinutos: registrosPorDisciplina[d.id] || 0
                   }))}
                   registrosEstudo={registrosDoPeriodo}
-                  viewMode={viewModeCiclo}
+                  viewMode={'total'}
                   ciclo={ciclo}
-                  key={viewModeCiclo}
               />
           </div>
       )}
 
-
-      {/* Botão Flutuante */}
       {ciclo.ativo && (
           <motion.button
               onClick={() => setShowRegistroModal(true)}
@@ -455,7 +442,6 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
           </motion.button>
       )}
 
-      {/* Modais */}
       <AnimatePresence>
         {showConclusaoModal && (
             <ModalConclusaoCiclo

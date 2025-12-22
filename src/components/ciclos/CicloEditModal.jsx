@@ -6,10 +6,62 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Save, PenTool, Clock, Layers,
   ArrowRight, ArrowLeft, Trash2, Plus,
-  Minus, Grid, Type, Target
+  Minus, Grid, Type, Target, Star, HelpCircle
 } from 'lucide-react';
 
-// --- UTILITÁRIOS VISUAIS & CONVERSÃO ---
+// --- OPÇÕES DE ESTRELA (Idêntico ao Wizard) ---
+const STAR_RATING_OPTIONS = Array.from({ length: 5 }, (_, i) => {
+    const rating = i + 1;
+    // Lógica Inversa: Mais estrelas = Menos peso (Melhor nivel = Menos estudo necessario)
+    const peso = 6 - rating;
+
+    let proficiencyLabel;
+    if (rating === 1) proficiencyLabel = 'Baixíssima (MÁXIMA PRIORIDADE)';
+    else if (rating === 2) proficiencyLabel = 'Baixa (Alta Prioridade)';
+    else if (rating === 3) proficiencyLabel = 'Razoável (Prioridade Padrão)';
+    else if (rating === 4) proficiencyLabel = 'Boa (Baixa Prioridade)';
+    else proficiencyLabel = 'Alta (MÍNIMA PRIORIDADE)';
+
+    return { rating, peso, proficiencyLabel };
+});
+
+// --- DADOS DO TOOLTIP (Idêntico ao Wizard) ---
+const getTooltipData = (currentRating) => {
+    const data = [
+        {
+            rating: 0,
+            peso: 6,
+            proficiencyLabel: 'Não Avaliado/Inicial',
+        },
+        ...STAR_RATING_OPTIONS
+    ];
+
+    return data.map(item => {
+        const barWidth = (item.peso / 6) * 100;
+        const barColor = item.peso >= 5 ? 'bg-red-600' :
+                         item.peso === 4 ? 'bg-amber-500' :
+                         item.peso === 3 ? 'bg-yellow-400' :
+                         item.peso === 2 ? 'bg-emerald-500' :
+                         'bg-green-600';
+
+        let allocationText;
+        if (item.peso === 6) allocationText = '**MÁXIMA**';
+        else if (item.peso === 5) allocationText = '**MUITO ALTA**';
+        else if (item.peso === 4) allocationText = '**ALTA**';
+        else if (item.peso === 3) allocationText = '**BALANCEADA**';
+        else if (item.peso === 2) allocationText = '**BAIXA**';
+        else allocationText = '**MÍNIMA**';
+
+        return {
+            ...item,
+            barWidth,
+            barColor,
+            allocationText,
+            isActive: currentRating === item.rating
+        };
+    });
+};
+
 const toRad = (deg) => (deg * Math.PI) / 180;
 
 const createArc = (start, end, r) => {
@@ -24,19 +76,16 @@ const createArc = (start, end, r) => {
   return ["M", x1, y1, "A", r, r, 0, largeArcFlag, 1, x2, y2].join(" ");
 };
 
+// Conversão auxiliar
 const nivelToPeso = (nivel) => {
-  if (nivel === 'Avançado') return 3;
-  if (nivel === 'Medio') return 2;
-  return 1;
+    if (nivel === 'Avançado') return 1;
+    if (nivel === 'Medio') return 2;
+    if (nivel === 'Iniciante') return 3;
+    if (typeof nivel === 'number') return 6 - nivel;
+    return 3;
 };
 
-const pesoToNivel = (peso) => {
-  if (peso === 3) return 'Avançado';
-  if (peso === 2) return 'Medio';
-  return 'Iniciante';
-};
-
-// --- SUB-COMPONENTE: GRADE INTERATIVA (CALCULADORA) ---
+// --- SUB-COMPONENTE: GRADE ---
 const ScheduleGrid = ({ availability, setAvailability, onUpdateTotal }) => {
   const days = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
   const hours = Array.from({ length: 24 }, (_, i) => i);
@@ -83,7 +132,7 @@ const ScheduleGrid = ({ availability, setAvailability, onUpdateTotal }) => {
   );
 };
 
-// --- SUB-COMPONENTE: PREVIEW TÁTICO ---
+// --- SUB-COMPONENTE: PREVIEW ---
 const CyclePreview = ({ disciplinas, totalHours }) => {
   const data = useMemo(() => {
     if (!disciplinas.length) return [];
@@ -117,28 +166,26 @@ const CyclePreview = ({ disciplinas, totalHours }) => {
   );
 };
 
-// --- COMPONENTE PRINCIPAL ---
 function CicloEditModal({ onClose, user, ciclo }) {
-  // Estados de Controle
   const [etapa, setEtapa] = useState(1);
   const [loadingData, setLoadingData] = useState(true);
 
-  // Estados de Dados
   const [nome, setNome] = useState('');
 
-  // Controle de Horas (Híbrido Manual/Grade)
   const [metodoCargaHoraria, setMetodoCargaHoraria] = useState('manual');
   const [cargaHorariaManual, setCargaHorariaManual] = useState(0);
   const [availabilityGrid, setAvailabilityGrid] = useState({});
 
-  // Disciplinas
   const [disciplinas, setDisciplinas] = useState([]);
   const [nomeNovaDisciplina, setNomeNovaDisciplina] = useState('');
-  const [pesoNovaDisciplina, setPesoNovaDisciplina] = useState(1);
+  const [ratingNovaDisciplina, setRatingNovaDisciplina] = useState(1);
 
   const { editarCiclo, loading } = useCiclos(user);
 
-  // --- CARREGAMENTO INICIAL ---
+  // --- Efeito para calcular o tooltip baseado na seleção atual ---
+  const tooltipData = useMemo(() => getTooltipData(ratingNovaDisciplina), [ratingNovaDisciplina]);
+
+  // Carregar dados
   useEffect(() => {
     if (!user || !ciclo) return;
     const carregarDados = async () => {
@@ -149,11 +196,22 @@ function CicloEditModal({ onClose, user, ciclo }) {
 
         const disciplinasRef = collection(db, 'users', user.uid, 'ciclos', ciclo.id, 'disciplinas');
         const snap = await getDocs(disciplinasRef);
-        const data = snap.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data(),
-            peso: doc.data().peso || nivelToPeso(doc.data().nivel || doc.data().nivelProficiencia)
-        }));
+        const data = snap.docs.map(doc => {
+            const d = doc.data();
+            let pesoCalc = d.peso;
+            if(!pesoCalc) {
+                const n = d.nivel || d.nivelProficiencia;
+                pesoCalc = nivelToPeso(n);
+            }
+            const ratingCalc = 6 - pesoCalc;
+
+            return {
+                id: doc.id,
+                ...d,
+                peso: pesoCalc,
+                nivel: ratingCalc
+            };
+        });
         setDisciplinas(data);
       } catch (err) {
         console.error(err);
@@ -164,33 +222,35 @@ function CicloEditModal({ onClose, user, ciclo }) {
     carregarDados();
   }, [user, ciclo]);
 
-  // Cálculo de Total de Horas
   const horasTotais = useMemo(() => {
     if (metodoCargaHoraria === 'manual') return parseFloat(cargaHorariaManual) || 0;
     return Object.keys(availabilityGrid).length;
   }, [metodoCargaHoraria, cargaHorariaManual, availabilityGrid]);
 
-  // Handler Grade
-  const handleUpdateTotalFromGrid = (total) => {
-      // O grid atualiza o visual, mas o valor real de horasTotais vem do length da grid
-  };
+  const handleUpdateTotalFromGrid = (total) => {};
 
-  // Manipulação de Disciplinas
   const handleAddDisciplina = (e) => {
     e.preventDefault();
     if (!nomeNovaDisciplina.trim()) return;
+
+    const pesoCalc = 6 - ratingNovaDisciplina;
+
     setDisciplinas([...disciplinas, {
         id: `temp-${Date.now()}`,
         nome: nomeNovaDisciplina.trim(),
-        peso: pesoNovaDisciplina
+        peso: pesoCalc,
+        nivel: ratingNovaDisciplina
     }]);
     setNomeNovaDisciplina('');
-    setPesoNovaDisciplina(1);
+    setRatingNovaDisciplina(1);
   };
 
   const handleUpdateDisciplina = (index, field, value) => {
     const updated = [...disciplinas];
     updated[index][field] = value;
+    if (field === 'nivel') {
+        updated[index]['peso'] = 6 - value;
+    }
     setDisciplinas(updated);
   };
 
@@ -200,7 +260,6 @@ function CicloEditModal({ onClose, user, ciclo }) {
     setDisciplinas(updated);
   };
 
-  // Salvar
   const handleSave = async () => {
     if (disciplinas.length === 0 || horasTotais <= 0) {
       alert("Verifique os dados.");
@@ -212,13 +271,41 @@ function CicloEditModal({ onClose, user, ciclo }) {
       disciplinas: disciplinas.map(d => ({
         ...d,
         peso: d.peso,
-        nivel: pesoToNivel(d.peso),
-        // Recalcular meta de horas baseado na nova carga horaria total
+        nivel: d.nivel,
         tempoAlocadoSemanalMinutos: (d.peso / disciplinas.reduce((acc, curr) => acc + curr.peso, 0)) * horasTotais * 60
       })),
     };
     if (await editarCiclo(ciclo.id, cicloData)) onClose();
   };
+
+  // --- COMPONENTE INTERNO CORRIGIDO (Visual igual ao de Adição) ---
+  const StarSelectorInline = ({ currentRating, onChange }) => (
+      <div className="flex bg-zinc-50 dark:bg-zinc-800 p-1 rounded-xl border border-zinc-200 dark:border-zinc-700 space-x-0.5">
+          {STAR_RATING_OPTIONS.map(item => (
+              <button
+                  key={item.rating}
+                  type="button"
+                  onClick={() => onChange(item.rating)}
+                  className={`p-1.5 transition-colors duration-200 rounded-lg ${
+                      currentRating === item.rating
+                        ? 'bg-red-600/10 dark:bg-red-700/20'
+                        : 'hover:bg-zinc-200 dark:hover:bg-zinc-700'
+                  }`}
+              >
+                  <Star
+                    size={14}
+                    fill="currentColor"
+                    strokeWidth={0}
+                    className={`${
+                        currentRating >= item.rating
+                            ? 'text-yellow-500'
+                            : 'text-zinc-300 dark:text-zinc-600'
+                    }`}
+                  />
+              </button>
+          ))}
+      </div>
+  );
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
@@ -264,7 +351,6 @@ function CicloEditModal({ onClose, user, ciclo }) {
           {!loadingData && (
              <AnimatePresence mode="wait">
 
-                {/* ETAPA 1: NOME */}
                 {etapa === 1 && (
                   <motion.div key="step1" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="flex flex-col gap-6 items-center justify-center min-h-[300px]">
                      <div className="w-full max-w-md text-center">
@@ -274,7 +360,6 @@ function CicloEditModal({ onClose, user, ciclo }) {
                   </motion.div>
                 )}
 
-                {/* ETAPA 2: HORAS */}
                 {etapa === 2 && (
                    <motion.div key="step2" initial={{opacity:0, x:20}} animate={{opacity:1, x:0}} exit={{opacity:0, x:-20}} className="flex flex-col h-full">
                        <div className="flex justify-center mb-6">
@@ -303,20 +388,63 @@ function CicloEditModal({ onClose, user, ciclo }) {
                    </motion.div>
                 )}
 
-                {/* ETAPA 3: DISCIPLINAS */}
                 {etapa === 3 && (
                   <motion.div key="step3" initial={{opacity:0, x:20}} animate={{opacity:1, x:0}} exit={{opacity:0, x:-20}} className="flex flex-col lg:flex-row gap-6 h-full">
-                      {/* Lista Editável */}
                       <div className="flex-1 flex flex-col gap-4">
-                          <div className="bg-zinc-50 dark:bg-zinc-900/50 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm flex-shrink-0">
-                              <form onSubmit={handleAddDisciplina} className="flex gap-2">
-                                 <input type="text" value={nomeNovaDisciplina} onChange={(e) => setNomeNovaDisciplina(e.target.value)} placeholder="Nova disciplina..." className="flex-1 p-2 font-bold rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 focus:outline-none focus:ring-2 focus:ring-red-500 text-sm" />
-                                 <div className="flex bg-white dark:bg-zinc-900 p-1 rounded-lg border border-zinc-200 dark:border-zinc-700">
-                                    {[1,2,3].map(v => (
-                                        <button key={v} type="button" onClick={() => setPesoNovaDisciplina(v)} className={`px-2 rounded text-xs font-black transition-all ${pesoNovaDisciplina === v ? 'bg-zinc-800 text-white' : 'text-zinc-400'}`}>{v}</button>
-                                    ))}
+                          {/* FORMULÁRIO DE ADIÇÃO (Estilo Wizard) */}
+                          <div className="bg-white dark:bg-zinc-900 p-3 sm:p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm flex-shrink-0">
+                              <form onSubmit={handleAddDisciplina} className="flex flex-col gap-3">
+                                 <input type="text" value={nomeNovaDisciplina} onChange={(e) => setNomeNovaDisciplina(e.target.value)} placeholder="Nova disciplina..." className="w-full p-3 font-bold rounded-xl bg-zinc-50 dark:bg-zinc-800 text-zinc-900 dark:text-white border border-zinc-200 dark:border-zinc-700 focus:outline-none focus:ring-2 focus:ring-red-500 text-sm" />
+
+                                 {/* SELETOR COM TOOLTIP IGUAL AO WIZARD */}
+                                 <div className="flex items-center gap-3">
+                                    <div className="flex flex-col gap-1">
+                                        <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300 flex items-center gap-1.5">
+                                            Nível de Proficiência
+                                            {/* Tooltip */}
+                                            <span className="group relative cursor-pointer text-zinc-400 hover:text-red-500">
+                                                <HelpCircle size={14} />
+                                                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-72 p-3 bg-zinc-800 text-white text-xs rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-50">
+                                                    <p className="font-bold mb-1">Impacto na Alocação de Tempo:</p>
+                                                    <ul className="list-none space-y-2 p-1">
+                                                        {tooltipData.map(item => (
+                                                            <li key={item.rating} className={`p-1 rounded transition-colors ${item.isActive ? 'bg-zinc-700 text-yellow-300' : ''}`}>
+                                                                <div className="flex justify-between items-center mb-1">
+                                                                    <div className="font-bold flex items-center gap-1">
+                                                                        {item.rating} Estrela{item.rating !== 1 && 's'}
+                                                                        <span className="text-[10px] font-normal text-zinc-400"> (Peso {item.peso})</span>
+                                                                    </div>
+                                                                    <div className={`text-xs font-semibold ${item.peso >= 5 ? 'text-red-400' : 'text-emerald-400'}`}>
+                                                                        {item.allocationText.replace(/\*\*/g, '')}
+                                                                    </div>
+                                                                </div>
+                                                                <div className="w-full h-2 rounded-full bg-zinc-600 overflow-hidden">
+                                                                    <div style={{ width: `${item.barWidth}%` }} className={`h-full ${item.barColor}`}></div>
+                                                                </div>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                            </span>
+                                        </label>
+
+                                        {/* Componente Visual de Seleção */}
+                                        <div className="flex bg-zinc-50 dark:bg-zinc-800 p-1 rounded-xl border border-zinc-200 dark:border-zinc-700 space-x-0.5 w-fit">
+                                            {STAR_RATING_OPTIONS.map(item => (
+                                                <button
+                                                    key={item.rating}
+                                                    type="button"
+                                                    onClick={() => setRatingNovaDisciplina(item.rating)}
+                                                    className={`p-1.5 transition-colors duration-200 rounded-lg ${ratingNovaDisciplina === item.rating ? 'bg-red-600/10 dark:bg-red-700/20' : 'hover:bg-zinc-200 dark:hover:bg-zinc-700'}`}
+                                                >
+                                                    <Star size={16} fill="currentColor" strokeWidth={0} className={`${ratingNovaDisciplina >= item.rating ? 'text-yellow-500' : 'text-zinc-300 dark:text-zinc-600'}`} />
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <button type="submit" className="w-12 h-12 mt-auto bg-red-600 text-white rounded-xl hover:bg-red-700 shadow-lg shadow-red-600/20 flex items-center justify-center shrink-0"><Plus size={20}/></button>
                                  </div>
-                                 <button type="submit" className="px-3 bg-red-600 text-white rounded-lg hover:bg-red-700"><Plus size={18}/></button>
                               </form>
                           </div>
 
@@ -330,16 +458,13 @@ function CicloEditModal({ onClose, user, ciclo }) {
                                             onChange={(e) => handleUpdateDisciplina(index, 'nome', e.target.value)}
                                             className="w-full bg-transparent font-bold text-zinc-800 dark:text-white border-b border-transparent focus:border-red-500 outline-none text-sm mb-1"
                                           />
-                                          <div className="flex gap-1">
-                                              {[1,2,3].map(v => (
-                                                  <button
-                                                    key={v}
-                                                    onClick={() => handleUpdateDisciplina(index, 'peso', v)}
-                                                    className={`px-1.5 py-0.5 text-[9px] font-bold uppercase rounded border ${d.peso === v ? 'bg-zinc-800 text-white border-zinc-800' : 'text-zinc-400 border-zinc-200 dark:border-zinc-800'}`}
-                                                  >
-                                                      Peso {v}
-                                                  </button>
-                                              ))}
+                                          <div className="flex gap-2 items-center">
+                                              {/* Estrelas Editáveis na Lista - CORRIGIDO PARA VISUAL IGUAL */}
+                                              <StarSelectorInline
+                                                  currentRating={d.nivel}
+                                                  onChange={(val) => handleUpdateDisciplina(index, 'nivel', val)}
+                                              />
+                                              <span className="text-[9px] text-zinc-400 font-mono bg-zinc-100 dark:bg-zinc-800 px-1 rounded">PESO {d.peso}</span>
                                           </div>
                                       </div>
                                       <button onClick={() => handleRemoveDisciplina(index)} className="p-2 text-zinc-300 hover:text-red-500 bg-zinc-50 dark:bg-zinc-800 rounded-lg"><Trash2 size={16}/></button>
@@ -348,7 +473,6 @@ function CicloEditModal({ onClose, user, ciclo }) {
                           </div>
                       </div>
 
-                      {/* Preview */}
                       <div className="w-full lg:w-1/3">
                           <div className="bg-zinc-50 dark:bg-zinc-900/30 rounded-2xl p-4 border border-zinc-200 dark:border-zinc-800 h-full">
                               <CyclePreview disciplinas={disciplinas} totalHours={horasTotais} />
@@ -360,16 +484,13 @@ function CicloEditModal({ onClose, user, ciclo }) {
           )}
         </div>
 
-        {/* FOOTER */}
         <div className="flex-shrink-0 p-4 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 rounded-b-3xl z-20 flex justify-between items-center">
-             {/* Esquerda */}
              {etapa === 1 ? (
                  <button onClick={onClose} className="px-4 py-2 text-sm font-bold text-zinc-400 hover:text-zinc-600">Cancelar</button>
              ) : (
                  <button onClick={() => setEtapa(e => e - 1)} className="px-4 py-2 rounded-xl text-zinc-500 hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors flex items-center gap-2 text-sm font-bold"><ArrowLeft size={16}/> Voltar</button>
              )}
 
-             {/* Centro (Total) */}
              {etapa >= 2 && (
                  <div className="flex flex-col items-center">
                     <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Total</span>
@@ -377,7 +498,6 @@ function CicloEditModal({ onClose, user, ciclo }) {
                  </div>
              )}
 
-             {/* Direita */}
              {etapa < 3 ? (
                  <button onClick={() => setEtapa(e => e + 1)} disabled={etapa===1 && !nome} className="px-6 py-2.5 rounded-xl text-sm font-bold uppercase tracking-wide text-white bg-zinc-900 dark:bg-zinc-100 dark:text-zinc-900 shadow-lg disabled:opacity-50 hover:translate-x-1 transition-all flex items-center gap-2">Avançar <ArrowRight size={16}/></button>
              ) : (
