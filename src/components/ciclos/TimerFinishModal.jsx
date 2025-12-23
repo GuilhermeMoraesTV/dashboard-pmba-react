@@ -8,21 +8,14 @@ function TimerFinishModal({ timeMinutes, disciplinaNome, activeCicloId, userUid,
   const [step, setStep] = useState(1);
   const [hasQuestions, setHasQuestions] = useState(null);
   const [questionsData, setQuestionsData] = useState({ total: 0, correct: 0 });
-
   const [assuntoSelecionado, setAssuntoSelecionado] = useState('');
   const [assuntosDisponiveis, setAssuntosDisponiveis] = useState([]);
   const [obs, setObs] = useState('');
   const [loadingAssuntos, setLoadingAssuntos] = useState(false);
-
-  // Novo Estado: Marcar Teoria como Finalizada
   const [markAsFinished, setMarkAsFinished] = useState(false);
-
-  // Estados para fallback manual
   const [disciplinaManual, setDisciplinaManual] = useState('');
   const [todasDisciplinas, setTodasDisciplinas] = useState([]);
   const [erroDisciplina, setErroDisciplina] = useState(false);
-
-  // Estado para Mensagem de Erro Visual
   const [errorMessage, setErrorMessage] = useState('');
 
   const normalize = (str) => str ? str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase() : "";
@@ -30,51 +23,32 @@ function TimerFinishModal({ timeMinutes, disciplinaNome, activeCicloId, userUid,
   useEffect(() => {
     const fetchAssuntos = async () => {
         if(!activeCicloId || !userUid) return;
-
         setLoadingAssuntos(true);
         try {
             const cicloDocRef = doc(db, 'users', userUid, 'ciclos', activeCicloId);
             const cicloDoc = await getDoc(cicloDocRef);
-
             let listaDisciplinas = [];
-
             if(cicloDoc.exists()){
                 const data = cicloDoc.data();
-                if (data.disciplinas && Array.isArray(data.disciplinas)) {
-                    listaDisciplinas = data.disciplinas;
-                }
+                if (data.disciplinas && Array.isArray(data.disciplinas)) listaDisciplinas = data.disciplinas;
             }
-
             if (listaDisciplinas.length === 0) {
                 const subColRef = collection(db, 'users', userUid, 'ciclos', activeCicloId, 'disciplinas');
                 const subSnap = await getDocs(subColRef);
                 listaDisciplinas = subSnap.docs.map(d => d.data());
             }
-
             setTodasDisciplinas(listaDisciplinas);
-
             let disciplinaAlvo = listaDisciplinas.find(d => normalize(d.nome) === normalize(disciplinaNome));
-
-            if (!disciplinaAlvo) {
-                disciplinaAlvo = listaDisciplinas.find(d => normalize(d.nome).includes(normalize(disciplinaNome)) || normalize(disciplinaNome).includes(normalize(d.nome)));
-            }
-
+            if (!disciplinaAlvo) disciplinaAlvo = listaDisciplinas.find(d => normalize(d.nome).includes(normalize(disciplinaNome)) || normalize(disciplinaNome).includes(normalize(d.nome)));
             if(disciplinaAlvo){
                 setDisciplinaManual(disciplinaAlvo.nome);
-                if(Array.isArray(disciplinaAlvo.assuntos)) {
-                    setAssuntosDisponiveis(disciplinaAlvo.assuntos);
-                } else {
-                    setAssuntosDisponiveis([]);
-                }
+                if(Array.isArray(disciplinaAlvo.assuntos)) setAssuntosDisponiveis(disciplinaAlvo.assuntos);
+                else setAssuntosDisponiveis([]);
             } else {
                 setErroDisciplina(true);
             }
-
-        } catch (error) {
-            console.error("Erro ao buscar assuntos:", error);
-        } finally {
-            setLoadingAssuntos(false);
-        }
+        } catch (error) { console.error("Erro:", error); }
+        finally { setLoadingAssuntos(false); }
     };
     fetchAssuntos();
   }, [activeCicloId, userUid, disciplinaNome]);
@@ -122,9 +96,8 @@ function TimerFinishModal({ timeMinutes, disciplinaNome, activeCicloId, userUid,
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    setErrorMessage(''); // Limpa erro anterior
+    setErrorMessage('');
 
-    // VALIDAÇÃO: ASSUNTO OBRIGATÓRIO (Agora com Erro Visual)
     if (!assuntoSelecionado) {
         setErrorMessage("Por favor, selecione o assunto/tópico estudado.");
         return;
@@ -164,22 +137,15 @@ function TimerFinishModal({ timeMinutes, disciplinaNome, activeCicloId, userUid,
       >
         <div className="bg-zinc-50 dark:bg-zinc-900/50 p-6 border-b border-zinc-100 dark:border-zinc-800 flex flex-col sm:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-4">
-             <div className="p-3 bg-emerald-100 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-500 rounded-2xl shadow-sm">
-                <CheckCircle2 size={32} />
-             </div>
+             <div className="p-3 bg-emerald-100 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-500 rounded-2xl shadow-sm"><CheckCircle2 size={32} /></div>
              <div>
                  <h2 className="text-2xl font-black text-zinc-800 dark:text-white uppercase tracking-tight leading-none">Sessão Finalizada</h2>
-                 <p className="text-zinc-500 font-medium text-sm mt-1 flex items-center gap-2">
-                    <Clock size={14} /> {formatTime(timeMinutes)} de foco total
-                 </p>
+                 <p className="text-zinc-500 font-medium text-sm mt-1 flex items-center gap-2"><Clock size={14} /> {formatTime(timeMinutes)} de foco total</p>
              </div>
           </div>
-
           <div className="flex items-center gap-2 bg-white dark:bg-zinc-800 px-4 py-2 rounded-xl border border-zinc-200 dark:border-zinc-700 shadow-sm">
              <BookOpen size={18} className="text-zinc-400" />
-             <span className="font-bold text-zinc-700 dark:text-zinc-200 text-sm truncate max-w-[200px]">
-                 {erroDisciplina ? "Selecione..." : (disciplinaManual || disciplinaNome)}
-             </span>
+             <span className="font-bold text-zinc-700 dark:text-zinc-200 text-sm truncate max-w-[200px]">{erroDisciplina ? "Selecione..." : (disciplinaManual || disciplinaNome)}</span>
           </div>
         </div>
 
@@ -190,13 +156,11 @@ function TimerFinishModal({ timeMinutes, disciplinaNome, activeCicloId, userUid,
                 <h3 className="text-2xl font-bold text-zinc-800 dark:text-white">Resolveu questões durante o estudo?</h3>
                 <p className="text-zinc-500 text-base max-w-xs mx-auto">Registre seu desempenho para alimentar as estatísticas de acertos.</p>
               </div>
-
               <div className="grid grid-cols-2 gap-6 w-full max-w-md">
                 <button onClick={() => handleNext(false)} className="flex flex-col items-center justify-center gap-3 p-6 rounded-3xl border-2 border-zinc-100 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-all group h-40">
                   <XCircle size={48} className="text-zinc-300 group-hover:text-red-500 transition-colors" />
                   <span className="font-bold text-lg text-zinc-600 dark:text-zinc-400">Apenas Estudo</span>
                 </button>
-
                 <button onClick={() => handleNext(true)} className="flex flex-col items-center justify-center gap-3 p-6 rounded-3xl border-2 border-emerald-100 dark:border-emerald-900/30 bg-emerald-50/50 dark:bg-emerald-900/10 hover:border-emerald-500 hover:shadow-xl hover:shadow-emerald-500/20 transition-all group h-40">
                   <Target size={48} className="text-emerald-500 group-hover:scale-110 transition-transform" />
                   <span className="font-bold text-lg text-emerald-700 dark:text-emerald-400">Sim, resolvi!</span>
@@ -206,80 +170,55 @@ function TimerFinishModal({ timeMinutes, disciplinaNome, activeCicloId, userUid,
           ) : (
             <form onSubmit={handleSubmit} className="space-y-8">
 
-              {/* ALERTA DE ERRO DE VALIDAÇÃO (NOVO) */}
               {errorMessage && (
                 <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-500 text-sm font-medium flex items-center gap-2 animate-pulse">
                   <AlertTriangle size={18} /> {errorMessage}
                 </div>
               )}
 
-              {/* ALERTA DE ERRO NA DISCIPLINA */}
               {(erroDisciplina || !assuntosDisponiveis.length) && (
                   <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-2xl flex items-center gap-4">
                       <div className="p-2 bg-amber-100 dark:bg-amber-900/40 rounded-full text-amber-600"><AlertTriangle size={20} /></div>
                       <div className="flex-1">
                           <p className="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase mb-1">Atenção Necessária</p>
-                          <select
-                              value={disciplinaManual}
-                              onChange={(e) => handleManualDisciplinaChange(e.target.value)}
-                              className="w-full p-2 rounded-lg bg-white dark:bg-zinc-950 border border-amber-300 dark:border-amber-700 text-sm font-bold text-zinc-700 dark:text-zinc-200 outline-none focus:ring-2 focus:ring-amber-500"
-                          >
+                          <select value={disciplinaManual} onChange={(e) => handleManualDisciplinaChange(e.target.value)} className="w-full p-2 rounded-lg bg-white dark:bg-zinc-950 border border-amber-300 dark:border-amber-700 text-sm font-bold text-zinc-700 dark:text-zinc-200 outline-none focus:ring-2 focus:ring-amber-500">
                               <option value="">-- Selecione a Disciplina Correta --</option>
-                              {todasDisciplinas.map((d, i) => (
-                                  <option key={i} value={d.nome}>{d.nome}</option>
-                              ))}
+                              {todasDisciplinas.map((d, i) => (<option key={i} value={d.nome}>{d.nome}</option>))}
                           </select>
                       </div>
                   </div>
               )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  {/* COLUNA ESQUERDA: Assunto e Checkbox */}
                   <div className="space-y-6">
                       <div>
-                          <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2 ml-1 flex items-center gap-2">
-                              <List size={14}/> Tópico Estudado
-                          </label>
+                          <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2 ml-1 flex items-center gap-2"><List size={14}/> Tópico Estudado</label>
                           <div className="relative">
                               <select
-                                  value={assuntoSelecionado}
-                                  onChange={(e) => setAssuntoSelecionado(e.target.value)}
-                                  disabled={loadingAssuntos || (erroDisciplina && !disciplinaManual)}
-                                  className="w-full p-4 pr-10 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 focus:ring-2 focus:ring-emerald-500 outline-none appearance-none text-sm font-bold transition-all disabled:opacity-50"
+                                value={assuntoSelecionado}
+                                onChange={(e) => setAssuntoSelecionado(e.target.value)}
+                                disabled={loadingAssuntos || (erroDisciplina && !disciplinaManual)}
+                                className="w-full p-4 pr-10 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 focus:ring-2 focus:ring-emerald-500 outline-none appearance-none text-sm font-bold transition-all disabled:opacity-50"
                               >
                                   <option value="">-- Selecione o assunto --</option>
-                                  {assuntosDisponiveis.map((assunto, i) => (
-                                      <option key={i} value={assunto}>{assunto}</option>
-                                  ))}
+                                  {/* CORREÇÃO DO ERRO AQUI: */}
+                                  {assuntosDisponiveis.map((assunto, i) => {
+                                      const nome = typeof assunto === 'object' ? assunto.nome : assunto;
+                                      return <option key={i} value={nome}>{nome}</option>
+                                  })}
                               </select>
-                              <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-400">
-                                  {loadingAssuntos ? <div className="w-4 h-4 border-2 border-zinc-400 border-t-transparent rounded-full animate-spin"></div> : <List size={16} />}
-                              </div>
+                              <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-400">{loadingAssuntos ? <div className="w-4 h-4 border-2 border-zinc-400 border-t-transparent rounded-full animate-spin"></div> : <List size={16} />}</div>
                           </div>
                       </div>
 
-                      {/* CHECKBOX DE FINALIZAÇÃO */}
                       {assuntoSelecionado && (
-                          <div
-                              onClick={() => setMarkAsFinished(!markAsFinished)}
-                              className={`p-4 rounded-xl border-2 cursor-pointer transition-all flex items-center gap-4 ${
-                                  markAsFinished
-                                  ? 'bg-emerald-50 dark:bg-emerald-900/10 border-emerald-500'
-                                  : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 hover:border-emerald-300'
-                              }`}
-                          >
-                              <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-colors ${markAsFinished ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-zinc-300 dark:border-zinc-600 text-transparent'}`}>
-                                  <CheckSquare size={14} strokeWidth={4} />
-                              </div>
-                              <div>
-                                  <p className={`text-sm font-bold ${markAsFinished ? 'text-emerald-700 dark:text-emerald-400' : 'text-zinc-700 dark:text-zinc-300'}`}>Teoria Finalizada</p>
-                                  <p className="text-xs text-zinc-500">Marcar este tópico como concluído no edital.</p>
-                              </div>
+                          <div onClick={() => setMarkAsFinished(!markAsFinished)} className={`p-4 rounded-xl border-2 cursor-pointer transition-all flex items-center gap-4 ${markAsFinished ? 'bg-emerald-50 dark:bg-emerald-900/10 border-emerald-500' : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 hover:border-emerald-300'}`}>
+                              <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-colors ${markAsFinished ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-zinc-300 dark:border-zinc-600 text-transparent'}`}><CheckSquare size={14} strokeWidth={4} /></div>
+                              <div><p className={`text-sm font-bold ${markAsFinished ? 'text-emerald-700 dark:text-emerald-400' : 'text-zinc-700 dark:text-zinc-300'}`}>Teoria Finalizada</p><p className="text-xs text-zinc-500">Marcar este tópico como concluído no edital.</p></div>
                           </div>
                       )}
                   </div>
 
-                  {/* COLUNA DIREITA: Questões e Obs */}
                   <div className="space-y-6">
                       {hasQuestions ? (
                           <div className="space-y-4">
@@ -288,8 +227,7 @@ function TimerFinishModal({ timeMinutes, disciplinaNome, activeCicloId, userUid,
                           </div>
                       ) : (
                           <div className="bg-zinc-50 dark:bg-zinc-900/50 rounded-xl p-6 text-center border-2 border-dashed border-zinc-200 dark:border-zinc-800 h-full flex flex-col justify-center items-center">
-                              <Target size={32} className="text-zinc-300 mb-2"/>
-                              <p className="text-sm text-zinc-400 font-medium">Sem registro de questões</p>
+                              <Target size={32} className="text-zinc-300 mb-2"/><p className="text-sm text-zinc-400 font-medium">Sem registro de questões</p>
                           </div>
                       )}
                   </div>
@@ -302,9 +240,7 @@ function TimerFinishModal({ timeMinutes, disciplinaNome, activeCicloId, userUid,
 
               <div className="flex gap-4 pt-4 border-t border-zinc-100 dark:border-zinc-800">
                 <button type="button" onClick={() => setStep(1)} className="px-6 py-4 rounded-xl font-bold text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">Voltar</button>
-                <button type="submit" className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold shadow-xl shadow-emerald-600/20 transition-all transform hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-3 text-lg">
-                  <Save size={22} /> Salvar Sessão
-                </button>
+                <button type="submit" className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold shadow-xl shadow-emerald-600/20 transition-all transform hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-3 text-lg"><Save size={22} /> Salvar Sessão</button>
               </div>
             </form>
           )}

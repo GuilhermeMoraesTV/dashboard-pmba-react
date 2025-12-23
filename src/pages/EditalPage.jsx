@@ -2,9 +2,10 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../firebaseConfig';
 import { collection, getDoc, doc, getDocs, query, where, addDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import {
-  BookOpen, CheckCircle2, ChevronDown, Search, AlertCircle, Play,
-  Target, CheckSquare, BarChart2, Clock, Zap, GraduationCap, X,
-  Hourglass, LayoutGrid, Flame, Trophy, Layers
+  BookOpen, CheckCircle2, ChevronDown,
+  Search, AlertCircle, Play,
+  Target, CheckSquare, BarChart2, Clock,
+  Zap, GraduationCap, X, Hourglass, LayoutGrid, Flame, Star, AlertTriangle, RefreshCcw, TrendingUp
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -32,7 +33,7 @@ const formatMinutesToTime = (totalMinutes) => {
     return `${m}m`;
 };
 
-// --- NOVOS HELPERS VISUAIS ---
+// --- VISUAL HELPERS ---
 const getProgressStats = (acertos, total) => {
     if (!total || total === 0) return { width: 0, colorBg: 'bg-zinc-200 dark:bg-zinc-700', colorText: 'text-zinc-400' };
     const perc = Math.round((acertos / total) * 100);
@@ -136,6 +137,7 @@ function EditalPage({ user, activeCicloId, onStartStudy }) {
       setRegistros(registrosSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
   };
 
+  // --- LÓGICA DE PRIORIDADE INTELIGENTE (RADAR) ---
   const { editalProcessado, statsGlobal, disciplinaPrioritaria } = useMemo(() => {
     if (!disciplinas.length) return { editalProcessado: [], statsGlobal: { total: 0, concluidos: 0, percentual: 0 }, disciplinaPrioritaria: null };
 
@@ -152,16 +154,11 @@ function EditalPage({ user, activeCicloId, onStartStudy }) {
         if(reg.assunto) {
             const key = `${reg.disciplinaNome}-${reg.assunto}`.toLowerCase().trim();
             if(!mapaDetalhado[key]) mapaDetalhado[key] = { count: 0, minutes: 0, questions: 0, correct: 0, lastDate: null, hasManualCheck: false };
-
             mapaDetalhado[key].count += 1;
             mapaDetalhado[key].minutes += Number(reg.tempoEstudadoMinutos || 0);
             mapaDetalhado[key].questions += Number(reg.questoesFeitas || 0);
             mapaDetalhado[key].correct += Number(reg.acertos || 0);
-
-            if (reg.tipoEstudo === 'check_manual') {
-                mapaDetalhado[key].hasManualCheck = true;
-            }
-
+            if (reg.tipoEstudo === 'check_manual') mapaDetalhado[key].hasManualCheck = true;
             if(!mapaDetalhado[key].lastDate || reg.data > mapaDetalhado[key].lastDate) mapaDetalhado[key].lastDate = reg.data;
         }
     });
@@ -175,15 +172,19 @@ function EditalPage({ user, activeCicloId, onStartStudy }) {
         const statsDisc = statsPorDisciplina[disc.nome] || { acertos: 0, questoes: 0, lastDate: null };
         const desempenhoDisc = statsDisc.questoes > 0 ? Math.round((statsDisc.acertos / statsDisc.questoes) * 100) : 0;
 
-        const assuntosProcessados = listaAssuntos.map(assuntoNome => {
-            const key = `${disc.nome}-${assuntoNome}`.toLowerCase().trim();
+        const assuntosProcessados = listaAssuntos.map(itemAssunto => {
+            const nomeAssunto = typeof itemAssunto === 'string' ? itemAssunto : itemAssunto.nome;
+            const relevanciaAssunto = typeof itemAssunto === 'object' ? (itemAssunto.relevancia || 1) : 1;
+
+            const key = `${disc.nome}-${nomeAssunto}`.toLowerCase().trim();
             const dadosDB = mapaDetalhado[key];
             const isOptimistic = optimisticChecks[key];
             const estudadoReal = !!dadosDB?.hasManualCheck;
             const estudadoFinal = isOptimistic !== undefined ? isOptimistic : estudadoReal;
 
             return {
-                nome: assuntoNome,
+                nome: nomeAssunto,
+                relevancia: relevanciaAssunto,
                 estudado: estudadoFinal,
                 qtdVezes: dadosDB?.count || (estudadoFinal ? 1 : 0),
                 ultimaVez: dadosDB?.lastDate || (estudadoFinal ? 'Agora' : null),
@@ -206,35 +207,50 @@ function EditalPage({ user, activeCicloId, onStartStudy }) {
             progresso,
             totalAssuntos,
             concluidos,
-            stats: {
-                desempenho: desempenhoDisc,
-                questoes: statsDisc.questoes,
-                ultimaData: statsDisc.lastDate
-            }
+            stats: { desempenho: desempenhoDisc, questoes: statsDisc.questoes, ultimaData: statsDisc.lastDate }
         };
 
+        // --- ALGORITMO DE RADAR DE ESTUDOS ---
         if (progresso < 100) {
-            const peso = Number(disc.peso) || 1;
-            const nivel = Number(disc.nivelProficiencia || disc.nivel) || 3;
-            let score = peso * 10;
-            let motivo = "Alta Prioridade";
+            const pesoDisciplina = Number(disc.peso) || 1;
+            let score = 0;
+            let motivo = "";
+            let detalhe = "";
+            let tipoPrioridade = "normal"; // 'critical', 'warning', 'info'
 
-            if (progresso === 0) {
-                score += 50;
-                motivo = "Conteúdo Não Iniciado";
-            } else if (statsDisc.questoes > 10 && desempenhoDisc < 60) {
-                score += 40;
-                motivo = `Baixo Desempenho (${desempenhoDisc}%)`;
-            } else if (!statsDisc.lastDate) {
-                score += 20;
-            } else {
-                const daysSince = (new Date() - new Date(statsDisc.lastDate)) / (1000 * 60 * 60 * 24);
+            // FATOR 1: DESEMPENHO CRÍTICO (Peso 100)
+            if (statsDisc.questoes >= 10 && desempenhoDisc < 60) {
+                score = 500 + (100 - desempenhoDisc); // Score altíssimo
+                motivo = "Desempenho Baixo";
+                detalhe = `Apenas ${desempenhoDisc}% de acertos`;
+                tipoPrioridade = "critical";
+            }
+            // FATOR 2: REVISÃO ATRASADA (Peso 80)
+            else if (statsDisc.lastDate) {
+                const daysSince = Math.ceil(Math.abs(new Date() - new Date(statsDisc.lastDate)) / (1000 * 60 * 60 * 24));
                 if (daysSince > 7) {
-                    score += 15;
+                    score = 400 + daysSince;
                     motivo = "Revisão Necessária";
+                    detalhe = `Não estudado há ${daysSince} dias`;
+                    tipoPrioridade = "warning";
                 }
             }
-            candidatesForPriority.push({ ...objDisciplina, scorePrioridade: score, motivoPrioridade: motivo });
+            // FATOR 3: MATÉRIA IMPORTANTE NÃO INICIADA (Peso 50)
+            else if (progresso === 0 && pesoDisciplina >= 3) {
+                score = 300 + (pesoDisciplina * 10);
+                motivo = "Conteúdo Base";
+                detalhe = "Alta relevância no edital";
+                tipoPrioridade = "info";
+            }
+            // FATOR 4: MATÉRIA EM ANDAMENTO (Peso 20)
+            else {
+                score = 100 + (pesoDisciplina * 10) + (100 - progresso);
+                motivo = "Avançar Conteúdo";
+                detalhe = `${Math.round(100 - progresso)}% pendente`;
+                tipoPrioridade = "normal";
+            }
+
+            candidatesForPriority.push({ ...objDisciplina, scorePrioridade: score, motivoPrioridade: motivo, detalhePrioridade: detalhe, tipoPrioridade });
         }
 
         return objDisciplina;
@@ -270,7 +286,6 @@ function EditalPage({ user, activeCicloId, onStartStudy }) {
               const regRef = collection(db, 'users', user.uid, 'registrosEstudo');
               const q = query(regRef, where('cicloId', '==', activeCicloId), where('assunto', '==', assuntoNome));
               const snapshot = await getDocs(q);
-
               const docParaDeletar = snapshot.docs.find(doc => {
                   const data = doc.data();
                   const mesmoNome = normalize(data.disciplinaNome) === normalize(disciplinaNome);
@@ -279,7 +294,6 @@ function EditalPage({ user, activeCicloId, onStartStudy }) {
                   const data = doc.data();
                   return normalize(data.disciplinaNome) === normalize(disciplinaNome);
               });
-
               if (docParaDeletar) await deleteDoc(docParaDeletar.ref);
           }
           await refreshRegistros();
@@ -292,9 +306,7 @@ function EditalPage({ user, activeCicloId, onStartStudy }) {
   };
 
   const toggleDisciplina = (nome) => setExpandedDisciplinas(prev => ({ ...prev, [nome]: !prev[nome] }));
-  const confirmStartStudy = (disciplina) => {
-      if (onStartStudy) { onStartStudy(disciplina); setStudyModalDisciplina(null); }
-  };
+  const confirmStartStudy = (disciplina) => { if (onStartStudy) { onStartStudy(disciplina); setStudyModalDisciplina(null); } };
 
   if (!activeCicloId || loading) return <div className="flex h-96 items-center justify-center"><div className="animate-spin w-8 h-8 border-4 border-red-600 rounded-full border-t-transparent"></div></div>;
 
@@ -352,36 +364,52 @@ function EditalPage({ user, activeCicloId, onStartStudy }) {
                 </div>
             </div>
 
-            {/* CARD 2: FOCO RECOMENDADO */}
-            <div className="bg-gradient-to-br from-zinc-50 to-white dark:from-zinc-900 dark:to-black border border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 relative overflow-hidden flex flex-col justify-center shadow-lg">
+            {/* CARD 2: RADAR DE PRIORIDADE (VISUAL DINÂMICO) */}
+            <div className={`rounded-3xl p-6 relative overflow-hidden flex flex-col justify-center shadow-lg border transition-all
+                ${disciplinaPrioritaria?.tipoPrioridade === 'critical' ? 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-900' :
+                  disciplinaPrioritaria?.tipoPrioridade === 'warning' ? 'bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900' :
+                  'bg-gradient-to-br from-zinc-50 to-white dark:from-zinc-900 dark:to-black border-zinc-200 dark:border-zinc-800'}`
+            }>
                 {disciplinaPrioritaria ? (
                     <>
                         <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none text-red-500"><Target size={120}/></div>
                         <div className="relative z-10">
+                            {/* Header do Card com Ícone Dinâmico */}
                             <div className="flex items-center gap-2 mb-4">
-                                <div className="p-2 bg-red-100 dark:bg-red-900/30 text-red-600 rounded-lg animate-pulse"><Zap size={18} fill="currentColor" /></div>
-                                <span className="text-xs font-black text-red-600 dark:text-red-500 uppercase tracking-widest">Foco Recomendado</span>
+                                <div className={`p-2 rounded-lg animate-pulse ${
+                                    disciplinaPrioritaria.tipoPrioridade === 'critical' ? 'bg-red-200 text-red-700 dark:bg-red-900/50 dark:text-red-400' :
+                                    disciplinaPrioritaria.tipoPrioridade === 'warning' ? 'bg-amber-200 text-amber-700 dark:bg-amber-900/50 dark:text-amber-400' :
+                                    'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400'
+                                }`}>
+                                    {disciplinaPrioritaria.tipoPrioridade === 'critical' ? <AlertTriangle size={18} /> :
+                                     disciplinaPrioritaria.tipoPrioridade === 'warning' ? <RefreshCcw size={18} /> :
+                                     <Zap size={18} fill="currentColor" />}
+                                </div>
+                                <span className={`text-xs font-black uppercase tracking-widest ${
+                                    disciplinaPrioritaria.tipoPrioridade === 'critical' ? 'text-red-700 dark:text-red-400' :
+                                    disciplinaPrioritaria.tipoPrioridade === 'warning' ? 'text-amber-700 dark:text-amber-400' :
+                                    'text-indigo-600 dark:text-indigo-400'
+                                }`}>
+                                    {disciplinaPrioritaria.motivoPrioridade}
+                                </span>
                             </div>
 
-                            <h3 className="text-xl font-black text-zinc-800 dark:text-white mb-1 line-clamp-2 leading-tight">
+                            <h3 className="text-xl font-black text-zinc-800 dark:text-white mb-2 line-clamp-2 leading-tight">
                                 {disciplinaPrioritaria.nome}
                             </h3>
 
-                            <div className="flex flex-col gap-1 mt-2 mb-4">
-                                <span className="text-xs font-bold text-amber-600 dark:text-amber-500 bg-amber-50 dark:bg-amber-900/20 px-2 py-1 rounded w-fit border border-amber-200 dark:border-amber-800">
-                                    {disciplinaPrioritaria.motivoPrioridade}
-                                </span>
-                                <div className="flex items-center gap-3 text-[10px] font-medium text-zinc-400 mt-1">
-                                    <span>{Math.round(disciplinaPrioritaria.progresso)}% Concluído</span>
-                                    <span>•</span>
-                                    <span>{disciplinaPrioritaria.stats.desempenho}% Desempenho</span>
-                                </div>
+                            <div className="flex flex-col gap-1 mb-5">
+                                <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5">
+                                    <TrendingUp size={14} className="text-zinc-400"/>
+                                    {disciplinaPrioritaria.detalhePrioridade}
+                                </p>
                             </div>
 
-                            <button
-                                onClick={() => setStudyModalDisciplina(disciplinaPrioritaria)}
-                                className="w-full py-3.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-xl shadow-red-600/20 flex items-center justify-center gap-2 transition-all active:scale-95 group text-sm uppercase tracking-wide"
-                            >
+                            <button onClick={() => setStudyModalDisciplina(disciplinaPrioritaria)} className={`w-full py-3.5 text-white font-bold rounded-xl shadow-lg flex items-center justify-center gap-2 transition-all active:scale-95 group text-sm uppercase tracking-wide
+                                ${disciplinaPrioritaria.tipoPrioridade === 'critical' ? 'bg-red-600 hover:bg-red-700 shadow-red-600/30' :
+                                  disciplinaPrioritaria.tipoPrioridade === 'warning' ? 'bg-amber-600 hover:bg-amber-700 shadow-amber-600/30' :
+                                  'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/30'}`
+                            }>
                                 <Play size={14} fill="currentColor" /> Iniciar Sessão
                             </button>
                         </div>
@@ -442,13 +470,16 @@ function EditalPage({ user, activeCicloId, onStartStudy }) {
                             <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2">
                                     <h3 className="font-bold text-zinc-900 dark:text-white text-base md:text-lg truncate group-hover:text-red-600 dark:group-hover:text-red-400 transition-colors">{disc.nome}</h3>
+
                                     {/* BADGE DE ALTA IMPORTÂNCIA (PESO >= 3) */}
-                                    {(Number(disc.peso) >= 3) && (
-                                        <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400 text-[10px] uppercase font-black tracking-wider border border-orange-200 dark:border-orange-800" title="Alta Importância">
-                                            <Flame size={10} fill="currentColor" /> Importante
-                                        </span>
+                                    {Number(disc.peso) >= 3 && (
+                                        <div className="hidden sm:flex items-center gap-1 px-2 py-0.5 bg-orange-100 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 rounded-full border border-orange-200 dark:border-orange-900/30 animate-pulse">
+                                            <Flame size={10} fill="currentColor" />
+                                            <span className="text-[9px] font-bold uppercase tracking-wide">Alta Relevância</span>
+                                        </div>
                                     )}
                                 </div>
+
                                 <div className="flex items-center gap-3 text-xs text-zinc-500 mt-1 font-medium">
                                     <span className="flex items-center gap-1"><CheckSquare size={12}/> {disc.concluidos}/{disc.totalAssuntos}</span>
                                     <span className="hidden sm:inline text-zinc-300">•</span>
@@ -469,25 +500,29 @@ function EditalPage({ user, activeCicloId, onStartStudy }) {
                         </div>
                     </div>
 
-                    {/* LISTA DE TÓPICOS (COM VISUAL NOVO) */}
+                    {/* LISTA DE TÓPICOS (COM VISUAL "ALTAS CHANCES") */}
                     <AnimatePresence>
                         {expandedDisciplinas[disc.nome] && (
                             <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50/30 dark:bg-black/20">
                                 <div className="divide-y divide-zinc-100 dark:divide-zinc-800/50">
                                     {disc.assuntos.map((assunto, i) => {
-                                        // Prepara os dados visuais para cada assunto
                                         const questStats = getProgressStats(assunto.acertos, assunto.questoes);
                                         const hasActivity = assunto.minutos > 0 || assunto.questoes > 0;
+                                        const isHot = assunto.relevancia >= 4 && !assunto.estudado;
 
                                         return (
-                                        <div key={i} className={`flex flex-col sm:flex-row sm:items-center p-4 sm:px-6 hover:bg-white dark:hover:bg-zinc-800/50 transition-colors gap-4 ${assunto.estudado ? 'bg-emerald-50/40 dark:bg-emerald-900/10' : ''}`}>
-
+                                        <div
+                                            key={i}
+                                            className={`flex flex-col md:flex-row md:items-center p-4 sm:px-6 transition-all gap-4 hover:bg-white dark:hover:bg-zinc-800/50
+                                                ${assunto.estudado ? 'bg-emerald-50/40 dark:bg-emerald-900/10' : ''}
+                                            `}
+                                        >
                                             {/* ESQUERDA: Checkbox e Nome */}
-                                            <div className="flex items-start sm:items-center gap-4 flex-1">
+                                            <div className="flex items-start gap-4 flex-1 relative">
                                                 <button
                                                     onClick={() => handleToggleCheck(disc.id, disc.nome, assunto.nome, assunto.estudado)}
                                                     disabled={loadingCheck[`${disc.nome}-${assunto.nome}`.toLowerCase().trim()]}
-                                                    className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all flex-shrink-0 shadow-sm ${
+                                                    className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all flex-shrink-0 shadow-sm z-10 ${
                                                         assunto.estudado
                                                         ? 'bg-emerald-500 text-white shadow-emerald-500/20'
                                                         : 'bg-white dark:bg-zinc-800 border-2 border-zinc-200 dark:border-zinc-700 text-zinc-300 dark:text-zinc-600 hover:border-red-400 hover:text-red-400'
@@ -496,24 +531,36 @@ function EditalPage({ user, activeCicloId, onStartStudy }) {
                                                     {loadingCheck[`${disc.nome}-${assunto.nome}`.toLowerCase().trim()] ? <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"/> : <CheckSquare size={18} strokeWidth={3} />}
                                                 </button>
 
-                                                <div className="flex-1 min-w-0">
-                                                    <p className={`text-[15px] font-bold leading-snug ${assunto.estudado ? 'text-zinc-500 dark:text-zinc-500 line-through decoration-2 decoration-emerald-500/50' : 'text-zinc-800 dark:text-zinc-100'}`}>{assunto.nome}</p>
+                                                <div className="flex-1 min-w-0 z-10">
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        <p className={`text-[15px] leading-snug ${assunto.estudado ? 'text-zinc-500 dark:text-zinc-500 line-through decoration-2 decoration-emerald-500/50 font-medium' : 'text-zinc-800 dark:text-zinc-100 font-bold'}`}>{assunto.nome}</p>
+
+                                                        {/* NOVO BADGE "ALTAS CHANCES" */}
+                                                        {isHot && (
+                                                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-sm ml-2">
+                                                                <Flame size={14} fill="currentColor" className="drop-shadow-sm" />
+                                                                <span className="text-[10px] font-bold uppercase tracking-wider leading-none whitespace-nowrap">
+                                                                    Altas Chances
+                                                                </span>
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                     {!hasActivity && !assunto.estudado && <p className="text-xs text-red-500 font-medium mt-1 flex items-center gap-1"><AlertCircle size={10}/> Não iniciado</p>}
                                                 </div>
                                             </div>
 
-                                            {/* DIREITA: Painel de Métricas Visuais */}
+                                            {/* DIREITA: Painel de Métricas (Grid) */}
                                             {(hasActivity || assunto.estudado) && (
-                                            <div className="flex items-center justify-end gap-3 sm:gap-6 w-full sm:w-auto pl-14 sm:pl-0">
+                                            <div className="flex items-center justify-end gap-4 w-full md:w-auto pl-14 md:pl-0 z-10">
 
-                                                {/* Métrica 1: TEMPO (Bloco) */}
+                                                {/* Métrica 1: TEMPO */}
                                                 <div className="flex flex-col items-center justify-center bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 p-2 min-w-[70px] shadow-sm" title="Tempo Total Estudado">
                                                     <Clock size={16} className="text-zinc-400 mb-1"/>
                                                     <span className="text-xs font-black text-zinc-700 dark:text-zinc-300">{formatMinutesToTime(assunto.minutos)}</span>
                                                 </div>
 
-                                                {/* Métrica 2: QUESTÕES (Barra de Progresso Visual) */}
-                                                <div className="flex-1 sm:flex-none sm:w-32 flex flex-col gap-1.5" title={`Desempenho: ${questStats.perc}% (${assunto.acertos}/${assunto.questoes})`}>
+                                                {/* Métrica 2: QUESTÕES (Barra Visual) */}
+                                                <div className="flex-1 md:flex-none md:w-36 flex flex-col gap-1.5" title={`Desempenho: ${questStats.perc}% (${assunto.acertos}/${assunto.questoes})`}>
                                                     <div className="flex justify-between items-center text-xs font-bold">
                                                         <span className={`flex items-center gap-1 ${questStats.colorText}`}><Target size={12}/> {questStats.perc}%</span>
                                                         <span className="text-zinc-400 text-[10px]">{assunto.acertos}/{assunto.questoes}</span>
@@ -528,19 +575,17 @@ function EditalPage({ user, activeCicloId, onStartStudy }) {
                                                     </div>
                                                 </div>
 
-                                                {/* Métrica 3: FREQUÊNCIA (Indicador Colorido: Azul, Roxo, Vermelho) */}
+                                                {/* Métrica 3: FREQUÊNCIA (AZUL -> ROXO -> VERMELHO) */}
                                                 {assunto.qtdVezes > 0 && (
                                                     <div className="flex flex-col items-center gap-1" title={`${assunto.qtdVezes} sessões de estudo`}>
                                                        <div className="flex gap-0.5">
-                                                          {/* Segmento 1 - Azul (1x) */}
+                                                          {/* Segmento 1 (1x - Azul) */}
                                                           <div className={`h-3 w-2 rounded-sm transition-all ${assunto.qtdVezes >= 1 ? 'bg-blue-500 shadow-[0_0_6px_rgba(59,130,246,0.5)]' : 'bg-zinc-200 dark:bg-zinc-700'}`}></div>
-
-                                                          {/* Segmento 2 - Roxo (2x) */}
+                                                          {/* Segmento 2 (2x - Roxo) */}
                                                           <div className={`h-3 w-2 rounded-sm transition-all ${assunto.qtdVezes >= 2 ? 'bg-purple-500 shadow-[0_0_6px_rgba(168,85,247,0.5)]' : 'bg-zinc-200 dark:bg-zinc-700'}`}></div>
-
-                                                          {/* Segmento 3 - Vermelho (3x+) */}
-                                                          <div className={`h-3 w-2 rounded-sm transition-all relative ${assunto.qtdVezes >= 3 ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]' : 'bg-zinc-200 dark:bg-zinc-700'}`}>
-                                                            {assunto.qtdVezes >= 3 && <Flame size={8} className="absolute -top-2 -right-1 text-red-500 fill-current animate-bounce" />}
+                                                          {/* Segmento 3 (3x+ - Vermelho Fogo) */}
+                                                          <div className={`h-3 w-2 rounded-sm transition-all relative ${assunto.qtdVezes >= 3 ? 'bg-red-600 shadow-[0_0_8px_rgba(220,38,38,0.6)]' : 'bg-zinc-200 dark:bg-zinc-700'}`}>
+                                                            {assunto.qtdVezes >= 3 && <Flame size={10} className="absolute -top-3 -right-1.5 text-red-500 fill-orange-400 animate-bounce drop-shadow-sm" />}
                                                           </div>
                                                        </div>
                                                        <span className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400">{assunto.qtdVezes}x</span>

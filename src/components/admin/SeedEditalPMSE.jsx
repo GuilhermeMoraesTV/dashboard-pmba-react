@@ -6,169 +6,179 @@ import { Download, RefreshCw } from 'lucide-react';
 const EDITAL_PMSE_COMPLETO = {
   titulo: "Soldado PMSE",
   banca: "SELECON (Edital 2024)",
-  logoUrl: "/logosEditais/logo-pmse.png", // Certifique-se de ter essa imagem
+  logoUrl: "/logosEditais/logo-pmse.png",
   instituicao: "PMSE",
   disciplinas: [
     {
       nome: "Língua Portuguesa",
-      peso_sugerido: 2,
+      peso: 2,
+      importancia: "Alta",
       assuntos: [
-        "1. Leitura e compreensão de textos variados",
-        "2. Modos de organização do discurso: descritivo, narrativo, argumentativo, injuntivo, expositivo e dissertativo",
-        "3. Gêneros do discurso: definição, reconhecimento dos elementos básicos",
-        "4. Coesão e coerência: mecanismos, efeitos de sentido no texto",
-        "5. Relação entre as partes do texto: causa, consequência, comparação, conclusão, generalização, exemplificação, particularização",
-        "6. Conectivos: classificação, uso, efeitos de sentido",
-        "7. Verbos: pessoa, número, tempo e modo",
-        "8. Vozes verbais",
-        "9. Transitividade verbal e nominal",
-        "10. Estrutura, classificação e formação de palavras",
-        "11. Funções e classes de palavras",
-        "12. Flexão nominal e verbal",
-        "13. Regência verbal e nominal",
-        "14. Pronomes: emprego, formas de tratamento e colocação",
-        "15. Figuras de linguagem",
-        "16. Funções da linguagem",
-        "17. Sinônimos, antônimos, parônimos e homônimos",
-        "18. Acentuação gráfica",
-        "19. Pontuação: regras e efeitos de sentido",
-        "20. Recursos gráficos: regras, efeitos de sentido",
-        "21. Sintaxe do Período Simples",
-        "22. Coordenação e subordinação",
-        "23. Crase",
-        "24. Ortografia"
+        { nome: "Leitura e compreensão de textos variados", relevancia: 5 },
+        { nome: "Modos de organização do discurso: descritivo, narrativo, argumentativo, injuntivo, expositivo e dissertativo", relevancia: 3 },
+        { nome: "Gêneros do discurso: definição, reconhecimento dos elementos básicos", relevancia: 3 },
+        { nome: "Coesão e coerência: mecanismos, efeitos de sentido no texto", relevancia: 4 },
+        { nome: "Relação entre as partes do texto: causa, consequência, comparação, conclusão, generalização, exemplificação, particularização", relevancia: 4 },
+        { nome: "Conectivos: classificação, uso, efeitos de sentido", relevancia: 5 },
+        { nome: "Verbos: pessoa, número, tempo e modo", relevancia: 4 },
+        { nome: "Vozes verbais", relevancia: 3 },
+        { nome: "Transitividade verbal e nominal", relevancia: 3 },
+        { nome: "Estrutura, classificação e formação de palavras", relevancia: 2 },
+        { nome: "Funções e classes de palavras", relevancia: 4 },
+        { nome: "Flexão nominal e verbal", relevancia: 3 },
+        { nome: "Regência verbal e nominal", relevancia: 4 },
+        { nome: "Pronomes: emprego, formas de tratamento e colocação", relevancia: 4 },
+        { nome: "Figuras de linguagem", relevancia: 2 },
+        { nome: "Funções da linguagem", relevancia: 2 },
+        { nome: "Sinônimos, antônimos, parônimos e homônimos", relevancia: 2 },
+        { nome: "Acentuação gráfica", relevancia: 3 },
+        { nome: "Pontuação: regras e efeitos de sentido", relevancia: 4 },
+        { nome: "Recursos gráficos: regras, efeitos de sentido", relevancia: 2 },
+        { nome: "Sintaxe do Período Simples", relevancia: 3 },
+        { nome: "Coordenação e subordinação", relevancia: 5 },
+        { nome: "Crase", relevancia: 5 },
+        { nome: "Ortografia", relevancia: 3 }
       ]
     },
     {
       nome: "Matemática",
-      peso_sugerido: 1,
+      peso: 1,
+      importancia: "Média",
       assuntos: [
-        "1. Sistema de numeração decimal: classe e ordens",
-        "2. Números reais: operações (adição, subtração, multiplicação, divisão, potenciação e radiciação)",
-        "3. Múltiplos e divisores, MDC, MMC, números primos, porcentagem",
-        "4. Média aritmética e ponderada",
-        "5. Proporcionalidade direta e inversa. Regra de 3 simples",
-        "7. Equação e sistema do 1º e 2º grau",
-        "8. Funções Algébricas: afim, quadrática, exponencial e logarítmica",
-        "9. Progressão Aritmética e Geométrica",
-        "10. Análise Combinatória: Princípio Multiplicativo, Arranjos e Combinações",
-        "11. Sistema legal de medidas: comprimento, área, volume, massa, capacidade e tempo",
-        "12. Cálculo de áreas das principais figuras planas",
-        "13. Áreas e volumes dos principais sólidos geométricos",
-        "14. Comprimento da circunferência",
-        "15. Relações métricas no triângulo retângulo",
-        "16. Probabilidade: união de dois eventos, condicional, eventos independentes",
-        "17. Noções de estatística: interpretação de gráficos e tabelas"
+        { nome: "Sistema de numeração decimal: classe e ordens", relevancia: 1 },
+        { nome: "Números reais: operações (adição, subtração, multiplicação, divisão, potenciação e radiciação)", relevancia: 2 },
+        { nome: "Múltiplos e divisores, MDC, MMC, números primos, porcentagem", relevancia: 5 },
+        { nome: "Média aritmética e ponderada", relevancia: 3 },
+        { nome: "Proporcionalidade direta e inversa. Regra de 3 simples", relevancia: 5 },
+        { nome: "Equação e sistema do 1º e 2º grau", relevancia: 4 },
+        { nome: "Funções Algébricas: afim, quadrática, exponencial e logarítmica", relevancia: 3 },
+        { nome: "Progressão Aritmética e Geométrica", relevancia: 4 },
+        { nome: "Análise Combinatória: Princípio Multiplicativo, Arranjos e Combinações", relevancia: 4 },
+        { nome: "Sistema legal de medidas: comprimento, área, volume, massa, capacidade e tempo", relevancia: 3 },
+        { nome: "Cálculo de áreas das principais figuras planas", relevancia: 4 },
+        { nome: "Áreas e volumes dos principais sólidos geométricos", relevancia: 3 },
+        { nome: "Comprimento da circunferência", relevancia: 2 },
+        { nome: "Relações métricas no triângulo retângulo", relevancia: 3 },
+        { nome: "Probabilidade: união de dois eventos, condicional, eventos independentes", relevancia: 5 },
+        { nome: "Noções de estatística: interpretação de gráficos e tabelas", relevancia: 4 }
       ]
     },
     {
       nome: "Noções de Informática",
-      peso_sugerido: 1,
+      peso: 1,
+      importancia: "Média",
       assuntos: [
-        "1. Modalidades de processamento",
-        "2. Organização e Arquitetura de computadores: hardware, periféricos, armazenamento, conectores",
-        "3. Software: Software Livre, software básico e utilitários, sistemas operacionais",
-        "4. Ambientes Windows (XP a 10) e Linux: instalação, configuração, utilitários, comandos",
-        "5. Sistemas de arquivos, operações, permissões e segurança",
-        "6. Editores de texto e softwares de apresentação: conceitos e atalhos",
-        "7. Pacote MS Office (Word, Excel, PowerPoint) e LibreOffice (Writer, Calc, Impress)",
-        "8. Edição e formatação de textos",
-        "9. Criação e uso de planilhas de cálculos",
-        "10. Criação e exibição de apresentações de slides",
-        "11. Segurança: vírus, antivírus, backup, firewall, criptografia",
-        "12. Redes Sociais e Computação em nuvem",
-        "13. Redes de computadores: topologias, tecnologias, TCP/IP, redes cabeadas e wireless",
-        "14. Internet x Web: navegadores (Edge, Chrome, Firefox), correio eletrônico, busca e pesquisa"
+        { nome: "Modalidades de processamento", relevancia: 1 },
+        { nome: "Organização e Arquitetura de computadores: hardware, periféricos, armazenamento, conectores", relevancia: 3 },
+        { nome: "Software: Software Livre, software básico e utilitários, sistemas operacionais", relevancia: 3 },
+        { nome: "Ambientes Windows (XP a 10) e Linux: instalação, configuração, utilitários, comandos", relevancia: 4 },
+        { nome: "Sistemas de arquivos, operações, permissões e segurança", relevancia: 3 },
+        { nome: "Editores de texto e softwares de apresentação: conceitos e atalhos", relevancia: 4 },
+        { nome: "Pacote MS Office (Word, Excel, PowerPoint) e LibreOffice (Writer, Calc, Impress)", relevancia: 5 },
+        { nome: "Edição e formatação de textos", relevancia: 4 },
+        { nome: "Criação e uso de planilhas de cálculos", relevancia: 5 },
+        { nome: "Criação e exibição de apresentações de slides", relevancia: 3 },
+        { nome: "Segurança: vírus, antivírus, backup, firewall, criptografia", relevancia: 5 },
+        { nome: "Redes Sociais e Computação em nuvem", relevancia: 4 },
+        { nome: "Redes de computadores: topologias, tecnologias, TCP/IP, redes cabeadas e wireless", relevancia: 4 },
+        { nome: "Internet x Web: navegadores (Edge, Chrome, Firefox), correio eletrônico, busca e pesquisa", relevancia: 4 }
       ]
     },
     {
       nome: "Atualidades",
-      peso_sugerido: 1,
+      peso: 1,
+      importancia: "Baixa",
       assuntos: [
-        "1. Domínio de tópicos atuais (desenvolvimento sustentável, ecologia, tecnologia, energia, política, economia, sociedade, etc)",
-        "2. Atualidades e contextos históricos, geográficos, sociais e noções de cidadania (Brasil e Mundo)"
+        { nome: "Domínio de tópicos atuais (desenvolvimento sustentável, ecologia, tecnologia, energia, política, economia, sociedade, etc)", relevancia: 4 },
+        { nome: "Atualidades e contextos históricos, geográficos, sociais e noções de cidadania (Brasil e Mundo)", relevancia: 4 }
       ]
     },
     {
       nome: "Direitos Humanos",
-      peso_sugerido: 2,
+      peso: 2,
+      importancia: "Alta",
       assuntos: [
-        "1. Histórico, Direitos Fundamentais, Sociais, Difusos, Civis e Políticos",
-        "2. Constituição Federal Brasileira de 1988 e suas Emendas",
-        "3. Título I - Dos Princípios Fundamentais",
-        "4. Título II - Dos Direitos e Garantias Fundamentais",
-        "5. Emenda Constitucional nº 45/2004",
-        "6. Declaração Universal dos Direitos do Homem de 1948 (ONU)",
-        "7. Convenção Americana de Direitos Humanos (Pacto de San José da Costa Rica)",
-        "8. Decreto nº 4.229/2002 (Programa Nacional de Direitos Humanos - PNDH)"
+        { nome: "Histórico, Direitos Fundamentais, Sociais, Difusos, Civis e Políticos", relevancia: 3 },
+        { nome: "Constituição Federal Brasileira de 1988 e suas Emendas", relevancia: 4 },
+        { nome: "Título I - Dos Princípios Fundamentais", relevancia: 4 },
+        { nome: "Título II - Dos Direitos e Garantias Fundamentais", relevancia: 5 },
+        { nome: "Emenda Constitucional nº 45/2004", relevancia: 2 },
+        { nome: "Declaração Universal dos Direitos do Homem de 1948 (ONU)", relevancia: 5 },
+        { nome: "Convenção Americana de Direitos Humanos (Pacto de San José da Costa Rica)", relevancia: 4 },
+        { nome: "Decreto nº 4.229/2002 (Programa Nacional de Direitos Humanos - PNDH)", relevancia: 2 }
       ]
     },
     {
       nome: "Direito Constitucional",
-      peso_sugerido: 2,
+      peso: 2,
+      importancia: "Alta",
       assuntos: [
-        "1. Formação Constitucional do Brasil, Constituição de 1988 (origem e objetivos)",
-        "2. Estrutura e organização do Estado Brasileiro",
-        "3. Organização dos poderes: Executivo, Legislativo e Judiciário",
-        "4. Funções essenciais à justiça",
-        "5. Artigo 144 da CF/88 (Missão constitucional das Polícias Militares)"
+        { nome: "Formação Constitucional do Brasil, Constituição de 1988 (origem e objetivos)", relevancia: 2 },
+        { nome: "Estrutura e organização do Estado Brasileiro", relevancia: 4 },
+        { nome: "Organização dos poderes: Executivo, Legislativo e Judiciário", relevancia: 3 },
+        { nome: "Funções essenciais à justiça", relevancia: 3 },
+        { nome: "Artigo 144 da CF/88 (Missão constitucional das Polícias Militares)", relevancia: 5 }
       ]
     },
     {
       nome: "Direito Processual Penal",
-      peso_sugerido: 2,
+      peso: 2,
+      importancia: "Média",
       assuntos: [
-        "1. Inquérito policial",
-        "2. Ação penal"
+        { nome: "Inquérito policial", relevancia: 5 },
+        { nome: "Ação penal", relevancia: 4 }
       ]
     },
     {
       nome: "Direito Administrativo",
-      peso_sugerido: 2,
+      peso: 2,
+      importancia: "Alta",
       assuntos: [
-        "1. Princípios",
-        "2. Regime jurídico administrativo",
-        "3. Poderes da administração pública",
-        "4. Serviço público",
-        "5. Atos administrativos",
-        "6. Contratos administrativos",
-        "7. Licitações",
-        "8. Bens públicos",
-        "9. Administração direta e indireta",
-        "10. Controle da administração pública",
-        "11. Responsabilidade do Estado"
+        { nome: "Princípios", relevancia: 5 },
+        { nome: "Regime jurídico administrativo", relevancia: 3 },
+        { nome: "Poderes da administração pública", relevancia: 5 },
+        { nome: "Serviço público", relevancia: 3 },
+        { nome: "Atos administrativos", relevancia: 5 },
+        { nome: "Contratos administrativos", relevancia: 3 },
+        { nome: "Licitações", relevancia: 3 },
+        { nome: "Bens públicos", relevancia: 2 },
+        { nome: "Administração direta e indireta", relevancia: 4 },
+        { nome: "Controle da administração pública", relevancia: 3 },
+        { nome: "Responsabilidade do Estado", relevancia: 4 }
       ]
     },
     {
       nome: "Conhecimentos Gerais de Sergipe",
-      peso_sugerido: 1,
+      peso: 1,
+      importancia: "Alta",
       assuntos: [
-        "1. Indígenas em Sergipe",
-        "2. Processo de ocupação e povoamento do território sergipano",
-        "3. Economias fundadoras",
-        "4. Regiões geoeconômicas",
-        "5. Estrutura do poder e a sociedade colonial sergipana",
-        "6. Sergipe nas sucessivas fases da República Brasileira",
-        "7. Condicionantes geoambientais (clima, relevo, hidrografia, vegetação)",
-        "8. Dinâmica populacional",
-        "9. Rede urbana e organização do espaço",
-        "10. Formação metropolitana de Aracaju",
-        "11. Política, sociedade e economia no Sergipe contemporâneo",
-        "12. Potencialidades e perspectivas de desenvolvimento",
-        "13. Formação e expressão da cultura sergipana",
-        "14. Educação em Sergipe"
+        { nome: "Indígenas em Sergipe", relevancia: 2 },
+        { nome: "Processo de ocupação e povoamento do território sergipano", relevancia: 4 },
+        { nome: "Economias fundadoras", relevancia: 3 },
+        { nome: "Regiões geoeconômicas", relevancia: 4 },
+        { nome: "Estrutura do poder e a sociedade colonial sergipana", relevancia: 3 },
+        { nome: "Sergipe nas sucessivas fases da República Brasileira", relevancia: 4 },
+        { nome: "Condicionantes geoambientais (clima, relevo, hidrografia, vegetação)", relevancia: 5 },
+        { nome: "Dinâmica populacional", relevancia: 4 },
+        { nome: "Rede urbana e organização do espaço", relevancia: 3 },
+        { nome: "Formação metropolitana de Aracaju", relevancia: 4 },
+        { nome: "Política, sociedade e economia no Sergipe contemporâneo", relevancia: 4 },
+        { nome: "Potencialidades e perspectivas de desenvolvimento", relevancia: 3 },
+        { nome: "Formação e expressão da cultura sergipana", relevancia: 5 },
+        { nome: "Educação em Sergipe", relevancia: 2 }
       ]
     },
     {
       nome: "Legislação Específica da PMSE",
-      peso_sugerido: 2,
+      peso: 2,
+      importancia: "Alta",
       assuntos: [
-        "1. Estatuto da PMSE (Lei nº 2.066/1976)",
-        "2. Lei de Remuneração PMSE (Lei nº 5.699/2005)",
-        "3. Lei de Organização Básica da PMSE (Lei nº 3.669/1995)",
-        "4. Lei de fixação de efetivo da PMSE (Lei nº 7.823/2014)",
-        "5. Código de ética e disciplina da PMSE (Lei Complementar nº 291/2017)",
-        "6. Sistema de Proteção Social dos Militares (Lei Complementar nº 360/2022)"
+        { nome: "Estatuto da PMSE (Lei nº 2.066/1976)", relevancia: 5 },
+        { nome: "Lei de Remuneração PMSE (Lei nº 5.699/2005)", relevancia: 3 },
+        { nome: "Lei de Organização Básica da PMSE (Lei nº 3.669/1995)", relevancia: 4 },
+        { nome: "Lei de fixação de efetivo da PMSE (Lei nº 7.823/2014)", relevancia: 2 },
+        { nome: "Código de ética e disciplina da PMSE (Lei Complementar nº 291/2017)", relevancia: 5 },
+        { nome: "Sistema de Proteção Social dos Militares (Lei Complementar nº 360/2022)", relevancia: 3 }
       ]
     }
   ]
@@ -178,12 +188,12 @@ const SeedEditalPMSE = ({ isInstalled, onSuccess }) => {
   const [loading, setLoading] = useState(false);
 
   const handleSeed = async () => {
-    if(!window.confirm(`Deseja ${isInstalled ? 'REINSTALAR' : 'INSTALAR'} o edital PMSE?`)) return;
+    if(!window.confirm(`Deseja ${isInstalled ? 'REINSTALAR' : 'INSTALAR'} o edital PMSE 2024?`)) return;
 
     setLoading(true);
     try {
         await setDoc(doc(db, "editais_templates", "pmse_soldado"), EDITAL_PMSE_COMPLETO);
-        alert("Sucesso! Edital PMSE 2024 gravado.");
+        alert("Sucesso! Edital PMSE 2024 mapeado e instalado.");
         if (onSuccess) onSuccess();
     } catch (error) {
         console.error(error);
@@ -200,7 +210,7 @@ const SeedEditalPMSE = ({ isInstalled, onSuccess }) => {
         className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wide transition-all shadow-sm ${
             isInstalled
             ? 'bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700'
-            : 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-blue-500/20'
+            : 'bg-green-600 text-white hover:bg-green-700 hover:shadow-green-500/20'
         } ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
     >
         {loading ? '...' : (isInstalled ? <><RefreshCw size={14}/> Reinstalar</> : <><Download size={14}/> Instalar</>)}

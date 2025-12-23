@@ -21,7 +21,7 @@ const EDITAL_PMBA_COMPLETO = {
         { nome: "Classes de palavras", relevancia: 3 },
         { nome: "Uso do sinal indicativo de crase", relevancia: 4 }, // Clássico de concurso
         { nome: "Sintaxe da oração e do período", relevancia: 4 },
-        { nome: "Pontuação", relevancia: 3 },
+        { nome: "Pontuação", relevancia: 4 },
         { nome: "Concordância nominal e verbal", relevancia: 5 }, // FCC cobra muito erros de concordância
         { nome: "Regência nominal e verbal", relevancia: 4 },
         { nome: "Significação das palavras", relevancia: 1 }
@@ -33,7 +33,7 @@ const EDITAL_PMBA_COMPLETO = {
       importancia: "Média",
       assuntos: [
         { nome: "Descobrimento do Brasil (1500)", relevancia: 1 },
-        { nome: "Brasil Colônia (1530-1815): Capitanias, Economia, Extrativismo, Escravidão", relevancia: 3 },
+        { nome: "Brasil Colônia (1530-1815): Capitanias, Economia, Extrativismo, Escravidão", relevancia: 5 },
         { nome: "Independência do Brasil (1822)", relevancia: 2 },
         { nome: "Primeiro Reinado (1822-1831)", relevancia: 2 },
         { nome: "Segundo Reinado (1831-1840)", relevancia: 2 },
@@ -55,7 +55,7 @@ const EDITAL_PMBA_COMPLETO = {
       importancia: "Média",
       assuntos: [
         { nome: "Relevo brasileiro", relevancia: 2 },
-        { nome: "Urbanização: crescimento urbano, problemas estruturais", relevancia: 3 },
+        { nome: "Urbanização: crescimento urbano, problemas estruturais", relevancia: 5 },
         { nome: "Tipos de fontes de energia (eólica, hidráulica, biomassa, solar, marés)", relevancia: 3 },
         { nome: "Problemas Ambientais", relevancia: 4 },
         { nome: "Clima: pressão, umidade, temperatura, mudanças climáticas", relevancia: 3 },
@@ -67,13 +67,13 @@ const EDITAL_PMBA_COMPLETO = {
       peso: 1,
       importancia: "Alta", // Alta dificuldade para a maioria
       assuntos: [
-        { nome: "Conjuntos numéricos (Naturais, Inteiros, Racionais, Reais, Complexos)", relevancia: 2 },
+        { nome: "Conjuntos numéricos (Naturais, Inteiros, Racionais, Reais, Complexos)", relevancia: 4 },
         { nome: "Sequências numéricas: PA e PG", relevancia: 4 }, // FCC gosta de sequências lógicas
         { nome: "Álgebra: Expressões, Polinômios e Equações Polinomiais", relevancia: 2 },
         { nome: "Funções: 1º grau, 2º grau, modular, exponencial e logarítmica", relevancia: 4 },
-        { nome: "Sistemas lineares, matrizes e determinantes", relevancia: 2 },
+        { nome: "Sistemas lineares, matrizes e determinantes", relevancia: 4 },
         { nome: "Análise combinatória e Probabilidade", relevancia: 5 }, // Top 1 de cobrança em exatas
-        { nome: "Geometria Plana (figuras, áreas, perímetros) e Espacial (sólidos, volumes)", relevancia: 3 },
+        { nome: "Geometria Plana (figuras, áreas, perímetros) e Espacial (sólidos, volumes)", relevancia: 4 },
         { nome: "Geometria Analítica: retas, circunferência e distâncias", relevancia: 1 },
         { nome: "Trigonometria: razões, funções e transformações", relevancia: 2 }
       ]
@@ -83,7 +83,7 @@ const EDITAL_PMBA_COMPLETO = {
       peso: 1,
       importancia: "Baixa",
       assuntos: [
-        { nome: "Globalização: efeitos sociais, econômicos e culturais", relevancia: 3 },
+        { nome: "Globalização: efeitos sociais, econômicos e culturais", relevancia: 5 },
         { nome: "Multiculturalidade, Pluralidade e Diversidade Cultural", relevancia: 2 },
         { nome: "Tecnologias de Informação e Comunicação", relevancia: 4 } // Tema moderno e recorrente
       ]
@@ -97,7 +97,7 @@ const EDITAL_PMBA_COMPLETO = {
         { nome: "Sistemas operacionais: Windows 7, 10 e Linux", relevancia: 4 },
         { nome: "Organização e gerenciamento de arquivos e pastas", relevancia: 3 },
         { nome: "Atalhos de teclado, ícones, área de trabalho", relevancia: 3 },
-        { nome: "Internet e Intranet: conceitos e ferramentas", relevancia: 3 },
+        { nome: "Internet e Intranet: conceitos e ferramentas", relevancia: 4 },
         { nome: "Correio eletrônico", relevancia: 2 },
         { nome: "Computação em nuvem", relevancia: 3 }
       ]
@@ -110,7 +110,7 @@ const EDITAL_PMBA_COMPLETO = {
         { nome: "CF/88: Princípios fundamentais", relevancia: 3 },
         { nome: "Direitos e garantias fundamentais", relevancia: 5 }, // O assunto mais importante do concurso (Art 5º)
         { nome: "Organização do Estado", relevancia: 2 },
-        { nome: "Administração Pública", relevancia: 3 },
+        { nome: "Administração Pública", relevancia: 5 },
         { nome: "Militares dos Estados, DF e Territórios", relevancia: 4 },
         { nome: "Segurança Pública", relevancia: 5 }, // Art 144
         { nome: "Constituição da Bahia: Princípios fundamentais", relevancia: 2 },
@@ -126,8 +126,8 @@ const EDITAL_PMBA_COMPLETO = {
       assuntos: [
         { nome: "Declaração Universal dos Direitos Humanos (1948)", relevancia: 5 }, // Obrigatório saber
         { nome: "Convenção Americana (Pacto de São José da Costa Rica)", relevancia: 4 },
-        { nome: "Pacto Internacional dos Direitos Econômicos, Sociais e Culturais", relevancia: 2 },
-        { nome: "Declaração de Pequim (Conferência sobre as Mulheres)", relevancia: 1 }
+        { nome: "Pacto Internacional dos Direitos Econômicos, Sociais e Culturais", relevancia: 4 },
+        { nome: "Declaração de Pequim (Conferência sobre as Mulheres)", relevancia: 4 }
       ]
     },
     {
@@ -135,8 +135,8 @@ const EDITAL_PMBA_COMPLETO = {
       peso: 2,
       importancia: "Alta",
       assuntos: [
-        { nome: "Administração Pública", relevancia: 3 },
-        { nome: "Princípios fundamentais da administração pública", relevancia: 4 }, // LIMPE
+        { nome: "Administração Pública", relevancia: 4 },
+        { nome: "Princípios fundamentais da administração pública", relevancia: 5 }, // LIMPE
         { nome: "Poderes e deveres (vinculado, discricionário, hierárquico, disciplinar, polícia)", relevancia: 5 }, // Poder de Polícia cai muito
         { nome: "Servidores públicos: cargo, emprego e função", relevancia: 3 },
         { nome: "Estatuto dos Policiais Militares da Bahia (Lei 7.990/2001)", relevancia: 5 } // Vital para a PMBA
@@ -155,7 +155,7 @@ const EDITAL_PMBA_COMPLETO = {
         { nome: "Crimes contra a liberdade pessoal (ameaça, sequestro, etc.)", relevancia: 3 },
         { nome: "Crimes contra o patrimônio (furto, roubo, extorsão...)", relevancia: 4 },
         { nome: "Crimes contra a dignidade sexual", relevancia: 3 },
-        { nome: "Corrupção ativa e passiva", relevancia: 4 },
+        { nome: "Corrupção ativa e passiva", relevancia: 5 },
         { nome: "Lei de Tortura (Lei nº 9.455/97)", relevancia: 4 }
       ]
     },

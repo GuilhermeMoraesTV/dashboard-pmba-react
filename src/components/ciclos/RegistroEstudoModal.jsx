@@ -88,7 +88,6 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
         return;
     }
 
-    // VALIDAÇÃO DE ASSUNTO OBRIGATÓRIO
     if (!selectedAssuntoNome) {
         setErrorMessage('Selecione um assunto/tópico para salvar.');
         setLoading(false);
@@ -181,9 +180,19 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
                         Assunto {loadingAssuntos && <span className="text-red-500 text-[10px]">Carregando...</span>}
                     </label>
                     <div className="relative">
-                      <select value={selectedAssuntoNome} onChange={(e) => setSelectedAssuntoNome(e.target.value)} className="w-full p-3 border border-zinc-200 dark:border-zinc-700 rounded-xl bg-zinc-50 dark:bg-zinc-900/50 focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all outline-none text-zinc-800 dark:text-white font-medium appearance-none" disabled={loadingAssuntos || assuntosDisponiveis.length === 0}>
+                      <select
+                        value={selectedAssuntoNome}
+                        onChange={(e) => setSelectedAssuntoNome(e.target.value)}
+                        className="w-full p-3 border border-zinc-200 dark:border-zinc-700 rounded-xl bg-zinc-50 dark:bg-zinc-900/50 focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all outline-none text-zinc-800 dark:text-white font-medium appearance-none"
+                        disabled={loadingAssuntos || assuntosDisponiveis.length === 0}
+                      >
                         <option value="">Selecione o assunto...</option>
-                        {assuntosDisponiveis.map((assunto, idx) => (<option key={idx} value={assunto}>{assunto}</option>))}
+                        {/* CORREÇÃO DO ERRO AQUI: */}
+                        {assuntosDisponiveis.map((assunto, idx) => {
+                            // Verifica se é objeto ou string para extrair o nome
+                            const nome = typeof assunto === 'object' ? assunto.nome : assunto;
+                            return <option key={idx} value={nome}>{nome}</option>;
+                        })}
                       </select>
                       <Target className="absolute right-3 top-3.5 text-zinc-400 pointer-events-none" size={18} />
                     </div>
