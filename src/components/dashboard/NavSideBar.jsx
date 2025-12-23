@@ -1,5 +1,8 @@
-import React from 'react';
-import { Home, Target, Calendar, LogOut, RefreshCw, Menu, User } from 'lucide-react';
+import React, { useMemo } from 'react';
+import { Home, Target, Calendar, LogOut, RefreshCw, Menu, User, ShieldAlert, LayoutList } from 'lucide-react';
+
+// UID do Administrador (Você)
+const ADMIN_UID = 'OLoJi457GQNE2eTSOcz9DAD6ppZ2';
 
 function NavSideBar({
   user,
@@ -12,12 +15,28 @@ function NavSideBar({
   setMobileOpen
 }) {
 
-  const navItems = [
-    { id: 'home', label: 'Home', icon: <Home size={22} /> },
-    { id: 'ciclos', label: 'Meus Ciclos', icon: <RefreshCw size={22} /> },
-    { id: 'goals', label: 'Metas', icon: <Target size={22} /> },
-    { id: 'calendar', label: 'Calendário', icon: <Calendar size={22} /> },
-  ];
+  // Construção dinâmica do menu
+  const navItems = useMemo(() => {
+    const items = [
+      { id: 'home', label: 'Home', icon: <Home size={22} /> },
+      { id: 'ciclos', label: 'Meus Ciclos', icon: <RefreshCw size={22} /> },
+      { id: 'edital', label: 'Edital', icon: <LayoutList size={22} /> },
+      { id: 'goals', label: 'Metas', icon: <Target size={22} /> },
+      { id: 'calendar', label: 'Calendário', icon: <Calendar size={22} /> },
+    ];
+
+    // Verifica se o usuário atual é o Admin
+    if (user && user.uid === ADMIN_UID) {
+      items.push({
+        id: 'admin',
+        label: 'Admin Zone',
+        icon: <ShieldAlert size={22} />,
+        isAdmin: true
+      });
+    }
+
+    return items;
+  }, [user]);
 
   const handleLogoClick = () => {
     setActiveTab('home');
@@ -87,7 +106,7 @@ function NavSideBar({
             return (
               <button
                 key={item.id}
-                id={`nav-item-${item.id}`} // ADICIONADO: ID para o Tour (ex: nav-item-goals)
+                id={`nav-item-${item.id}`}
                 onClick={() => {
                   setActiveTab(item.id);
                   setMobileOpen(false);
@@ -95,8 +114,12 @@ function NavSideBar({
                 className={`
                   relative flex items-center w-full p-3 rounded-xl transition-all duration-300 group
                   ${isActive
-                    ? 'bg-red-600 text-white shadow-lg shadow-red-600/30'
-                    : 'text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-white'
+                    ? item.isAdmin
+                        ? 'bg-zinc-800 text-red-500 shadow-lg shadow-black/20 ring-1 ring-red-900/50'
+                        : 'bg-red-600 text-white shadow-lg shadow-red-600/30'
+                    : item.isAdmin
+                        ? 'text-red-600 hover:bg-red-50 dark:hover:bg-red-900/10'
+                        : 'text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-white'
                   }
                 `}
               >
@@ -115,7 +138,7 @@ function NavSideBar({
 
                 {/* Indicador Ativo */}
                 {isActive && !isFullyExpanded && !isMobileOpen && (
-                  <div className="absolute right-2 top-2 w-2 h-2 rounded-full bg-white animate-pulse" />
+                  <div className={`absolute right-2 top-2 w-2 h-2 rounded-full animate-pulse ${item.isAdmin ? 'bg-red-500' : 'bg-white'}`} />
                 )}
               </button>
             );

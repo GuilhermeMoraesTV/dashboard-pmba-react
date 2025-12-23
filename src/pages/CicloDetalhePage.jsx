@@ -455,7 +455,7 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
         {disciplinaEmDetalhe && (
             <DisciplinaDetalheModal
                 disciplina={disciplinaEmDetalhe}
-                registrosEstudo={registrosDoCiclo}
+                registrosEstudo={registrosDoPeriodo}
                 cicloId={cicloId}
                 user={user.uid}
                 onClose={() => { setDisciplinaEmDetalhe(null); setSelectedDisciplinaId(null); }}
