@@ -1,5 +1,16 @@
 import React, { useMemo } from 'react';
-import { Home, Target, Calendar, LogOut, RefreshCw, Menu, User, ShieldAlert, LayoutList } from 'lucide-react';
+import {
+  Home,
+  Target,
+  Calendar,
+  LogOut,
+  RefreshCw,
+  Menu,
+  User,
+  ShieldAlert,
+  LayoutList,
+  BarChart2 // <--- IMPORTANTE: Novo ícone para Desempenho
+} from 'lucide-react';
 
 // UID do Administrador (Você)
 const ADMIN_UID = 'OLoJi457GQNE2eTSOcz9DAD6ppZ2';

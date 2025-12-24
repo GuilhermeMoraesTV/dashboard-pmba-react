@@ -12,32 +12,24 @@ import {
   getDoc
 } from 'firebase/firestore';
 
-const RATING_PESO_MAP = {
-  0: 6,
-  1: 5,
-  2: 4,
-  3: 3,
-  4: 2,
-  5: 1,
-};
-
+/**
+ * CALCULA A DISTRIBUIÇÃO DE TEMPO BASEADO NO PESO (PRIORIDADE)
+ * Lógica: Proporção direta.
+ * Peso maior = Mais tempo de estudo.
+ */
 const calcularDistribuicao = (disciplinas, cargaHorariaTotalMinutos) => {
-  let totalPesos = 0;
+  // 1. Soma total dos pesos
+  const totalPesos = disciplinas.reduce((acc, d) => acc + (Number(d.peso) || 1), 0);
 
-  disciplinas.forEach(disciplina => {
-    const nivelNumerico = Number(disciplina.nivel || disciplina.nivelProficiencia || 0);
-    const peso = RATING_PESO_MAP[nivelNumerico] || RATING_PESO_MAP[0];
-    totalPesos += peso;
-  });
-
+  // Se não houver peso (evitar divisão por zero), zera o tempo
   if (totalPesos === 0) return disciplinas.map(d => ({ ...d, tempoAlocadoMinutos: 0 }));
 
+  // 2. Valor em minutos de "1 ponto" de peso
   const tempoPorPonto = cargaHorariaTotalMinutos / totalPesos;
 
+  // 3. Distribui
   return disciplinas.map(disciplina => {
-    const nivelNumerico = Number(disciplina.nivel || disciplina.nivelProficiencia || 0);
-    const peso = RATING_PESO_MAP[nivelNumerico] || RATING_PESO_MAP[0];
-
+    const peso = Number(disciplina.peso) || 1;
     return {
       ...disciplina,
       tempoAlocadoMinutos: Math.round(peso * tempoPorPonto),
@@ -49,6 +41,7 @@ export const useCiclos = (user) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  // Desativa ciclos anteriores para manter apenas um ativo (regra de negócio opcional, mas recomendada)
   const desativarCiclosAntigos = async (batch, userId) => {
     const ciclosRef = collection(db, 'users', userId, 'ciclos');
     const q = query(ciclosRef, where('ativo', '==', true));
@@ -65,11 +58,14 @@ export const useCiclos = (user) => {
     }
     setLoading(true);
     setError(null);
+
     try {
       const cargaHorariaTotal = Number(cicloData.cargaHorariaTotal || 0);
       const cargaHorariaTotalMinutos = cargaHorariaTotal * 60;
 
+      // Calcula tempos antes de salvar
       const disciplinasComTempo = calcularDistribuicao(cicloData.disciplinas, cargaHorariaTotalMinutos);
+
       const batch = writeBatch(db);
 
       // 1. Desativa ciclos anteriores
@@ -88,26 +84,24 @@ export const useCiclos = (user) => {
         templateOrigem: cicloData.templateId || null
       });
 
-      // 3. Cria Disciplinas
+      // 3. Cria Subcoleção de Disciplinas
       for (const disciplina of disciplinasComTempo) {
         const disciplinaRef = doc(collection(db, 'users', user.uid, 'ciclos', cicloRef.id, 'disciplinas'));
 
-        const tempoAlocadoNumerico = Number(disciplina.tempoAlocadoMinutos || 0);
-
-        // CORREÇÃO CRUCIAL AQUI:
-        // Salvamos 'assuntos' como um array dentro do documento, não como subcoleção.
-        // Isso permite que o EditalPage e o Timer leiam os dados instantaneamente.
         batch.set(disciplinaRef, {
           nome: disciplina.nome,
-          nivelProficiencia: disciplina.nivel || disciplina.nivelProficiencia || 0,
-          tempoAlocadoSemanalMinutos: tempoAlocadoNumerico,
-          assuntos: disciplina.assuntos || [] // Salva o array de strings
+          // Agora usamos 'peso' explicitamente, sem inversão de valores
+          peso: Number(disciplina.peso) || 1,
+          tempoAlocadoSemanalMinutos: Number(disciplina.tempoAlocadoMinutos || 0),
+          // Garante que assuntos seja um array
+          assuntos: Array.isArray(disciplina.assuntos) ? disciplina.assuntos : []
         });
       }
 
       await batch.commit();
       setLoading(false);
       return cicloRef.id;
+
     } catch (err) {
       console.error("Erro ao criar ciclo:", err);
       setError(err.message);
@@ -139,13 +133,16 @@ export const useCiclos = (user) => {
     } catch (err) { console.error("Erro ao arquivar ciclo:", err); setError(err.message); setLoading(false); return false; }
   };
 
+  // Função de Edição também atualizada para usar PESO
   const editarCiclo = async (cicloId, cicloData) => {
     if (!user) { setError("Usuário não autenticado"); return false; }
     setLoading(true); setError(null);
     try {
       const cargaHorariaTotal = Number(cicloData.cargaHorariaTotal || 0);
       const cargaHorariaTotalMinutos = cargaHorariaTotal * 60;
+
       const disciplinasComTempo = calcularDistribuicao(cicloData.disciplinas, cargaHorariaTotalMinutos);
+
       const batch = writeBatch(db);
 
       const cicloRef = doc(db, 'users', user.uid, 'ciclos', cicloId);
@@ -160,12 +157,12 @@ export const useCiclos = (user) => {
         let disciplinaRef;
         const tempoAlocadoNumerico = Number(disciplina.tempoAlocadoMinutos || 0);
 
-        if (disciplina.id && !String(disciplina.id).startsWith('temp-')) {
+        if (disciplina.id && !String(disciplina.id).startsWith('temp-') && !String(disciplina.id).startsWith('manual-')) {
           disciplinaRef = doc(db, 'users', user.uid, 'ciclos', cicloId, 'disciplinas', disciplina.id);
-          // Atualiza mantendo ou atualizando assuntos se houver
+
           const updateData = {
             nome: disciplina.nome,
-            nivelProficiencia: disciplina.nivel || disciplina.nivelProficiencia || 0,
+            peso: Number(disciplina.peso) || 1, // Atualizado para peso
             tempoAlocadoSemanalMinutos: tempoAlocadoNumerico,
           };
           if (disciplina.assuntos) updateData.assuntos = disciplina.assuntos;
@@ -176,7 +173,7 @@ export const useCiclos = (user) => {
           disciplinaRef = doc(collection(db, 'users', user.uid, 'ciclos', cicloId, 'disciplinas'));
           batch.set(disciplinaRef, {
             nome: disciplina.nome,
-            nivelProficiencia: disciplina.nivel || disciplina.nivelProficiencia || 0,
+            peso: Number(disciplina.peso) || 1, // Atualizado para peso
             tempoAlocadoSemanalMinutos: tempoAlocadoNumerico,
             assuntos: disciplina.assuntos || []
           });
@@ -184,7 +181,7 @@ export const useCiclos = (user) => {
         }
       }
 
-      // Deleta disciplinas removidas
+      // Deleta disciplinas que foram removidas da lista
       for (const id of disciplinasExistentes) {
         if (!disciplinasEditadasIds.has(id)) {
           const disciplinaRef = doc(db, 'users', user.uid, 'ciclos', cicloId, 'disciplinas', id);
@@ -207,6 +204,8 @@ export const useCiclos = (user) => {
           const conclusoesAtuais = cicloDoc.data()?.conclusoes || 0;
           const proximaConclusaoId = conclusoesAtuais + 1;
           batch.update(cicloRef, { conclusoes: proximaConclusaoId, ultimaConclusao: serverTimestamp() });
+
+          // Atualiza registros pendentes
           const registrosRef = collection(db, 'users', user.uid, 'registrosEstudo');
           const q = query(registrosRef, where('cicloId', '==', cicloId));
           const registrosSnapshot = await getDocs(q);

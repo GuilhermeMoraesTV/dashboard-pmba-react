@@ -21,7 +21,8 @@ import CalendarTab from '../components/dashboard/CalendarTab';
 import CiclosPage from '../pages/CiclosPage';
 import ProfilePage from '../pages/ProfilePage';
 import AdminPage from '../pages/AdminPage';
-import EditalPage from '../pages/EditalPage'; // <--- IMPORTANTE: Importei a página do Edital
+import EditalPage from '../pages/EditalPage';
+import Desempenho from '../pages/PerformanceHub'; // <--- IMPORTANTE: Nova página importada
 import StudyTimer from '../components/ciclos/StudyTimer';
 import TimerFinishModal from '../components/ciclos/TimerFinishModal';
 import OnboardingTour from '../components/shared/OnboardingTour';
@@ -173,26 +174,22 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     setFinishModalData({ minutes, disciplinaNome: activeStudySession.disciplina.nome });
   };
 
-  // --- ATUALIZADO: Salva o estudo e, se marcado, cria o registro de check_manual ---
   const handleConfirmFinishStudy = async (resultData) => {
     if (!activeStudySession || !finishModalData) return;
     const { minutes } = finishModalData;
 
-    // Desestruturando os dados vindos do TimerFinishModal
     const {
         questions,
         correct,
         obs,
         assunto,
         disciplinaNomeCorrigido,
-        markAsFinished // <--- O novo dado que indica se deve marcar o edital
+        markAsFinished
     } = resultData;
 
-    // Define o nome correto da disciplina (caso tenha sido corrigido manualmente)
     const nomeDisciplinaFinal = disciplinaNomeCorrigido || activeStudySession.disciplina.nome;
 
     try {
-        // 1. Salva o registro PRINCIPAL de estudo (Tempo, Questões, etc)
         const registroEstudoData = {
             cicloId: activeCicloId,
             disciplinaId: activeStudySession.disciplina.id,
@@ -206,11 +203,8 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
             timestamp: Timestamp.now()
         };
 
-        // Usa a função auxiliar existente ou addDoc direto
         await addRegistroEstudo(registroEstudoData);
 
-        // 2. LÓGICA DO CHECK: Se marcou "Teoria Finalizada", cria o registro EXTRA
-        // Esse registro é o que faz a caixinha ficar verde no Edital
         if (markAsFinished && assunto) {
              const checkData = {
                 cicloId: activeCicloId,
@@ -222,15 +216,12 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
                 tempoEstudadoMinutos: 0,
                 questoesFeitas: 0,
                 acertos: 0,
-                tipoEstudo: 'check_manual', // <<-- A chave para o EditalPage encontrar
+                tipoEstudo: 'check_manual',
                 obs: 'Concluído via Timer'
             };
-
-            // Salva na coleção de registros
             await addDoc(collection(db, 'users', user.uid, 'registrosEstudo'), checkData);
         }
 
-        // Limpa os estados para fechar o modal e resetar o timer
         setFinishModalData(null);
         setActiveStudySession(null);
 
@@ -376,7 +367,8 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
 
   // --- RENDERIZAÇÃO DAS ABAS ---
   const renderTabContent = () => {
-    if (loading && ['home', 'calendar'].includes(activeTab)) {
+    // Adicionei 'stats' à lista de abas que mostram loading
+    if (loading && ['home', 'calendar', 'stats'].includes(activeTab)) {
       return (
         <div className="flex justify-center items-center h-64">
           <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-accent mx-auto mb-4"></div>
@@ -392,15 +384,23 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         return <CalendarTab registrosEstudo={allRegistrosEstudo} goalsHistory={goalsHistory} onDeleteRegistro={deleteRegistro} />;
       case 'ciclos':
         return <CiclosPage user={user} onStartStudy={handleStartStudy} onCicloAtivado={handleCicloCreationOrActivation} addRegistroEstudo={addRegistroEstudo} activeCicloId={activeCicloId} forceOpenVisual={forceOpenVisual} />;
-
-      // --- NOVA ABA: EDITAL VERTICALIZADO ---
       case 'edital':
         return <EditalPage user={user} activeCicloId={activeCicloId} onStartStudy={handleStartStudy}/>;
+
+      // --- ABA DE DESEMPENHO (INTELLIGENCE HUB) ---
+      case 'stats':
+        return (
+          <Desempenho
+            registrosEstudo={allRegistrosEstudo}
+            disciplinasDoCiclo={activeCicloData?.disciplinas || []}
+            activeCicloId={activeCicloId}
+            metas={goalsHistory}
+          />
+        );
 
       case 'profile':
         return <ProfilePage user={user} allRegistrosEstudo={allRegistrosEstudo} onDeleteRegistro={deleteRegistro} />;
 
-      // --- ABA ADMIN ---
       case 'admin':
         if (user.uid === ADMIN_UID) {
             return <AdminPage />;
@@ -451,9 +451,9 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         <TimerFinishModal
           timeMinutes={finishModalData.minutes}
           disciplinaNome={finishModalData.disciplinaNome}
-          disciplinaId={activeStudySession?.disciplina?.id} // Passando ID da disciplina
-          activeCicloId={activeCicloId} // IMPORTANTE: Passando ID do ciclo para buscar assuntos
-          userUid={user.uid}            // IMPORTANTE: Passando UID
+          disciplinaId={activeStudySession?.disciplina?.id}
+          activeCicloId={activeCicloId}
+          userUid={user.uid}
           onConfirm={handleConfirmFinishStudy}
           onCancel={() => setFinishModalData(null)}
         />
