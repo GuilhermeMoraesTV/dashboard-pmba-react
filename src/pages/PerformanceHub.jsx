@@ -1,5 +1,4 @@
-import React, { useMemo, useState } from 'react';
-import { motion } from 'framer-motion';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
     ResponsiveContainer,
     ComposedChart,
@@ -11,11 +10,6 @@ import {
     YAxis,
     CartesianGrid,
     Tooltip,
-    RadarChart,
-    PolarGrid,
-    PolarAngleAxis,
-    PolarRadiusAxis,
-    Radar,
     Cell
 } from 'recharts';
 import {
@@ -26,16 +20,8 @@ import {
     ChevronDown,
     Filter,
     List,
-    Search,
     Zap,
-    AlertCircle,
     Calendar,
-    ArrowUpRight,
-    ArrowDownRight,
-    Minus,
-    Layers,
-    Brain,
-    Download,
     CheckCircle2,
     XCircle,
     AlertTriangle
@@ -51,20 +37,6 @@ import {
 // ============================================================================
 // 1. CONFIGURAÇÕES & UTILS
 // ============================================================================
-
-const THEME = {
-    colors: {
-        primary: '#dc2626',      // Red-600
-        secondary: '#3b82f6',    // Blue-500
-        success: '#10b981',      // Emerald-500
-        warning: '#f59e0b',      // Amber-500
-        danger: '#ef4444',       // Red-500
-        darkBg: '#18181b',       // Zinc-900
-        cardLight: '#ffffff',
-        cardDark: '#09090b',     // Zinc-950
-        textLight: '#71717a',    // Zinc-500
-    }
-};
 
 const TIME_RANGES = [
     { id: '7D', label: '7 Dias' },
@@ -84,7 +56,6 @@ const formatTime = (minutes) => {
 // 2. COMPONENTES VISUAIS (UI KIT)
 // ============================================================================
 
-// --- StatCard (Estilo idêntico à Home) ---
 const StatCard = ({ icon: Icon, title, value, subValue, className = "" }) => (
     <div className={`relative overflow-hidden group p-3 md:p-6 h-[110px] md:h-[140px] flex flex-col justify-center items-start transition-all duration-500 hover:shadow-lg border border-zinc-200 dark:border-zinc-800 border-l-4 border-l-transparent hover:border-l-red-500 bg-white dark:bg-zinc-950 rounded-2xl ${className}`}>
         <div className="relative z-20 flex flex-col gap-0.5 md:gap-1 w-full">
@@ -104,15 +75,8 @@ const StatCard = ({ icon: Icon, title, value, subValue, className = "" }) => (
     </div>
 );
 
-// --- Container Padrão para Gráficos ---
 const CardContainer = ({ title, subtitle, icon: Icon, children, className = "" }) => (
-    <motion.div
-        initial={{ opacity: 0, y: 15 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true, margin: "-50px" }}
-        transition={{ duration: 0.4, ease: "easeOut" }}
-        className={`bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm p-5 md:p-6 flex flex-col ${className}`}
-    >
+    <div className={`bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm p-5 md:p-6 flex flex-col ${className}`}>
         <div className="flex items-center gap-3 mb-6">
             <div className="p-2 bg-zinc-100 dark:bg-zinc-900 rounded-lg text-red-600 dark:text-red-500">
                 <Icon size={18} strokeWidth={2.5} />
@@ -127,10 +91,9 @@ const CardContainer = ({ title, subtitle, icon: Icon, children, className = "" }
         <div className="flex-1 w-full min-h-0 relative">
             {children}
         </div>
-    </motion.div>
+    </div>
 );
 
-// --- Tooltip Customizado ---
 const AnalyticsTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
         return (
@@ -156,7 +119,6 @@ const AnalyticsTooltip = ({ active, payload, label }) => {
     return null;
 };
 
-// --- Select Customizado ---
 const CustomSelect = ({ value, onChange, options, placeholder, icon: Icon, disabled = false }) => (
     <div className={`relative group ${disabled ? 'opacity-50 pointer-events-none' : ''}`}>
         {Icon && <Icon size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 z-10" />}
@@ -183,11 +145,10 @@ const CustomSelect = ({ value, onChange, options, placeholder, icon: Icon, disab
 );
 
 // ============================================================================
-// 3. COMPONENTE PRINCIPAL
+// 3. COMPONENTE PRINCIPAL (CORRIGIDO)
 // ============================================================================
 
 const PerformanceHub = ({ registrosEstudo = [], activeCicloId, disciplinasDoCiclo = [] }) => {
-    // Estados
     const [timeRange, setTimeRange] = useState('30D');
     const [selectedDiscipline, setSelectedDiscipline] = useState('ALL');
     const [selectedTopic, setSelectedTopic] = useState('ALL');
@@ -204,21 +165,47 @@ const PerformanceHub = ({ registrosEstudo = [], activeCicloId, disciplinasDoCicl
         else if (timeRange === '15D') startDate = subDays(today, 15);
         else if (timeRange === '30D') startDate = subDays(today, 30);
 
+        // Filtra registros do ciclo ativo
         let filteredRecords = registrosEstudo.filter(r => r.cicloId === activeCicloId);
 
         if (startDate) {
             filteredRecords = filteredRecords.filter(r => r.data && parseISO(r.data) >= startDate);
         }
 
-        // 2. Filtro de Disciplina
-        const disciplinesAvailable = [...new Set(filteredRecords.map(r => r.disciplinaNome).filter(Boolean))].sort();
+        // 2. Filtro de Disciplina (CORREÇÃO AQUI)
+        // Agora pegamos as disciplinas do ciclo ativo (passadas via prop)
+        // Se a prop estiver vazia (fallback), tenta pegar dos registros
+        let disciplinesAvailable = [];
+        if (disciplinasDoCiclo && disciplinasDoCiclo.length > 0) {
+            disciplinesAvailable = disciplinasDoCiclo.map(d => d.nome).sort();
+        } else {
+            disciplinesAvailable = [...new Set(filteredRecords.map(r => r.disciplinaNome).filter(Boolean))].sort();
+        }
 
+        // Aplica filtro se selecionado
         if (selectedDiscipline !== 'ALL') {
             filteredRecords = filteredRecords.filter(r => r.disciplinaNome === selectedDiscipline);
         }
 
-        // 3. Filtro de Assunto (Tópico) - Disponíveis baseado na disciplina
-        const topicsAvailable = [...new Set(filteredRecords.map(r => r.assunto).filter(Boolean))].sort();
+        // 3. Filtro de Assunto (Tópico)
+        // Tenta pegar assuntos da estrutura do ciclo se a disciplina estiver selecionada
+        let topicsAvailable = [];
+
+        if (selectedDiscipline !== 'ALL') {
+            // Tenta achar a disciplina na estrutura do ciclo
+            const discData = disciplinasDoCiclo.find(d => d.nome === selectedDiscipline);
+            if (discData && discData.assuntos) {
+                // Se o assunto for objeto ou string, normaliza para string
+                topicsAvailable = discData.assuntos.map(a => (typeof a === 'object' ? (a.nome || a.texto || '') : a)).filter(Boolean);
+            }
+
+            // Adiciona assuntos que podem estar nos registros mas não no edital (ex: extra)
+            const recordedTopics = filteredRecords.map(r => r.assunto).filter(Boolean);
+            topicsAvailable = [...new Set([...topicsAvailable, ...recordedTopics])].sort();
+        } else {
+            // Se nenhuma disciplina selecionada, mostra todos os tópicos registrados
+            topicsAvailable = [...new Set(filteredRecords.map(r => r.assunto).filter(Boolean))].sort();
+        }
 
         if (selectedTopic !== 'ALL' && selectedDiscipline !== 'ALL') {
             filteredRecords = filteredRecords.filter(r => r.assunto === selectedTopic);
@@ -259,7 +246,7 @@ const PerformanceHub = ({ registrosEstudo = [], activeCicloId, disciplinasDoCicl
             topicsMap[topicKey].q += q;
             topicsMap[topicKey].c += c;
 
-            // Por Disciplina (Para Radar)
+            // Por Disciplina (Para Radar - não usado visualmente no momento mas útil para lógica)
             if (!subjectsStats[subj]) subjectsStats[subj] = { name: subj, q: 0, c: 0, time: 0 };
             subjectsStats[subj].q += q;
             subjectsStats[subj].c += c;
@@ -285,9 +272,8 @@ const PerformanceHub = ({ registrosEstudo = [], activeCicloId, disciplinasDoCicl
         }
 
         // Dados Gráfico Negativo (Pontos de Atenção)
-        // Filtra tópicos com pelo menos 3 questões e ordena por MENOR precisão
         const weakTopics = Object.values(topicsMap)
-            .filter(t => t.q >= 3)
+            .filter(t => t.q >= 3) // Mínimo 3 questões
             .map(t => ({
                 name: t.assunto.length > 20 ? t.assunto.substring(0, 20) + '...' : t.assunto,
                 fullTopic: t.assunto,
@@ -296,32 +282,21 @@ const PerformanceHub = ({ registrosEstudo = [], activeCicloId, disciplinasDoCicl
                 volume: t.q
             }))
             .sort((a, b) => a.accuracy - b.accuracy)
-            .slice(0, 5); // Pega os 5 piores
-
-        // Dados Radar (Disciplinas)
-        const radarData = Object.values(subjectsStats)
-            .map(s => ({
-                subject: s.name.length > 10 ? s.name.substring(0, 10) + '...' : s.name,
-                accuracy: s.q > 0 ? Math.round((s.c / s.q) * 100) : 0,
-                fullMark: 100
-            }))
-            .sort((a,b) => b.accuracy - a.accuracy)
-            .slice(0, 6);
+            .slice(0, 5);
 
         return {
             kpis: { totalTime, totalQuestions, totalCorrect, accuracy },
             evolutionData,
             weakTopics,
-            radarData,
             tableData: Object.values(topicsMap).sort((a, b) => b.time - a.time),
             disciplinesAvailable,
             topicsAvailable
         };
 
-    }, [registrosEstudo, activeCicloId, timeRange, selectedDiscipline, selectedTopic]);
+    }, [registrosEstudo, activeCicloId, timeRange, selectedDiscipline, selectedTopic, disciplinasDoCiclo]);
 
     // Reseta o tópico se mudar a disciplina
-    React.useEffect(() => {
+    useEffect(() => {
         setSelectedTopic('ALL');
     }, [selectedDiscipline]);
 
@@ -332,15 +307,13 @@ const PerformanceHub = ({ registrosEstudo = [], activeCicloId, disciplinasDoCicl
     return (
         <div className="w-full pb-20 animate-slide-up space-y-6">
 
-            {/* HEADER SIMPLIFICADO */}
+            {/* HEADER */}
             <header className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-4 border-b border-zinc-200 dark:border-zinc-800 pb-4">
                 <div>
                     <h1 className="text-2xl md:text-3xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter flex items-center gap-2">
-                        Performance Analytics
+                        Desempenho e Estatísticas
                     </h1>
-                    <p className="text-xs text-zinc-500 mt-1">
-                        Análise tática e identificação de pontos fracos
-                    </p>
+                    
                 </div>
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2 w-full lg:w-auto">
@@ -386,7 +359,7 @@ const PerformanceHub = ({ registrosEstudo = [], activeCicloId, disciplinasDoCicl
                 </div>
             </header>
 
-            {/* KPI CARDS (ESTILO HOME) */}
+            {/* KPI CARDS */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <StatCard
                     icon={Clock}

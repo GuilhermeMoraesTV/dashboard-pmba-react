@@ -32,6 +32,7 @@ function NavSideBar({
       { id: 'home', label: 'Home', icon: <Home size={22} /> },
       { id: 'ciclos', label: 'Meus Ciclos', icon: <RefreshCw size={22} /> },
       { id: 'edital', label: 'Edital', icon: <LayoutList size={22} /> },
+      { id: 'stats', label: 'Desempenho', icon: <BarChart2 size={22} /> },
       { id: 'goals', label: 'Metas', icon: <Target size={22} /> },
       { id: 'calendar', label: 'Calendário', icon: <Calendar size={22} /> },
     ];

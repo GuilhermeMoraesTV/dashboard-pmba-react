@@ -22,7 +22,7 @@ import CiclosPage from '../pages/CiclosPage';
 import ProfilePage from '../pages/ProfilePage';
 import AdminPage from '../pages/AdminPage';
 import EditalPage from '../pages/EditalPage';
-import Desempenho from '../pages/PerformanceHub'; // <--- IMPORTANTE: Nova página importada
+import Desempenho from '../pages/PerformanceHub';
 import StudyTimer from '../components/ciclos/StudyTimer';
 import TimerFinishModal from '../components/ciclos/TimerFinishModal';
 import OnboardingTour from '../components/shared/OnboardingTour';
@@ -139,6 +139,9 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   const [activeCicloData, setActiveCicloData] = useState(null);
   const [allRegistrosEstudo, setAllRegistrosEstudo] = useState([]);
   const [activeRegistrosEstudo, setActiveRegistrosEstudo] = useState([]);
+
+  // [NOVO] Disciplinas do ciclo ativo (buscadas da subcoleção)
+  const [activeCycleDisciplines, setActiveCycleDisciplines] = useState([]);
 
   const todayStr = dateToYMD(new Date());
 
@@ -334,6 +337,20 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     return () => unsubscribe();
   }, [user]);
 
+  // [NOVO] Efeito para carregar as disciplinas do ciclo ativo da subcoleção
+  useEffect(() => {
+    if (!user || !activeCicloId) {
+        setActiveCycleDisciplines([]);
+        return;
+    }
+    const q = query(collection(db, 'users', user.uid, 'ciclos', activeCicloId, 'disciplinas'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+        const discs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setActiveCycleDisciplines(discs);
+    });
+    return () => unsubscribe();
+  }, [user, activeCicloId]);
+
   useEffect(() => {
     if (!user) return;
     setLoading(true);
@@ -392,7 +409,8 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         return (
           <Desempenho
             registrosEstudo={allRegistrosEstudo}
-            disciplinasDoCiclo={activeCicloData?.disciplinas || []}
+            // [CORREÇÃO] Passando as disciplinas carregadas da subcoleção
+            disciplinasDoCiclo={activeCycleDisciplines}
             activeCicloId={activeCicloId}
             metas={goalsHistory}
           />
