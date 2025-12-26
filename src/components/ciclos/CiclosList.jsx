@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../../firebaseConfig';
 import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
 import CicloCreateWizard from '../ciclos/CicloCreateWizard';
@@ -18,7 +18,8 @@ import {
   ArrowRight,
   RotateCw,
   Trophy,
-  Map
+  Map,
+  BarChart3
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -51,29 +52,64 @@ function ModalConfirmacaoArquivamento({ ciclo, onClose, onConfirm, loading }) {
   );
 }
 
-const CicloCard = ({ ciclo, onClick, onMenuToggle, isMenuOpen, onAction }) => {
+const getLogo = (ciclo) => {
+    if(ciclo.logoUrl) return ciclo.logoUrl;
+    const searchString = (ciclo.templateOrigem || ciclo.nome || '').toLowerCase();
+    
+    if(searchString.includes('pmba')) return '/logosEditais/logo-pmba.png';
+    if(searchString.includes('ppmg')) return '/logosEditais/logo-ppmg.png';
+    if(searchString.includes('pcba')) return '/logosEditais/logo-pcba.png';
+    if(searchString.includes('pmse')) return '/logosEditais/logo-pmse.png';
+    return null;
+};
+
+const CicloCard = ({ ciclo, onClick, onMenuToggle, isMenuOpen, onAction, registrosEstudo }) => {
     const concluidos = ciclo.conclusoes || 0;
+    const logo = getLogo(ciclo);
+
+    // Calcular progresso
+    const { totalHoras, progressoPercent } = useMemo(() => {
+        if (!registrosEstudo) return { totalHoras: 0, progressoPercent: 0 };
+        
+        const registrosDoCiclo = registrosEstudo.filter(r => r.cicloId === ciclo.id && !r.conclusaoId && r.tipoEstudo !== 'check_manual');
+        const minutosTotais = registrosDoCiclo.reduce((acc, curr) => acc + Number(curr.tempoEstudadoMinutos || 0), 0);
+        const horasTotais = Math.round(minutosTotais / 60 * 10) / 10;
+        
+        const metaSemanal = Number(ciclo.cargaHorariaSemanalTotal) || 1;
+        const percent = Math.min((horasTotais / metaSemanal) * 100, 100);
+        
+        return { totalHoras: horasTotais, progressoPercent: percent };
+    }, [ciclo.id, registrosEstudo, ciclo.cargaHorariaSemanalTotal]);
 
     return (
         <div
             onClick={() => onClick(ciclo.id)}
-            className="group relative bg-white dark:bg-zinc-900/50 rounded-2xl p-6 cursor-pointer border border-zinc-200 dark:border-zinc-800 overflow-hidden transition-all duration-500 hover:-translate-y-1 hover:shadow-2xl"
+            className="group relative bg-white dark:bg-zinc-900/50 rounded-2xl p-5 cursor-pointer border border-zinc-200 dark:border-zinc-800 overflow-hidden transition-all duration-500 hover:-translate-y-1 hover:shadow-2xl flex flex-col justify-between h-full min-h-[220px]"
         >
             <div className="absolute left-0 top-0 bottom-0 w-1 bg-transparent group-hover:bg-red-500 transition-colors duration-300 z-20"></div>
-            <div className="absolute -bottom-6 -right-6 text-red-500/15 dark:text-red-500/5 transition-all duration-700 ease-out group-hover:scale-125 group-hover:rotate-[-10deg] group-hover:text-red-500/15 dark:group-hover:text-red-500/10 z-0 pointer-events-none">
-                {ciclo.ativo ? <Target strokeWidth={1.5} size={140} /> : <BookOpen strokeWidth={1.5} size={140} />}
-            </div>
+            
+            {/* --- LOGO VISUAL E BONITA (MARCA D'ÁGUA) --- */}
+            {logo ? (
+                // Alterado aqui: Tamanho menor (w-24/h-24) e mais opacidade no mobile (opacity-30)
+                <div className="absolute bottom-0 right-0 w-24 h-24 md:w-36 md:h-36 opacity-30 md:opacity-20 transition-all duration-700 ease-out group-hover:scale-110 group-hover:opacity-40 z-0 pointer-events-none filter saturate-150">
+                    <img src={logo} alt="Logo Edital" className="w-full h-full object-contain" />
+                </div>
+            ) : (
+                <div className="absolute -bottom-6 -right-6 text-red-500/10 dark:text-red-500/5 transition-all duration-700 ease-out group-hover:scale-125 group-hover:rotate-[-10deg] z-0 pointer-events-none">
+                    {ciclo.ativo ? <Target strokeWidth={1.5} size={140} /> : <BookOpen strokeWidth={1.5} size={140} />}
+                </div>
+            )}
 
-            <div className="relative z-10">
-                <div className="flex justify-between items-start mb-6">
-                    <div className="flex flex-wrap gap-2">
-                        <div className={`px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-widest border flex items-center gap-1.5 ${ciclo.ativo ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.2)]' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 border-zinc-200 dark:border-zinc-700'}`}>
+            <div className="relative z-10 flex flex-col h-full">
+                <div className="flex justify-between items-start mb-4">
+                    <div className="flex flex-wrap gap-2 items-center">
+                        <div className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-widest border flex items-center gap-1.5 ${ciclo.ativo ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.2)]' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 border-zinc-200 dark:border-zinc-700'}`}>
                             {ciclo.ativo && (<span className="relative flex h-1.5 w-1.5"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span></span>)}
                             {ciclo.ativo ? 'ATIVO' : 'INATIVO'}
                         </div>
-                        <div className={`px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-widest border flex items-center gap-1.5 transition-all ${concluidos > 0 ? 'bg-amber-500/10 text-amber-600 dark:text-amber-500 border-amber-500/20 shadow-[0_0_10px_rgba(245,158,11,0.2)]' : 'bg-zinc-50 dark:bg-zinc-800/50 text-zinc-400 border-zinc-200 dark:border-zinc-700'}`} title="Conclusões">
+                        <div className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-widest border flex items-center gap-1.5 transition-all ${concluidos > 0 ? 'bg-amber-500/10 text-amber-600 dark:text-amber-500 border-amber-500/20 shadow-[0_0_10px_rgba(245,158,11,0.2)]' : 'bg-zinc-50 dark:bg-zinc-800/50 text-zinc-400 border-zinc-200 dark:border-zinc-700'}`} title="Conclusões">
                             {concluidos > 0 ? <Trophy size={12} /> : <RotateCw size={12} />}
-                            <span>{concluidos} {concluidos === 1 ? 'Conclusão' : 'Conclusões'}</span>
+                            <span>{concluidos}x</span>
                         </div>
                     </div>
 
@@ -92,25 +128,55 @@ const CicloCard = ({ ciclo, onClick, onMenuToggle, isMenuOpen, onAction }) => {
                     </div>
                 </div>
 
-                <div className="mb-8">
-                    <h3 className="text-2xl font-black text-zinc-800 dark:text-white leading-none mb-2 line-clamp-1 group-hover:text-red-600 dark:group-hover:text-red-500 transition-colors">{ciclo.nome}</h3>
+                <div className="mb-4 flex-grow">
+                    <h3 className="text-xl md:text-2xl font-black text-zinc-900 dark:text-white leading-tight mb-2 line-clamp-2 group-hover:text-red-600 dark:group-hover:text-red-500 transition-colors">
+                        {ciclo.nome}
+                    </h3>
                     <div className="w-8 h-1 bg-red-500 rounded-full mb-4 group-hover:w-16 transition-all duration-500"></div>
-                    <div className="flex flex-col gap-2">
-                        <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 text-sm"><Clock size={16} className="text-red-500/70" /><span className="font-mono font-bold text-zinc-700 dark:text-zinc-300">{ciclo.cargaHorariaSemanalTotal}h</span><span className="text-xs uppercase font-bold opacity-70">Carga Semanal</span></div>
-                        <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 text-sm"><Calendar size={16} className="text-red-500/70" /><span className="text-xs font-medium">Criado em {new Date(ciclo.dataCriacao?.toDate ? ciclo.dataCriacao.toDate() : Date.now()).toLocaleDateString('pt-BR')}</span></div>
+                    
+                    <div className="flex flex-col gap-2 mb-4">
+                        <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 text-xs md:text-sm">
+                            <Clock size={14} className="text-red-500/70" />
+                            <span className="font-mono font-bold text-zinc-700 dark:text-zinc-300">{ciclo.cargaHorariaSemanalTotal}h</span>
+                            <span className="text-[10px] uppercase font-bold opacity-70">Meta Semanal</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 text-xs md:text-sm">
+                            <Calendar size={14} className="text-red-500/70" />
+                            <span className="text-[10px] md:text-xs font-medium">Criado em {new Date(ciclo.dataCriacao?.toDate ? ciclo.dataCriacao.toDate() : Date.now()).toLocaleDateString('pt-BR')}</span>
+                        </div>
+                    </div>
+
+                    {/* BARRA DE PROGRESSO */}
+                    <div className="mt-auto">
+                        <div className="flex justify-between items-end mb-1">
+                            <span className="text-[10px] font-bold text-zinc-400 uppercase flex items-center gap-1">
+                                <BarChart3 size={12} /> Progresso
+                            </span>
+                            <span className="text-[10px] font-bold text-zinc-600 dark:text-zinc-300">
+                                {totalHoras}h <span className="text-zinc-400 font-normal">/ {ciclo.cargaHorariaSemanalTotal}h</span>
+                            </span>
+                        </div>
+                        <div className="h-2 w-full bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden shadow-inner">
+                            <div 
+                                className={`h-full rounded-full transition-all duration-700 ${progressoPercent >= 100 ? 'bg-emerald-500' : 'bg-red-500'}`}
+                                style={{ width: `${progressoPercent}%` }}
+                            ></div>
+                        </div>
                     </div>
                 </div>
 
-                <div className="flex items-center justify-between pt-4 border-t border-zinc-100 dark:border-zinc-800/50">
+                <div className="flex items-center justify-between pt-4 border-t border-zinc-100 dark:border-zinc-800/50 mt-2">
                     <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest group-hover:text-red-500 transition-colors">Acessar Ciclo</span>
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 ${ciclo.ativo ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/30' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400 group-hover:bg-red-500 group-hover:text-white'}`}><ArrowRight size={16} /></div>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 ${ciclo.ativo ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/30' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400 group-hover:bg-red-500 group-hover:text-white'}`}>
+                        <ArrowRight size={16} />
+                    </div>
                 </div>
             </div>
         </div>
     );
 };
 
-function CiclosList({ onCicloClick, user, onCicloAtivado }) {
+function CiclosList({ onCicloClick, user, onCicloAtivado, registrosEstudo }) {
   const [ciclos, setCiclos] = useState([]);
   const [loadingList, setLoadingList] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -144,6 +210,15 @@ function CiclosList({ onCicloClick, user, onCicloAtivado }) {
     }, (error) => { console.error("Erro ao buscar ciclos: ", error); setLoadingList(false); });
     return () => unsubscribe();
   }, [user]);
+
+  // ORDENAÇÃO: Ciclo Ativo primeiro
+  const sortedCiclos = useMemo(() => {
+      return [...ciclos].sort((a, b) => {
+          if (a.ativo && !b.ativo) return -1;
+          if (!a.ativo && b.ativo) return 1;
+          return 0;
+      });
+  }, [ciclos]);
 
   const handleMenuToggle = (e, cicloId) => { e.stopPropagation(); setMenuAberto(prev => (prev === cicloId ? null : cicloId)); };
 
@@ -212,9 +287,17 @@ function CiclosList({ onCicloClick, user, onCicloAtivado }) {
             <button onClick={() => setShowCreateModal(true)} className="px-6 py-2 bg-red-600 text-white rounded-lg font-bold text-sm hover:bg-red-700">Criar Ciclo</button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {ciclos.map((ciclo) => (
-            <CicloCard key={ciclo.id} ciclo={ciclo} onClick={onCicloClick} onMenuToggle={handleMenuToggle} isMenuOpen={menuAberto === ciclo.id} onAction={handleAction} />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+            {sortedCiclos.map((ciclo) => (
+            <CicloCard 
+                key={ciclo.id} 
+                ciclo={ciclo} 
+                onClick={onCicloClick} 
+                onMenuToggle={handleMenuToggle} 
+                isMenuOpen={menuAberto === ciclo.id} 
+                onAction={handleAction}
+                registrosEstudo={registrosEstudo}
+            />
             ))}
         </div>
       )}

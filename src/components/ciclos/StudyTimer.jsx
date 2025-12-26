@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Play, Pause, Square, Minimize2, X, AlertTriangle, Maximize2, Volume2 } from 'lucide-react';
+import { Play, Pause, Square, Minimize2, X, AlertTriangle, Maximize2, Volume2, Target } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // --- Função de Formatação ---
@@ -10,7 +10,7 @@ const formatTime = (totalSeconds) => {
   return [hours, minutes, seconds].map(v => String(v).padStart(2, '0')).join(':');
 };
 
-// --- Áudio de Ruído Branco (Essencial para manter o timer vivo) ---
+// --- Áudio de Ruído Branco ---
 const WHITE_NOISE_URL = 'https://raw.githubusercontent.com/anars/blank-audio/master/10-minutes-of-silence.mp3';
 
 // --- Modal de Confirmação ---
@@ -41,29 +41,26 @@ const ConfirmationModal = ({ isOpen, onConfirm, onCancel }) => {
 }
 
 // --- Componente Principal ---
-function StudyTimer({ disciplina, onStop, onCancel, isMinimized, onMaximize, onMinimize }) {
+function StudyTimer({ disciplina, assunto, onStop, onCancel, isMinimized, onMaximize, onMinimize }) {
   const [isPreparing, setIsPreparing] = useState(true);
   const [countdown, setCountdown] = useState(3);
   const [seconds, setSeconds] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
-  
-  // Estado para verificar se o áudio conseguiu iniciar sozinho
-  const [audioPermission, setAudioPermission] = useState(false); 
 
-  // Refs para controle de tempo e áudio
+  const [audioPermission, setAudioPermission] = useState(false);
+
   const startTimeRef = useRef(null);
   const accumulatedTimeRef = useRef(0);
   const audioRef = useRef(null);
   const intervalRef = useRef(null);
   const originalTitleRef = useRef(document.title);
 
-  // --- 1. Inicialização do Áudio ---
   useEffect(() => {
     audioRef.current = new Audio(WHITE_NOISE_URL);
     audioRef.current.loop = true;
     audioRef.current.preload = 'auto';
-    audioRef.current.volume = 0.05; // Baixo volume, apenas para manter a thread ativa
+    audioRef.current.volume = 0.05;
 
     return () => {
       if (audioRef.current) {
@@ -73,25 +70,22 @@ function StudyTimer({ disciplina, onStop, onCancel, isMinimized, onMaximize, onM
     };
   }, []);
 
-  // --- 2. Função para Ativar Foco (Áudio + Notificação) ---
   const activateFocusMode = useCallback(async () => {
     if (!audioRef.current) return;
 
     try {
       await audioRef.current.play();
-      setAudioPermission(true); 
+      setAudioPermission(true);
 
-      // Configura a MediaSession Inicial
       if ('mediaSession' in navigator) {
         navigator.mediaSession.metadata = new MediaMetadata({
-          title: 'Iniciando...',
-          artist: disciplina?.nome || 'Foco Total',
+          title: assunto || 'Foco Total', // Mostra o Assunto na notificação
+          artist: disciplina?.nome,
           album: 'ModoQAP',
           artwork: [{ src: '/soldado.png', sizes: '96x96', type: 'image/png' }]
         });
         navigator.mediaSession.playbackState = 'playing';
 
-        // Handlers dos botões da notificação
         navigator.mediaSession.setActionHandler('play', () => {
              setIsPaused(false);
              audioRef.current?.play();
@@ -103,50 +97,41 @@ function StudyTimer({ disciplina, onStop, onCancel, isMinimized, onMaximize, onM
       }
     } catch (err) {
       console.warn("Autoplay bloqueado:", err);
-      setAudioPermission(false); // Mostraremos botão de resgate
+      setAudioPermission(false);
     }
-  }, [disciplina?.nome]);
+  }, [disciplina?.nome, assunto]);
 
-  // --- 3. Atualizador de Status (Notificação + Título) ---
   const updateExternalStatus = useCallback((isRunning, currentSec) => {
     const timeString = formatTime(currentSec);
     const statusText = isRunning ? `Estudando: ${timeString}` : `Pausado: ${timeString}`;
 
-    // Título da Aba
     document.title = `${timeString} - ${disciplina.nome}`;
 
-    // Notificação do Celular (Isso coloca o timer na notificação)
     if ('mediaSession' in navigator) {
-        // Nota: Alguns Androids limitam a frequência de atualização visual para economizar bateria,
-        // mas a atualização de metadados tenta forçar isso.
         navigator.mediaSession.metadata = new MediaMetadata({
-            title: statusText, // O TIMER APARECE AQUI
-            artist: disciplina?.nome,
+            title: statusText,
+            artist: assunto ? `${disciplina.nome} - ${assunto}` : disciplina.nome,
             album: 'ModoQAP',
             artwork: [{ src: '/soldado.png', sizes: '96x96', type: 'image/png' }]
         });
         navigator.mediaSession.playbackState = isRunning ? 'playing' : 'paused';
     }
-  }, [disciplina.nome]);
+  }, [disciplina.nome, assunto]);
 
-  // --- 4. Cálculo de Tempo ---
   const calculateElapsedSeconds = useCallback(() => {
     if (startTimeRef.current === null) return accumulatedTimeRef.current;
     const now = Date.now();
     return Math.floor((now - startTimeRef.current) / 1000) + accumulatedTimeRef.current;
   }, []);
 
-  // --- 5. Lógica da Contagem Regressiva ---
   useEffect(() => {
     if (isPreparing) {
       if (countdown > 0) {
         const timer = setTimeout(() => setCountdown(c => c - 1), 1000);
         return () => clearTimeout(timer);
       } else {
-        // Tenta ativar o áudio automaticamente ao fim da contagem
         activateFocusMode();
         setIsPreparing(false);
-        
         if (!startTimeRef.current) {
             startTimeRef.current = Date.now();
         }
@@ -154,34 +139,27 @@ function StudyTimer({ disciplina, onStop, onCancel, isMinimized, onMaximize, onM
     }
   }, [isPreparing, countdown, activateFocusMode]);
 
-  // --- 6. Loop Principal do Timer ---
   useEffect(() => {
       if (isPreparing || isPaused) {
           clearInterval(intervalRef.current);
           if (isPaused) updateExternalStatus(false, seconds);
           return;
       }
-
-      // Garante que o estado visual da notificação é "tocando"
       if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
 
       intervalRef.current = setInterval(() => {
         const currentSec = calculateElapsedSeconds();
         setSeconds(currentSec);
-        
-        // Chama a atualização da notificação a cada segundo
         updateExternalStatus(true, currentSec);
       }, 1000);
 
       return () => clearInterval(intervalRef.current);
   }, [isPreparing, isPaused, calculateElapsedSeconds, updateExternalStatus, seconds]);
 
-  // --- Controles ---
   const handleTogglePause = () => {
     setIsPaused(prev => {
       const willPause = !prev;
       if (willPause) {
-        // PAUSANDO
         const now = Date.now();
         const sessionSeconds = Math.floor((now - startTimeRef.current) / 1000);
         accumulatedTimeRef.current += sessionSeconds;
@@ -189,7 +167,6 @@ function StudyTimer({ disciplina, onStop, onCancel, isMinimized, onMaximize, onM
         setSeconds(accumulatedTimeRef.current);
         if (audioRef.current) audioRef.current.pause();
       } else {
-        // RETOMANDO
         startTimeRef.current = Date.now();
         if (audioRef.current) audioRef.current.play().catch(() => {});
       }
@@ -218,7 +195,6 @@ function StudyTimer({ disciplina, onStop, onCancel, isMinimized, onMaximize, onM
 
   // --- RENDERIZAÇÃO ---
 
-  // MODO BOLHA (MINIMIZADO) - Design Original Mantido
   if (isMinimized) {
     return (
       <div className="fixed bottom-24 right-4 z-[9999] animate-fade-in">
@@ -232,11 +208,14 @@ function StudyTimer({ disciplina, onStop, onCancel, isMinimized, onMaximize, onM
               {isPaused ? '||' : 'ON'}
             </span>
           </div>
-          <div className="flex flex-col mr-2">
-            <span className="text-[10px] text-zinc-400 uppercase font-bold tracking-wider truncate max-w-[120px]">
+          <div className="flex flex-col mr-2 min-w-0">
+            <span className="text-[10px] text-zinc-400 uppercase font-bold tracking-wider truncate">
               {disciplina.nome}
             </span>
-            <span className="text-xl font-mono font-bold text-white leading-none">
+            {assunto && (
+               <span className="text-[9px] text-emerald-400 truncate leading-tight">{assunto}</span>
+            )}
+            <span className="text-xl font-mono font-bold text-white leading-none mt-0.5">
               {formatTime(seconds)}
             </span>
           </div>
@@ -248,7 +227,7 @@ function StudyTimer({ disciplina, onStop, onCancel, isMinimized, onMaximize, onM
               {isPaused ? <Play size={14} fill="currentColor" /> : <Pause size={14} fill="currentColor" />}
             </button>
             <button onClick={onMaximize} className="p-2 rounded-full bg-zinc-800 text-zinc-400 hover:bg-zinc-700">
-              <Maximize2 size={14} /> 
+              <Maximize2 size={14} />
             </button>
           </div>
         </div>
@@ -256,7 +235,6 @@ function StudyTimer({ disciplina, onStop, onCancel, isMinimized, onMaximize, onM
     );
   }
 
-  // TELA DE PREPARAÇÃO - Design Original Mantido
   if (isPreparing) {
       return (
         <div className="fixed inset-0 z-[9999] bg-zinc-950 flex flex-col items-center justify-center">
@@ -272,25 +250,24 @@ function StudyTimer({ disciplina, onStop, onCancel, isMinimized, onMaximize, onM
                 {countdown > 0 ? countdown : "GO!"}
             </motion.div>
             <p className="mt-8 text-zinc-500 text-xl uppercase tracking-[0.5em] font-bold">Preparar Foco</p>
+            {assunto && <p className="mt-2 text-emerald-500 font-bold">{assunto}</p>}
         </div>
       );
   }
 
-  // MODO FULL SCREEN - Design Original Mantido (Com botão de resgate discreto)
   return (
     <div className="fixed inset-0 z-[9999] bg-zinc-950 flex flex-col items-center justify-center animate-fade-in">
         <AnimatePresence>
             <ConfirmationModal isOpen={isCancelModalOpen} onConfirm={() => { onCancel(); clearInterval(intervalRef.current); }} onCancel={() => setIsCancelModalOpen(false)} />
         </AnimatePresence>
 
-        {/* Botão de Resgate de Áudio (Aparece só se o browser bloquear o autoplay) - Estilizado para o tema */}
         {!audioPermission && !isPaused && !isPreparing && (
-           <motion.div 
+           <motion.div
              initial={{ opacity: 0, y: -20 }}
              animate={{ opacity: 1, y: 0 }}
              className="absolute top-20 z-50"
            >
-              <button 
+              <button
                 onClick={activateFocusMode}
                 className="bg-amber-500/10 border border-amber-500/50 text-amber-500 px-6 py-3 rounded-xl font-bold flex items-center gap-3 backdrop-blur-md hover:bg-amber-500/20 transition-all shadow-lg animate-pulse"
               >
@@ -300,11 +277,9 @@ function StudyTimer({ disciplina, onStop, onCancel, isMinimized, onMaximize, onM
            </motion.div>
         )}
 
-        {/* Background Tático */}
         <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, rgba(255,255,255,0.1) 1px, transparent 0)', backgroundSize: '40px 40px' }}></div>
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-emerald-500 to-transparent opacity-30"></div>
 
-        {/* Header (Botão Minimizar) */}
         <div className="absolute top-6 right-6 flex gap-4 z-20">
             <button
                 onClick={onMinimize}
@@ -315,7 +290,6 @@ function StudyTimer({ disciplina, onStop, onCancel, isMinimized, onMaximize, onM
             </button>
         </div>
 
-        {/* Interface Principal do Timer */}
         <div className="relative z-10 flex flex-col items-center text-center w-full max-w-4xl px-6">
             <div className={`mb-8 px-4 py-1.5 rounded-full border text-sm font-bold tracking-[0.2em] uppercase flex items-center gap-2 ${isPaused ? 'border-amber-500/30 text-amber-500 bg-amber-500/5' : 'border-emerald-500/30 text-emerald-500 bg-emerald-500/5'}`}>
                 <span className={`w-2 h-2 rounded-full ${isPaused ? 'bg-amber-500' : 'bg-emerald-500 animate-pulse'}`}></span>
@@ -323,9 +297,17 @@ function StudyTimer({ disciplina, onStop, onCancel, isMinimized, onMaximize, onM
             </div>
 
             <h2 className="text-2xl md:text-4xl font-bold text-zinc-300 mb-2 tracking-tight">{disciplina.nome}</h2>
-            <p className="text-zinc-500 text-sm uppercase tracking-widest mb-10">Cronômetro de Estudo</p>
 
-            {/* O Relógio Gigante */}
+            {/* Exibe o Assunto em Destaque */}
+            {assunto ? (
+                <div className="flex items-center gap-2 text-emerald-500 bg-emerald-500/10 px-4 py-1.5 rounded-full mb-8 border border-emerald-500/20">
+                    <Target size={16} />
+                    <span className="text-sm md:text-base font-bold uppercase tracking-wide">{assunto}</span>
+                </div>
+            ) : (
+                <p className="text-zinc-500 text-sm uppercase tracking-widest mb-10">Cronômetro de Estudo</p>
+            )}
+
             <div className="relative mb-16">
                 <div className={`absolute -inset-10 blur-[60px] opacity-20 rounded-full transition-colors duration-700 ${isPaused ? 'bg-amber-500' : 'bg-emerald-500'}`}></div>
                 <div className={`text-[5rem] md:text-[8rem] lg:text-[10rem] font-mono font-bold leading-none tracking-tighter tabular-nums transition-colors duration-300 ${isPaused ? 'text-zinc-500' : 'text-white'}`} style={{ textShadow: isPaused ? 'none' : '0 0 30px rgba(16,185,129,0.3)' }}>
@@ -333,7 +315,6 @@ function StudyTimer({ disciplina, onStop, onCancel, isMinimized, onMaximize, onM
                 </div>
             </div>
 
-            {/* Controles Principais */}
             <div className="flex items-center gap-6 md:gap-10">
                 <button onClick={handleRequestCancel} className="group flex flex-col items-center gap-2 text-zinc-500 hover:text-red-500 transition-colors">
                     <div className="w-14 h-14 md:w-16 md:h-16 rounded-full border-2 border-zinc-800 group-hover:border-red-500/50 flex items-center justify-center bg-zinc-900 transition-all">

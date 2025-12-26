@@ -16,10 +16,12 @@ import {
   Target,
   AlertTriangle,
   CalendarDays,
-  Flag // Ícone para a Meta/Fim
+  Flag,
+  BookOpen,
+  ChevronRight
 } from 'lucide-react';
 
-// --- FUNÇÕES AUXILIARES DE DATA ---
+// --- FUNÇÕES AUXILIARES ---
 const dateToYMD_local = (date) => {
   if (!date) return '';
   const year = date.getFullYear();
@@ -28,7 +30,6 @@ const dateToYMD_local = (date) => {
   return `${year}-${month}-${day}`;
 };
 
-// Função Robusta para Pegar Data do Firebase
 const getSafeDate = (field) => {
     if (!field) return null;
     if (field.toDate && typeof field.toDate === 'function') {
@@ -58,7 +59,20 @@ const formatVisualNumber = (minutes) => {
   return `${hours}h ${mins}m`;
 };
 
-function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStudy }) {
+// Função para pegar a logo (igual ao CiclosList)
+const getLogo = (ciclo) => {
+    if(!ciclo) return null;
+    if(ciclo.logoUrl) return ciclo.logoUrl;
+    const searchString = (ciclo.templateOrigem || ciclo.nome || '').toLowerCase();
+
+    if(searchString.includes('pmba')) return '/logosEditais/logo-pmba.png';
+    if(searchString.includes('ppmg')) return '/logosEditais/logo-ppmg.png';
+    if(searchString.includes('pcba')) return '/logosEditais/logo-pcba.png';
+    if(searchString.includes('pmse')) return '/logosEditais/logo-pmse.png';
+    return null;
+};
+
+function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStudy, onGoToEdital }) {
 
   const [ciclo, setCiclo] = useState(null);
   const [disciplinas, setDisciplinas] = useState([]);
@@ -79,7 +93,7 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
   const [disciplinasLoaded, setDisciplinasLoaded] = useState(false);
   const [registrosLoaded, setRegistrosLoaded] = useState(false);
 
-  // --- EFEITO 1: CARREGAR CICLO ---
+  // --- EFEITOS ---
   useEffect(() => {
      if (!user || !cicloId) return;
      const cicloRef = doc(db, 'users', user.uid, 'ciclos', cicloId);
@@ -104,7 +118,6 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
      return () => unsubscribe();
   }, [user, cicloId]);
 
-  // --- EFEITO 2: CARREGAR DISCIPLINAS ---
   useEffect(() => {
     if (!user || !cicloId) return;
     const disciplinasRef = collection(db, 'users', user.uid, 'ciclos', cicloId, 'disciplinas');
@@ -116,7 +129,6 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
     return () => unsubscribe();
   }, [user, cicloId]);
 
-  // --- EFEITO 3: CARREGAR REGISTROS ---
   useEffect(() => {
      if (!user) return;
      const q = query(collection(db, 'users', user.uid, 'registrosEstudo'), orderBy('timestamp', 'desc'));
@@ -254,18 +266,17 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
   if (!ciclo) return <div className="p-10 text-center text-zinc-500">Ciclo não encontrado.</div>;
 
   const showEmptyMessage = !disciplinas.length;
+  const logo = getLogo(ciclo);
 
   // --- CÁLCULO DAS DATAS (INÍCIO E META) ---
   let formattedStartDate = '...';
   let formattedEndDate = '...';
 
   if (ciclo.dataInicioAtual) {
-      // Formata data de Início
       const startDay = ciclo.dataInicioAtual.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
       const startWeekDay = ciclo.dataInicioAtual.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '');
       formattedStartDate = `${startWeekDay}, ${startDay}`;
 
-      // Calcula e formata data Meta (+7 dias)
       const endDate = new Date(ciclo.dataInicioAtual);
       endDate.setDate(endDate.getDate() + 7);
 
@@ -306,11 +317,19 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
               </div>
           </div>
 
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-zinc-50 dark:bg-zinc-900 px-6 py-2 rounded-2xl border border-zinc-300 dark:border-zinc-800 shadow-sm">
-              <div className="flex-1">
-                  <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-zinc-50 dark:bg-zinc-900 px-6 py-4 rounded-2xl border border-zinc-300 dark:border-zinc-800 shadow-sm relative overflow-hidden">
+
+              {/* --- LOGO DO EDITAL (MARCA D'ÁGUA AJUSTADA) --- */}
+              {logo && (
+                  <div className="absolute -bottom-4 -right-4 w-32 h-32 md:w-44 md:h-44 opacity-20 md:opacity-10 dark:opacity-30 dark:md:opacity-20 pointer-events-none transform rotate-[-10deg] z-0 filter saturate-150 transition-all duration-500">
+                      <img src={logo} alt="Logo Edital" className="w-full h-full object-contain" />
+                  </div>
+              )}
+
+              <div className="flex-1 z-10">
+                  <div className="flex flex-col gap-3">
                       <div className="flex items-center gap-3">
-                          <h1 className="text-3xl font-black text-zinc-900 dark:text-white uppercase tracking-tight">
+                          <h1 className="text-3xl font-black text-zinc-900 dark:text-white uppercase tracking-tight leading-none">
                               {ciclo.nome}
                           </h1>
                           {ciclo.ativo ? (
@@ -323,53 +342,64 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
                           )}
                       </div>
 
-                      {/* --- NOVO VISUAL: DATAS (INÍCIO E META) --- */}
-                      <div className="flex items-center gap-4">
-                          {/* Data Início */}
-                          <div className="flex items-center gap-1.5 text-zinc-400">
-                              <CalendarDays size={12} />
-                              <p className="text-[10px] font-bold uppercase tracking-wide">
-                                  Início: <span className="text-zinc-600 dark:text-zinc-300">{formattedStartDate}</span>
-                              </p>
-                          </div>
+                      <div className="flex flex-col sm:flex-row gap-3 sm:gap-6">
+                        <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-1.5 text-zinc-400">
+                                <CalendarDays size={13} />
+                                <p className="text-[10px] font-bold uppercase tracking-wide">
+                                    Início: <span className="text-zinc-600 dark:text-zinc-300">{formattedStartDate}</span>
+                                </p>
+                            </div>
 
-                          {/* Data Meta (Fim Previsto) */}
-                          <div className="flex items-center gap-1.5 text-zinc-400">
-                              <Flag size={12} />
-                              <p className="text-[10px] font-bold uppercase tracking-wide">
-                                  Meta: <span className="text-zinc-600 dark:text-zinc-300">{formattedEndDate}</span>
-                              </p>
-                          </div>
+                            <div className="flex items-center gap-1.5 text-zinc-400">
+                                <Flag size={13} />
+                                <p className="text-[10px] font-bold uppercase tracking-wide">
+                                    Meta: <span className="text-zinc-600 dark:text-zinc-300">{formattedEndDate}</span>
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* BOTÃO DE EDITAL */}
+                        <button
+                            onClick={onGoToEdital}
+                            className="flex items-center gap-2 px-3 py-1.5 rounded-lg
+                                       bg-white hover:bg-red-50 border border-zinc-200 hover:border-red-200
+                                       dark:bg-zinc-800 dark:hover:bg-red-900/10 dark:border-zinc-700 dark:hover:border-red-900/30
+                                       text-zinc-600 hover:text-red-700 dark:text-zinc-300 dark:hover:text-red-400
+                                       text-[11px] font-bold uppercase tracking-wide transition-all group w-fit shadow-sm z-20"
+                        >
+                            <BookOpen size={14} className="text-red-600 dark:text-red-500 group-hover:scale-110 transition-transform" />
+                            <span>Acessar Edital</span>
+                            <ChevronRight size={12} className="opacity-60 group-hover:translate-x-1 transition-transform" />
+                        </button>
                       </div>
 
                   </div>
               </div>
 
-              <div className="flex items-center gap-6">
-                  <div className="text-center">
+              <div className="flex items-center gap-6 z-10">
+                  <div className="text-center hidden sm:block">
                       <p className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-1">
-                          Meta do Ciclo
+                          Meta
                       </p>
-                      <p className="text-2xl font-black text-zinc-800 dark:text-white font-mono">
+                      <p className="text-xl font-black text-zinc-800 dark:text-white font-mono">
                           {formatVisualNumber(totalMeta)}
                       </p>
                   </div>
 
-                  <div className="w-px h-12 bg-zinc-200 dark:bg-zinc-700"></div>
+                  <div className="w-px h-10 bg-zinc-200 dark:bg-zinc-700 hidden sm:block"></div>
 
-                  <div className="text-center">
+                  <div className="text-center hidden sm:block">
                       <p className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-1">
-                          Realizado
+                          Feito
                       </p>
-                      <p className="text-2xl font-black text-zinc-800 dark:text-white font-mono">
+                      <p className="text-xl font-black text-zinc-800 dark:text-white font-mono">
                           {formatVisualNumber(totalEstudado)}
                       </p>
                   </div>
 
-                  <div className="w-px h-12 bg-zinc-200 dark:bg-zinc-700"></div>
-
                   <div className="relative">
-                      <svg className="w-28 h-28 -rotate-90" viewBox="0 0 80 80">
+                      <svg className="w-24 h-24 -rotate-90" viewBox="0 0 80 80">
                           <circle
                               cx="40"
                               cy="40"
@@ -395,7 +425,7 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
                           />
                       </svg>
                       <div className="absolute inset-0 flex flex-col items-center justify-center">
-                          <span className={`text-2xl font-black ${progressoGeral >= 100 && isAllDisciplinesMet ? 'text-emerald-500' : progressoGeral > 0 ? 'text-yellow-500' : 'text-zinc-400'}`}>
+                          <span className={`text-xl font-black ${progressoGeral >= 100 && isAllDisciplinesMet ? 'text-emerald-500' : progressoGeral > 0 ? 'text-yellow-500' : 'text-zinc-400'}`}>
                               {progressoGeral.toFixed(0)}%
                           </span>
                       </div>

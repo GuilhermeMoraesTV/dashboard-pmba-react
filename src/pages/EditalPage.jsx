@@ -5,7 +5,8 @@ import {
   BookOpen, CheckCircle2, ChevronDown,
   Search, AlertCircle, Play,
   Target, CheckSquare, BarChart2, Clock,
-  Zap, GraduationCap, X, Hourglass, LayoutGrid, Flame, Star, AlertTriangle, RefreshCcw, TrendingUp
+  Zap, GraduationCap, X, Hourglass, LayoutGrid, Flame, Star, AlertTriangle, RefreshCcw, TrendingUp,
+  LayoutDashboard, ChevronRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -45,7 +46,7 @@ const getProgressStats = (acertos, total) => {
 };
 
 // --- MODAL DE CONFIRMAÇÃO ---
-const StartStudyModal = ({ disciplina, onClose, onConfirm }) => {
+const StartStudyModal = ({ disciplina, assunto, onClose, onConfirm }) => {
     if (!disciplina) return null;
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in" onClick={onClose}>
@@ -59,15 +60,20 @@ const StartStudyModal = ({ disciplina, onClose, onConfirm }) => {
                     <Clock size={32} />
                 </div>
                 <h3 className="text-xl font-black text-zinc-900 dark:text-white mb-2">Iniciar Sessão?</h3>
-                <p className="text-sm text-zinc-500 mb-6 px-4">
+                <div className="text-sm text-zinc-500 mb-6 px-4">
                     Você vai iniciar o cronômetro para estudar:<br/>
-                    <strong className="text-zinc-800 dark:text-zinc-200 text-base">{disciplina.nome}</strong>
-                </p>
+                    <strong className="text-zinc-800 dark:text-zinc-200 text-base block mt-1">{disciplina.nome}</strong>
+                    {assunto && (
+                         <span className="block mt-1 text-emerald-600 dark:text-emerald-400 font-bold text-xs bg-emerald-100 dark:bg-emerald-900/30 py-1 px-2 rounded-lg mx-auto w-fit">
+                            {assunto}
+                         </span>
+                    )}
+                </div>
                 <div className="flex gap-3">
                     <button onClick={onClose} className="flex-1 py-3 rounded-xl font-bold text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
                         Cancelar
                     </button>
-                    <button onClick={() => onConfirm(disciplina)} className="flex-1 py-3 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700 shadow-lg shadow-red-600/30 transition-transform active:scale-95 flex items-center justify-center gap-2">
+                    <button onClick={() => onConfirm(disciplina, assunto)} className="flex-1 py-3 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700 shadow-lg shadow-red-600/30 transition-transform active:scale-95 flex items-center justify-center gap-2">
                         <Play size={18} fill="currentColor"/> Iniciar
                     </button>
                 </div>
@@ -77,7 +83,7 @@ const StartStudyModal = ({ disciplina, onClose, onConfirm }) => {
 };
 
 // --- COMPONENTE PRINCIPAL ---
-function EditalPage({ user, activeCicloId, onStartStudy }) {
+function EditalPage({ user, activeCicloId, onStartStudy, onBack }) {
   const [ciclo, setCiclo] = useState(null);
   const [disciplinas, setDisciplinas] = useState([]);
   const [registros, setRegistros] = useState([]);
@@ -88,7 +94,7 @@ function EditalPage({ user, activeCicloId, onStartStudy }) {
 
   const [optimisticChecks, setOptimisticChecks] = useState({});
   const [loadingCheck, setLoadingCheck] = useState({});
-  const [studyModalDisciplina, setStudyModalDisciplina] = useState(null);
+  const [studyModalData, setStudyModalData] = useState(null); // { disciplina, assunto }
 
   const getLogoUrl = (cicloData) => {
       if (cicloData.logoUrl) return cicloData.logoUrl;
@@ -306,13 +312,32 @@ function EditalPage({ user, activeCicloId, onStartStudy }) {
   };
 
   const toggleDisciplina = (nome) => setExpandedDisciplinas(prev => ({ ...prev, [nome]: !prev[nome] }));
-  const confirmStartStudy = (disciplina) => { if (onStartStudy) { onStartStudy(disciplina); setStudyModalDisciplina(null); } };
+
+  // Confirmação para iniciar estudo
+  const confirmStartStudy = (disciplina, assunto) => {
+      if (onStartStudy) {
+          onStartStudy(disciplina, assunto); // Passa o assunto também
+          setStudyModalData(null);
+      }
+  };
+
+  // Abre modal para confirmar
+  const handleStartTopicStudy = (disciplina, assuntoNome) => {
+      setStudyModalData({ disciplina, assunto: assuntoNome });
+  };
 
   if (!activeCicloId || loading) return <div className="flex h-96 items-center justify-center"><div className="animate-spin w-8 h-8 border-4 border-red-600 rounded-full border-t-transparent"></div></div>;
 
   return (
     <div className="w-full space-y-6 animate-fade-in pb-24">
-        {studyModalDisciplina && <StartStudyModal disciplina={studyModalDisciplina} onClose={() => setStudyModalDisciplina(null)} onConfirm={confirmStartStudy} />}
+        {studyModalData && (
+            <StartStudyModal
+                disciplina={studyModalData.disciplina}
+                assunto={studyModalData.assunto}
+                onClose={() => setStudyModalData(null)}
+                onConfirm={confirmStartStudy}
+            />
+        )}
 
         {/* --- HEADER DASHBOARD --- */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
@@ -331,8 +356,26 @@ function EditalPage({ user, activeCicloId, onStartStudy }) {
                 </div>
 
                 <div className="flex-1 z-10 w-full">
-                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-red-50 dark:bg-red-900/20 rounded-full text-[13px] font-bold uppercase tracking-wider mb-2 border border-red-100 dark:border-red-900/50 text-red-600 dark:text-red-400">
-                        <CheckCircle2 size={17} /> Edital Verticalizado
+                    {/* CONTAINER DO TOPO DO HEADER: Badge e Botão Voltar */}
+                    <div className="flex items-start justify-between w-full mb-2">
+                        <div className="inline-flex items-center gap-2 px-3 py-1 bg-red-50 dark:bg-red-900/20 rounded-full text-[13px] font-bold uppercase tracking-wider border border-red-100 dark:border-red-900/50 text-red-600 dark:text-red-400">
+                            <CheckCircle2 size={17} /> Edital Verticalizado
+                        </div>
+
+                        {onBack && (
+                            <button
+                                onClick={onBack}
+                                className="flex items-center gap-2 px-3 py-1.5 rounded-lg
+                                           bg-white hover:bg-red-50 border border-zinc-200 hover:border-red-200
+                                           dark:bg-zinc-800 dark:hover:bg-red-900/10 dark:border-zinc-700 dark:hover:border-red-900/30
+                                           text-zinc-600 hover:text-red-700 dark:text-zinc-300 dark:hover:text-red-400
+                                           text-[11px] font-bold uppercase tracking-wide transition-all group w-fit shadow-sm z-20"
+                            >
+                                <LayoutDashboard size={14} className="text-red-600 dark:text-red-500 group-hover:scale-110 transition-transform" />
+                                <span className="hidden sm:inline">Painel do Ciclo</span>
+                                <ChevronRight size={12} className="opacity-60 group-hover:translate-x-1 transition-transform" />
+                            </button>
+                        )}
                     </div>
 
                     <h1 className="text-2xl md:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tight leading-none mb-3">
@@ -364,7 +407,7 @@ function EditalPage({ user, activeCicloId, onStartStudy }) {
                 </div>
             </div>
 
-            {/* CARD 2: RADAR DE PRIORIDADE (VISUAL DINÂMICO) */}
+            {/* CARD 2: RADAR DE PRIORIDADE */}
             <div className={`rounded-3xl p-6 relative overflow-hidden flex flex-col justify-center shadow-lg border transition-all
                 ${disciplinaPrioritaria?.tipoPrioridade === 'critical' ? 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-900' :
                   disciplinaPrioritaria?.tipoPrioridade === 'warning' ? 'bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900' :
@@ -374,7 +417,6 @@ function EditalPage({ user, activeCicloId, onStartStudy }) {
                     <>
                         <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none text-red-500"><Target size={120}/></div>
                         <div className="relative z-10">
-                            {/* Header do Card com Ícone Dinâmico */}
                             <div className="flex items-center gap-2 mb-4">
                                 <div className={`p-2 rounded-lg animate-pulse ${
                                     disciplinaPrioritaria.tipoPrioridade === 'critical' ? 'bg-red-200 text-red-700 dark:bg-red-900/50 dark:text-red-400' :
@@ -405,7 +447,7 @@ function EditalPage({ user, activeCicloId, onStartStudy }) {
                                 </p>
                             </div>
 
-                            <button onClick={() => setStudyModalDisciplina(disciplinaPrioritaria)} className={`w-full py-3.5 text-white font-bold rounded-xl shadow-lg flex items-center justify-center gap-2 transition-all active:scale-95 group text-sm uppercase tracking-wide
+                            <button onClick={() => setStudyModalData({ disciplina: disciplinaPrioritaria, assunto: null })} className={`w-full py-3.5 text-white font-bold rounded-xl shadow-lg flex items-center justify-center gap-2 transition-all active:scale-95 group text-sm uppercase tracking-wide
                                 ${disciplinaPrioritaria.tipoPrioridade === 'critical' ? 'bg-red-600 hover:bg-red-700 shadow-red-600/30' :
                                   disciplinaPrioritaria.tipoPrioridade === 'warning' ? 'bg-amber-600 hover:bg-amber-700 shadow-amber-600/30' :
                                   'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/30'}`
@@ -494,13 +536,13 @@ function EditalPage({ user, activeCicloId, onStartStudy }) {
                                 <span className="text-[10px] font-bold text-zinc-400 uppercase">Último Estudo</span>
                                 <span className="text-xs font-mono text-zinc-700 dark:text-zinc-300">{formatDateRelative(disc.stats.ultimaData)}</span>
                             </div>
-                            <button onClick={() => setStudyModalDisciplina(disc)} className="w-full sm:w-auto px-5 py-2.5 bg-zinc-900 dark:bg-white hover:bg-red-600 dark:hover:bg-red-600 text-white dark:text-black hover:text-white dark:hover:text-white rounded-lg font-bold text-xs uppercase tracking-wide shadow transition-all active:scale-95 flex items-center justify-center gap-2">
+                            <button onClick={() => setStudyModalData({ disciplina: disc, assunto: null })} className="w-full sm:w-auto px-5 py-2.5 bg-zinc-900 dark:bg-white hover:bg-red-600 dark:hover:bg-red-600 text-white dark:text-black hover:text-white dark:hover:text-white rounded-lg font-bold text-xs uppercase tracking-wide shadow transition-all active:scale-95 flex items-center justify-center gap-2">
                                 <Play size={12} fill="currentColor" /> Estudar
                             </button>
                         </div>
                     </div>
 
-                    {/* LISTA DE TÓPICOS (COM VISUAL "ALTAS CHANCES") */}
+                    {/* LISTA DE TÓPICOS */}
                     <AnimatePresence>
                         {expandedDisciplinas[disc.nome] && (
                             <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50/30 dark:bg-black/20">
@@ -535,7 +577,6 @@ function EditalPage({ user, activeCicloId, onStartStudy }) {
                                                     <div className="flex items-center gap-2 flex-wrap">
                                                         <p className={`text-[15px] leading-snug ${assunto.estudado ? 'text-zinc-500 dark:text-zinc-500 line-through decoration-2 decoration-emerald-500/50 font-medium' : 'text-zinc-800 dark:text-zinc-100 font-bold'}`}>{assunto.nome}</p>
 
-                                                        {/* NOVO BADGE "ALTAS CHANCES" */}
                                                         {isHot && (
                                                             <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-sm ml-2">
                                                                 <Flame size={14} fill="currentColor" className="drop-shadow-sm" />
@@ -549,50 +590,41 @@ function EditalPage({ user, activeCicloId, onStartStudy }) {
                                                 </div>
                                             </div>
 
-                                            {/* DIREITA: Painel de Métricas (Grid) */}
-                                            {(hasActivity || assunto.estudado) && (
+                                            {/* DIREITA: Métricas e BOTÃO PLAY */}
                                             <div className="flex items-center justify-end gap-4 w-full md:w-auto pl-14 md:pl-0 z-10">
+                                                {(hasActivity || assunto.estudado) && (
+                                                    <>
+                                                        <div className="flex flex-col items-center justify-center bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 p-2 min-w-[70px] shadow-sm" title="Tempo Total Estudado">
+                                                            <Clock size={16} className="text-zinc-400 mb-1"/>
+                                                            <span className="text-xs font-black text-zinc-700 dark:text-zinc-300">{formatMinutesToTime(assunto.minutos)}</span>
+                                                        </div>
 
-                                                {/* Métrica 1: TEMPO */}
-                                                <div className="flex flex-col items-center justify-center bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 p-2 min-w-[70px] shadow-sm" title="Tempo Total Estudado">
-                                                    <Clock size={16} className="text-zinc-400 mb-1"/>
-                                                    <span className="text-xs font-black text-zinc-700 dark:text-zinc-300">{formatMinutesToTime(assunto.minutos)}</span>
-                                                </div>
-
-                                                {/* Métrica 2: QUESTÕES (Barra Visual) */}
-                                                <div className="flex-1 md:flex-none md:w-36 flex flex-col gap-1.5" title={`Desempenho: ${questStats.perc}% (${assunto.acertos}/${assunto.questoes})`}>
-                                                    <div className="flex justify-between items-center text-xs font-bold">
-                                                        <span className={`flex items-center gap-1 ${questStats.colorText}`}><Target size={12}/> {questStats.perc}%</span>
-                                                        <span className="text-zinc-400 text-[10px]">{assunto.acertos}/{assunto.questoes}</span>
-                                                    </div>
-                                                    <div className="h-2.5 w-full bg-zinc-100 dark:bg-zinc-700 rounded-full overflow-hidden shadow-inner">
-                                                        <motion.div
-                                                            initial={{ width: 0 }} animate={{ width: `${questStats.width}%` }} transition={{ duration: 0.5, ease: "easeOut" }}
-                                                            className={`h-full rounded-full ${questStats.colorBg} shadow-sm relative`}
-                                                        >
-                                                            <div className="absolute inset-0 bg-white/20 animate-pulse hidden sm:block"></div>
-                                                        </motion.div>
-                                                    </div>
-                                                </div>
-
-                                                {/* Métrica 3: FREQUÊNCIA (AZUL -> ROXO -> VERMELHO) */}
-                                                {assunto.qtdVezes > 0 && (
-                                                    <div className="flex flex-col items-center gap-1" title={`${assunto.qtdVezes} sessões de estudo`}>
-                                                       <div className="flex gap-0.5">
-                                                          {/* Segmento 1 (1x - Azul) */}
-                                                          <div className={`h-3 w-2 rounded-sm transition-all ${assunto.qtdVezes >= 1 ? 'bg-blue-500 shadow-[0_0_6px_rgba(59,130,246,0.5)]' : 'bg-zinc-200 dark:bg-zinc-700'}`}></div>
-                                                          {/* Segmento 2 (2x - Roxo) */}
-                                                          <div className={`h-3 w-2 rounded-sm transition-all ${assunto.qtdVezes >= 2 ? 'bg-purple-500 shadow-[0_0_6px_rgba(168,85,247,0.5)]' : 'bg-zinc-200 dark:bg-zinc-700'}`}></div>
-                                                          {/* Segmento 3 (3x+ - Vermelho Fogo) */}
-                                                          <div className={`h-3 w-2 rounded-sm transition-all relative ${assunto.qtdVezes >= 3 ? 'bg-red-600 shadow-[0_0_8px_rgba(220,38,38,0.6)]' : 'bg-zinc-200 dark:bg-zinc-700'}`}>
-                                                            {assunto.qtdVezes >= 3 && <Flame size={10} className="absolute -top-3 -right-1.5 text-red-500 fill-orange-400 animate-bounce drop-shadow-sm" />}
-                                                          </div>
-                                                       </div>
-                                                       <span className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400">{assunto.qtdVezes}x</span>
-                                                    </div>
+                                                        <div className="flex-1 md:flex-none md:w-36 flex flex-col gap-1.5" title={`Desempenho: ${questStats.perc}% (${assunto.acertos}/${assunto.questoes})`}>
+                                                            <div className="flex justify-between items-center text-xs font-bold">
+                                                                <span className={`flex items-center gap-1 ${questStats.colorText}`}><Target size={12}/> {questStats.perc}%</span>
+                                                                <span className="text-zinc-400 text-[10px]">{assunto.acertos}/{assunto.questoes}</span>
+                                                            </div>
+                                                            <div className="h-2.5 w-full bg-zinc-100 dark:bg-zinc-700 rounded-full overflow-hidden shadow-inner">
+                                                                <motion.div
+                                                                    initial={{ width: 0 }} animate={{ width: `${questStats.width}%` }} transition={{ duration: 0.5, ease: "easeOut" }}
+                                                                    className={`h-full rounded-full ${questStats.colorBg} shadow-sm relative`}
+                                                                >
+                                                                    <div className="absolute inset-0 bg-white/20 animate-pulse hidden sm:block"></div>
+                                                                </motion.div>
+                                                            </div>
+                                                        </div>
+                                                    </>
                                                 )}
+
+                                                {/* BOTÃO PLAY POR TÓPICO */}
+                                                <button
+                                                    onClick={() => handleStartTopicStudy(disc, assunto.nome)}
+                                                    className="p-2.5 rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-red-500 hover:text-white dark:hover:bg-red-600 transition-all text-zinc-400 dark:text-zinc-500"
+                                                    title="Estudar este tópico"
+                                                >
+                                                    <Play size={16} fill="currentColor" />
+                                                </button>
                                             </div>
-                                            )}
                                         </div>
                                     )})}
                                     {disc.assuntos.length === 0 && <div className="p-6 text-center text-xs text-zinc-400 italic">Sem tópicos cadastrados.</div>}

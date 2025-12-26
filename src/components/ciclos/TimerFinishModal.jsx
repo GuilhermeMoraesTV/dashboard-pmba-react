@@ -4,7 +4,7 @@ import { CheckCircle2, XCircle, Target, Save, Clock, Plus, Minus, BookOpen, List
 import { db } from '../../firebaseConfig';
 import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
 
-function TimerFinishModal({ timeMinutes, disciplinaNome, activeCicloId, userUid, onConfirm, onCancel }) {
+function TimerFinishModal({ timeMinutes, disciplinaNome, activeCicloId, userUid, onConfirm, onCancel, initialAssunto }) {
   const [step, setStep] = useState(1);
   const [hasQuestions, setHasQuestions] = useState(null);
   const [questionsData, setQuestionsData] = useState({ total: 0, correct: 0 });
@@ -19,6 +19,13 @@ function TimerFinishModal({ timeMinutes, disciplinaNome, activeCicloId, userUid,
   const [errorMessage, setErrorMessage] = useState('');
 
   const normalize = (str) => str ? str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase() : "";
+
+  // Se vier um assunto inicial, seta ele
+  useEffect(() => {
+    if (initialAssunto) {
+        setAssuntoSelecionado(initialAssunto);
+    }
+  }, [initialAssunto]);
 
   useEffect(() => {
     const fetchAssuntos = async () => {
@@ -42,7 +49,11 @@ function TimerFinishModal({ timeMinutes, disciplinaNome, activeCicloId, userUid,
             if (!disciplinaAlvo) disciplinaAlvo = listaDisciplinas.find(d => normalize(d.nome).includes(normalize(disciplinaNome)) || normalize(disciplinaNome).includes(normalize(d.nome)));
             if(disciplinaAlvo){
                 setDisciplinaManual(disciplinaAlvo.nome);
-                if(Array.isArray(disciplinaAlvo.assuntos)) setAssuntosDisponiveis(disciplinaAlvo.assuntos);
+                if(Array.isArray(disciplinaAlvo.assuntos)) {
+                    setAssuntosDisponiveis(disciplinaAlvo.assuntos);
+                    // Se tiver assunto inicial e ele estiver na lista, garante a seleção
+                    if (initialAssunto) setAssuntoSelecionado(initialAssunto);
+                }
                 else setAssuntosDisponiveis([]);
             } else {
                 setErroDisciplina(true);
@@ -51,7 +62,7 @@ function TimerFinishModal({ timeMinutes, disciplinaNome, activeCicloId, userUid,
         finally { setLoadingAssuntos(false); }
     };
     fetchAssuntos();
-  }, [activeCicloId, userUid, disciplinaNome]);
+  }, [activeCicloId, userUid, disciplinaNome, initialAssunto]);
 
   const handleManualDisciplinaChange = (novaDisciplinaNome) => {
       setDisciplinaManual(novaDisciplinaNome);
@@ -59,6 +70,7 @@ function TimerFinishModal({ timeMinutes, disciplinaNome, activeCicloId, userUid,
       if (disc && Array.isArray(disc.assuntos)) {
           setAssuntosDisponiveis(disc.assuntos);
           setErroDisciplina(false);
+          setAssuntoSelecionado(''); // Reseta o assunto se mudar a disciplina manualmente
       } else {
           setAssuntosDisponiveis([]);
       }
@@ -201,7 +213,6 @@ function TimerFinishModal({ timeMinutes, disciplinaNome, activeCicloId, userUid,
                                 className="w-full p-4 pr-10 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 focus:ring-2 focus:ring-emerald-500 outline-none appearance-none text-sm font-bold transition-all disabled:opacity-50"
                               >
                                   <option value="">-- Selecione o assunto --</option>
-                                  {/* CORREÇÃO DO ERRO AQUI: */}
                                   {assuntosDisponiveis.map((assunto, i) => {
                                       const nome = typeof assunto === 'object' ? assunto.nome : assunto;
                                       return <option key={i} value={nome}>{nome}</option>
