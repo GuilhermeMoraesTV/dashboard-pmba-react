@@ -149,10 +149,10 @@ const CicloCard = ({ ciclo, onClick, onMenuToggle, isMenuOpen, onAction, registr
                     {/* BARRA DE PROGRESSO */}
                     <div className="mt-auto">
                         <div className="flex justify-between items-end mb-1">
-                            <span className="text-[10px] font-bold text-zinc-400 uppercase flex items-center gap-1">
-                                <BarChart3 size={12} /> Progresso
+                            <span className="text-[12px] font-bold text-zinc-400 uppercase flex items-center gap-1">
+                                <BarChart3 size={15} /> Progresso
                             </span>
-                            <span className="text-[10px] font-bold text-zinc-600 dark:text-zinc-300">
+                            <span className="text-[15px] font-bold text-zinc-600 dark:text-zinc-300">
                                 {totalHoras}h <span className="text-zinc-400 font-normal">/ {ciclo.cargaHorariaSemanalTotal}h</span>
                             </span>
                         </div>

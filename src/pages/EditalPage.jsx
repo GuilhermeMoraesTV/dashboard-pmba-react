@@ -6,7 +6,7 @@ import {
   Search, AlertCircle, Play,
   Target, CheckSquare, BarChart2, Clock,
   Zap, GraduationCap, X, Hourglass, LayoutGrid, Flame, Star, AlertTriangle, RefreshCcw, TrendingUp,
-  LayoutDashboard, ChevronRight
+  LayoutDashboard, ChevronRight, Trophy
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -43,6 +43,37 @@ const getProgressStats = (acertos, total) => {
     if (perc >= 50) { colorBg = 'bg-amber-500'; colorText = 'text-amber-600 dark:text-amber-400'; }
     if (perc >= 80) { colorBg = 'bg-emerald-500'; colorText = 'text-emerald-600 dark:text-emerald-400'; }
     return { width: perc, colorBg, colorText, perc };
+};
+
+// --- FUNÇÃO PARA ESTILO DE ACERTOS (ATUALIZADA) ---
+const getDesempenhoConfig = (perc, questoes) => {
+    // 1. Cinza: Sem dados
+    if (!questoes || questoes === 0) return {
+        style: 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-500 border border-zinc-200 dark:border-zinc-700',
+        icon: Target,
+        label: '0%'
+    };
+
+    // 4. Dourado: 85% até 100%
+    if (perc >= 85) return {
+        style: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 border border-yellow-200 dark:border-yellow-700/50 shadow-sm shadow-yellow-500/10',
+        icon: Trophy,
+        label: `${perc}%`
+    };
+
+    // 3. Verde: Acima de 70% (até 84%)
+    if (perc >= 70) return {
+        style: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-700/50',
+        icon: CheckCircle2,
+        label: `${perc}%`
+    };
+
+    // 2. Vermelho: Abaixo de 70%
+    return {
+        style: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-700/50',
+        icon: AlertTriangle,
+        label: `${perc}%`
+    };
 };
 
 // --- MODAL DE CONFIRMAÇÃO ---
@@ -94,7 +125,7 @@ function EditalPage({ user, activeCicloId, onStartStudy, onBack }) {
 
   const [optimisticChecks, setOptimisticChecks] = useState({});
   const [loadingCheck, setLoadingCheck] = useState({});
-  const [studyModalData, setStudyModalData] = useState(null); // { disciplina, assunto }
+  const [studyModalData, setStudyModalData] = useState(null);
 
   const getLogoUrl = (cicloData) => {
       if (cicloData.logoUrl) return cicloData.logoUrl;
@@ -143,7 +174,6 @@ function EditalPage({ user, activeCicloId, onStartStudy, onBack }) {
       setRegistros(registrosSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
   };
 
-  // --- LÓGICA DE PRIORIDADE INTELIGENTE (RADAR) ---
   const { editalProcessado, statsGlobal, disciplinaPrioritaria } = useMemo(() => {
     if (!disciplinas.length) return { editalProcessado: [], statsGlobal: { total: 0, concluidos: 0, percentual: 0 }, disciplinaPrioritaria: null };
 
@@ -151,10 +181,14 @@ function EditalPage({ user, activeCicloId, onStartStudy, onBack }) {
     const statsPorDisciplina = {};
 
     registros.forEach(reg => {
-        if (!statsPorDisciplina[reg.disciplinaNome]) statsPorDisciplina[reg.disciplinaNome] = { acertos: 0, questoes: 0, lastDate: null };
+        if (!statsPorDisciplina[reg.disciplinaNome]) {
+            statsPorDisciplina[reg.disciplinaNome] = { acertos: 0, questoes: 0, lastDate: null, minutes: 0 };
+        }
         const s = statsPorDisciplina[reg.disciplinaNome];
         s.acertos += Number(reg.acertos || 0);
         s.questoes += Number(reg.questoesFeitas || 0);
+        s.minutes += Number(reg.tempoEstudadoMinutos || 0);
+
         if (!s.lastDate || reg.data > s.lastDate) s.lastDate = reg.data;
 
         if(reg.assunto) {
@@ -175,7 +209,7 @@ function EditalPage({ user, activeCicloId, onStartStudy, onBack }) {
 
     const listaProcessada = disciplinas.map(disc => {
         const listaAssuntos = Array.isArray(disc.assuntos) ? disc.assuntos : [];
-        const statsDisc = statsPorDisciplina[disc.nome] || { acertos: 0, questoes: 0, lastDate: null };
+        const statsDisc = statsPorDisciplina[disc.nome] || { acertos: 0, questoes: 0, lastDate: null, minutes: 0 };
         const desempenhoDisc = statsDisc.questoes > 0 ? Math.round((statsDisc.acertos / statsDisc.questoes) * 100) : 0;
 
         const assuntosProcessados = listaAssuntos.map(itemAssunto => {
@@ -213,25 +247,27 @@ function EditalPage({ user, activeCicloId, onStartStudy, onBack }) {
             progresso,
             totalAssuntos,
             concluidos,
-            stats: { desempenho: desempenhoDisc, questoes: statsDisc.questoes, ultimaData: statsDisc.lastDate }
+            stats: {
+                desempenho: desempenhoDisc,
+                questoes: statsDisc.questoes,
+                ultimaData: statsDisc.lastDate,
+                minutos: statsDisc.minutes
+            }
         };
 
-        // --- ALGORITMO DE RADAR DE ESTUDOS ---
         if (progresso < 100) {
             const pesoDisciplina = Number(disc.peso) || 1;
             let score = 0;
             let motivo = "";
             let detalhe = "";
-            let tipoPrioridade = "normal"; // 'critical', 'warning', 'info'
+            let tipoPrioridade = "normal";
 
-            // FATOR 1: DESEMPENHO CRÍTICO (Peso 100)
             if (statsDisc.questoes >= 10 && desempenhoDisc < 60) {
-                score = 500 + (100 - desempenhoDisc); // Score altíssimo
+                score = 500 + (100 - desempenhoDisc);
                 motivo = "Desempenho Baixo";
                 detalhe = `Apenas ${desempenhoDisc}% de acertos`;
                 tipoPrioridade = "critical";
             }
-            // FATOR 2: REVISÃO ATRASADA (Peso 80)
             else if (statsDisc.lastDate) {
                 const daysSince = Math.ceil(Math.abs(new Date() - new Date(statsDisc.lastDate)) / (1000 * 60 * 60 * 24));
                 if (daysSince > 7) {
@@ -241,14 +277,12 @@ function EditalPage({ user, activeCicloId, onStartStudy, onBack }) {
                     tipoPrioridade = "warning";
                 }
             }
-            // FATOR 3: MATÉRIA IMPORTANTE NÃO INICIADA (Peso 50)
             else if (progresso === 0 && pesoDisciplina >= 3) {
                 score = 300 + (pesoDisciplina * 10);
                 motivo = "Conteúdo Base";
                 detalhe = "Alta relevância no edital";
                 tipoPrioridade = "info";
             }
-            // FATOR 4: MATÉRIA EM ANDAMENTO (Peso 20)
             else {
                 score = 100 + (pesoDisciplina * 10) + (100 - progresso);
                 motivo = "Avançar Conteúdo";
@@ -313,15 +347,13 @@ function EditalPage({ user, activeCicloId, onStartStudy, onBack }) {
 
   const toggleDisciplina = (nome) => setExpandedDisciplinas(prev => ({ ...prev, [nome]: !prev[nome] }));
 
-  // Confirmação para iniciar estudo
   const confirmStartStudy = (disciplina, assunto) => {
       if (onStartStudy) {
-          onStartStudy(disciplina, assunto); // Passa o assunto também
+          onStartStudy(disciplina, assunto);
           setStudyModalData(null);
       }
   };
 
-  // Abre modal para confirmar
   const handleStartTopicStudy = (disciplina, assuntoNome) => {
       setStudyModalData({ disciplina, assunto: assuntoNome });
   };
@@ -493,7 +525,12 @@ function EditalPage({ user, activeCicloId, onStartStudy, onBack }) {
                 </div>
             )}
 
-            {editalProcessado.map((disc, idx) => (
+            {editalProcessado.map((disc, idx) => {
+                // Prepara a configuração do visual de acertos para esta disciplina
+                const desempenhoConfig = getDesempenhoConfig(disc.stats.desempenho, disc.stats.questoes);
+                const DesempenhoIcon = desempenhoConfig.icon;
+
+                return (
                 <div key={idx} className="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-hidden shadow-sm hover:border-red-200 dark:hover:border-red-900/30 transition-all duration-300">
 
                     {/* CABEÇALHO DA DISCIPLINA */}
@@ -522,10 +559,22 @@ function EditalPage({ user, activeCicloId, onStartStudy, onBack }) {
                                     )}
                                 </div>
 
-                                <div className="flex items-center gap-3 text-xs text-zinc-500 mt-1 font-medium">
-                                    <span className="flex items-center gap-1"><CheckSquare size={12}/> {disc.concluidos}/{disc.totalAssuntos}</span>
-                                    <span className="hidden sm:inline text-zinc-300">•</span>
-                                    <span className="hidden sm:inline flex items-center gap-1"><Target size={12} className={disc.stats.desempenho >= 80 ? 'text-emerald-500' : 'text-zinc-400'}/> {disc.stats.desempenho}% Acertos</span>
+                                {/* --- INFORMAÇÕES COLORIDAS (BADGES) --- */}
+                                <div className="flex flex-wrap items-center gap-2 mt-2">
+                                    {/* Tópicos */}
+                                    <span className="px-2 py-1 rounded-md bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 text-[10px] font-bold uppercase flex items-center gap-1">
+                                        <CheckSquare size={12} /> {disc.concluidos}/{disc.totalAssuntos} Tópicos
+                                    </span>
+
+                                    {/* Horas */}
+                                    <span className="px-2 py-1 rounded-md bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 text-[10px] font-bold uppercase flex items-center gap-1">
+                                        <Clock size={12} /> {formatMinutesToTime(disc.stats.minutos)}
+                                    </span>
+
+                                    {/* Acertos (Visual Dinâmico) */}
+                                    <span className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase flex items-center gap-1 ${desempenhoConfig.style}`}>
+                                        <DesempenhoIcon size={12} /> {desempenhoConfig.label} De Precisão
+                                    </span>
                                 </div>
                             </div>
                             <ChevronDown size={20} className={`text-zinc-400 transition-transform ${expandedDisciplinas[disc.nome] ? 'rotate-180' : ''}`}/>
@@ -633,7 +682,7 @@ function EditalPage({ user, activeCicloId, onStartStudy, onBack }) {
                         )}
                     </AnimatePresence>
                 </div>
-            ))}
+            )})}
         </div>
     </div>
   );

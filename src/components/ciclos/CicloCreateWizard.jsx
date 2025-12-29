@@ -37,7 +37,7 @@ const createArc = (start, end, r) => {
 };
 
 // ============================================================================
-// 2. MODAL DE SELEÇÃO DE EDITAL (SCROLL CORRIGIDO)
+// 2. MODAL DE SELEÇÃO DE EDITAL
 // ============================================================================
 const TemplateSelectionModal = ({ isOpen, onClose, onSelect, templates, loading }) => {
     if (!isOpen) return null;
@@ -124,52 +124,101 @@ const TemplateSelectionModal = ({ isOpen, onClose, onSelect, templates, loading 
 };
 
 // ============================================================================
-// 3. GRADE HORÁRIA (AGORA VERDE/EMERALD)
+// 3. GRADE HORÁRIA (CORRIGIDA: TOUCH vs MOUSE)
 // ============================================================================
 const ScheduleGrid = ({ availability, setAvailability }) => {
   const days = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
   const hours = Array.from({ length: 24 }, (_, i) => i);
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragAction, setDragAction] = useState(null);
 
-  const toggleSlot = (dayIndex, hour, action = null) => {
+  // Ref para controlar se estamos num evento de toque
+  const isTouchInteraction = useRef(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragMode, setDragMode] = useState(null); // true = adicionar, false = remover
+
+  const updateSlot = (dayIndex, hour, forceState = null) => {
     const key = `${dayIndex}-${hour}`;
     setAvailability(prev => {
-        const newAvailability = { ...prev };
-        const currentAction = action !== null ? action : !newAvailability[key];
-        if (currentAction) newAvailability[key] = true; else delete newAvailability[key];
-        return newAvailability;
+        const newState = { ...prev };
+        const currentState = !!newState[key];
+        const nextState = forceState !== null ? forceState : !currentState;
+
+        if (nextState) newState[key] = true;
+        else delete newState[key];
+
+        return newState;
     });
-    return action !== null ? action : !availability[key];
   };
 
-  const handleDragStart = (e, dayIndex, hour) => {
-      if(e && e.type === 'touchstart') {
-          document.body.style.overflow = 'hidden';
-      }
+  // --- MOUSE EVENTS (Bloqueado se for toque recente) ---
+  const handleMouseDown = (dayIndex, hour) => {
+    if (isTouchInteraction.current) return; // Bloqueia ghost click do mobile
 
-      const initialAction = !availability[`${dayIndex}-${hour}`];
-      setDragAction(initialAction);
-      setIsDragging(true);
-      toggleSlot(dayIndex, hour, initialAction);
+    const key = `${dayIndex}-${hour}`;
+    const currentVal = !!availability[key];
+    const newMode = !currentVal;
+
+    setDragMode(newMode);
+    setIsDragging(true);
+    updateSlot(dayIndex, hour, newMode);
   };
 
-  const handleDragEnd = () => {
-      document.body.style.overflow = '';
-      setIsDragging(false);
-      setDragAction(null);
+  const handleMouseEnter = (dayIndex, hour) => {
+    if (isDragging && dragMode !== null) {
+        updateSlot(dayIndex, hour, dragMode);
+    }
   };
 
-  const handleEnter = (dayIndex, hour) => {
-      if(isDragging && dragAction !== null) toggleSlot(dayIndex, hour, dragAction);
+  const handleMouseUp = () => {
+    setIsDragging(false);
+    setDragMode(null);
   };
+
+  // --- TOUCH EVENTS (Sem preventDefault) ---
+  const handleTouchStart = (e, dayIndex, hour) => {
+    isTouchInteraction.current = true; // Marca início de toque
+    // Reseta a flag após 1s (tempo seguro após o ghost click)
+    setTimeout(() => isTouchInteraction.current = false, 1000);
+
+    const key = `${dayIndex}-${hour}`;
+    const currentVal = !!availability[key];
+    const newMode = !currentVal;
+
+    setDragMode(newMode);
+    setIsDragging(true);
+    updateSlot(dayIndex, hour, newMode);
+  };
+
+  const handleTouchMove = (e) => {
+    if (!isDragging) return;
+
+    // Localiza o elemento sob o dedo
+    const touch = e.touches[0];
+    const target = document.elementFromPoint(touch.clientX, touch.clientY);
+
+    if (target && target.dataset.day && target.dataset.hour) {
+        const day = parseInt(target.dataset.day);
+        const h = parseInt(target.dataset.hour);
+        updateSlot(day, h, dragMode);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    setIsDragging(false);
+    setDragMode(null);
+  };
+
+  useEffect(() => {
+      window.addEventListener('mouseup', handleMouseUp);
+      return () => window.removeEventListener('mouseup', handleMouseUp);
+  }, []);
 
   return (
-    <div className="h-full flex flex-col" onMouseLeave={handleDragEnd} onMouseUp={handleDragEnd} onTouchEnd={handleDragEnd}>
+    <div className="h-full flex flex-col select-none">
       <div className="grid grid-cols-8 gap-1 pr-2 mb-2 flex-shrink-0 bg-white dark:bg-zinc-950 pt-2 pb-2 sticky top-0 z-10 border-b border-zinc-200 dark:border-zinc-800">
         <div className="text-[10px] font-black text-zinc-300 uppercase text-center pt-2">H</div>
         {days.map((d, i) => (<div key={i} className="text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase text-center">{d}</div>))}
       </div>
+
       <div className="overflow-y-auto custom-scrollbar flex-1 pr-1 h-[350px]">
         <div className="space-y-1 pb-10">
           {hours.map((h) => (
@@ -180,11 +229,15 @@ const ScheduleGrid = ({ availability, setAvailability }) => {
                 return (
                     <div
                         key={`${dayIndex}-${h}`}
-                        onMouseDown={(e) => handleDragStart(e, dayIndex, h)}
-                        onMouseEnter={() => handleEnter(dayIndex, h)}
-                        onTouchStart={(e) => handleDragStart(e, dayIndex, h)}
-                        // [MODIFICAÇÃO AQUI]: Trocado de red-500 para emerald-500
-                        className={`h-9 w-full rounded transition-all duration-100 border flex items-center justify-center cursor-pointer
+                        data-day={dayIndex}
+                        data-hour={h}
+                        onMouseDown={() => handleMouseDown(dayIndex, h)}
+                        onMouseEnter={() => handleMouseEnter(dayIndex, h)}
+                        onTouchStart={(e) => handleTouchStart(e, dayIndex, h)}
+                        onTouchMove={handleTouchMove}
+                        onTouchEnd={handleTouchEnd}
+                        // touch-none previne o scroll nativo do browser ao arrastar
+                        className={`h-9 w-full rounded transition-all duration-100 border flex items-center justify-center cursor-pointer touch-none
                             ${isSelected
                                 ? 'bg-emerald-500 border-emerald-600 shadow-[0_0_10px_rgba(16,185,129,0.3)]'
                                 : 'bg-zinc-100 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 hover:border-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/20'
@@ -200,7 +253,10 @@ const ScheduleGrid = ({ availability, setAvailability }) => {
   );
 };
 
-// --- RADAR PREVIEW ---
+// ============================================================================
+// 4. RADAR PREVIEW & EDITOR DE DISCIPLINA
+// ============================================================================
+
 const CyclePreview = ({ disciplinas, totalHours }) => {
   const [hoveredId, setHoveredId] = useState(null);
 
@@ -253,9 +309,6 @@ const CyclePreview = ({ disciplinas, totalHours }) => {
   );
 };
 
-// ============================================================================
-// 4. ITEM DE DISCIPLINA (EDITOR)
-// ============================================================================
 const DisciplineEditorItem = ({ disciplina, onUpdate, onRemove }) => {
     const [isExpanded, setIsExpanded] = useState(false);
     const [topicInput, setTopicInput] = useState('');
@@ -564,7 +617,7 @@ function CicloCreateWizard({ onClose, user, onCicloAtivado }) {
                 <div>
                     <h2 className="text-lg font-black text-zinc-900 dark:text-white uppercase leading-none">Novo Ciclo</h2>
                     <p className="text-[10px] text-zinc-500 font-bold mt-0.5 uppercase tracking-wide">
-                      {step === 1 ? '1. Escolha a Missão' : step === 2 ? '2. Carga Horaria' : '3. Estrutura do Edital'}
+                      {step === 1 ? '1. Escolha o tipo de Ciclo' : step === 2 ? '2. Carga Horaria' : '3. Estrutura do Edital'}
                     </p>
                 </div>
             </div>
@@ -605,7 +658,7 @@ function CicloCreateWizard({ onClose, user, onCicloAtivado }) {
                 ) : (
                     <div className="w-full max-w-md text-center">
                        <button onClick={() => setSelectedTemplateId(null)} className="mb-6 text-xs font-bold text-zinc-400 hover:text-zinc-600 flex items-center justify-center gap-1 mx-auto hover:underline"><ArrowLeft size={12}/> Trocar Seleção</button>
-                       <h3 className="text-xl font-bold text-zinc-800 dark:text-white mb-2">Nome da Missão</h3>
+                       <h3 className="text-xl font-bold text-zinc-800 dark:text-white mb-2">Nome do Ciclo</h3>
                        <div className="relative group">
                            <input type="text" value={nomeCiclo} onChange={(e) => setNomeCiclo(e.target.value)} className="w-full p-4 text-xl text-center font-bold border-2 border-zinc-200 dark:border-zinc-800 rounded-2xl bg-zinc-50 dark:bg-zinc-900 focus:border-red-500 focus:ring-4 focus:ring-red-500/10 outline-none transition-all placeholder:text-zinc-300" placeholder="Ex: CFO PMBA 2025" autoFocus />
                             <Edit2 size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 opacity-50 group-focus-within:opacity-100 transition-opacity pointer-events-none" />
@@ -650,7 +703,7 @@ function CicloCreateWizard({ onClose, user, onCicloAtivado }) {
                   {/* COLUNA ESQUERDA: LISTA E FORMULÁRIO */}
                   <div className="flex-1 flex flex-col gap-4 min-w-0 h-full overflow-hidden">
 
-                      {/* Formulário de Adição com Estrelas e PADDING CORRIGIDO (FORÇADO COM STYLE) */}
+                      {/* Formulário de Adição */}
                       <form onSubmit={handleAddDisciplina} className="bg-white dark:bg-zinc-900 p-3 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm flex-shrink-0 flex gap-3 items-center">
                          <div className="flex-1">
                             <div className="relative">

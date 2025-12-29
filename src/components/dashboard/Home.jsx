@@ -55,7 +55,7 @@ const ActiveCycleCard = ({ activeCicloData, onClick }) => {
 
   return (
     <div
-      id="active-cycle-card" // ID ADICIONADO PARA O TOUR
+      id="active-cycle-card"
       onClick={onClick}
       className={`
         relative overflow-hidden group p-4 h-[110px] md:h-[140px]
@@ -109,7 +109,7 @@ const ActiveCycleCard = ({ activeCicloData, onClick }) => {
 
 function Home({ registrosEstudo, goalsHistory, setActiveTab, activeCicloData, onDeleteRegistro }) {
   const [selectedDate, setSelectedDate] = useState(null);
-  const [showGoalAlert, setShowGoalAlert] = useState(false); // Novo estado para o alerta
+  const [showGoalAlert, setShowGoalAlert] = useState(false);
 
   const handleDayClick = (date) => {
     const dayRegistros = registrosEstudo.filter(r => r.data === date);
@@ -120,19 +120,14 @@ function Home({ registrosEstudo, goalsHistory, setActiveTab, activeCicloData, on
 
   const getGoalsForDate = (dateStr) => {
     if (!goalsHistory || goalsHistory.length === 0) return { questions: 0, hours: 0 };
-    // Ordena as metas pela data de início para encontrar a meta vigente
     const sortedGoals = [...goalsHistory].sort((a, b) => new Date(b.startDate) - new Date(a.startDate));
-    // Retorna a meta mais recente que começou antes ou NO dia em questão
     const goal = sortedGoals.find(g => g.startDate <= dateStr) || { questions: 0, hours: 0 };
     return goal;
   };
 
-  // Efeito para mostrar alerta se houver registros mas nenhuma meta definida
   useEffect(() => {
     const hasRecords = registrosEstudo.length > 0;
     const hasGoals = goalsHistory.length > 0;
-
-    // Se há registros mas não há metas definidas no histórico, mostre o alerta.
     if (hasRecords && !hasGoals) {
         setShowGoalAlert(true);
     } else {
@@ -148,18 +143,14 @@ function Home({ registrosEstudo, goalsHistory, setActiveTab, activeCicloData, on
       let totalCorrect = 0;
       let totalTimeMinutes = 0;
 
-      // **Verifica se há algum registro em todos os tempos para a lógica de streak**
       const hasAnyRecordsOverall = registrosEstudo.length > 0;
       const hasDefinedGoals = goalsHistory.length > 0;
 
-      // Determina a data de início da primeira meta para bloquear a contagem retroativa
       const oldestGoal = hasDefinedGoals
         ? [...goalsHistory].sort((a, b) => new Date(a.startDate) - new Date(b.startDate))[0]
         : null;
       const firstGoalDateStr = oldestGoal ? oldestGoal.startDate : null;
 
-
-      // 1. Processa todos os registros para agrupar por dia
       registrosEstudo.forEach(item => {
         const dateStr = item.data;
         if (!dateStr) return;
@@ -176,17 +167,15 @@ function Home({ registrosEstudo, goalsHistory, setActiveTab, activeCicloData, on
         }
         if (minutos > 0) {
           studyDays[dateStr].hours += (minutos / 60);
-          studyDays[dateStr].minutes += minutos; // Salva minutos totais do dia
+          studyDays[dateStr].minutes += minutos;
           totalTimeMinutes += minutos;
         }
       });
 
-      // 2. CÁLCULO DA SEQUÊNCIA (STREAK) - Lógica Definitiva
       let currentStreak = 0;
       const today = new Date();
       const todayStr = dateToYMD_local(today);
 
-      // Itera por até 90 dias, começando pelo dia atual (i=0) e voltando
       for (let i = 0; i < 90; i++) {
           const dateToCheck = new Date();
           dateToCheck.setDate(today.getDate() - i);
@@ -195,57 +184,42 @@ function Home({ registrosEstudo, goalsHistory, setActiveTab, activeCicloData, on
           const hasStudyData = !!dayData && (dayData.minutes > 0 || dayData.questions > 0);
           const goalsForDay = getGoalsForDate(dateStr);
 
-          // Metas (convertidas para minutos)
           const qGoal = goalsForDay.questions || 0;
           const hGoalMinutes = (goalsForDay.hours || 0) * 60;
 
           let goalMet = false;
 
           if (!hasDefinedGoals) {
-              // CENÁRIO 1: USUÁRIO SEM NENHUMA META DEFINIDA
               if (dateStr === todayStr && hasStudyData) {
-                  // Se estudou hoje, dá o benefício da dúvida (streak = 1)
                   goalMet = true;
               } else {
-                  // Se for dia passado ou não estudou hoje, a sequência termina/não começa.
                   break;
               }
           } else {
-              // CENÁRIO 2: USUÁRIO COM METAS DEFINIDAS
-
-              // **BLOQUEIO CRÍTICO:** Se a data é anterior à data da primeira meta definida, a streak para.
               if (firstGoalDateStr && dateStr < firstGoalDateStr) {
                   break;
               }
-
-              // Lógica de Cumprimento:
-              // Se a meta é 0, considera batida. Se a meta é > 0, exige que os dados batam.
               const isTimeGoalMet = hGoalMinutes === 0 || (dayData && dayData.minutes >= hGoalMinutes);
               const isQuestionGoalMet = qGoal === 0 || (dayData && dayData.questions >= qGoal);
-
-              // O dia só conta se as DUAS metas (ou as metas > 0) forem cumpridas.
               goalMet = isTimeGoalMet && isQuestionGoalMet;
           }
 
           if (goalMet) {
               currentStreak++;
           } else {
-              // Se for hoje e não houver dados de estudo (a meta está pendente), continua a verificar o dia anterior.
               if (dateStr === todayStr && !hasStudyData) {
                   continue;
               } else {
-                  // Se for dia passado ou a meta não foi atingida, a sequência termina.
                   break;
               }
           }
       }
 
-      // Zera a streak se não houver metas e nem estudos (segurança para o primeiro acesso)
       if (!hasDefinedGoals && !hasAnyRecordsOverall) {
           currentStreak = 0;
       }
 
-      // 3. Cálculos para o Heatmap dos últimos 14 dias (sem alteração na lógica de visualização)
+      // 3. Cálculos para o Heatmap (ADICIONADO DADOS EXTRAS PARA TOOLTIP)
       const last14Days = Array.from({ length: 14 }).map((_, i) => {
         const date = new Date();
         date.setDate(new Date().getDate() - (13 - i));
@@ -262,12 +236,19 @@ function Home({ registrosEstudo, goalsHistory, setActiveTab, activeCicloData, on
           const qGoalMet = dayData.questions >= qGoal;
           const hGoalMet = dayData.minutes >= hGoalMinutes;
 
-          // O status do heatmap ainda usa a lógica 'met-both' ou 'met-one' para visualização do dia
           if (qGoalMet && hGoalMet) status = 'goal-met-both';
           else if (qGoalMet || hGoalMet) status = 'goal-met-one';
           else status = 'goal-not-met';
         }
-        return { date: dateStr, status, hasData };
+
+        // Retornamos os dados brutos também para usar no Tooltip
+        return {
+            date: dateStr,
+            status,
+            hasData,
+            minutes: dayData ? dayData.minutes : 0,
+            questions: dayData ? dayData.questions : 0
+        };
       });
 
       return {
@@ -290,7 +271,7 @@ function Home({ registrosEstudo, goalsHistory, setActiveTab, activeCicloData, on
   return (
     <div className="space-y-4 md:space-y-6 animate-slide-up pb-8 relative">
 
-      {/* ALERTA DE METAS - Novo elemento */}
+      {/* ALERTA DE METAS */}
       {showGoalAlert && (
           <div className="p-4 bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-300 rounded-xl flex items-center gap-3 border border-yellow-300 dark:border-yellow-700 transition-all">
               <AlertTriangle size={20} className="shrink-0" />
@@ -330,17 +311,17 @@ function Home({ registrosEstudo, goalsHistory, setActiveTab, activeCicloData, on
           }
         />
 
-        {/* CARD DE AÇÃO */}
         <ActiveCycleCard
           activeCicloData={activeCicloData}
           onClick={() => setActiveTab('ciclos')}
         />
 
         {/* Streak Heatmap */}
-        <div className="dashboard-card p-3 md:p-6 col-span-2 lg:col-span-4 flex flex-col lg:flex-row items-stretch justify-between gap-4 md:gap-8 relative overflow-hidden z-0">
-            <div className="absolute top-0 left-0 w-full h-full pointer-events-none">
+        <div className="dashboard-card p-3 md:p-6 col-span-2 lg:col-span-4 flex flex-col lg:flex-row items-stretch justify-between gap-4 md:gap-8 relative overflow-visible z-0">
+            <div className="absolute top-0 left-0 w-full h-full pointer-events-none overflow-hidden rounded-2xl">
                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-red-500/50 to-transparent opacity-20"></div>
             </div>
+
             <div className="flex items-center gap-3 md:gap-5 w-full lg:w-auto z-20 relative my-auto">
               <div className={`p-3 md:p-4 rounded-2xl shadow-lg transition-colors duration-500 ${homeStats.streak > 0 ? 'bg-gradient-to-br from-orange-500 to-red-600 text-white shadow-orange-500/20' : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-400'}`}>
                 <Flame size={24} className={`md:w-8 md:h-8 ${homeStats.streak > 0 ? "animate-pulse fill-current" : ""}`} strokeWidth={1.5} />
@@ -356,7 +337,7 @@ function Home({ registrosEstudo, goalsHistory, setActiveTab, activeCicloData, on
               </div>
             </div>
 
-            {/* Heatmap 14 dias */}
+            {/* Heatmap 14 dias COM TOOLTIP */}
             <div className="flex flex-col w-full lg:flex-1 lg:ml-12 z-20 relative justify-between min-h-[80px] md:min-h-[100px]">
               <div className="flex justify-end w-full mb-1 md:mb-2">
                 <span className="text-[9px] md:text-[10px] font-bold uppercase tracking-widest text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-800/50 px-2 py-1 rounded-md border border-zinc-200 dark:border-zinc-700/50">
@@ -366,6 +347,26 @@ function Home({ registrosEstudo, goalsHistory, setActiveTab, activeCicloData, on
               <div className="flex items-end gap-1 md:gap-2 h-12 md:h-16 w-full">
                 {homeStats.last14Days.map((day) => (
                   <div key={day.date} className="relative group flex-1 h-full flex flex-col justify-end">
+
+                    {/* TOOLTIP CUSTOMIZADO */}
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 w-max p-2 bg-zinc-900/95 dark:bg-zinc-800/95 backdrop-blur-sm text-white text-[10px] md:text-xs rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none z-50 transform translate-y-2 group-hover:translate-y-0 border border-zinc-700/50">
+                        <div className="font-bold text-center border-b border-white/10 pb-1 mb-1 text-zinc-300">
+                            {day.date.split('-').reverse().slice(0, 2).join('/')}
+                        </div>
+                        <div className="flex flex-col gap-0.5">
+                            <div className="flex items-center gap-2">
+                                <Clock size={10} className="text-red-400"/>
+                                <span className="font-mono">{formatDecimalHours(day.minutes)}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <Target size={10} className="text-blue-400"/>
+                                <span className="font-mono">{day.questions} Questões</span>
+                            </div>
+                        </div>
+                        {/* Seta do Tooltip */}
+                        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-zinc-900/95 dark:border-t-zinc-800/95"></div>
+                    </div>
+
                     <div
                       role="button"
                       onClick={() => { if(day.hasData) handleDayClick(day.date); }}

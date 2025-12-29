@@ -20,11 +20,11 @@ import {
     ChevronDown,
     Filter,
     List,
-    Zap,
     Calendar,
     CheckCircle2,
     XCircle,
-    AlertTriangle
+    AlertTriangle,
+    CalendarDays
 } from 'lucide-react';
 import {
     format,
@@ -33,6 +33,9 @@ import {
     subDays,
     eachDayOfInterval
 } from 'date-fns';
+
+// IMPORTA O GRÁFICO DE PIZZA
+import DesempenhoGrafico from '../components/dashboard/DesempenhoGrafico';
 
 // ============================================================================
 // 1. CONFIGURAÇÕES & UTILS
@@ -46,39 +49,77 @@ const TIME_RANGES = [
 ];
 
 const formatTime = (minutes) => {
-    if (!minutes || isNaN(minutes)) return '00h 00m';
+    if (!minutes || isNaN(minutes)) return '0h 0m';
     const h = Math.floor(minutes / 60);
     const m = Math.round(minutes % 60);
-    return `${String(h).padStart(2, '0')}h ${String(m).padStart(2, '0')}m`;
+    return `${h}h ${m}m`;
 };
 
 // ============================================================================
-// 2. COMPONENTES VISUAIS (UI KIT)
+// 2. COMPONENTES VISUAIS
 // ============================================================================
 
-const StatCard = ({ icon: Icon, title, value, subValue, className = "" }) => (
-    <div className={`relative overflow-hidden group p-3 md:p-6 h-[110px] md:h-[140px] flex flex-col justify-center items-start transition-all duration-500 hover:shadow-lg border border-zinc-200 dark:border-zinc-800 border-l-4 border-l-transparent hover:border-l-red-500 bg-white dark:bg-zinc-950 rounded-2xl ${className}`}>
-        <div className="relative z-20 flex flex-col gap-0.5 md:gap-1 w-full">
-            <h3 className="text-[10px] md:text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 truncate w-full">
-                {title}
-            </h3>
-            <div className="flex flex-col md:flex-row md:items-end gap-0 md:gap-2">
-                <p className="text-2xl md:text-3xl lg:text-4xl font-extrabold text-zinc-900 dark:text-white tracking-tight leading-none">
-                    {value}
+const PerformanceMetricCard = ({ title, value, subValue, icon: Icon, color }) => {
+
+    // Configuração de Cores
+    const colorStyles = {
+        blue: {
+            iconBg: 'bg-blue-50 dark:bg-blue-900/20',
+            iconColor: 'text-blue-600 dark:text-blue-400',
+            watermark: 'text-blue-600'
+        },
+        violet: {
+            iconBg: 'bg-violet-50 dark:bg-violet-900/20',
+            iconColor: 'text-violet-600 dark:text-violet-400',
+            watermark: 'text-violet-600'
+        },
+        emerald: {
+            iconBg: 'bg-emerald-50 dark:bg-emerald-900/20',
+            iconColor: 'text-emerald-600 dark:text-emerald-400',
+            watermark: 'text-emerald-600'
+        },
+        red: {
+            iconBg: 'bg-red-50 dark:bg-red-900/20',
+            iconColor: 'text-red-600 dark:text-red-400',
+            watermark: 'text-red-600'
+        },
+    };
+
+    const style = colorStyles[color] || colorStyles.blue;
+
+    return (
+        <div className="relative overflow-hidden bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 flex flex-col justify-between shadow-sm hover:border-zinc-300 dark:hover:border-zinc-700 transition-all duration-300 group min-h-[140px]">
+
+            {/* MARCA D'ÁGUA (Mais visível no light mode conforme pedido) */}
+            <Icon
+                className={`absolute -bottom-4 -right-4 w-28 h-28 opacity-[0.08] dark:opacity-[0.04] pointer-events-none transform -rotate-12 transition-transform duration-500 group-hover:scale-110 group-hover:-rotate-6 ${style.watermark}`}
+            />
+
+            <div className="flex justify-between items-start mb-4 relative z-10">
+                <div>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 mb-1">{title}</p>
+                    <h3 className="text-2xl lg:text-3xl font-black text-zinc-900 dark:text-white tracking-tighter leading-none">
+                        {value}
+                    </h3>
+                </div>
+                <div className={`p-3 rounded-xl ${style.iconBg} ${style.iconColor} group-hover:scale-110 transition-transform`}>
+                    <Icon size={20} strokeWidth={2.5} />
+                </div>
+            </div>
+
+            <div className="relative z-10 mt-auto">
+                <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5">
+                    {subValue}
                 </p>
-                {subValue && <div className="mb-0 md:mb-1 text-xs md:text-sm opacity-90">{subValue}</div>}
             </div>
         </div>
-        <div className="absolute -bottom-4 -right-4 md:-bottom-6 md:-right-6 text-red-500/10 dark:text-red-500/5 transition-all duration-700 ease-out group-hover:scale-125 group-hover:rotate-[-10deg] group-hover:text-red-500/15 dark:group-hover:text-red-500/10 z-10 pointer-events-none">
-            <Icon strokeWidth={1.5} className="w-24 h-24 md:w-36 md:h-36" />
-        </div>
-    </div>
-);
+    );
+};
 
 const CardContainer = ({ title, subtitle, icon: Icon, children, className = "" }) => (
     <div className={`bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm p-5 md:p-6 flex flex-col ${className}`}>
         <div className="flex items-center gap-3 mb-6">
-            <div className="p-2 bg-zinc-100 dark:bg-zinc-900 rounded-lg text-red-600 dark:text-red-500">
+            <div className="p-2 bg-zinc-100 dark:bg-zinc-900 rounded-lg text-zinc-500 dark:text-zinc-400">
                 <Icon size={18} strokeWidth={2.5} />
             </div>
             <div>
@@ -145,7 +186,7 @@ const CustomSelect = ({ value, onChange, options, placeholder, icon: Icon, disab
 );
 
 // ============================================================================
-// 3. COMPONENTE PRINCIPAL (CORRIGIDO)
+// 3. COMPONENTE PRINCIPAL
 // ============================================================================
 
 const PerformanceHub = ({ registrosEstudo = [], activeCicloId, disciplinasDoCiclo = [] }) => {
@@ -160,10 +201,12 @@ const PerformanceHub = ({ registrosEstudo = [], activeCicloId, disciplinasDoCicl
         // 1. Filtro Temporal
         const today = startOfToday();
         let startDate;
+        let daysInPeriod = 30; // Default
 
-        if (timeRange === '7D') startDate = subDays(today, 7);
-        else if (timeRange === '15D') startDate = subDays(today, 15);
-        else if (timeRange === '30D') startDate = subDays(today, 30);
+        if (timeRange === '7D') { startDate = subDays(today, 7); daysInPeriod = 7; }
+        else if (timeRange === '15D') { startDate = subDays(today, 15); daysInPeriod = 15; }
+        else if (timeRange === '30D') { startDate = subDays(today, 30); daysInPeriod = 30; }
+        else { daysInPeriod = 90; } // Cycle fallback approximation
 
         // Filtra registros do ciclo ativo
         let filteredRecords = registrosEstudo.filter(r => r.cicloId === activeCicloId);
@@ -172,9 +215,7 @@ const PerformanceHub = ({ registrosEstudo = [], activeCicloId, disciplinasDoCicl
             filteredRecords = filteredRecords.filter(r => r.data && parseISO(r.data) >= startDate);
         }
 
-        // 2. Filtro de Disciplina (CORREÇÃO AQUI)
-        // Agora pegamos as disciplinas do ciclo ativo (passadas via prop)
-        // Se a prop estiver vazia (fallback), tenta pegar dos registros
+        // 2. Filtro de Disciplina
         let disciplinesAvailable = [];
         if (disciplinasDoCiclo && disciplinasDoCiclo.length > 0) {
             disciplinesAvailable = disciplinasDoCiclo.map(d => d.nome).sort();
@@ -182,28 +223,20 @@ const PerformanceHub = ({ registrosEstudo = [], activeCicloId, disciplinasDoCicl
             disciplinesAvailable = [...new Set(filteredRecords.map(r => r.disciplinaNome).filter(Boolean))].sort();
         }
 
-        // Aplica filtro se selecionado
         if (selectedDiscipline !== 'ALL') {
             filteredRecords = filteredRecords.filter(r => r.disciplinaNome === selectedDiscipline);
         }
 
-        // 3. Filtro de Assunto (Tópico)
-        // Tenta pegar assuntos da estrutura do ciclo se a disciplina estiver selecionada
+        // 3. Filtro de Assunto
         let topicsAvailable = [];
-
         if (selectedDiscipline !== 'ALL') {
-            // Tenta achar a disciplina na estrutura do ciclo
             const discData = disciplinasDoCiclo.find(d => d.nome === selectedDiscipline);
             if (discData && discData.assuntos) {
-                // Se o assunto for objeto ou string, normaliza para string
                 topicsAvailable = discData.assuntos.map(a => (typeof a === 'object' ? (a.nome || a.texto || '') : a)).filter(Boolean);
             }
-
-            // Adiciona assuntos que podem estar nos registros mas não no edital (ex: extra)
             const recordedTopics = filteredRecords.map(r => r.assunto).filter(Boolean);
             topicsAvailable = [...new Set([...topicsAvailable, ...recordedTopics])].sort();
         } else {
-            // Se nenhuma disciplina selecionada, mostra todos os tópicos registrados
             topicsAvailable = [...new Set(filteredRecords.map(r => r.assunto).filter(Boolean))].sort();
         }
 
@@ -217,7 +250,9 @@ const PerformanceHub = ({ registrosEstudo = [], activeCicloId, disciplinasDoCicl
         let totalCorrect = 0;
         const datesMap = {};
         const topicsMap = {};
-        const subjectsStats = {};
+
+        // NOVO: Cálculo de Dias Únicos Estudados
+        const uniqueDaysStudied = new Set();
 
         filteredRecords.forEach(r => {
             const t = Number(r.tempoEstudadoMinutos) || 0;
@@ -227,36 +262,31 @@ const PerformanceHub = ({ registrosEstudo = [], activeCicloId, disciplinasDoCicl
             const subj = r.disciplinaNome || 'Geral';
             const topic = r.assunto || 'Geral';
 
-            totalTime += t;
-            totalQuestions += q;
-            totalCorrect += c;
-
-            // Por data
-            if (d) {
-                if (!datesMap[d]) datesMap[d] = { time: 0, q: 0, c: 0 };
-                datesMap[d].time += t;
-                datesMap[d].q += q;
-                datesMap[d].c += c;
+            // Só conta se houve atividade real (tempo ou questão)
+            if (t > 0 || q > 0) {
+                totalTime += t;
+                totalQuestions += q;
+                totalCorrect += c;
+                if (d) {
+                    uniqueDaysStudied.add(d);
+                    if (!datesMap[d]) datesMap[d] = { time: 0, q: 0, c: 0 };
+                    datesMap[d].time += t;
+                    datesMap[d].q += q;
+                    datesMap[d].c += c;
+                }
             }
 
-            // Por Tópico (Para tabela e gráfico negativo)
             const topicKey = `${subj} - ${topic}`;
             if (!topicsMap[topicKey]) topicsMap[topicKey] = { disciplina: subj, assunto: topic, time: 0, q: 0, c: 0 };
             topicsMap[topicKey].time += t;
             topicsMap[topicKey].q += q;
             topicsMap[topicKey].c += c;
-
-            // Por Disciplina (Para Radar - não usado visualmente no momento mas útil para lógica)
-            if (!subjectsStats[subj]) subjectsStats[subj] = { name: subj, q: 0, c: 0, time: 0 };
-            subjectsStats[subj].q += q;
-            subjectsStats[subj].c += c;
-            subjectsStats[subj].time += t;
         });
 
-        // KPIs
         const accuracy = totalQuestions > 0 ? (totalCorrect / totalQuestions) * 100 : 0;
+        const daysCount = uniqueDaysStudied.size;
+        const consistency = daysInPeriod > 0 ? (daysCount / daysInPeriod) * 100 : 0;
 
-        // Dados Gráfico Evolução
         let evolutionData = [];
         if (startDate) {
             const interval = eachDayOfInterval({ start: startDate, end: today });
@@ -271,9 +301,8 @@ const PerformanceHub = ({ registrosEstudo = [], activeCicloId, disciplinasDoCicl
             });
         }
 
-        // Dados Gráfico Negativo (Pontos de Atenção)
         const weakTopics = Object.values(topicsMap)
-            .filter(t => t.q >= 3) // Mínimo 3 questões
+            .filter(t => t.q >= 3)
             .map(t => ({
                 name: t.assunto.length > 20 ? t.assunto.substring(0, 20) + '...' : t.assunto,
                 fullTopic: t.assunto,
@@ -285,7 +314,7 @@ const PerformanceHub = ({ registrosEstudo = [], activeCicloId, disciplinasDoCicl
             .slice(0, 5);
 
         return {
-            kpis: { totalTime, totalQuestions, totalCorrect, accuracy },
+            kpis: { totalTime, totalQuestions, totalCorrect, accuracy, daysCount, consistency },
             evolutionData,
             weakTopics,
             tableData: Object.values(topicsMap).sort((a, b) => b.time - a.time),
@@ -295,7 +324,6 @@ const PerformanceHub = ({ registrosEstudo = [], activeCicloId, disciplinasDoCicl
 
     }, [registrosEstudo, activeCicloId, timeRange, selectedDiscipline, selectedTopic, disciplinasDoCiclo]);
 
-    // Reseta o tópico se mudar a disciplina
     useEffect(() => {
         setSelectedTopic('ALL');
     }, [selectedDiscipline]);
@@ -307,13 +335,12 @@ const PerformanceHub = ({ registrosEstudo = [], activeCicloId, disciplinasDoCicl
     return (
         <div className="w-full pb-20 animate-slide-up space-y-6">
 
-            {/* HEADER */}
+            {/* HEADER COM FILTROS NO TOPO */}
             <header className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-4 border-b border-zinc-200 dark:border-zinc-800 pb-4">
                 <div>
                     <h1 className="text-2xl md:text-3xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter flex items-center gap-2">
-                        Desempenho e Estatísticas
+                        Desempenho
                     </h1>
-                    
                 </div>
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2 w-full lg:w-auto">
@@ -359,50 +386,60 @@ const PerformanceHub = ({ registrosEstudo = [], activeCicloId, disciplinasDoCicl
                 </div>
             </header>
 
-            {/* KPI CARDS */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <StatCard
+            {/* KPI CARDS (Com Marca D'água e sem barra de progresso) */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+
+                {/* 1. Tempo (Azul) */}
+                <PerformanceMetricCard
+                    color="blue"
                     icon={Clock}
                     title="Tempo Líquido"
-                    value={formatTime(analytics.kpis.totalTime)}
+                    value={formatTime(analytics.kpis.totalTime)} // Formato Xh Ym
+                    subValue={analytics.kpis.totalTime > 0 ? "Registrado no período" : "Sem registros"}
                 />
-                <StatCard
+
+                {/* 2. Questões (Roxo) */}
+                <PerformanceMetricCard
+                    color="violet"
                     icon={Target}
                     title="Questões Totais"
                     value={analytics.kpis.totalQuestions}
+                    subValue={`${analytics.kpis.totalCorrect} Acertos`}
                 />
-                <StatCard
+
+                {/* 3. Precisão (Verde) */}
+                <PerformanceMetricCard
+                    color="emerald"
                     icon={TrendingUp}
                     title="Precisão Global"
                     value={`${analytics.kpis.accuracy.toFixed(0)}%`}
-                    subValue={
-                        <div className="flex items-center gap-2 text-xs font-bold mt-1">
-                            <span className="text-emerald-500 flex items-center">
-                                <CheckCircle2 size={12} className="mr-0.5" strokeWidth={3}/> {analytics.kpis.totalCorrect}
-                            </span>
-                            <span className="text-zinc-300">|</span>
-                            <span className="text-red-500 flex items-center">
-                                <XCircle size={12} className="mr-0.5" strokeWidth={3}/> {analytics.kpis.totalQuestions - analytics.kpis.totalCorrect}
-                            </span>
-                        </div>
-                    }
+                    subValue="Taxa de acertos"
                 />
-                <StatCard
-                    icon={Zap}
-                    title="Eficiência/Hora"
-                    value={(analytics.kpis.totalTime > 0 ? (analytics.kpis.totalQuestions / (analytics.kpis.totalTime/60)).toFixed(1) : '0.0')}
+
+                {/* 4. Constância (Vermelho) */}
+                <PerformanceMetricCard
+                    color="red"
+                    icon={CalendarDays}
+                    title="Dias Estudados"
+                    value={analytics.kpis.daysCount}
+                    subValue="Neste filtro"
                 />
             </div>
 
             {/* ÁREA DE GRÁFICOS */}
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
 
-                {/* 1. Evolução Temporal */}
+                {/* 1. GRÁFICO DE DISTRIBUIÇÃO (PIZZA) */}
+                <div className="xl:col-span-1 min-h-[300px]">
+                    <DesempenhoGrafico registrosEstudo={registrosEstudo.filter(r => r.cicloId === activeCicloId)} />
+                </div>
+
+                {/* 2. Evolução Temporal */}
                 <CardContainer
                     title="Evolução de Desempenho"
                     subtitle="Correlação entre Horas e Precisão"
                     icon={Activity}
-                    className="xl:col-span-2 min-h-[350px]"
+                    className="xl:col-span-2 min-h-[300px]"
                 >
                     <ResponsiveContainer width="100%" height="100%">
                         <ComposedChart data={analytics.evolutionData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
@@ -423,20 +460,20 @@ const PerformanceHub = ({ registrosEstudo = [], activeCicloId, disciplinasDoCicl
                     </ResponsiveContainer>
                 </CardContainer>
 
-                {/* 2. Pontos de Atenção (Gráfico Negativo) */}
+                {/* 3. Pontos de Atenção (Gráfico Negativo) */}
                 <CardContainer
                     title="Pontos de Atenção"
                     subtitle="Tópicos com menor precisão (Min. 3 questões)"
                     icon={AlertTriangle}
-                    className="min-h-[350px]"
+                    className="xl:col-span-3 min-h-[300px]"
                 >
                     <div className="h-full w-full">
                         {analytics.weakTopics.length > 0 ? (
-                            <ResponsiveContainer width="100%" height="100%">
+                            <ResponsiveContainer width="100%" height={250}>
                                 <BarChart layout="vertical" data={analytics.weakTopics} margin={{ left: 0, right: 20 }}>
                                     <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e4e4e7" strokeOpacity={0.5} />
                                     <XAxis type="number" domain={[0, 100]} hide />
-                                    <YAxis type="category" dataKey="name" width={100} tick={{fontSize: 10, fill: '#71717a', fontWeight: 'bold'}} />
+                                    <YAxis type="category" dataKey="name" width={150} tick={{fontSize: 10, fill: '#71717a', fontWeight: 'bold'}} />
                                     <Tooltip
                                         cursor={{fill: 'transparent'}}
                                         content={({ active, payload }) => {
