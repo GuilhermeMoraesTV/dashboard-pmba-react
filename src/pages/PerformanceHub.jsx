@@ -24,7 +24,9 @@ import {
     CheckCircle2,
     XCircle,
     AlertTriangle,
-    CalendarDays
+    CalendarDays,
+    LayoutDashboard,
+    PlusCircle
 } from 'lucide-react';
 import {
     format,
@@ -60,57 +62,29 @@ const formatTime = (minutes) => {
 // ============================================================================
 
 const PerformanceMetricCard = ({ title, value, subValue, icon: Icon, color }) => {
-
-    // Configuração de Cores
     const colorStyles = {
-        blue: {
-            iconBg: 'bg-blue-50 dark:bg-blue-900/20',
-            iconColor: 'text-blue-600 dark:text-blue-400',
-            watermark: 'text-blue-600'
-        },
-        violet: {
-            iconBg: 'bg-violet-50 dark:bg-violet-900/20',
-            iconColor: 'text-violet-600 dark:text-violet-400',
-            watermark: 'text-violet-600'
-        },
-        emerald: {
-            iconBg: 'bg-emerald-50 dark:bg-emerald-900/20',
-            iconColor: 'text-emerald-600 dark:text-emerald-400',
-            watermark: 'text-emerald-600'
-        },
-        red: {
-            iconBg: 'bg-red-50 dark:bg-red-900/20',
-            iconColor: 'text-red-600 dark:text-red-400',
-            watermark: 'text-red-600'
-        },
+        blue: { iconBg: 'bg-blue-50 dark:bg-blue-900/20', iconColor: 'text-blue-600 dark:text-blue-400', watermark: 'text-blue-600' },
+        violet: { iconBg: 'bg-violet-50 dark:bg-violet-900/20', iconColor: 'text-violet-600 dark:text-violet-400', watermark: 'text-violet-600' },
+        emerald: { iconBg: 'bg-emerald-50 dark:bg-emerald-900/20', iconColor: 'text-emerald-600 dark:text-emerald-400', watermark: 'text-emerald-600' },
+        red: { iconBg: 'bg-red-50 dark:bg-red-900/20', iconColor: 'text-red-600 dark:text-red-400', watermark: 'text-red-600' },
     };
 
     const style = colorStyles[color] || colorStyles.blue;
 
     return (
         <div className="relative overflow-hidden bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 flex flex-col justify-between shadow-sm hover:border-zinc-300 dark:hover:border-zinc-700 transition-all duration-300 group min-h-[140px]">
-
-            {/* MARCA D'ÁGUA (Mais visível no light mode conforme pedido) */}
-            <Icon
-                className={`absolute -bottom-4 -right-4 w-28 h-28 opacity-[0.08] dark:opacity-[0.04] pointer-events-none transform -rotate-12 transition-transform duration-500 group-hover:scale-110 group-hover:-rotate-6 ${style.watermark}`}
-            />
-
+            <Icon className={`absolute -bottom-4 -right-4 w-28 h-28 opacity-[0.08] dark:opacity-[0.04] pointer-events-none transform -rotate-12 transition-transform duration-500 group-hover:scale-110 group-hover:-rotate-6 ${style.watermark}`} />
             <div className="flex justify-between items-start mb-4 relative z-10">
                 <div>
                     <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 mb-1">{title}</p>
-                    <h3 className="text-2xl lg:text-3xl font-black text-zinc-900 dark:text-white tracking-tighter leading-none">
-                        {value}
-                    </h3>
+                    <h3 className="text-2xl lg:text-3xl font-black text-zinc-900 dark:text-white tracking-tighter leading-none">{value}</h3>
                 </div>
                 <div className={`p-3 rounded-xl ${style.iconBg} ${style.iconColor} group-hover:scale-110 transition-transform`}>
                     <Icon size={20} strokeWidth={2.5} />
                 </div>
             </div>
-
             <div className="relative z-10 mt-auto">
-                <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5">
-                    {subValue}
-                </p>
+                <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5">{subValue}</p>
             </div>
         </div>
     );
@@ -123,9 +97,7 @@ const CardContainer = ({ title, subtitle, icon: Icon, children, className = "" }
                 <Icon size={18} strokeWidth={2.5} />
             </div>
             <div>
-                <h3 className="text-sm font-extrabold text-zinc-900 dark:text-white uppercase tracking-tight">
-                    {title}
-                </h3>
+                <h3 className="text-sm font-extrabold text-zinc-900 dark:text-white uppercase tracking-tight">{title}</h3>
                 {subtitle && <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">{subtitle}</p>}
             </div>
         </div>
@@ -139,9 +111,7 @@ const AnalyticsTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
         return (
             <div className="bg-zinc-900/95 backdrop-blur-md border border-zinc-700 p-3 rounded-lg shadow-2xl text-xs z-50 min-w-[150px]">
-                <p className="font-bold text-zinc-300 uppercase mb-2 border-b border-zinc-700 pb-1 tracking-wider">
-                    {label}
-                </p>
+                <p className="font-bold text-zinc-300 uppercase mb-2 border-b border-zinc-700 pb-1 tracking-wider">{label}</p>
                 {payload.map((entry, index) => (
                     <div key={index} className="flex items-center justify-between gap-4 mb-1.5 last:mb-0">
                         <div className="flex items-center gap-2">
@@ -167,14 +137,7 @@ const CustomSelect = ({ value, onChange, options, placeholder, icon: Icon, disab
             value={value}
             onChange={(e) => onChange(e.target.value)}
             disabled={disabled}
-            className={`
-                appearance-none w-full bg-white dark:bg-zinc-950
-                border border-zinc-200 dark:border-zinc-800
-                text-zinc-700 dark:text-zinc-300 text-xs font-bold uppercase tracking-wide
-                py-2.5 ${Icon ? 'pl-9' : 'pl-3'} pr-8 rounded-xl
-                focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500 transition-all cursor-pointer
-                hover:border-zinc-300 dark:hover:border-zinc-700
-            `}
+            className={`appearance-none w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 text-xs font-bold uppercase tracking-wide py-2.5 ${Icon ? 'pl-9' : 'pl-3'} pr-8 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500 transition-all cursor-pointer hover:border-zinc-300 dark:hover:border-zinc-700`}
         >
             <option value="ALL">{placeholder || 'Selecione'}</option>
             {options.map((opt) => (
@@ -189,26 +152,26 @@ const CustomSelect = ({ value, onChange, options, placeholder, icon: Icon, disab
 // 3. COMPONENTE PRINCIPAL
 // ============================================================================
 
-const PerformanceHub = ({ registrosEstudo = [], activeCicloId, disciplinasDoCiclo = [] }) => {
+const PerformanceHub = ({ registrosEstudo = [], activeCicloId, disciplinasDoCiclo = [], onCreateCycle }) => {
     const [timeRange, setTimeRange] = useState('30D');
     const [selectedDiscipline, setSelectedDiscipline] = useState('ALL');
     const [selectedTopic, setSelectedTopic] = useState('ALL');
 
     // --- DATA ENGINE ---
     const analytics = useMemo(() => {
+        // Se não tiver ciclo, retorna null para cair no Empty State
         if (!activeCicloId) return null;
 
         // 1. Filtro Temporal
         const today = startOfToday();
         let startDate;
-        let daysInPeriod = 30; // Default
+        let daysInPeriod = 30;
 
         if (timeRange === '7D') { startDate = subDays(today, 7); daysInPeriod = 7; }
         else if (timeRange === '15D') { startDate = subDays(today, 15); daysInPeriod = 15; }
         else if (timeRange === '30D') { startDate = subDays(today, 30); daysInPeriod = 30; }
-        else { daysInPeriod = 90; } // Cycle fallback approximation
+        else { daysInPeriod = 90; }
 
-        // Filtra registros do ciclo ativo
         let filteredRecords = registrosEstudo.filter(r => r.cicloId === activeCicloId);
 
         if (startDate) {
@@ -250,8 +213,6 @@ const PerformanceHub = ({ registrosEstudo = [], activeCicloId, disciplinasDoCicl
         let totalCorrect = 0;
         const datesMap = {};
         const topicsMap = {};
-
-        // NOVO: Cálculo de Dias Únicos Estudados
         const uniqueDaysStudied = new Set();
 
         filteredRecords.forEach(r => {
@@ -262,7 +223,6 @@ const PerformanceHub = ({ registrosEstudo = [], activeCicloId, disciplinasDoCicl
             const subj = r.disciplinaNome || 'Geral';
             const topic = r.assunto || 'Geral';
 
-            // Só conta se houve atividade real (tempo ou questão)
             if (t > 0 || q > 0) {
                 totalTime += t;
                 totalQuestions += q;
@@ -329,7 +289,34 @@ const PerformanceHub = ({ registrosEstudo = [], activeCicloId, disciplinasDoCicl
     }, [selectedDiscipline]);
 
 
-    if (!activeCicloId) return <div className="p-10 text-center text-zinc-500">Selecione um ciclo para ver os dados.</div>;
+    // --- EMPTY STATE (SEM CICLO ATIVO) ---
+    // Exibido se não houver um activeCicloId
+    if (!activeCicloId) {
+        return (
+            <div className="flex flex-col items-center justify-center h-[60vh] text-center px-4 animate-fade-in">
+                <div className="w-24 h-24 bg-zinc-100 dark:bg-zinc-800 rounded-full flex items-center justify-center mb-6 shadow-inner">
+                    <LayoutDashboard size={40} className="text-zinc-400" strokeWidth={1.5} />
+                </div>
+                <h2 className="text-2xl font-black text-zinc-900 dark:text-white mb-2">
+                    Sem Dados de Desempenho
+                </h2>
+                <p className="text-zinc-500 max-w-md text-sm mb-8 leading-relaxed">
+                    Para visualizar suas métricas, você precisa <strong>ativar um ciclo</strong> na aba de ciclos e <strong>registrar ao menos uma sessão de estudo</strong>.
+                </p>
+
+                {onCreateCycle && (
+                    <button
+                        onClick={onCreateCycle}
+                        className="flex items-center gap-2 px-6 py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-all shadow-lg shadow-red-600/20 active:scale-95"
+                    >
+                        <PlusCircle size={18} />
+                        Ativar Novo Ciclo
+                    </button>
+                )}
+            </div>
+        );
+    }
+
     if (!analytics) return <div className="p-10 text-center text-zinc-500">Carregando análise...</div>;
 
     return (

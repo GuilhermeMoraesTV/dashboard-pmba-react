@@ -417,6 +417,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
             disciplinasDoCiclo={activeCycleDisciplines}
             activeCicloId={activeCicloId}
             metas={goalsHistory}
+            onCreateCycle={() => setActiveTab('ciclos')} // <--- AQUI É A CONEXÃO
           />
         );
       case 'profile':
@@ -489,5 +490,3 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
 }
 
 export default Dashboard;
-
-

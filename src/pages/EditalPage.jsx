@@ -6,7 +6,7 @@ import {
   Search, AlertCircle, Play,
   Target, CheckSquare, BarChart2, Clock,
   Zap, GraduationCap, X, Hourglass, LayoutGrid, Flame, Star, AlertTriangle, RefreshCcw, TrendingUp,
-  LayoutDashboard, ChevronRight, Trophy
+  LayoutDashboard, ChevronRight, Trophy, PlusCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -45,30 +45,26 @@ const getProgressStats = (acertos, total) => {
     return { width: perc, colorBg, colorText, perc };
 };
 
-// --- FUNÇÃO PARA ESTILO DE ACERTOS (ATUALIZADA) ---
+// --- FUNÇÃO PARA ESTILO DE ACERTOS ---
 const getDesempenhoConfig = (perc, questoes) => {
-    // 1. Cinza: Sem dados
     if (!questoes || questoes === 0) return {
         style: 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-500 border border-zinc-200 dark:border-zinc-700',
         icon: Target,
         label: '0%'
     };
 
-    // 4. Dourado: 85% até 100%
     if (perc >= 85) return {
         style: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 border border-yellow-200 dark:border-yellow-700/50 shadow-sm shadow-yellow-500/10',
         icon: Trophy,
         label: `${perc}%`
     };
 
-    // 3. Verde: Acima de 70% (até 84%)
     if (perc >= 70) return {
         style: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-700/50',
         icon: CheckCircle2,
         label: `${perc}%`
     };
 
-    // 2. Vermelho: Abaixo de 70%
     return {
         style: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-700/50',
         icon: AlertTriangle,
@@ -137,15 +133,24 @@ function EditalPage({ user, activeCicloId, onStartStudy, onBack }) {
 
   useEffect(() => {
     const fetchData = async () => {
-      if (!user || !activeCicloId) { setLoading(false); return; }
+      // Se não tiver ID ou User, paramos de carregar, mas não retornamos nada ainda (tratado no render)
+      if (!user || !activeCicloId) {
+          setLoading(false);
+          return;
+      }
+
       try {
+        setLoading(true); // Garante que o loading comece
         const cicloRef = doc(db, 'users', user.uid, 'ciclos', activeCicloId);
         const cicloSnap = await getDoc(cicloRef);
+
         if (cicloSnap.exists()) {
             const data = cicloSnap.data();
             setCiclo({ id: cicloSnap.id, ...data, computedLogo: getLogoUrl(data) });
         } else {
-            setLoading(false); return;
+            // Ciclo não existe (pode ter sido apagado), remove loading
+            setLoading(false);
+            return;
         }
 
         const disciplinasRef = collection(db, 'users', user.uid, 'ciclos', activeCicloId, 'disciplinas');
@@ -162,7 +167,11 @@ function EditalPage({ user, activeCicloId, onStartStudy, onBack }) {
         const registrosSnap = await getDocs(qRegistros);
         const regs = registrosSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setRegistros(regs);
-      } catch (error) { console.error("Erro:", error); } finally { setLoading(false); }
+      } catch (error) {
+          console.error("Erro:", error);
+      } finally {
+          setLoading(false);
+      }
     };
     fetchData();
   }, [user, activeCicloId]);
@@ -358,8 +367,42 @@ function EditalPage({ user, activeCicloId, onStartStudy, onBack }) {
       setStudyModalData({ disciplina, assunto: assuntoNome });
   };
 
-  if (!activeCicloId || loading) return <div className="flex h-96 items-center justify-center"><div className="animate-spin w-8 h-8 border-4 border-red-600 rounded-full border-t-transparent"></div></div>;
+  // --- TRATAMENTO DE ESTADOS (LOADING E VAZIO) ---
 
+  // 1. Carregando
+  if (loading) return (
+      <div className="flex h-96 items-center justify-center">
+          <div className="animate-spin w-8 h-8 border-4 border-red-600 rounded-full border-t-transparent"></div>
+      </div>
+  );
+
+  // 2. Sem Ciclo Ativo (Empty State)
+  if (!activeCicloId || !ciclo) {
+      return (
+          <div className="flex flex-col items-center justify-center h-[60vh] text-center px-4 animate-fade-in">
+              <div className="w-24 h-24 bg-zinc-100 dark:bg-zinc-800 rounded-full flex items-center justify-center mb-6 shadow-inner">
+                  <LayoutDashboard size={40} className="text-zinc-400" strokeWidth={1.5} />
+              </div>
+              <h2 className="text-2xl font-black text-zinc-900 dark:text-white mb-2">Nenhum Ciclo Ativo</h2>
+              <p className="text-zinc-500 max-w-md text-sm mb-8 leading-relaxed">
+                  Parece que você ainda não ativou uma missão. Vá para a área de <strong>Ciclos</strong> para selecionar ou criar seu novo plano de estudos.
+              </p>
+
+              {/* Botão de ação opcional (se tiver onBack ou lógica de navegação) */}
+              {onBack && (
+                  <button
+                      onClick={onBack}
+                      className="flex items-center gap-2 px-6 py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-all shadow-lg shadow-red-600/20 active:scale-95"
+                  >
+                      <PlusCircle size={18} />
+                      Ativar Novo Ciclo
+                  </button>
+              )}
+          </div>
+      );
+  }
+
+  // --- CONTEÚDO PRINCIPAL (COM DADOS) ---
   return (
     <div className="w-full space-y-6 animate-fade-in pb-24">
         {studyModalData && (
@@ -388,7 +431,6 @@ function EditalPage({ user, activeCicloId, onStartStudy, onBack }) {
                 </div>
 
                 <div className="flex-1 z-10 w-full">
-                    {/* CONTAINER DO TOPO DO HEADER: Badge e Botão Voltar */}
                     <div className="flex items-start justify-between w-full mb-2">
                         <div className="inline-flex items-center gap-2 px-3 py-1 bg-red-50 dark:bg-red-900/20 rounded-full text-[13px] font-bold uppercase tracking-wider border border-red-100 dark:border-red-900/50 text-red-600 dark:text-red-400">
                             <CheckCircle2 size={17} /> Edital Verticalizado
@@ -526,7 +568,6 @@ function EditalPage({ user, activeCicloId, onStartStudy, onBack }) {
             )}
 
             {editalProcessado.map((disc, idx) => {
-                // Prepara a configuração do visual de acertos para esta disciplina
                 const desempenhoConfig = getDesempenhoConfig(disc.stats.desempenho, disc.stats.questoes);
                 const DesempenhoIcon = desempenhoConfig.icon;
 
@@ -550,7 +591,6 @@ function EditalPage({ user, activeCicloId, onStartStudy, onBack }) {
                                 <div className="flex items-center gap-2">
                                     <h3 className="font-bold text-zinc-900 dark:text-white text-base md:text-lg truncate group-hover:text-red-600 dark:group-hover:text-red-400 transition-colors">{disc.nome}</h3>
 
-                                    {/* BADGE DE ALTA IMPORTÂNCIA (PESO >= 3) */}
                                     {Number(disc.peso) >= 3 && (
                                         <div className="hidden sm:flex items-center gap-1 px-2 py-0.5 bg-orange-100 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 rounded-full border border-orange-200 dark:border-orange-900/30 animate-pulse">
                                             <Flame size={10} fill="currentColor" />
@@ -559,19 +599,15 @@ function EditalPage({ user, activeCicloId, onStartStudy, onBack }) {
                                     )}
                                 </div>
 
-                                {/* --- INFORMAÇÕES COLORIDAS (BADGES) --- */}
                                 <div className="flex flex-wrap items-center gap-2 mt-2">
-                                    {/* Tópicos */}
                                     <span className="px-2 py-1 rounded-md bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 text-[10px] font-bold uppercase flex items-center gap-1">
                                         <CheckSquare size={12} /> {disc.concluidos}/{disc.totalAssuntos} Tópicos
                                     </span>
 
-                                    {/* Horas */}
                                     <span className="px-2 py-1 rounded-md bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 text-[10px] font-bold uppercase flex items-center gap-1">
                                         <Clock size={12} /> {formatMinutesToTime(disc.stats.minutos)}
                                     </span>
 
-                                    {/* Acertos (Visual Dinâmico) */}
                                     <span className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase flex items-center gap-1 ${desempenhoConfig.style}`}>
                                         <DesempenhoIcon size={12} /> {desempenhoConfig.label} De Precisão
                                     </span>
@@ -591,7 +627,6 @@ function EditalPage({ user, activeCicloId, onStartStudy, onBack }) {
                         </div>
                     </div>
 
-                    {/* LISTA DE TÓPICOS */}
                     <AnimatePresence>
                         {expandedDisciplinas[disc.nome] && (
                             <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50/30 dark:bg-black/20">
@@ -608,7 +643,6 @@ function EditalPage({ user, activeCicloId, onStartStudy, onBack }) {
                                                 ${assunto.estudado ? 'bg-emerald-50/40 dark:bg-emerald-900/10' : ''}
                                             `}
                                         >
-                                            {/* ESQUERDA: Checkbox e Nome */}
                                             <div className="flex items-start gap-4 flex-1 relative">
                                                 <button
                                                     onClick={() => handleToggleCheck(disc.id, disc.nome, assunto.nome, assunto.estudado)}
@@ -639,7 +673,6 @@ function EditalPage({ user, activeCicloId, onStartStudy, onBack }) {
                                                 </div>
                                             </div>
 
-                                            {/* DIREITA: Métricas e BOTÃO PLAY */}
                                             <div className="flex items-center justify-end gap-4 w-full md:w-auto pl-14 md:pl-0 z-10">
                                                 {(hasActivity || assunto.estudado) && (
                                                     <>
@@ -665,7 +698,6 @@ function EditalPage({ user, activeCicloId, onStartStudy, onBack }) {
                                                     </>
                                                 )}
 
-                                                {/* BOTÃO PLAY POR TÓPICO */}
                                                 <button
                                                     onClick={() => handleStartTopicStudy(disc, assunto.nome)}
                                                     className="p-2.5 rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-red-500 hover:text-white dark:hover:bg-red-600 transition-all text-zinc-400 dark:text-zinc-500"
