@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { db } from '../firebaseConfig';
 import {
-    collection, getDocs, query, where, collectionGroup, Timestamp
+    collection, getDocs, query, where, collectionGroup, Timestamp, doc, getDoc
 } from 'firebase/firestore';
 import {
     BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell
@@ -14,6 +14,7 @@ import SeedEditalPPMG from '../components/admin/SeedEditalPPMG';
 import SeedEditalPCBA from '../components/admin/SeedEditalPCBA';
 import SeedEditalPMSE from '../components/admin/SeedEditalPMSE';
 import SeedEditalPMGO from '../components/admin/SeedEditalPMGO';
+import SeedEditalGCMAquiraz from '../components/admin/SeedEditalGCMAquiraz';
 
 import {
   ShieldAlert, Database, Users, Activity, Server, Lock,
@@ -27,15 +28,15 @@ const TEMPLATE_IDS = {
     PPMG: 'ppmg_policial_penal',
     PCBA: 'pcba_investigador',
     PMSE: 'pmse_soldado',
-    PMGO: 'pmgo_soldado'
-
+    PMGO: 'pmgo_soldado',
+    GCMAquiraz: 'gcm_aquiraz'
 };
 
 const COLORS = ['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'];
 
 // --- COMPONENTES VISUAIS ---
 
-// 1. Card Original (Estilo Antigo que você gostou)
+// 1. Card Original (Estilo Antigo)
 const AdminStatCardOriginal = ({ icon: Icon, label, value, subtext, colorClass, loading, delay }) => (
     <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -79,15 +80,22 @@ const LeaderboardRow = ({ rank, user, hours }) => {
     if (rank === 2) { medalColor = "text-zinc-400"; }
     if (rank === 3) { medalColor = "text-amber-700"; }
 
+    // Pega as iniciais do nome
+    const initials = user ? user.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : '?';
+    // Trunca nomes muito longos
+    const displayName = user && user.length > 18 ? user.slice(0, 18) + '...' : user;
+
     return (
         <div className="flex items-center justify-between p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-100 dark:border-zinc-800 hover:bg-white dark:hover:bg-zinc-800 transition-colors">
             <div className="flex items-center gap-3">
                 <div className={`font-black text-lg w-6 text-center ${medalColor}`}>{rank}º</div>
                 <div className="w-8 h-8 rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-xs font-bold text-zinc-600 dark:text-zinc-300">
-                    {user ? user.slice(0, 2).toUpperCase() : '?'}
+                    {initials}
                 </div>
                 <div>
-                    <p className="text-xs font-bold text-zinc-800 dark:text-white">UID: {user ? user.slice(0, 5) : 'Anon'}...</p>
+                    <p className="text-xs font-bold text-zinc-800 dark:text-white capitalize">
+                        {displayName || 'Usuário Anônimo'}
+                    </p>
                     <div className="flex items-center gap-1 text-[10px] text-zinc-500">
                         {rank === 1 && <span className="text-yellow-600 font-bold flex items-center gap-0.5"><Icon size={10}/> Líder</span>}
                     </div>
@@ -129,7 +137,6 @@ function AdminPage() {
           const thirtyDaysAgo = new Date();
           thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-          // IMPORTANTE: Se der erro de índice no console, clique no link fornecido pelo Firebase.
           const recordsQuery = query(collectionGroup(db, 'registrosEstudo'), where('timestamp', '>=', Timestamp.fromDate(thirtyDaysAgo)));
           const recordsSnap = await getDocs(recordsQuery);
 
@@ -161,7 +168,6 @@ function AdminPage() {
 
           recordsSnap.forEach(doc => {
               const d = doc.data();
-              // Tenta pegar o ID do usuário através da referência do pai (users/{uid}/...)
               const pathSegments = doc.ref.path.split('/');
               const uid = pathSegments[1];
 
@@ -199,14 +205,32 @@ function AdminPage() {
               .sort((a, b) => a.accuracy - b.accuracy)
               .slice(0, 4);
 
-          // Processar Ranking
+          // Processar Ranking - PARTE 1: Calcular UIDs e Horas
           const rankingArr = Object.entries(userStats)
               .map(([uid, minutes]) => ({ uid, hours: minutes / 60 }))
               .sort((a, b) => b.hours - a.hours)
               .slice(0, 3);
 
+          // Processar Ranking - PARTE 2: Buscar Nomes Reais no Firebase
+          // Fazemos isso em paralelo para ser rápido
+          const rankingWithNames = await Promise.all(rankingArr.map(async (student) => {
+              let name = 'Desconhecido';
+              try {
+                  const userDocRef = doc(db, 'users', student.uid);
+                  const userDocSnap = await getDoc(userDocRef);
+                  if (userDocSnap.exists()) {
+                      const userData = userDocSnap.data();
+                      // Tenta displayName, depois nome, depois parte do email
+                      name = userData.displayName || userData.nome || (userData.email ? userData.email.split('@')[0] : 'Desconhecido');
+                  }
+              } catch (e) {
+                  console.error(`Erro ao buscar nome para ${student.uid}`, e);
+              }
+              return { ...student, name };
+          }));
+
           setStats({
-              activeUsers: uniqueUserIds.size, // Contagem real baseada nos registros
+              activeUsers: uniqueUserIds.size,
               totalEditais: editaisSnap.size,
               dbStatus: 'Operacional',
               totalHours: Math.round(sumHours / 60),
@@ -216,7 +240,7 @@ function AdminPage() {
 
           setPopularityData(popChartData);
           setWeakestSubjects(weakSubjectsArr);
-          setTopStudents(rankingArr);
+          setTopStudents(rankingWithNames); // Define o ranking com nomes
 
       } catch (error) {
           console.error("Erro Dashboard Admin:", error);
@@ -229,11 +253,12 @@ function AdminPage() {
   useEffect(() => { refreshData(); }, []);
 
   const CATALOGO_EDITAIS = [
-    { id: TEMPLATE_IDS.PMBA, titulo: 'Soldado PMBA', banca: 'FCC', logo: '/logo-pmba.png', SeedComponent: SeedEditalPMBA },
-    { id: TEMPLATE_IDS.PPMG, titulo: 'Policial Penal MG', banca: ' Instituto AOCP', logo: '/logosEditais/logo-ppmg.png', SeedComponent: SeedEditalPPMG },
+    { id: TEMPLATE_IDS.PMBA, titulo: 'Soldado PMBA', banca: 'FCC', logo: '/logosEditais/logo-pmba.png', SeedComponent: SeedEditalPMBA },
+    { id: TEMPLATE_IDS.PPMG, titulo: 'Policial Penal MG', banca: 'AOCP', logo: '/logosEditais/logo-ppmg.png', SeedComponent: SeedEditalPPMG },
     { id: TEMPLATE_IDS.PCBA, titulo: 'Investigador PCBA', banca: 'IBFC', logo: '/logosEditais/logo-pcba.png', SeedComponent: SeedEditalPCBA },
     { id: TEMPLATE_IDS.PMSE, titulo: 'Soldado PMSE', banca: 'SELECON', logo: '/logosEditais/logo-pmse.png', SeedComponent: SeedEditalPMSE },
-    { id: TEMPLATE_IDS.PMGO, titulo: 'Soldado PMGO', banca: 'Instituto AOCP', logo: '/logosEditais/logo-pmgo.png', SeedComponent: SeedEditalPMGO }
+    { id: TEMPLATE_IDS.PMGO, titulo: 'Soldado PMGO', banca: 'Instituto AOCP', logo: '/logosEditais/logo-pmgo.png', SeedComponent: SeedEditalPMGO },
+    { id: TEMPLATE_IDS.GCMAquiraz, titulo: 'GCM Aquiraz', banca: 'Instituto Consulpam', logo: '/logosEditais/logo-aquiraz.png', SeedComponent: SeedEditalGCMAquiraz }
   ];
 
   return (
@@ -313,7 +338,7 @@ function AdminPage() {
                   <div className="space-y-2">
                       {topStudents.length > 0 ? (
                           topStudents.map((student, idx) => (
-                              <LeaderboardRow key={student.uid} rank={idx + 1} user={student.uid} hours={student.hours} />
+                              <LeaderboardRow key={student.uid} rank={idx + 1} user={student.name} hours={student.hours} />
                           ))
                       ) : (
                           <div className="text-center py-10 text-zinc-400 text-xs">Aguardando dados...</div>
