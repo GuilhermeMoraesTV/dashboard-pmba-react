@@ -41,7 +41,7 @@ function TimerFinishModal({
   activeCicloId,
   userUid,
   onConfirm,
-  onCancel, // Botão Retomar
+  onCancel, // Botão Retomar (usado apenas no footer agora)
   onDiscard, // Botão Descartar
   initialAssunto
 }) {
@@ -181,7 +181,7 @@ function TimerFinishModal({
   );
 
   return (
-    <div className="fixed inset-0 z-[10000] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in overflow-y-auto">
+    <div className="fixed inset-0 z-[10000] bg-black/90 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 animate-fade-in">
 
       {/* Modal de confirmação de descarte */}
       <AnimatePresence>
@@ -199,59 +199,57 @@ function TimerFinishModal({
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
-        className="bg-white dark:bg-zinc-950 w-full max-w-2xl rounded-3xl shadow-2xl border border-zinc-200 dark:border-zinc-800 flex flex-col relative"
+        // AJUSTE MOBILE: max-h-[90vh] e overflow-hidden para não estourar a tela
+        className="bg-white dark:bg-zinc-950 w-full max-w-2xl rounded-3xl shadow-2xl border border-zinc-200 dark:border-zinc-800 flex flex-col relative max-h-[90vh] overflow-hidden"
       >
-        <div className="bg-zinc-50 dark:bg-zinc-900/50 p-6 border-b border-zinc-100 dark:border-zinc-800 flex flex-col sm:flex-row justify-between items-center gap-4">
-          <div className="flex items-center gap-4">
-             <div className="p-3 bg-emerald-100 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-500 rounded-2xl shadow-sm"><CheckCircle2 size={32} /></div>
-             <div>
-                 <h2 className="text-2xl font-black text-zinc-800 dark:text-white uppercase tracking-tight leading-none">Sessão Finalizada</h2>
-                 <p className="text-zinc-500 font-medium text-sm mt-1 flex items-center gap-2"><Clock size={14} /> {formatTime(timeMinutes)} de foco total</p>
+        {/* HEADER */}
+        {/* AJUSTE MOBILE: Padding reduzido (p-4) */}
+        <div className="bg-zinc-50 dark:bg-zinc-900/50 p-4 sm:p-6 border-b border-zinc-100 dark:border-zinc-800 flex flex-col sm:flex-row justify-between items-center gap-4 shrink-0">
+          <div className="flex items-center gap-3 sm:gap-4 w-full sm:w-auto">
+             <div className="p-2 sm:p-3 bg-emerald-100 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-500 rounded-2xl shadow-sm shrink-0">
+                 <CheckCircle2 size={24} className="sm:w-8 sm:h-8" />
+             </div>
+             <div className="flex-1">
+                 <h2 className="text-lg sm:text-2xl font-black text-zinc-800 dark:text-white uppercase tracking-tight leading-none">Sessão Finalizada</h2>
+                 <p className="text-zinc-500 font-medium text-xs sm:text-sm mt-1 flex items-center gap-2"><Clock size={12} className="sm:w-[14px] sm:h-[14px]" /> {formatTime(timeMinutes)} de foco total</p>
              </div>
           </div>
-          <div className="flex items-center gap-2">
-             <div className="flex items-center gap-2 bg-white dark:bg-zinc-800 px-4 py-2 rounded-xl border border-zinc-200 dark:border-zinc-700 shadow-sm">
-                <BookOpen size={18} className="text-zinc-400" />
-                <span className="font-bold text-zinc-700 dark:text-zinc-200 text-sm truncate max-w-[150px]">{erroDisciplina ? "Selecione..." : (disciplinaManual || disciplinaNome)}</span>
+          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+             <div className="flex items-center gap-2 bg-white dark:bg-zinc-800 px-3 py-2 sm:px-4 sm:py-2 rounded-xl border border-zinc-200 dark:border-zinc-700 shadow-sm w-full sm:w-auto">
+                <BookOpen size={16} className="text-zinc-400 sm:w-[18px] sm:h-[18px]" />
+                <span className="font-bold text-zinc-700 dark:text-zinc-200 text-xs sm:text-sm truncate max-w-[200px]">{erroDisciplina ? "Selecione..." : (disciplinaManual || disciplinaNome)}</span>
              </div>
-
-             {/* BOTÃO RETOMAR NO HEADER */}
-             <button
-                onClick={onCancel}
-                className="p-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white rounded-xl transition-all"
-                title="Retomar Estudo"
-             >
-                <RotateCcw size={20} />
-             </button>
+             {/* BOTÃO RETOMAR REMOVIDO DAQUI CONFORME SOLICITADO */}
           </div>
         </div>
 
-        <div className="p-6 md:p-8">
+        {/* CONTENT - Com Scroll para telas pequenas */}
+        <div className="p-4 sm:p-6 md:p-8 overflow-y-auto flex-1">
           {step === 1 ? (
-            <div className="flex flex-col items-center justify-center py-8 space-y-8">
+            <div className="flex flex-col items-center justify-center py-4 sm:py-8 space-y-6 sm:space-y-8 h-full">
               <div className="text-center space-y-2">
-                <h3 className="text-2xl font-bold text-zinc-800 dark:text-white">Resolveu questões durante o estudo?</h3>
-                <p className="text-zinc-500 text-base max-w-xs mx-auto">Registre seu desempenho para alimentar as estatísticas de acertos.</p>
+                <h3 className="text-xl sm:text-2xl font-bold text-zinc-800 dark:text-white">Resolveu questões?</h3>
+                <p className="text-zinc-500 text-sm sm:text-base max-w-xs mx-auto">Registre seu desempenho para alimentar as estatísticas de acertos.</p>
               </div>
-              <div className="grid grid-cols-2 gap-6 w-full max-w-md">
-                <button onClick={() => handleNext(false)} className="flex flex-col items-center justify-center gap-3 p-6 rounded-3xl border-2 border-zinc-100 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-all group h-40">
-                  <XCircle size={48} className="text-zinc-300 group-hover:text-red-500 transition-colors" />
-                  <span className="font-bold text-lg text-zinc-600 dark:text-zinc-400">Apenas Estudo</span>
+              <div className="grid grid-cols-2 gap-4 sm:gap-6 w-full max-w-md">
+                <button onClick={() => handleNext(false)} className="flex flex-col items-center justify-center gap-2 sm:gap-3 p-4 sm:p-6 rounded-3xl border-2 border-zinc-100 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-all group h-32 sm:h-40">
+                  <XCircle size={32} className="sm:w-[48px] sm:h-[48px] text-zinc-300 group-hover:text-red-500 transition-colors" />
+                  <span className="font-bold text-sm sm:text-lg text-zinc-600 dark:text-zinc-400 text-center">Apenas Estudo</span>
                 </button>
-                <button onClick={() => handleNext(true)} className="flex flex-col items-center justify-center gap-3 p-6 rounded-3xl border-2 border-emerald-100 dark:border-emerald-900/30 bg-emerald-50/50 dark:bg-emerald-900/10 hover:border-emerald-500 hover:shadow-xl hover:shadow-emerald-500/20 transition-all group h-40">
-                  <Target size={48} className="text-emerald-500 group-hover:scale-110 transition-transform" />
-                  <span className="font-bold text-lg text-emerald-700 dark:text-emerald-400">Sim, resolvi!</span>
+                <button onClick={() => handleNext(true)} className="flex flex-col items-center justify-center gap-2 sm:gap-3 p-4 sm:p-6 rounded-3xl border-2 border-emerald-100 dark:border-emerald-900/30 bg-emerald-50/50 dark:bg-emerald-900/10 hover:border-emerald-500 hover:shadow-xl hover:shadow-emerald-500/20 transition-all group h-32 sm:h-40">
+                  <Target size={32} className="sm:w-[48px] sm:h-[48px] text-emerald-500 group-hover:scale-110 transition-transform" />
+                  <span className="font-bold text-sm sm:text-lg text-emerald-700 dark:text-emerald-400 text-center">Sim, resolvi!</span>
                 </button>
               </div>
 
               {/* --- BOTÕES DE AÇÃO SECUNDÁRIOS --- */}
-              <div className="flex gap-4 mt-6 w-full max-w-md">
+              <div className="flex gap-3 sm:gap-4 mt-4 sm:mt-6 w-full max-w-md">
 
                   {/* BOTÃO DESCARTAR */}
                   {onDiscard && (
                       <button
                         onClick={() => setShowDiscardModal(true)}
-                        className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 border-red-100 dark:border-red-900/30 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 font-bold uppercase text-xs tracking-wider transition-all"
+                        className="flex-1 flex items-center justify-center gap-2 px-3 py-3 rounded-xl border-2 border-red-100 dark:border-red-900/30 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 font-bold uppercase text-[10px] sm:text-xs tracking-wider transition-all"
                       >
                           <Trash2 size={16} /> Descartar
                       </button>
@@ -260,7 +258,7 @@ function TimerFinishModal({
                   {/* BOTÃO RETOMAR ESTUDO (Grande) */}
                   <button
                     onClick={onCancel}
-                    className="flex-[2] flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 border-zinc-200 dark:border-zinc-700 hover:border-zinc-400 dark:hover:border-zinc-600 text-zinc-600 dark:text-zinc-300 hover:text-black dark:hover:text-white font-bold uppercase text-xs tracking-wider transition-all"
+                    className="flex-[2] flex items-center justify-center gap-2 px-3 py-3 rounded-xl border-2 border-zinc-200 dark:border-zinc-700 hover:border-zinc-400 dark:hover:border-zinc-600 text-zinc-600 dark:text-zinc-300 hover:text-black dark:hover:text-white font-bold uppercase text-[10px] sm:text-xs tracking-wider transition-all"
                   >
                       <RotateCcw size={16} /> Retomar
                   </button>
@@ -268,7 +266,7 @@ function TimerFinishModal({
 
             </div>
           ) : (
-            <form onSubmit={handleSubmit} className="space-y-8">
+            <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-8">
 
               {errorMessage && (
                 <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-500 text-sm font-medium flex items-center gap-2 animate-pulse">
@@ -277,11 +275,11 @@ function TimerFinishModal({
               )}
 
               {(erroDisciplina || !assuntosDisponiveis.length) && (
-                  <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-2xl flex items-center gap-4">
-                      <div className="p-2 bg-amber-100 dark:bg-amber-900/40 rounded-full text-amber-600"><AlertTriangle size={20} /></div>
-                      <div className="flex-1">
+                  <div className="p-3 sm:p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-2xl flex items-center gap-4">
+                      <div className="p-2 bg-amber-100 dark:bg-amber-900/40 rounded-full text-amber-600 shrink-0"><AlertTriangle size={20} /></div>
+                      <div className="flex-1 min-w-0">
                           <p className="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase mb-1">Atenção Necessária</p>
-                          <select value={disciplinaManual} onChange={(e) => handleManualDisciplinaChange(e.target.value)} className="w-full p-2 rounded-lg bg-white dark:bg-zinc-950 border border-amber-300 dark:border-amber-700 text-sm font-bold text-zinc-700 dark:text-zinc-200 outline-none focus:ring-2 focus:ring-amber-500">
+                          <select value={disciplinaManual} onChange={(e) => handleManualDisciplinaChange(e.target.value)} className="w-full p-2 rounded-lg bg-white dark:bg-zinc-950 border border-amber-300 dark:border-amber-700 text-xs sm:text-sm font-bold text-zinc-700 dark:text-zinc-200 outline-none focus:ring-2 focus:ring-amber-500">
                               <option value="">-- Selecione a Disciplina Correta --</option>
                               {todasDisciplinas.map((d, i) => (<option key={i} value={d.nome}>{d.nome}</option>))}
                           </select>
@@ -289,8 +287,8 @@ function TimerFinishModal({
                   </div>
               )}
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-8">
+                  <div className="space-y-4 sm:space-y-6">
                       <div>
                           <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2 ml-1 flex items-center gap-2"><List size={14}/> Tópico Estudado</label>
                           <div className="relative">
@@ -298,7 +296,7 @@ function TimerFinishModal({
                                 value={assuntoSelecionado}
                                 onChange={(e) => setAssuntoSelecionado(e.target.value)}
                                 disabled={loadingAssuntos || (erroDisciplina && !disciplinaManual)}
-                                className="w-full p-4 pr-10 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 focus:ring-2 focus:ring-emerald-500 outline-none appearance-none text-sm font-bold transition-all disabled:opacity-50"
+                                className="w-full p-3 sm:p-4 pr-10 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 focus:ring-2 focus:ring-emerald-500 outline-none appearance-none text-sm font-bold transition-all disabled:opacity-50"
                               >
                                   <option value="">-- Selecione o assunto --</option>
                                   {assuntosDisponiveis.map((assunto, i) => {
@@ -311,21 +309,21 @@ function TimerFinishModal({
                       </div>
 
                       {assuntoSelecionado && (
-                          <div onClick={() => setMarkAsFinished(!markAsFinished)} className={`p-4 rounded-xl border-2 cursor-pointer transition-all flex items-center gap-4 ${markAsFinished ? 'bg-emerald-50 dark:bg-emerald-900/10 border-emerald-500' : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 hover:border-emerald-300'}`}>
-                              <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-colors ${markAsFinished ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-zinc-300 dark:border-zinc-600 text-transparent'}`}><CheckSquare size={14} strokeWidth={4} /></div>
+                          <div onClick={() => setMarkAsFinished(!markAsFinished)} className={`p-3 sm:p-4 rounded-xl border-2 cursor-pointer transition-all flex items-center gap-4 ${markAsFinished ? 'bg-emerald-50 dark:bg-emerald-900/10 border-emerald-500' : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 hover:border-emerald-300'}`}>
+                              <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-colors shrink-0 ${markAsFinished ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-zinc-300 dark:border-zinc-600 text-transparent'}`}><CheckSquare size={14} strokeWidth={4} /></div>
                               <div><p className={`text-sm font-bold ${markAsFinished ? 'text-emerald-700 dark:text-emerald-400' : 'text-zinc-700 dark:text-zinc-300'}`}>Teoria Finalizada</p><p className="text-xs text-zinc-500">Marcar este tópico como concluído no edital.</p></div>
                           </div>
                       )}
                   </div>
 
-                  <div className="space-y-6">
+                  <div className="space-y-4 sm:space-y-6">
                       {hasQuestions ? (
                           <div className="space-y-4">
                             <NumberInputControl label="Total de Questões" value={questionsData.total} onChange={(val) => handleInputChange('total', val)} onIncrement={() => handleValueChange('total', 1)} onDecrement={() => handleValueChange('total', -1)} icon={Target} colorClass="text-zinc-400" />
                             <NumberInputControl label="Acertos" value={questionsData.correct} onChange={(val) => handleInputChange('correct', val)} onIncrement={() => handleValueChange('correct', 1)} onDecrement={() => handleValueChange('correct', -1)} icon={CheckCircle2} colorClass="text-emerald-500" />
                           </div>
                       ) : (
-                          <div className="bg-zinc-50 dark:bg-zinc-900/50 rounded-xl p-6 text-center border-2 border-dashed border-zinc-200 dark:border-zinc-800 h-full flex flex-col justify-center items-center">
+                          <div className="bg-zinc-50 dark:bg-zinc-900/50 rounded-xl p-4 sm:p-6 text-center border-2 border-dashed border-zinc-200 dark:border-zinc-800 h-full flex flex-col justify-center items-center">
                               <Target size={32} className="text-zinc-300 mb-2"/><p className="text-sm text-zinc-400 font-medium">Sem registro de questões</p>
                           </div>
                       )}
@@ -334,12 +332,12 @@ function TimerFinishModal({
 
               <div>
                   <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2 ml-1 flex items-center gap-2"><FileText size={14}/> Anotações</label>
-                  <textarea rows="3" value={obs} onChange={(e) => setObs(e.target.value)} className="w-full p-4 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 focus:ring-2 focus:ring-emerald-500 outline-none text-sm resize-none" placeholder="O que você aprendeu hoje?" />
+                  <textarea rows="3" value={obs} onChange={(e) => setObs(e.target.value)} className="w-full p-3 sm:p-4 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 focus:ring-2 focus:ring-emerald-500 outline-none text-sm resize-none" placeholder="O que você aprendeu hoje?" />
               </div>
 
               <div className="flex gap-4 pt-4 border-t border-zinc-100 dark:border-zinc-800">
-                <button type="button" onClick={() => setStep(1)} className="px-6 py-4 rounded-xl font-bold text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">Voltar</button>
-                <button type="submit" className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold shadow-xl shadow-emerald-600/20 transition-all transform hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-3 text-lg"><Save size={22} /> Salvar Sessão</button>
+                <button type="button" onClick={() => setStep(1)} className="px-6 py-3 sm:py-4 rounded-xl font-bold text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors text-sm sm:text-base">Voltar</button>
+                <button type="submit" className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold shadow-xl shadow-emerald-600/20 transition-all transform hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-3 text-base sm:text-lg"><Save size={20} className="sm:w-[22px] sm:h-[22px]" /> Salvar Sessão</button>
               </div>
             </form>
           )}

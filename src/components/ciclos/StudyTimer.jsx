@@ -362,7 +362,7 @@ function StudyTimer({ disciplina, assunto, onStop, onCancel, isMinimized, onMaxi
         <div className="relative z-10 flex flex-col items-center text-center w-full max-w-5xl px-4 mt-24 md:mt-32">
             <div className={`mb-6 px-4 py-1.5 rounded-full border text-[10px] md:text-sm font-bold tracking-[0.2em] uppercase flex items-center gap-2 ${isPaused ? 'border-amber-500/30 text-amber-500 bg-amber-500/5' : 'border-emerald-500/30 text-emerald-500 bg-emerald-500/5'}`}>
                 <span className={`w-2 h-2 rounded-full ${isPaused ? 'bg-amber-500' : 'bg-emerald-500 animate-pulse'}`}></span>
-                {isPaused ? 'Sessão Pausada' : 'Foco Absoluto'}
+                {isPaused ? 'Sessão Pausada' : 'Estudando'}
             </div>
 
             <h2 className="text-xl md:text-4xl font-bold text-zinc-300 mb-2 tracking-tight max-w-3xl leading-tight">{disciplina.nome}</h2>
@@ -372,7 +372,7 @@ function StudyTimer({ disciplina, assunto, onStop, onCancel, isMinimized, onMaxi
                     <span className="text-xs md:text-sm font-bold uppercase tracking-wide truncate">{assunto}</span>
                 </div>
             ) : (
-                <p className="text-zinc-500 text-xs uppercase tracking-widest mb-10">Cronômetro Livre</p>
+                <p className="text-zinc-500 text-xs uppercase tracking-widest mb-10"></p>
             )}
 
             <div className="relative mb-12 md:mb-16">
