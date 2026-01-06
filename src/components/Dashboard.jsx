@@ -26,6 +26,7 @@ import TimerFinishModal from '../components/ciclos/TimerFinishModal';
 import OnboardingTour from '../components/shared/OnboardingTour';
 
 const ADMIN_UID = 'OLoJi457GQNE2eTSOcz9DAD6ppZ2';
+const STORAGE_KEY = '@ModoQAP:ActiveSession';
 
 const dateToYMD = (date) => {
   const d = date.getDate();
@@ -140,6 +141,43 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     };
   }, [allRegistrosEstudo, todayStr]);
 
+  // --- RESTAURAÇÃO DE SESSÃO E MODAL DE FINALIZAÇÃO ---
+  useEffect(() => {
+    const savedSession = localStorage.getItem(STORAGE_KEY);
+    if (savedSession) {
+      try {
+        const parsed = JSON.parse(savedSession);
+        if (parsed && parsed.disciplinaId && parsed.disciplinaNome) {
+
+          // 1. Restaura a sessão MINIMIZADA e PAUSADA
+          // Isso garante que se o usuário cancelar o finish, o timer está lá
+          parsed.isPaused = true;
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+
+          setActiveStudySession({
+            disciplina: {
+              id: parsed.disciplinaId,
+              nome: parsed.disciplinaNome
+            },
+            assunto: parsed.assunto,
+            isMinimized: true
+          });
+
+          // 2. Se a flag isFinishing for true, abre o modal de finalização imediatamente
+          if (parsed.isFinishing && parsed.tempMinutes) {
+              setFinishModalData({
+                  minutes: parsed.tempMinutes,
+                  disciplinaNome: parsed.disciplinaNome,
+                  assuntoInicial: parsed.assunto
+              });
+          }
+        }
+      } catch (e) {
+        console.error("Erro ao restaurar sessão:", e);
+        localStorage.removeItem(STORAGE_KEY);
+      }
+    }
+  }, []);
 
   // --- ACTIONS ---
   const addRegistroEstudo = async (data) => {
@@ -161,11 +199,31 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         alert("Nenhum ciclo ativo encontrado. Ative um ciclo antes de salvar.");
         return;
     }
+
+    // SALVA NO STORAGE QUE ESTAMOS FINALIZANDO
+    // Isso permite recuperar o modal se a página recarregar
+    const currentStorage = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+    currentStorage.isFinishing = true;
+    currentStorage.tempMinutes = minutes;
+    // Forçamos pausa no timer visualmente também
+    currentStorage.isPaused = true;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(currentStorage));
+
     setFinishModalData({
         minutes,
         disciplinaNome: activeStudySession.disciplina.nome,
         assuntoInicial: activeStudySession.assunto
     });
+  };
+
+  // Funcao chamada ao clicar no botão "RETOMAR ESTUDO" no Modal
+  const handleRetomarEstudo = () => {
+      setFinishModalData(null);
+      // Remove a flag isFinishing do storage, mas mantém a sessão
+      const currentStorage = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+      delete currentStorage.isFinishing;
+      delete currentStorage.tempMinutes;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(currentStorage));
   };
 
   const handleConfirmFinishStudy = async (resultData) => {
@@ -218,6 +276,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
 
         setFinishModalData(null);
         setActiveStudySession(null);
+        localStorage.removeItem(STORAGE_KEY); // AGORA SIM REMOVE TUDO
 
     } catch (e) {
         console.error("Erro ao salvar timer:", e);
@@ -225,7 +284,10 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     }
   };
 
-  const handleConfirmCancelStudy = () => { setActiveStudySession(null); };
+  const handleConfirmCancelStudy = () => {
+      setActiveStudySession(null);
+      localStorage.removeItem(STORAGE_KEY);
+  };
 
   const deleteRegistro = async (id) => { await deleteDoc(doc(db, 'users', user.uid, 'registrosEstudo', id)); };
   const deleteData = async (collectionName, id) => { await deleteDoc(doc(db, 'users', user.uid, collectionName, id)); };
@@ -397,7 +459,6 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
                 activeCicloId={activeCicloId}
                 forceOpenVisual={forceOpenVisual}
                 onGoToEdital={() => setActiveTab('edital')}
-                // AQUI: Passando os registros para a página de ciclos para calcular o progresso
                 registrosEstudo={allRegistrosEstudo}
             />
         );
@@ -417,7 +478,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
             disciplinasDoCiclo={activeCycleDisciplines}
             activeCicloId={activeCicloId}
             metas={goalsHistory}
-            onCreateCycle={() => setActiveTab('ciclos')} // <--- AQUI É A CONEXÃO
+            onCreateCycle={() => setActiveTab('ciclos')}
           />
         );
       case 'profile':
@@ -478,7 +539,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
           activeCicloId={activeCicloId}
           userUid={user.uid}
           onConfirm={handleConfirmFinishStudy}
-          onCancel={() => setFinishModalData(null)}
+          onCancel={handleRetomarEstudo} // AQUI: Chama a função de retomar
         />
       )}
 

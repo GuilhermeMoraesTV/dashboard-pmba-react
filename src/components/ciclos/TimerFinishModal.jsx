@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { CheckCircle2, XCircle, Target, Save, Clock, Plus, Minus, BookOpen, List, FileText, AlertTriangle, CheckSquare } from 'lucide-react';
+import { CheckCircle2, XCircle, Target, Save, Clock, Plus, Minus, BookOpen, List, FileText, AlertTriangle, CheckSquare, RotateCcw } from 'lucide-react';
 import { db } from '../../firebaseConfig';
 import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
 
@@ -20,7 +20,6 @@ function TimerFinishModal({ timeMinutes, disciplinaNome, activeCicloId, userUid,
 
   const normalize = (str) => str ? str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase() : "";
 
-  // Se vier um assunto inicial, seta ele
   useEffect(() => {
     if (initialAssunto) {
         setAssuntoSelecionado(initialAssunto);
@@ -51,7 +50,6 @@ function TimerFinishModal({ timeMinutes, disciplinaNome, activeCicloId, userUid,
                 setDisciplinaManual(disciplinaAlvo.nome);
                 if(Array.isArray(disciplinaAlvo.assuntos)) {
                     setAssuntosDisponiveis(disciplinaAlvo.assuntos);
-                    // Se tiver assunto inicial e ele estiver na lista, garante a seleção
                     if (initialAssunto) setAssuntoSelecionado(initialAssunto);
                 }
                 else setAssuntosDisponiveis([]);
@@ -70,7 +68,7 @@ function TimerFinishModal({ timeMinutes, disciplinaNome, activeCicloId, userUid,
       if (disc && Array.isArray(disc.assuntos)) {
           setAssuntosDisponiveis(disc.assuntos);
           setErroDisciplina(false);
-          setAssuntoSelecionado(''); // Reseta o assunto se mudar a disciplina manualmente
+          setAssuntoSelecionado('');
       } else {
           setAssuntosDisponiveis([]);
       }
@@ -178,6 +176,16 @@ function TimerFinishModal({ timeMinutes, disciplinaNome, activeCicloId, userUid,
                   <span className="font-bold text-lg text-emerald-700 dark:text-emerald-400">Sim, resolvi!</span>
                 </button>
               </div>
+
+              {/* --- BOTÃO RETOMAR ESTUDO (DESIGN ATUALIZADO) --- */}
+              <button
+                onClick={onCancel}
+                className="group flex items-center gap-3 px-8 py-4 mt-6 rounded-xl border-2 border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-white font-bold uppercase text-xs tracking-wider transition-all"
+              >
+                  <RotateCcw size={18} className="group-hover:-rotate-90 transition-transform duration-300" />
+                  RETOMAR ESTUDO
+              </button>
+
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-8">
