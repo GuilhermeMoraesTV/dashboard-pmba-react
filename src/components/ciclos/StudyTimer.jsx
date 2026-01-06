@@ -5,10 +5,8 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// --- Constante para salvar no navegador ---
 const STORAGE_KEY = '@ModoQAP:ActiveSession';
 
-// --- Função de Formatação ---
 const formatTime = (totalSeconds) => {
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
@@ -16,10 +14,8 @@ const formatTime = (totalSeconds) => {
   return [hours, minutes, seconds].map(v => String(v).padStart(2, '0')).join(':');
 };
 
-// --- Áudio de Ruído Branco ---
 const WHITE_NOISE_URL = 'https://raw.githubusercontent.com/anars/blank-audio/master/10-minutes-of-silence.mp3';
 
-// --- Modal de Confirmação ---
 const ConfirmationModal = ({ isOpen, onConfirm, onCancel }) => {
     if (!isOpen) return null;
     return (
@@ -46,9 +42,7 @@ const ConfirmationModal = ({ isOpen, onConfirm, onCancel }) => {
     );
 }
 
-// --- Componente Principal ---
 function StudyTimer({ disciplina, assunto, onStop, onCancel, isMinimized, onMaximize: onWidgetMode, onMinimize: onWidgetMinimize }) {
-  // Estados Visuais
   const [isPreparing, setIsPreparing] = useState(true);
   const [countdown, setCountdown] = useState(3);
   const [seconds, setSeconds] = useState(0);
@@ -56,14 +50,13 @@ function StudyTimer({ disciplina, assunto, onStop, onCancel, isMinimized, onMaxi
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // Refs de Lógica (Fonte da Verdade)
+  // Refs para controle preciso do tempo
   const startTimeRef = useRef(null);
   const accumulatedTimeRef = useRef(0);
   const audioRef = useRef(null);
   const intervalRef = useRef(null);
   const originalTitleRef = useRef(document.title);
 
-  // --- Funções de Tela Cheia ---
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
         document.documentElement.requestFullscreen().then(() => setIsFullscreen(true)).catch(err => console.log(err));
@@ -72,25 +65,39 @@ function StudyTimer({ disciplina, assunto, onStop, onCancel, isMinimized, onMaxi
     }
   };
 
-  // --- 1. Inicialização e Recuperação ---
+  // --- Persistência ---
+  const saveToStorage = useCallback((currentSeconds, pausedStatus) => {
+      const currentStorage = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+      if (currentStorage.isFinishing) return;
+
+      const data = {
+          disciplinaId: disciplina?.id,
+          disciplinaNome: disciplina?.nome,
+          assunto: assunto,
+          accumulatedTime: currentSeconds,
+          lastTimestamp: Date.now(),
+          isPaused: pausedStatus
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  }, [disciplina, assunto]);
+
+  // --- Inicialização e Restore ---
   useEffect(() => {
     const savedSession = localStorage.getItem(STORAGE_KEY);
 
     if (savedSession) {
         try {
             const data = JSON.parse(savedSession);
-            // Só recupera se for a mesma disciplina
-            if (data.disciplinaId === disciplina?.id) {
+            const savedId = String(data.disciplinaId);
+            const currentId = String(disciplina?.id);
+
+            if (savedId === currentId && !data.isFinishing) {
                 setIsPreparing(false);
+                let restoredSeconds = Number(data.accumulatedTime) || 0;
 
-                let restoredSeconds = data.accumulatedTime;
-
-                // CORREÇÃO: Se estava rodando, soma o tempo que passou offline
                 if (!data.isPaused) {
                     const now = Date.now();
                     const timeDiff = Math.floor((now - data.lastTimestamp) / 1000);
-
-                    // Proteção: Aceita diferença de até 24h
                     if (timeDiff >= 0 && timeDiff < 86400) {
                         restoredSeconds += timeDiff;
                     }
@@ -98,21 +105,19 @@ function StudyTimer({ disciplina, assunto, onStop, onCancel, isMinimized, onMaxi
 
                 accumulatedTimeRef.current = restoredSeconds;
                 setSeconds(restoredSeconds);
-
-                // IMPORTANTE: Retorna PAUSADO para evitar problemas de autoplay de áudio
                 setIsPaused(true);
                 startTimeRef.current = null;
-
             } else {
-                localStorage.removeItem(STORAGE_KEY);
+               if (!data.isFinishing && savedId !== currentId) {
+                   localStorage.removeItem(STORAGE_KEY);
+               }
             }
         } catch (e) {
             console.error("Erro restore:", e);
-            localStorage.removeItem(STORAGE_KEY);
         }
     }
 
-    // Configura Áudio
+    // Configura Audio
     audioRef.current = new Audio(WHITE_NOISE_URL);
     audioRef.current.loop = true;
     audioRef.current.volume = 0.01;
@@ -124,178 +129,160 @@ function StudyTimer({ disciplina, assunto, onStop, onCancel, isMinimized, onMaxi
         audioRef.current = null;
       }
       document.title = originalTitleRef.current;
+      if ('mediaSession' in navigator) {
+          navigator.mediaSession.metadata = null;
+          navigator.mediaSession.playbackState = 'none';
+      }
       if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
     };
-  }, []);
+  }, [disciplina?.id]);
 
-  // --- 2. Persistência (CORRIGIDA) ---
-  const saveToStorage = useCallback((currentSeconds, pausedStatus) => {
-      const data = {
-          disciplinaId: disciplina?.id,
-          disciplinaNome: disciplina?.nome,
-          assunto: assunto,
-          // *** CORREÇÃO CRÍTICA AQUI ***
-          // Antes salvava 'accumulatedTimeRef.current' quando estava rodando, que é o tempo ANTES do play.
-          // Agora salvamos 'currentSeconds', que é o tempo TOTAL ATUAL na tela.
-          accumulatedTime: currentSeconds,
-          lastTimestamp: Date.now(),
-          isPaused: pausedStatus
-      };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  }, [disciplina, assunto]);
-
-  const clearStorage = () => {
-      localStorage.removeItem(STORAGE_KEY);
-  };
-
-  // --- 3. Controle de Áudio e MediaSession ---
-  const updateMediaSession = useCallback((timeStr, isPlaying) => {
-    if ('mediaSession' in navigator) {
-        navigator.mediaSession.metadata = new MediaMetadata({
-            title: isPlaying ? `Estudando: ${timeStr}` : `Pausado: ${timeStr}`,
-            artist: disciplina?.nome,
-            album: assunto || 'ModoQAP',
-            artwork: [{ src: '/logo-pmba.png', sizes: '96x96', type: 'image/png' }]
-        });
-        navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
-    }
-  }, [disciplina?.nome, assunto]);
-
-  const activateFocusMode = useCallback(async () => {
-    if (!audioRef.current) return;
-    try {
-      await audioRef.current.play();
-
-      if ('mediaSession' in navigator) {
-        navigator.mediaSession.setActionHandler('play', () => {
-             setIsPaused(false);
-             startTimeRef.current = Date.now();
-             audioRef.current?.play();
-        });
-        navigator.mediaSession.setActionHandler('pause', () => {
-             setIsPaused(true);
-             if (startTimeRef.current) {
-                 const now = Date.now();
-                 const diff = Math.floor((now - startTimeRef.current) / 1000);
-                 accumulatedTimeRef.current += diff;
-                 startTimeRef.current = null;
-                 setSeconds(accumulatedTimeRef.current);
-             }
-             audioRef.current?.pause();
-        });
-      }
-    } catch (err) {
-      console.warn("Autoplay bloqueado pelo navegador.");
-    }
-  }, []);
-
+  // --- ATUALIZAÇÃO STATUS EXTERNO (ABA + TELA BLOQUEIO) ---
   const updateExternalStatus = useCallback((isRunning, currentSec) => {
     const timeString = formatTime(currentSec);
-    const statusText = isRunning ? `▶ ${timeString}` : `⏸ ${timeString}`;
+    const prefix = isRunning ? "Estudando" : "Pausado";
+    const statusText = `${prefix}: ${timeString}`;
+
+    // 1. Atualiza Título da Aba
     document.title = `${statusText} - ${disciplina.nome}`;
-    updateMediaSession(timeString, isRunning);
-  }, [disciplina.nome, updateMediaSession]);
 
-  // --- 4. Cálculo de Tempo ---
-  const calculateElapsedSeconds = useCallback(() => {
-    if (!startTimeRef.current) {
-        return accumulatedTimeRef.current;
+    // 2. Atualiza Media Session (Tela de Bloqueio)
+    if ('mediaSession' in navigator) {
+        navigator.mediaSession.metadata = new MediaMetadata({
+            title: statusText,
+            artist: disciplina.nome,
+            album: 'Modo QAP',
+            artwork: [
+                { src: '/logo-pmba.png', sizes: '96x96', type: 'image/png' },
+                { src: '/logo-pmba.png', sizes: '128x128', type: 'image/png' },
+                { src: '/logo-pmba.png', sizes: '192x192', type: 'image/png' },
+                { src: '/logo-pmba.png', sizes: '512x512', type: 'image/png' },
+            ]
+        });
+
+        navigator.mediaSession.playbackState = isRunning ? 'playing' : 'paused';
+
+        try {
+            navigator.mediaSession.setActionHandler('play', () => handleTogglePause());
+            navigator.mediaSession.setActionHandler('pause', () => handleTogglePause());
+            navigator.mediaSession.setActionHandler('stop', () => handleStop());
+        } catch(e) { /* Ignore */ }
     }
-    const now = Date.now();
-    const diff = Math.floor((now - startTimeRef.current) / 1000);
-    return diff + accumulatedTimeRef.current;
-  }, []);
+  }, [disciplina.nome]);
 
-  // --- 5. Efeito de Contagem ---
+  // Função pura para calcular segundos totais
+  const getExactTotalSeconds = () => {
+    if (!startTimeRef.current) return accumulatedTimeRef.current;
+    const now = Date.now();
+    const sessionSeconds = Math.floor((now - startTimeRef.current) / 1000);
+    return accumulatedTimeRef.current + sessionSeconds;
+  };
+
+  // --- Ciclo do Timer ---
   useEffect(() => {
     if (isPreparing) {
       if (countdown > 0) {
         const timer = setTimeout(() => setCountdown(c => c - 1), 1000);
         return () => clearTimeout(timer);
       } else {
-        activateFocusMode();
+        // Start Automático
+        if (audioRef.current) audioRef.current.play().catch(() => {});
         setIsPreparing(false);
-        if (!startTimeRef.current) {
-            startTimeRef.current = Date.now();
-        }
+        startTimeRef.current = Date.now();
+        setIsPaused(false);
       }
     }
-  }, [isPreparing, countdown, activateFocusMode]);
+  }, [isPreparing, countdown]);
 
-  // --- 6. Intervalo Principal ---
   useEffect(() => {
-      if (isPreparing || isPaused) {
+      if (isPreparing) return;
+
+      if (isPaused) {
           clearInterval(intervalRef.current);
-          if (isPaused) {
-              updateExternalStatus(false, seconds);
-              // Salva estado pausado com o tempo atual da tela
-              saveToStorage(seconds, true);
-          }
+          updateExternalStatus(false, seconds);
           return;
       }
 
-      if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
-
       intervalRef.current = setInterval(() => {
-        const currentSec = calculateElapsedSeconds();
-        if (currentSec >= 0) {
-            setSeconds(currentSec);
-            updateExternalStatus(true, currentSec);
-            // Salva estado rodando com o tempo atual da tela
-            saveToStorage(currentSec, false);
-        }
+        const currentTotal = getExactTotalSeconds();
+        setSeconds(currentTotal);
+        updateExternalStatus(true, currentTotal);
+        saveToStorage(currentTotal, false);
       }, 1000);
 
       return () => clearInterval(intervalRef.current);
-  }, [isPreparing, isPaused, calculateElapsedSeconds, updateExternalStatus, saveToStorage, seconds]);
+  }, [isPreparing, isPaused, updateExternalStatus, saveToStorage]);
 
   // --- Handlers ---
-
   const handleTogglePause = () => {
     setIsPaused(prev => {
       const willPause = !prev;
+
       if (willPause) {
-        const now = Date.now();
-        if (startTimeRef.current) {
-            const sessionSeconds = Math.floor((now - startTimeRef.current) / 1000);
-            accumulatedTimeRef.current += sessionSeconds;
-        }
+        const exactTotal = getExactTotalSeconds();
+        accumulatedTimeRef.current = exactTotal;
         startTimeRef.current = null;
-        setSeconds(accumulatedTimeRef.current);
+        setSeconds(exactTotal);
+        saveToStorage(exactTotal, true);
         if (audioRef.current) audioRef.current.pause();
+        updateExternalStatus(false, exactTotal);
       } else {
         startTimeRef.current = Date.now();
+        saveToStorage(accumulatedTimeRef.current, false);
         if (audioRef.current) audioRef.current.play().catch(() => {});
+        updateExternalStatus(true, accumulatedTimeRef.current);
       }
       return willPause;
     });
   };
 
-  const handleRequestCancel = () => setIsCancelModalOpen(true);
-
   const handleConfirmCancel = () => {
       setIsCancelModalOpen(false);
-      clearStorage();
+      localStorage.removeItem(STORAGE_KEY);
       clearInterval(intervalRef.current);
-      if (audioRef.current) audioRef.current.pause();
+      if (audioRef.current) {
+          audioRef.current.pause();
+          audioRef.current.src = "";
+      }
+      if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'none';
       document.title = originalTitleRef.current;
       onCancel();
   };
 
   const handleStop = () => {
     clearInterval(intervalRef.current);
-    if (audioRef.current) audioRef.current.pause();
-    document.title = originalTitleRef.current;
+    if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = "";
+    }
+    if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'none';
 
-    const finalSeconds = isPaused ? accumulatedTimeRef.current : calculateElapsedSeconds();
-    const totalMinutos = Math.max(1, Math.round(finalSeconds / 60));
+    let finalSeconds = accumulatedTimeRef.current;
 
-    clearStorage();
-    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
-    onStop(totalMinutos);
+    if (startTimeRef.current) {
+        const now = Date.now();
+        const currentSession = Math.floor((now - startTimeRef.current) / 1000);
+        finalSeconds += currentSession;
+    }
+
+    accumulatedTimeRef.current = finalSeconds;
+    startTimeRef.current = null;
+    setIsPaused(true);
+    setSeconds(finalSeconds);
+
+    const data = {
+        disciplinaId: disciplina?.id,
+        disciplinaNome: disciplina?.nome,
+        assunto: assunto,
+        accumulatedTime: finalSeconds,
+        lastTimestamp: Date.now(),
+        isPaused: true
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    onStop(Math.max(1, Math.round(finalSeconds / 60)));
   };
 
-  // --- RENDERIZAÇÃO: MODO WIDGET (MINIMIZADO) ---
+  // --- RENDERIZAÇÃO (Widget Minimizado) ---
   if (isMinimized) {
     return (
       <div className="fixed bottom-24 right-4 z-[9999] animate-fade-in">
@@ -310,21 +297,12 @@ function StudyTimer({ disciplina, assunto, onStop, onCancel, isMinimized, onMaxi
             </span>
           </div>
           <div className="flex flex-col mr-2 min-w-0">
-            <span className="text-[10px] text-zinc-400 uppercase font-bold tracking-wider truncate">
-              {disciplina.nome}
-            </span>
-            {assunto && (
-               <span className="text-[9px] text-emerald-400 truncate leading-tight">{assunto}</span>
-            )}
-            <span className="text-xl font-mono font-bold text-white leading-none mt-0.5">
-              {formatTime(seconds)}
-            </span>
+            <span className="text-[10px] text-zinc-400 uppercase font-bold tracking-wider truncate">{disciplina.nome}</span>
+            {assunto && <span className="text-[9px] text-emerald-400 truncate leading-tight">{assunto}</span>}
+            <span className="text-xl font-mono font-bold text-white leading-none mt-0.5">{formatTime(seconds)}</span>
           </div>
           <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-            <button
-              onClick={handleTogglePause}
-              className={`p-2 rounded-full ${isPaused ? 'bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20' : 'bg-amber-500/10 text-amber-500 hover:bg-amber-500/20'}`}
-            >
+            <button onClick={handleTogglePause} className={`p-2 rounded-full ${isPaused ? 'bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20' : 'bg-amber-500/10 text-amber-500 hover:bg-amber-500/20'}`}>
               {isPaused ? <Play size={14} fill="currentColor" /> : <Pause size={14} fill="currentColor" />}
             </button>
             <button onClick={onWidgetMode} className="p-2 rounded-full bg-zinc-800 text-zinc-400 hover:bg-zinc-700">
@@ -336,11 +314,10 @@ function StudyTimer({ disciplina, assunto, onStop, onCancel, isMinimized, onMaxi
     );
   }
 
-  // --- RENDERIZAÇÃO: PREPARAÇÃO ---
+  // --- RENDERIZAÇÃO (Preparação) ---
   if (isPreparing) {
       return (
         <div className="fixed inset-0 z-[9999] bg-zinc-950 flex flex-col items-center justify-center">
-            <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, rgba(255,255,255,0.1) 1px, transparent 0)', backgroundSize: '40px 40px' }}></div>
             <motion.div
                 key={countdown}
                 initial={{ scale: 0.5, opacity: 0 }}
@@ -357,30 +334,23 @@ function StudyTimer({ disciplina, assunto, onStop, onCancel, isMinimized, onMaxi
       );
   }
 
-  // --- RENDERIZAÇÃO: TIMER PRINCIPAL ---
+  // --- RENDERIZAÇÃO (Timer Full) ---
   return (
     <div className="fixed inset-0 z-[9999] bg-zinc-950 flex flex-col items-center justify-center animate-fade-in overflow-hidden">
         <AnimatePresence>
             <ConfirmationModal isOpen={isCancelModalOpen} onConfirm={handleConfirmCancel} onCancel={() => setIsCancelModalOpen(false)} />
         </AnimatePresence>
 
+        {/* LOGO AJUSTADA: Reduzida no Desktop (md:h-28) */}
         <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20 opacity-80 pointer-events-none transition-all">
-            <img src="/logo-pmba.png" alt="Logo" className="h-16 md:h-24 w-auto drop-shadow-2xl grayscale-[0.3]" />
+            <img src="/logo-pmba.png" alt="Logo" className="h-20 md:h-28 w-auto drop-shadow-2xl grayscale-[0.3]" />
         </div>
 
         <div className="absolute top-6 right-6 flex gap-3 z-30">
-            <button
-                onClick={toggleFullscreen}
-                className="p-3 rounded-full bg-zinc-900 text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all border border-zinc-800"
-                title={isFullscreen ? "Sair da Tela Cheia" : "Tela Cheia"}
-            >
+            <button onClick={toggleFullscreen} className="p-3 rounded-full bg-zinc-900 text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all border border-zinc-800">
                 {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
             </button>
-
-            <button
-                onClick={onWidgetMinimize}
-                className="flex items-center gap-2 bg-zinc-900 text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all px-4 py-2 rounded-full border border-zinc-800"
-            >
+            <button onClick={onWidgetMinimize} className="flex items-center gap-2 bg-zinc-900 text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all px-4 py-2 rounded-full border border-zinc-800">
                 <Minimize2 size={20} />
                 <span className="hidden md:inline text-sm font-bold uppercase tracking-wide">Minimizar</span>
             </button>
@@ -390,16 +360,12 @@ function StudyTimer({ disciplina, assunto, onStop, onCancel, isMinimized, onMaxi
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-emerald-500 to-transparent opacity-30"></div>
 
         <div className="relative z-10 flex flex-col items-center text-center w-full max-w-5xl px-4 mt-24 md:mt-32">
-
             <div className={`mb-6 px-4 py-1.5 rounded-full border text-[10px] md:text-sm font-bold tracking-[0.2em] uppercase flex items-center gap-2 ${isPaused ? 'border-amber-500/30 text-amber-500 bg-amber-500/5' : 'border-emerald-500/30 text-emerald-500 bg-emerald-500/5'}`}>
                 <span className={`w-2 h-2 rounded-full ${isPaused ? 'bg-amber-500' : 'bg-emerald-500 animate-pulse'}`}></span>
                 {isPaused ? 'Sessão Pausada' : 'Foco Absoluto'}
             </div>
 
-            <h2 className="text-xl md:text-4xl font-bold text-zinc-300 mb-2 tracking-tight max-w-3xl leading-tight">
-                {disciplina.nome}
-            </h2>
-
+            <h2 className="text-xl md:text-4xl font-bold text-zinc-300 mb-2 tracking-tight max-w-3xl leading-tight">{disciplina.nome}</h2>
             {assunto ? (
                 <div className="flex items-center gap-2 text-emerald-500 bg-emerald-500/10 px-4 py-1.5 rounded-full mb-8 border border-emerald-500/20 max-w-full">
                     <Target size={14} className="shrink-0" />
@@ -417,10 +383,8 @@ function StudyTimer({ disciplina, assunto, onStop, onCancel, isMinimized, onMaxi
             </div>
 
             <div className="flex items-center gap-4 md:gap-10">
-                <button onClick={handleRequestCancel} className="group flex flex-col items-center gap-2 text-zinc-500 hover:text-red-500 transition-colors">
-                    <div className="w-12 h-12 md:w-16 md:h-16 rounded-full border-2 border-zinc-800 group-hover:border-red-500/50 flex items-center justify-center bg-zinc-900 transition-all">
-                        <X size={20} className="md:w-6 md:h-6" />
-                    </div>
+                <button onClick={() => setIsCancelModalOpen(true)} className="group flex flex-col items-center gap-2 text-zinc-500 hover:text-red-500 transition-colors">
+                    <div className="w-12 h-12 md:w-16 md:h-16 rounded-full border-2 border-zinc-800 group-hover:border-red-500/50 flex items-center justify-center bg-zinc-900 transition-all"><X size={20} className="md:w-6 md:h-6" /></div>
                     <span className="text-[10px] md:text-xs font-bold uppercase tracking-wider text-center pt-1">CANCELAR</span>
                 </button>
 
@@ -430,9 +394,7 @@ function StudyTimer({ disciplina, assunto, onStop, onCancel, isMinimized, onMaxi
                 </button>
 
                 <button onClick={handleStop} className="group flex flex-col items-center gap-2 text-zinc-500 hover:text-emerald-500 transition-colors">
-                    <div className="w-12 h-12 md:w-16 md:h-16 rounded-full border-2 border-zinc-800 group-hover:border-emerald-500/50 flex items-center justify-center bg-zinc-900 transition-all">
-                        <Square size={20} fill="currentColor" className="md:w-6 md:h-6" />
-                    </div>
+                    <div className="w-12 h-12 md:w-16 md:h-16 rounded-full border-2 border-zinc-800 group-hover:border-emerald-500/50 flex items-center justify-center bg-zinc-900 transition-all"><Square size={20} fill="currentColor" className="md:w-6 md:h-6" /></div>
                     <span className="text-[10px] md:text-xs font-bold uppercase tracking-wider text-center pt-1">FINALIZAR</span>
                 </button>
             </div>

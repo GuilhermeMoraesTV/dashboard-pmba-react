@@ -8,7 +8,7 @@ import { signOut } from 'firebase/auth';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { AnimatePresence, motion } from 'framer-motion';
-import { X, CheckCircle2, Download } from 'lucide-react';
+import { X, CheckCircle2, Download, AlertTriangle, Maximize2 } from 'lucide-react';
 import ShareCard from '../components/shared/ShareCard';
 
 import NavSideBar from '../components/dashboard/NavSideBar';
@@ -124,6 +124,9 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   const [activeStudySession, setActiveStudySession] = useState(null);
   const [finishModalData, setFinishModalData] = useState(null);
 
+  // --- NOVO: Estado para Registro Pendente ---
+  const [pendingReviewData, setPendingReviewData] = useState(null);
+
   const [goalsHistory, setGoalsHistory] = useState([]);
   const [activeCicloId, setActiveCicloId] = useState(null);
   const [activeCicloData, setActiveCicloData] = useState(null);
@@ -141,34 +144,41 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     };
   }, [allRegistrosEstudo, todayStr]);
 
-  // --- RESTAURAÇÃO DE SESSÃO E MODAL DE FINALIZAÇÃO ---
+  // --- RESTAURAÇÃO DE SESSÃO / PENDÊNCIA ---
   useEffect(() => {
     const savedSession = localStorage.getItem(STORAGE_KEY);
     if (savedSession) {
       try {
         const parsed = JSON.parse(savedSession);
+
         if (parsed && parsed.disciplinaId && parsed.disciplinaNome) {
 
-          // 1. Restaura a sessão MINIMIZADA e PAUSADA
-          // Isso garante que se o usuário cancelar o finish, o timer está lá
-          parsed.isPaused = true;
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
-
-          setActiveStudySession({
-            disciplina: {
-              id: parsed.disciplinaId,
-              nome: parsed.disciplinaNome
-            },
-            assunto: parsed.assunto,
-            isMinimized: true
-          });
-
-          // 2. Se a flag isFinishing for true, abre o modal de finalização imediatamente
+          // CASO 1: Foi desligado durante o "Finalizar" (isFinishing = true)
+          // Em vez de abrir o modal direto, mostramos o Widget Amarelo de Pendência
           if (parsed.isFinishing && parsed.tempMinutes) {
-              setFinishModalData({
+              setPendingReviewData({
                   minutes: parsed.tempMinutes,
                   disciplinaNome: parsed.disciplinaNome,
-                  assuntoInicial: parsed.assunto
+                  assuntoInicial: parsed.assunto,
+                  reason: 'Sessão interrompida (Atualização/Fechamento)',
+                  originalData: parsed
+              });
+          }
+          // CASO 2: Apenas um refresh normal com timer rodando ou pausado
+          else {
+              // Se estava rodando, marcamos como pausado no restore para segurança
+              if(!parsed.isPaused) {
+                parsed.isPaused = true;
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+              }
+
+              setActiveStudySession({
+                disciplina: {
+                  id: parsed.disciplinaId,
+                  nome: parsed.disciplinaNome
+                },
+                assunto: parsed.assunto,
+                isMinimized: true
               });
           }
         }
@@ -200,14 +210,19 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         return;
     }
 
-    // SALVA NO STORAGE QUE ESTAMOS FINALIZANDO
-    // Isso permite recuperar o modal se a página recarregar
+    // Salva estado de finalização no storage com o tempo que veio do Timer
+    // O StudyTimer já salvou o accumulatedTime exato, aqui adicionamos a flag de finalização
     const currentStorage = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-    currentStorage.isFinishing = true;
-    currentStorage.tempMinutes = minutes;
-    // Forçamos pausa no timer visualmente também
-    currentStorage.isPaused = true;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(currentStorage));
+
+    // Atualiza storage com a intenção de finalizar
+    const updatedStorage = {
+        ...currentStorage,
+        isFinishing: true,
+        tempMinutes: minutes, // Armazena os minutos calculados
+        isPaused: true
+    };
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedStorage));
 
     setFinishModalData({
         minutes,
@@ -216,19 +231,47 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     });
   };
 
-  // Funcao chamada ao clicar no botão "RETOMAR ESTUDO" no Modal
   const handleRetomarEstudo = () => {
+      // 1. Limpa os modais
       setFinishModalData(null);
-      // Remove a flag isFinishing do storage, mas mantém a sessão
+      setPendingReviewData(null);
+
+      // 2. Manipula o Storage
       const currentStorage = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-      delete currentStorage.isFinishing;
-      delete currentStorage.tempMinutes;
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(currentStorage));
+
+      if (currentStorage.disciplinaId) {
+          // Remove flags de finalização
+          delete currentStorage.isFinishing;
+          delete currentStorage.tempMinutes;
+          // Garante que volta pausado
+          currentStorage.isPaused = true;
+
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(currentStorage));
+
+          // 3. Recria a sessão visualmente
+          setActiveStudySession({
+              disciplina: {
+                  id: currentStorage.disciplinaId,
+                  nome: currentStorage.disciplinaNome
+              },
+              assunto: currentStorage.assunto,
+              isMinimized: false // Maximiza para o usuário ver
+          });
+      }
+  };
+
+  const handleConfirmCancelStudy = () => {
+      setActiveStudySession(null);
+      setFinishModalData(null);
+      setPendingReviewData(null);
+      localStorage.removeItem(STORAGE_KEY);
   };
 
   const handleConfirmFinishStudy = async (resultData) => {
-    if (!activeStudySession || !finishModalData) return;
-    const { minutes } = finishModalData;
+    const dataRef = finishModalData || pendingReviewData;
+
+    if (!dataRef) return;
+    const { minutes } = dataRef;
 
     const {
         questions,
@@ -239,12 +282,15 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         markAsFinished
     } = resultData;
 
-    const nomeDisciplinaFinal = disciplinaNomeCorrigido || activeStudySession.disciplina.nome;
+    const nomeDisciplinaFinal = disciplinaNomeCorrigido || dataRef.disciplinaNome;
 
     try {
+        const storageData = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+        const finalDisciplinaId = activeStudySession?.disciplina?.id || storageData.disciplinaId || 'restored_id';
+
         const registroEstudoData = {
             cicloId: activeCicloId,
-            disciplinaId: activeStudySession.disciplina.id,
+            disciplinaId: finalDisciplinaId,
             disciplinaNome: nomeDisciplinaFinal,
             data: dateToYMD(new Date()),
             tempoEstudadoMinutos: minutes,
@@ -260,7 +306,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         if (markAsFinished && assunto) {
              const checkData = {
                 cicloId: activeCicloId,
-                disciplinaId: activeStudySession.disciplina.id,
+                disciplinaId: finalDisciplinaId,
                 disciplinaNome: nomeDisciplinaFinal,
                 assunto: assunto,
                 data: dateToYMD(new Date()),
@@ -275,18 +321,14 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         }
 
         setFinishModalData(null);
+        setPendingReviewData(null);
         setActiveStudySession(null);
-        localStorage.removeItem(STORAGE_KEY); // AGORA SIM REMOVE TUDO
+        localStorage.removeItem(STORAGE_KEY);
 
     } catch (e) {
         console.error("Erro ao salvar timer:", e);
         alert("Erro ao salvar sessão. Verifique sua conexão.");
     }
-  };
-
-  const handleConfirmCancelStudy = () => {
-      setActiveStudySession(null);
-      localStorage.removeItem(STORAGE_KEY);
   };
 
   const deleteRegistro = async (id) => { await deleteDoc(doc(db, 'users', user.uid, 'registrosEstudo', id)); };
@@ -530,22 +572,44 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
           />
       )}
 
-      {finishModalData && (
+      {/* --- WIDGET PENDENTE DE REGISTRO (AMARELO) --- */}
+      {pendingReviewData && !finishModalData && (
+          <div className="fixed bottom-24 right-4 z-[9999] animate-fade-in">
+            <div
+              onClick={() => setFinishModalData(pendingReviewData)}
+              className="bg-amber-900/90 backdrop-blur-md border border-amber-500/50 shadow-[0_0_20px_rgba(245,158,11,0.2)] rounded-2xl p-3 flex items-center gap-4 w-auto max-w-[320px] overflow-hidden hover:scale-105 transition-transform cursor-pointer"
+            >
+              <div className="relative flex items-center justify-center w-10 h-10 bg-amber-800 rounded-full shrink-0">
+                <div className="absolute inset-0 rounded-full bg-amber-500/20 animate-ping"></div>
+                <AlertTriangle size={20} className="text-amber-200 relative z-10" />
+              </div>
+              <div className="flex flex-col mr-2 min-w-0">
+                <span className="text-[10px] text-amber-200 uppercase font-bold tracking-wider truncate">Registro Pendente</span>
+                <span className="text-[10px] text-white truncate leading-tight font-bold">{pendingReviewData.disciplinaNome}</span>
+                <span className="text-[9px] text-amber-300/80 italic mt-0.5 truncate">{pendingReviewData.reason}</span>
+              </div>
+              <div className="p-2 rounded-full bg-amber-800/50 text-amber-100 hover:bg-amber-700/50 transition-colors">
+                  <Maximize2 size={16} />
+              </div>
+            </div>
+          </div>
+      )}
+
+      {(finishModalData || (pendingReviewData && finishModalData)) && (
         <TimerFinishModal
           timeMinutes={finishModalData.minutes}
           disciplinaNome={finishModalData.disciplinaNome}
           initialAssunto={finishModalData.assuntoInicial}
-          disciplinaId={activeStudySession?.disciplina?.id}
+          disciplinaId={activeStudySession?.disciplina?.id || pendingReviewData?.originalData?.disciplinaId}
           activeCicloId={activeCicloId}
           userUid={user.uid}
           onConfirm={handleConfirmFinishStudy}
-          onCancel={handleRetomarEstudo} // AQUI: Chama a função de retomar
+          onCancel={handleRetomarEstudo}
+          onDiscard={handleConfirmCancelStudy}
         />
       )}
 
-      {isMobileOpen && (
-        <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden" onClick={() => setIsMobileOpen(false)} />
-      )}
+      {isMobileOpen && <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden" onClick={() => setIsMobileOpen(false)} />}
     </div>
   );
 }

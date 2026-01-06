@@ -1,10 +1,50 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { CheckCircle2, XCircle, Target, Save, Clock, Plus, Minus, BookOpen, List, FileText, AlertTriangle, CheckSquare, RotateCcw } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  CheckCircle2, XCircle, Target, Save, Clock, Plus, Minus,
+  BookOpen, List, FileText, AlertTriangle, CheckSquare,
+  RotateCcw, Trash2
+} from 'lucide-react';
 import { db } from '../../firebaseConfig';
 import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
 
-function TimerFinishModal({ timeMinutes, disciplinaNome, activeCicloId, userUid, onConfirm, onCancel, initialAssunto }) {
+// --- Modal de Confirmação de Descarte (Igual ao do Timer) ---
+const DiscardConfirmationModal = ({ isOpen, onConfirm, onCancel }) => {
+    if (!isOpen) return null;
+    return (
+        <motion.div
+            className="fixed inset-0 z-[10001] bg-zinc-950/70 backdrop-blur-sm flex items-center justify-center p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+        >
+            <div className="bg-zinc-900 border border-red-500/30 shadow-2xl rounded-xl p-6 w-full max-w-sm">
+                <div className="flex items-start gap-4">
+                    <AlertTriangle className="text-red-500 mt-0.5 shrink-0" size={24} />
+                    <div>
+                        <h3 className="text-lg font-bold text-white mb-1">Descartar Sessão?</h3>
+                        <p className="text-sm text-zinc-400">Todo o progresso deste estudo será perdido permanentemente.</p>
+                    </div>
+                </div>
+                <div className="mt-6 flex justify-end gap-3">
+                    <button onClick={onCancel} className="px-4 py-2 text-sm font-semibold text-zinc-300 bg-zinc-800 rounded-lg hover:bg-zinc-700">Cancelar</button>
+                    <button onClick={onConfirm} className="px-4 py-2 text-sm font-bold text-white bg-red-600 rounded-lg hover:bg-red-700">Sim, Descartar</button>
+                </div>
+            </div>
+        </motion.div>
+    );
+};
+
+function TimerFinishModal({
+  timeMinutes,
+  disciplinaNome,
+  activeCicloId,
+  userUid,
+  onConfirm,
+  onCancel, // Botão Retomar
+  onDiscard, // Botão Descartar
+  initialAssunto
+}) {
   const [step, setStep] = useState(1);
   const [hasQuestions, setHasQuestions] = useState(null);
   const [questionsData, setQuestionsData] = useState({ total: 0, correct: 0 });
@@ -17,6 +57,9 @@ function TimerFinishModal({ timeMinutes, disciplinaNome, activeCicloId, userUid,
   const [todasDisciplinas, setTodasDisciplinas] = useState([]);
   const [erroDisciplina, setErroDisciplina] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+
+  // Estado para o modal de confirmação de descarte
+  const [showDiscardModal, setShowDiscardModal] = useState(false);
 
   const normalize = (str) => str ? str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase() : "";
 
@@ -139,6 +182,19 @@ function TimerFinishModal({ timeMinutes, disciplinaNome, activeCicloId, userUid,
 
   return (
     <div className="fixed inset-0 z-[10000] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in overflow-y-auto">
+
+      {/* Modal de confirmação de descarte */}
+      <AnimatePresence>
+        <DiscardConfirmationModal
+            isOpen={showDiscardModal}
+            onCancel={() => setShowDiscardModal(false)}
+            onConfirm={() => {
+                setShowDiscardModal(false);
+                if (onDiscard) onDiscard();
+            }}
+        />
+      </AnimatePresence>
+
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
@@ -153,9 +209,20 @@ function TimerFinishModal({ timeMinutes, disciplinaNome, activeCicloId, userUid,
                  <p className="text-zinc-500 font-medium text-sm mt-1 flex items-center gap-2"><Clock size={14} /> {formatTime(timeMinutes)} de foco total</p>
              </div>
           </div>
-          <div className="flex items-center gap-2 bg-white dark:bg-zinc-800 px-4 py-2 rounded-xl border border-zinc-200 dark:border-zinc-700 shadow-sm">
-             <BookOpen size={18} className="text-zinc-400" />
-             <span className="font-bold text-zinc-700 dark:text-zinc-200 text-sm truncate max-w-[200px]">{erroDisciplina ? "Selecione..." : (disciplinaManual || disciplinaNome)}</span>
+          <div className="flex items-center gap-2">
+             <div className="flex items-center gap-2 bg-white dark:bg-zinc-800 px-4 py-2 rounded-xl border border-zinc-200 dark:border-zinc-700 shadow-sm">
+                <BookOpen size={18} className="text-zinc-400" />
+                <span className="font-bold text-zinc-700 dark:text-zinc-200 text-sm truncate max-w-[150px]">{erroDisciplina ? "Selecione..." : (disciplinaManual || disciplinaNome)}</span>
+             </div>
+
+             {/* BOTÃO RETOMAR NO HEADER */}
+             <button
+                onClick={onCancel}
+                className="p-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white rounded-xl transition-all"
+                title="Retomar Estudo"
+             >
+                <RotateCcw size={20} />
+             </button>
           </div>
         </div>
 
@@ -177,14 +244,27 @@ function TimerFinishModal({ timeMinutes, disciplinaNome, activeCicloId, userUid,
                 </button>
               </div>
 
-              {/* --- BOTÃO RETOMAR ESTUDO (DESIGN ATUALIZADO) --- */}
-              <button
-                onClick={onCancel}
-                className="group flex items-center gap-3 px-8 py-4 mt-6 rounded-xl border-2 border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-white font-bold uppercase text-xs tracking-wider transition-all"
-              >
-                  <RotateCcw size={18} className="group-hover:-rotate-90 transition-transform duration-300" />
-                  RETOMAR ESTUDO
-              </button>
+              {/* --- BOTÕES DE AÇÃO SECUNDÁRIOS --- */}
+              <div className="flex gap-4 mt-6 w-full max-w-md">
+
+                  {/* BOTÃO DESCARTAR */}
+                  {onDiscard && (
+                      <button
+                        onClick={() => setShowDiscardModal(true)}
+                        className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 border-red-100 dark:border-red-900/30 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 font-bold uppercase text-xs tracking-wider transition-all"
+                      >
+                          <Trash2 size={16} /> Descartar
+                      </button>
+                  )}
+
+                  {/* BOTÃO RETOMAR ESTUDO (Grande) */}
+                  <button
+                    onClick={onCancel}
+                    className="flex-[2] flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 border-zinc-200 dark:border-zinc-700 hover:border-zinc-400 dark:hover:border-zinc-600 text-zinc-600 dark:text-zinc-300 hover:text-black dark:hover:text-white font-bold uppercase text-xs tracking-wider transition-all"
+                  >
+                      <RotateCcw size={16} /> Retomar
+                  </button>
+              </div>
 
             </div>
           ) : (
