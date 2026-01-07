@@ -7,6 +7,7 @@ import { auth } from './firebaseConfig';
 const Dashboard = lazy(() => import('./components/Dashboard'));
 const Login = lazy(() => import('./components/Login'));
 const Signup = lazy(() => import('./components/Signup'));
+const ForgotPassword = lazy(() => import('./components/ForgotPassword')); // NOVO COMPONENTE
 
 function App() {
   const [user, setUser] = useState(null);
@@ -52,8 +53,6 @@ function App() {
 
   return (
     <BrowserRouter>
-      {/* REMOVIDO: <OnboardingTour /> não deve estar aqui para evitar duplicação */}
-
       <Suspense
         fallback={
           <div className="flex justify-center items-center min-h-screen bg-background-color dark:bg-dark-background-color">
@@ -83,6 +82,11 @@ function App() {
           <Route
             path="/signup"
             element={user ? <Navigate to="/" /> : <Signup />}
+          />
+          {/* NOVA ROTA: Se o usuário já estiver logado, redireciona para Home, senão mostra o ForgotPassword */}
+          <Route
+            path="/forgot-password"
+            element={user ? <Navigate to="/" /> : <ForgotPassword />}
           />
         </Routes>
       </Suspense>

@@ -190,9 +190,11 @@ function Home({ registrosEstudo, goalsHistory, setActiveTab, activeCicloData, on
           let goalMet = false;
 
           if (!hasDefinedGoals) {
-              if (dateStr === todayStr && hasStudyData) {
+              // Se não tem metas definidas, consideramos o estudo como meta batida
+              if (hasStudyData) {
                   goalMet = true;
-              } else {
+              } else if (dateStr !== todayStr) {
+                  // Se não for hoje e não teve estudo (e não tem metas), quebra a sequencia
                   break;
               }
           } else {
@@ -207,7 +209,15 @@ function Home({ registrosEstudo, goalsHistory, setActiveTab, activeCicloData, on
           if (goalMet) {
               currentStreak++;
           } else {
-              if (dateStr === todayStr && !hasStudyData) {
+              // --- CORREÇÃO DO BUG AQUI ---
+              // Antes estava: if (dateStr === todayStr && !hasStudyData)
+              // Isso fazia com que se houvesse dados parciais hoje (!hasStudyData = false),
+              // ele entrava no else e quebrava o loop.
+
+              // Nova lógica: Se for HOJE, independente de ter dados ou não,
+              // se a meta não foi batida, nós apenas pulamos (continue) para checar ontem.
+              // Não podemos dar break só porque a meta de hoje ainda está incompleta.
+              if (dateStr === todayStr) {
                   continue;
               } else {
                   break;
@@ -332,7 +342,7 @@ function Home({ registrosEstudo, goalsHistory, setActiveTab, activeCicloData, on
                    <p className="text-3xl md:text-4xl font-extrabold text-text-primary dark:text-text-dark-primary leading-none">
                      {homeStats.streak}
                    </p>
-                   <span className="text-sm md:text-base font-medium text-zinc-500 dark:text-zinc-400">dias</span>
+                   <span className="text-sm md:text-base font-medium text-zinc-500 dark:text-zinc-400">dias de estudo</span>
                 </div>
               </div>
             </div>
