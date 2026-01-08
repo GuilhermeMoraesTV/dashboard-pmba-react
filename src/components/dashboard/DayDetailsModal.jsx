@@ -4,16 +4,10 @@ import {
   X,
   Clock,
   CheckCircle2,
-  BookOpen,
+  List,
   Target,
   Calendar,
-  Trophy,
-  Medal,
-  AlertCircle,
-  List,
-  BarChart2,
-  TrendingUp,
-  Percent
+  ArrowDown,
 } from 'lucide-react';
 
 // --- Helpers ---
@@ -21,11 +15,10 @@ const formatTime = (minutes) => {
   if (!minutes || minutes === 0) return '0m';
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
-  if (h > 0) return `${h}h ${m}m`;
+  if (h > 0) return `${h}h ${m > 0 ? `${m}m` : ''}`;
   return `${m}m`;
 };
 
-// Cores Vibrantes para o Gráfico
 const CHART_COLORS = [
   '#3b82f6', // blue
   '#10b981', // emerald
@@ -36,9 +29,11 @@ const CHART_COLORS = [
   '#06b6d4', // cyan
 ];
 
-// --- Componente Donut Chart ---
-const DonutChart = ({ data, totalMinutes }) => {
-  const radius = 60;
+// --- Componente de Gráfico (Donut + Barras de Progresso) ---
+const AdvancedChart = ({ data, totalMinutes }) => {
+  const radius = 70;
+  const center = 90;
+  const viewBoxSize = 180;
   const circumference = 2 * Math.PI * radius;
   let accumulatedPercent = 0;
 
@@ -55,45 +50,61 @@ const DonutChart = ({ data, totalMinutes }) => {
       color: CHART_COLORS[index % CHART_COLORS.length],
       strokeDasharray,
       strokeDashoffset,
-      percentDisplay: Math.round(percent * 100)
+      percentValue: percent * 100
     };
   });
 
   return (
-    <div className="flex flex-col items-center justify-center w-full h-full">
-      <div className="relative w-48 h-48">
-        <svg viewBox="0 0 160 160" className="w-full h-full -rotate-90 transform drop-shadow-md">
-          <circle cx="80" cy="80" r={radius} fill="transparent" strokeWidth="16" className="stroke-zinc-100 dark:stroke-zinc-800/50" />
+    <div className="flex flex-col sm:flex-row items-center w-full h-full gap-6 p-2">
+      {/* Gráfico Donut */}
+      <div className="relative w-48 h-48 shrink-0">
+        <svg viewBox={`0 0 ${viewBoxSize} ${viewBoxSize}`} className="w-full h-full -rotate-90">
+          <circle cx={center} cy={center} r={radius} fill="transparent" strokeWidth="20" className="stroke-zinc-100 dark:stroke-zinc-800" />
           {segments.map((seg, i) => (
             <motion.circle
               key={i}
               initial={{ strokeDasharray: `0 ${circumference}` }}
               animate={{ strokeDasharray: seg.strokeDasharray }}
               transition={{ duration: 1.2, delay: 0.1 * i, ease: [0.22, 1, 0.36, 1] }}
-              cx="80" cy="80" r={radius}
+              cx={center} cy={center} r={radius}
               fill="transparent"
               stroke={seg.color}
-              strokeWidth="16"
+              strokeWidth="20"
               strokeDashoffset={seg.strokeDashoffset}
-              strokeLinecap="round"
+              strokeLinecap="butt"
               className="hover:opacity-80 transition-opacity cursor-pointer"
             />
           ))}
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-800 dark:text-zinc-100 pointer-events-none">
-           <span className="text-3xl font-black tracking-tighter leading-none">
-             {formatTime(totalMinutes).split(' ')[0]}
+           <span className="text-2xl font-black tracking-tighter leading-none">
+             {formatTime(totalMinutes)}
            </span>
            <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 mt-1">Total</span>
         </div>
       </div>
 
-      <div className="flex flex-wrap justify-center gap-2 mt-4 w-full">
-        {segments.slice(0, 4).map((seg, i) => (
-          <div key={i} className="flex items-center gap-1.5 text-[10px] font-bold text-zinc-600 dark:text-zinc-400 bg-zinc-50 dark:bg-zinc-800 px-2 py-1 rounded-md border border-zinc-200 dark:border-zinc-700/50">
-            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: seg.color }}></span>
-            <span className="truncate max-w-[80px]">{seg.name}</span>
-            <span className="text-zinc-900 dark:text-white ml-0.5">{seg.percentDisplay}%</span>
+      {/* Legenda com Barras */}
+      <div className="flex flex-col justify-center flex-1 w-full gap-3 min-w-0">
+        {segments.slice(0, 5).map((seg, i) => (
+          <div key={i} className="flex flex-col gap-1 w-full">
+            <div className="flex justify-between items-end">
+                <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300 leading-tight">
+                    {seg.name}
+                </span>
+                <span className="text-xs font-black text-zinc-900 dark:text-white shrink-0 ml-2">
+                    {formatTime(seg.minutes)}
+                </span>
+            </div>
+            <div className="w-full h-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+                <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${seg.percentValue}%` }}
+                    transition={{ duration: 1, delay: 0.2 }}
+                    className="h-full rounded-full"
+                    style={{ backgroundColor: seg.color }}
+                />
+            </div>
           </div>
         ))}
       </div>
@@ -101,26 +112,64 @@ const DonutChart = ({ data, totalMinutes }) => {
   );
 };
 
-// --- Card de KPI Compacto (Atualizado para aceitar className) ---
-const StatBox = ({ label, value, subValue, icon: Icon, colorClass, bgClass, className = "" }) => (
-    <div className={`flex flex-col justify-center rounded-xl p-3 border transition-all hover:shadow-md ${bgClass || 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800'} ${className}`}>
-        <div className={`flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider mb-1 opacity-70 ${colorClass}`}>
-            <Icon size={12} strokeWidth={3} /> {label}
-        </div>
-        <div>
-            <div className="text-lg sm:text-xl font-black text-zinc-900 dark:text-white leading-none tracking-tight">
-                {value}
+// --- NOVO COMPONENTE: Card Duplo de Questões (Sem Badge de Precisão) ---
+const QuestionsDualCard = ({ total, correct }) => {
+    return (
+        <div className="flex flex-col bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm overflow-hidden relative">
+
+            {/* Conector Visual Sutil */}
+            <div className="absolute left-6 top-1/2 -translate-y-1/2 z-10 text-zinc-200 dark:text-zinc-700">
+                <ArrowDown size={12} strokeWidth={3} className="opacity-50" />
             </div>
-            {subValue && <div className="text-[10px] font-semibold text-zinc-500 dark:text-zinc-400 mt-0.5">{subValue}</div>}
+
+            {/* Parte Superior: Total (Violeta) */}
+            <div className="flex justify-between items-center p-2.5 pb-1.5 bg-violet-50/30 dark:bg-violet-900/5 relative">
+                <div className="flex flex-col">
+                    <span className="text-[9px] font-bold uppercase text-violet-600 dark:text-violet-400 flex items-center gap-1.5 mb-0.5">
+                        <List size={11} strokeWidth={3} /> Total de Questões
+                    </span>
+                    <span className="text-base font-black text-zinc-900 dark:text-white leading-none pl-4">
+                        {total}
+                    </span>
+                </div>
+            </div>
+
+            {/* Linha Divisória Sutil */}
+            <div className="h-px w-full bg-gradient-to-r from-zinc-100 via-zinc-200 to-zinc-100 dark:from-zinc-800 dark:via-zinc-700 dark:to-zinc-800"></div>
+
+            {/* Parte Inferior: Acertos (Esmeralda) - SEM BADGE */}
+            <div className="flex justify-between items-center p-2.5 pt-1.5 bg-emerald-50/30 dark:bg-emerald-900/5">
+                 <div className="flex flex-col">
+                    <span className="text-[9px] font-bold uppercase text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5 mb-0.5">
+                        <CheckCircle2 size={11} strokeWidth={3} /> Acertos
+                    </span>
+                    <span className="text-lg font-black text-zinc-900 dark:text-white leading-none pl-4">
+                        {correct}
+                    </span>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+
+// --- KPI Card Simples (para Tempo) ---
+const MiniStatBox = ({ label, value, icon: Icon, colorClass }) => (
+    <div className="flex items-center justify-between p-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm">
+        <div className="flex flex-col">
+            <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-0.5 flex items-center gap-1.5">
+                <Icon size={10} className={colorClass} /> {label}
+            </span>
+            <span className="text-lg font-black text-zinc-900 dark:text-white leading-none">
+                {value}
+            </span>
         </div>
     </div>
 );
 
-// --- Componente Auxiliar de Métricas (Reutilizável) ---
+// --- Componente Auxiliar de Métricas (Lista) ---
 const MetricsDisplay = ({ time, questions, correct, variant = 'row' }) => {
     const accuracy = questions > 0 ? (correct / questions) * 100 : 0;
-
-    // Cores baseadas na precisão
     let accColor = 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400';
     if (questions > 0) {
         if (accuracy >= 80) accColor = 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400';
@@ -137,7 +186,6 @@ const MetricsDisplay = ({ time, questions, correct, variant = 'row' }) => {
 
     return (
         <div className={containerClass}>
-            {/* Tempo */}
             <div className="flex flex-col min-w-[50px]">
                 <span className={labelClass}>Tempo</span>
                 <div className="flex items-center justify-end gap-1">
@@ -145,8 +193,6 @@ const MetricsDisplay = ({ time, questions, correct, variant = 'row' }) => {
                     <span className={valueClass}>{time > 0 ? formatTime(time) : '-'}</span>
                 </div>
             </div>
-
-            {/* Questões */}
             <div className="flex flex-col min-w-[40px]">
                 <span className={labelClass}>Qts</span>
                 <div className="flex items-center justify-end gap-1">
@@ -154,8 +200,6 @@ const MetricsDisplay = ({ time, questions, correct, variant = 'row' }) => {
                     <span className={valueClass}>{questions}</span>
                 </div>
             </div>
-
-            {/* Acertos */}
             <div className="flex flex-col min-w-[40px]">
                 <span className={labelClass}>Acertos</span>
                 <div className="flex items-center justify-end gap-1">
@@ -163,8 +207,6 @@ const MetricsDisplay = ({ time, questions, correct, variant = 'row' }) => {
                     <span className={valueClass}>{correct}</span>
                 </div>
             </div>
-
-            {/* Precisão (Badge) */}
             <div className="flex flex-col min-w-[50px] items-end">
                 <span className={labelClass}>Prec.</span>
                 <div className={`px-2 py-0.5 rounded text-[10px] font-black border border-transparent ${accColor}`}>
@@ -210,28 +252,16 @@ function DayDetailsModal({ date, dayData, goals = { questions: 0, hours: 0 }, on
 
       const topicName = r.assunto || 'Estudo Geral';
 
-      // Inicializa Disciplina no Mapa
       if (!topicsMap[discName]) {
-          topicsMap[discName] = {
-              name: discName,
-              totalMinutes: 0,
-              totalQuestions: 0,
-              totalCorrect: 0,
-              topics: {}
-          };
+          topicsMap[discName] = { name: discName, totalMinutes: 0, totalQuestions: 0, totalCorrect: 0, topics: {} };
       }
-
-      // Acumula na Disciplina
       topicsMap[discName].totalMinutes += min;
       topicsMap[discName].totalQuestions += qst;
       topicsMap[discName].totalCorrect += acrt;
 
-      // Inicializa Tópico
       if (!topicsMap[discName].topics[topicName]) {
           topicsMap[discName].topics[topicName] = { name: topicName, minutes: 0, questions: 0, correct: 0 };
       }
-
-      // Acumula no Tópico
       topicsMap[discName].topics[topicName].minutes += min;
       topicsMap[discName].topics[topicName].questions += qst;
       topicsMap[discName].topics[topicName].correct += acrt;
@@ -254,7 +284,6 @@ function DayDetailsModal({ date, dayData, goals = { questions: 0, hours: 0 }, on
     const hoursGoalMinutes = (goals.hours || 0) * 60;
     const questionsGoal = goals.questions || 0;
     const hasGoals = hoursGoalMinutes > 0 || questionsGoal > 0;
-
     const hoursMet = hoursGoalMinutes === 0 || stats.totalMinutos >= hoursGoalMinutes;
     const questionsMet = questionsGoal === 0 || stats.totalQst >= questionsGoal;
 
@@ -275,15 +304,14 @@ function DayDetailsModal({ date, dayData, goals = { questions: 0, hours: 0 }, on
         initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
         className="relative w-full max-w-4xl bg-zinc-50 dark:bg-zinc-950 rounded-[2rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] border border-white/50 dark:border-zinc-800"
       >
-        {/* --- HEADER (Vermelho + Marca D'água) --- */}
-        <div className="bg-red-50 dark:bg-red-900/10 border-b border-red-100 dark:border-red-900/30 p-5 sm:px-8 shrink-0 relative overflow-hidden">
-          {/* Marca D'água Gigante */}
-          <div className="absolute top-[-30px] right-[-30px] opacity-[0.06] dark:opacity-[0.08] rotate-12 pointer-events-none">
-            <Calendar size={200} className="text-red-600" />
+        {/* --- HEADER COMPACTO --- */}
+        <div className="bg-red-50 dark:bg-red-900/10 border-b border-red-100 dark:border-red-900/30 p-3 sm:px-6 shrink-0 relative overflow-hidden">
+          <div className="absolute top-[-20px] right-[-20px] opacity-[0.06] dark:opacity-[0.08] rotate-12 pointer-events-none">
+            <Calendar size={120} className="text-red-600" />
           </div>
 
-          <div className="relative z-10 flex justify-between items-start">
-            <div className="flex flex-col gap-1">
+          <div className="relative z-10 flex justify-between items-center">
+            <div className="flex flex-col">
                 <div className="flex items-center gap-3">
                     <p className="text-red-600 dark:text-red-400 text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5">
                         <Calendar size={12} strokeWidth={2.5} /> Relatório Diário
@@ -299,32 +327,32 @@ function DayDetailsModal({ date, dayData, goals = { questions: 0, hours: 0 }, on
                     )}
                 </div>
 
-                <div className="flex flex-wrap items-baseline gap-x-2 mt-1">
-                    <h2 className="text-3xl sm:text-4xl font-black text-zinc-900 dark:text-white capitalize tracking-tighter leading-none">
+                <div className="flex flex-wrap items-baseline gap-x-2">
+                    <h2 className="text-2xl sm:text-3xl font-black text-zinc-900 dark:text-white capitalize tracking-tighter leading-none">
                         {formattedDate.weekday},
                     </h2>
-                    <span className="text-xl sm:text-2xl font-bold text-zinc-400 dark:text-zinc-500 tracking-tight">
+                    <span className="text-lg sm:text-xl font-bold text-zinc-400 dark:text-zinc-500 tracking-tight">
                         {formattedDate.dayMonth}
                     </span>
                 </div>
             </div>
 
-            <button onClick={onClose} className="p-2.5 bg-white dark:bg-zinc-800 hover:bg-red-100 dark:hover:bg-red-900/40 text-zinc-500 hover:text-red-600 rounded-xl transition-all shadow-sm border border-zinc-200 dark:border-zinc-700/50">
-              <X size={20} />
+            <button onClick={onClose} className="p-2 bg-white dark:bg-zinc-800 hover:bg-red-100 dark:hover:bg-red-900/40 text-zinc-500 hover:text-red-600 rounded-xl transition-all shadow-sm border border-zinc-200 dark:border-zinc-700/50">
+              <X size={18} />
             </button>
           </div>
         </div>
 
         {/* --- BODY --- */}
-        <div className="overflow-y-auto flex-1 p-4 sm:p-6 custom-scrollbar bg-zinc-50/50 dark:bg-black/20">
+        <div className="overflow-y-auto flex-1 p-4 sm:p-5 custom-scrollbar bg-zinc-50/50 dark:bg-black/20">
 
-            {/* SEÇÃO 1: HERO */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+            {/* SEÇÃO 1: HERO GRID */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
 
-                {/* Gráfico */}
-                <div className="lg:col-span-5 bg-white dark:bg-zinc-900 rounded-2xl p-4 border border-zinc-200/50 dark:border-zinc-800 shadow-sm flex flex-col items-center justify-center relative min-h-[220px]">
+                {/* 1. GRÁFICO GRANDE (Col-span-8) */}
+                <div className="lg:col-span-8 bg-white dark:bg-zinc-900 rounded-2xl p-4 border border-zinc-200/50 dark:border-zinc-800 shadow-sm flex flex-col items-center justify-center relative min-h-[220px]">
                     {stats.totalMinutos > 0 ? (
-                        <DonutChart data={disciplinaBreakdown} totalMinutes={stats.totalMinutos} />
+                        <AdvancedChart data={disciplinaBreakdown} totalMinutes={stats.totalMinutos} />
                     ) : (
                         <div className="flex flex-col items-center justify-center py-8 opacity-50">
                             <Clock size={40} className="mb-2 text-zinc-300 dark:text-zinc-600" />
@@ -333,88 +361,75 @@ function DayDetailsModal({ date, dayData, goals = { questions: 0, hours: 0 }, on
                     )}
                 </div>
 
-                {/* KPIs */}
-                <div className="lg:col-span-7 flex flex-col justify-center h-full">
-                    <div className="grid grid-cols-2 gap-3">
-                        <StatBox
-                            label="Tempo Total"
-                            value={formatTime(stats.totalMinutos)}
-                            icon={Clock}
-                            colorClass="text-blue-500"
-                            bgClass="bg-blue-50/50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-900/30"
-                        />
-                        <StatBox
-                            label="Questões"
-                            value={stats.totalQst}
-                            subValue={`${stats.totalAcertos} Acertos`}
-                            icon={CheckCircle2}
-                            colorClass="text-violet-500"
-                            bgClass="bg-violet-50/50 dark:bg-violet-900/10 border-violet-100 dark:border-violet-900/30"
-                        />
-                        {/* Precisão ocupando 2 colunas para fechar o grid */}
-                        <StatBox
-                            label="Precisão"
-                            value={`${stats.accuracy.toFixed(0)}%`}
-                            icon={Target}
-                            colorClass={stats.accuracy >= 80 ? "text-emerald-500" : stats.accuracy >= 50 ? "text-amber-500" : "text-red-500"}
-                            bgClass={stats.accuracy >= 80 ? "bg-emerald-50/50 dark:bg-emerald-900/10 border-emerald-100 dark:border-emerald-900/30" : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800"}
-                            className="col-span-2"
-                        />
+                {/* 2. KPIs MINI (Col-span-4) */}
+                <div className="lg:col-span-4 flex flex-col gap-3 h-full justify-center">
+
+                    {/* Tempo Total (Mini Stat Box Simple) */}
+                    <MiniStatBox
+                        label="Tempo Total"
+                        value={formatTime(stats.totalMinutos)}
+                        icon={Clock}
+                        colorClass="text-blue-500"
+                    />
+
+                    {/* NOVO CARD DUPLO: Questões e Acertos (Sem Badge de Porcentagem) */}
+                    <QuestionsDualCard total={stats.totalQst} correct={stats.totalAcertos} />
+
+                    {/* Precisão (Card existente, mantido) */}
+                    <div className={`flex items-center justify-between p-3 border rounded-xl shadow-sm ${
+                        stats.accuracy >= 80 ? "bg-emerald-50 dark:bg-emerald-900/10 border-emerald-200 dark:border-emerald-800" :
+                        stats.accuracy >= 50 ? "bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800" :
+                        "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800"
+                    }`}>
+                        <div className="flex flex-col">
+                            <span className={`text-[10px] font-bold uppercase tracking-wider mb-0.5 flex items-center gap-1.5 ${
+                                stats.accuracy >= 80 ? "text-emerald-600" : stats.accuracy >= 50 ? "text-amber-600" : "text-red-500"
+                            }`}>
+                                <Target size={10} /> Precisão Geral
+                            </span>
+                            <span className="text-lg font-black text-zinc-900 dark:text-white leading-none">
+                                {stats.accuracy.toFixed(0)}%
+                            </span>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            {/* SEÇÃO 2: DETALHAMENTO DE ESTUDO (Completo e Explicativo) */}
+            {/* SEÇÃO 2: DETALHAMENTO DE ESTUDO */}
             {topicosAgrupados.length > 0 && (
-                <section className="mt-6">
+                <section className="mt-5">
                     <div className="flex items-center gap-2 mb-3 px-1">
                         <div className="p-1.5 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-lg shadow-sm">
                             <List size={14} strokeWidth={3} />
                         </div>
-                        <h3 className="text-sm font-black text-zinc-900 dark:text-white uppercase tracking-tight">O que foi estudado</h3>
+                        <h3 className="text-xs sm:text-sm font-black text-zinc-900 dark:text-white uppercase tracking-tight">Estudo do dia</h3>
                     </div>
 
-                    <div className="grid gap-4">
+                    <div className="grid gap-3">
                         {topicosAgrupados.map((disc, idx) => (
                             <motion.div
                                 key={idx}
                                 initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.05 }}
                                 className="bg-white dark:bg-zinc-900 border border-zinc-200/60 dark:border-zinc-800 rounded-2xl overflow-hidden shadow-sm"
                             >
-                                {/* Header da Disciplina (RESUMO COMPLETO) */}
-                                <div className="px-4 py-3 bg-zinc-50/80 dark:bg-zinc-950/30 border-b border-zinc-100 dark:border-zinc-800 flex flex-col sm:flex-row justify-between sm:items-center gap-3">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-1 h-6 bg-indigo-500 rounded-full"></div>
+                                <div className="px-4 py-2.5 bg-zinc-50/80 dark:bg-zinc-950/30 border-b border-zinc-100 dark:border-zinc-800 flex flex-col sm:flex-row justify-between sm:items-center gap-2">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-1 h-5 bg-indigo-500 rounded-full"></div>
                                         <h4 className="font-bold text-zinc-800 dark:text-white text-sm">{disc.name}</h4>
                                     </div>
-
-                                    {/* Métricas da Disciplina (Resumo) */}
-                                    <MetricsDisplay
-                                        time={disc.totalMinutes}
-                                        questions={disc.totalQuestions}
-                                        correct={disc.totalCorrect}
-                                        variant="header"
-                                    />
+                                    <MetricsDisplay time={disc.totalMinutes} questions={disc.totalQuestions} correct={disc.totalCorrect} variant="header" />
                                 </div>
 
-                                {/* Lista de Assuntos (DETALHAMENTO) */}
                                 <div className="divide-y divide-zinc-100 dark:divide-zinc-800/50">
                                     {disc.topics.map((topic, tIdx) => (
-                                        <div key={tIdx} className="px-4 py-3 flex flex-col sm:flex-row justify-between gap-3 hover:bg-zinc-50 dark:hover:bg-zinc-800/30 transition-colors group">
-                                            {/* Nome do Tópico */}
-                                            <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                                        <div key={tIdx} className="px-4 py-2 flex flex-col sm:flex-row justify-between gap-2 hover:bg-zinc-50 dark:hover:bg-zinc-800/30 transition-colors group">
+                                            <div className="flex items-start gap-2 min-w-0 flex-1">
                                                 <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-zinc-300 dark:bg-zinc-600 shrink-0"></div>
                                                 <span className="text-xs sm:text-sm font-medium text-zinc-600 dark:text-zinc-300 leading-snug break-words">
                                                     {topic.name}
                                                 </span>
                                             </div>
-
-                                            {/* Métricas do Tópico */}
-                                            <MetricsDisplay
-                                                time={topic.minutes}
-                                                questions={topic.questions}
-                                                correct={topic.correct}
-                                            />
+                                            <MetricsDisplay time={topic.minutes} questions={topic.questions} correct={topic.correct} />
                                         </div>
                                     ))}
                                 </div>
@@ -423,7 +438,6 @@ function DayDetailsModal({ date, dayData, goals = { questions: 0, hours: 0 }, on
                     </div>
                 </section>
             )}
-
         </div>
       </motion.div>
     </div>
