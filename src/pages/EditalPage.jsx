@@ -109,6 +109,25 @@ const StartStudyModal = ({ disciplina, assunto, onClose, onConfirm }) => {
     );
 };
 
+// --- FUNÇÃO DE LOGO AUTOMÁTICA ---
+const getLogoUrl = (cicloData) => {
+    // 1. Prioridade Absoluta: Se o banco tem URL, usa ela.
+    if(cicloData.logoUrl) return cicloData.logoUrl;
+
+    // 2. Fallback Automático baseado no nome
+    const searchString = (cicloData.templateOrigem || cicloData.nome || '').toLowerCase();
+    const siglas = ['pmba', 'ppmg', 'pcba', 'pmse', 'pmal', 'pmgo', 'pmpe', 'aquiraz', 'gcm'];
+
+    const encontrada = siglas.find(sigla => searchString.includes(sigla));
+
+    if (encontrada) {
+        if(encontrada === 'gcm' || encontrada === 'aquiraz') return '/logosEditais/logo-aquiraz.png';
+        return `/logosEditais/logo-${encontrada}.png`;
+    }
+
+    return null;
+};
+
 // --- COMPONENTE PRINCIPAL ---
 function EditalPage({ user, activeCicloId, onStartStudy, onBack }) {
   const [ciclo, setCiclo] = useState(null);
@@ -122,14 +141,6 @@ function EditalPage({ user, activeCicloId, onStartStudy, onBack }) {
   const [optimisticChecks, setOptimisticChecks] = useState({});
   const [loadingCheck, setLoadingCheck] = useState({});
   const [studyModalData, setStudyModalData] = useState(null);
-
-  const getLogoUrl = (cicloData) => {
-      if (cicloData.logoUrl) return cicloData.logoUrl;
-      if (cicloData.templateOrigem?.includes('pmba')) return '/logo-pmba.png';
-      if (cicloData.templateOrigem?.includes('ppmg')) return '/logosEditais/logo-ppmg.png';
-      if (cicloData.templateOrigem?.includes('pcba')) return '/logosEditais/logo-pcba.png';
-      return null;
-  };
 
   useEffect(() => {
     const fetchData = async () => {

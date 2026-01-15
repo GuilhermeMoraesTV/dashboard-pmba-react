@@ -405,7 +405,7 @@ function CicloVisual({
                 <div className="w-12 h-12 bg-zinc-200 dark:bg-zinc-800 rounded-full flex items-center justify-center mb-3 text-zinc-400">
                   <Target size={24} />
                 </div>
-                <p className="font-bold text-zinc-600 dark:text-zinc-300 text-sm">Central Tática</p>
+                <p className="font-bold text-zinc-600 dark:text-zinc-300 text-sm">Central de Estudo</p>
                 <p className="text-xs mt-1 max-w-[200px]">
                   Clique em um bloco do radar para ver o progresso detalhado, iniciar o cronômetro ou registrar atividades.
                 </p>

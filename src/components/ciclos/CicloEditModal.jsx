@@ -23,6 +23,18 @@ const PESO_CONFIG = {
     5: { label: 'Máxima', description: 'Prioridade Total', color: 'text-red-600', fill: 'fill-red-600', bg: 'bg-red-50' },
 };
 
+// --- NOVO UTILITÁRIO DE FORMATAÇÃO DE HORAS ---
+const formatHoursToTime = (decimalHours) => {
+  if (!decimalHours || isNaN(decimalHours)) return '0h';
+  const totalMinutes = Math.round(decimalHours * 60);
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+
+  if (h > 0 && m > 0) return `${h}h ${m}m`;
+  if (h > 0) return `${h}h`;
+  return `${m}m`;
+};
+
 const toRad = (deg) => (deg * Math.PI) / 180;
 const createArc = (start, end, r) => {
   if (Math.abs(end - start) >= 360) end = start + 359.99;
@@ -37,17 +49,15 @@ const createArc = (start, end, r) => {
 };
 
 // ============================================================================
-// 2. GRADE HORÁRIA (CORRIGIDA: TOUCH vs MOUSE)
+// 2. GRADE HORÁRIA
 // ============================================================================
 const ScheduleGrid = ({ availability, setAvailability }) => {
   const days = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
   const hours = Array.from({ length: 24 }, (_, i) => i);
 
-  // Ref para controlar se estamos num evento de toque (previne conflito com mouse)
   const isTouchInteraction = useRef(false);
-
   const [isDragging, setIsDragging] = useState(false);
-  const [dragMode, setDragMode] = useState(null); // true = adicionar, false = remover
+  const [dragMode, setDragMode] = useState(null);
 
   const updateSlot = (dayIndex, hour, forceState = null) => {
     const key = `${dayIndex}-${hour}`;
@@ -63,14 +73,11 @@ const ScheduleGrid = ({ availability, setAvailability }) => {
     });
   };
 
-  // --- MOUSE EVENTS (Bloqueado se for toque recente) ---
   const handleMouseDown = (dayIndex, hour) => {
-    if (isTouchInteraction.current) return; // Bloqueia ghost click do mobile
-
+    if (isTouchInteraction.current) return;
     const key = `${dayIndex}-${hour}`;
     const currentVal = !!availability[key];
     const newMode = !currentVal;
-
     setDragMode(newMode);
     setIsDragging(true);
     updateSlot(dayIndex, hour, newMode);
@@ -87,15 +94,12 @@ const ScheduleGrid = ({ availability, setAvailability }) => {
     setDragMode(null);
   };
 
-  // --- TOUCH EVENTS (Sem preventDefault para evitar erro passivo) ---
   const handleTouchStart = (e, dayIndex, hour) => {
-    isTouchInteraction.current = true; // Marca início de toque
-    setTimeout(() => isTouchInteraction.current = false, 1000); // Reseta flag após 1s
-
+    isTouchInteraction.current = true;
+    setTimeout(() => isTouchInteraction.current = false, 1000);
     const key = `${dayIndex}-${hour}`;
     const currentVal = !!availability[key];
     const newMode = !currentVal;
-
     setDragMode(newMode);
     setIsDragging(true);
     updateSlot(dayIndex, hour, newMode);
@@ -103,11 +107,8 @@ const ScheduleGrid = ({ availability, setAvailability }) => {
 
   const handleTouchMove = (e) => {
     if (!isDragging) return;
-
-    // Localiza o elemento sob o dedo
     const touch = e.touches[0];
     const target = document.elementFromPoint(touch.clientX, touch.clientY);
-
     if (target && target.dataset.day && target.dataset.hour) {
         const day = parseInt(target.dataset.day);
         const h = parseInt(target.dataset.hour);
@@ -149,7 +150,6 @@ const ScheduleGrid = ({ availability, setAvailability }) => {
                         onTouchStart={(e) => handleTouchStart(e, dayIndex, h)}
                         onTouchMove={handleTouchMove}
                         onTouchEnd={handleTouchEnd}
-                        // touch-none previne o scroll nativo do browser ao arrastar
                         className={`h-9 w-full rounded transition-all duration-100 border flex items-center justify-center cursor-pointer touch-none
                             ${isSelected
                                 ? 'bg-emerald-500 border-emerald-600 shadow-[0_0_10px_rgba(16,185,129,0.3)]'
@@ -206,7 +206,8 @@ const CyclePreview = ({ disciplinas, totalHours }) => {
                  {activeItem ? (
                     <motion.div key="active" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="flex flex-col items-center text-center px-2">
                         <span className="text-[10px] font-black text-red-600 uppercase mb-0.5 line-clamp-1 max-w-[90px]">{activeItem.nome}</span>
-                        <span className="text-3xl font-black text-zinc-800 dark:text-white leading-none">{activeItem.hours.toFixed(1)}h</span>
+                        {/* AQUI ESTÁ A ALTERAÇÃO: USANDO FORMATADOR DE HORAS */}
+                        <span className="text-3xl font-black text-zinc-800 dark:text-white leading-none">{formatHoursToTime(activeItem.hours)}</span>
                     </motion.div>
                  ) : (
                     <motion.div key="default" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="flex flex-col items-center">
@@ -305,7 +306,10 @@ const DisciplineEditorItem = ({ disciplina, onUpdate, onRemove }) => {
 
                 <div className="flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-zinc-100 dark:border-zinc-800" onClick={e => e.stopPropagation()}>
                     <div className="text-right">
-                        <span className="block text-xs font-black text-zinc-800 dark:text-white bg-zinc-100 dark:bg-zinc-800 px-2 py-1 rounded">{disciplina.horasCalculadas ? disciplina.horasCalculadas.toFixed(1) : '0.0'}h</span>
+                        {/* AQUI ESTÁ A ALTERAÇÃO: USANDO FORMATADOR DE HORAS */}
+                        <span className="block text-xs font-black text-zinc-800 dark:text-white bg-zinc-100 dark:bg-zinc-800 px-2 py-1 rounded">
+                            {formatHoursToTime(disciplina.horasCalculadas)}
+                        </span>
                     </div>
                     <div className="flex gap-1 border-l border-zinc-200 dark:border-zinc-700 pl-3 ml-3 sm:ml-0 sm:border-l-0 sm:pl-0">
                         <button onClick={() => onRemove(disciplina.id)} className="p-2 text-zinc-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"><Trash2 size={16} /></button>

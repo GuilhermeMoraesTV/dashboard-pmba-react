@@ -35,6 +35,7 @@ const dateToYMD = (date) => {
   return '' + y + '-' + (m <= 9 ? '0' + m : m) + '-' + (d <= 9 ? '0' + d : d);
 };
 
+// ... (DownloadAlert e ShareCardPreviewModal mantidos iguais) ...
 const DownloadAlert = ({ isVisible, onDismiss }) => (
   <AnimatePresence>
     {isVisible && (
@@ -123,8 +124,6 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   const [tourState, setTourState] = useState({ isActive: false, type: 'main' });
   const [activeStudySession, setActiveStudySession] = useState(null);
   const [finishModalData, setFinishModalData] = useState(null);
-
-  // --- NOVO: Estado para Registro Pendente ---
   const [pendingReviewData, setPendingReviewData] = useState(null);
 
   const [goalsHistory, setGoalsHistory] = useState([]);
@@ -150,11 +149,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     if (savedSession) {
       try {
         const parsed = JSON.parse(savedSession);
-
         if (parsed && parsed.disciplinaId && parsed.disciplinaNome) {
-
-          // CASO 1: Foi desligado durante o "Finalizar" (isFinishing = true)
-          // Em vez de abrir o modal direto, mostramos o Widget Amarelo de Pendência
           if (parsed.isFinishing && parsed.tempMinutes) {
               setPendingReviewData({
                   minutes: parsed.tempMinutes,
@@ -163,20 +158,13 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
                   reason: 'Sessão interrompida (Atualização/Fechamento)',
                   originalData: parsed
               });
-          }
-          // CASO 2: Apenas um refresh normal com timer rodando ou pausado
-          else {
-              // Se estava rodando, marcamos como pausado no restore para segurança
+          } else {
               if(!parsed.isPaused) {
                 parsed.isPaused = true;
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
               }
-
               setActiveStudySession({
-                disciplina: {
-                  id: parsed.disciplinaId,
-                  nome: parsed.disciplinaNome
-                },
+                disciplina: { id: parsed.disciplinaId, nome: parsed.disciplinaNome },
                 assunto: parsed.assunto,
                 isMinimized: true
               });
@@ -209,21 +197,14 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         alert("Nenhum ciclo ativo encontrado. Ative um ciclo antes de salvar.");
         return;
     }
-
-    // Salva estado de finalização no storage com o tempo que veio do Timer
-    // O StudyTimer já salvou o accumulatedTime exato, aqui adicionamos a flag de finalização
     const currentStorage = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-
-    // Atualiza storage com a intenção de finalizar
     const updatedStorage = {
         ...currentStorage,
         isFinishing: true,
-        tempMinutes: minutes, // Armazena os minutos calculados
+        tempMinutes: minutes,
         isPaused: true
     };
-
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedStorage));
-
     setFinishModalData({
         minutes,
         disciplinaNome: activeStudySession.disciplina.nome,
@@ -232,30 +213,18 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   };
 
   const handleRetomarEstudo = () => {
-      // 1. Limpa os modais
       setFinishModalData(null);
       setPendingReviewData(null);
-
-      // 2. Manipula o Storage
       const currentStorage = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-
       if (currentStorage.disciplinaId) {
-          // Remove flags de finalização
           delete currentStorage.isFinishing;
           delete currentStorage.tempMinutes;
-          // Garante que volta pausado
           currentStorage.isPaused = true;
-
           localStorage.setItem(STORAGE_KEY, JSON.stringify(currentStorage));
-
-          // 3. Recria a sessão visualmente
           setActiveStudySession({
-              disciplina: {
-                  id: currentStorage.disciplinaId,
-                  nome: currentStorage.disciplinaNome
-              },
+              disciplina: { id: currentStorage.disciplinaId, nome: currentStorage.disciplinaNome },
               assunto: currentStorage.assunto,
-              isMinimized: false // Maximiza para o usuário ver
+              isMinimized: false
           });
       }
   };
@@ -269,19 +238,9 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
 
   const handleConfirmFinishStudy = async (resultData) => {
     const dataRef = finishModalData || pendingReviewData;
-
     if (!dataRef) return;
     const { minutes } = dataRef;
-
-    const {
-        questions,
-        correct,
-        obs,
-        assunto,
-        disciplinaNomeCorrigido,
-        markAsFinished
-    } = resultData;
-
+    const { questions, correct, obs, assunto, disciplinaNomeCorrigido, markAsFinished } = resultData;
     const nomeDisciplinaFinal = disciplinaNomeCorrigido || dataRef.disciplinaNome;
 
     try {
@@ -486,7 +445,17 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     }
     switch (activeTab) {
       case 'home':
-        return <Home registrosEstudo={activeRegistrosEstudo} goalsHistory={goalsHistory} setActiveTab={handleGoToActiveCycle} activeCicloData={activeCicloData} onDeleteRegistro={deleteRegistro} />;
+        return (
+          <Home
+            registrosEstudo={activeRegistrosEstudo}
+            allRegistrosEstudo={allRegistrosEstudo} // NOVO: Passando todos os registros para o modal poder usar
+            goalsHistory={goalsHistory}
+            setActiveTab={handleGoToActiveCycle}
+            activeCicloData={activeCicloData}
+            activeCicloId={activeCicloId} // NOVO: Passando ID do ciclo
+            onDeleteRegistro={deleteRegistro}
+          />
+        );
       case 'goals':
         return <GoalsTab goalsHistory={goalsHistory} onSetGoal={addGoal} onDeleteGoal={(id) => deleteData('metas', id)} />;
       case 'calendar':
@@ -501,7 +470,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
                 activeCicloId={activeCicloId}
                 forceOpenVisual={forceOpenVisual}
                 onGoToEdital={() => setActiveTab('edital')}
-                registrosEstudo={allRegistrosEstudo}
+                registrosEstudo={allRegistrosEstudo} // Já estava correto
             />
         );
       case 'edital':
@@ -572,7 +541,6 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
           />
       )}
 
-      {/* --- WIDGET PENDENTE DE REGISTRO (AMARELO) --- */}
       {pendingReviewData && !finishModalData && (
           <div className="fixed bottom-24 right-4 z-[9999] animate-fade-in">
             <div

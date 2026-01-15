@@ -52,14 +52,28 @@ function ModalConfirmacaoArquivamento({ ciclo, onClose, onConfirm, loading }) {
   );
 }
 
+// --- FUNÇÃO DE LOGO AUTOMÁTICA ---
 const getLogo = (ciclo) => {
+    // 1. Prioridade Absoluta: Se o banco de dados tem a URL, usa ela.
+    // Isso torna o sistema automático para novos editais instalados pelo Admin.
     if(ciclo.logoUrl) return ciclo.logoUrl;
+
+    // 2. Fallback Inteligente: Tenta adivinhar baseado no nome
     const searchString = (ciclo.templateOrigem || ciclo.nome || '').toLowerCase();
-    
-    if(searchString.includes('pmba')) return '/logosEditais/logo-pmba.png';
-    if(searchString.includes('ppmg')) return '/logosEditais/logo-ppmg.png';
-    if(searchString.includes('pcba')) return '/logosEditais/logo-pcba.png';
-    if(searchString.includes('pmse')) return '/logosEditais/logo-pmse.png';
+
+    // Lista de siglas conhecidas para fallback (caso o banco não tenha logoUrl)
+    const siglas = ['pmba', 'ppmg', 'pcba', 'pmse', 'pmal', 'pmgo', 'pmpe', 'aquiraz', 'gcm'];
+
+    const encontrada = siglas.find(sigla => searchString.includes(sigla));
+
+    if (encontrada) {
+        // Correção para GCM Aquiraz que tem nome diferente do padrão
+        if(encontrada === 'gcm' || encontrada === 'aquiraz') return '/logosEditais/logo-aquiraz.png';
+
+        // Padrão: /logosEditais/logo-{sigla}.png
+        return `/logosEditais/logo-${encontrada}.png`;
+    }
+
     return null;
 };
 
@@ -70,14 +84,14 @@ const CicloCard = ({ ciclo, onClick, onMenuToggle, isMenuOpen, onAction, registr
     // Calcular progresso
     const { totalHoras, progressoPercent } = useMemo(() => {
         if (!registrosEstudo) return { totalHoras: 0, progressoPercent: 0 };
-        
+
         const registrosDoCiclo = registrosEstudo.filter(r => r.cicloId === ciclo.id && !r.conclusaoId && r.tipoEstudo !== 'check_manual');
         const minutosTotais = registrosDoCiclo.reduce((acc, curr) => acc + Number(curr.tempoEstudadoMinutos || 0), 0);
         const horasTotais = Math.round(minutosTotais / 60 * 10) / 10;
-        
+
         const metaSemanal = Number(ciclo.cargaHorariaSemanalTotal) || 1;
         const percent = Math.min((horasTotais / metaSemanal) * 100, 100);
-        
+
         return { totalHoras: horasTotais, progressoPercent: percent };
     }, [ciclo.id, registrosEstudo, ciclo.cargaHorariaSemanalTotal]);
 
@@ -87,10 +101,9 @@ const CicloCard = ({ ciclo, onClick, onMenuToggle, isMenuOpen, onAction, registr
             className="group relative bg-white dark:bg-zinc-900/50 rounded-2xl p-5 cursor-pointer border border-zinc-200 dark:border-zinc-800 overflow-hidden transition-all duration-500 hover:-translate-y-1 hover:shadow-2xl flex flex-col justify-between h-full min-h-[220px]"
         >
             <div className="absolute left-0 top-0 bottom-0 w-1 bg-transparent group-hover:bg-red-500 transition-colors duration-300 z-20"></div>
-            
+
             {/* --- LOGO VISUAL E BONITA (MARCA D'ÁGUA) --- */}
             {logo ? (
-                // Alterado aqui: Tamanho menor (w-24/h-24) e mais opacidade no mobile (opacity-30)
                 <div className="absolute bottom-0 right-0 w-24 h-24 md:w-36 md:h-36 opacity-30 md:opacity-20 transition-all duration-700 ease-out group-hover:scale-110 group-hover:opacity-40 z-0 pointer-events-none filter saturate-150">
                     <img src={logo} alt="Logo Edital" className="w-full h-full object-contain" />
                 </div>
@@ -133,7 +146,7 @@ const CicloCard = ({ ciclo, onClick, onMenuToggle, isMenuOpen, onAction, registr
                         {ciclo.nome}
                     </h3>
                     <div className="w-8 h-1 bg-red-500 rounded-full mb-4 group-hover:w-16 transition-all duration-500"></div>
-                    
+
                     <div className="flex flex-col gap-2 mb-4">
                         <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 text-xs md:text-sm">
                             <Clock size={14} className="text-red-500/70" />
@@ -157,7 +170,7 @@ const CicloCard = ({ ciclo, onClick, onMenuToggle, isMenuOpen, onAction, registr
                             </span>
                         </div>
                         <div className="h-2 w-full bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden shadow-inner">
-                            <div 
+                            <div
                                 className={`h-full rounded-full transition-all duration-700 ${progressoPercent >= 100 ? 'bg-emerald-500' : 'bg-red-500'}`}
                                 style={{ width: `${progressoPercent}%` }}
                             ></div>
@@ -289,12 +302,12 @@ function CiclosList({ onCicloClick, user, onCicloAtivado, registrosEstudo }) {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
             {sortedCiclos.map((ciclo) => (
-            <CicloCard 
-                key={ciclo.id} 
-                ciclo={ciclo} 
-                onClick={onCicloClick} 
-                onMenuToggle={handleMenuToggle} 
-                isMenuOpen={menuAberto === ciclo.id} 
+            <CicloCard
+                key={ciclo.id}
+                ciclo={ciclo}
+                onClick={onCicloClick}
+                onMenuToggle={handleMenuToggle}
+                isMenuOpen={menuAberto === ciclo.id}
                 onAction={handleAction}
                 registrosEstudo={registrosEstudo}
             />

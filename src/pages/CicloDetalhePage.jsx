@@ -59,16 +59,26 @@ const formatVisualNumber = (minutes) => {
   return `${hours}h ${mins}m`;
 };
 
-// Função para pegar a logo (igual ao CiclosList)
+// --- FUNÇÃO CORRIGIDA PARA IDENTIFICAR LOGOS ---
 const getLogo = (ciclo) => {
     if(!ciclo) return null;
+    // Se o objeto já tiver a URL salva (ideal), usa ela
     if(ciclo.logoUrl) return ciclo.logoUrl;
+
+    // Fallback: Verifica pelo nome ou templateOrigem
     const searchString = (ciclo.templateOrigem || ciclo.nome || '').toLowerCase();
 
     if(searchString.includes('pmba')) return '/logosEditais/logo-pmba.png';
     if(searchString.includes('ppmg')) return '/logosEditais/logo-ppmg.png';
     if(searchString.includes('pcba')) return '/logosEditais/logo-pcba.png';
     if(searchString.includes('pmse')) return '/logosEditais/logo-pmse.png';
+
+    // --- NOVOS EDITAIS ADICIONADOS AQUI ---
+    if(searchString.includes('pmgo')) return '/logosEditais/logo-pmgo.png';
+    if(searchString.includes('pmal')) return '/logosEditais/logo-pmal.png';
+    if(searchString.includes('pmpe')) return '/logosEditais/logo-pmpe.png';
+    if(searchString.includes('aquiraz') || searchString.includes('gcm')) return '/logosEditais/logo-aquiraz.png';
+
     return null;
 };
 
