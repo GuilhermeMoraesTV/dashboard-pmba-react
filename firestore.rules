@@ -1,20 +1,51 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Permite que o usuário leia e edite seu próprio perfil
+    // --- 1. DEFINIÇÃO DE ADMIN ---
+    // Verifica se o ID do usuário é o do seu Admin
+    function isAdmin() {
+      return request.auth.uid == "OLoJi457GQNE2eTSOcz9DAD6ppZ2";
+    }
+
+    // --- 2. REGRAS DO BROADCAST (Resolve o erro "Erro ao enviar broadcast") ---
+    match /system_broadcasts/{document=**} {
+      // Qualquer usuário logado pode ler (para ver o popup)
+      allow read: if request.auth != null;
+      // SÓ o Admin pode escrever (enviar a mensagem)
+      allow write: if isAdmin();
+    }
+
+    // --- 3. REGRAS DE EDITAIS/TEMPLATES (Resolve o erro na aba de Instalação) ---
+    match /editais_templates/{document=**} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin();
+    }
+
+    // --- 4. REGRAS DE LEITURA GERAL PARA ADMIN ---
+    // Permite ao Admin ler registros de estudo de QUALQUER um (para os gráficos)
+    match /{path=**}/registrosEstudo/{docId} {
+      allow read: if request.auth != null && (resource.data.uid == request.auth.uid || isAdmin());
+      // Se precisar deletar registros de outros usuários pelo painel:
+      allow delete: if isAdmin();
+    }
+
+    match /{path=**}/ciclos/{docId} {
+      allow read: if request.auth != null && (resource.data.uid == request.auth.uid || isAdmin());
+    }
+
+    // --- 5. REGRAS PADRÃO DE USUÁRIOS (Mantidas) ---
     match /users/{userId} {
-      allow read, update, delete: if request.auth.uid == userId;
+      allow read, update, delete: if request.auth.uid == userId || isAdmin(); // Admin também pode gerenciar users
       allow create: if request.auth.uid != null;
     }
 
-    // Esta regra protege TODAS as subcoleções (ciclos, metas, registrosEstudo, etc.)
-    // dentro de cada usuário.
     match /users/{userId}/{document=**} {
-      allow read, write, delete: if request.auth.uid == userId;
+      allow read, write, delete: if request.auth.uid == userId || isAdmin();
     }
 
-    // Bloqueia as coleções antigas na raiz
+    // Bloqueios de segurança para coleções legadas
     match /horas/{docId} { allow read, write: if false; }
     match /metas/{docId} { allow read, write: if false; }
     match /questoes/{docId} { allow read, write: if false; }

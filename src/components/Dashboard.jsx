@@ -24,6 +24,7 @@ import Desempenho from '../pages/PerformanceHub';
 import StudyTimer from '../components/ciclos/StudyTimer';
 import TimerFinishModal from '../components/ciclos/TimerFinishModal';
 import OnboardingTour from '../components/shared/OnboardingTour';
+import BroadcastReceiver from '../components/shared/BroadcastReceiver'; // <--- IMPORTADO AQUI
 
 
 const ADMIN_UID = 'OLoJi457GQNE2eTSOcz9DAD6ppZ2';
@@ -507,6 +508,10 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
 
   return (
     <div className="flex min-h-screen bg-background-light dark:bg-background-dark text-text-primary dark:text-text-dark-primary transition-colors duration-300 overflow-x-hidden">
+
+      {/* --- BROADCAST RECEIVER ADICIONADO AQUI (Agora com filtro de Home) --- */}
+      {activeTab === 'home' && <BroadcastReceiver />}
+
       <DownloadAlert isVisible={isDownloadAlertVisible} onDismiss={() => setIsDownloadAlertVisible(false)} />
       <ShareCardPreviewModal data={sharePreviewData} onClose={() => setSharePreviewData(null)} onDownload={handleDownloadPDF} />
       {sharePreviewData && (

@@ -1,12 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { db } from '../firebaseConfig';
 import {
-    collection, getDocs, query, where, collectionGroup, Timestamp, doc, getDoc, deleteDoc
+  collection, query, where, collectionGroup, Timestamp, doc, deleteDoc, onSnapshot, limit, orderBy, addDoc, serverTimestamp
 } from 'firebase/firestore';
-import {
-    BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell
-} from 'recharts';
 
 // --- IMPORTAÇÃO DOS SCRIPTS DE SEED ---
 import SeedEditalPMBA from '../components/admin/SeedEditalPMBA';
@@ -23,467 +20,676 @@ import SeedEditalCBMMG from '../components/admin/SeedEditalCBMMG';
 
 import {
   ShieldAlert, Database, Users, Activity, Server, Lock,
-  FileJson, Loader2, CheckCircle2, AlertTriangle, Search,
-  Trophy, Clock, Target, TrendingUp, TrendingDown, Crown, Medal,
-  Trash2, X, AlertOctagon, Download, RefreshCw
+  Loader2, Search, Crown, Maximize2, Trash2, X, Download,
+  RefreshCw, Bell, ExternalLink, LayoutGrid, Flame, Siren,
+  BadgeAlert, StickyNote, Save, Megaphone, FileSpreadsheet,
+  Target, Zap
 } from 'lucide-react';
 
-// --- CONFIGURAÇÃO ---
-const TEMPLATE_IDS = {
-    PMBA: 'pmba_soldado',
-    PPMG: 'ppmg_policial_penal',
-    PCBA: 'pcba_investigador',
-    PMSE: 'pmse_soldado',
-    PMGO: 'pmgo_soldado',
-    PMAL: 'pmal_soldado',
-    PMPE: 'pmpe_soldado',
-    PMPI: 'pmpi_soldado',
-    CBMERJ: 'cbmerj_oficial',
-    CBMMG: 'cbmmg_soldado',
-    GCMAquiraz: 'gcm_aquiraz'
-};
+// --- CONFIGURAÇÃO DE EDITAIS ---
+const CATALOGO_EDITAIS = [
+    { id: 'pmba_soldado', titulo: 'Soldado PMBA', banca: 'FCC', logo: '/logosEditais/logo-pmba.png', SeedComponent: SeedEditalPMBA, type: 'pm' },
+    { id: 'ppmg_policial_penal', titulo: 'Policial Penal MG', banca: 'AOCP', logo: '/logosEditais/logo-ppmg.png', SeedComponent: SeedEditalPPMG, type: 'pp' },
+    { id: 'pcba_investigador', titulo: 'Investigador PCBA', banca: 'IBFC', logo: '/logosEditais/logo-pcba.png', SeedComponent: SeedEditalPCBA, type: 'pc' },
+    { id: 'pmse_soldado', titulo: 'Soldado PMSE', banca: 'SELECON', logo: '/logosEditais/logo-pmse.png', SeedComponent: SeedEditalPMSE, type: 'pm' },
+    { id: 'pmgo_soldado', titulo: 'Soldado PMGO', banca: 'Inst. AOCP', logo: '/logosEditais/logo-pmgo.png', SeedComponent: SeedEditalPMGO, type: 'pm' },
+    { id: 'pmal_soldado', titulo: 'Soldado PMAL', banca: 'Cebraspe', logo: '/logosEditais/logo-pmal.png', SeedComponent: SeedEditalPMAL, type: 'pm' },
+    { id: 'pmpe_soldado', titulo: 'Soldado PMPE', banca: 'Inst. AOCP', logo: '/logosEditais/logo-pmpe.png', SeedComponent: SeedEditalPMPE, type: 'pm' },
+    { id: 'pmpi_soldado', titulo: 'Soldado PMPI', banca: 'NUCEPE', logo: '/logosEditais/logo-pmpi.png', SeedComponent: SeedEditalPMPI, type: 'pm' },
+    { id: 'cbmerj_oficial', titulo: 'Oficial CBMERJ', banca: 'UERJ', logo: '/logosEditais/logo-cbmerj.png', SeedComponent: SeedEditalCBMERJ, type: 'cbm' },
+    { id: 'cbmmg_soldado', titulo: 'Soldado CBMMG', banca: 'IDECAN', logo: '/logosEditais/logo-cbmmg.png', SeedComponent: SeedEditalCBMMG, type: 'cbm' },
+    { id: 'gcm_aquiraz', titulo: 'GCM Aquiraz', banca: 'Consulpam', logo: '/logosEditais/logo-aquiraz.png', SeedComponent: SeedEditalGCMAquiraz, type: 'gcm' }
+];
 
-const COLORS = ['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#0ea5e9'];
+// --- UTILITÁRIOS ---
+const exportToCSV = (data, filename) => {
+    const csvContent = "data:text/csv;charset=utf-8,"
+        + "Nome,Email,Cadastro,UltimoEstudo,HorasTotais\n"
+        + data.map(e => `${e.name},${e.email},${e.createdAt ? e.createdAt.toISOString() : ''},${e.lastStudy ? e.lastStudy.toISOString() : ''},${e.totalHours}`).join("\n");
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+};
 
 // --- COMPONENTES VISUAIS ---
 
-// 1. MODAL DE CONFIRMAÇÃO
-const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message, variant = 'danger', loading }) => {
-    if (!isOpen) return null;
-
-    const isDanger = variant === 'danger';
-    const Icon = isDanger ? AlertOctagon : AlertTriangle;
-    const btnColor = isDanger ? 'bg-red-600 hover:bg-red-700' : 'bg-indigo-600 hover:bg-indigo-700';
+const PerformanceMetricCard = ({ title, value, subValue, icon: Icon, color, trend }) => {
+    const colorStyles = {
+        blue: { iconBg: 'bg-blue-50 dark:bg-blue-900/20', iconColor: 'text-blue-600 dark:text-blue-400', watermark: 'text-blue-600', border: 'border-blue-100 dark:border-blue-900/30' },
+        emerald: { iconBg: 'bg-emerald-50 dark:bg-emerald-900/20', iconColor: 'text-emerald-600 dark:text-emerald-400', watermark: 'text-emerald-600', border: 'border-emerald-100 dark:border-emerald-900/30' },
+        red: { iconBg: 'bg-red-50 dark:bg-red-900/20', iconColor: 'text-red-600 dark:text-red-400', watermark: 'text-red-600', border: 'border-red-100 dark:border-red-900/30' },
+        amber: { iconBg: 'bg-amber-50 dark:bg-amber-900/20', iconColor: 'text-amber-600 dark:text-amber-400', watermark: 'text-amber-600', border: 'border-amber-100 dark:border-amber-900/30' },
+        zinc: { iconBg: 'bg-zinc-50 dark:bg-zinc-800', iconColor: 'text-zinc-600 dark:text-zinc-400', watermark: 'text-zinc-600', border: 'border-zinc-200 dark:border-zinc-800' },
+    };
+    const style = colorStyles[color] || colorStyles.blue;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-            <motion.div
-                initial={{ scale: 0.95, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.95, opacity: 0 }}
-                className="bg-white dark:bg-zinc-900 w-full max-w-md rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden"
-            >
-                <div className="p-6">
-                    <div className="flex items-start gap-4">
-                        <div className={`p-3 rounded-full ${isDanger ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-500' : 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-500'}`}>
-                            <Icon size={24} />
-                        </div>
-                        <div className="flex-1">
-                            <h3 className="text-lg font-black text-zinc-900 dark:text-white mb-2">{title}</h3>
-                            <p className="text-sm text-zinc-500 dark:text-zinc-400 leading-relaxed whitespace-pre-line">
-                                {message}
-                            </p>
-                        </div>
-                    </div>
+        <div className={`relative overflow-hidden bg-white dark:bg-zinc-950 border ${style.border} rounded-2xl p-5 flex flex-col justify-between shadow-sm hover:shadow-md transition-all duration-300 group min-h-[140px]`}>
+            <Icon className={`absolute -bottom-6 -right-6 w-32 h-32 opacity-[0.08] dark:opacity-[0.04] pointer-events-none transform -rotate-12 transition-transform duration-500 group-hover:scale-110 group-hover:-rotate-6 ${style.watermark}`} />
+
+            <div className="flex justify-between items-start mb-4 relative z-10">
+                <div>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 mb-1 flex items-center gap-1">
+                        {title}
+                        {trend && (
+                            <span className={`ml-2 px-1.5 py-0.5 rounded text-[9px] ${trend > 0 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-400' : 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400'}`}>
+                                {trend > 0 ? '+' : ''}{trend}%
+                            </span>
+                        )}
+                    </p>
+                    <h3 className="text-2xl lg:text-3xl font-black text-zinc-900 dark:text-white tracking-tighter leading-none">{value}</h3>
                 </div>
-                <div className="bg-zinc-50 dark:bg-zinc-950/50 p-4 flex justify-end gap-3 border-t border-zinc-100 dark:border-zinc-800">
-                    <button
-                        onClick={onClose}
-                        disabled={loading}
-                        className="px-4 py-2 text-sm font-bold text-zinc-600 dark:text-zinc-400 hover:bg-white dark:hover:bg-zinc-800 rounded-lg border border-transparent hover:border-zinc-200 dark:hover:border-zinc-700 transition-all"
-                    >
-                        Cancelar
-                    </button>
-                    <button
-                        onClick={onConfirm}
-                        disabled={loading}
-                        className={`px-4 py-2 text-sm font-bold text-white rounded-lg shadow-lg shadow-indigo-500/20 transition-all flex items-center gap-2 ${btnColor} ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    >
-                        {loading ? <Loader2 size={16} className="animate-spin"/> : "Confirmar"}
-                    </button>
+                <div className={`p-3 rounded-xl ${style.iconBg} ${style.iconColor} group-hover:scale-110 transition-transform shadow-inner`}>
+                    <Icon size={20} strokeWidth={2.5} />
                 </div>
+            </div>
+
+            <div className="relative z-10 mt-auto">
+                <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5">
+                    {subValue}
+                </p>
+            </div>
+
+            <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/0 to-white/10 dark:to-white/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"/>
+        </div>
+    );
+};
+
+const CardContainer = ({ title, subtitle, icon: Icon, children, className = "", action, footer, isLive = false }) => (
+    <div className={`bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm flex flex-col ${className}`}>
+        <div className="p-5 md:p-6 pb-2 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+                <div className="p-2 bg-zinc-100 dark:bg-zinc-900 rounded-lg text-zinc-500 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-800 relative">
+                    <Icon size={18} strokeWidth={2.5} />
+                    {isLive && (
+                        <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                        </span>
+                    )}
+                </div>
+                <div>
+                    <h3 className="text-sm font-extrabold text-zinc-900 dark:text-white uppercase tracking-tight flex items-center gap-2">
+                        {title}
+                    </h3>
+                    {subtitle && <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">{subtitle}</p>}
+                </div>
+            </div>
+            {action}
+        </div>
+        <div className="flex-1 w-full min-h-0 relative p-5 md:p-6 pt-2">
+            {children}
+        </div>
+        {footer && (
+             <div className="border-t border-zinc-100 dark:border-zinc-800 p-3 bg-zinc-50/50 dark:bg-zinc-900/50 rounded-b-2xl">
+                 {footer}
+             </div>
+        )}
+    </div>
+);
+
+const Avatar = ({ user, size = "md" }) => {
+    const sizeClasses = { sm: "w-8 h-8 text-[10px]", md: "w-10 h-10 text-xs", lg: "w-16 h-16 text-lg" };
+    return (
+        <div className={`${sizeClasses[size]} rounded-full flex-shrink-0 bg-gradient-to-br from-zinc-100 to-zinc-200 dark:from-zinc-800 dark:to-zinc-900 border-2 border-white dark:border-zinc-700 shadow-sm overflow-hidden flex items-center justify-center relative`}>
+            {user.photoURL ? (
+                <img src={user.photoURL} alt={user.name} className="w-full h-full object-cover" />
+            ) : (
+                <span className="font-black text-zinc-500 dark:text-zinc-400">
+                    {user.name ? user.name.substring(0, 2).toUpperCase() : <Users size={14} />}
+                </span>
+            )}
+        </div>
+    );
+};
+
+const formatTimeAgo = (date) => {
+    if (!date) return '-';
+    const diff = Math.floor((new Date() - date) / 60000);
+    if (diff < 1) return 'Agora mesmo';
+    if (diff < 60) return `${diff}m atrás`;
+    const hours = Math.floor(diff / 60);
+    if (hours < 24) return `${hours}h atrás`;
+    return `${Math.floor(hours / 24)}d atrás`;
+};
+
+// --- MODAL EXPANDIDO ---
+const ExpandedModal = ({ isOpen, onClose, title, children }) => {
+    if (!isOpen) return null;
+    return (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-zinc-900/60 backdrop-blur-md animate-fade-in">
+            <motion.div initial={{ scale: 0.95, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} className="bg-white dark:bg-zinc-950 w-full max-w-6xl max-h-[90vh] rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-2xl flex flex-col overflow-hidden">
+                <div className="p-6 border-b border-zinc-100 dark:border-zinc-800 flex justify-between items-center bg-zinc-50/50 dark:bg-zinc-900/50">
+                    <h3 className="text-2xl font-black text-zinc-900 dark:text-white flex items-center gap-3">{title}</h3>
+                    <button onClick={onClose} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-colors"><X size={24} /></button>
+                </div>
+                <div className="flex-1 overflow-y-auto p-6 bg-zinc-50/30 dark:bg-black/20 custom-scrollbar">{children}</div>
             </motion.div>
         </div>
     );
 };
 
-// 2. WRAPPER PARA INTERCEPTAR O BOTÃO DE INSTALAÇÃO
-const SecureInstallWrapper = ({ children, isInstalled, editalTitle, onRequestInstall }) => {
-    // Referência para o container escondido
-    const hiddenContainerRef = useRef(null);
+// --- MODAL DE BROADCAST (INTEGRADO AO FIREBASE) ---
+const BroadcastModal = ({ isOpen, onClose }) => {
+    const [message, setMessage] = useState('');
+    const [sending, setSending] = useState(false);
 
-    // Função que "engana" o sistema: quando o modal confirma, clicamos no botão original escondido
-    const triggerHiddenButton = () => {
-        if (hiddenContainerRef.current) {
-            const btn = hiddenContainerRef.current.querySelector('button');
-            if (btn) {
-                // Sobrescreve o window.confirm para retornar true automaticamente apenas para este clique
-                const originalConfirm = window.confirm;
-                window.confirm = () => true;
-                btn.click();
-                // Restaura o confirm original logo depois
-                setTimeout(() => { window.confirm = originalConfirm; }, 100);
+    if(!isOpen) return null;
+
+    const handleSend = async () => {
+        if(!message.trim()) return;
+        setSending(true);
+        try {
+            // Grava na coleção 'system_broadcasts' para que todos os usuários recebam
+            await addDoc(collection(db, 'system_broadcasts'), {
+                message: message,
+                timestamp: serverTimestamp(),
+                active: true,
+                type: 'admin_push'
+            });
+
+            setMessage('');
+            onClose();
+            alert("📣 Broadcast enviado! A notificação aparecerá para os usuários conectados.");
+        } catch (error) {
+            console.error("Erro ao enviar broadcast:", error);
+            alert("Erro ao enviar.");
+        } finally {
+            setSending(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-zinc-900/70 backdrop-blur-sm animate-fade-in">
+             <motion.div initial={{scale:0.9}} animate={{scale:1}} className="bg-white dark:bg-zinc-950 w-full max-w-md rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-2xl p-6">
+                <div className="flex items-center gap-3 mb-4 text-red-600">
+                    <Megaphone size={28} />
+                    <h3 className="text-xl font-bold text-zinc-900 dark:text-white">Central de Transmissão</h3>
+                </div>
+                <p className="text-sm text-zinc-500 mb-4">Isso enviará um popup flutuante para <b>todos</b> os alunos online agora.</p>
+
+                <textarea
+                    className="w-full h-32 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-3 text-sm focus:ring-2 focus:ring-red-500 outline-none resize-none dark:text-white"
+                    placeholder="Digite o aviso (ex: Manutenção em 10min...)"
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                />
+
+                <div className="flex gap-3 mt-4 justify-end">
+                    <button onClick={onClose} className="px-4 py-2 text-sm font-bold text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg">Cancelar</button>
+                    <button
+                        onClick={handleSend}
+                        disabled={!message || sending}
+                        className="px-4 py-2 text-sm font-bold bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 flex items-center gap-2 shadow-lg shadow-red-600/20"
+                    >
+                        {sending ? <Loader2 size={16} className="animate-spin"/> : <Zap size={16} fill="currentColor"/>}
+                        {sending ? 'Transmitindo...' : 'Enviar Push'}
+                    </button>
+                </div>
+             </motion.div>
+        </div>
+    );
+}
+
+// --- MODAL GERENCIADOR DE EDITAIS ---
+const EditaisManagerModal = ({ isOpen, onClose }) => {
+    const [installedTemplates, setInstalledTemplates] = useState([]);
+    const [activeTab, setActiveTab] = useState('todos');
+
+    useEffect(() => {
+        if (!isOpen) return;
+        const unsub = onSnapshot(collection(db, 'editais_templates'), (snap) => {
+            setInstalledTemplates(snap.docs.map(d => d.id));
+        });
+        return () => unsub();
+    }, [isOpen]);
+
+    const categories = [
+        { id: 'todos', label: 'Todos', icon: LayoutGrid },
+        { id: 'pm', label: 'Polícia Militar', icon: ShieldAlert },
+        { id: 'pc', label: 'Polícia Civil', icon: BadgeAlert },
+        { id: 'pp', label: 'Polícia Penal', icon: Lock },
+        { id: 'cbm', label: 'Bombeiros', icon: Flame },
+        { id: 'gcm', label: 'Guarda Municipal', icon: Siren },
+    ];
+
+    const filteredEditais = activeTab === 'todos' ? CATALOGO_EDITAIS : CATALOGO_EDITAIS.filter(e => e.type === activeTab);
+
+    if (!isOpen) return null;
+
+    const SecureWrapper = ({ children, isInstalled, editalTitle }) => {
+        const btnRef = useRef(null);
+        return (
+            <div className="flex items-center gap-2">
+                <button
+                    onClick={() => {
+                        if(window.confirm(`Deseja ${isInstalled ? 'REINSTALAR' : 'INSTALAR'} o edital ${editalTitle}?`)) {
+                            const btn = btnRef.current.querySelector('button');
+                            if(btn) {
+                                const originalConfirm = window.confirm;
+                                window.confirm = () => true;
+                                btn.click();
+                                setTimeout(() => window.confirm = originalConfirm, 100);
+                            }
+                        }
+                    }}
+                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wide flex items-center gap-2 transition-all ${isInstalled ? 'bg-zinc-100 text-zinc-500 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400' : 'bg-red-600 text-white hover:bg-red-700 shadow-lg shadow-red-600/20'}`}
+                >
+                    {isInstalled ? <><RefreshCw size={12}/> Reinstalar</> : <><Download size={12}/> Instalar</>}
+                </button>
+                <div ref={btnRef} className="hidden">{children}</div>
+            </div>
+        );
+    };
+
+    return (
+        <ExpandedModal isOpen={isOpen} onClose={onClose} title="Central de Comandos e Editais">
+            <div className="flex flex-col h-full">
+                <div className="flex border-b border-zinc-100 dark:border-zinc-800 overflow-x-auto mb-6 scrollbar-hide">
+                    {categories.map(cat => (
+                        <button
+                            key={cat.id}
+                            onClick={() => setActiveTab(cat.id)}
+                            className={`flex items-center gap-2 px-6 py-4 text-xs font-bold uppercase tracking-wide border-b-2 transition-all whitespace-nowrap ${activeTab === cat.id ? 'border-red-600 text-red-600 bg-red-50/50 dark:bg-red-900/10' : 'border-transparent text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200'}`}
+                        >
+                            <cat.icon size={16} /> {cat.label}
+                        </button>
+                    ))}
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {filteredEditais.map((edital) => {
+                        const isInstalled = installedTemplates.includes(edital.id);
+                        const SeedBtn = edital.SeedComponent;
+                        return (
+                            <div key={edital.id} className={`p-4 rounded-2xl border transition-all flex items-center justify-between gap-4 ${isInstalled ? 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800' : 'bg-zinc-50 dark:bg-zinc-900/50 border-dashed border-zinc-300 dark:border-zinc-700 opacity-80 hover:opacity-100'}`}>
+                                <div className="flex items-center gap-3">
+                                    <div className="w-12 h-12 bg-white dark:bg-zinc-800 rounded-xl border border-zinc-100 dark:border-zinc-700 flex items-center justify-center p-2 shadow-sm">
+                                        <img src={edital.logo} className="w-full h-full object-contain" alt="logo"/>
+                                    </div>
+                                    <div>
+                                        <h4 className="font-bold text-sm text-zinc-900 dark:text-white">{edital.titulo}</h4>
+                                        <p className="text-[10px] text-zinc-500 font-medium uppercase tracking-wide">{edital.banca}</p>
+                                    </div>
+                                </div>
+                                <SecureWrapper isInstalled={isInstalled} editalTitle={edital.titulo}>
+                                    <SeedBtn isInstalled={isInstalled} />
+                                </SecureWrapper>
+                            </div>
+                        )
+                    })}
+                    {filteredEditais.length === 0 && <div className="col-span-full py-10 text-center text-zinc-400">Nenhum edital encontrado nesta categoria.</div>}
+                </div>
+            </div>
+        </ExpandedModal>
+    );
+};
+
+// --- COMPONENTE: BLOCO DE NOTAS DO ADMIN ---
+const AdminNotepad = () => {
+    const [note, setNote] = useState(() => localStorage.getItem('admin_notepad') || '');
+
+    const handleSave = (e) => {
+        const val = e.target.value;
+        setNote(val);
+        localStorage.setItem('admin_notepad', val);
+    };
+
+    return (
+        <CardContainer title="Bloco de Notas Operacional" icon={StickyNote} className="h-full">
+            <textarea
+                className="w-full h-full min-h-[150px] bg-yellow-50 dark:bg-yellow-900/10 border-0 resize-none outline-none text-sm text-zinc-700 dark:text-zinc-300 font-mono p-2 rounded-lg"
+                placeholder="Anote pendências, ideias ou logs manuais aqui..."
+                value={note}
+                onChange={handleSave}
+            />
+            <div className="mt-2 text-[10px] text-zinc-400 flex items-center justify-end gap-1">
+                <Save size={10}/> Salvo localmente
+            </div>
+        </CardContainer>
+    );
+};
+
+// --- PÁGINA ADMIN PRINCIPAL ---
+
+function AdminPage() {
+    // --- ESTADOS DE DADOS (REAL-TIME) ---
+    const [users, setUsers] = useState([]);
+    const [studyRecords, setStudyRecords] = useState([]);
+
+    // --- ESTADOS DE UI ---
+    const [loading, setLoading] = useState(true);
+    const [expandedView, setExpandedView] = useState(null);
+    const [showEditaisModal, setShowEditaisModal] = useState(false);
+    const [showBroadcastModal, setShowBroadcastModal] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
+
+    // --- 1. LISTENERS REAL-TIME ---
+
+    // USUÁRIOS
+    useEffect(() => {
+        const q = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
+        // 8. CAPTURA DE EXCLUSÃO: O onSnapshot atualiza automaticamente o estado 'users' quando um doc é deletado no Firebase
+        const unsub = onSnapshot(q, (snap) => {
+            const data = snap.docs.map(doc => {
+                const d = doc.data();
+                const createdAt = d.createdAt?.toDate ? d.createdAt.toDate() : new Date();
+                return { id: doc.id, ...d, createdAt };
+            });
+            setUsers(data);
+            setLoading(false);
+        });
+        return () => unsub();
+    }, []);
+
+    // REGISTROS (Global - Últimos 1000)
+    useEffect(() => {
+        const q = query(collectionGroup(db, 'registrosEstudo'), orderBy('timestamp', 'desc'), limit(1000));
+        const unsub = onSnapshot(q, (snap) => {
+            const data = snap.docs.map(doc => {
+                const d = doc.data();
+                const uid = d.uid || doc.ref.path.split('/')[1];
+                return { id: doc.id, uid, ...d, timestamp: d.timestamp?.toDate() || new Date() };
+            });
+            setStudyRecords(data);
+        });
+        return () => unsub();
+    }, []);
+
+    // --- PROCESSAMENTO DE DADOS (MEMOIZED) ---
+    const dashboardData = useMemo(() => {
+        const now = new Date();
+        const active7Days = new Set();
+        const active24Hours = new Set();
+        let totalMinutes = 0;
+
+        studyRecords.forEach(reg => {
+            if(!reg.uid) return;
+            totalMinutes += Number(reg.tempoEstudadoMinutos || 0);
+
+            // Atividade
+            const diffTime = now - reg.timestamp;
+            if (diffTime < 604800000) active7Days.add(reg.uid); // 7 dias
+            if (diffTime < 86400000) active24Hours.add(reg.uid); // 24h
+        });
+
+        // Enriquecer Usuários
+        const enrichedUsers = users.map(u => {
+            const userRecs = studyRecords.filter(r => r.uid === u.id);
+            const totalUserMin = userRecs.reduce((acc, r) => acc + (r.tempoEstudadoMinutos || 0), 0);
+            const lastStudy = userRecs.length > 0 ? userRecs[0].timestamp : null;
+
+            let status = 'inactive';
+            if (lastStudy && (now - lastStudy) < 604800000) status = 'active';
+            else if (lastStudy) status = 'churn_risk';
+            else if ((now - u.createdAt) > 259200000) status = 'dropout';
+
+            return { ...u, totalHours: Math.round(totalUserMin/60), lastStudy, status };
+        }).sort((a,b) => (b.lastStudy || 0) - (a.lastStudy || 0));
+
+        return {
+            totalUsers: users.length,
+            newUsers24h: users.filter(u => (now - u.createdAt) < 86400000).length,
+            active7d: active7Days.size,
+            active24h: active24Hours.size,
+            enrichedUsers,
+            topUsers: enrichedUsers.sort((a,b) => b.totalHours - a.totalHours).slice(0, 5),
+        };
+    }, [users, studyRecords]);
+
+    const getUser = (uid) => users.find(u => u.id === uid) || { name: 'Usuário', email: '...', photoURL: null };
+
+    // Função de Deletar Usuário (Real Time Update - Item 8)
+    const handleDeleteUser = async (uid) => {
+        if(window.confirm("⚠️ OPERAÇÃO IRREVERSÍVEL\n\nIsso apagará o usuário e desvinculará todos os dados. Confirmar exclusão?")) {
+            try {
+                await deleteDoc(doc(db, 'users', uid));
+                // O onSnapshot acima vai rodar e atualizar 'users' e os KPIs automaticamente
+                alert("Usuário excluído com sucesso.");
+            } catch (error) {
+                alert("Erro ao eliminar usuário: " + error.message);
             }
         }
     };
 
-    // Expomos a função de trigger para o componente pai via callback no Modal
-    useEffect(() => {
-        if(children.props.triggerRef) {
-             children.props.triggerRef.current = triggerHiddenButton;
-        }
-    }, [children]);
-
     return (
-        <>
-            {/* Botão Visual Seguro */}
-            <button
-                onClick={() => onRequestInstall(triggerHiddenButton, isInstalled, editalTitle)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wide transition-all shadow-sm ${
-                    isInstalled
-                    ? 'bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700'
-                    : 'bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-indigo-500/20'
-                }`}
-            >
-                {isInstalled ? <><RefreshCw size={14}/> Reinstalar</> : <><Download size={14}/> Instalar</>}
-            </button>
+        <div className="w-full pb-20 animate-slide-up space-y-6 max-w-7xl mx-auto px-4 pt-8">
 
-            {/* O Botão Original fica escondido aqui, mas funcional */}
-            <div ref={hiddenContainerRef} style={{ display: 'none' }}>
-                {children}
-            </div>
-        </>
+            {/* MODAIS */}
+            <EditaisManagerModal isOpen={showEditaisModal} onClose={() => setShowEditaisModal(false)} />
+            <BroadcastModal isOpen={showBroadcastModal} onClose={() => setShowBroadcastModal(false)} />
+
+            {/* EXPANDED MODAL (Tabelas Completas) */}
+            <ExpandedModal isOpen={!!expandedView} onClose={() => setExpandedView(null)} title={expandedView === 'users' ? 'Base de Alunos (QAP)' : 'Registro de Estudos (Log)'}>
+                <div className="space-y-4">
+                    <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+                        <div className="flex items-center gap-2 bg-zinc-100 dark:bg-zinc-900 p-2 rounded-xl w-full md:w-96 border border-zinc-200 dark:border-zinc-800 transition-colors focus-within:ring-2 focus-within:ring-red-500/20">
+                            <Search size={18} className="text-zinc-400 ml-2"/>
+                            <input type="text" placeholder="Filtrar dados por nome, email..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="bg-transparent outline-none w-full text-sm text-zinc-700 dark:text-zinc-300"/>
+                        </div>
+                        {expandedView === 'users' && (
+                            <button
+                                onClick={() => exportToCSV(dashboardData.enrichedUsers, 'alunos_modoqap.csv')}
+                                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 font-bold text-xs shadow-lg shadow-emerald-600/20 transition-transform hover:scale-105"
+                            >
+                                <FileSpreadsheet size={16}/> Exportar Excel
+                            </button>
+                        )}
+                    </div>
+
+                    {expandedView === 'users' && (
+                        <div className="overflow-x-auto rounded-2xl border border-zinc-200 dark:border-zinc-800">
+                            <table className="w-full text-left border-collapse">
+                                <thead className="bg-zinc-100 dark:bg-zinc-900 text-xs uppercase text-zinc-500 font-bold">
+                                    <tr>
+                                        <th className="p-4">Aluno</th>
+                                        <th className="p-4">Email</th>
+                                        <th className="p-4 text-center">Status</th>
+                                        <th className="p-4 text-center">Cadastro</th>
+                                        <th className="p-4 text-center">Último Estudo</th>
+                                        <th className="p-4 text-center">Total Horas</th>
+                                        <th className="p-4 text-right">Ação</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800 text-sm">
+                                    {dashboardData.enrichedUsers.filter(u => u.name.toLowerCase().includes(searchTerm.toLowerCase()) || u.email.toLowerCase().includes(searchTerm.toLowerCase())).map(u => (
+                                        <tr key={u.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50 bg-white dark:bg-zinc-950 transition-colors">
+                                            <td className="p-4"><div className="flex items-center gap-3"><Avatar user={u} size="sm"/><span className="font-bold text-zinc-800 dark:text-zinc-200">{u.name}</span></div></td>
+                                            <td className="p-4 text-zinc-500">{u.email}</td>
+                                            <td className="p-4 text-center">
+                                                <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
+                                                    u.status === 'active' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30' :
+                                                    u.status === 'churn_risk' ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/30' :
+                                                    'bg-zinc-100 text-zinc-400 dark:bg-zinc-800'
+                                                }`}>
+                                                    {u.status === 'active' ? 'Ativo' : u.status === 'churn_risk' ? 'Risco' : 'Inativo'}
+                                                </span>
+                                            </td>
+                                            <td className="p-4 text-center text-zinc-400 text-xs">{formatTimeAgo(u.createdAt)}</td>
+                                            <td className="p-4 text-center text-zinc-400 text-xs">{formatTimeAgo(u.lastStudy)}</td>
+                                            <td className="p-4 text-center font-mono font-bold text-red-600 dark:text-red-400">{u.totalHours}h</td>
+                                            <td className="p-4 text-right"><button onClick={() => handleDeleteUser(u.id)} className="p-2 bg-zinc-100 dark:bg-zinc-900 rounded hover:bg-red-100 hover:text-red-600 transition-colors"><Trash2 size={16}/></button></td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                    {expandedView === 'studies' && (
+                        /* Tabela de Registros simplificada para o modal */
+                        <div className="overflow-x-auto rounded-2xl border border-zinc-200 dark:border-zinc-800">
+                             <table className="w-full text-left border-collapse">
+                                <thead className="bg-zinc-100 dark:bg-zinc-900 text-xs uppercase text-zinc-500 font-bold">
+                                    <tr>
+                                        <th className="p-4">Aluno</th>
+                                        <th className="p-4">Disciplina</th>
+                                        <th className="p-4">Assunto</th>
+                                        <th className="p-4 text-center">Tempo</th>
+                                        <th className="p-4 text-right">Quando</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800 text-sm">
+                                    {studyRecords.filter(r => r.disciplinaNome?.toLowerCase().includes(searchTerm.toLowerCase())).slice(0, 100).map(r => {
+                                         const user = getUser(r.uid);
+                                         return (
+                                            <tr key={r.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50 bg-white dark:bg-zinc-950 transition-colors">
+                                                <td className="p-4"><div className="flex items-center gap-2"><Avatar user={user} size="sm"/><span className="font-medium">{user.name}</span></div></td>
+                                                <td className="p-4 font-bold text-zinc-700 dark:text-zinc-300">{r.disciplinaNome}</td>
+                                                <td className="p-4 text-zinc-500 text-xs">{r.assunto || '-'}</td>
+                                                <td className="p-4 text-center font-mono font-bold text-emerald-600">+{r.tempoEstudadoMinutos}m</td>
+                                                <td className="p-4 text-right text-zinc-400 text-xs">{formatTimeAgo(r.timestamp)}</td>
+                                            </tr>
+                                         )
+                                    })}
+                                </tbody>
+                             </table>
+                        </div>
+                    )}
+                </div>
+            </ExpandedModal>
+
+            {/* HEADER */}
+            <header className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 border-b border-zinc-200 dark:border-zinc-800 pb-6">
+                <div>
+                    <div className="flex items-center gap-2 mb-2">
+                        <div className="inline-flex items-center gap-2 px-3 py-1 bg-red-600 text-white rounded-full text-[10px] font-bold uppercase tracking-widest shadow-lg shadow-red-600/20">
+                            <Lock size={10} /> Admin Zone
+                        </div>
+                    </div>
+                    <h1 className="text-3xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter flex items-center gap-2">
+                        Painel de Controle <span className="text-red-600">.</span>
+                    </h1>
+                </div>
+
+                <div className="flex items-center gap-3">
+                    {/* Botão de Broadcast */}
+                    <button
+                        onClick={() => setShowBroadcastModal(true)}
+                        className="flex items-center gap-2 px-5 py-3 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-xl font-bold hover:scale-105 transition-transform shadow-xl"
+                    >
+                        <Megaphone size={18} /> <span className="hidden sm:inline">Broadcast</span>
+                    </button>
+
+                    {dashboardData.newUsers24h > 0 && (
+                        <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="flex items-center gap-3 px-4 py-2 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800 rounded-xl">
+                            <div className="relative"><Bell size={18} className="text-emerald-600"/><span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span></div>
+                            <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300">+{dashboardData.newUsers24h} Novos</span>
+                        </motion.div>
+                    )}
+                </div>
+            </header>
+
+            {loading ? (
+                <div className="flex flex-col items-center justify-center h-64"><Loader2 size={48} className="text-red-600 animate-spin mb-4"/><span className="text-zinc-400 font-bold uppercase text-xs tracking-widest">Carregando inteligência...</span></div>
+            ) : (
+                <>
+                    {/* 1. KPIs (Reduzidos e Limpos) */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
+                        <PerformanceMetricCard color="zinc" icon={Users} title="Total Alunos" value={dashboardData.totalUsers} subValue="Na plataforma" trend={2} />
+                        <PerformanceMetricCard color="red" icon={Target} title="Ativos (7d)" value={dashboardData.active7d} subValue="Engajamento Real" />
+                        <PerformanceMetricCard color="amber" icon={Activity} title="Online (24h)" value={dashboardData.active24h} subValue="Plantão QAP" />
+                    </div>
+
+                    {/* 2. LINHA DE COMANDO & UTILITÁRIOS */}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        {/* Gerenciador de Editais */}
+                        <div
+                            onClick={() => setShowEditaisModal(true)}
+                            className="lg:col-span-2 bg-gradient-to-r from-zinc-900 to-zinc-800 dark:from-zinc-950 dark:to-zinc-900 text-white p-6 rounded-2xl shadow-lg cursor-pointer hover:shadow-red-900/20 transition-all flex items-center justify-between group relative overflow-hidden border border-zinc-800"
+                        >
+                             <div className="absolute right-0 top-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity transform group-hover:scale-110 duration-700"><Database size={120}/></div>
+                             <div className="relative z-10 flex items-center gap-5">
+                                 <div className="p-4 bg-white/10 rounded-2xl backdrop-blur-sm border border-white/10"><Server size={32} className="text-red-500"/></div>
+                                 <div>
+                                     <h3 className="text-xl font-black uppercase tracking-tight">Instalação de Editais</h3>
+                                     <p className="text-sm text-zinc-400 mt-1">Gerenciar catálogo, seeds e templates de prova.</p>
+                                     <div className="flex gap-2 mt-3">
+                                         <span className="px-2 py-1 bg-white/5 rounded text-[10px] border border-white/10">PMBA</span>
+                                         <span className="px-2 py-1 bg-white/5 rounded text-[10px] border border-white/10">PPMG</span>
+                                         <span className="px-2 py-1 bg-white/5 rounded text-[10px] border border-white/10 text-zinc-500">+8</span>
+                                     </div>
+                                 </div>
+                             </div>
+                             <div className="relative z-10 bg-red-600 p-3 rounded-full group-hover:bg-red-500 transition-colors shadow-lg shadow-red-900/50"><ExternalLink size={24}/></div>
+                        </div>
+
+                        {/* Admin Notepad */}
+                        <div className="lg:col-span-1">
+                            <AdminNotepad />
+                        </div>
+                    </div>
+
+                    {/* 3. COLUNAS: FEED E USUÁRIOS */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+                        {/* COLUNA ESQUERDA: FEED AO VIVO (Item 9: Ícone Pulsante) */}
+                        <CardContainer
+                            title="Feed Ao Vivo"
+                            subtitle="Monitoramento em Tempo Real"
+                            icon={Activity}
+                            isLive={true}
+                            className="h-[500px]"
+                            action={<button onClick={() => setExpandedView('studies')} className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg text-zinc-400 transition-colors"><Maximize2 size={14}/></button>}
+                        >
+                            <div className="overflow-y-auto space-y-3 custom-scrollbar pr-1 h-full pb-4">
+                                <AnimatePresence>
+                                    {studyRecords.slice(0, 15).map(r => {
+                                        const user = getUser(r.uid);
+                                        return (
+                                            <motion.div key={r.id} initial={{opacity:0, x:-10}} animate={{opacity:1, x:0}} className="flex items-center gap-3 p-3 bg-zinc-50 dark:bg-zinc-900/40 rounded-xl border border-zinc-100 dark:border-zinc-800/50 hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors">
+                                                <Avatar user={user} size="sm"/>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-xs font-bold text-zinc-800 dark:text-zinc-200 truncate">{user.name}</p>
+                                                    <div className="text-[10px] text-zinc-500 truncate flex items-center gap-1">
+                                                        <div className="w-1.5 h-1.5 rounded-full bg-red-500"/>
+                                                        {r.disciplinaNome}
+                                                    </div>
+                                                </div>
+                                                <div className="text-right">
+                                                    <span className="block text-xs font-black text-red-600">+{r.tempoEstudadoMinutos}m</span>
+                                                    <span className="text-[9px] text-zinc-400">{formatTimeAgo(r.timestamp)}</span>
+                                                </div>
+                                            </motion.div>
+                                        )
+                                    })}
+                                </AnimatePresence>
+                            </div>
+                        </CardContainer>
+
+                        {/* COLUNA DIREITA: TOP USUÁRIOS */}
+                        <CardContainer title="Elite da Tropa (Top 10)" subtitle="Maior carga horária" icon={Crown}
+                            className="h-[500px]"
+                            action={<button onClick={() => setExpandedView('users')} className="text-xs font-bold text-red-600 hover:text-red-700">Ver Base Completa</button>}
+                        >
+                            <div className="overflow-y-auto h-full space-y-3 custom-scrollbar pr-1 pb-4">
+                                {dashboardData.topUsers.concat(dashboardData.enrichedUsers.slice(5, 10)).map((u, i) => (
+                                    <div key={u.id} className="flex items-center justify-between p-2 rounded-xl hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors group">
+                                        <div className="flex items-center gap-4">
+                                            <div className={`font-black text-lg w-6 text-center ${i===0 ? 'text-yellow-500 drop-shadow-md' : i===1 ? 'text-zinc-400' : i===2 ? 'text-amber-700' : 'text-zinc-300'}`}>{i+1}</div>
+                                            <Avatar user={u} size="md"/>
+                                            <div>
+                                                <p className="text-sm font-bold text-zinc-900 dark:text-white group-hover:text-red-600 transition-colors">{u.name}</p>
+                                                <p className="text-[10px] text-zinc-500">{u.email.substring(0, 20)}...</p>
+                                            </div>
+                                        </div>
+                                        <div className="text-right bg-zinc-100 dark:bg-zinc-800 px-2 py-1 rounded-lg">
+                                            <span className="block text-xs font-black text-zinc-800 dark:text-white">{u.totalHours}h</span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </CardContainer>
+
+                    </div>
+                </>
+            )}
+        </div>
     );
-};
-
-const AdminStatCardOriginal = ({ icon: Icon, label, value, subtext, colorClass, loading, delay }) => (
-    <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay }}
-        className="relative overflow-hidden bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 rounded-2xl shadow-sm group hover:border-zinc-300 dark:hover:border-zinc-700 transition-all"
-    >
-        <div className={`absolute -right-4 -bottom-4 opacity-10 group-hover:opacity-20 transition-opacity ${colorClass} rotate-12`}><Icon size={100} /></div>
-        <div className="relative z-10">
-            <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 ${colorClass.replace('text-', 'bg-').replace('600', '100').replace('500', '100')} dark:bg-opacity-10`}>
-                <Icon size={24} className={colorClass} />
-            </div>
-            <h4 className="text-3xl font-black text-zinc-900 dark:text-white tracking-tight">
-                {loading ? <Loader2 className="animate-spin h-6 w-6 text-zinc-300" /> : value}
-            </h4>
-            <p className="text-xs font-bold text-zinc-500 uppercase tracking-wide mt-1">{label}</p>
-            {subtext && <p className="text-[10px] text-zinc-400 mt-2 font-medium">{subtext}</p>}
-        </div>
-    </motion.div>
-);
-
-const MiniStatCard = ({ icon: Icon, label, value, colorClass, loading }) => (
-    <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 rounded-2xl shadow-sm flex items-center gap-4">
-        <div className={`p-3 rounded-xl ${colorClass.replace('text-', 'bg-').replace('600', '100')} bg-opacity-20 text-opacity-100`}>
-            <Icon size={20} className={colorClass} />
-        </div>
-        <div>
-            <h4 className="text-2xl font-black text-zinc-900 dark:text-white leading-none">
-                {loading ? "..." : value}
-            </h4>
-            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mt-1">{label}</p>
-        </div>
-    </div>
-);
-
-const LeaderboardRow = ({ rank, user, hours }) => (
-    <div className="flex items-center justify-between p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-100 dark:border-zinc-800 hover:bg-white dark:hover:bg-zinc-800 transition-colors">
-        <div className="flex items-center gap-3">
-            <div className={`font-black text-lg w-6 text-center ${rank === 1 ? "text-yellow-500" : rank === 2 ? "text-zinc-400" : "text-amber-700"}`}>{rank}º</div>
-            <div className="w-8 h-8 rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-xs font-bold text-zinc-600 dark:text-zinc-300">
-                {user ? user.substring(0,2).toUpperCase() : '?'}
-            </div>
-            <div>
-                <p className="text-xs font-bold text-zinc-800 dark:text-white capitalize truncate max-w-[120px]">
-                    {user || 'Anônimo'}
-                </p>
-                {rank === 1 && <span className="text-[9px] text-yellow-600 font-bold flex items-center gap-0.5"><Crown size={10}/> Líder</span>}
-            </div>
-        </div>
-        <div className="text-right">
-            <span className="block text-sm font-black text-zinc-900 dark:text-white">{hours.toFixed(1)}h</span>
-        </div>
-    </div>
-);
-
-function AdminPage() {
-  const [stats, setStats] = useState({
-      activeUsers: 0, totalEditais: 0, dbStatus: 'Verificando...',
-      totalHours: 0, totalQuestions: 0, globalAccuracy: 0
-  });
-  const [popularityData, setPopularityData] = useState([]);
-  const [weakestSubjects, setWeakestSubjects] = useState([]);
-  const [topStudents, setTopStudents] = useState([]);
-  const [installedTemplates, setInstalledTemplates] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  // Estados do Modal
-  const [modalConfig, setModalConfig] = useState({ isOpen: false, title: '', message: '', onConfirm: () => {}, variant: 'danger' });
-
-  // --- ENGINE DE INTELIGÊNCIA ---
-  const refreshData = async () => {
-      setLoading(true);
-      try {
-          const editaisSnap = await getDocs(collection(db, 'editais_templates'));
-          setInstalledTemplates(editaisSnap.docs.map(doc => doc.id));
-
-          const thirtyDaysAgo = new Date();
-          thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-          const recordsQuery = query(collectionGroup(db, 'registrosEstudo'), where('timestamp', '>=', Timestamp.fromDate(thirtyDaysAgo)));
-          const recordsSnap = await getDocs(recordsQuery);
-          const ciclosQuery = query(collectionGroup(db, 'ciclos'), where('ativo', '==', true));
-          const ciclosSnap = await getDocs(ciclosQuery);
-
-          const popMap = {};
-          ciclosSnap.forEach(doc => {
-              const tid = doc.data().templateId;
-              let name = tid;
-              Object.keys(TEMPLATE_IDS).forEach(key => { if (TEMPLATE_IDS[key] === tid) name = key; });
-              if (tid) popMap[name] = (popMap[name] || 0) + 1;
-          });
-
-          let sumHours = 0, sumQuestions = 0, sumCorrect = 0;
-          const subjectStats = {}, userStats = {}, uniqueUserIds = new Set();
-
-          recordsSnap.forEach(doc => {
-              const d = doc.data();
-              const uid = doc.ref.path.split('/')[1];
-              if (uid) uniqueUserIds.add(uid);
-              const min = Number(d.tempoEstudadoMinutos) || 0;
-              const q = Number(d.questoesFeitas) || 0;
-              const c = Number(d.acertos) || 0;
-              const subj = d.disciplinaNome || 'Geral';
-
-              sumHours += min; sumQuestions += q; sumCorrect += c;
-              if(q > 0) {
-                  if(!subjectStats[subj]) subjectStats[subj] = { q: 0, c: 0 };
-                  subjectStats[subj].q += q; subjectStats[subj].c += c;
-              }
-              if(uid) { userStats[uid] = (userStats[uid] || 0) + min; }
-          });
-
-          const weakSubjectsArr = Object.entries(subjectStats)
-              .map(([name, data]) => ({ name, accuracy: (data.c / data.q) * 100, volume: data.q }))
-              .filter(s => s.volume >= 1).sort((a, b) => a.accuracy - b.accuracy).slice(0, 4);
-
-          const rankingArr = Object.entries(userStats)
-              .map(([uid, minutes]) => ({ uid, hours: minutes / 60 })).sort((a, b) => b.hours - a.hours).slice(0, 3);
-
-          const rankingWithNames = await Promise.all(rankingArr.map(async (student) => {
-              let name = 'Desconhecido';
-              try {
-                  const uSnap = await getDoc(doc(db, 'users', student.uid));
-                  if (uSnap.exists()) {
-                      const ud = uSnap.data();
-                      name = ud.displayName || ud.nome || (ud.email ? ud.email.split('@')[0] : 'Desconhecido');
-                  }
-              } catch (e) {}
-              return { ...student, name };
-          }));
-
-          setStats({
-              activeUsers: uniqueUserIds.size, totalEditais: editaisSnap.size, dbStatus: 'Operacional',
-              totalHours: Math.round(sumHours / 60), totalQuestions: sumQuestions,
-              globalAccuracy: sumQuestions > 0 ? Math.round((sumCorrect / sumQuestions) * 100) : 0
-          });
-          setPopularityData(Object.entries(popMap).map(([name, value]) => ({ name, value })));
-          setWeakestSubjects(weakSubjectsArr);
-          setTopStudents(rankingWithNames);
-      } catch (error) {
-          console.error(error);
-          setStats(prev => ({ ...prev, dbStatus: 'Erro Leitura' }));
-      } finally {
-          setLoading(false);
-      }
-  };
-
-  useEffect(() => { refreshData(); }, []);
-
-  // --- HANDLERS COM MODAL ---
-
-  // 1. Abertura do Modal de Delete
-  const handleDeleteRequest = (id, titulo) => {
-      setModalConfig({
-          isOpen: true,
-          title: `Excluir Edital: ${titulo}?`,
-          message: `Esta ação removerá o template do banco de dados permanentemente.\nUsuários que já utilizam este edital não serão afetados, mas novos usuários não poderão selecioná-lo.`,
-          variant: 'danger',
-          onConfirm: async () => {
-              try {
-                  setLoading(true);
-                  await deleteDoc(doc(db, "editais_templates", id));
-                  setModalConfig(prev => ({ ...prev, isOpen: false }));
-                  await refreshData();
-              } catch (error) {
-                  alert("Erro ao excluir.");
-              } finally {
-                  setLoading(false);
-              }
-          }
-      });
-  };
-
-  // 2. Abertura do Modal de Install (Usando o Trigger do Wrapper)
-  const handleInstallRequest = (triggerHiddenBtnFn, isInstalled, titulo) => {
-      const action = isInstalled ? "REINSTALAR (Resetar)" : "INSTALAR";
-      setModalConfig({
-          isOpen: true,
-          title: `Confirmar Instalação?`,
-          message: `Você está prestes a ${action} o edital do concurso: \n\n**${titulo}**\n\nCertifique-se de que esta é a ação desejada.`,
-          variant: 'info',
-          onConfirm: () => {
-              setModalConfig(prev => ({ ...prev, isOpen: false }));
-              triggerHiddenBtnFn(); // Chama a função que clica no botão escondido
-          }
-      });
-  };
-
-  const CATALOGO_EDITAIS = [
-    { id: TEMPLATE_IDS.PMBA, titulo: 'Soldado PMBA', banca: 'FCC', logo: '/logosEditais/logo-pmba.png', SeedComponent: SeedEditalPMBA },
-    { id: TEMPLATE_IDS.PPMG, titulo: 'Policial Penal MG', banca: 'AOCP', logo: '/logosEditais/logo-ppmg.png', SeedComponent: SeedEditalPPMG },
-    { id: TEMPLATE_IDS.PCBA, titulo: 'Investigador PCBA', banca: 'IBFC', logo: '/logosEditais/logo-pcba.png', SeedComponent: SeedEditalPCBA },
-    { id: TEMPLATE_IDS.PMSE, titulo: 'Soldado PMSE', banca: 'SELECON', logo: '/logosEditais/logo-pmse.png', SeedComponent: SeedEditalPMSE },
-    { id: TEMPLATE_IDS.PMGO, titulo: 'Soldado PMGO', banca: 'Inst. AOCP', logo: '/logosEditais/logo-pmgo.png', SeedComponent: SeedEditalPMGO },
-    { id: TEMPLATE_IDS.PMAL, titulo: 'Soldado PMAL', banca: 'Cebraspe', logo: '/logosEditais/logo-pmal.png', SeedComponent: SeedEditalPMAL },
-    { id: TEMPLATE_IDS.PMPE, titulo: 'Soldado PMPE', banca: 'Inst. AOCP', logo: '/logosEditais/logo-pmpe.png', SeedComponent: SeedEditalPMPE },
-    { id: TEMPLATE_IDS.PMPI, titulo: 'Soldado PMPI', banca: 'NUCEPE', logo: '/logosEditais/logo-pmpi.png', SeedComponent: SeedEditalPMPI },
-    { id: TEMPLATE_IDS.CBMERJ, titulo: 'Oficial CBMERJ', banca: 'UERJ', logo: '/logosEditais/logo-cbmerj.png', SeedComponent: SeedEditalCBMERJ },
-    { id: TEMPLATE_IDS.CBMMG, titulo: 'Soldado CBMMG', banca: 'IDECAN', logo: '/logosEditais/logo-cbmmg.png', SeedComponent: SeedEditalCBMMG },
-    { id: TEMPLATE_IDS.GCMAquiraz, titulo: 'GCM Aquiraz', banca: 'Consulpam', logo: '/logosEditais/logo-aquiraz.png', SeedComponent: SeedEditalGCMAquiraz }
-  ];
-
-  return (
-    <div className="space-y-8 animate-fade-in max-w-6xl mx-auto pb-20 pt-10 px-4">
-      <ConfirmationModal {...modalConfig} onClose={() => setModalConfig(prev => ({ ...prev, isOpen: false }))} loading={loading} />
-
-      {/* HEADER */}
-      <div className="flex flex-col md:flex-row items-center gap-8 mb-8">
-          <div className="relative group flex-shrink-0">
-              <div className="w-32 h-32 md:w-40 md:h-40 rounded-full border-4 border-white dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-900 shadow-2xl flex items-center justify-center relative ring-4 ring-zinc-100 dark:ring-zinc-900/50">
-                  <ShieldAlert size={64} className="text-red-600 dark:text-red-500" />
-                  <div className={`absolute bottom-2 right-2 w-6 h-6 border-4 border-white dark:border-zinc-950 rounded-full z-10 ${stats.dbStatus === 'Operacional' ? 'bg-emerald-500' : 'bg-red-500'}`}></div>
-              </div>
-          </div>
-          <div className="text-center md:text-left space-y-2">
-              <div className="inline-flex items-center gap-2 px-3 py-1 bg-red-100 dark:bg-red-900/30 rounded-full text-[10px] font-bold text-red-600 dark:text-red-400 uppercase tracking-widest border border-red-200 dark:border-red-800/50"><Lock size={10} /> Admin Zone</div>
-              <h1 className="text-4xl md:text-5xl font-black text-zinc-900 dark:text-white tracking-tight">Central de Comando</h1>
-              <p className="text-sm font-medium text-zinc-500 max-w-xl">Gestão global de editais e inteligência.</p>
-          </div>
-      </div>
-
-      {/* STATS */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <AdminStatCardOriginal icon={Activity} label="Usuários Ativos (30d)" value={stats.activeUsers} subtext="Com registros" colorClass="text-indigo-600" loading={loading} delay={0.1} />
-          <AdminStatCardOriginal icon={FileJson} label="Editais no Banco" value={stats.totalEditais} subtext="Templates" colorClass="text-emerald-600" loading={loading} delay={0.2} />
-          <AdminStatCardOriginal icon={Server} label="Status API" value={stats.dbStatus} subtext="Firestore" colorClass={stats.dbStatus === 'Operacional' ? 'text-blue-600' : 'text-red-600'} loading={loading} delay={0.3} />
-          <AdminStatCardOriginal icon={ShieldAlert} label="Modo Admin" value="Ativo" subtext="Full Access" colorClass="text-red-600" loading={false} delay={0.4} />
-      </div>
-
-      {/* INTELLIGENCE SECTION */}
-      <div className="pt-6">
-          <h2 className="text-xl font-black text-zinc-800 dark:text-white flex items-center gap-2 mb-4"><Database size={20} className="text-zinc-400" /> Inteligência</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-              <MiniStatCard icon={Clock} label="Horas (30d)" value={stats.totalHours} colorClass="text-blue-600" loading={loading} />
-              <MiniStatCard icon={Target} label="Questões" value={stats.totalQuestions} colorClass="text-violet-600" loading={loading} />
-              <MiniStatCard icon={TrendingUp} label="Precisão Global" value={`${stats.globalAccuracy}%`} colorClass={stats.globalAccuracy > 70 ? "text-emerald-600" : "text-amber-500"} loading={loading} />
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Popularidade */}
-              <div className="bg-white dark:bg-zinc-900 rounded-3xl p-6 border border-zinc-200 dark:border-zinc-800 shadow-sm flex flex-col h-64">
-                   <h3 className="text-sm font-bold text-zinc-900 dark:text-white mb-4 flex items-center gap-2"><Users size={14} className="text-blue-500"/> Popularidade</h3>
-                   <div className="flex-1">
-                      <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={popularityData} layout="vertical" margin={{ left: 0, right: 10 }}>
-                              <XAxis type="number" hide />
-                              <YAxis type="category" dataKey="name" width={50} tick={{ fontSize: 9, fontWeight: 'bold' }} />
-                              <Tooltip cursor={{fill: 'transparent'}} contentStyle={{ borderRadius: '8px', border: 'none', backgroundColor: '#18181b', color: '#fff', fontSize: '12px' }} />
-                              <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={15}>
-                                  {popularityData.map((entry, index) => (<Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />))}
-                              </Bar>
-                          </BarChart>
-                      </ResponsiveContainer>
-                   </div>
-              </div>
-
-              {/* Ranking */}
-              <div className="bg-white dark:bg-zinc-900 rounded-3xl p-6 border border-zinc-200 dark:border-zinc-800 shadow-sm flex flex-col h-64 overflow-y-auto">
-                   <h3 className="text-sm font-bold text-zinc-900 dark:text-white mb-4 flex items-center gap-2"><Trophy size={14} className="text-yellow-500"/> Top Estudantes</h3>
-                   <div className="space-y-2">
-                      {topStudents.map((s, i) => <LeaderboardRow key={s.uid} rank={i+1} user={s.name} hours={s.hours} />)}
-                   </div>
-              </div>
-
-              {/* Fracas */}
-              <div className="bg-white dark:bg-zinc-900 rounded-3xl p-6 border border-zinc-200 dark:border-zinc-800 shadow-sm flex flex-col h-64">
-                   <h3 className="text-sm font-bold text-zinc-900 dark:text-white mb-4 flex items-center gap-2"><TrendingDown size={14} className="text-red-500"/> Atenção (Precisão Baixa)</h3>
-                   <div className="space-y-3 overflow-y-auto">
-                      {weakestSubjects.map((s, i) => (
-                          <div key={i} className="group">
-                              <div className="flex justify-between text-xs font-bold mb-1"><span>{s.name}</span><span className="text-red-500">{s.accuracy.toFixed(0)}%</span></div>
-                              <div className="w-full h-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden"><div className="h-full bg-red-500" style={{ width: `${s.accuracy}%` }}></div></div>
-                          </div>
-                      ))}
-                   </div>
-              </div>
-          </div>
-      </div>
-
-      {/* CATALOGO */}
-      <div className="pt-8">
-          <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-black text-zinc-900 dark:text-white flex items-center gap-3"><Database className="text-zinc-400"/> Instalação de Editais</h2>
-              <div className="flex items-center gap-2 px-3 py-1 bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30 rounded-full">
-                  <AlertTriangle size={12} className="text-amber-500" /><span className="text-[10px] font-bold text-amber-700 dark:text-amber-500 uppercase">Gravação</span>
-              </div>
-          </div>
-
-          <div className="bg-white dark:bg-zinc-900 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-xl overflow-hidden divide-y divide-zinc-100 dark:divide-zinc-800">
-              {CATALOGO_EDITAIS.map((edital) => {
-                  const SeedBtn = edital.SeedComponent;
-                  const isInstalled = installedTemplates.includes(edital.id);
-
-                  return (
-                      <div key={edital.id} className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-zinc-50 dark:hover:bg-black/20 transition-colors">
-                          <div className="flex items-center gap-4">
-                              <div className="w-14 h-14 bg-zinc-100 dark:bg-black/40 rounded-xl border border-zinc-200 dark:border-zinc-700 flex items-center justify-center p-2">
-                                  {edital.logo ? <img src={edital.logo} alt={edital.titulo} className="w-full h-full object-contain opacity-80" /> : <FileJson size={24} className="text-zinc-300" />}
-                              </div>
-                              <div>
-                                  <div className="flex items-center gap-2">
-                                      <h4 className="font-bold text-zinc-900 dark:text-white text-base">{edital.titulo}</h4>
-                                      {isInstalled ?
-                                          <span className="text-[9px] font-bold text-emerald-600 bg-emerald-100 dark:bg-emerald-900/30 px-2 py-0.5 rounded-full flex items-center gap-1"><CheckCircle2 size={10} /> ATIVO</span> :
-                                          <span className="text-[9px] font-bold text-zinc-400 bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded-full">NÃO INSTALADO</span>
-                                      }
-                                  </div>
-                                  <p className="text-xs text-zinc-500 mt-0.5 flex items-center gap-1"><Search size={10}/> {edital.banca}</p>
-                              </div>
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                              {/* Botão de Instalação "Seguro" (Intercepta o clique) */}
-                              <SecureInstallWrapper
-                                  isInstalled={isInstalled}
-                                  editalTitle={edital.titulo}
-                                  onRequestInstall={handleInstallRequest}
-                              >
-                                  <SeedBtn isInstalled={isInstalled} onSuccess={refreshData} />
-                              </SecureInstallWrapper>
-
-                              {/* Botão de Deletar com Modal */}
-                              {isInstalled && (
-                                  <button
-                                      onClick={() => handleDeleteRequest(edital.id, edital.titulo)}
-                                      title="Excluir edital do banco"
-                                      className="flex items-center justify-center w-10 h-10 rounded-xl bg-red-50 dark:bg-red-900/20 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/40 hover:text-red-600 transition-colors border border-red-100 dark:border-red-900/50"
-                                  >
-                                      <Trash2 size={16} />
-                                  </button>
-                              )}
-                          </div>
-                      </div>
-                  );
-              })}
-          </div>
-      </div>
-    </div>
-  );
 }
 
 export default AdminPage;
