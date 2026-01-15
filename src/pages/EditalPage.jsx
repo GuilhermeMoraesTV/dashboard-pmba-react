@@ -116,7 +116,7 @@ const getLogoUrl = (cicloData) => {
 
     // 2. Fallback Automático baseado no nome
     const searchString = (cicloData.templateOrigem || cicloData.nome || '').toLowerCase();
-    const siglas = ['pmba', 'ppmg', 'pcba', 'pmse', 'pmal', 'pmgo', 'pmpe', 'aquiraz', 'gcm'];
+    const siglas = ['pmba', 'ppmg', 'pcba', 'pmse', 'pmal', 'pmgo', 'pmpi', 'pmpe', 'aquiraz', 'gcm'];
 
     const encontrada = siglas.find(sigla => searchString.includes(sigla));
 

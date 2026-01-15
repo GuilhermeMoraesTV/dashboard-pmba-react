@@ -62,7 +62,7 @@ const getLogo = (ciclo) => {
     const searchString = (ciclo.templateOrigem || ciclo.nome || '').toLowerCase();
 
     // Lista de siglas conhecidas para fallback (caso o banco não tenha logoUrl)
-    const siglas = ['pmba', 'ppmg', 'pcba', 'pmse', 'pmal', 'pmgo', 'pmpe', 'aquiraz', 'gcm'];
+    const siglas = ['pmba', 'ppmg', 'pcba', 'pmse', 'pmal', 'pmgo', 'pmpe', 'pmpi', 'aquiraz', 'gcm'];
 
     const encontrada = siglas.find(sigla => searchString.includes(sigla));
 

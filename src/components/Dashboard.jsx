@@ -25,6 +25,7 @@ import StudyTimer from '../components/ciclos/StudyTimer';
 import TimerFinishModal from '../components/ciclos/TimerFinishModal';
 import OnboardingTour from '../components/shared/OnboardingTour';
 
+
 const ADMIN_UID = 'OLoJi457GQNE2eTSOcz9DAD6ppZ2';
 const STORAGE_KEY = '@ModoQAP:ActiveSession';
 

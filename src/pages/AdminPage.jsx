@@ -16,7 +16,8 @@ import SeedEditalPMSE from '../components/admin/SeedEditalPMSE';
 import SeedEditalPMGO from '../components/admin/SeedEditalPMGO';
 import SeedEditalGCMAquiraz from '../components/admin/SeedEditalGCMAquiraz';
 import SeedEditalPMAL from '../components/admin/SeedEditalPMAL';
-import SeedEditalPMPE from '../components/admin/SeedEditalPMPE'; // <--- NOVO IMPORT
+import SeedEditalPMPE from '../components/admin/SeedEditalPMPE';
+import SeedEditalPMPI from '../components/admin/SeedEditalPMPI'; // <--- IMPORT ADICIONADO CORRETAMENTE
 
 import {
   ShieldAlert, Database, Users, Activity, Server, Lock,
@@ -33,7 +34,8 @@ const TEMPLATE_IDS = {
     PMSE: 'pmse_soldado',
     PMGO: 'pmgo_soldado',
     PMAL: 'pmal_soldado',
-    PMPE: 'pmpe_soldado', // <--- NOVO ID
+    PMPE: 'pmpe_soldado',
+    PMPI: 'pmpi_soldado', // Corrigido espaço extra no nome
     GCMAquiraz: 'gcm_aquiraz'
 };
 
@@ -334,7 +336,8 @@ function AdminPage() {
     { id: TEMPLATE_IDS.PMSE, titulo: 'Soldado PMSE', banca: 'SELECON', logo: '/logosEditais/logo-pmse.png', SeedComponent: SeedEditalPMSE },
     { id: TEMPLATE_IDS.PMGO, titulo: 'Soldado PMGO', banca: 'Inst. AOCP', logo: '/logosEditais/logo-pmgo.png', SeedComponent: SeedEditalPMGO },
     { id: TEMPLATE_IDS.PMAL, titulo: 'Soldado PMAL', banca: 'Cebraspe', logo: '/logosEditais/logo-pmal.png', SeedComponent: SeedEditalPMAL },
-    { id: TEMPLATE_IDS.PMPE, titulo: 'Soldado PMPE', banca: 'Inst. AOCP', logo: '/logosEditais/logo-pmpe.png', SeedComponent: SeedEditalPMPE }, // <--- NOVO ITEM
+    { id: TEMPLATE_IDS.PMPE, titulo: 'Soldado PMPE', banca: 'Inst. AOCP', logo: '/logosEditais/logo-pmpe.png', SeedComponent: SeedEditalPMPE },
+    { id: TEMPLATE_IDS.PMPI, titulo: 'Soldado PMPI', banca: 'NUCEPE', logo: '/logosEditais/logo-pmpi.png', SeedComponent: SeedEditalPMPI },
     { id: TEMPLATE_IDS.GCMAquiraz, titulo: 'GCM Aquiraz', banca: 'Consulpam', logo: '/logosEditais/logo-aquiraz.png', SeedComponent: SeedEditalGCMAquiraz }
   ];
 
