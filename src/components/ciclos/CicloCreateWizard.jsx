@@ -8,7 +8,7 @@ import {
   ArrowRight, ArrowLeft, Layers, Plus, Trash2,
   Grid, Type, Minus, BookOpen,
   Library, Edit2, ChevronDown, ChevronUp, GripVertical, Search,
-  FileText, Star
+  FileText, Star, Shield, Flame, Lock, Siren, BadgeAlert, Briefcase
 } from 'lucide-react';
 
 // ============================================================================
@@ -48,84 +48,231 @@ const createArc = (start, end, r) => {
 };
 
 // ============================================================================
-// 2. MODAL DE SELEÇÃO DE EDITAL
+// 2. MODAL DE SELEÇÃO DE EDITAL (REFATORADO)
 // ============================================================================
+
+const CATEGORIES_CONFIG = {
+    pm: { label: 'Polícia Militar', icon: Shield, color: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-900/20' },
+    pc: { label: 'Polícia Civil', icon: BadgeAlert, color: 'text-zinc-600 dark:text-zinc-400', bg: 'bg-zinc-100 dark:bg-zinc-800' },
+    pp: { label: 'Polícia Penal', icon: Lock, color: 'text-slate-600 dark:text-slate-400', bg: 'bg-slate-100 dark:bg-slate-800' },
+    cbm: { label: 'Corpo de Bombeiros', icon: Flame, color: 'text-red-600', bg: 'bg-red-50 dark:bg-red-900/20' },
+    gcm: { label: 'Guarda Municipal', icon: Siren, color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
+    outros: { label: 'Outros Concursos', icon: Briefcase, color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-900/20' }
+};
+
+const TemplateSection = ({ categoryKey, items, selectedId, onHighlight, onConfirm }) => {
+    const config = CATEGORIES_CONFIG[categoryKey];
+    const Icon = config.icon;
+
+    const carouselRef = useRef();
+    const [width, setWidth] = useState(0);
+    const [isDragging, setIsDragging] = useState(false);
+
+    useEffect(() => {
+        if(carouselRef.current) {
+            setWidth(carouselRef.current.scrollWidth - carouselRef.current.offsetWidth);
+        }
+    }, [items]);
+
+    return (
+        <div className="mb-2 last:mb-0">
+            {/* Cabeçalho da Seção */}
+            <div className="flex items-center gap-3 mb-1 px-1 sticky left-0">
+                <div className={`p-1.5 rounded-lg ${config.bg} ${config.color}`}>
+                    <Icon size={18} />
+                </div>
+                <h4 className="text-lg font-black text-zinc-800 dark:text-white uppercase tracking-tight">
+                    {config.label}
+                </h4>
+                <span className="text-[10px] font-bold text-zinc-400 bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded-full">
+                    {items.length}
+                </span>
+            </div>
+
+            {/* CARROSSEL */}
+            <motion.div
+                ref={carouselRef}
+                className="cursor-grab active:cursor-grabbing overflow-hidden -mx-4 px-4 py-2" // Margem negativa e padding compensam o corte do hover
+                whileTap={{ cursor: "grabbing" }}
+            >
+                <motion.div
+                    drag="x"
+                    dragConstraints={{ right: 0, left: -width }}
+                    dragElastic={0.1}
+                    dragMomentum={true}
+                    onDragStart={() => setIsDragging(true)}
+                    onDragEnd={() => setTimeout(() => setIsDragging(false), 150)}
+                    className="flex gap-4 w-max"
+                >
+                    {items.map(template => {
+                        const isSelected = selectedId === template.id;
+
+                        return (
+                            <motion.div
+                                key={template.id}
+                                whileHover={{ y: -5, transition: { duration: 0.2 } }}
+                                onTap={() => !isDragging && onHighlight(template)}
+                                className={`
+                                    relative flex flex-col rounded-2xl overflow-hidden group text-left transition-all
+                                    min-w-[160px] w-[160px] h-[240px]
+                                    sm:min-w-[240px] sm:w-[240px] sm:h-[300px]
+                                    flex-shrink-0 select-none cursor-pointer
+                                    ${isSelected
+                                        ? 'bg-red-50/50 dark:bg-red-900/10 border-2 border-red-500 shadow-xl shadow-red-500/10 ring-2 ring-red-500/20'
+                                        : 'bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm hover:border-red-200 dark:hover:border-red-900/30'
+                                    }
+                                `}
+                            >
+                                {/* Área da Logo */}
+                                <div className={`
+                                    h-28 sm:h-40 flex items-center justify-center p-4 relative overflow-hidden transition-colors
+                                    ${isSelected ? 'bg-red-100/50 dark:bg-red-900/20' : 'bg-zinc-50 dark:bg-zinc-800/30 group-hover:bg-red-50 dark:group-hover:bg-red-900/5'}
+                                `}>
+                                    {template.logoUrl ? (
+                                        <img
+                                            src={template.logoUrl}
+                                            alt={template.instituicao}
+                                            draggable="false"
+                                            className="h-full w-full object-contain z-10 drop-shadow-md transition-transform duration-500 group-hover:scale-110"
+                                        />
+                                    ) : (
+                                        <div className="w-14 h-14 sm:w-16 sm:h-16 bg-white dark:bg-zinc-700 rounded-full flex items-center justify-center shadow-sm z-10">
+                                            <Library size={28} className="text-zinc-400 sm:w-8 sm:h-8" />
+                                        </div>
+                                    )}
+                                    <div className="absolute top-2 right-2 z-20">
+                                        <span className="text-[8px] sm:text-[9px] font-black uppercase bg-white/90 dark:bg-black/80 backdrop-blur px-1.5 py-0.5 rounded border border-zinc-200 dark:border-zinc-700 text-zinc-500">
+                                            {template.instituicao || 'Geral'}
+                                        </span>
+                                    </div>
+                                    {isSelected && (
+                                        <div className="absolute top-2 left-2 z-20 bg-red-600 text-white p-1 rounded-full shadow-lg animate-fade-in">
+                                            <CheckCircle2 size={14} strokeWidth={3} />
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Corpo do Card */}
+                                <div className="p-3 flex flex-col flex-1 justify-between">
+                                    <div>
+                                        <h4 className={`font-bold text-xs sm:text-base leading-tight mb-1 line-clamp-2 transition-colors ${isSelected ? 'text-red-600 dark:text-red-400' : 'text-zinc-900 dark:text-white group-hover:text-red-600'}`}>
+                                            {template.titulo}
+                                        </h4>
+                                        <p className="text-[9px] sm:text-[10px] text-zinc-500">
+                                            Banca: <span className="font-semibold text-zinc-700 dark:text-zinc-300">{template.banca || 'N/A'}</span>
+                                        </p>
+                                    </div>
+
+                                    <div className="mt-3 pt-2 border-t border-zinc-100 dark:border-zinc-800/50 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                        <div className="flex items-center gap-1 text-[9px] sm:text-[10px] font-bold text-zinc-400 uppercase">
+                                            <Layers size={10} className="text-red-500 sm:w-3 sm:h-3" />
+                                            <span>{template.disciplinas?.length || 0} Matérias</span>
+                                        </div>
+
+                                        {/* Botão de Ação */}
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                if (!isDragging) {
+                                                    if (isSelected) {
+                                                        onConfirm(template);
+                                                    } else {
+                                                        onHighlight(template);
+                                                    }
+                                                }
+                                            }}
+                                            className={`
+                                                text-[10px] sm:text-[11px] font-bold px-3 py-2 sm:py-1.5 rounded-lg transition-all shadow-sm flex items-center justify-center gap-1 w-full sm:w-auto
+                                                ${isSelected
+                                                    ? 'bg-red-600 text-white hover:bg-red-700 hover:shadow-red-500/30'
+                                                    : 'bg-zinc-900 dark:bg-zinc-700 text-white group-hover:bg-red-600'
+                                                }
+                                            `}
+                                        >
+                                            {isSelected ? (
+                                                <>Confirmar <ArrowRight size={12} /></>
+                                            ) : (
+                                                'Selecionar'
+                                            )}
+                                        </button>
+                                    </div>
+                                </div>
+                            </motion.div>
+                        );
+                    })}
+                </motion.div>
+            </motion.div>
+        </div>
+    );
+};
+
 const TemplateSelectionModal = ({ isOpen, onClose, onSelect, templates, loading }) => {
     if (!isOpen) return null;
+
+    const [localSelectedId, setLocalSelectedId] = useState(null);
+
+    const handleHighlight = (template) => {
+        setLocalSelectedId(prev => prev === template.id ? null : template.id);
+    };
+
+    const categorizedTemplates = useMemo(() => {
+        const groups = { pm: [], pc: [], pp: [], cbm: [], gcm: [], outros: [] };
+        templates.forEach(t => {
+            const textToCheck = (t.titulo + ' ' + (t.instituicao || '')).toLowerCase();
+            if (textToCheck.includes('pm') || textToCheck.includes('policia militar') || textToCheck.includes('polícia militar')) groups.pm.push(t);
+            else if (textToCheck.includes('pc') || textToCheck.includes('policia civil') || textToCheck.includes('polícia civil')) groups.pc.push(t);
+            else if (textToCheck.includes('pp') || textToCheck.includes('policia penal') || textToCheck.includes('polícia penal') || textToCheck.includes('penal')) groups.pp.push(t);
+            else if (textToCheck.includes('cbm') || textToCheck.includes('bombeiro')) groups.cbm.push(t);
+            else if (textToCheck.includes('gcm') || textToCheck.includes('guarda') || textToCheck.includes('cgm')) groups.gcm.push(t);
+            else groups.outros.push(t);
+        });
+        return groups;
+    }, [templates]);
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
             <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                className="bg-zinc-50 dark:bg-zinc-900 w-full max-w-6xl max-h-[85vh] h-full rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-2xl flex flex-col overflow-hidden"
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="bg-zinc-50 dark:bg-zinc-950 w-full max-w-7xl h-[85vh] rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-2xl flex flex-col overflow-hidden relative"
             >
-                <div className="p-4 sm:p-6 border-b border-zinc-200 dark:border-zinc-800 flex justify-between items-center bg-white dark:bg-zinc-900 z-10 shrink-0">
+                <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 flex justify-between items-center bg-white dark:bg-zinc-900 z-10 shrink-0">
                     <div>
-                        <h3 className="text-xl sm:text-2xl font-black text-zinc-900 dark:text-white flex items-center gap-2 tracking-tight">
-                            <Library className="text-red-600" /> Editais
+                        <h3 className="text-lg sm:text-2xl font-black text-zinc-900 dark:text-white flex items-center gap-2 tracking-tight">
+                            <Library className="text-red-600 w-5 h-5 sm:w-6 sm:h-6" /> Catálogo
                         </h3>
-                        <p className="text-xs sm:text-sm text-zinc-500 font-medium mt-1">Selecione um edital verticalizado para importar a estrutura.</p>
+                        <p className="text-xs text-zinc-500 font-medium">Selecione o concurso para importar.</p>
                     </div>
                     <button onClick={onClose} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-colors text-zinc-400 hover:text-red-500">
-                        <X size={24} />
+                        <X size={20} />
                     </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-4 sm:p-6 custom-scrollbar bg-zinc-100 dark:bg-black/20">
+                <div className="flex-1 overflow-y-auto p-3 sm:p-8 custom-scrollbar bg-zinc-50/50 dark:bg-black/20">
                     {loading ? (
-                        <div className="flex flex-col items-center justify-center h-64 gap-4">
-                            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-red-600"></div>
-                            <span className="text-zinc-500 text-sm font-bold uppercase tracking-widest">Carregando dados táticos...</span>
+                        <div className="flex flex-col items-center justify-center h-full gap-4 opacity-50">
+                            <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-red-600"></div>
+                            <span className="text-zinc-500 text-xs font-bold uppercase tracking-widest">Carregando catálogo...</span>
                         </div>
                     ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 pb-10">
-                            {templates.map(template => (
-                                <motion.button
-                                    key={template.id}
-                                    whileHover={{ y: -5, boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)" }}
-                                    onClick={() => onSelect(template)}
-                                    className="relative flex flex-col bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden group text-left h-full transition-all min-h-[180px]"
-                                >
-                                    <div className="h-28 sm:h-32 bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center p-6 relative overflow-hidden group-hover:bg-red-50 dark:group-hover:bg-red-900/10 transition-colors">
-                                        <div className="absolute top-0 right-0 p-2 opacity-5">
-                                            <FileText size={100} />
-                                        </div>
-                                        {template.logoUrl ? (
-                                            <img src={template.logoUrl} alt={template.instituicao} className="h-full w-auto object-contain z-10" />
-                                        ) : (
-                                            <div className="w-14 h-14 bg-white dark:bg-zinc-700 rounded-full flex items-center justify-center shadow-sm z-10">
-                                                <Library size={28} className="text-zinc-400" />
-                                            </div>
-                                        )}
-                                        <div className="absolute top-3 right-3">
-                                            <span className="text-[10px] font-black uppercase bg-white/90 dark:bg-black/80 backdrop-blur px-2 py-1 rounded border border-zinc-200 dark:border-zinc-700 text-zinc-500">
-                                                {template.instituicao || 'Diversos'}
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    <div className="p-4 flex flex-col flex-1">
-                                        <h4 className="font-bold text-zinc-900 dark:text-white text-base sm:text-lg leading-tight mb-2 group-hover:text-red-600 transition-colors">
-                                            {template.titulo}
-                                        </h4>
-                                        <p className="text-xs text-zinc-500 mb-4 line-clamp-2 leading-relaxed">
-                                            {template.banca ? `Banca: ${template.banca}` : 'Template genérico para estudos.'}
-                                        </p>
-
-                                        <div className="mt-auto pt-3 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
-                                            <div className="flex items-center gap-2 text-xs font-semibold text-zinc-500">
-                                                <Layers size={14} className="text-red-500" />
-                                                <span>{template.disciplinas?.length || 0} Disciplinas</span>
-                                            </div>
-                                            <span className="text-[11px] sm:text-[13px] font-bold text-white bg-zinc-900 dark:bg-zinc-700 px-3 py-1.5 rounded-lg group-hover:bg-red-600 transition-colors">
-                                                Selecionar
-                                            </span>
-                                        </div>
-                                    </div>
-                                </motion.button>
+                        <div className="space-y-6 pb-10">
+                            {Object.keys(categorizedTemplates).map(key => (
+                                categorizedTemplates[key].length > 0 && (
+                                    <TemplateSection
+                                        key={key}
+                                        categoryKey={key}
+                                        items={categorizedTemplates[key]}
+                                        selectedId={localSelectedId}
+                                        onHighlight={handleHighlight}
+                                        onConfirm={onSelect}
+                                    />
+                                )
                             ))}
+
+                            {Object.values(categorizedTemplates).every(arr => arr.length === 0) && (
+                                <div className="text-center py-20 text-zinc-400 text-sm">Nenhum edital encontrado.</div>
+                            )}
                         </div>
                     )}
                 </div>
@@ -216,7 +363,7 @@ const ScheduleGrid = ({ availability, setAvailability }) => {
     <div className="h-full flex flex-col select-none">
       <div className="grid grid-cols-8 gap-1 pr-2 mb-2 flex-shrink-0 bg-white dark:bg-zinc-950 pt-2 pb-2 sticky top-0 z-10 border-b border-zinc-200 dark:border-zinc-800">
         <div className="text-[10px] font-black text-zinc-300 uppercase text-center pt-2">H</div>
-        {days.map((d, i) => (<div key={i} className="text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase text-center">{d}</div>))}
+        {days.map((d, i) => (<div key={i} className="text-[10px] sm:text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase text-center">{d}</div>))}
       </div>
 
       <div className="overflow-y-auto custom-scrollbar flex-1 pr-1 max-h-[300px]">
@@ -236,7 +383,7 @@ const ScheduleGrid = ({ availability, setAvailability }) => {
                         onTouchStart={(e) => handleTouchStart(e, dayIndex, h)}
                         onTouchMove={handleTouchMove}
                         onTouchEnd={handleTouchEnd}
-                        className={`h-9 w-full rounded transition-all duration-100 border flex items-center justify-center cursor-pointer touch-none
+                        className={`h-8 sm:h-9 w-full rounded transition-all duration-100 border flex items-center justify-center cursor-pointer touch-none
                             ${isSelected
                                 ? 'bg-emerald-500 border-emerald-600 shadow-[0_0_10px_rgba(16,185,129,0.3)]'
                                 : 'bg-zinc-100 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 hover:border-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/20'
@@ -515,7 +662,6 @@ function CicloCreateWizard({ onClose, user, onCicloAtivado }) {
       });
   }, [disciplinas, horasTotais]);
 
-  // Normalização dos Assuntos
   const handleSelectTemplate = (template) => {
       setSelectedTemplateId(template.id);
       setShowTemplateModal(false);
@@ -558,7 +704,7 @@ function CicloCreateWizard({ onClose, user, onCicloAtivado }) {
           { id: `new-${Date.now()}`, nome: nomeNovaDisciplina.trim(), peso: novoPeso, assuntos: [] }
       ]);
       setNomeNovaDisciplina('');
-      setNovoPeso(3); // Reseta para média
+      setNovoPeso(3);
   };
 
   const handleUpdateDisciplina = (id, newData) => {
@@ -603,7 +749,6 @@ function CicloCreateWizard({ onClose, user, onCicloAtivado }) {
 
       <motion.div
         layout
-        // CORREÇÃO AQUI: 'h-[80vh]' fixo no passo 3 para garantir scroll, 'h-auto' nos outros para ser compacto.
         className={`bg-white dark:bg-zinc-950 rounded-3xl shadow-2xl border border-zinc-200 dark:border-zinc-800 w-full ${maxWidthClass} flex flex-col relative transition-all duration-500 max-h-[85vh] m-4 ${step === 3 ? 'h-[80vh]' : 'h-auto'}`}
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
@@ -631,7 +776,7 @@ function CicloCreateWizard({ onClose, user, onCicloAtivado }) {
             <button onClick={onClose} className="p-2 text-zinc-400 hover:text-red-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-all"><X size={20} /></button>
         </div>
 
-        {/* BODY (SCROLL ESTRUTURAL CORRIGIDO) */}
+        {/* BODY */}
         <div className={`flex-1 relative z-10 flex flex-col min-h-0 ${step === 3 ? 'overflow-hidden' : 'overflow-y-auto custom-scrollbar'}`}>
           <AnimatePresence mode="wait">
 
@@ -663,9 +808,8 @@ function CicloCreateWizard({ onClose, user, onCicloAtivado }) {
                     </div>
                 ) : (
                     <div className="w-full max-w-md text-center">
-                       <button onClick={() => setSelectedTemplateId(null)} className="mb-6 text-xs font-bold text-zinc-400 hover:text-zinc-600 flex items-center justify-center gap-1 mx-auto hover:underline"><ArrowLeft size={12}/> Trocar Seleção</button>
                        <h3 className="text-xl font-bold text-zinc-800 dark:text-white mb-2">Nome do Ciclo</h3>
-                       <div className="relative group">
+                       <div className="relative group mb-6">
                            <input type="text" value={nomeCiclo} onChange={(e) => setNomeCiclo(e.target.value)} className="w-full p-4 text-xl text-center font-bold border-2 border-zinc-200 dark:border-zinc-800 rounded-2xl bg-zinc-50 dark:bg-zinc-900 focus:border-red-500 focus:ring-4 focus:ring-red-500/10 outline-none transition-all placeholder:text-zinc-300" placeholder="Ex: CFO PMBA 2025" autoFocus />
                             <Edit2 size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 opacity-50 group-focus-within:opacity-100 transition-opacity pointer-events-none" />
                        </div>
@@ -682,6 +826,14 @@ function CicloCreateWizard({ onClose, user, onCicloAtivado }) {
                         <button onClick={() => setMetodoCargaHoraria('manual')} className={`px-4 py-2 rounded-lg text-xs font-bold uppercase transition-all flex items-center gap-2 ${metodoCargaHoraria === 'manual' ? 'bg-white dark:bg-zinc-800 shadow text-red-600 dark:text-white' : 'text-zinc-400'}`}><Type size={14}/> Manual</button>
                     </div>
                 </div>
+
+                {/* SUBTÍTULO DA GRADE HORÁRIA */}
+                {metodoCargaHoraria === 'grade' && (
+                    <p className="text-xs text-zinc-500 text-center mb-4 px-4 font-medium">
+                        Selecione ou arraste os horários livres na semana para calcular asua carga horaria semanal de estudos.
+                    </p>
+                )}
+
                 <div className="flex-1 flex flex-col">
                     {metodoCargaHoraria === 'manual' ? (
                          <div className="flex-1 flex flex-col items-center justify-center gap-6 min-h-[250px]">
@@ -788,19 +940,36 @@ function CicloCreateWizard({ onClose, user, onCicloAtivado }) {
           </AnimatePresence>
         </div>
 
-        {/* FOOTER */}
-        <div className="flex-shrink-0 p-4 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 rounded-b-3xl z-20">
-             <div className="flex justify-between items-center">
-                 {step > 1 ? (
-                     <button onClick={() => setStep(s => s - 1)} className="px-4 py-3 rounded-xl text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"><ArrowLeft size={20}/></button>
+        {/* FOOTER REFATORADO PARA MOBILE */}
+        <div className="flex-shrink-0 p-3 sm:p-4 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 rounded-b-3xl z-20">
+             <div className="flex justify-between items-center gap-2">
+
+                 {/* BOTÃO VOLTAR / CANCELAR */}
+                 {step > 1 || (step === 1 && selectedTemplateId) ? (
+                     <button
+                        onClick={() => {
+                            if (step === 1 && selectedTemplateId) {
+                                setSelectedTemplateId(null);
+                            } else {
+                                setStep(s => s - 1);
+                            }
+                        }}
+                        className="px-3 py-2 sm:px-4 sm:py-3 rounded-xl text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors flex items-center gap-2 font-bold text-[10px] sm:text-xs uppercase"
+                     >
+                        <ArrowLeft size={14} className="sm:w-4 sm:h-4"/> <span className="hidden sm:inline">Voltar</span>
+                     </button>
                  ) : (
-                     <button onClick={onClose} className="px-4 py-3 text-sm font-bold text-zinc-400">Cancelar</button>
+                     <button onClick={onClose} className="px-3 py-2 sm:px-4 sm:py-3 text-[10px] sm:text-xs font-bold uppercase text-zinc-400 hover:text-zinc-600">Cancelar</button>
                  )}
-                 {step >= 2 && <div className="flex flex-col items-center"><span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Total</span><span className="text-2xl font-black text-emerald-600 dark:text-emerald-500 leading-none">{horasTotais}h</span></div>}
+
+                 {/* INDICADOR DE TOTAL (Apenas steps > 1) */}
+                 {step >= 2 && <div className="flex flex-col items-center"><span className="text-[8px] sm:text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Total</span><span className="text-lg sm:text-2xl font-black text-emerald-600 dark:text-emerald-500 leading-none">{horasTotais}h</span></div>}
+
+                 {/* BOTÃO DE AVANÇAR */}
                  {step < 3 ? (
-                     <button onClick={() => setStep(s => s + 1)} disabled={step === 1 ? (!selectedTemplateId && !nomeCiclo) : horasTotais <= 0} className="px-6 py-3 rounded-xl text-sm font-bold uppercase tracking-wide text-white bg-zinc-900 dark:bg-zinc-100 dark:text-zinc-900 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed hover:translate-x-1 transition-all flex items-center gap-2">Próximo <ArrowRight size={16}/></button>
+                     <button onClick={() => setStep(s => s + 1)} disabled={step === 1 ? (!selectedTemplateId && !nomeCiclo) : horasTotais <= 0} className="px-4 py-2 sm:px-6 sm:py-3 rounded-xl text-[10px] sm:text-sm font-bold uppercase tracking-wide text-white bg-zinc-900 dark:bg-zinc-100 dark:text-zinc-900 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed hover:translate-x-1 transition-all flex items-center gap-2">Próximo <ArrowRight size={14} className="sm:w-4 sm:h-4"/></button>
                  ) : (
-                     <button onClick={handleFinalSubmit} disabled={disciplinas.length === 0 || loading} className="px-6 py-3 rounded-xl text-sm font-bold uppercase tracking-wide text-white bg-red-600 hover:bg-red-700 shadow-lg shadow-red-600/30 hover:-translate-y-0.5 transition-all disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2">{loading ? "Criando..." : <><CheckCircle2 size={18}/> Finalizar</>}</button>
+                     <button onClick={handleFinalSubmit} disabled={disciplinas.length === 0 || loading} className="px-4 py-2 sm:px-6 sm:py-3 rounded-xl text-[10px] sm:text-sm font-bold uppercase tracking-wide text-white bg-red-600 hover:bg-red-700 shadow-lg shadow-red-600/30 hover:-translate-y-0.5 transition-all disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2">{loading ? "Criando..." : <><CheckCircle2 size={16} className="sm:w-[18px] sm:h-[18px]"/> Finalizar</>}</button>
                  )}
              </div>
         </div>

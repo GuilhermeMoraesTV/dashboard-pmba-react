@@ -67,18 +67,51 @@ const formatTime = (min) => {
     return `${m}m`;
 };
 
+// --- FUNÇÃO DE LOGO OTIMIZADA E AUTOMÁTICA ---
 const getLogo = (ciclo) => {
     if(!ciclo) return null;
+    // Se o ciclo já tiver uma URL direta salva no banco, usa ela
     if(ciclo.logoUrl) return ciclo.logoUrl;
+
     const searchString = (ciclo.templateOrigem || ciclo.nome || '').toLowerCase();
-    if(searchString.includes('pmba')) return '/logosEditais/logo-pmba.png';
-    if(searchString.includes('ppmg')) return '/logosEditais/logo-ppmg.png';
-    if(searchString.includes('pcba')) return '/logosEditais/logo-pcba.png';
-    if(searchString.includes('pmse')) return '/logosEditais/logo-pmse.png';
-    if(searchString.includes('pmgo')) return '/logosEditais/logo-pmgo.png';
-    if(searchString.includes('pmal')) return '/logosEditais/logo-pmal.png';
-    if(searchString.includes('pmpe')) return '/logosEditais/logo-pmpe.png';
-    if(searchString.includes('aquiraz') || searchString.includes('gcm')) return '/logosEditais/logo-aquiraz.png';
+
+    // 1. Lista de todas as UFs do Brasil
+    const ufs = [
+        'ac', 'al', 'ap', 'am', 'ba', 'ce', 'df', 'es', 'go', 'ma', 'mt', 'ms', 'mg',
+        'pa', 'pb', 'pr', 'pe', 'pi', 'erj', 'rn', 'rs', 'ro', 'rr', 'sc', 'sp', 'se', 'to'
+    ];
+
+    // 2. Prefixos das corporações (PM, PC, Bombeiros, Polícia Penal)
+    const prefixos = ['pm', 'pc', 'cbm', 'bm', 'pp'];
+
+    // 3. Casos especiais manuais (Federais ou Municipais especificos)
+    const especiais = ['gcm', 'aquiraz', 'pf', 'prf', 'depen', 'eb', 'fab', 'marinha'];
+
+    // Gera a lista com todas as combinações possíveis (ex: pmba, pcsp, cbmmg...)
+    let todasSiglas = [...especiais];
+
+    prefixos.forEach(prefixo => {
+        ufs.forEach(uf => {
+            todasSiglas.push(`${prefixo}${uf}`);
+        });
+    });
+
+    // Ordena por tamanho para garantir que siglas maiores tenham prioridade na busca
+    todasSiglas.sort((a, b) => b.length - a.length);
+
+    // Tenta encontrar alguma sigla dentro do nome do ciclo
+    const encontrada = todasSiglas.find(sigla => searchString.includes(sigla));
+
+    if (encontrada) {
+        // Exceção visual para GCM Aquiraz (mantendo sua lógica original)
+        if(encontrada === 'gcm' || encontrada === 'aquiraz') return '/logosEditais/logo-aquiraz.png';
+
+        // --- RETORNO AUTOMÁTICO ---
+        // Retorna o caminho do arquivo baseado na sigla encontrada.
+        // Ex: achou 'pmba' -> retorna '/logosEditais/logo-pmba.png'
+        return `/logosEditais/logo-${encontrada}.png`;
+    }
+
     return null;
 };
 
@@ -87,7 +120,7 @@ const getLogo = (ciclo) => {
 const MiniCalendar = ({ records, selectedDate, onSelectDate }) => {
     const [currentMonth, setCurrentMonth] = useState(new Date());
 
-    // Marca TODOS os dias que têm registros no ciclo (independente do filtro)
+    // Marca TODOS os dias que têm registros no ciclo
     const daysWithData = useMemo(() => {
         const map = {};
         records.forEach(r => { if(r.data) map[r.data] = true; });
@@ -110,7 +143,8 @@ const MiniCalendar = ({ records, selectedDate, onSelectDate }) => {
         const mStr = String(d.getMonth() + 1).padStart(2, '0');
         const dStr = String(d.getDate()).padStart(2, '0');
         const dateStr = `${y}-${mStr}-${dStr}`;
-        days.push({ dateObj: d, dateStr });
+        const dateObj = new Date(year, month, i);
+        days.push({ dateObj, dateStr });
     }
 
     const handlePrevMonth = () => setCurrentMonth(new Date(year, month - 1, 1));
@@ -150,7 +184,7 @@ const HistoryItemAccordion = ({ disciplinaNome, records, onEdit, onDelete }) => 
     const [isOpen, setIsOpen] = useState(false);
     const totalMinutos = records.reduce((acc, r) => acc + (r.tempoEstudadoMinutos || 0), 0);
     const totalQuestoes = records.reduce((acc, r) => acc + (r.questoesFeitas || 0), 0);
-    // Data para o cabeçalho (pega do primeiro registro pois estão agrupados)
+    // Data para o cabeçalho
     const dateStr = records[0]?.data ? parseDateLocal(records[0].data).toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'}) : '';
 
     return (
@@ -453,7 +487,15 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
 
   useEffect(() => { if (cicloLoaded && disciplinasLoaded && registrosLoaded) setLoading(false); }, [cicloLoaded, disciplinasLoaded, registrosLoaded]);
 
-  const registrosAtivosDoCiclo = useMemo(() => allRegistrosEstudo.filter(reg => reg.cicloId === cicloId && !reg.conclusaoId), [allRegistrosEstudo, cicloId]);
+  // 1. Registros APENAS da semana atual (para barra de progresso e estatísticas da tela principal)
+  const registrosAtivosDaSemana = useMemo(() =>
+    allRegistrosEstudo.filter(reg => reg.cicloId === cicloId && !reg.conclusaoId),
+  [allRegistrosEstudo, cicloId]);
+
+  // 2. Registros de TODO O HISTÓRICO do ciclo (para o Modal de Histórico e Calendário)
+  const registrosHistoricoCompleto = useMemo(() =>
+    allRegistrosEstudo.filter(reg => reg.cicloId === cicloId),
+  [allRegistrosEstudo, cicloId]);
 
   const { totalEstudado, totalMeta, progressoGeral, registrosPorDisciplina } = useMemo(() => {
     if (!disciplinas.length) return { totalEstudado: 0, totalMeta: 0, progressoGeral: 0, registrosPorDisciplina: {} };
@@ -461,7 +503,9 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
     const totalMetaCalc = Math.round(totalMetaRaw);
     const registrosPorDisciplina = {};
     let totalEstudadoCalc = 0;
-    registrosAtivosDoCiclo.forEach(reg => {
+
+    // Usa registros da semana para calcular meta
+    registrosAtivosDaSemana.forEach(reg => {
         const minutos = Number(reg.tempoEstudadoMinutos);
         totalEstudadoCalc += minutos;
         const discId = reg.disciplinaId;
@@ -471,7 +515,7 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
     });
     const prog = totalMetaCalc > 0 ? (totalEstudadoCalc / totalMetaCalc) * 100 : 0;
     return { totalEstudado: Math.round(totalEstudadoCalc), totalMeta: totalMetaCalc, progressoGeral: prog, registrosPorDisciplina };
-  }, [disciplinas, registrosAtivosDoCiclo]);
+  }, [disciplinas, registrosAtivosDaSemana]);
 
   const isAllDisciplinesMet = useMemo(() => {
       if (!ciclo?.ativo || !disciplinas.length || totalMeta === 0) return false;
@@ -620,7 +664,7 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
                   onViewDetails={handleViewDetails}
                   onStartStudy={handleStartStudy}
                   disciplinas={disciplinas.map(d => ({ ...d, progressoEstudadoMinutos: registrosPorDisciplina[d.id] || 0 }))}
-                  registrosEstudo={registrosAtivosDoCiclo}
+                  registrosEstudo={registrosAtivosDaSemana}
                   viewMode={'total'}
                   ciclo={ciclo}
               />
@@ -677,8 +721,9 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
         {disciplinaEmDetalhe && <DisciplinaDetalheModal disciplina={disciplinaEmDetalhe} registrosEstudo={registrosAtivosDoCiclo} cicloId={cicloId} user={user.uid} onClose={() => { setDisciplinaEmDetalhe(null); setSelectedDisciplinaId(null); }} onQuickAddTopic={openRegistroModalWithTopic} />}
         {showRegistroModal && <RegistroEstudoModal onClose={() => setShowRegistroModal(false)} addRegistroEstudo={addRegistroEstudo} cicloId={cicloId} userId={user.uid} disciplinasDoCiclo={disciplinas} initialData={registroPreenchido} />}
 
-        {/* HISTÓRICO E AÇÕES */}
-        {showHistoryModal && <CicloHistoryModal isOpen={showHistoryModal} onClose={() => setShowHistoryModal(false)} registros={registrosAtivosDoCiclo} onDeleteRequest={(r) => setRecordToDelete(r)} onEditRequest={(r) => setRecordToEdit(r)} />}
+        {/* HISTÓRICO E AÇÕES - USANDO A NOVA VARIÁVEL 'registrosHistoricoCompleto' */}
+        {showHistoryModal && <CicloHistoryModal isOpen={showHistoryModal} onClose={() => setShowHistoryModal(false)} registros={registrosHistoricoCompleto} onDeleteRequest={(r) => setRecordToDelete(r)} onEditRequest={(r) => setRecordToEdit(r)} />}
+
         {recordToDelete && <DeleteConfirmationModal isOpen={!!recordToDelete} onClose={() => setRecordToDelete(null)} onConfirm={handleConfirmDeleteRegistro} />}
         {recordToEdit && <QuickEditRecordModal record={recordToEdit} isOpen={!!recordToEdit} onClose={() => setRecordToEdit(null)} onSave={handleUpdateRegistro} />}
       </AnimatePresence>

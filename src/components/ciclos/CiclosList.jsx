@@ -52,25 +52,48 @@ function ModalConfirmacaoArquivamento({ ciclo, onClose, onConfirm, loading }) {
   );
 }
 
-// --- FUNÇÃO DE LOGO AUTOMÁTICA ---
+// --- FUNÇÃO DE LOGO OTIMIZADA E AUTOMÁTICA ---
 const getLogo = (ciclo) => {
-    // 1. Prioridade Absoluta: Se o banco de dados tem a URL, usa ela.
-    // Isso torna o sistema automático para novos editais instalados pelo Admin.
+    if(!ciclo) return null;
+    // Se o ciclo já tiver uma URL direta salva no banco, usa ela
     if(ciclo.logoUrl) return ciclo.logoUrl;
 
-    // 2. Fallback Inteligente: Tenta adivinhar baseado no nome
     const searchString = (ciclo.templateOrigem || ciclo.nome || '').toLowerCase();
 
-    // Lista de siglas conhecidas para fallback (caso o banco não tenha logoUrl)
-    const siglas = ['pmba', 'ppmg', 'pcba', 'pmse', 'pmal', 'pmgo', 'pmpe', 'pmpi', 'aquiraz', 'gcm'];
+    // 1. Lista de todas as UFs do Brasil
+    const ufs = [
+        'ac', 'al', 'ap', 'am', 'ba', 'ce', 'df', 'es', 'go', 'ma', 'mt', 'ms', 'mg',
+        'pa', 'pb', 'pr', 'pe', 'pi', 'erj', 'rn', 'rs', 'ro', 'rr', 'sc', 'sp', 'se', 'to'
+    ];
 
-    const encontrada = siglas.find(sigla => searchString.includes(sigla));
+    // 2. Prefixos das corporações (PM, PC, Bombeiros, Polícia Penal)
+    const prefixos = ['pm', 'pc', 'cbm', 'bm', 'pp'];
+
+    // 3. Casos especiais manuais (Federais ou Municipais especificos)
+    const especiais = ['gcm', 'aquiraz', 'pf', 'prf', 'depen', 'eb', 'fab', 'marinha'];
+
+    // Gera a lista com todas as combinações possíveis (ex: pmba, pcsp, cbmmg...)
+    let todasSiglas = [...especiais];
+
+    prefixos.forEach(prefixo => {
+        ufs.forEach(uf => {
+            todasSiglas.push(`${prefixo}${uf}`);
+        });
+    });
+
+    // Ordena por tamanho para garantir que siglas maiores tenham prioridade na busca
+    todasSiglas.sort((a, b) => b.length - a.length);
+
+    // Tenta encontrar alguma sigla dentro do nome do ciclo
+    const encontrada = todasSiglas.find(sigla => searchString.includes(sigla));
 
     if (encontrada) {
-        // Correção para GCM Aquiraz que tem nome diferente do padrão
+        // Exceção visual para GCM Aquiraz (mantendo sua lógica original)
         if(encontrada === 'gcm' || encontrada === 'aquiraz') return '/logosEditais/logo-aquiraz.png';
 
-        // Padrão: /logosEditais/logo-{sigla}.png
+        // --- RETORNO AUTOMÁTICO ---
+        // Retorna o caminho do arquivo baseado na sigla encontrada.
+        // Ex: achou 'pmba' -> retorna '/logosEditais/logo-pmba.png'
         return `/logosEditais/logo-${encontrada}.png`;
     }
 
