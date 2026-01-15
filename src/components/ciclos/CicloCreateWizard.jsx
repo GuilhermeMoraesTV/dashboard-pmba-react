@@ -23,7 +23,6 @@ const PESO_CONFIG = {
     5: { label: 'Máxima', description: 'Prioridade Total', color: 'text-red-600', fill: 'fill-red-600', bg: 'bg-red-50' },
 };
 
-// --- NOVO UTILITÁRIO DE FORMATAÇÃO DE HORAS ---
 const formatHoursToTime = (decimalHours) => {
   if (!decimalHours || isNaN(decimalHours)) return '0h';
   const totalMinutes = Math.round(decimalHours * 60);
@@ -60,44 +59,44 @@ const TemplateSelectionModal = ({ isOpen, onClose, onSelect, templates, loading 
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
-                className="bg-zinc-50 dark:bg-zinc-900 w-full max-w-6xl h-[85vh] rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-2xl flex flex-col overflow-hidden"
+                className="bg-zinc-50 dark:bg-zinc-900 w-full max-w-6xl max-h-[85vh] h-full rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-2xl flex flex-col overflow-hidden"
             >
-                <div className="p-6 border-b border-zinc-200 dark:border-zinc-800 flex justify-between items-center bg-white dark:bg-zinc-900 z-10 shrink-0">
+                <div className="p-4 sm:p-6 border-b border-zinc-200 dark:border-zinc-800 flex justify-between items-center bg-white dark:bg-zinc-900 z-10 shrink-0">
                     <div>
-                        <h3 className="text-2xl font-black text-zinc-900 dark:text-white flex items-center gap-2 tracking-tight">
-                            <Library className="text-red-600" /> BASE DE CONHECIMENTO
+                        <h3 className="text-xl sm:text-2xl font-black text-zinc-900 dark:text-white flex items-center gap-2 tracking-tight">
+                            <Library className="text-red-600" /> Editais
                         </h3>
-                        <p className="text-sm text-zinc-500 font-medium mt-1">Selecione um edital verticalizado para importar a estrutura.</p>
+                        <p className="text-xs sm:text-sm text-zinc-500 font-medium mt-1">Selecione um edital verticalizado para importar a estrutura.</p>
                     </div>
                     <button onClick={onClose} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-colors text-zinc-400 hover:text-red-500">
                         <X size={24} />
                     </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-zinc-100 dark:bg-black/20">
+                <div className="flex-1 overflow-y-auto p-4 sm:p-6 custom-scrollbar bg-zinc-100 dark:bg-black/20">
                     {loading ? (
                         <div className="flex flex-col items-center justify-center h-64 gap-4">
                             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-red-600"></div>
                             <span className="text-zinc-500 text-sm font-bold uppercase tracking-widest">Carregando dados táticos...</span>
                         </div>
                     ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-10">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 pb-10">
                             {templates.map(template => (
                                 <motion.button
                                     key={template.id}
                                     whileHover={{ y: -5, boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)" }}
                                     onClick={() => onSelect(template)}
-                                    className="relative flex flex-col bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden group text-left h-full transition-all min-h-[200px]"
+                                    className="relative flex flex-col bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden group text-left h-full transition-all min-h-[180px]"
                                 >
-                                    <div className="h-32 bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center p-6 relative overflow-hidden group-hover:bg-red-50 dark:group-hover:bg-red-900/10 transition-colors">
+                                    <div className="h-28 sm:h-32 bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center p-6 relative overflow-hidden group-hover:bg-red-50 dark:group-hover:bg-red-900/10 transition-colors">
                                         <div className="absolute top-0 right-0 p-2 opacity-5">
-                                            <FileText size={120} />
+                                            <FileText size={100} />
                                         </div>
                                         {template.logoUrl ? (
                                             <img src={template.logoUrl} alt={template.instituicao} className="h-full w-auto object-contain z-10" />
                                         ) : (
-                                            <div className="w-16 h-16 bg-white dark:bg-zinc-700 rounded-full flex items-center justify-center shadow-sm z-10">
-                                                <Library size={32} className="text-zinc-400" />
+                                            <div className="w-14 h-14 bg-white dark:bg-zinc-700 rounded-full flex items-center justify-center shadow-sm z-10">
+                                                <Library size={28} className="text-zinc-400" />
                                             </div>
                                         )}
                                         <div className="absolute top-3 right-3">
@@ -107,21 +106,21 @@ const TemplateSelectionModal = ({ isOpen, onClose, onSelect, templates, loading 
                                         </div>
                                     </div>
 
-                                    <div className="p-5 flex flex-col flex-1">
-                                        <h4 className="font-bold text-zinc-900 dark:text-white text-lg leading-tight mb-2 group-hover:text-red-600 transition-colors">
+                                    <div className="p-4 flex flex-col flex-1">
+                                        <h4 className="font-bold text-zinc-900 dark:text-white text-base sm:text-lg leading-tight mb-2 group-hover:text-red-600 transition-colors">
                                             {template.titulo}
                                         </h4>
                                         <p className="text-xs text-zinc-500 mb-4 line-clamp-2 leading-relaxed">
                                             {template.banca ? `Banca: ${template.banca}` : 'Template genérico para estudos.'}
                                         </p>
 
-                                        <div className="mt-auto pt-4 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
+                                        <div className="mt-auto pt-3 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
                                             <div className="flex items-center gap-2 text-xs font-semibold text-zinc-500">
                                                 <Layers size={14} className="text-red-500" />
                                                 <span>{template.disciplinas?.length || 0} Disciplinas</span>
                                             </div>
-                                            <span className="text-[13px] font-bold text-white bg-zinc-900 dark:bg-zinc-700 px-3 py-1.5 rounded-lg group-hover:bg-red-600 transition-colors">
-                                                Selecionar Edital
+                                            <span className="text-[11px] sm:text-[13px] font-bold text-white bg-zinc-900 dark:bg-zinc-700 px-3 py-1.5 rounded-lg group-hover:bg-red-600 transition-colors">
+                                                Selecionar
                                             </span>
                                         </div>
                                     </div>
@@ -220,7 +219,7 @@ const ScheduleGrid = ({ availability, setAvailability }) => {
         {days.map((d, i) => (<div key={i} className="text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase text-center">{d}</div>))}
       </div>
 
-      <div className="overflow-y-auto custom-scrollbar flex-1 pr-1 h-[350px]">
+      <div className="overflow-y-auto custom-scrollbar flex-1 pr-1 max-h-[300px]">
         <div className="space-y-1 pb-10">
           {hours.map((h) => (
             <div key={h} className="grid grid-cols-8 gap-1 items-center">
@@ -294,7 +293,6 @@ const CyclePreview = ({ disciplinas, totalHours }) => {
                  {activeItem ? (
                     <motion.div key="active" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="flex flex-col items-center text-center px-2">
                         <span className="text-[10px] font-black text-red-600 uppercase mb-0.5 line-clamp-1 max-w-[90px]">{activeItem.nome}</span>
-                        {/* AQUI TAMBÉM FORMATEI PARA FICAR PADRÃO */}
                         <span className="text-3xl font-black text-zinc-800 dark:text-white leading-none">{formatHoursToTime(activeItem.hours)}</span>
                     </motion.div>
                  ) : (
@@ -354,7 +352,7 @@ const DisciplineEditorItem = ({ disciplina, onUpdate, onRemove }) => {
     return (
         <motion.div layout className={`bg-white dark:bg-zinc-900 border transition-all duration-300 rounded-xl overflow-hidden shadow-sm mb-3 ${isExpanded ? 'border-red-500/50 ring-1 ring-red-500/20 shadow-md' : 'border-zinc-200 dark:border-zinc-800 hover:border-red-300'}`}>
             {/* CABEÇALHO */}
-            <div className="p-4 flex flex-col sm:flex-row gap-3 sm:items-center cursor-pointer select-none" onClick={() => setIsExpanded(!isExpanded)}>
+            <div className="p-3 sm:p-4 flex flex-col sm:flex-row gap-3 sm:items-center cursor-pointer select-none" onClick={() => setIsExpanded(!isExpanded)}>
                 <div className="text-zinc-300 dark:text-zinc-700 cursor-move hidden sm:block"><GripVertical size={16} /></div>
 
                 <div className="flex-1 min-w-0 flex flex-col gap-2">
@@ -391,7 +389,6 @@ const DisciplineEditorItem = ({ disciplina, onUpdate, onRemove }) => {
 
                 <div className="flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-zinc-100 dark:border-zinc-800" onClick={e => e.stopPropagation()}>
                     <div className="text-right">
-                        {/* AQUI ESTÁ A ALTERAÇÃO: USANDO O FORMATADOR */}
                         <span className="block text-xs font-black text-zinc-800 dark:text-white bg-zinc-100 dark:bg-zinc-800 px-2 py-1 rounded">
                             {formatHoursToTime(disciplina.horasCalculadas)}
                         </span>
@@ -407,7 +404,7 @@ const DisciplineEditorItem = ({ disciplina, onUpdate, onRemove }) => {
             <AnimatePresence>
                 {isExpanded && (
                     <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-black/20" onClick={e => e.stopPropagation()}>
-                        <div className="p-5 space-y-6">
+                        <div className="p-4 sm:p-5 space-y-4 sm:space-y-6">
 
                             {/* --- SELETOR DE ESTRELAS --- */}
                             <div>
@@ -604,7 +601,13 @@ function CicloCreateWizard({ onClose, user, onCicloAtivado }) {
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
       <TemplateSelectionModal isOpen={showTemplateModal} onClose={() => setShowTemplateModal(false)} templates={templates} onSelect={handleSelectTemplate} loading={loadingTemplates} />
 
-      <motion.div layout className={`bg-white dark:bg-zinc-950 rounded-3xl shadow-2xl border border-zinc-200 dark:border-zinc-800 w-full ${maxWidthClass} flex flex-col relative transition-all duration-500 max-h-[95vh] h-[95vh]`} initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}>
+      <motion.div
+        layout
+        // CORREÇÃO AQUI: 'h-[80vh]' fixo no passo 3 para garantir scroll, 'h-auto' nos outros para ser compacto.
+        className={`bg-white dark:bg-zinc-950 rounded-3xl shadow-2xl border border-zinc-200 dark:border-zinc-800 w-full ${maxWidthClass} flex flex-col relative transition-all duration-500 max-h-[85vh] m-4 ${step === 3 ? 'h-[80vh]' : 'h-auto'}`}
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+      >
 
         <div className="absolute right-0 top-0 p-4 opacity-[0.03] dark:opacity-[0.05] pointer-events-none z-0">
             {step === 1 && <FileText size={250} className="text-red-600" />}
@@ -613,7 +616,7 @@ function CicloCreateWizard({ onClose, user, onCicloAtivado }) {
         </div>
 
         {/* HEADER */}
-        <div className="flex-shrink-0 flex justify-between items-center p-5 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50/90 dark:bg-zinc-900/90 backdrop-blur rounded-t-3xl z-20">
+        <div className="flex-shrink-0 flex justify-between items-center p-4 sm:p-5 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50/90 dark:bg-zinc-900/90 backdrop-blur rounded-t-3xl z-20">
             <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-gradient-to-br from-red-600 to-red-700 text-white rounded-lg flex items-center justify-center shadow-lg shadow-red-600/20">
                     {step === 1 ? <Target size={20}/> : step === 2 ? <Clock size={20}/> : <Layers size={20}/>}
@@ -633,7 +636,7 @@ function CicloCreateWizard({ onClose, user, onCicloAtivado }) {
           <AnimatePresence mode="wait">
 
             {step === 1 && (
-              <motion.div key="step1" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="flex-1 flex flex-col items-center justify-center p-8 gap-6 min-h-[350px]">
+              <motion.div key="step1" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="flex-1 flex flex-col items-center justify-center p-6 sm:p-8 gap-6 min-h-[300px]">
                 {!selectedTemplateId ? (
                     <div className="flex flex-col h-full w-full max-w-2xl">
                         <div className="mb-6 text-center">
@@ -641,20 +644,20 @@ function CicloCreateWizard({ onClose, user, onCicloAtivado }) {
                             <p className="text-zinc-500 text-sm">Escolha um concurso base ou crie do zero.</p>
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <button onClick={handleSelectManual} className="flex flex-col items-center justify-center p-8 rounded-3xl bg-zinc-50 dark:bg-zinc-900 border-2 border-dashed border-zinc-300 dark:border-zinc-700 hover:border-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 transition-all group h-48">
-                                <div className="w-16 h-16 rounded-full bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                                    <Plus size={32} className="text-zinc-500 dark:text-zinc-400 group-hover:text-red-500" />
+                            <button onClick={handleSelectManual} className="flex flex-col items-center justify-center p-6 sm:p-8 rounded-3xl bg-zinc-50 dark:bg-zinc-900 border-2 border-dashed border-zinc-300 dark:border-zinc-700 hover:border-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 transition-all group h-40 sm:h-48">
+                                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                                    <Plus size={28} className="text-zinc-500 dark:text-zinc-400 group-hover:text-red-500" />
                                 </div>
                                 <span className="font-black text-lg text-zinc-700 dark:text-zinc-300 group-hover:text-red-500">Ciclo Manual</span>
                                 <span className="text-xs text-zinc-400 mt-1">Começar do zero</span>
                             </button>
-                            <button onClick={() => setShowTemplateModal(true)} className="flex flex-col items-center justify-center p-8 rounded-3xl bg-white dark:bg-zinc-900 border-2 border-zinc-200 dark:border-zinc-800 shadow-lg hover:shadow-xl hover:border-indigo-500 dark:hover:border-indigo-500 transition-all group h-48 relative overflow-hidden">
-                                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><Library size={100}/></div>
-                                <div className="w-16 h-16 rounded-full bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform relative z-10">
-                                    <Search size={32} className="text-indigo-600 dark:text-indigo-400" />
+                            <button onClick={() => setShowTemplateModal(true)} className="flex flex-col items-center justify-center p-6 sm:p-8 rounded-3xl bg-white dark:bg-zinc-900 border-2 border-zinc-200 dark:border-zinc-800 shadow-lg hover:shadow-xl hover:border-indigo-500 dark:hover:border-indigo-500 transition-all group h-40 sm:h-48 relative overflow-hidden">
+                                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><Library size={80}/></div>
+                                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform relative z-10">
+                                    <Search size={28} className="text-indigo-600 dark:text-indigo-400" />
                                 </div>
                                 <span className="font-black text-lg text-zinc-800 dark:text-white relative z-10">Selecionar Edital</span>
-                                <span className="text-xs text-zinc-500 mt-1 relative z-10">Usar template pronto</span>
+                                <span className="text-xs text-zinc-500 mt-1 relative z-10">Usar edital pronto</span>
                             </button>
                         </div>
                     </div>
@@ -681,13 +684,13 @@ function CicloCreateWizard({ onClose, user, onCicloAtivado }) {
                 </div>
                 <div className="flex-1 flex flex-col">
                     {metodoCargaHoraria === 'manual' ? (
-                         <div className="flex-1 flex flex-col items-center justify-center gap-8 min-h-[300px]">
+                         <div className="flex-1 flex flex-col items-center justify-center gap-6 min-h-[250px]">
                              <div className="flex items-center gap-4 sm:gap-6">
-                                <button onClick={() => setCargaHorariaManual(p => Math.max(0, Number(p)-1))} className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-white dark:bg-zinc-900 border-2 border-zinc-200 dark:border-zinc-700 hover:border-red-500 text-zinc-400 hover:text-red-500 transition-all flex items-center justify-center shadow-sm active:scale-95"><Minus size={24}/></button>
-                                <div className="w-24 sm:w-40 text-center">
-                                    <input type="number" value={cargaHorariaManual} onChange={(e) => setCargaHorariaManual(e.target.value)} className="w-full text-center text-5xl sm:text-6xl font-black bg-transparent border-none focus:ring-0 outline-none text-zinc-800 dark:text-white [&::-webkit-inner-spin-button]:appearance-none" />
+                                <button onClick={() => setCargaHorariaManual(p => Math.max(0, Number(p)-1))} className="w-10 h-10 sm:w-14 sm:h-14 rounded-2xl bg-white dark:bg-zinc-900 border-2 border-zinc-200 dark:border-zinc-700 hover:border-red-500 text-zinc-400 hover:text-red-500 transition-all flex items-center justify-center shadow-sm active:scale-95"><Minus size={20}/></button>
+                                <div className="w-20 sm:w-32 text-center">
+                                    <input type="number" value={cargaHorariaManual} onChange={(e) => setCargaHorariaManual(e.target.value)} className="w-full text-center text-4xl sm:text-5xl font-black bg-transparent border-none focus:ring-0 outline-none text-zinc-800 dark:text-white [&::-webkit-inner-spin-button]:appearance-none" />
                                 </div>
-                                <button onClick={() => setCargaHorariaManual(p => Number(p)+1)} className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-white dark:bg-zinc-900 border-2 border-zinc-200 dark:border-zinc-700 hover:border-red-500 text-zinc-400 hover:text-red-500 transition-all flex items-center justify-center shadow-sm active:scale-95"><Plus size={24}/></button>
+                                <button onClick={() => setCargaHorariaManual(p => Number(p)+1)} className="w-10 h-10 sm:w-14 sm:h-14 rounded-2xl bg-white dark:bg-zinc-900 border-2 border-zinc-200 dark:border-zinc-700 hover:border-red-500 text-zinc-400 hover:text-red-500 transition-all flex items-center justify-center shadow-sm active:scale-95"><Plus size={20}/></button>
                             </div>
                             <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Horas Semanais</span>
                          </div>
