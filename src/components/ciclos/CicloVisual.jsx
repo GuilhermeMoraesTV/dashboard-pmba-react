@@ -246,7 +246,7 @@ function CicloVisual({
 
               <WeeklyProgressRing percentage={progressoGeral} />
 
-              {/* --- INFO CENTRAL --- */}
+              {/* --- INFO CENTRAL (FONTES AUMENTADAS PARA MOBILE) --- */}
               {/* ID ADICIONADO AQUI: ciclo-center-info */}
               <foreignObject id="ciclo-center-info" x="15" y="15" width="70" height="70" className="pointer-events-none">
                 <div className="w-full h-full flex flex-col items-center justify-center text-center rounded-full backdrop-blur-sm">
@@ -259,12 +259,14 @@ function CicloVisual({
                         exit={{ opacity: 0, scale: 0.95 }}
                         className="flex flex-col items-center justify-center w-full px-2"
                       >
-                        <span className="text-[2.2px] md:text-[2.7px] font-extrabold uppercase tracking-[0.2em] text-zinc-400 mb-1">
+                        {/* AUMENTADO: de text-[2.2px] para text-[3.5px] */}
+                        <span className="text-[3.5px] md:text-[2.7px] font-extrabold uppercase tracking-[0.2em] text-zinc-400 mb-1">
                           {viewMode === 'semanal' ? 'SEMANA' : 'TOTAL'}
                         </span>
 
                         <div className="flex items-baseline justify-center">
-                          <span className="text-[6.5px] md:text-[9.5px] font-black text-zinc-800 dark:text-white leading-none tracking-tighter">
+                          {/* AUMENTADO: de text-[6.5px] para text-[10px] */}
+                          <span className="text-[10px] md:text-[9.5px] font-black text-zinc-800 dark:text-white leading-none tracking-tighter">
                             {formatVisualHours(totalEstudado)}
                           </span>
                         </div>
@@ -272,7 +274,8 @@ function CicloVisual({
                         <div className="w-6 h-[0.5px] bg-zinc-300 dark:bg-zinc-700 my-1"></div>
 
                         <div className="flex flex-col items-center">
-                          <span className="text-[2.2px] md:text-[3.2px] font-bold text-zinc-400 uppercase tracking-wide">
+                          {/* AUMENTADO: de text-[2.2px] para text-[3.5px] */}
+                          <span className="text-[3.5px] md:text-[3.2px] font-bold text-zinc-400 uppercase tracking-wide">
                             Meta: {formatVisualHours(totalMeta)}
                           </span>
                         </div>
@@ -285,13 +288,15 @@ function CicloVisual({
                         exit={{ opacity: 0, scale: 0.95 }}
                         className="flex flex-col items-center justify-center w-full h-full px-1"
                       >
-                        <span className="text-[1.8px] md:text-[2.5px] font-extrabold uppercase tracking-[0.2em] text-zinc-400 mb-0.5">
+                        {/* AUMENTADO: de text-[1.8px] para text-[2.8px] */}
+                        <span className="text-[2.8px] md:text-[2.5px] font-extrabold uppercase tracking-[0.2em] text-zinc-400 mb-0.5">
                           DISCIPLINA
                         </span>
 
                         <div className="w-full flex justify-center items-center min-h-[10px] md:min-h-[16px]">
+                          {/* AUMENTADO: de text-[3.2px] para text-[4.5px] */}
                           <span
-                            className="text-[3.2px] md:text-[4.5px] font-extrabold uppercase leading-tight break-words text-center w-full tracking-widest px-1"
+                            className="text-[4.5px] md:text-[4.5px] font-extrabold uppercase leading-tight break-words text-center w-full tracking-widest px-1"
                             style={{ color: activeDisciplina.color }}
                           >
                             {activeDisciplina.disciplina.nome}
@@ -299,12 +304,14 @@ function CicloVisual({
                         </div>
 
                         <div className="flex items-baseline justify-center mt-1">
-                          <span className="text-[6px] md:text-[9px] font-black text-zinc-800 dark:text-white leading-none">
+                          {/* AUMENTADO: de text-[6px] para text-[9px] */}
+                          <span className="text-[9px] md:text-[9px] font-black text-zinc-800 dark:text-white leading-none">
                             {formatVisualHours(activeDisciplina.progressMinutos)}
                           </span>
                         </div>
 
-                        <div className="text-[2.2px] md:text-[3.2px] font-bold text-zinc-400 mt-0.5">
+                        {/* AUMENTADO: de text-[2.2px] para text-[3.2px] */}
+                        <div className="text-[3.2px] md:text-[3.2px] font-bold text-zinc-400 mt-0.5">
                           / {formatVisualHours(activeDisciplina.metaMinutos)}
                         </div>
                       </motion.div>

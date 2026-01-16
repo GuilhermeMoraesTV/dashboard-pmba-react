@@ -2,44 +2,71 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { db } from '../firebaseConfig';
 import {
-  collection, query, where, collectionGroup, Timestamp, doc, deleteDoc, onSnapshot, limit, orderBy, addDoc, serverTimestamp
+  collection, query, collectionGroup, doc, deleteDoc, onSnapshot, limit, orderBy, addDoc, serverTimestamp
 } from 'firebase/firestore';
-
-// --- IMPORTAÇÃO DOS SCRIPTS DE SEED ---
-import SeedEditalPMBA from '../components/admin/SeedEditalPMBA';
-import SeedEditalPPMG from '../components/admin/SeedEditalPPMG';
-import SeedEditalPCBA from '../components/admin/SeedEditalPCBA';
-import SeedEditalPMSE from '../components/admin/SeedEditalPMSE';
-import SeedEditalPMGO from '../components/admin/SeedEditalPMGO';
-import SeedEditalGCMAquiraz from '../components/admin/SeedEditalGCMAquiraz';
-import SeedEditalPMAL from '../components/admin/SeedEditalPMAL';
-import SeedEditalPMPE from '../components/admin/SeedEditalPMPE';
-import SeedEditalPMPI from '../components/admin/SeedEditalPMPI';
-import SeedEditalCBMERJ from '../components/admin/SeedEditalCBMERJ';
-import SeedEditalCBMMG from '../components/admin/SeedEditalCBMMG';
-
 import {
   ShieldAlert, Database, Users, Activity, Server, Lock,
   Loader2, Search, Crown, Maximize2, Trash2, X, Download,
   RefreshCw, Bell, ExternalLink, LayoutGrid, Flame, Siren,
   BadgeAlert, StickyNote, Save, Megaphone, FileSpreadsheet,
-  Target, Zap
+  Target, Zap, AlertTriangle, CheckCircle2
 } from 'lucide-react';
 
-// --- CONFIGURAÇÃO DE EDITAIS ---
-const CATALOGO_EDITAIS = [
-    { id: 'pmba_soldado', titulo: 'Soldado PMBA', banca: 'FCC', logo: '/logosEditais/logo-pmba.png', SeedComponent: SeedEditalPMBA, type: 'pm' },
-    { id: 'ppmg_policial_penal', titulo: 'Policial Penal MG', banca: 'AOCP', logo: '/logosEditais/logo-ppmg.png', SeedComponent: SeedEditalPPMG, type: 'pp' },
-    { id: 'pcba_investigador', titulo: 'Investigador PCBA', banca: 'IBFC', logo: '/logosEditais/logo-pcba.png', SeedComponent: SeedEditalPCBA, type: 'pc' },
-    { id: 'pmse_soldado', titulo: 'Soldado PMSE', banca: 'SELECON', logo: '/logosEditais/logo-pmse.png', SeedComponent: SeedEditalPMSE, type: 'pm' },
-    { id: 'pmgo_soldado', titulo: 'Soldado PMGO', banca: 'Inst. AOCP', logo: '/logosEditais/logo-pmgo.png', SeedComponent: SeedEditalPMGO, type: 'pm' },
-    { id: 'pmal_soldado', titulo: 'Soldado PMAL', banca: 'Cebraspe', logo: '/logosEditais/logo-pmal.png', SeedComponent: SeedEditalPMAL, type: 'pm' },
-    { id: 'pmpe_soldado', titulo: 'Soldado PMPE', banca: 'Inst. AOCP', logo: '/logosEditais/logo-pmpe.png', SeedComponent: SeedEditalPMPE, type: 'pm' },
-    { id: 'pmpi_soldado', titulo: 'Soldado PMPI', banca: 'NUCEPE', logo: '/logosEditais/logo-pmpi.png', SeedComponent: SeedEditalPMPI, type: 'pm' },
-    { id: 'cbmerj_oficial', titulo: 'Oficial CBMERJ', banca: 'UERJ', logo: '/logosEditais/logo-cbmerj.png', SeedComponent: SeedEditalCBMERJ, type: 'cbm' },
-    { id: 'cbmmg_soldado', titulo: 'Soldado CBMMG', banca: 'IDECAN', logo: '/logosEditais/logo-cbmmg.png', SeedComponent: SeedEditalCBMMG, type: 'cbm' },
-    { id: 'gcm_aquiraz', titulo: 'GCM Aquiraz', banca: 'Consulpam', logo: '/logosEditais/logo-aquiraz.png', SeedComponent: SeedEditalGCMAquiraz, type: 'gcm' }
-];
+// ==================================================================================
+// 🚀 AUTOMATIZAÇÃO DE EDITAIS (VITE GLOB IMPORT) - VERSÃO DEFINITIVA (NAMED EXPORTS)
+// ==================================================================================
+
+// Carrega todos os arquivos que começam com 'SeedEdital' na pasta ../components/admin
+const seedModules = import.meta.glob('../components/admin/SeedEdital*.jsx', { eager: true });
+
+const CATALOGO_EDITAIS = Object.entries(seedModules)
+    .map(([path, module]) => {
+        const Component = module.default;
+
+        // Segurança: Ignora arquivos sem export default
+        if (!Component) return null;
+
+        // 1. Tenta pegar a configuração explícita do arquivo via NAMED EXPORT (A FORMA CORRETA)
+        const config = module.editalConfig || {};
+
+        // 2. Lógica de Fallback (Se não tiver config, tenta adivinhar pelo nome do arquivo)
+        const fileName = path.split('/').pop().replace('.jsx', ''); // Ex: SeedEditalPMES
+        const siglaBruta = fileName.replace('SeedEdital', ''); // Ex: PMES
+        const siglaLower = siglaBruta.toLowerCase(); // Ex: pmes
+
+        // --- DEFINIÇÃO FINAL DOS DADOS ---
+
+        const idFinal = config.id || siglaLower;
+        const tituloFinal = config.titulo || `Edital ${siglaBruta}`;
+        const bancaFinal = config.banca || 'A Definir';
+
+        // Tipo (Para abas de filtro: pm, pc, cbm, etc)
+        let tipoFinal = config.tipo;
+        if (!tipoFinal) {
+            if (idFinal.includes('pm')) tipoFinal = 'pm';
+            else if (idFinal.includes('pc')) tipoFinal = 'pc';
+            else if (idFinal.includes('pp')) tipoFinal = 'pp';
+            else if (idFinal.includes('cbm') || idFinal.includes('bm')) tipoFinal = 'cbm';
+            else if (idFinal.includes('gcm') || idFinal.includes('gm')) tipoFinal = 'gcm';
+            else tipoFinal = 'outros';
+        }
+
+        // Logo
+        let logoFinal = config.logo || `/logosEditais/logo-${siglaLower}.png`;
+        if (!config.logo && siglaLower.includes('aquiraz')) logoFinal = '/logosEditais/logo-aquiraz.png';
+
+        return {
+            id: idFinal,
+            titulo: tituloFinal,
+            banca: bancaFinal,
+            logo: logoFinal,
+            SeedComponent: Component,
+            type: tipoFinal
+        };
+    })
+    .filter(Boolean); // Remove nulos
+
+// ==================================================================================
 
 // --- UTILITÁRIOS ---
 const exportToCSV = (data, filename) => {
@@ -158,12 +185,29 @@ const formatTimeAgo = (date) => {
     return `${Math.floor(hours / 24)}d atrás`;
 };
 
-// --- MODAL EXPANDIDO ---
+// --- MODAL EXPANDIDO (COM SCROLL LOCK) ---
 const ExpandedModal = ({ isOpen, onClose, title, children }) => {
+    // Bloqueia o scroll do body quando o modal abre
+    useEffect(() => {
+        if (isOpen) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = 'unset';
+        }
+        return () => {
+            document.body.style.overflow = 'unset';
+        };
+    }, [isOpen]);
+
     if (!isOpen) return null;
+
     return (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-zinc-900/60 backdrop-blur-md animate-fade-in">
-            <motion.div initial={{ scale: 0.95, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} className="bg-white dark:bg-zinc-950 w-full max-w-6xl max-h-[90vh] rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-2xl flex flex-col overflow-hidden">
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fade-in">
+            <motion.div
+                initial={{ scale: 0.95, opacity: 0, y: 20 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                className="bg-white dark:bg-zinc-950 w-full max-w-6xl max-h-[90vh] rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-2xl flex flex-col overflow-hidden"
+            >
                 <div className="p-6 border-b border-zinc-100 dark:border-zinc-800 flex justify-between items-center bg-zinc-50/50 dark:bg-zinc-900/50">
                     <h3 className="text-2xl font-black text-zinc-900 dark:text-white flex items-center gap-3">{title}</h3>
                     <button onClick={onClose} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-colors"><X size={24} /></button>
@@ -174,10 +218,21 @@ const ExpandedModal = ({ isOpen, onClose, title, children }) => {
     );
 };
 
-// --- MODAL DE BROADCAST (INTEGRADO AO FIREBASE) ---
+// --- MODAL DE BROADCAST (COM SCROLL LOCK) ---
 const BroadcastModal = ({ isOpen, onClose }) => {
     const [message, setMessage] = useState('');
+    const [category, setCategory] = useState('comunicado');
     const [sending, setSending] = useState(false);
+
+    // Bloqueia o scroll do body
+    useEffect(() => {
+        if (isOpen) {
+            document.body.style.overflow = 'hidden';
+        }
+        return () => {
+            document.body.style.overflow = 'unset';
+        };
+    }, [isOpen]);
 
     if(!isOpen) return null;
 
@@ -185,17 +240,18 @@ const BroadcastModal = ({ isOpen, onClose }) => {
         if(!message.trim()) return;
         setSending(true);
         try {
-            // Grava na coleção 'system_broadcasts' para que todos os usuários recebam
             await addDoc(collection(db, 'system_broadcasts'), {
                 message: message,
+                category: category,
                 timestamp: serverTimestamp(),
                 active: true,
                 type: 'admin_push'
             });
 
             setMessage('');
+            setCategory('comunicado');
             onClose();
-            alert("📣 Broadcast enviado! A notificação aparecerá para os usuários conectados.");
+            alert("📣 Broadcast enviado com sucesso!");
         } catch (error) {
             console.error("Erro ao enviar broadcast:", error);
             alert("Erro ao enviar.");
@@ -205,17 +261,46 @@ const BroadcastModal = ({ isOpen, onClose }) => {
     };
 
     return (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-zinc-900/70 backdrop-blur-sm animate-fade-in">
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fade-in">
              <motion.div initial={{scale:0.9}} animate={{scale:1}} className="bg-white dark:bg-zinc-950 w-full max-w-md rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-2xl p-6">
-                <div className="flex items-center gap-3 mb-4 text-red-600">
-                    <Megaphone size={28} />
-                    <h3 className="text-xl font-bold text-zinc-900 dark:text-white">Central de Transmissão</h3>
+                <div className="flex items-center gap-3 mb-2">
+                    <div className="p-2 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl text-indigo-600">
+                        <Megaphone size={24} />
+                    </div>
+                    <div>
+                        <h3 className="text-xl font-bold text-zinc-900 dark:text-white">Transmissão</h3>
+                        <p className="text-xs text-zinc-500">Enviar push para todos online.</p>
+                    </div>
                 </div>
-                <p className="text-sm text-zinc-500 mb-4">Isso enviará um popup flutuante para <b>todos</b> os alunos online agora.</p>
+
+                {/* Seletor de Categoria */}
+                <div className="grid grid-cols-3 gap-2 mb-4 mt-4">
+                    <button
+                        onClick={() => setCategory('comunicado')}
+                        className={`flex flex-col items-center gap-1 p-2 rounded-xl border-2 transition-all ${category === 'comunicado' ? 'border-red-500 bg-red-50 dark:bg-red-900/20 text-red-600' : 'border-transparent bg-zinc-100 dark:bg-zinc-800 text-zinc-400 hover:bg-zinc-200'}`}
+                    >
+                        <Megaphone size={18} />
+                        <span className="text-[10px] font-bold uppercase">Comunicado</span>
+                    </button>
+                    <button
+                        onClick={() => setCategory('atualizacao')}
+                        className={`flex flex-col items-center gap-1 p-2 rounded-xl border-2 transition-all ${category === 'atualizacao' ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600' : 'border-transparent bg-zinc-100 dark:bg-zinc-800 text-zinc-400 hover:bg-zinc-200'}`}
+                    >
+                        <Zap size={18} />
+                        <span className="text-[10px] font-bold uppercase">Atualização</span>
+                    </button>
+                    <button
+                        onClick={() => setCategory('aviso')}
+                        className={`flex flex-col items-center gap-1 p-2 rounded-xl border-2 transition-all ${category === 'aviso' ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/20 text-amber-600' : 'border-transparent bg-zinc-100 dark:bg-zinc-800 text-zinc-400 hover:bg-zinc-200'}`}
+                    >
+                        <AlertTriangle size={18} />
+                        <span className="text-[10px] font-bold uppercase">Aviso</span>
+                    </button>
+                </div>
 
                 <textarea
-                    className="w-full h-32 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-3 text-sm focus:ring-2 focus:ring-red-500 outline-none resize-none dark:text-white"
-                    placeholder="Digite o aviso (ex: Manutenção em 10min...)"
+                    className="w-full h-32 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none dark:text-white"
+                    placeholder="Digite a mensagem aqui..."
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
                 />
@@ -225,10 +310,10 @@ const BroadcastModal = ({ isOpen, onClose }) => {
                     <button
                         onClick={handleSend}
                         disabled={!message || sending}
-                        className="px-4 py-2 text-sm font-bold bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 flex items-center gap-2 shadow-lg shadow-red-600/20"
+                        className="px-4 py-2 text-sm font-bold bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-lg hover:opacity-90 disabled:opacity-50 flex items-center gap-2 shadow-lg"
                     >
                         {sending ? <Loader2 size={16} className="animate-spin"/> : <Zap size={16} fill="currentColor"/>}
-                        {sending ? 'Transmitindo...' : 'Enviar Push'}
+                        {sending ? 'Enviando...' : 'Transmitir'}
                     </button>
                 </div>
              </motion.div>
@@ -236,15 +321,17 @@ const BroadcastModal = ({ isOpen, onClose }) => {
     );
 }
 
-// --- MODAL GERENCIADOR DE EDITAIS ---
+// --- MODAL GERENCIADOR DE EDITAIS (ATUALIZADO) ---
 const EditaisManagerModal = ({ isOpen, onClose }) => {
     const [installedTemplates, setInstalledTemplates] = useState([]);
     const [activeTab, setActiveTab] = useState('todos');
 
     useEffect(() => {
         if (!isOpen) return;
+        // Ouve a coleção para saber os IDs que REALMENTE existem
         const unsub = onSnapshot(collection(db, 'editais_templates'), (snap) => {
-            setInstalledTemplates(snap.docs.map(d => d.id));
+            const ids = snap.docs.map(d => d.id);
+            setInstalledTemplates(ids);
         });
         return () => unsub();
     }, [isOpen]);
@@ -262,27 +349,59 @@ const EditaisManagerModal = ({ isOpen, onClose }) => {
 
     if (!isOpen) return null;
 
-    const SecureWrapper = ({ children, isInstalled, editalTitle }) => {
-        const btnRef = useRef(null);
+    // Componente Individual do Card
+    const EditalCard = ({ edital }) => {
+        // Verifica se o ID do edital está na lista de instalados do banco
+        const isInstalled = installedTemplates.includes(edital.id);
+        const SeedBtn = edital.SeedComponent;
+
+        // Função para apagar o edital do banco
+        const handleDelete = async () => {
+            if(window.confirm(`ATENÇÃO: Deseja apagar o template "${edital.titulo}" do banco de dados? Isso afetará a criação de novos ciclos para este edital.`)) {
+                try {
+                    await deleteDoc(doc(db, 'editais_templates', edital.id));
+                    alert("Edital removido do banco.");
+                } catch (e) {
+                    alert("Erro ao remover: " + e.message);
+                }
+            }
+        };
+
         return (
-            <div className="flex items-center gap-2">
-                <button
-                    onClick={() => {
-                        if(window.confirm(`Deseja ${isInstalled ? 'REINSTALAR' : 'INSTALAR'} o edital ${editalTitle}?`)) {
-                            const btn = btnRef.current.querySelector('button');
-                            if(btn) {
-                                const originalConfirm = window.confirm;
-                                window.confirm = () => true;
-                                btn.click();
-                                setTimeout(() => window.confirm = originalConfirm, 100);
-                            }
-                        }
-                    }}
-                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wide flex items-center gap-2 transition-all ${isInstalled ? 'bg-zinc-100 text-zinc-500 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400' : 'bg-red-600 text-white hover:bg-red-700 shadow-lg shadow-red-600/20'}`}
-                >
-                    {isInstalled ? <><RefreshCw size={12}/> Reinstalar</> : <><Download size={12}/> Instalar</>}
-                </button>
-                <div ref={btnRef} className="hidden">{children}</div>
+            <div className={`p-4 rounded-2xl border transition-all flex items-center justify-between gap-4 ${isInstalled ? 'bg-emerald-50/50 dark:bg-emerald-900/10 border-emerald-200 dark:border-emerald-800' : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800'}`}>
+                <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-white dark:bg-zinc-800 rounded-xl border border-zinc-100 dark:border-zinc-700 flex items-center justify-center p-2 shadow-sm relative">
+                        <img src={edital.logo} className="w-full h-full object-contain" alt="logo" onError={(e) => { e.target.src = '/vite.svg'; }} />
+                        {isInstalled && (
+                            <div className="absolute -top-1 -right-1 bg-emerald-500 text-white rounded-full p-0.5 border-2 border-white dark:border-zinc-900 shadow-sm">
+                                <CheckCircle2 size={10} strokeWidth={4} />
+                            </div>
+                        )}
+                    </div>
+                    <div>
+                        <h4 className="font-bold text-sm text-zinc-900 dark:text-white flex items-center gap-2">
+                            {edital.titulo}
+                            {isInstalled && <span className="text-[9px] bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 px-1.5 py-0.5 rounded font-bold uppercase tracking-wide">Instalado</span>}
+                        </h4>
+                        <p className="text-[10px] text-zinc-500 font-medium uppercase tracking-wide">Banca: {edital.banca} | ID: {edital.id}</p>
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                    {/* Botão do Seed (Instalar/Reinstalar) */}
+                    <SeedBtn isInstalled={isInstalled} />
+
+                    {/* Botão de Excluir (Só aparece se instalado) */}
+                    {isInstalled && (
+                        <button
+                            onClick={handleDelete}
+                            className="p-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-400 hover:text-red-500 hover:border-red-200 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all shadow-sm"
+                            title="Remover do Banco de Dados"
+                        >
+                            <Trash2 size={16} />
+                        </button>
+                    )}
+                </div>
             </div>
         );
     };
@@ -302,28 +421,11 @@ const EditaisManagerModal = ({ isOpen, onClose }) => {
                     ))}
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    {filteredEditais.map((edital) => {
-                        const isInstalled = installedTemplates.includes(edital.id);
-                        const SeedBtn = edital.SeedComponent;
-                        return (
-                            <div key={edital.id} className={`p-4 rounded-2xl border transition-all flex items-center justify-between gap-4 ${isInstalled ? 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800' : 'bg-zinc-50 dark:bg-zinc-900/50 border-dashed border-zinc-300 dark:border-zinc-700 opacity-80 hover:opacity-100'}`}>
-                                <div className="flex items-center gap-3">
-                                    <div className="w-12 h-12 bg-white dark:bg-zinc-800 rounded-xl border border-zinc-100 dark:border-zinc-700 flex items-center justify-center p-2 shadow-sm">
-                                        <img src={edital.logo} className="w-full h-full object-contain" alt="logo"/>
-                                    </div>
-                                    <div>
-                                        <h4 className="font-bold text-sm text-zinc-900 dark:text-white">{edital.titulo}</h4>
-                                        <p className="text-[10px] text-zinc-500 font-medium uppercase tracking-wide">{edital.banca}</p>
-                                    </div>
-                                </div>
-                                <SecureWrapper isInstalled={isInstalled} editalTitle={edital.titulo}>
-                                    <SeedBtn isInstalled={isInstalled} />
-                                </SecureWrapper>
-                            </div>
-                        )
-                    })}
-                    {filteredEditais.length === 0 && <div className="col-span-full py-10 text-center text-zinc-400">Nenhum edital encontrado nesta categoria.</div>}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pb-10">
+                    {filteredEditais.map((edital) => (
+                        <EditalCard key={edital.id} edital={edital} />
+                    ))}
+                    {filteredEditais.length === 0 && <div className="col-span-full py-10 text-center text-zinc-400">Nenhum edital encontrado.</div>}
                 </div>
             </div>
         </ExpandedModal>
@@ -374,7 +476,6 @@ function AdminPage() {
     // USUÁRIOS
     useEffect(() => {
         const q = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
-        // 8. CAPTURA DE EXCLUSÃO: O onSnapshot atualiza automaticamente o estado 'users' quando um doc é deletado no Firebase
         const unsub = onSnapshot(q, (snap) => {
             const data = snap.docs.map(doc => {
                 const d = doc.data();
@@ -382,6 +483,9 @@ function AdminPage() {
                 return { id: doc.id, ...d, createdAt };
             });
             setUsers(data);
+            setLoading(false);
+        }, (error) => {
+            console.error("Erro ao buscar usuários:", error);
             setLoading(false);
         });
         return () => unsub();
@@ -397,6 +501,8 @@ function AdminPage() {
                 return { id: doc.id, uid, ...d, timestamp: d.timestamp?.toDate() || new Date() };
             });
             setStudyRecords(data);
+        }, (error) => {
+            console.error("Erro ao buscar registros:", error);
         });
         return () => unsub();
     }, []);
@@ -449,7 +555,6 @@ function AdminPage() {
         if(window.confirm("⚠️ OPERAÇÃO IRREVERSÍVEL\n\nIsso apagará o usuário e desvinculará todos os dados. Confirmar exclusão?")) {
             try {
                 await deleteDoc(doc(db, 'users', uid));
-                // O onSnapshot acima vai rodar e atualizar 'users' e os KPIs automaticamente
                 alert("Usuário excluído com sucesso.");
             } catch (error) {
                 alert("Erro ao eliminar usuário: " + error.message);

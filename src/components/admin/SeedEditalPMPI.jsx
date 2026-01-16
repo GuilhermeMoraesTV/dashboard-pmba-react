@@ -166,18 +166,27 @@ const SeedEditalPMPI = ({ isInstalled, onSuccess }) => {
   };
 
   return (
-    <button
-        onClick={handleSeed}
-        disabled={loading}
-        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wide transition-all shadow-sm ${
-            isInstalled
-            ? 'bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700'
-            : 'bg-green-600 text-white hover:bg-green-700 hover:shadow-green-500/20'
-        } ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
-    >
-        {loading ? '...' : (isInstalled ? <><RefreshCw size={14}/> Reinstalar</> : <><Download size={14}/> Instalar</>)}
-    </button>
-  );
+      <button
+          onClick={handleSeed}
+          disabled={loading}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wide transition-all shadow-sm ${
+              isInstalled
+              ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700'
+              : 'bg-red-600 text-white hover:bg-red-700 hover:shadow-red-500/20'
+          } ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+      >
+          {loading ? '...' : (isInstalled ? <><RefreshCw size={14}/> Reinstalar</> : <><Download size={14}/> Instalar Edital</>)}
+      </button>
+    );
+  };
+
+// --- CONFIGURAÇÃO MANUAL OBRIGATÓRIA ---
+export const editalConfig = {
+    id: "pmpi_soldado",
+    titulo: "Soldado PMPI",
+    banca: "NUCEPE",
+    tipo: "pm",
+    logo: "/logosEditais/logo-pmpi.png"
 };
 
 export default SeedEditalPMPI;

@@ -30,7 +30,7 @@ const EDITAL_PPMG_2025 = {
         { nome: "Processos de formation de palavras", relevancia: 2 },
         { nome: "Usos dos 'porquês', 'mau' e 'mal'", relevancia: 3 },
         { nome: "Variação linguística", relevancia: 2 },
-        { nome: "Manual de Redação da Presidência da República", relevancia: 5 } // Muito cobrado para carreiras de MG
+        { nome: "Manual de Redação da Presidência da República", relevancia: 5 }
       ]
     },
     {
@@ -87,7 +87,7 @@ const EDITAL_PPMG_2025 = {
       assuntos: [
         { nome: "Do crime (arts. 13 ao 25)", relevancia: 5 },
         { nome: "Da imputabilidade penal (arts. 26 ao 28)", relevancia: 4 },
-        { nome: "Das Penas (arts. 32 ao 52)", relevancia: 5 }, // Muito importante para Policial Penal
+        { nome: "Das Penas (arts. 32 ao 52)", relevancia: 5 },
         { nome: "Dos crimes contra a pessoa (arts. 121 ao 150)", relevancia: 5 },
         { nome: "Dos crimes contra o patrimônio (arts. 155 ao 180)", relevancia: 4 },
         { nome: "Dos crimes contra os costumes (arts. 213 ao 218-C)", relevancia: 3 },
@@ -102,7 +102,7 @@ const EDITAL_PPMG_2025 = {
         { nome: "Teoria geral dos direitos humanos (conceito, fundamentos, histórico)", relevancia: 4 },
         { nome: "Sistemas internacionais de proteção (Global/ONU e Interamericano/OEA)", relevancia: 4 },
         { nome: "A incorporação dos tratados internacionais ao direito brasileiro", relevancia: 4 },
-        { nome: "A proteção dos grupos socialmente vulneráveis", relevancia: 5 }, // Foco em presidiários
+        { nome: "A proteção dos grupos socialmente vulneráveis", relevancia: 5 },
         { nome: "Direitos humanos de natureza civil, política, social, econômica, cultural e ambiental", relevancia: 4 }
       ]
     },
@@ -147,18 +147,27 @@ const SeedEditalPPMG = ({ isInstalled, onSuccess }) => {
   };
 
   return (
-    <button
-        onClick={handleSeed}
-        disabled={loading}
-        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wide transition-all shadow-sm ${
-            isInstalled
-            ? 'bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700'
-            : 'bg-red-600 text-white hover:bg-red-700 hover:shadow-red-500/20'
-        } ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
-    >
-        {loading ? '...' : (isInstalled ? <><RefreshCw size={14}/> Reinstalar</> : <><Download size={14}/> Instalar</>)}
-    </button>
-  );
+      <button
+          onClick={handleSeed}
+          disabled={loading}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wide transition-all shadow-sm ${
+              isInstalled
+              ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700'
+              : 'bg-red-600 text-white hover:bg-red-700 hover:shadow-red-500/20'
+          } ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+      >
+          {loading ? '...' : (isInstalled ? <><RefreshCw size={14}/> Reinstalar</> : <><Download size={14}/> Instalar Edital</>)}
+      </button>
+    );
+  };
+
+// --- CONFIGURAÇÃO MANUAL OBRIGATÓRIA ---
+export const editalConfig = {
+    id: "ppmg_policial_penal",
+    titulo: "Policial Penal MG",
+    banca: "Instituto AOCP",
+    tipo: "pp",
+    logo: "/logosEditais/logo-ppmg.png"
 };
 
 export default SeedEditalPPMG;

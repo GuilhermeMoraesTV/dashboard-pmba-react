@@ -82,7 +82,7 @@ const EDITAL_CBMMG_COMPLETO = {
         { nome: "Dissociação da água", relevancia: 2 },
         { nome: "Eletroquímica: Reações de oxirredução, Células de corrosão e Eletrólise", relevancia: 3 },
         { nome: "Gases: Características, Pressão, Leis dos gases e Gás ideal", relevancia: 4 },
-        { nome: "Gases tóxicos", relevancia: 5 } // Muito relevante para bombeiros
+        { nome: "Gases tóxicos", relevancia: 5 }
       ]
     },
     {
@@ -101,8 +101,8 @@ const EDITAL_CBMMG_COMPLETO = {
         { nome: "Ondas em meios elásticos e Ondas sonoras", relevancia: 3 },
         { nome: "Estática e Dinâmica dos Fluidos (Hidrostática, pressões, empuxos, corpos flutuantes)", relevancia: 5 },
         { nome: "Temperatura e Dilatação Térmica", relevancia: 4 },
-        { nome: "Combustão e Termodinâmica", relevancia: 5 }, // Essencial
-        { nome: "Ação do incêndio sobre as estruturas de concreto", relevancia: 5 }, // Tópico específico CBMMG
+        { nome: "Combustão e Termodinâmica", relevancia: 5 },
+        { nome: "Ação do incêndio sobre as estruturas de concreto", relevancia: 5 },
         { nome: "Eletricidade: Leis básicas, Resistência, Lei de Ohm, Potência e Energia", relevancia: 5 },
         { nome: "Circuitos elétricos: Definição, tipos e análise (Leis de Kirchhoff - LKT, LKC)", relevancia: 4 },
         { nome: "Capacitor, Indutor e Associação de resistores", relevancia: 3 },
@@ -116,7 +116,7 @@ const EDITAL_CBMMG_COMPLETO = {
       importancia: "Média",
       assuntos: [
         { nome: "Anatomia do Sistema Esquelético e Fisiologia Muscular", relevancia: 4 },
-        { nome: "Circulação Sanguínea, Respiração e Trocas Gasosas", relevancia: 5 }, // Primeiros socorros
+        { nome: "Circulação Sanguínea, Respiração e Trocas Gasosas", relevancia: 5 },
         { nome: "Digestão, Absorção de Nutrientes e Metabolismo Energético", relevancia: 3 },
         { nome: "Sistema Nervoso (Central e Periférico), Neurotransmissores e Sinapses", relevancia: 4 },
         { nome: "Fisiologia Renal, Sistema Endócrino e Hormônios (Sexuais e do Estresse)", relevancia: 3 },
@@ -127,7 +127,7 @@ const EDITAL_CBMMG_COMPLETO = {
         { nome: "Homeostase Corporal, Regulação do pH e do Açúcar no sangue", relevancia: 4 },
         { nome: "Ciclo Menstrual, Embriologia e Desenvolvimento Embrionário", relevancia: 2 },
         { nome: "Fisiopatologia de Doenças Comuns e Doenças Cardiovasculares", relevancia: 5 },
-        { nome: "Reparo de Tecidos e Cicatrização de Feridas", relevancia: 5 }, // Importante para trauma
+        { nome: "Reparo de Tecidos e Cicatrização de Feridas", relevancia: 5 },
         { nome: "Teratogênese, Desenvolvimento Anormal e Biologia do Câncer", relevancia: 2 },
         { nome: "Neuroplasticidade, Metabolismo de Lipídios e Regulação da Pressão Arterial", relevancia: 3 },
         { nome: "Processo de Envelhecimento e Efeitos do Exercício no Corpo", relevancia: 3 }
@@ -157,7 +157,7 @@ const EDITAL_CBMMG_COMPLETO = {
     {
       nome: "Geografia de Minas Gerais",
       peso: 1,
-      importancia: "Alta", // Relevante para atuação bombeiro militar (relevo, hidrografia)
+      importancia: "Alta",
       assuntos: [
         { nome: "Vegetação: Biomas (Cerrado, Mata Atlântica), Altitude e Fitogeografia", relevancia: 4 },
         { nome: "Fragmentação Florestal, Reflorestamento e Recuperação Ambiental", relevancia: 3 },
@@ -167,7 +167,7 @@ const EDITAL_CBMMG_COMPLETO = {
         { nome: "Hidrografia: Bacias (São Francisco, Doce, Paraná), Rios e Nascentes", relevancia: 5 },
         { nome: "Hidrelétricas (Três Marias, Furnas) e Controle de Cheias", relevancia: 4 },
         { nome: "Mineração: História, Minerais Metálicos/Não-Metálicos e Impactos", relevancia: 5 },
-        { nome: "Gestão de Rejeitos e Barragens (Segurança e Impactos Socioambientais)", relevancia: 5 }, // Tema crítico em MG
+        { nome: "Gestão de Rejeitos e Barragens (Segurança e Impactos Socioambientais)", relevancia: 5 },
         { nome: "Áreas de Risco: Mapeamento (deslizamentos, inundações) e Vulnerabilidade", relevancia: 5 },
         { nome: "Prevenção, Mitigação de desastres e Ordenamento Territorial", relevancia: 5 },
         { nome: "Cachoeiras, Grutas e Cavernas: Ecoturismo, Conservação e Manejo", relevancia: 3 },
@@ -216,13 +216,22 @@ const SeedEditalCBMMG = ({ isInstalled, onSuccess }) => {
         disabled={loading}
         className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wide transition-all shadow-sm ${
             isInstalled
-            ? 'bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700'
+            ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700'
             : 'bg-red-600 text-white hover:bg-red-700 hover:shadow-red-500/20'
         } ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
     >
-        {loading ? '...' : (isInstalled ? <><RefreshCw size={14}/> Reinstalar</> : <><Download size={14}/> Instalar</>)}
+        {loading ? '...' : (isInstalled ? <><RefreshCw size={14}/> Reinstalar</> : <><Download size={14}/> Instalar Edital</>)}
     </button>
   );
+};
+
+// --- CONFIGURAÇÃO MANUAL OBRIGATÓRIA ---
+export const editalConfig = {
+    id: "cbmmg_soldado",
+    titulo: "Soldado CBMMG",
+    banca: "IDECAN",
+    tipo: "cbm",
+    logo: "/logosEditais/logo-cbmmg.png"
 };
 
 export default SeedEditalCBMMG;

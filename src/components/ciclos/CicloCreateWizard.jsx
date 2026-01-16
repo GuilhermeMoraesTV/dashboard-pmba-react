@@ -48,7 +48,7 @@ const createArc = (start, end, r) => {
 };
 
 // ============================================================================
-// 2. MODAL DE SELEÇÃO DE EDITAL (REFATORADO)
+// 2. MODAL DE SELEÇÃO DE EDITAL (CORRIGIDO)
 // ============================================================================
 
 const CATEGORIES_CONFIG = {
@@ -76,7 +76,6 @@ const TemplateSection = ({ categoryKey, items, selectedId, onHighlight, onConfir
 
     return (
         <div className="mb-2 last:mb-0">
-            {/* Cabeçalho da Seção */}
             <div className="flex items-center gap-3 mb-1 px-1 sticky left-0">
                 <div className={`p-1.5 rounded-lg ${config.bg} ${config.color}`}>
                     <Icon size={18} />
@@ -89,10 +88,9 @@ const TemplateSection = ({ categoryKey, items, selectedId, onHighlight, onConfir
                 </span>
             </div>
 
-            {/* CARROSSEL */}
             <motion.div
                 ref={carouselRef}
-                className="cursor-grab active:cursor-grabbing overflow-hidden -mx-4 px-4 py-2" // Margem negativa e padding compensam o corte do hover
+                className="cursor-grab active:cursor-grabbing overflow-hidden -mx-4 px-4 py-2"
                 whileTap={{ cursor: "grabbing" }}
             >
                 <motion.div
@@ -123,7 +121,6 @@ const TemplateSection = ({ categoryKey, items, selectedId, onHighlight, onConfir
                                     }
                                 `}
                             >
-                                {/* Área da Logo */}
                                 <div className={`
                                     h-28 sm:h-40 flex items-center justify-center p-4 relative overflow-hidden transition-colors
                                     ${isSelected ? 'bg-red-100/50 dark:bg-red-900/20' : 'bg-zinc-50 dark:bg-zinc-800/30 group-hover:bg-red-50 dark:group-hover:bg-red-900/5'}
@@ -152,7 +149,6 @@ const TemplateSection = ({ categoryKey, items, selectedId, onHighlight, onConfir
                                     )}
                                 </div>
 
-                                {/* Corpo do Card */}
                                 <div className="p-3 flex flex-col flex-1 justify-between">
                                     <div>
                                         <h4 className={`font-bold text-xs sm:text-base leading-tight mb-1 line-clamp-2 transition-colors ${isSelected ? 'text-red-600 dark:text-red-400' : 'text-zinc-900 dark:text-white group-hover:text-red-600'}`}>
@@ -169,7 +165,6 @@ const TemplateSection = ({ categoryKey, items, selectedId, onHighlight, onConfir
                                             <span>{template.disciplinas?.length || 0} Matérias</span>
                                         </div>
 
-                                        {/* Botão de Ação */}
                                         <button
                                             onClick={(e) => {
                                                 e.stopPropagation();
@@ -207,16 +202,26 @@ const TemplateSection = ({ categoryKey, items, selectedId, onHighlight, onConfir
 };
 
 const TemplateSelectionModal = ({ isOpen, onClose, onSelect, templates, loading }) => {
-    if (!isOpen) return null;
+    // 1. Hook de Scroll Lock (DEVE vir antes de qualquer retorno)
+    useEffect(() => {
+        if (isOpen) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = 'unset';
+        }
+        return () => {
+            document.body.style.overflow = 'unset';
+        };
+    }, [isOpen]);
 
+    // 2. Hook de Estado (DEVE vir antes do retorno)
     const [localSelectedId, setLocalSelectedId] = useState(null);
 
-    const handleHighlight = (template) => {
-        setLocalSelectedId(prev => prev === template.id ? null : template.id);
-    };
-
+    // 3. Hook de Memo (DEVE vir antes do retorno)
     const categorizedTemplates = useMemo(() => {
         const groups = { pm: [], pc: [], pp: [], cbm: [], gcm: [], outros: [] };
+        if (!templates) return groups; // Proteção extra
+
         templates.forEach(t => {
             const textToCheck = (t.titulo + ' ' + (t.instituicao || '')).toLowerCase();
             if (textToCheck.includes('pm') || textToCheck.includes('policia militar') || textToCheck.includes('polícia militar')) groups.pm.push(t);
@@ -229,8 +234,16 @@ const TemplateSelectionModal = ({ isOpen, onClose, onSelect, templates, loading 
         return groups;
     }, [templates]);
 
+    // Função Helper
+    const handleHighlight = (template) => {
+        setLocalSelectedId(prev => prev === template.id ? null : template.id);
+    };
+
+    // 4. AGORA SIM, o Retorno Condicional (O erro estava aqui antes)
+    if (!isOpen) return null;
+
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fade-in">
             <motion.div
                 initial={{ scale: 0.95, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
@@ -635,6 +648,14 @@ function CicloCreateWizard({ onClose, user, onCicloAtivado }) {
 
   const { criarCiclo, loading } = useCiclos(user);
 
+  // --- TRAVA DE SCROLL NO WIZARD PRINCIPAL ---
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => {
+        document.body.style.overflow = 'unset';
+    };
+  }, []);
+
   useEffect(() => {
       const fetchTemplates = async () => {
           setLoadingTemplates(true);
@@ -744,7 +765,7 @@ function CicloCreateWizard({ onClose, user, onCicloAtivado }) {
   const maxWidthClass = isWide ? 'max-w-5xl' : 'max-w-md';
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
       <TemplateSelectionModal isOpen={showTemplateModal} onClose={() => setShowTemplateModal(false)} templates={templates} onSelect={handleSelectTemplate} loading={loadingTemplates} />
 
       <motion.div

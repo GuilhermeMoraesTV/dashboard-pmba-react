@@ -89,8 +89,8 @@ const EDITAL_PMSE_COMPLETO = {
       peso: 1,
       importancia: "Baixa",
       assuntos: [
-        { nome: "Domínio de tópicos atuais (desenvolvimento sustentável, ecologia, tecnologia, energia, política, economia, sociedade, etc)", relevancia: 4 },
-        { nome: "Atualidades e contextos históricos, geográficos, sociais e noções de cidadania (Brasil e Mundo)", relevancia: 4 }
+        { nome: "Domínio de tópicos atuais", relevancia: 4 },
+        { nome: "Atualidades e contextos históricos, geográficos, sociais", relevancia: 4 }
       ]
     },
     {
@@ -104,7 +104,7 @@ const EDITAL_PMSE_COMPLETO = {
         { nome: "Título II - Dos Direitos e Garantias Fundamentais", relevancia: 5 },
         { nome: "Emenda Constitucional nº 45/2004", relevancia: 2 },
         { nome: "Declaração Universal dos Direitos do Homem de 1948 (ONU)", relevancia: 5 },
-        { nome: "Convenção Americana de Direitos Humanos (Pacto de San José da Costa Rica)", relevancia: 4 },
+        { nome: "Convenção Americana de Direitos Humanos", relevancia: 4 },
         { nome: "Decreto nº 4.229/2002 (Programa Nacional de Direitos Humanos - PNDH)", relevancia: 2 }
       ]
     },
@@ -113,9 +113,9 @@ const EDITAL_PMSE_COMPLETO = {
       peso: 2,
       importancia: "Alta",
       assuntos: [
-        { nome: "Formação Constitucional do Brasil, Constituição de 1988 (origem e objetivos)", relevancia: 2 },
+        { nome: "Formação Constitucional do Brasil", relevancia: 2 },
         { nome: "Estrutura e organização do Estado Brasileiro", relevancia: 4 },
-        { nome: "Organização dos poderes: Executivo, Legislativo e Judiciário", relevancia: 3 },
+        { nome: "Organização dos poderes", relevancia: 3 },
         { nome: "Funções essenciais à justiça", relevancia: 3 },
         { nome: "Artigo 144 da CF/88 (Missão constitucional das Polícias Militares)", relevancia: 5 }
       ]
@@ -139,8 +139,7 @@ const EDITAL_PMSE_COMPLETO = {
         { nome: "Poderes da administração pública", relevancia: 5 },
         { nome: "Serviço público", relevancia: 3 },
         { nome: "Atos administrativos", relevancia: 5 },
-        { nome: "Contratos administrativos", relevancia: 3 },
-        { nome: "Licitações", relevancia: 3 },
+        { nome: "Contratos administrativos e Licitações", relevancia: 3 },
         { nome: "Bens públicos", relevancia: 2 },
         { nome: "Administração direta e indireta", relevancia: 4 },
         { nome: "Controle da administração pública", relevancia: 3 },
@@ -152,13 +151,11 @@ const EDITAL_PMSE_COMPLETO = {
       peso: 1,
       importancia: "Alta",
       assuntos: [
-        { nome: "Indígenas em Sergipe", relevancia: 2 },
-        { nome: "Processo de ocupação e povoamento do território sergipano", relevancia: 4 },
-        { nome: "Economias fundadoras", relevancia: 3 },
-        { nome: "Regiões geoeconômicas", relevancia: 4 },
-        { nome: "Estrutura do poder e a sociedade colonial sergipana", relevancia: 3 },
+        { nome: "Indígenas em Sergipe e processo de ocupação", relevancia: 3 },
+        { nome: "Economias fundadoras e Regiões geoeconômicas", relevancia: 3 },
+        { nome: "Estrutura do poder e sociedade colonial sergipana", relevancia: 3 },
         { nome: "Sergipe nas sucessivas fases da República Brasileira", relevancia: 4 },
-        { nome: "Condicionantes geoambientais (clima, relevo, hidrografia, vegetação)", relevancia: 5 },
+        { nome: "Condicionantes geoambientais", relevancia: 5 },
         { nome: "Dinâmica populacional", relevancia: 4 },
         { nome: "Rede urbana e organização do espaço", relevancia: 3 },
         { nome: "Formação metropolitana de Aracaju", relevancia: 4 },
@@ -203,19 +200,28 @@ const SeedEditalPMSE = ({ isInstalled, onSuccess }) => {
     }
   };
 
-  return (
-    <button
-        onClick={handleSeed}
-        disabled={loading}
-        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wide transition-all shadow-sm ${
-            isInstalled
-            ? 'bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700'
-            : 'bg-green-600 text-white hover:bg-green-700 hover:shadow-green-500/20'
-        } ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
-    >
-        {loading ? '...' : (isInstalled ? <><RefreshCw size={14}/> Reinstalar</> : <><Download size={14}/> Instalar</>)}
-    </button>
-  );
+ return (
+     <button
+         onClick={handleSeed}
+         disabled={loading}
+         className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wide transition-all shadow-sm ${
+             isInstalled
+             ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700'
+             : 'bg-red-600 text-white hover:bg-red-700 hover:shadow-red-500/20'
+         } ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+     >
+         {loading ? '...' : (isInstalled ? <><RefreshCw size={14}/> Reinstalar</> : <><Download size={14}/> Instalar Edital</>)}
+     </button>
+   );
+ };
+
+// --- CONFIGURAÇÃO MANUAL OBRIGATÓRIA ---
+export const editalConfig = {
+    id: "pmse_soldado",
+    titulo: "Soldado PMSE",
+    banca: "SELECON",
+    tipo: "pm",
+    logo: "/logosEditais/logo-pmse.png"
 };
 
 export default SeedEditalPMSE;

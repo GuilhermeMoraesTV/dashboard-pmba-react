@@ -52,7 +52,7 @@ const EDITAL_PCBA_INVESTIGADOR = {
     {
       nome: "Informática",
       peso: 1,
-      importancia: "Alta", // IBFC costuma apertar em Informática
+      importancia: "Alta",
       assuntos: [
         { nome: "Conceito de internet e intranet", relevancia: 3 },
         { nome: "Tecnologias, ferramentas, aplicativos e procedimentos associados a internet/intranet", relevancia: 3 },
@@ -220,7 +220,6 @@ const EDITAL_PCBA_INVESTIGADOR = {
   ]
 };
 
-// Componente React permanece com a mesma lógica, apenas apontando para a nova chave de documento
 const SeedEditalPCBA = ({ isInstalled, onSuccess }) => {
   const [loading, setLoading] = useState(false);
 
@@ -241,18 +240,27 @@ const SeedEditalPCBA = ({ isInstalled, onSuccess }) => {
   };
 
   return (
-    <button
-        onClick={handleSeed}
-        disabled={loading}
-        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wide transition-all shadow-sm ${
-            isInstalled
-            ? 'bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700'
-            : 'bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-indigo-500/20'
-        } ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
-    >
-        {loading ? '...' : (isInstalled ? <><RefreshCw size={14}/> Reinstalar</> : <><Download size={14}/> Instalar</>)}
-    </button>
-  );
+      <button
+          onClick={handleSeed}
+          disabled={loading}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wide transition-all shadow-sm ${
+              isInstalled
+              ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700'
+              : 'bg-red-600 text-white hover:bg-red-700 hover:shadow-red-500/20'
+          } ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+      >
+          {loading ? '...' : (isInstalled ? <><RefreshCw size={14}/> Reinstalar</> : <><Download size={14}/> Instalar Edital</>)}
+      </button>
+    );
+  };
+
+// --- CONFIGURAÇÃO MANUAL OBRIGATÓRIA ---
+export const editalConfig = {
+    id: "pcba_investigador",
+    titulo: "Investigador PCBA",
+    banca: "IBFC",
+    tipo: "pc",
+    logo: "/logosEditais/logo-pcba.png"
 };
 
 export default SeedEditalPCBA;

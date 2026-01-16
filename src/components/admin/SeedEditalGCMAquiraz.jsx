@@ -9,7 +9,6 @@ const EDITAL_GCM_AQUIRAZ_COMPLETO = {
   logoUrl: "/logosEditais/logo-aquiraz.png",
   instituicao: "GCM",
   disciplinas: [
-    // --- 1. CONHECIMENTOS GERAIS (NÍVEL MÉDIO) ---
     {
       nome: "Língua Portuguesa",
       peso: 1,
@@ -104,7 +103,6 @@ const EDITAL_GCM_AQUIRAZ_COMPLETO = {
         { nome: "Estatuto dos Servidores", relevancia: 5 }
       ]
     },
-    // --- 2. CONHECIMENTOS ESPECÍFICOS (GCM) ---
     {
       nome: "Noções de Direito Administrativo",
       peso: 2,
@@ -199,18 +197,27 @@ const SeedEditalGCMAquiraz = ({ isInstalled, onSuccess }) => {
   };
 
   return (
-    <button
-        onClick={handleSeed}
-        disabled={loading}
-        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wide transition-all shadow-sm ${
-            isInstalled
-            ? 'bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700'
-            : 'bg-emerald-600 text-white hover:bg-emerald-700 hover:shadow-emerald-500/20'
-        } ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
-    >
-        {loading ? '...' : (isInstalled ? <><RefreshCw size={14}/> Reinstalar Completo</> : <><Download size={14}/> Instalar Completo</>)}
-    </button>
-  );
+      <button
+          onClick={handleSeed}
+          disabled={loading}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wide transition-all shadow-sm ${
+              isInstalled
+              ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700'
+              : 'bg-red-600 text-white hover:bg-red-700 hover:shadow-red-500/20'
+          } ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+      >
+          {loading ? '...' : (isInstalled ? <><RefreshCw size={14}/> Reinstalar</> : <><Download size={14}/> Instalar Edital</>)}
+      </button>
+    );
+  };
+
+// --- CONFIGURAÇÃO MANUAL OBRIGATÓRIA ---
+export const editalConfig = {
+    id: "gcm_aquiraz",
+    titulo: "GCM Aquiraz",
+    banca: "Instituto Consulpam",
+    tipo: "gcm",
+    logo: "/logosEditais/logo-aquiraz.png"
 };
 
 export default SeedEditalGCMAquiraz;
