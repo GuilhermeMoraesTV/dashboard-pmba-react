@@ -5,7 +5,7 @@ import {
   sendPasswordResetEmail, deleteUser, updateProfile
 } from 'firebase/auth';
 import {
-  collection, query, where, orderBy, onSnapshot, getDocs, doc, updateDoc, deleteDoc, setDoc
+  collection, query, where, orderBy, onSnapshot, doc, updateDoc, deleteDoc, setDoc
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -13,11 +13,11 @@ import { useCiclos } from '../hooks/useCiclos';
 
 import {
   User, Save, X, Archive, Loader2, Upload, Trash2,
-  Calendar as CalendarIcon, Clock, CheckSquare, History, Shield, Mail, Key,
+  Calendar as CalendarIcon, Clock, CheckSquare, Shield, Mail, Key,
   AlertTriangle, ChevronDown, ChevronUp, Camera, Target, Zap,
-  ArchiveRestore, Search, LayoutDashboard, ArrowLeft, Filter,
+  ArchiveRestore, Search, LayoutDashboard, ArrowLeft,
   Edit2, AlertOctagon, RotateCw, BookOpen, ChevronLeft, ChevronRight,
-  List, CornerDownRight
+  CornerDownRight, Check
 } from 'lucide-react';
 
 // --- UTILITÁRIOS ---
@@ -43,51 +43,33 @@ const dateToYMD = (date) => {
     return `${year}-${month}-${day}`;
 };
 
-// --- FUNÇÃO DE LOGO OTIMIZADA E AUTOMÁTICA ---
+// --- FUNÇÃO DE LOGO OTIMIZADA ---
 const getLogo = (ciclo) => {
     if(!ciclo) return null;
-    // Se o ciclo já tiver uma URL direta salva no banco, usa ela
     if(ciclo.logoUrl) return ciclo.logoUrl;
 
     const searchString = (ciclo.templateOrigem || ciclo.nome || '').toLowerCase();
-
-    // 1. Lista de todas as UFs do Brasil
     const ufs = [
         'ac', 'al', 'ap', 'am', 'ba', 'ce', 'df', 'es', 'go', 'ma', 'mt', 'ms', 'mg',
         'pa', 'pb', 'pr', 'pe', 'pi', 'erj', 'rn', 'rs', 'ro', 'rr', 'sc', 'sp', 'se', 'to'
     ];
-
-    // 2. Prefixos das corporações (PM, PC, Bombeiros, Polícia Penal)
     const prefixos = ['pm', 'pc', 'cbm', 'bm', 'pp'];
-
-    // 3. Casos especiais manuais (Federais ou Municipais especificos)
     const especiais = ['gcm', 'aquiraz', 'pf', 'prf', 'depen', 'eb', 'fab', 'marinha'];
 
-    // Gera a lista com todas as combinações possíveis (ex: pmba, pcsp, cbmmg...)
     let todasSiglas = [...especiais];
-
     prefixos.forEach(prefixo => {
         ufs.forEach(uf => {
             todasSiglas.push(`${prefixo}${uf}`);
         });
     });
-
-    // Ordena por tamanho para garantir que siglas maiores tenham prioridade na busca
     todasSiglas.sort((a, b) => b.length - a.length);
 
-    // Tenta encontrar alguma sigla dentro do nome do ciclo
     const encontrada = todasSiglas.find(sigla => searchString.includes(sigla));
 
     if (encontrada) {
-        // Exceção visual para GCM Aquiraz (mantendo sua lógica original)
         if(encontrada === 'gcm' || encontrada === 'aquiraz') return '/logosEditais/logo-aquiraz.png';
-
-        // --- RETORNO AUTOMÁTICO ---
-        // Retorna o caminho do arquivo baseado na sigla encontrada.
-        // Ex: achou 'pmba' -> retorna '/logosEditais/logo-pmba.png'
         return `/logosEditais/logo-${encontrada}.png`;
     }
-
     return null;
 };
 
@@ -129,7 +111,7 @@ const MiniCalendar = ({ records, selectedDate, onSelectDate }) => {
             </div>
             <div className="grid grid-cols-7 gap-1">
                 {days.map((date, idx) => {
-                    if (!date) return <div key={idx} className="h-8 md:h-8" />; // Altura menor
+                    if (!date) return <div key={idx} className="h-8 md:h-8" />;
                     const dateStr = dateToYMD(date);
                     const isSelected = selectedDate === dateStr;
                     const hasData = daysWithData[dateStr];
@@ -146,17 +128,14 @@ const MiniCalendar = ({ records, selectedDate, onSelectDate }) => {
     );
 };
 
-// --- COMPONENTE DE ITEM EXPANSÍVEL DO HISTÓRICO (COMPACTO) ---
+// --- COMPONENTE DE ITEM EXPANSÍVEL DO HISTÓRICO ---
 const HistoryItemAccordion = ({ disciplinaNome, records, onEdit, onDelete }) => {
     const [isOpen, setIsOpen] = useState(false);
-
-    // Totais do dia para esta disciplina
     const totalMinutos = records.reduce((acc, r) => acc + (r.tempoEstudadoMinutos || 0), 0);
     const totalQuestoes = records.reduce((acc, r) => acc + (r.questoesFeitas || 0), 0);
 
     return (
         <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden transition-all shadow-sm hover:shadow-md mb-2">
-            {/* Cabeçalho Compacto */}
             <div
                 onClick={() => setIsOpen(!isOpen)}
                 className="px-3 py-2 flex items-center justify-between cursor-pointer bg-zinc-50/30 dark:bg-zinc-800/10 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-colors"
@@ -178,7 +157,6 @@ const HistoryItemAccordion = ({ disciplinaNome, records, onEdit, onDelete }) => 
                 </div>
             </div>
 
-            {/* Conteúdo (Lista Compacta) */}
             <AnimatePresence>
                 {isOpen && (
                     <motion.div
@@ -189,8 +167,6 @@ const HistoryItemAccordion = ({ disciplinaNome, records, onEdit, onDelete }) => 
                     >
                         {records.map((reg) => (
                             <div key={reg.id} className="px-3 py-2 border-b border-zinc-50 dark:border-zinc-800/50 last:border-0 hover:bg-zinc-50 dark:hover:bg-zinc-900/50 transition-colors flex items-center justify-between group">
-
-                                {/* Info Esquerda */}
                                 <div className="flex-1 min-w-0 mr-2">
                                     <div className="flex items-center gap-1.5">
                                         <CornerDownRight size={12} className="text-zinc-300 shrink-0" />
@@ -199,22 +175,15 @@ const HistoryItemAccordion = ({ disciplinaNome, records, onEdit, onDelete }) => 
                                         </p>
                                     </div>
                                 </div>
-
-                                {/* Info Direita (Métricas + Ações) */}
                                 <div className="flex items-center gap-3 shrink-0">
-                                     {/* Tempo */}
                                      <span className="text-[10px] font-bold text-zinc-500 bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded flex items-center gap-1">
                                         <Clock size={10} className="text-zinc-400"/> {formatTime(reg.tempoEstudadoMinutos)}
                                      </span>
-
-                                     {/* Questões (Se houver) */}
                                      {reg.questoesFeitas > 0 && (
                                         <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 ${reg.acertos/reg.questoesFeitas >= 0.7 ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20' : 'bg-amber-50 text-amber-600 dark:bg-amber-900/20'}`}>
                                            <Target size={10}/> {reg.acertos}/{reg.questoesFeitas}
                                         </span>
                                      )}
-
-                                    {/* Botões de Ação (Sempre Visíveis) */}
                                     <div className="flex gap-1 pl-2 border-l border-zinc-100 dark:border-zinc-800">
                                         <button onClick={(e) => { e.stopPropagation(); onEdit(reg); }} className="p-1.5 text-zinc-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded transition-colors" title="Editar"><Edit2 size={12}/></button>
                                         <button onClick={(e) => { e.stopPropagation(); onDelete(reg); }} className="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors" title="Excluir"><Trash2 size={12}/></button>
@@ -229,7 +198,7 @@ const HistoryItemAccordion = ({ disciplinaNome, records, onEdit, onDelete }) => 
     );
 };
 
-// --- MODAL DE EDIÇÃO RÁPIDA (VISUAL PREMIUM) ---
+// --- MODAL DE EDIÇÃO RÁPIDA ---
 const QuickEditRecordModal = ({ record, isOpen, onClose, onSave }) => {
     const [formData, setFormData] = useState({
         ...record,
@@ -288,7 +257,6 @@ const QuickEditRecordModal = ({ record, isOpen, onClose, onSave }) => {
                 </div>
 
                 <form onSubmit={handleSave} className="p-5 space-y-5 overflow-y-auto custom-scrollbar">
-                    {/* Linha 1: Data */}
                     <div className="space-y-1">
                          <label className="block text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Data</label>
                          <div className="relative group">
@@ -302,8 +270,6 @@ const QuickEditRecordModal = ({ record, isOpen, onClose, onSave }) => {
                             />
                          </div>
                     </div>
-
-                    {/* Linha 2: Tempo */}
                     <div className="space-y-2 bg-zinc-50 dark:bg-zinc-900/30 p-3 rounded-xl border border-zinc-100 dark:border-zinc-800">
                         <h3 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-1.5"><Clock size={12} className="text-amber-500" /> Tempo Estudado</h3>
                         <div className="flex gap-3 items-end">
@@ -312,8 +278,6 @@ const QuickEditRecordModal = ({ record, isOpen, onClose, onSave }) => {
                             <div className="flex-1"><label className="text-[10px] font-semibold text-zinc-500 mb-1 block">Minutos</label><input type="number" name="minutos" value={formData.minutos} onChange={handleChange} min="0" max="59" className="w-full p-2 text-center text-lg font-black border border-zinc-200 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-900 focus:ring-2 focus:ring-amber-500 outline-none" /></div>
                         </div>
                     </div>
-
-                    {/* Linha 3: Questões */}
                     <div className="space-y-2 bg-zinc-50 dark:bg-zinc-900/30 p-3 rounded-xl border border-zinc-100 dark:border-zinc-800">
                         <h3 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-1.5"><Target size={12} className="text-emerald-500" /> Questões</h3>
                         <div className="flex gap-3">
@@ -331,7 +295,6 @@ const QuickEditRecordModal = ({ record, isOpen, onClose, onSave }) => {
         </div>
     );
 };
-
 
 const DeleteConfirmationModal = ({ isOpen, onClose, onConfirm, loading }) => {
     if (!isOpen) return null;
@@ -353,14 +316,12 @@ const DeleteConfirmationModal = ({ isOpen, onClose, onConfirm, loading }) => {
 const MiniCicloCard = ({ ciclo, onClick, registros }) => {
     const logo = getLogo(ciclo);
     const concluidos = ciclo.conclusoes || 0;
-    const { totalHoras, progressoPercent } = useMemo(() => {
+    const { totalHoras } = useMemo(() => {
         if (!registros) return { totalHoras: 0, progressoPercent: 0 };
         const minutosTotais = registros.reduce((acc, r) => acc + (r.tempoEstudadoMinutos || 0), 0);
         const horasTotais = Math.round(minutosTotais / 60 * 10) / 10;
-        const metaSemanal = Number(ciclo.cargaHorariaSemanalTotal) || 1;
-        const percent = Math.min((horasTotais / metaSemanal) * 100, 100);
-        return { totalHoras: horasTotais, progressoPercent: percent };
-    }, [ciclo, registros]);
+        return { totalHoras: horasTotais };
+    }, [registros]);
 
     return (
         <motion.div layout onClick={() => onClick(ciclo.id)} className="group relative bg-white dark:bg-zinc-900/50 rounded-2xl p-4 cursor-pointer border border-zinc-200 dark:border-zinc-800 overflow-hidden transition-all hover:border-red-300 dark:hover:border-red-900 hover:shadow-xl flex flex-col justify-between h-full min-h-[140px]">
@@ -413,6 +374,12 @@ const StatCard = ({ icon: Icon, label, value, subtext, colorClass, delay }) => (
 function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
   const [isEditingEmail, setIsEditingEmail] = useState(false);
   const [newEmail, setNewEmail] = useState(user?.email || '');
+
+  // --- ESTADOS PARA EDIÇÃO DE NOME ---
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [newName, setNewName] = useState(user?.displayName || '');
+  const [nameLoading, setNameLoading] = useState(false);
+
   const [senhaLoading, setSenhaLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
   const [showDangerZone, setShowDangerZone] = useState(false);
@@ -432,7 +399,6 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
   const [selectedCycleId, setSelectedCycleId] = useState(null);
   const [historySearch, setHistorySearch] = useState('');
 
-  // Novo estado para a data selecionada no calendário
   const [selectedDate, setSelectedDate] = useState(dateToYMD(new Date()));
 
   const [cicloParaExcluir, setCicloParaExcluir] = useState(null);
@@ -480,16 +446,11 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
 
   const activeCycleData = useMemo(() => groupedHistory.find(g => g.id === selectedCycleId), [groupedHistory, selectedCycleId]);
 
-  // LOGICA DE AGRUPAMENTO POR DISCIPLINA (Para o novo visual)
   const filteredRecordsByDiscipline = useMemo(() => {
       if (!selectedCycleId) return {};
       const group = groupedHistory.find(g => g.id === selectedCycleId);
       if (!group) return {};
-
-      // Filtra pelo dia
       const recordsOfDay = group.registros.filter(r => r.data === selectedDate);
-
-      // Agrupa por Nome da Disciplina
       const grouped = {};
       recordsOfDay.forEach(reg => {
           if(!grouped[reg.disciplinaNome]) grouped[reg.disciplinaNome] = [];
@@ -497,8 +458,6 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
       });
       return grouped;
   }, [groupedHistory, selectedCycleId, selectedDate]);
-
-  const activeCycleName = groupedHistory.find(g => g.id === selectedCycleId)?.cicloInfo?.nome;
 
   const handleConfirmDeleteRegistro = async () => {
       if (!recordToDelete) return;
@@ -510,49 +469,106 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
       catch (e) { console.error(e); }
   };
 
-  const handleUpdatePhoto = async () => {
-      if (!photo) return;
-      setPhotoLoading(true);
-      try {
-        const storageRef = ref(storage, `profile_images/${user.uid}/${photo.name}`);
-        const snapshot = await uploadBytes(storageRef, photo);
-        const photoURL = await getDownloadURL(snapshot.ref);
-        await updateProfile(auth.currentUser, { photoURL });
-        await setDoc(doc(db, 'users', user.uid), { photoURL }, { merge: true });
-        await auth.currentUser.reload();
-        setMessage({ type: 'success', text: 'Foto de perfil atualizada.' });
-        setPhoto(null);
-      } catch (error) { console.error("Erro:", error); setMessage({ type: 'error', text: 'Falha ao atualizar foto.' }); } finally { setPhotoLoading(false); }
+  // --- FUNÇÃO DE ATUALIZAR NOME (VERSÃO ROBUSTA - CORRIGE ADMIN) ---
+    const handleUpdateName = async () => {
+        // Removemos a verificação "newName === user.displayName" para permitir
+        // que você clique em salvar mesmo sem mudar o nome, forçando a criação do documento.
+        if (!newName.trim()) {
+            setIsEditingName(false);
+            return;
+        }
+        setNameLoading(true);
+        try {
+            // 1. Atualiza no Auth (Login do Firebase)
+            await updateProfile(auth.currentUser, { displayName: newName });
+
+            // 2. FORÇA a criação/atualização do documento no Firestore com TODOS os dados necessários
+            // Isso garante que o AdminPage consiga ler, filtrar e ordenar este usuário.
+            await setDoc(doc(db, 'users', user.uid), {
+                uid: user.uid,
+                displayName: newName,
+                name: newName,          // Campo que o AdminPage lê
+                email: user.email,      // Essencial para a tabela
+                photoURL: user.photoURL || null,
+                // Garante que existe data de criação para ordenação na AdminPage
+                createdAt: user.metadata.creationTime ? new Date(user.metadata.creationTime) : new Date(),
+                updatedAt: new Date()
+            }, { merge: true });
+
+            await auth.currentUser.reload();
+            setMessage({ type: 'success', text: 'Perfil sincronizado com sucesso!' });
+            setIsEditingName(false);
+        } catch (error) {
+            console.error("Erro ao sincronizar perfil:", error);
+            setMessage({ type: 'error', text: 'Erro ao salvar dados.' });
+        } finally {
+            setNameLoading(false);
+        }
     };
-  const handleUpdateEmail = async () => {
-    if (!newEmail || newEmail === user.email) return;
-    try { await verifyBeforeUpdateEmail(auth.currentUser, newEmail); setMessage({ type: 'success', text: `Link enviado para ${newEmail}.` }); setIsEditingEmail(false); }
-    catch (error) { setMessage({ type: 'error', text: 'Erro ao atualizar e-mail.' }); }
-  };
-  const handleSendPasswordReset = async () => {
-    setSenhaLoading(true);
-    try { await sendPasswordResetEmail(auth, user.email); setMessage({ type: 'success', text: `Link enviado para ${user.email}.` }); }
-    catch (error) { setMessage({ type: 'error', text: 'Erro ao enviar email.' }); } finally { setSenhaLoading(false); }
-  };
-  const handleDeleteAccount = async () => {
-      if(!deletePassword) return;
+
+    const handleUpdatePhoto = async () => {
+        if (!photo) return;
+        setPhotoLoading(true);
+        try {
+          const storageRef = ref(storage, `profile_images/${user.uid}/${photo.name}`);
+          const snapshot = await uploadBytes(storageRef, photo);
+          const photoURL = await getDownloadURL(snapshot.ref);
+
+          await updateProfile(auth.currentUser, { photoURL });
+          // Atualiza também no documento do usuário para garantir consistência
+          await setDoc(doc(db, 'users', user.uid), { photoURL }, { merge: true });
+
+          await auth.currentUser.reload();
+          setMessage({ type: 'success', text: 'Foto de perfil atualizada.' });
+          setPhoto(null);
+        } catch (error) {
+            console.error("Erro:", error);
+            setMessage({ type: 'error', text: 'Falha ao atualizar foto.' });
+        } finally {
+            setPhotoLoading(false);
+        }
+      };
+
+    const handleUpdateEmail = async () => {
+      if (!newEmail || newEmail === user.email) return;
       try {
-          const credential = EmailAuthProvider.credential(user.email, deletePassword);
-          await reauthenticateWithCredential(auth.currentUser, credential);
-          await deleteUser(auth.currentUser);
-      } catch (e) { setMessage({type: 'error', text: 'Senha incorreta.'}); }
-  };
-  const handleUnarchive = async (id) => { await updateDoc(doc(db, 'users', user.uid, 'ciclos', id), { arquivado: false }); };
-  const handleDeletePermanent = (ciclo) => { setCicloParaExcluir(ciclo); setShowDeleteCycleConfirm(true); };
-  const handleConfirmPermanentDelete = async () => {
-      if (!cicloParaExcluir || cicloActionLoading) return;
-      const { id, nome } = cicloParaExcluir;
-      setShowDeleteCycleConfirm(false);
-      const sucesso = await excluirCicloPermanente(id);
-      if (sucesso) setMessage({ type: 'success', text: `Ciclo "${nome}" excluído.` });
-      else setMessage({ type: 'error', text: `Falha ao excluir ciclo.` });
-      setCicloParaExcluir(null);
-  };
+          await verifyBeforeUpdateEmail(auth.currentUser, newEmail);
+          setMessage({ type: 'success', text: `Link enviado para ${newEmail}.` });
+          setIsEditingEmail(false);
+      }
+      catch (error) { setMessage({ type: 'error', text: 'Erro ao atualizar e-mail.' }); }
+    };
+
+    const handleSendPasswordReset = async () => {
+      setSenhaLoading(true);
+      try {
+          await sendPasswordResetEmail(auth, user.email);
+          setMessage({ type: 'success', text: `Link enviado para ${user.email}.` });
+      }
+      catch (error) { setMessage({ type: 'error', text: 'Erro ao enviar email.' }); } finally { setSenhaLoading(false); }
+    };
+
+    const handleDeleteAccount = async () => {
+        if(!deletePassword) return;
+        try {
+            const credential = EmailAuthProvider.credential(user.email, deletePassword);
+            await reauthenticateWithCredential(auth.currentUser, credential);
+            await deleteUser(auth.currentUser);
+        } catch (e) { setMessage({type: 'error', text: 'Senha incorreta.'}); }
+    };
+
+    const handleUnarchive = async (id) => { await updateDoc(doc(db, 'users', user.uid, 'ciclos', id), { arquivado: false }); };
+    const handleDeletePermanent = (ciclo) => { setCicloParaExcluir(ciclo); setShowDeleteCycleConfirm(true); };
+
+    const handleConfirmPermanentDelete = async () => {
+        if (!cicloParaExcluir || cicloActionLoading) return;
+        const { id, nome } = cicloParaExcluir;
+        setShowDeleteCycleConfirm(false);
+        const sucesso = await excluirCicloPermanente(id);
+        if (sucesso) setMessage({ type: 'success', text: `Ciclo "${nome}" excluído.` });
+        else setMessage({ type: 'error', text: `Falha ao excluir ciclo.` });
+        setCicloParaExcluir(null);
+    };
 
   if (!user) return <div>Carregando...</div>;
 
@@ -571,7 +587,39 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
           </div>
           <div className="flex-1 text-center md:text-left space-y-2">
               <div className="inline-block px-3 py-1 bg-zinc-100 dark:bg-zinc-800 rounded-full text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Ficha do Usuario</div>
-              <h1 className="text-4xl md:text-5xl font-black text-zinc-900 dark:text-white tracking-tight leading-none">{user.displayName || 'Usuário'}</h1>
+
+              {/* --- EDIÇÃO DE NOME --- */}
+              {!isEditingName ? (
+                  <div className="flex items-center justify-center md:justify-start gap-3 group">
+                      <h1 className="text-4xl md:text-5xl font-black text-zinc-900 dark:text-white tracking-tight leading-none">
+                          {user.displayName || 'Usuário'}
+                      </h1>
+                      <button
+                          onClick={() => setIsEditingName(true)}
+                          className="p-2 text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-all bg-zinc-100 dark:bg-zinc-800 rounded-lg"
+                          title="Editar Nome"
+                      >
+                          <Edit2 size={18} />
+                      </button>
+                  </div>
+              ) : (
+                  <div className="flex items-center justify-center md:justify-start gap-2 animate-fade-in">
+                      <input
+                          type="text"
+                          value={newName}
+                          onChange={(e) => setNewName(e.target.value)}
+                          className="text-3xl md:text-4xl font-black bg-transparent border-b-2 border-indigo-500 text-zinc-900 dark:text-white outline-none w-full max-w-sm"
+                          autoFocus
+                      />
+                      <button onClick={handleUpdateName} disabled={nameLoading} className="p-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 shadow-md transition-colors">
+                          {nameLoading ? <Loader2 size={20} className="animate-spin" /> : <Check size={20} />}
+                      </button>
+                      <button onClick={() => { setIsEditingName(false); setNewName(user.displayName); }} className="p-2.5 bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 rounded-lg hover:bg-zinc-300 transition-colors">
+                          <X size={20} />
+                      </button>
+                  </div>
+              )}
+
               <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400 flex items-center justify-center md:justify-start gap-2"><Mail size={14} className="text-red-600" /> {user.email}</p>
               <AnimatePresence>{photo && (<motion.div initial={{opacity:0, y:10}} animate={{opacity:1, y:0}} exit={{opacity:0, y:10}} className="pt-2"><button onClick={handleUpdatePhoto} disabled={photoLoading} className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-xs shadow-lg shadow-red-900/20 flex items-center gap-2 transition-all mx-auto md:mx-0">{photoLoading ? <Loader2 size={14} className="animate-spin"/> : <Save size={14}/>} Confirmar Foto</button></motion.div>)}</AnimatePresence>
           </div>
@@ -630,7 +678,7 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
           </div>
       </div>
 
-      {/* --- MODAL HISTÓRICO AVANÇADO (NOVO LAYOUT COM CALENDÁRIO) --- */}
+      {/* --- MODAL HISTÓRICO AVANÇADO --- */}
       <Modal isOpen={showHistoryModal} onClose={() => { setShowHistoryModal(false); setSelectedCycleId(null); }} title={selectedCycleId ? `Histórico: ${activeCycleData?.cicloInfo?.nome}` : "Selecione o Ciclo"} maxWidth="max-w-5xl">
           <div className="p-4 bg-zinc-100 dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 sticky top-0 z-20 flex items-center gap-3">
               {selectedCycleId && <button onClick={() => { setSelectedCycleId(null); setHistorySearch(''); }} className="p-2 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-lg transition-colors"><ArrowLeft size={20} className="text-zinc-500"/></button>}
@@ -642,7 +690,6 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
 
           <div className="p-4 space-y-3 min-h-[450px] bg-zinc-50/50 dark:bg-black/20">
               {!selectedCycleId ? (
-                  // --- LISTA DE CICLOS ---
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                       {groupedHistory.filter(g => g.cicloInfo && g.cicloInfo.nome.toLowerCase().includes(historySearch.toLowerCase())).map((group) => (
                           <MiniCicloCard
@@ -654,9 +701,7 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
                       ))}
                   </div>
               ) : (
-                  // --- LAYOUT DUPLO: CALENDÁRIO + LISTA AGRUPADA ---
                   <div className="flex flex-col md:flex-row gap-6 h-full">
-                      {/* Lado Esquerdo: Calendário */}
                       <div className="md:w-80 flex-shrink-0">
                           <MiniCalendar
                               records={activeCycleData?.registros || []}
@@ -664,8 +709,6 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
                               onSelectDate={setSelectedDate}
                           />
                       </div>
-
-                      {/* Lado Direito: Lista de Registros do Dia */}
                       <div className="flex-1 overflow-hidden">
                           <div className="flex items-center justify-between mb-4">
                               <h4 className="text-sm font-black text-zinc-700 dark:text-white uppercase tracking-widest flex items-center gap-2">
@@ -673,7 +716,6 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
                                   {parseDateLocal(selectedDate).toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
                               </h4>
                           </div>
-
                           <div className="space-y-3 overflow-y-auto max-h-[400px] custom-scrollbar pr-2">
                               {Object.keys(filteredRecordsByDiscipline).length === 0 && (
                                   <div className="flex flex-col items-center justify-center py-10 text-center opacity-50 border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-xl">
@@ -681,8 +723,6 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
                                       <p className="text-sm font-bold text-zinc-500">Sem atividades neste dia.</p>
                                   </div>
                               )}
-
-                              {/* RENDERIZAÇÃO DOS ACORDEÕES POR DISCIPLINA */}
                               {Object.entries(filteredRecordsByDiscipline).map(([disciplinaNome, records]) => (
                                   <HistoryItemAccordion
                                       key={disciplinaNome}
@@ -703,7 +743,6 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
       <AnimatePresence>
           {showDeleteCycleConfirm && <ModalConfirmacaoExclusaoCiclo ciclo={cicloParaExcluir} onClose={() => {setShowDeleteCycleConfirm(false); setCicloParaExcluir(null);}} onConfirm={handleConfirmPermanentDelete} loading={cicloActionLoading} />}
           {showArchivesModal && (<Modal isOpen={showArchivesModal} onClose={() => setShowArchivesModal(false)} title="Arquivo Morto">
-              {/* ...Conteudo... */}
               <div className="space-y-3 p-2">{ciclosArquivados.length === 0 ? <div className="text-center py-10 text-zinc-500">Vazio.</div> : ciclosArquivados.map((ciclo) => (
                   <div key={ciclo.id} className="p-4 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-2xl flex justify-between items-center shadow-sm">
                       <div className="flex items-center gap-3"><div className="p-2 bg-amber-50 dark:bg-amber-900/20 text-amber-500 rounded-lg"><Archive size={18}/></div><div><h4 className="font-bold text-zinc-800 dark:text-zinc-200 text-sm">{ciclo.nome}</h4><p className="text-[10px] text-zinc-400 uppercase tracking-wide font-bold">Arquivado</p></div></div>
