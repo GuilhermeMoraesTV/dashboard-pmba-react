@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { db } from '../../firebaseConfig';
-import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
+import { db, auth } from '../../firebaseConfig';
+import { collection, query, orderBy, limit, onSnapshot, doc, setDoc, getDoc } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Megaphone, Check, Zap, AlertTriangle } from 'lucide-react';
 
@@ -10,12 +10,11 @@ const BroadcastReceiver = () => {
     const [isVisible, setIsVisible] = useState(false);
     const location = useLocation();
 
-    // Verifica se está na Home
     const isHome = location.pathname === '/';
+    const user = auth.currentUser;
 
     useEffect(() => {
-        // Se não estiver na home, não ativa o listener
-        if (!isHome) return;
+        if (!isHome || !user) return;
 
         const q = query(
             collection(db, 'system_broadcasts'),
@@ -23,47 +22,52 @@ const BroadcastReceiver = () => {
             limit(1)
         );
 
-        const unsub = onSnapshot(q, (snap) => {
+        const unsub = onSnapshot(q, async (snap) => {
             if (!snap.empty) {
                 const data = snap.docs[0].data();
                 const msgId = snap.docs[0].id;
 
                 const now = new Date();
                 const msgTime = data.timestamp?.toDate();
-
-                // Validação de segurança
                 if (!msgTime) return;
 
                 const timeDiff = now - msgTime;
-                const oneDay = 24 * 60 * 60 * 1000; // Validade de 24h
+                const oneDay = 24 * 60 * 60 * 1000;
 
-                // VERIFICAÇÃO RIGOROSA:
-                // Se o usuário já tiver clicado em "Ciente" anteriormente, não mostra
-                const seenKey = `broadcast_seen_${msgId}`;
-                const hasSeen = localStorage.getItem(seenKey);
+                if (timeDiff < oneDay) {
+                    // Verificação de leitura no Firestore para persistência global
+                    const readRef = doc(db, 'users', user.uid, 'broadcasts_read', msgId);
+                    const readSnap = await getDoc(readRef);
 
-                if (timeDiff < oneDay && !hasSeen) {
-                     setNotification({ ...data, id: msgId });
-                     setIsVisible(true);
+                    if (!readSnap.exists()) {
+                        setNotification({ ...data, id: msgId });
+                        setIsVisible(true);
+                    }
                 }
             }
         });
 
         return () => unsub();
-    }, [isHome]);
+    }, [isHome, user]);
 
     const handleClose = () => {
-        if (notification?.id) {
-            // Grava que o usuário leu essa mensagem específica
-            localStorage.setItem(`broadcast_seen_${notification.id}`, 'true');
+        if (notification?.id && user) {
+            // Fecha a interface instantaneamente para melhor UX
             setIsVisible(false);
+
+            // Grava a visualização no banco em background
+            const readRef = doc(db, 'users', user.uid, 'broadcasts_read', notification.id);
+            setDoc(readRef, {
+                readAt: new Date(),
+                msgId: notification.id
+            }).catch(err => console.error("Erro ao registrar leitura:", err));
+
             setTimeout(() => setNotification(null), 300);
         }
     };
 
-    if (!isHome) return null;
+    if (!isHome || !user) return null;
 
-    // --- CONFIGURAÇÃO DE ESTILOS POR TIPO ---
     const getStyleConfig = (type) => {
         switch (type) {
             case 'atualizacao':
@@ -108,15 +112,13 @@ const BroadcastReceiver = () => {
             {isVisible && notification && (
                 <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
 
-                    {/* Backdrop (Fundo Escuro) - BLOQUEADO */}
                     <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="absolute inset-0 bg-black/80 backdrop-blur-sm cursor-not-allowed"
+                        className="absolute inset-0 bg-black/80 backdrop-blur-sm"
                     />
 
-                    {/* O Cartão Oficial */}
                     <motion.div
                         initial={{ scale: 0.9, opacity: 0, y: 20 }}
                         animate={{ scale: 1, opacity: 1, y: 0 }}
@@ -124,11 +126,9 @@ const BroadcastReceiver = () => {
                         transition={{ type: "spring", duration: 0.5, bounce: 0.3 }}
                         className="relative w-[95%] max-w-md md:max-w-lg max-h-[90vh] flex flex-col bg-white dark:bg-zinc-950 rounded-3xl shadow-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800"
                     >
-                        {/* Faixa Decorativa Superior Dinâmica */}
                         <div className={`absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r ${currentStyle.gradient} shrink-0`} />
 
-                        {/* --- MARCA D'ÁGUA GRANDE --- */}
-                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-20 dark:opacity-10">
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-10 dark:opacity-[0.05]">
                             <img
                                 src="/logo-pmba.png"
                                 alt="Logo Sistema"
@@ -136,27 +136,22 @@ const BroadcastReceiver = () => {
                             />
                         </div>
 
-                        {/* --- CONTEÚDO --- */}
                         <div className="relative z-10 flex flex-col items-center p-5 md:p-8 text-center h-full">
 
-                            {/* Ícone de Topo Dinâmico */}
                             <div className={`mb-4 p-3 rounded-full shadow-inner shrink-0 ${currentStyle.iconBg} ${currentStyle.iconColor} ring-4 ${currentStyle.ring}`}>
                                 <CurrentIcon className="w-10 h-10 animate-pulse" />
                             </div>
 
-                            {/* Título Dinâmico */}
                             <h2 className="text-xl md:text-2xl font-black uppercase tracking-tight text-zinc-900 dark:text-white mb-6 shrink-0">
                                 {currentStyle.title}
                             </h2>
 
-                            {/* Mensagem com Scroll */}
                             <div className="w-full bg-zinc-50/80 dark:bg-black/40 rounded-xl p-3 md:p-4 border border-zinc-100 dark:border-zinc-800 mb-5 backdrop-blur-sm overflow-y-auto max-h-[40vh] md:max-h-[300px] custom-scrollbar">
                                 <p className="text-sm md:text-base font-medium text-zinc-700 dark:text-zinc-200 leading-relaxed whitespace-pre-wrap text-left md:text-center">
                                     {notification.message}
                                 </p>
                             </div>
 
-                            {/* Botão de Ação Dinâmico */}
                             <button
                                 onClick={handleClose}
                                 className={`w-full py-3 text-white rounded-xl font-bold uppercase tracking-wide transition-all transform active:scale-95 shadow-lg flex items-center justify-center gap-2 shrink-0 text-xs md:text-sm ${currentStyle.btnBg}`}
