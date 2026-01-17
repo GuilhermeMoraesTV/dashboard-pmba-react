@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   collection, onSnapshot, query, orderBy, addDoc, deleteDoc, doc, where, Timestamp
 } from 'firebase/firestore';
@@ -25,7 +25,6 @@ import StudyTimer from '../components/ciclos/StudyTimer';
 import TimerFinishModal from '../components/ciclos/TimerFinishModal';
 import OnboardingTour from '../components/shared/OnboardingTour';
 import BroadcastReceiver from '../components/shared/BroadcastReceiver';
-
 
 const ADMIN_UID = 'OLoJi457GQNE2eTSOcz9DAD6ppZ2';
 const STORAGE_KEY = '@ModoQAP:ActiveSession';
@@ -75,24 +74,24 @@ const ShareCardPreviewModal = ({ data, onClose, onDownload }) => {
           transition={{ duration: 0.3, ease: 'easeOut' }}
           className="relative bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 w-[95%] max-w-lg p-4 sm:p-6 flex flex-col items-center max-h-[90vh] overflow-y-auto"
         >
-            <div className="absolute top-3 right-3">
-              <button onClick={onClose} className="p-2 rounded-full bg-white/60 dark:bg-zinc-800/60 hover:bg-red-100 dark:hover:bg-red-900/30 text-zinc-600 hover:text-red-600 transition-all">
-                <X size={18} />
-              </button>
-            </div>
-            <h2 className="text-xl font-bold text-zinc-800 dark:text-white mt-4 mb-1">Preview do Cartão</h2>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4 text-center">Visualize como ficará seu cartão antes de baixar.</p>
-            <div id="share-card-capture-target" className="mb-4">
-              <ShareCard stats={data.stats} userName={data.userName} dayData={data.dayData} goals={data.goals} isDarkMode={data.isDarkMode} disableAnimations={true} />
-            </div>
-            <div className="flex gap-3 mt-2 mb-2 shrink-0 download-button-wrapper">
-              <button onClick={onDownload} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-600 text-white font-semibold shadow hover:bg-red-700 transition-all">
-                <Download size={16} /> Baixar PDF
-              </button>
-              <button onClick={onClose} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 font-semibold hover:bg-zinc-300 dark:hover:bg-zinc-700 transition-all">
-                <X size={16} /> Fechar
-              </button>
-            </div>
+          <div className="absolute top-3 right-3">
+            <button onClick={onClose} className="p-2 rounded-full bg-white/60 dark:bg-zinc-800/60 hover:bg-red-100 dark:hover:bg-red-900/30 text-zinc-600 hover:text-red-600 transition-all">
+              <X size={18} />
+            </button>
+          </div>
+          <h2 className="text-xl font-bold text-zinc-800 dark:text-white mt-4 mb-1">Preview do Cartão</h2>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4 text-center">Visualize como ficará seu cartão antes de baixar.</p>
+          <div id="share-card-capture-target" className="mb-4">
+            <ShareCard stats={data.stats} userName={data.userName} dayData={data.dayData} goals={data.goals} isDarkMode={data.isDarkMode} disableAnimations={true} />
+          </div>
+          <div className="flex gap-3 mt-2 mb-2 shrink-0 download-button-wrapper">
+            <button onClick={onDownload} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-600 text-white font-semibold shadow hover:bg-red-700 transition-all">
+              <Download size={16} /> Baixar PDF
+            </button>
+            <button onClick={onClose} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 font-semibold hover:bg-zinc-300 dark:hover:bg-zinc-700 transition-all">
+              <X size={16} /> Fechar
+            </button>
+          </div>
         </motion.div>
       </motion.div>
     </AnimatePresence>
@@ -117,16 +116,12 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
-  // === CORREÇÃO: Estado recolocado ===
   const [forceOpenVisual, setForceOpenVisual] = useState(false);
-
-  // Controle de posição do Timer
   const [isTimerRaised, setIsTimerRaised] = useState(false);
 
   const [sharePreviewData, setSharePreviewData] = useState(null);
   const [isDownloadAlertVisible, setIsDownloadAlertVisible] = useState(false);
 
-  // Tour e Sessão
   const [tourState, setTourState] = useState({ isActive: false, type: 'main' });
   const [activeStudySession, setActiveStudySession] = useState(null);
   const [finishModalData, setFinishModalData] = useState(null);
@@ -151,12 +146,17 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
 
   // --- ESCUTAR EVENTO PARA SUBIR/DESCER TIMER ---
   useEffect(() => {
-    const handleTimerRaise = (event) => {
-        setIsTimerRaised(event.detail);
-    };
+    const handleTimerRaise = (event) => setIsTimerRaised(event.detail);
     window.addEventListener('toggle-timer-raise', handleTimerRaise);
     return () => window.removeEventListener('toggle-timer-raise', handleTimerRaise);
   }, []);
+
+  // ✅ helper: limpar "active_timers/{uid}" quando sessão termina/cancela
+  const clearActiveTimerDoc = useCallback(async () => {
+    try {
+      await deleteDoc(doc(db, 'active_timers', user.uid));
+    } catch {}
+  }, [user?.uid]);
 
   // --- RESTAURAÇÃO DE SESSÃO / PENDÊNCIA ---
   useEffect(() => {
@@ -166,23 +166,26 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         const parsed = JSON.parse(savedSession);
         if (parsed && parsed.disciplinaId && parsed.disciplinaNome) {
           if (parsed.isFinishing && parsed.tempMinutes) {
-              setPendingReviewData({
-                  minutes: parsed.tempMinutes,
-                  disciplinaNome: parsed.disciplinaNome,
-                  assuntoInicial: parsed.assunto,
-                  reason: 'Sessão interrompida (Atualização/Fechamento)',
-                  originalData: parsed
-              });
+            // se estava finalizando, não deve aparecer como timer ativo no Admin
+            clearActiveTimerDoc();
+
+            setPendingReviewData({
+              minutes: parsed.tempMinutes,
+              disciplinaNome: parsed.disciplinaNome,
+              assuntoInicial: parsed.assunto,
+              reason: 'Sessão interrompida (Atualização/Fechamento)',
+              originalData: parsed
+            });
           } else {
-              if(!parsed.isPaused) {
-                parsed.isPaused = true;
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
-              }
-              setActiveStudySession({
-                disciplina: { id: parsed.disciplinaId, nome: parsed.disciplinaNome },
-                assunto: parsed.assunto,
-                isMinimized: true
-              });
+            if (!parsed.isPaused) {
+              parsed.isPaused = true;
+              localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+            }
+            setActiveStudySession({
+              disciplina: { id: parsed.disciplinaId, nome: parsed.disciplinaNome },
+              assunto: parsed.assunto,
+              isMinimized: true
+            });
           }
         }
       } catch (e) {
@@ -190,7 +193,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         localStorage.removeItem(STORAGE_KEY);
       }
     }
-  }, []);
+  }, [clearActiveTimerDoc]);
 
   // --- ACTIONS ---
   const addRegistroEstudo = async (data) => {
@@ -209,46 +212,49 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   const handleStopStudyRequest = (minutes) => {
     if (!activeStudySession) return;
     if (!activeCicloId) {
-        alert("Nenhum ciclo ativo encontrado. Ative um ciclo antes de salvar.");
-        return;
+      alert("Nenhum ciclo ativo encontrado. Ative um ciclo antes de salvar.");
+      return;
     }
     const currentStorage = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
     const updatedStorage = {
-        ...currentStorage,
-        isFinishing: true,
-        tempMinutes: minutes,
-        isPaused: true
+      ...currentStorage,
+      isFinishing: true,
+      tempMinutes: minutes,
+      isPaused: true
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedStorage));
     setFinishModalData({
-        minutes,
-        disciplinaNome: activeStudySession.disciplina.nome,
-        assuntoInicial: activeStudySession.assunto
+      minutes,
+      disciplinaNome: activeStudySession.disciplina.nome,
+      assuntoInicial: activeStudySession.assunto
     });
   };
 
   const handleRetomarEstudo = () => {
-      setFinishModalData(null);
-      setPendingReviewData(null);
-      const currentStorage = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-      if (currentStorage.disciplinaId) {
-          delete currentStorage.isFinishing;
-          delete currentStorage.tempMinutes;
-          currentStorage.isPaused = true;
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(currentStorage));
-          setActiveStudySession({
-              disciplina: { id: currentStorage.disciplinaId, nome: currentStorage.disciplinaNome },
-              assunto: currentStorage.assunto,
-              isMinimized: false
-          });
-      }
+    setFinishModalData(null);
+    setPendingReviewData(null);
+    const currentStorage = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+    if (currentStorage.disciplinaId) {
+      delete currentStorage.isFinishing;
+      delete currentStorage.tempMinutes;
+      currentStorage.isPaused = true;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(currentStorage));
+      setActiveStudySession({
+        disciplina: { id: currentStorage.disciplinaId, nome: currentStorage.disciplinaNome },
+        assunto: currentStorage.assunto,
+        isMinimized: false
+      });
+    }
   };
 
-  const handleConfirmCancelStudy = () => {
-      setActiveStudySession(null);
-      setFinishModalData(null);
-      setPendingReviewData(null);
-      localStorage.removeItem(STORAGE_KEY);
+  const handleConfirmCancelStudy = async () => {
+    setActiveStudySession(null);
+    setFinishModalData(null);
+    setPendingReviewData(null);
+    localStorage.removeItem(STORAGE_KEY);
+
+    // ✅ remove do admin tracking
+    clearActiveTimerDoc();
   };
 
   const handleConfirmFinishStudy = async (resultData) => {
@@ -259,50 +265,52 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     const nomeDisciplinaFinal = disciplinaNomeCorrigido || dataRef.disciplinaNome;
 
     try {
-        const storageData = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-        const finalDisciplinaId = activeStudySession?.disciplina?.id || storageData.disciplinaId || 'restored_id';
+      const storageData = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+      const finalDisciplinaId = activeStudySession?.disciplina?.id || storageData.disciplinaId || 'restored_id';
 
-        localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(STORAGE_KEY);
 
-        const registroEstudoData = {
-            cicloId: activeCicloId,
-            disciplinaId: finalDisciplinaId,
-            disciplinaNome: nomeDisciplinaFinal,
-            data: dateToYMD(new Date()),
-            tempoEstudadoMinutos: minutes,
-            questoesFeitas: questions,
-            acertos: correct,
-            obs: obs || 'Sessão via Timer',
-            assunto: assunto || null,
-            timestamp: Timestamp.now()
+      const registroEstudoData = {
+        cicloId: activeCicloId,
+        disciplinaId: finalDisciplinaId,
+        disciplinaNome: nomeDisciplinaFinal,
+        data: dateToYMD(new Date()),
+        tempoEstudadoMinutos: minutes,
+        questoesFeitas: questions,
+        acertos: correct,
+        obs: obs || 'Sessão via Timer',
+        assunto: assunto || null,
+        timestamp: Timestamp.now()
+      };
+
+      await addRegistroEstudo(registroEstudoData);
+
+      if (markAsFinished && assunto) {
+        const checkData = {
+          cicloId: activeCicloId,
+          disciplinaId: finalDisciplinaId,
+          disciplinaNome: nomeDisciplinaFinal,
+          assunto: assunto,
+          data: dateToYMD(new Date()),
+          timestamp: Timestamp.now(),
+          tempoEstudadoMinutos: 0,
+          questoesFeitas: 0,
+          acertos: 0,
+          tipoEstudo: 'check_manual',
+          obs: 'Concluído via Timer'
         };
+        await addDoc(collection(db, 'users', user.uid, 'registrosEstudo'), checkData);
+      }
 
-        await addRegistroEstudo(registroEstudoData);
+      setFinishModalData(null);
+      setPendingReviewData(null);
+      setActiveStudySession(null);
 
-        if (markAsFinished && assunto) {
-             const checkData = {
-                cicloId: activeCicloId,
-                disciplinaId: finalDisciplinaId,
-                disciplinaNome: nomeDisciplinaFinal,
-                assunto: assunto,
-                data: dateToYMD(new Date()),
-                timestamp: Timestamp.now(),
-                tempoEstudadoMinutos: 0,
-                questoesFeitas: 0,
-                acertos: 0,
-                tipoEstudo: 'check_manual',
-                obs: 'Concluído via Timer'
-            };
-            await addDoc(collection(db, 'users', user.uid, 'registrosEstudo'), checkData);
-        }
-
-        setFinishModalData(null);
-        setPendingReviewData(null);
-        setActiveStudySession(null);
-
+      // ✅ remove do admin tracking
+      clearActiveTimerDoc();
     } catch (e) {
-        console.error("Erro ao salvar timer:", e);
-        alert("Erro ao salvar sessão. Verifique sua conexão.");
+      console.error("Erro ao salvar timer:", e);
+      alert("Erro ao salvar sessão. Verifique sua conexão.");
     }
   };
 
@@ -320,13 +328,13 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   };
 
   const handleCicloCreationOrActivation = (cicloId) => {
-     setActiveTab('ciclos');
-     setForceOpenVisual(true); // RE-ADICIONADO: Força visualização ao criar/ativar
-     setTimeout(() => setForceOpenVisual(false), 1000);
-     if (user) {
-        const cycleTourSeen = localStorage.getItem(`onboarding_seen_${user.uid}_cycle_visual`);
-        if (!cycleTourSeen) setTourState({ isActive: true, type: 'cycle_visual' });
-     }
+    setActiveTab('ciclos');
+    setForceOpenVisual(true);
+    setTimeout(() => setForceOpenVisual(false), 1000);
+    if (user) {
+      const cycleTourSeen = localStorage.getItem(`onboarding_seen_${user.uid}_cycle_visual`);
+      if (!cycleTourSeen) setTourState({ isActive: true, type: 'cycle_visual' });
+    }
   };
 
   const handleGoToActiveCycle = () => {
@@ -337,12 +345,14 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   const handleTabChange = (tab) => {
     setActiveTab(tab);
     if (tab !== 'ciclos') {
-        setForceOpenVisual(false);
-        setIsTimerRaised(false); // Reseta altura do timer ao sair
+      setForceOpenVisual(false);
+      setIsTimerRaised(false);
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    // ✅ garante limpeza do admin tracking
+    clearActiveTimerDoc();
     signOut(auth).catch((error) => console.error('Logout Error:', error));
   };
 
@@ -412,13 +422,13 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
 
   useEffect(() => {
     if (!user || !activeCicloId) {
-        setActiveCycleDisciplines([]);
-        return;
+      setActiveCycleDisciplines([]);
+      return;
     }
     const q = query(collection(db, 'users', user.uid, 'ciclos', activeCicloId, 'disciplinas'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-        const discs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setActiveCycleDisciplines(discs);
+      const discs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setActiveCycleDisciplines(discs);
     });
     return () => unsubscribe();
   }, [user, activeCicloId]);
@@ -481,25 +491,25 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         return <CalendarTab registrosEstudo={allRegistrosEstudo} goalsHistory={goalsHistory} onDeleteRegistro={deleteRegistro} />;
       case 'ciclos':
         return (
-            <CiclosPage
-                user={user}
-                onStartStudy={handleStartStudy}
-                onCicloAtivado={handleCicloCreationOrActivation}
-                addRegistroEstudo={addRegistroEstudo}
-                activeCicloId={activeCicloId}
-                forceOpenVisual={forceOpenVisual} // === PASSANDO PROP CORRETAMENTE ===
-                onGoToEdital={() => setActiveTab('edital')}
-                registrosEstudo={allRegistrosEstudo}
-            />
+          <CiclosPage
+            user={user}
+            onStartStudy={handleStartStudy}
+            onCicloAtivado={handleCicloCreationOrActivation}
+            addRegistroEstudo={addRegistroEstudo}
+            activeCicloId={activeCicloId}
+            forceOpenVisual={forceOpenVisual}
+            onGoToEdital={() => setActiveTab('edital')}
+            registrosEstudo={allRegistrosEstudo}
+          />
         );
       case 'edital':
         return (
-            <EditalPage
-                user={user}
-                activeCicloId={activeCicloId}
-                onStartStudy={handleStartStudy}
-                onBack={handleGoToActiveCycle}
-            />
+          <EditalPage
+            user={user}
+            activeCicloId={activeCicloId}
+            onStartStudy={handleStartStudy}
+            onBack={handleGoToActiveCycle}
+          />
         );
       case 'stats':
         return (
@@ -514,9 +524,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       case 'profile':
         return <ProfilePage user={user} allRegistrosEstudo={allRegistrosEstudo} onDeleteRegistro={deleteRegistro} />;
       case 'admin':
-        if (user.uid === ADMIN_UID) {
-            return <AdminPage />;
-        }
+        if (user.uid === ADMIN_UID) return <AdminPage />;
         return <div className="p-8 text-center text-red-500 font-bold">Acesso Negado</div>;
       default:
         return null;
@@ -526,16 +534,16 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   return (
     <div className="flex min-h-screen bg-background-light dark:bg-background-dark text-text-primary dark:text-text-dark-primary transition-colors duration-300 overflow-x-hidden">
 
-      {/* --- BROADCAST RECEIVER --- */}
       {activeTab === 'home' && <BroadcastReceiver />}
 
       <DownloadAlert isVisible={isDownloadAlertVisible} onDismiss={() => setIsDownloadAlertVisible(false)} />
       <ShareCardPreviewModal data={sharePreviewData} onClose={() => setSharePreviewData(null)} onDownload={handleDownloadPDF} />
       {sharePreviewData && (
-          <div className="fixed top-0 left-0 -translate-x-full z-[-1000] opacity-0">
-             <ShareCard stats={sharePreviewData.stats} userName={user.displayName || 'Estudante'} dayData={sharePreviewData.dayData} goals={sharePreviewData.goals} isDarkMode={sharePreviewData.isDarkMode} />
-          </div>
+        <div className="fixed top-0 left-0 -translate-x-full z-[-1000] opacity-0">
+          <ShareCard stats={sharePreviewData.stats} userName={user.displayName || 'Estudante'} dayData={sharePreviewData.dayData} goals={sharePreviewData.goals} isDarkMode={sharePreviewData.isDarkMode} />
+        </div>
       )}
+
       <NavSideBar
         user={user}
         activeTab={activeTab}
@@ -546,45 +554,59 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         isMobileOpen={isMobileOpen}
         setMobileOpen={setIsMobileOpen}
       />
+
       <div className={`flex-grow w-full transition-all duration-300 pt-[80px] px-4 md:px-8 lg:pt-8 pb-10 ${isSidebarExpanded ? 'lg:ml-[260px]' : 'lg:ml-[80px]'}`}>
         <Header user={user} activeTab={activeTab} isDarkMode={isDarkMode} toggleTheme={toggleTheme} registrosEstudo={allRegistrosEstudo} goalsHistory={goalsHistory} activeCicloId={activeCicloId} onShareGoal={handleShareGoal} />
         <main className="mt-6 max-w-7xl mx-auto animate-fade-in">{renderTabContent()}</main>
       </div>
-      <OnboardingTour isActive={tourState.isActive} tourType={tourState.type} activeTab={activeTab} setActiveTab={handleTabChange} onClose={() => handleTourCloseOrFinish(tourState.type)} onFinish={() => handleTourCloseOrFinish(tourState.type)} />
+
+      <OnboardingTour
+        isActive={tourState.isActive}
+        tourType={tourState.type}
+        activeTab={activeTab}
+        setActiveTab={handleTabChange}
+        onClose={() => handleTourCloseOrFinish(tourState.type)}
+        onFinish={() => handleTourCloseOrFinish(tourState.type)}
+      />
 
       {activeStudySession && (
-          <StudyTimer
-            disciplina={activeStudySession.disciplina}
-            assunto={activeStudySession.assunto}
-            isMinimized={activeStudySession.isMinimized}
-            onStop={handleStopStudyRequest}
-            onCancel={handleConfirmCancelStudy}
-            onMaximize={() => setActiveStudySession(prev => ({...prev, isMinimized: false}))}
-            onMinimize={() => setActiveStudySession(prev => ({...prev, isMinimized: true}))}
-            raised={isTimerRaised}
-          />
+        <StudyTimer
+          disciplina={activeStudySession.disciplina}
+          assunto={activeStudySession.assunto}
+          isMinimized={activeStudySession.isMinimized}
+          onStop={handleStopStudyRequest}
+          onCancel={handleConfirmCancelStudy}
+          onMaximize={() => setActiveStudySession(prev => ({ ...prev, isMinimized: false }))}
+          onMinimize={() => setActiveStudySession(prev => ({ ...prev, isMinimized: true }))}
+          raised={isTimerRaised}
+
+          // ✅ NOVO: passa usuário pro timer publicar no Admin
+          userUid={user.uid}
+          userName={user.displayName || 'Estudante'}
+          userPhotoURL={user.photoURL || null}
+        />
       )}
 
       {pendingReviewData && !finishModalData && (
-          <div className="fixed bottom-24 right-4 z-[9999] animate-fade-in">
-            <div
-              onClick={() => setFinishModalData(pendingReviewData)}
-              className="bg-amber-900/90 backdrop-blur-md border border-amber-500/50 shadow-[0_0_20px_rgba(245,158,11,0.2)] rounded-2xl p-3 flex items-center gap-4 w-auto max-w-[320px] overflow-hidden hover:scale-105 transition-transform cursor-pointer"
-            >
-              <div className="relative flex items-center justify-center w-10 h-10 bg-amber-800 rounded-full shrink-0">
-                <div className="absolute inset-0 rounded-full bg-amber-500/20 animate-ping"></div>
-                <AlertTriangle size={20} className="text-amber-200 relative z-10" />
-              </div>
-              <div className="flex flex-col mr-2 min-w-0">
-                <span className="text-[10px] text-amber-200 uppercase font-bold tracking-wider truncate">Registro Pendente</span>
-                <span className="text-[10px] text-white truncate leading-tight font-bold">{pendingReviewData.disciplinaNome}</span>
-                <span className="text-[9px] text-amber-300/80 italic mt-0.5 truncate">{pendingReviewData.reason}</span>
-              </div>
-              <div className="p-2 rounded-full bg-amber-800/50 text-amber-100 hover:bg-amber-700/50 transition-colors">
-                  <Maximize2 size={16} />
-              </div>
+        <div className="fixed bottom-24 right-4 z-[9999] animate-fade-in">
+          <div
+            onClick={() => setFinishModalData(pendingReviewData)}
+            className="bg-amber-900/90 backdrop-blur-md border border-amber-500/50 shadow-[0_0_20px_rgba(245,158,11,0.2)] rounded-2xl p-3 flex items-center gap-4 w-auto max-w-[320px] overflow-hidden hover:scale-105 transition-transform cursor-pointer"
+          >
+            <div className="relative flex items-center justify-center w-10 h-10 bg-amber-800 rounded-full shrink-0">
+              <div className="absolute inset-0 rounded-full bg-amber-500/20 animate-ping"></div>
+              <AlertTriangle size={20} className="text-amber-200 relative z-10" />
+            </div>
+            <div className="flex flex-col mr-2 min-w-0">
+              <span className="text-[10px] text-amber-200 uppercase font-bold tracking-wider truncate">Registro Pendente</span>
+              <span className="text-[10px] text-white truncate leading-tight font-bold">{pendingReviewData.disciplinaNome}</span>
+              <span className="text-[9px] text-amber-300/80 italic mt-0.5 truncate">{pendingReviewData.reason}</span>
+            </div>
+            <div className="p-2 rounded-full bg-amber-800/50 text-amber-100 hover:bg-amber-700/50 transition-colors">
+              <Maximize2 size={16} />
             </div>
           </div>
+        </div>
       )}
 
       {(finishModalData || (pendingReviewData && finishModalData)) && (

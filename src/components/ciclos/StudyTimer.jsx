@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   Play, Pause, Square, Minimize2, X, AlertTriangle,
   Maximize, Repeat, Coffee, CheckCircle2, Sun, Moon, AlarmClock
@@ -6,9 +6,16 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import TimerSettingsModal, { useTimerSettings } from './TimerSettingsModal';
 
+// ✅ Firestore sync do timer (para o Admin ver "timer ativo" real)
+import { doc, setDoc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+// ⚠️ Ajuste o path abaixo se necessário:
+import { db } from '../../firebaseConfig';
+
 const STORAGE_KEY = '@ModoQAP:ActiveSession';
 const WHITE_NOISE_URL = 'https://raw.githubusercontent.com/anars/blank-audio/master/10-minutes-of-silence.mp3';
 const DEFAULT_ALARM_URL = 'https://actions.google.com/sounds/v1/alarms/beep_short.ogg';
+
+const ACTIVE_TIMER_COLLECTION = 'active_timers';
 
 const DEFAULT_SOUNDS = [
   { id: 'beep', url: 'https://actions.google.com/sounds/v1/alarms/beep_short.ogg' },
@@ -63,7 +70,27 @@ const ConfirmationModal = ({ isOpen, onConfirm, onCancel, title, description, co
   );
 };
 
-function StudyTimer({ disciplina, assunto, onStop, onCancel, isMinimized, onMaximize: onWidgetMode, onMinimize: onWidgetMinimize, raised = false }) {
+/**
+ * ✅ NOVO: props para publicar no Admin
+ * @param {string} userUid
+ * @param {string} userName
+ * @param {string|null} userPhotoURL
+ */
+function StudyTimer({
+  disciplina,
+  assunto,
+  onStop,
+  onCancel,
+  isMinimized,
+  onMaximize: onWidgetMode,
+  onMinimize: onWidgetMinimize,
+  raised = false,
+
+  // ✅ novos
+  userUid,
+  userName,
+  userPhotoURL,
+}) {
   const { settings } = useTimerSettings();
 
   const [isPreparing, setIsPreparing] = useState(true);
@@ -105,8 +132,6 @@ function StudyTimer({ disciplina, assunto, onStop, onCancel, isMinimized, onMaxi
   const restStartRef = useRef(null);
 
   useEffect(() => { secondsRef.current = seconds; }, [seconds]);
-  // totalFocusRef managed manually
-
   useEffect(() => { isPausedRef.current = isPaused; }, [isPaused]);
   useEffect(() => { isRestingRef.current = isResting; }, [isResting]);
   useEffect(() => { isPomodoroFinishedRef.current = isPomodoroFinished; }, [isPomodoroFinished]);
@@ -114,6 +139,108 @@ function StudyTimer({ disciplina, assunto, onStop, onCancel, isMinimized, onMaxi
 
   const themeColor = isResting ? '#3B82F6' : settings.color;
   const isPomodoro = settings.mode === 'pomodoro';
+
+  // ===========================
+  // ✅ Firestore: active_timers/{uid}
+  // ===========================
+  const activeTimerDocRef = useMemo(() => {
+    if (!userUid) return null;
+    return doc(db, ACTIVE_TIMER_COLLECTION, userUid);
+  }, [userUid]);
+
+  const buildActiveTimerPayload = useCallback((extra = {}) => {
+    const mode = settings.mode; // 'pomodoro' | 'free'
+    const phase =
+      isRestFinishedRef.current ? 'rest_finished' :
+      isPomodoroFinishedRef.current ? 'pomodoro_finished' :
+      isRestingRef.current ? 'rest' :
+      'focus';
+
+    return {
+      uid: userUid || null,
+      userName: userName || 'Estudante',
+      userPhotoURL: userPhotoURL || null,
+
+      disciplinaId: disciplina?.id || null,
+      disciplinaNome: disciplina?.nome || '',
+      assunto: assunto ?? null,
+
+      timerType: mode === 'pomodoro' ? 'pomodoro' : 'livre',
+      mode: mode,
+
+      phase,
+      isPaused: !!isPausedRef.current,
+      isResting: !!isRestingRef.current,
+
+      pomodoroDurationSec: Number(settings.pomodoroTime || 0) * 60,
+      restDurationSec: Number(settings.restTime || 0) * 60,
+
+      // Bases para o Admin calcular o tempo ao vivo sem write por segundo:
+      focusElapsedBaseSec: Number(focusBlockElapsedBaseRef.current || 0),
+      restElapsedBaseSec: Number(restElapsedBaseRef.current || 0),
+      totalFocusSec: Number(totalFocusRef.current || 0),
+
+      // Snapshot do display (útil pra UI)
+      displaySecondsSnapshot: Number(secondsRef.current || 0),
+
+      updatedAt: serverTimestamp(),
+      heartbeatAt: serverTimestamp(),
+
+      ...extra,
+    };
+  }, [
+    userUid, userName, userPhotoURL,
+    disciplina?.id, disciplina?.nome,
+    assunto,
+    settings.mode, settings.pomodoroTime, settings.restTime
+  ]);
+
+  const upsertActiveTimer = useCallback(async (extra = {}, { merge = true } = {}) => {
+    if (!activeTimerDocRef) return;
+    try {
+      const payload = buildActiveTimerPayload(extra);
+      await setDoc(activeTimerDocRef, payload, { merge });
+    } catch (e) {
+      // silencioso (não quebrar o timer)
+      console.error('active_timers upsert error:', e);
+    }
+  }, [activeTimerDocRef, buildActiveTimerPayload]);
+
+  const patchActiveTimer = useCallback(async (extra = {}) => {
+    if (!activeTimerDocRef) return;
+    try {
+      await updateDoc(activeTimerDocRef, {
+        ...extra,
+        updatedAt: serverTimestamp(),
+        heartbeatAt: serverTimestamp(),
+      });
+    } catch (e) {
+      // se doc não existe ainda, cria
+      await upsertActiveTimer(extra, { merge: true });
+    }
+  }, [activeTimerDocRef, upsertActiveTimer]);
+
+  const removeActiveTimer = useCallback(async () => {
+    if (!activeTimerDocRef) return;
+    try {
+      await deleteDoc(activeTimerDocRef);
+    } catch {}
+  }, [activeTimerDocRef]);
+
+  // Heartbeat leve (evita “fantasma” no Admin)
+  useEffect(() => {
+    if (!activeTimerDocRef) return;
+    if (isPreparing) return;
+
+    const t = setInterval(() => {
+      // não precisa atualizar tudo, só heartbeat/updatedAt
+      patchActiveTimer({});
+    }, 30000); // 30s
+
+    return () => clearInterval(t);
+  }, [activeTimerDocRef, isPreparing, patchActiveTimer]);
+
+  // ===========================
 
   useEffect(() => {
     if (document.documentElement.classList.contains('dark')) setIsDark(true);
@@ -164,13 +291,11 @@ function StudyTimer({ disciplina, assunto, onStop, onCancel, isMinimized, onMaxi
     else if (isRestingRef.current) prefix = isRunning ? "Descansando" : "Descanso Pausado";
     else if (isPomodoroFinishedRef.current) prefix = "Concluído!";
     else if (isRunning) prefix = (settings.mode === 'pomodoro') ? "Focando" : "Estudando";
-
     document.title = `${prefix}: ${timeString} - ${disciplina.nome}`;
   }, [disciplina?.nome, settings.mode]);
 
   const updateMediaSession = useCallback((isRunning, displaySeconds) => {
     if (!('mediaSession' in navigator)) return;
-
     try {
       const mainTitle = assunto ? `${disciplina.nome} • ${assunto}` : disciplina.nome;
 
@@ -347,7 +472,14 @@ function StudyTimer({ disciplina, assunto, onStop, onCancel, isMinimized, onMaxi
     setIsPaused(true);
     updateExternalStatus(false, secondsRef.current);
     updateMediaSession(false, secondsRef.current);
-  }, [commitFocusSegment, commitRestSegment, saveToStorage, settings.mode, settings.pomodoroTime, settings.restTime, updateExternalStatus, updateMediaSession]);
+
+    // ✅ Firestore: marcou pausado
+    patchActiveTimer({
+      status: 'paused',
+      isPaused: true,
+      runningSince: null,
+    });
+  }, [commitFocusSegment, commitRestSegment, saveToStorage, settings.mode, settings.pomodoroTime, settings.restTime, updateExternalStatus, updateMediaSession, patchActiveTimer]);
 
   const resumeTimer = useCallback(() => {
     if (isRestFinishedRef.current) return;
@@ -370,7 +502,14 @@ function StudyTimer({ disciplina, assunto, onStop, onCancel, isMinimized, onMaxi
 
     updateExternalStatus(true, secondsRef.current);
     updateMediaSession(true, secondsRef.current);
-  }, [saveToStorage, updateExternalStatus, updateMediaSession]);
+
+    // ✅ Firestore: marcou rodando (Admin calcula ao vivo)
+    patchActiveTimer({
+      status: 'running',
+      isPaused: false,
+      runningSince: serverTimestamp(),
+    });
+  }, [saveToStorage, updateExternalStatus, updateMediaSession, patchActiveTimer]);
 
   const handleTogglePause = useCallback(() => {
     if (isPausedRef.current) resumeTimer();
@@ -405,7 +544,15 @@ function StudyTimer({ disciplina, assunto, onStop, onCancel, isMinimized, onMaxi
 
     updateExternalStatus(false, 0);
     updateMediaSession(false, 0);
-  }, [commitFocusSegment, getSoundUrl, saveToStorage, settings.soundVolume, updateExternalStatus, updateMediaSession]);
+
+    // ✅ Firestore
+    patchActiveTimer({
+      status: 'pomodoro_finished',
+      isPaused: true,
+      runningSince: null,
+      displaySecondsSnapshot: 0,
+    });
+  }, [commitFocusSegment, getSoundUrl, saveToStorage, settings.soundVolume, updateExternalStatus, updateMediaSession, patchActiveTimer]);
 
   const handleRestComplete = useCallback(() => {
     clearInterval(intervalRef.current);
@@ -436,7 +583,15 @@ function StudyTimer({ disciplina, assunto, onStop, onCancel, isMinimized, onMaxi
 
     updateExternalStatus(false, 0);
     updateMediaSession(false, 0);
-  }, [commitRestSegment, getSoundUrl, saveToStorage, settings.soundVolume, updateExternalStatus, updateMediaSession]);
+
+    // ✅ Firestore
+    patchActiveTimer({
+      status: 'rest_finished',
+      isPaused: true,
+      runningSince: null,
+      displaySecondsSnapshot: 0,
+    });
+  }, [commitRestSegment, getSoundUrl, saveToStorage, settings.soundVolume, updateExternalStatus, updateMediaSession, patchActiveTimer]);
 
   const handleStop = useCallback(() => {
     clearInterval(intervalRef.current);
@@ -481,9 +636,22 @@ function StudyTimer({ disciplina, assunto, onStop, onCancel, isMinimized, onMaxi
     });
 
     updateExternalStatus(false, secondsRef.current);
+
+    // ✅ Firestore: sessão indo para “finishing” (modal de revisão)
+    patchActiveTimer({
+      status: 'finishing',
+      isPaused: true,
+      runningSince: null,
+      displaySecondsSnapshot: Number(secondsRef.current || 0),
+      totalFocusSec: Number(finalTotalFocus || 0),
+    });
+
     const finalMinutes = Math.round(finalTotalFocus / 60);
     onStop(Math.max(1, finalMinutes));
-  }, [onStop, saveToStorage, settings.mode, settings.pomodoroTime, settings.restTime, updateExternalStatus, getPomodoroRunningDeltaSeconds, getFreeRunningDeltaSeconds]);
+  }, [
+    onStop, saveToStorage, settings.mode, settings.pomodoroTime, settings.restTime, updateExternalStatus,
+    getPomodoroRunningDeltaSeconds, getFreeRunningDeltaSeconds, patchActiveTimer
+  ]);
 
   const handleRepeatCycle = useCallback(() => {
     if (alarmRef.current) alarmRef.current.pause();
@@ -513,7 +681,17 @@ function StudyTimer({ disciplina, assunto, onStop, onCancel, isMinimized, onMaxi
     if (audioRef.current) audioRef.current.play().catch(() => {});
     updateExternalStatus(true, totalSeconds);
     updateMediaSession(true, totalSeconds);
-  }, [saveToStorage, settings.pomodoroTime, updateExternalStatus, updateMediaSession]);
+
+    // ✅ Firestore
+    patchActiveTimer({
+      status: 'running',
+      isPaused: false,
+      isResting: false,
+      runningSince: serverTimestamp(),
+      focusElapsedBaseSec: 0,
+      displaySecondsSnapshot: totalSeconds,
+    });
+  }, [saveToStorage, settings.pomodoroTime, updateExternalStatus, updateMediaSession, patchActiveTimer]);
 
   const handleStartRest = useCallback(() => {
     if (alarmRef.current) alarmRef.current.pause();
@@ -543,7 +721,17 @@ function StudyTimer({ disciplina, assunto, onStop, onCancel, isMinimized, onMaxi
     if (audioRef.current) audioRef.current.play().catch(() => {});
     updateExternalStatus(true, restSeconds);
     updateMediaSession(true, restSeconds);
-  }, [saveToStorage, settings.restTime, updateExternalStatus, updateMediaSession]);
+
+    // ✅ Firestore
+    patchActiveTimer({
+      status: 'running',
+      isPaused: false,
+      isResting: true,
+      runningSince: serverTimestamp(),
+      restElapsedBaseSec: 0,
+      displaySecondsSnapshot: restSeconds,
+    });
+  }, [saveToStorage, settings.restTime, updateExternalStatus, updateMediaSession, patchActiveTimer]);
 
   const handleBackToStudy = useCallback(() => {
     if (alarmRef.current) alarmRef.current.pause();
@@ -572,6 +760,16 @@ function StudyTimer({ disciplina, assunto, onStop, onCancel, isMinimized, onMaxi
       if (audioRef.current) audioRef.current.play().catch(() => {});
       updateExternalStatus(true, totalSeconds);
       updateMediaSession(true, totalSeconds);
+
+      // ✅ Firestore
+      patchActiveTimer({
+        status: 'running',
+        isPaused: false,
+        isResting: false,
+        runningSince: serverTimestamp(),
+        focusElapsedBaseSec: 0,
+        displaySecondsSnapshot: totalSeconds,
+      });
       return;
     }
 
@@ -588,7 +786,16 @@ function StudyTimer({ disciplina, assunto, onStop, onCancel, isMinimized, onMaxi
     if (audioRef.current) audioRef.current.play().catch(() => {});
     updateExternalStatus(true, secondsRef.current);
     updateMediaSession(true, secondsRef.current);
-  }, [saveToStorage, settings.mode, settings.pomodoroTime, updateExternalStatus, updateMediaSession]);
+
+    // ✅ Firestore
+    patchActiveTimer({
+      status: 'running',
+      isPaused: false,
+      isResting: false,
+      runningSince: serverTimestamp(),
+      displaySecondsSnapshot: secondsRef.current,
+    });
+  }, [saveToStorage, settings.mode, settings.pomodoroTime, updateExternalStatus, updateMediaSession, patchActiveTimer]);
 
   // ===== MediaSession Handlers =====
   useEffect(() => {
@@ -670,6 +877,14 @@ function StudyTimer({ disciplina, assunto, onStop, onCancel, isMinimized, onMaxi
           focusBlockStartRef.current = null; restStartRef.current = null;
           updateExternalStatus(false, secondsRef.current);
           updateMediaSession(false, secondsRef.current);
+
+          // ✅ Firestore: sessão restaurada como pausada (admin vê como "timer aberto")
+          upsertActiveTimer({
+            status: 'paused',
+            isPaused: true,
+            runningSince: null,
+            createdAt: serverTimestamp(),
+          }, { merge: true });
         }
       } catch (e) { console.error(e); }
     }
@@ -681,6 +896,7 @@ function StudyTimer({ disciplina, assunto, onStop, onCancel, isMinimized, onMaxi
       if (originalTitleRef.current) document.title = originalTitleRef.current;
       if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [disciplina?.id]);
 
   // ===== Init =====
@@ -714,7 +930,16 @@ function StudyTimer({ disciplina, assunto, onStop, onCancel, isMinimized, onMaxi
     });
     updateExternalStatus(true, secondsRef.current);
     updateMediaSession(true, secondsRef.current);
-  }, [isPreparing, countdown, settings.mode, settings.pomodoroTime, saveToStorage, updateExternalStatus, updateMediaSession]);
+
+    // ✅ Firestore: sessão começou rodando
+    upsertActiveTimer({
+      status: 'running',
+      isPaused: false,
+      runningSince: serverTimestamp(),
+      createdAt: serverTimestamp(),
+      displaySecondsSnapshot: Number(secondsRef.current || 0),
+    }, { merge: true });
+  }, [isPreparing, countdown, settings.mode, settings.pomodoroTime, saveToStorage, updateExternalStatus, updateMediaSession, upsertActiveTimer]);
 
   // ===== Tick =====
   useEffect(() => {
@@ -830,6 +1055,10 @@ function StudyTimer({ disciplina, assunto, onStop, onCancel, isMinimized, onMaxi
         isOpen={isCancelModalOpen}
         onConfirm={() => {
           localStorage.removeItem(STORAGE_KEY);
+
+          // ✅ remove do Firestore também
+          removeActiveTimer();
+
           onCancel();
         }}
         onCancel={() => setIsCancelModalOpen(false)}
