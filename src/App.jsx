@@ -7,11 +7,36 @@ import { auth } from './firebaseConfig';
 const Dashboard = lazy(() => import('./components/Dashboard'));
 const Login = lazy(() => import('./components/Login'));
 const Signup = lazy(() => import('./components/Signup'));
-const ForgotPassword = lazy(() => import('./components/ForgotPassword')); // NOVO COMPONENTE
+const ForgotPassword = lazy(() => import('./components/ForgotPassword'));
 
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // --- 1. Lógica de Zoom do Sistema (ADICIONADO AQUI) ---
+  useEffect(() => {
+    // Define a fonte base do HTML para 85% (aprox. 13.6px)
+    // Como o Tailwind usa 'rem', isso diminui todo o sistema proporcionalmente.
+    document.documentElement.style.fontSize = '85%';
+
+    // Opcional: Garante que em celulares muito pequenos o texto não fique ilegível
+    const handleResize = () => {
+      if (window.innerWidth < 640) {
+        document.documentElement.style.fontSize = '90%'; // Um pouco maior no mobile
+      } else {
+        document.documentElement.style.fontSize = '95%'; // Menor no desktop
+      }
+    };
+
+    // Executa na montagem
+    handleResize();
+
+    // Adiciona listener se a tela mudar de tamanho
+    window.addEventListener('resize', handleResize);
+
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+  // -----------------------------------------------------
 
   // Lógica do Dark Mode
   const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -83,7 +108,6 @@ function App() {
             path="/signup"
             element={user ? <Navigate to="/" /> : <Signup />}
           />
-          {/* NOVA ROTA: Se o usuário já estiver logado, redireciona para Home, senão mostra o ForgotPassword */}
           <Route
             path="/forgot-password"
             element={user ? <Navigate to="/" /> : <ForgotPassword />}

@@ -9,6 +9,9 @@ import DisciplinaDetalheModal from '../components/ciclos/DisciplinaDetalheModal'
 import ModalConclusaoCiclo from '../components/ciclos/ModalConclusaoCiclo';
 import { useCiclos } from '../hooks/useCiclos';
 
+// IMPORTAÇÃO DO NOVO COMPONENTE DE CONFIGURAÇÃO DO TIMER
+import TimerSettingsModal, { useTimerSettings } from '../components/ciclos/TimerSettingsModal';
+
 import {
   ArrowLeft, Plus, Trophy, Target, AlertTriangle, CalendarDays, Flag,
   BookOpen, ChevronRight, Settings, History, Timer, X, Trash2,
@@ -373,6 +376,11 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
   const [showConclusaoModal, setShowConclusaoModal] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
+
+  // ESTADO PARA CONTROLAR O MODAL DE SETTINGS DO TIMER
+  const [showTimerSettings, setShowTimerSettings] = useState(false);
+  const { updateSettings } = useTimerSettings();
+
   const [recordToDelete, setRecordToDelete] = useState(null);
   const [recordToEdit, setRecordToEdit] = useState(null);
   const { concluirCicloSemanal, loading: cicloActionLoading, error: cicloActionError } = useCiclos(user);
@@ -380,13 +388,24 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
   const [disciplinasLoaded, setDisciplinasLoaded] = useState(false);
   const [registrosLoaded, setRegistrosLoaded] = useState(false);
 
+  // === DISPARAR EVENTO PARA SUBIR O TIMER ===
+  useEffect(() => {
+    // Quando entrar nesta página, avisa o Dashboard para subir o timer
+    window.dispatchEvent(new CustomEvent('toggle-timer-raise', { detail: true }));
+
+    // Quando sair (voltar para lista ou mudar de aba), avisa para descer
+    return () => {
+        window.dispatchEvent(new CustomEvent('toggle-timer-raise', { detail: false }));
+    };
+  }, []);
+
   useEffect(() => {
      if (!user || !cicloId) return;
      const cicloRef = doc(db, 'users', user.uid, 'ciclos', cicloId);
      const unsubscribe = onSnapshot(cicloRef, (doc) => {
        if (doc.exists()) {
            const data = doc.data();
-           const rawDate = getSafeDate(data.ultimaConclusao) || getSafeDate(data.dataCriacao) || new Date();
+           const rawDate = (data.ultimaConclusao && typeof data.ultimaConclusao.toDate === 'function') ? data.ultimaConclusao.toDate() : (data.dataCriacao && typeof data.dataCriacao.toDate === 'function' ? data.dataCriacao.toDate() : new Date());
            setCiclo({ id: doc.id, ...data, cargaHorariaSemanalTotal: Number(data.cargaHorariaSemanalTotal || 0), conclusoes: Number(data.conclusoes || 0), dataInicioAtual: rawDate });
            setCicloLoaded(true);
        } else { setCiclo(null); setCicloLoaded(true); }
@@ -414,15 +433,15 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
             if (typeof data.data === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(data.data)) {
                 finalDataStr = data.data;
             } else {
-                const safeDate = getSafeDate(data.data) || new Date();
-                finalDataStr = dateToYMD_local(safeDate);
+                const safeDate = (data.data && typeof data.data.toDate === 'function') ? data.data.toDate() : new Date();
+                finalDataStr = `${safeDate.getFullYear()}-${String(safeDate.getMonth()+1).padStart(2,'0')}-${String(safeDate.getDate()).padStart(2,'0')}`;
             }
             return {
                 id: doc.id, ...data,
                 tempoEstudadoMinutos: Number(data.tempoEstudadoMinutos || data.duracaoMinutos || 0),
                 questoesFeitas: Number(data.questoesFeitas || 0), acertos: Number(data.acertos || data.questoesAcertadas || 0),
                 data: finalDataStr,
-                timestamp: getSafeDate(data.timestamp) || new Date(0)
+                timestamp: (data.timestamp && typeof data.timestamp.toDate === 'function') ? data.timestamp.toDate() : new Date(0)
             };
         }));
         setRegistrosLoaded(true);
@@ -530,7 +549,6 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
   }
   const logo = getLogo(ciclo);
 
-  // ANIMAÇÃO DOS FABs SEM DELAY
   const fabContainerVariants = {
       rest: { width: 56, transition: { type: "tween", duration: 0.15, ease: "easeOut" } },
       hover: { width: "auto", transition: { type: "tween", duration: 0.15, ease: "easeOut" } }
@@ -618,15 +636,15 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
                     <AnimatePresence>
                         {showOptions && (
                             <motion.div initial={{ opacity: 0, x: 20, scale: 0.95 }} animate={{ opacity: 1, x: 0, scale: 1 }} exit={{ opacity: 0, x: 20, scale: 0.95 }} className="absolute right-16 bottom-0 w-72 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl border border-zinc-200/50 dark:border-zinc-800/50 shadow-2xl rounded-2xl overflow-hidden mr-3 z-30 origin-bottom-right" onClick={(e) => e.stopPropagation()}>
-                                <div className="px-5 py-4 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between"><span className="text-xs font-extrabold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">Configurações</span><button onClick={() => setShowOptions(false)} className="text-zinc-400 hover:text-zinc-800 dark:hover:text-white transition-colors"><X size={18} /></button></div>
+                                <div className="px-5 py-4 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between"><span className="text-xs font-extrabold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">Configurações de Estudo</span><button onClick={() => setShowOptions(false)} className="text-zinc-400 hover:text-zinc-800 dark:hover:text-white transition-colors"><X size={18} /></button></div>
                                 <div className="p-2 space-y-1">
-                                    <button onClick={() => { setShowOptions(false); alert("Em breve!"); }} className="flex items-center gap-4 w-full p-4 hover:bg-zinc-50 dark:hover:bg-white/5 rounded-xl text-left group">
+                                    <button onClick={() => { setShowOptions(false); setShowTimerSettings(true); }} className="flex items-center gap-4 w-full p-4 hover:bg-zinc-50 dark:hover:bg-white/5 rounded-xl text-left group">
                                         <div className="w-10 h-10 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 flex items-center justify-center group-hover:bg-blue-500 group-hover:text-white transition-all shadow-sm"><Timer size={20}/></div>
-                                        <div className="flex flex-col"><span className="text-sm font-bold text-zinc-800 dark:text-zinc-100">Cronômetro</span><span className="text-xs text-zinc-400">Personalizar tempo</span></div>
+                                        <div className="flex flex-col"><span className="text-sm font-bold text-zinc-800 dark:text-zinc-100">Cronômetro</span><span className="text-xs text-zinc-400">Modos do Cronometro</span></div>
                                     </button>
                                     <button onClick={() => { setShowOptions(false); setShowHistoryModal(true); }} className="flex items-center gap-4 w-full p-4 hover:bg-zinc-50 dark:hover:bg-white/5 rounded-xl text-left group">
                                         <div className="w-10 h-10 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 flex items-center justify-center group-hover:bg-indigo-500 group-hover:text-white transition-all shadow-sm"><ScrollText size={20}/></div>
-                                        <div className="flex flex-col"><span className="text-sm font-bold text-zinc-800 dark:text-zinc-100">Histórico</span><span className="text-xs text-zinc-400">Ver sessões passadas</span></div>
+                                        <div className="flex flex-col"><span className="text-sm font-bold text-zinc-800 dark:text-zinc-100">Histórico</span><span className="text-xs text-zinc-400">Editar e Excluir registros de estudo</span></div>
                                     </button>
                                 </div>
                             </motion.div>
@@ -652,11 +670,20 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
       )}
 
       <AnimatePresence>
+        {/* RENDERIZAÇÃO DO MODAL DE SETTINGS */}
+        {showTimerSettings && (
+            <TimerSettingsModal
+                isOpen={showTimerSettings}
+                onClose={() => setShowTimerSettings(false)}
+                onSave={(newSettings) => updateSettings(newSettings)}
+            />
+        )}
+
         {showConclusaoModal && <ModalConclusaoCiclo ciclo={ciclo} onClose={() => setShowConclusaoModal(false)} onConfirm={handleConcluirCiclo} loading={cicloActionLoading} progressoGeral={progressoGeral} />}
         {disciplinaEmDetalhe && (
             <DisciplinaDetalheModal
                 disciplina={disciplinaEmDetalhe}
-                registrosEstudo={registrosAtivosDaSemana} // CORREÇÃO DO ERRO AQUI
+                registrosEstudo={registrosAtivosDaSemana}
                 cicloId={cicloId}
                 user={user.uid}
                 onClose={() => { setDisciplinaEmDetalhe(null); setSelectedDisciplinaId(null); }}

@@ -24,7 +24,7 @@ import Desempenho from '../pages/PerformanceHub';
 import StudyTimer from '../components/ciclos/StudyTimer';
 import TimerFinishModal from '../components/ciclos/TimerFinishModal';
 import OnboardingTour from '../components/shared/OnboardingTour';
-import BroadcastReceiver from '../components/shared/BroadcastReceiver'; // <--- IMPORTADO AQUI
+import BroadcastReceiver from '../components/shared/BroadcastReceiver';
 
 
 const ADMIN_UID = 'OLoJi457GQNE2eTSOcz9DAD6ppZ2';
@@ -37,7 +37,6 @@ const dateToYMD = (date) => {
   return '' + y + '-' + (m <= 9 ? '0' + m : m) + '-' + (d <= 9 ? '0' + d : d);
 };
 
-// ... (DownloadAlert e ShareCardPreviewModal mantidos iguais) ...
 const DownloadAlert = ({ isVisible, onDismiss }) => (
   <AnimatePresence>
     {isVisible && (
@@ -117,7 +116,12 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   const [loading, setLoading] = useState(true);
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+
+  // === CORREÇÃO: Estado recolocado ===
   const [forceOpenVisual, setForceOpenVisual] = useState(false);
+
+  // Controle de posição do Timer
+  const [isTimerRaised, setIsTimerRaised] = useState(false);
 
   const [sharePreviewData, setSharePreviewData] = useState(null);
   const [isDownloadAlertVisible, setIsDownloadAlertVisible] = useState(false);
@@ -144,6 +148,15 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       dayQuestions: todayRecords.filter(r => (Number(r.questoesFeitas) || 0) > 0),
     };
   }, [allRegistrosEstudo, todayStr]);
+
+  // --- ESCUTAR EVENTO PARA SUBIR/DESCER TIMER ---
+  useEffect(() => {
+    const handleTimerRaise = (event) => {
+        setIsTimerRaised(event.detail);
+    };
+    window.addEventListener('toggle-timer-raise', handleTimerRaise);
+    return () => window.removeEventListener('toggle-timer-raise', handleTimerRaise);
+  }, []);
 
   // --- RESTAURAÇÃO DE SESSÃO / PENDÊNCIA ---
   useEffect(() => {
@@ -249,6 +262,8 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         const storageData = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
         const finalDisciplinaId = activeStudySession?.disciplina?.id || storageData.disciplinaId || 'restored_id';
 
+        localStorage.removeItem(STORAGE_KEY);
+
         const registroEstudoData = {
             cicloId: activeCicloId,
             disciplinaId: finalDisciplinaId,
@@ -284,7 +299,6 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         setFinishModalData(null);
         setPendingReviewData(null);
         setActiveStudySession(null);
-        localStorage.removeItem(STORAGE_KEY);
 
     } catch (e) {
         console.error("Erro ao salvar timer:", e);
@@ -307,7 +321,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
 
   const handleCicloCreationOrActivation = (cicloId) => {
      setActiveTab('ciclos');
-     setForceOpenVisual(true);
+     setForceOpenVisual(true); // RE-ADICIONADO: Força visualização ao criar/ativar
      setTimeout(() => setForceOpenVisual(false), 1000);
      if (user) {
         const cycleTourSeen = localStorage.getItem(`onboarding_seen_${user.uid}_cycle_visual`);
@@ -322,7 +336,10 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
 
   const handleTabChange = (tab) => {
     setActiveTab(tab);
-    if (tab !== 'ciclos') setForceOpenVisual(false);
+    if (tab !== 'ciclos') {
+        setForceOpenVisual(false);
+        setIsTimerRaised(false); // Reseta altura do timer ao sair
+    }
   };
 
   const handleLogout = () => {
@@ -450,11 +467,11 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         return (
           <Home
             registrosEstudo={activeRegistrosEstudo}
-            allRegistrosEstudo={allRegistrosEstudo} // NOVO: Passando todos os registros para o modal poder usar
+            allRegistrosEstudo={allRegistrosEstudo}
             goalsHistory={goalsHistory}
             setActiveTab={handleGoToActiveCycle}
             activeCicloData={activeCicloData}
-            activeCicloId={activeCicloId} // NOVO: Passando ID do ciclo
+            activeCicloId={activeCicloId}
             onDeleteRegistro={deleteRegistro}
           />
         );
@@ -470,9 +487,9 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
                 onCicloAtivado={handleCicloCreationOrActivation}
                 addRegistroEstudo={addRegistroEstudo}
                 activeCicloId={activeCicloId}
-                forceOpenVisual={forceOpenVisual}
+                forceOpenVisual={forceOpenVisual} // === PASSANDO PROP CORRETAMENTE ===
                 onGoToEdital={() => setActiveTab('edital')}
-                registrosEstudo={allRegistrosEstudo} // Já estava correto
+                registrosEstudo={allRegistrosEstudo}
             />
         );
       case 'edital':
@@ -509,7 +526,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   return (
     <div className="flex min-h-screen bg-background-light dark:bg-background-dark text-text-primary dark:text-text-dark-primary transition-colors duration-300 overflow-x-hidden">
 
-      {/* --- BROADCAST RECEIVER ADICIONADO AQUI (Agora com filtro de Home) --- */}
+      {/* --- BROADCAST RECEIVER --- */}
       {activeTab === 'home' && <BroadcastReceiver />}
 
       <DownloadAlert isVisible={isDownloadAlertVisible} onDismiss={() => setIsDownloadAlertVisible(false)} />
@@ -544,6 +561,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
             onCancel={handleConfirmCancelStudy}
             onMaximize={() => setActiveStudySession(prev => ({...prev, isMinimized: false}))}
             onMinimize={() => setActiveStudySession(prev => ({...prev, isMinimized: true}))}
+            raised={isTimerRaised}
           />
       )}
 
