@@ -693,7 +693,7 @@ function AdminPage() {
 
   // ACTIVE SESSIONS (real-time)
   useEffect(() => {
-    const q = query(collection(db, 'active_sessions'), orderBy('updatedAt', 'desc'), limit(50));
+    const q = query(collection(db, 'active_timers'), orderBy('updatedAt', 'desc'), limit(50));
     const unsub = onSnapshot(q, (snap) => {
       const data = snap.docs.map(docu => {
         const d = docu.data();
@@ -707,7 +707,7 @@ function AdminPage() {
       });
       setActiveSessions(data);
     }, (error) => {
-      console.error("Erro ao buscar active_sessions:", error);
+      console.error("Erro ao buscar active_timers:", error);
     });
     return () => unsub();
   }, []);
