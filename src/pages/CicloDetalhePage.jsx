@@ -17,8 +17,6 @@ import {
 } from 'lucide-react';
 
 // --- FUNÇÕES AUXILIARES ---
-
-// Formata para exibição
 const dateToYMD_local = (date) => {
   if (!date) return '';
   const year = date.getFullYear();
@@ -27,11 +25,9 @@ const dateToYMD_local = (date) => {
   return `${year}-${month}-${day}`;
 };
 
-// Parser seguro que evita o erro de timezone UTC
 const parseDateLocal = (dateString) => {
     if (!dateString) return new Date();
     const [year, month, day] = dateString.split('-').map(Number);
-    // Define a hora para meio-dia para evitar virada de data por fuso
     return new Date(year, month - 1, day, 12, 0, 0);
 };
 
@@ -39,7 +35,6 @@ const getSafeDate = (field) => {
     if (!field) return null;
     if (field.toDate && typeof field.toDate === 'function') return field.toDate();
     if (field instanceof Date) return field;
-    // Se for string YYYY-MM-DD, usa o parser local
     if (typeof field === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(field)) {
         return parseDateLocal(field);
     }
@@ -67,60 +62,31 @@ const formatTime = (min) => {
     return `${m}m`;
 };
 
-// --- FUNÇÃO DE LOGO OTIMIZADA E AUTOMÁTICA ---
 const getLogo = (ciclo) => {
     if(!ciclo) return null;
-    // Se o ciclo já tiver uma URL direta salva no banco, usa ela
     if(ciclo.logoUrl) return ciclo.logoUrl;
-
     const searchString = (ciclo.templateOrigem || ciclo.nome || '').toLowerCase();
-
-    // 1. Lista de todas as UFs do Brasil
-    const ufs = [
-        'ac', 'al', 'ap', 'am', 'ba', 'ce', 'df', 'es', 'go', 'ma', 'mt', 'ms', 'mg',
-        'pa', 'pb', 'pr', 'pe', 'pi', 'erj', 'rn', 'rs', 'ro', 'rr', 'sc', 'sp', 'se', 'to'
-    ];
-
-    // 2. Prefixos das corporações (PM, PC, Bombeiros, Polícia Penal)
+    const ufs = ['ac', 'al', 'ap', 'am', 'ba', 'ce', 'df', 'es', 'go', 'ma', 'mt', 'ms', 'mg', 'pa', 'pb', 'pr', 'pe', 'pi', 'erj', 'rn', 'rs', 'ro', 'rr', 'sc', 'sp', 'se', 'to'];
     const prefixos = ['pm', 'pc', 'cbm', 'bm', 'pp'];
-
-    // 3. Casos especiais manuais (Federais ou Municipais especificos)
     const especiais = ['gcm', 'aquiraz', 'pf', 'prf', 'depen', 'eb', 'fab', 'marinha'];
-
-    // Gera a lista com todas as combinações possíveis (ex: pmba, pcsp, cbmmg...)
     let todasSiglas = [...especiais];
-
     prefixos.forEach(prefixo => {
         ufs.forEach(uf => {
             todasSiglas.push(`${prefixo}${uf}`);
         });
     });
-
-    // Ordena por tamanho para garantir que siglas maiores tenham prioridade na busca
     todasSiglas.sort((a, b) => b.length - a.length);
-
-    // Tenta encontrar alguma sigla dentro do nome do ciclo
     const encontrada = todasSiglas.find(sigla => searchString.includes(sigla));
-
     if (encontrada) {
-        // Exceção visual para GCM Aquiraz (mantendo sua lógica original)
         if(encontrada === 'gcm' || encontrada === 'aquiraz') return '/logosEditais/logo-aquiraz.png';
-
-        // --- RETORNO AUTOMÁTICO ---
-        // Retorna o caminho do arquivo baseado na sigla encontrada.
-        // Ex: achou 'pmba' -> retorna '/logosEditais/logo-pmba.png'
         return `/logosEditais/logo-${encontrada}.png`;
     }
-
     return null;
 };
 
 // --- COMPONENTES VISUAIS ---
-
 const MiniCalendar = ({ records, selectedDate, onSelectDate }) => {
     const [currentMonth, setCurrentMonth] = useState(new Date());
-
-    // Marca TODOS os dias que têm registros no ciclo
     const daysWithData = useMemo(() => {
         const map = {};
         records.forEach(r => { if(r.data) map[r.data] = true; });
@@ -184,7 +150,6 @@ const HistoryItemAccordion = ({ disciplinaNome, records, onEdit, onDelete }) => 
     const [isOpen, setIsOpen] = useState(false);
     const totalMinutos = records.reduce((acc, r) => acc + (r.tempoEstudadoMinutos || 0), 0);
     const totalQuestoes = records.reduce((acc, r) => acc + (r.questoesFeitas || 0), 0);
-    // Data para o cabeçalho
     const dateStr = records[0]?.data ? parseDateLocal(records[0].data).toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'}) : '';
 
     return (
@@ -201,7 +166,7 @@ const HistoryItemAccordion = ({ disciplinaNome, records, onEdit, onDelete }) => 
                         </div>
                     </div>
                 </div>
-                <div className="text-zinc-400">{isOpen ? <ChevronLeft size={16} className="-rotate-90" /> : <ChevronLeft size={16} className="rotate-0" />}</div>
+                <div className="text-zinc-400 transition-transform duration-200" style={{ transform: isOpen ? 'rotate(-90deg)' : 'rotate(0deg)' }}><ChevronLeft size={16} /></div>
             </div>
 
             <AnimatePresence>
@@ -315,12 +280,9 @@ const DeleteConfirmationModal = ({ isOpen, onClose, onConfirm, loading }) => {
     );
 };
 
-// --- MODAL DE HISTÓRICO INTEGRADO ---
 const CicloHistoryModal = ({ isOpen, onClose, registros, onDeleteRequest, onEditRequest }) => {
-    // ESTADO INICIAL NULL = MOSTRAR TUDO (TIMELINE)
     const [selectedDate, setSelectedDate] = useState(null);
 
-    // Filtra registros: SE tiver data, filtra. SENÃO, mostra tudo ordenado por data
     const filteredRecords = useMemo(() => {
         if (!selectedDate) {
             return [...registros].sort((a,b) => b.timestamp - a.timestamp);
@@ -328,7 +290,6 @@ const CicloHistoryModal = ({ isOpen, onClose, registros, onDeleteRequest, onEdit
         return registros.filter(r => r.data === selectedDate).sort((a,b) => b.timestamp - a.timestamp);
     }, [registros, selectedDate]);
 
-    // Agrupa para a lista visual (Chave única por Dia + Disciplina)
     const groupedList = useMemo(() => {
         const grouped = {};
         filteredRecords.forEach(reg => {
@@ -336,7 +297,6 @@ const CicloHistoryModal = ({ isOpen, onClose, registros, onDeleteRequest, onEdit
             if(!grouped[key]) grouped[key] = { disciplinaNome: reg.disciplinaNome, data: reg.data, records: [] };
             grouped[key].records.push(reg);
         });
-        // Ordena chaves por data descrescente
         return Object.values(grouped).sort((a,b) => b.data.localeCompare(a.data));
     }, [filteredRecords]);
 
@@ -376,9 +336,6 @@ const CicloHistoryModal = ({ isOpen, onClose, registros, onDeleteRequest, onEdit
                                       </>
                                   )}
                               </h4>
-                              {selectedDate && (
-                                  <button onClick={() => setSelectedDate(null)} className="text-[10px] font-bold text-indigo-500 hover:underline flex items-center gap-1"><Filter size={10} /> Ver Todos</button>
-                              )}
                           </div>
 
                           <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 pb-4">
@@ -405,35 +362,24 @@ const CicloHistoryModal = ({ isOpen, onClose, registros, onDeleteRequest, onEdit
 
 // --- PÁGINA PRINCIPAL DO CICLO ---
 function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStudy, onGoToEdital }) {
-
   const [ciclo, setCiclo] = useState(null);
   const [disciplinas, setDisciplinas] = useState([]);
   const [allRegistrosEstudo, setAllRegistrosEstudo] = useState([]);
-
   const [loading, setLoading] = useState(true);
   const [showRegistroModal, setShowRegistroModal] = useState(false);
   const [registroPreenchido, setRegistroPreenchido] = useState(null);
-
   const [disciplinaEmDetalhe, setDisciplinaEmDetalhe] = useState(null);
   const [selectedDisciplinaId, setSelectedDisciplinaId] = useState(null);
-
   const [showConclusaoModal, setShowConclusaoModal] = useState(false);
-
-  // Estados dos Menus
   const [showOptions, setShowOptions] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
-
-  // Modais de Edição/Exclusão
   const [recordToDelete, setRecordToDelete] = useState(null);
   const [recordToEdit, setRecordToEdit] = useState(null);
-
   const { concluirCicloSemanal, loading: cicloActionLoading, error: cicloActionError } = useCiclos(user);
-
   const [cicloLoaded, setCicloLoaded] = useState(false);
   const [disciplinasLoaded, setDisciplinasLoaded] = useState(false);
   const [registrosLoaded, setRegistrosLoaded] = useState(false);
 
-  // ... (Efeitos de Carregamento Firebase - Mantidos Iguais) ...
   useEffect(() => {
      if (!user || !cicloId) return;
      const cicloRef = doc(db, 'users', user.uid, 'ciclos', cicloId);
@@ -465,9 +411,8 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
         setAllRegistrosEstudo(snap.docs.map(doc => {
             const data = doc.data();
             let finalDataStr = '';
-            // Verificação crucial para evitar o bug de timezone (dia anterior)
             if (typeof data.data === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(data.data)) {
-                finalDataStr = data.data; // Usa a string original do banco
+                finalDataStr = data.data;
             } else {
                 const safeDate = getSafeDate(data.data) || new Date();
                 finalDataStr = dateToYMD_local(safeDate);
@@ -487,12 +432,10 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
 
   useEffect(() => { if (cicloLoaded && disciplinasLoaded && registrosLoaded) setLoading(false); }, [cicloLoaded, disciplinasLoaded, registrosLoaded]);
 
-  // 1. Registros APENAS da semana atual (para barra de progresso e estatísticas da tela principal)
   const registrosAtivosDaSemana = useMemo(() =>
     allRegistrosEstudo.filter(reg => reg.cicloId === cicloId && !reg.conclusaoId),
   [allRegistrosEstudo, cicloId]);
 
-  // 2. Registros de TODO O HISTÓRICO do ciclo (para o Modal de Histórico e Calendário)
   const registrosHistoricoCompleto = useMemo(() =>
     allRegistrosEstudo.filter(reg => reg.cicloId === cicloId),
   [allRegistrosEstudo, cicloId]);
@@ -503,8 +446,6 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
     const totalMetaCalc = Math.round(totalMetaRaw);
     const registrosPorDisciplina = {};
     let totalEstudadoCalc = 0;
-
-    // Usa registros da semana para calcular meta
     registrosAtivosDaSemana.forEach(reg => {
         const minutos = Number(reg.tempoEstudadoMinutos);
         totalEstudadoCalc += minutos;
@@ -529,7 +470,6 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
   const canConcludeCiclo = ciclo?.ativo && progressoGeral >= 100 && isAllDisciplinesMet;
   const showEmptyMessage = !disciplinas.length;
 
-  // Handlers
   const handleConcluirCiclo = async () => {
     if (!canConcludeCiclo) {
          alert("Não é possível concluir. As metas individuais de todas as disciplinas não foram atingidas.");
@@ -590,19 +530,18 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
   }
   const logo = getLogo(ciclo);
 
-  // --- ANIMAÇÃO DOS BOTÕES (FAB) ACELERADA ---
+  // ANIMAÇÃO DOS FABs SEM DELAY
   const fabContainerVariants = {
-      rest: { width: 56, transition: { type: "spring", stiffness: 500, damping: 25 } },
-      hover: { width: "auto", transition: { type: "spring", stiffness: 500, damping: 25 } }
+      rest: { width: 56, transition: { type: "tween", duration: 0.15, ease: "easeOut" } },
+      hover: { width: "auto", transition: { type: "tween", duration: 0.15, ease: "easeOut" } }
   };
   const fabTextVariants = {
-      rest: { opacity: 0, width: 0, marginLeft: 0, display: "none", transition: { duration: 0.1 } },
-      hover: { opacity: 1, width: "auto", marginLeft: 8, display: "block", transition: { duration: 0.1 } }
+      rest: { opacity: 0, width: 0, marginLeft: 0, display: "none" },
+      hover: { opacity: 1, width: "auto", marginLeft: 8, display: "block" }
   };
 
   return (
     <div className="relative flex flex-col h-full animate-fade-in" onClick={() => setShowOptions(false)}>
-      {/* HEADER E DASHBOARD */}
       <div className="mb-4">
           <div className="flex items-center justify-between mb-4">
               <button onClick={onBack} className="flex items-center gap-2 text-zinc-500 hover:text-zinc-800 dark:hover:text-white text-xs font-bold uppercase tracking-wider transition-colors"><ArrowLeft size={16} /> Voltar</button>
@@ -650,13 +589,7 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
           </div>
       </div>
 
-      {showEmptyMessage ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center bg-zinc-50 dark:bg-zinc-900/50 rounded-3xl border-2 border-dashed border-zinc-200 dark:border-zinc-800 mt-8">
-            <Target size={48} className="text-zinc-300 mb-4" />
-            <h3 className="text-xl font-bold text-zinc-700 dark:text-zinc-300 mb-1">Ciclo Sem Disciplinas</h3>
-            <p className="text-zinc-500 text-sm mb-6">Parece que este ciclo ainda não tem disciplinas configuradas. Edite o ciclo para adicionar suas matérias!</p>
-        </div>
-      ) : (
+      {!showEmptyMessage && (
           <div className="flex-grow mt-20">
               <CicloVisual
                   selectedDisciplinaId={selectedDisciplinaId}
@@ -671,25 +604,29 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
           </div>
       )}
 
-      {/* BOTÕES FLUTUANTES (FAB) */}
+      {showEmptyMessage && (
+        <div className="flex flex-col items-center justify-center py-20 text-center bg-zinc-50 dark:bg-zinc-900/50 rounded-3xl border-2 border-dashed border-zinc-200 dark:border-zinc-800 mt-8">
+            <Target size={48} className="text-zinc-300 mb-4" />
+            <h3 className="text-xl font-bold text-zinc-700 dark:text-zinc-300 mb-1">Ciclo Sem Disciplinas</h3>
+            <p className="text-zinc-500 text-sm mb-6">Adicione matérias para começar.</p>
+        </div>
+      )}
+
       {ciclo.ativo && (
           <div className="fixed bottom-8 right-8 z-50 flex flex-col items-end gap-3 pointer-events-none">
-
-                {/* 1. GRUPO CONFIGURAÇÕES */}
                 <div className="relative flex items-center justify-end pointer-events-auto">
                     <AnimatePresence>
                         {showOptions && (
                             <motion.div initial={{ opacity: 0, x: 20, scale: 0.95 }} animate={{ opacity: 1, x: 0, scale: 1 }} exit={{ opacity: 0, x: 20, scale: 0.95 }} className="absolute right-16 bottom-0 w-72 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl border border-zinc-200/50 dark:border-zinc-800/50 shadow-2xl rounded-2xl overflow-hidden mr-3 z-30 origin-bottom-right" onClick={(e) => e.stopPropagation()}>
                                 <div className="px-5 py-4 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between"><span className="text-xs font-extrabold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">Configurações</span><button onClick={() => setShowOptions(false)} className="text-zinc-400 hover:text-zinc-800 dark:hover:text-white transition-colors"><X size={18} /></button></div>
                                 <div className="p-2 space-y-1">
-                                    <button onClick={() => { setShowOptions(false); alert("Configuração de cronômetro em breve!"); }} className="flex items-center gap-4 w-full p-4 hover:bg-zinc-50 dark:hover:bg-white/5 rounded-xl text-left transition-all group">
-                                        <div className="w-10 h-10 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 flex items-center justify-center group-hover:bg-blue-500 group-hover:text-white transition-all shadow-sm"><Timer size={20}/></div>
-                                        <div className="flex flex-col"><span className="text-sm font-bold text-zinc-800 dark:text-zinc-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">Cronômetro</span><span className="text-xs text-zinc-400 dark:text-zinc-500">Modo Pomodoro / Livre</span></div>
+                                    <button onClick={() => { setShowOptions(false); alert("Em breve!"); }} className="flex items-center gap-4 w-full p-4 hover:bg-zinc-50 dark:hover:bg-white/5 rounded-xl text-left group">
+                                        <div className="w-10 h-10 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 flex items-center justify-center group-hover:bg-blue-500 group-hover:text-white transition-all shadow-sm"><Timer size={20}/></div>
+                                        <div className="flex flex-col"><span className="text-sm font-bold text-zinc-800 dark:text-zinc-100">Cronômetro</span><span className="text-xs text-zinc-400">Personalizar tempo</span></div>
                                     </button>
-                                    <div className="h-px bg-zinc-100 dark:bg-zinc-800/50 mx-4"></div>
-                                    <button onClick={() => { setShowOptions(false); setShowHistoryModal(true); }} className="flex items-center gap-4 w-full p-4 hover:bg-zinc-50 dark:hover:bg-white/5 rounded-xl text-left transition-all group">
-                                        <div className="w-10 h-10 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 flex items-center justify-center group-hover:bg-indigo-500 group-hover:text-white transition-all shadow-sm"><ScrollText size={20}/></div>
-                                        <div className="flex flex-col"><span className="text-sm font-bold text-zinc-800 dark:text-zinc-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">Histórico de Estudos</span><span className="text-xs text-zinc-400 dark:text-zinc-500">Gerenciar registros</span></div>
+                                    <button onClick={() => { setShowOptions(false); setShowHistoryModal(true); }} className="flex items-center gap-4 w-full p-4 hover:bg-zinc-50 dark:hover:bg-white/5 rounded-xl text-left group">
+                                        <div className="w-10 h-10 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 flex items-center justify-center group-hover:bg-indigo-500 group-hover:text-white transition-all shadow-sm"><ScrollText size={20}/></div>
+                                        <div className="flex flex-col"><span className="text-sm font-bold text-zinc-800 dark:text-zinc-100">Histórico</span><span className="text-xs text-zinc-400">Ver sessões passadas</span></div>
                                     </button>
                                 </div>
                             </motion.div>
@@ -703,9 +640,8 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
                     </motion.button>
                 </div>
 
-                {/* 2. GRUPO REGISTRAR */}
                 <div className="relative flex items-center justify-end pointer-events-auto">
-                    <motion.button layout onClick={() => setShowRegistroModal(true)} className="bg-red-600 hover:bg-red-700 text-white shadow-2xl shadow-red-900/40 flex items-center justify-center border-4 border-white dark:border-zinc-950 overflow-hidden h-16 rounded-full" variants={fabContainerVariants} initial="rest" whileHover="hover" whileTap="rest">
+                    <motion.button layout onClick={() => setShowRegistroModal(true)} className="bg-red-600 hover:bg-red-700 text-white shadow-2xl flex items-center justify-center border-4 border-white dark:border-zinc-950 overflow-hidden h-16 rounded-full" variants={fabContainerVariants} initial="rest" whileHover="hover" whileTap="rest">
                         <div className="flex items-center px-5 min-w-[64px] justify-center">
                             <Plus size={30} strokeWidth={3} className="shrink-0" />
                             <motion.span className="whitespace-nowrap text-sm font-bold uppercase tracking-wide overflow-hidden ml-2" variants={fabTextVariants}>Registrar Estudo</motion.span>
@@ -715,19 +651,23 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
           </div>
       )}
 
-      {/* MODAIS GLOBAIS */}
       <AnimatePresence>
         {showConclusaoModal && <ModalConclusaoCiclo ciclo={ciclo} onClose={() => setShowConclusaoModal(false)} onConfirm={handleConcluirCiclo} loading={cicloActionLoading} progressoGeral={progressoGeral} />}
-        {disciplinaEmDetalhe && <DisciplinaDetalheModal disciplina={disciplinaEmDetalhe} registrosEstudo={registrosAtivosDoCiclo} cicloId={cicloId} user={user.uid} onClose={() => { setDisciplinaEmDetalhe(null); setSelectedDisciplinaId(null); }} onQuickAddTopic={openRegistroModalWithTopic} />}
+        {disciplinaEmDetalhe && (
+            <DisciplinaDetalheModal
+                disciplina={disciplinaEmDetalhe}
+                registrosEstudo={registrosAtivosDaSemana} // CORREÇÃO DO ERRO AQUI
+                cicloId={cicloId}
+                user={user.uid}
+                onClose={() => { setDisciplinaEmDetalhe(null); setSelectedDisciplinaId(null); }}
+                onQuickAddTopic={openRegistroModalWithTopic}
+            />
+        )}
         {showRegistroModal && <RegistroEstudoModal onClose={() => setShowRegistroModal(false)} addRegistroEstudo={addRegistroEstudo} cicloId={cicloId} userId={user.uid} disciplinasDoCiclo={disciplinas} initialData={registroPreenchido} />}
-
-        {/* HISTÓRICO E AÇÕES - USANDO A NOVA VARIÁVEL 'registrosHistoricoCompleto' */}
         {showHistoryModal && <CicloHistoryModal isOpen={showHistoryModal} onClose={() => setShowHistoryModal(false)} registros={registrosHistoricoCompleto} onDeleteRequest={(r) => setRecordToDelete(r)} onEditRequest={(r) => setRecordToEdit(r)} />}
-
         {recordToDelete && <DeleteConfirmationModal isOpen={!!recordToDelete} onClose={() => setRecordToDelete(null)} onConfirm={handleConfirmDeleteRegistro} />}
         {recordToEdit && <QuickEditRecordModal record={recordToEdit} isOpen={!!recordToEdit} onClose={() => setRecordToEdit(null)} onSave={handleUpdateRegistro} />}
       </AnimatePresence>
-
       <div className="h-12"></div>
     </div>
   );

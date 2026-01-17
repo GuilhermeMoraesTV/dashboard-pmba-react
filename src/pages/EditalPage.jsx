@@ -5,7 +5,7 @@ import {
   BookOpen, CheckCircle2, ChevronDown,
   Search, AlertCircle, Play,
   Target, CheckSquare, Clock,
-  Flame, AlertTriangle, Trophy, PlusCircle, LayoutDashboard, ChevronRight, LayoutGrid, GraduationCap
+  Flame, AlertTriangle, Trophy, PlusCircle, LayoutDashboard, ChevronRight, LayoutGrid, GraduationCap, X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -35,8 +35,12 @@ const formatMinutesToTime = (totalMinutes) => {
 
 // --- VISUAL HELPERS ---
 const getProgressStats = (acertos, total) => {
-    if (!total || total === 0) return { width: 0, colorBg: 'bg-zinc-200 dark:bg-zinc-700', colorText: 'text-zinc-400' };
-    const perc = Math.round((acertos / total) * 100);
+    const nTotal = Number(total) || 0;
+    const nAcertos = Number(acertos) || 0;
+
+    if (nTotal === 0) return { width: 0, colorBg: 'bg-zinc-200 dark:bg-zinc-700', colorText: 'text-zinc-400', perc: 0 };
+
+    const perc = Math.round((nAcertos / nTotal) * 100);
     let colorBg = 'bg-red-500';
     let colorText = 'text-red-600 dark:text-red-400';
     if (perc >= 50) { colorBg = 'bg-amber-500'; colorText = 'text-amber-600 dark:text-amber-400'; }
@@ -110,47 +114,23 @@ const StartStudyModal = ({ disciplina, assunto, onClose, onConfirm }) => {
 
 // --- FUNÇÃO DE LOGO AUTOMÁTICA OTIMIZADA ---
 const getLogoUrl = (cicloData) => {
-    // 1. Prioridade Absoluta: Se o banco tem URL, usa ela.
     if(cicloData.logoUrl) return cicloData.logoUrl;
-
     const searchString = (cicloData.templateOrigem || cicloData.nome || '').toLowerCase();
-
-    // Lista de todas as UFs do Brasil
-    const ufs = [
-        'ac', 'al', 'ap', 'am', 'ba', 'ce', 'df', 'es', 'go', 'ma', 'mt', 'ms', 'mg',
-        'pa', 'pb', 'pr', 'pe', 'pi', 'erj', 'rn', 'rs', 'ro', 'rr', 'sc', 'sp', 'se', 'to'
-    ];
-
-    // Prefixos das corporações
-    // pm = Polícia Militar, pc = Polícia Civil, cbm/bm = Bombeiros, pp = Polícia Penal
+    const ufs = ['ac', 'al', 'ap', 'am', 'ba', 'ce', 'df', 'es', 'go', 'ma', 'mt', 'ms', 'mg', 'pa', 'pb', 'pr', 'pe', 'pi', 'erj', 'rn', 'rs', 'ro', 'rr', 'sc', 'sp', 'se', 'to'];
     const prefixos = ['pm', 'pc', 'cbm', 'bm', 'pp'];
-
-    // Casos especiais manuais (que não seguem o padrão "sigla+uf")
     const especiais = ['gcm', 'aquiraz', 'pf', 'prf', 'depen', 'eb', 'fab', 'marinha'];
-
-    // Gera a lista completa dinamicamente (Ex: pmba, pcsp, cbmmg...)
     let todasSiglas = [...especiais];
-
     prefixos.forEach(prefixo => {
         ufs.forEach(uf => {
             todasSiglas.push(`${prefixo}${uf}`);
         });
     });
-
-    // Ordena por tamanho (decrescente) para garantir que siglas maiores tenham prioridade
-    // (Isso evita bugs caso você tenha siglas que uma contem a outra)
     todasSiglas.sort((a, b) => b.length - a.length);
-
     const encontrada = todasSiglas.find(sigla => searchString.includes(sigla));
-
     if (encontrada) {
-        // Mapeamento de exceções de imagem (mantendo sua lógica original)
         if(encontrada === 'gcm' || encontrada === 'aquiraz') return '/logosEditais/logo-aquiraz.png';
-
-        // Retorna o padrão: logo-pmba.png, logo-pcsp.png, etc.
         return `/logosEditais/logo-${encontrada}.png`;
     }
-
     return null;
 };
 
@@ -160,10 +140,8 @@ function EditalPage({ user, activeCicloId, onStartStudy, onBack }) {
   const [disciplinas, setDisciplinas] = useState([]);
   const [registros, setRegistros] = useState([]);
   const [loading, setLoading] = useState(true);
-
   const [expandedDisciplinas, setExpandedDisciplinas] = useState({});
   const [searchTerm, setSearchTerm] = useState('');
-
   const [optimisticChecks, setOptimisticChecks] = useState({});
   const [loadingCheck, setLoadingCheck] = useState({});
   const [studyModalData, setStudyModalData] = useState(null);
@@ -189,7 +167,6 @@ function EditalPage({ user, activeCicloId, onStartStudy, onBack }) {
 
         const disciplinasRef = collection(db, 'users', user.uid, 'ciclos', activeCicloId, 'disciplinas');
         const disciplinasSnap = await getDocs(disciplinasRef);
-
         const listaDisciplinas = disciplinasSnap.docs
             .map(doc => ({ id: doc.id, ...doc.data() }))
             .sort((a, b) => (a.id > b.id ? 1 : -1));
@@ -257,7 +234,6 @@ function EditalPage({ user, activeCicloId, onStartStudy, onBack }) {
         const assuntosProcessados = listaAssuntos.map(itemAssunto => {
             const nomeAssunto = typeof itemAssunto === 'string' ? itemAssunto : itemAssunto.nome;
             const relevanciaAssunto = typeof itemAssunto === 'object' ? (itemAssunto.relevancia || 1) : 1;
-
             const key = `${disc.nome}-${nomeAssunto}`.toLowerCase().trim();
             const dadosDB = mapaDetalhado[key];
             const isOptimistic = optimisticChecks[key];
@@ -593,33 +569,25 @@ function EditalPage({ user, activeCicloId, onStartStudy, onBack }) {
 
                                             {/* ZONA DE ESTATÍSTICAS ALINHADA */}
                                             <div className="flex items-center justify-end gap-4 w-full md:w-auto pl-14 md:pl-0 z-10">
-
-                                                {/* WRAPPER COM LARGURA FIXA PARA COLUNAS */}
                                                 <div className="flex items-center gap-6 mr-4">
-
-                                                    {/* COLUNA TEMPO (FIXA) */}
                                                     <div className="flex flex-col items-end w-16">
                                                         <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider mb-0.5">Tempo</span>
-                                                        <span className={`text-xs font-black ${hasActivity || assunto.estudado ? 'text-zinc-700 dark:text-zinc-300' : 'text-zinc-300 dark:text-zinc-700'}`}>
-                                                            {hasActivity || assunto.estudado ? formatMinutesToTime(assunto.minutos) : '--'}
+                                                        <span className="text-xs font-black text-zinc-700 dark:text-zinc-300">
+                                                            {formatMinutesToTime(assunto.minutos)}
                                                         </span>
                                                     </div>
 
-                                                    {/* COLUNA QUESTÕES (FIXA) */}
                                                     <div className="flex flex-col items-end w-28">
                                                         <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider mb-0.5">Questões</span>
                                                         <div className="flex items-center gap-1.5">
-                                                            <span className={`text-xs font-black ${hasActivity || assunto.estudado ? questStats.colorText : 'text-zinc-300 dark:text-zinc-700'}`}>
-                                                                {hasActivity || assunto.estudado ? `${questStats.perc}%` : '--'}
+                                                            <span className={`text-xs font-black ${questStats.colorText}`}>
+                                                                {questStats.perc}%
                                                             </span>
-                                                            {(hasActivity || assunto.estudado) && (
-                                                                <span className="text-[10px] font-medium text-zinc-400">
-                                                                    ({assunto.acertos}/{assunto.questoes})
-                                                                </span>
-                                                            )}
+                                                            <span className="text-[10px] font-medium text-zinc-400">
+                                                                ({assunto.acertos}/{assunto.questoes})
+                                                            </span>
                                                         </div>
                                                     </div>
-
                                                 </div>
 
                                                 <button
