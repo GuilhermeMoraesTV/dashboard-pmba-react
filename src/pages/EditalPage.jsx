@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../firebaseConfig';
-import { collection, getDoc, doc, getDocs, query, where, addDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
+import { collection, getDoc, doc, getDocs, query, where, addDoc, serverTimestamp, deleteDoc, onSnapshot } from 'firebase/firestore';
 import {
   BookOpen, CheckCircle2, ChevronDown,
   Search, AlertCircle, Play,
   Target, CheckSquare, Clock,
-  Flame, AlertTriangle, Trophy, PlusCircle, LayoutDashboard, ChevronRight, LayoutGrid, GraduationCap, X
+  Flame, AlertTriangle, Trophy, PlusCircle, LayoutDashboard, ChevronRight, LayoutGrid, GraduationCap, X, Ban
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -147,6 +147,9 @@ function EditalPage({ user, activeCicloId, onStartStudy, onBack }) {
   const [studyModalData, setStudyModalData] = useState(null);
 
   useEffect(() => {
+    let unsubscribeDisciplinas = () => {};
+    let unsubscribeCiclo = () => {};
+
     const fetchData = async () => {
       if (!user || !activeCicloId) {
           setLoading(false);
@@ -154,37 +157,48 @@ function EditalPage({ user, activeCicloId, onStartStudy, onBack }) {
       }
       try {
         setLoading(true);
+        // Listener do Ciclo (Meta dados)
         const cicloRef = doc(db, 'users', user.uid, 'ciclos', activeCicloId);
-        const cicloSnap = await getDoc(cicloRef);
+        unsubscribeCiclo = onSnapshot(cicloRef, (docSnap) => {
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                setCiclo({ id: docSnap.id, ...data, computedLogo: getLogoUrl(data) });
+            }
+        });
 
-        if (cicloSnap.exists()) {
-            const data = cicloSnap.data();
-            setCiclo({ id: cicloSnap.id, ...data, computedLogo: getLogoUrl(data) });
-        } else {
-            setLoading(false);
-            return;
-        }
-
+        // Listener das Disciplinas (CORREÇÃO: Usar onSnapshot para ver mudanças em inCiclo em tempo real)
         const disciplinasRef = collection(db, 'users', user.uid, 'ciclos', activeCicloId, 'disciplinas');
-        const disciplinasSnap = await getDocs(disciplinasRef);
-        const listaDisciplinas = disciplinasSnap.docs
-            .map(doc => ({ id: doc.id, ...doc.data() }))
-            .sort((a, b) => (a.id > b.id ? 1 : -1));
+        unsubscribeDisciplinas = onSnapshot(query(disciplinasRef), (snapshot) => {
+             const listaDisciplinas = snapshot.docs
+                .map(doc => ({ id: doc.id, ...doc.data() }))
+                .sort((a, b) => (a.id > b.id ? 1 : -1));
+             setDisciplinas(listaDisciplinas);
+             setLoading(false); // Carregamento inicial concluído
+        }, (error) => {
+             console.error("Erro ao ouvir disciplinas:", error);
+             setLoading(false);
+        });
 
-        setDisciplinas(listaDisciplinas);
-
+        // Registros (Pode manter getDocs ou mudar para snapshot se quiser tempo real nos checks)
+        // Mantendo snapshot para consistência
         const registrosRef = collection(db, 'users', user.uid, 'registrosEstudo');
         const qRegistros = query(registrosRef, where('cicloId', '==', activeCicloId));
         const registrosSnap = await getDocs(qRegistros);
         const regs = registrosSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setRegistros(regs);
+
       } catch (error) {
           console.error("Erro:", error);
-      } finally {
           setLoading(false);
       }
     };
+
     fetchData();
+
+    return () => {
+        unsubscribeCiclo();
+        unsubscribeDisciplinas();
+    };
   }, [user, activeCicloId]);
 
   const refreshRegistros = async () => {
@@ -234,6 +248,9 @@ function EditalPage({ user, activeCicloId, onStartStudy, onBack }) {
         const assuntosProcessados = listaAssuntos.map(itemAssunto => {
             const nomeAssunto = typeof itemAssunto === 'string' ? itemAssunto : itemAssunto.nome;
             const relevanciaAssunto = typeof itemAssunto === 'object' ? (itemAssunto.relevancia || 1) : 1;
+            // CORREÇÃO: Leitura estrita da propriedade inCiclo do assunto
+            const isTopicInCiclo = typeof itemAssunto === 'object' ? (itemAssunto.inCiclo !== false) : true;
+
             const key = `${disc.nome}-${nomeAssunto}`.toLowerCase().trim();
             const dadosDB = mapaDetalhado[key];
             const isOptimistic = optimisticChecks[key];
@@ -248,10 +265,13 @@ function EditalPage({ user, activeCicloId, onStartStudy, onBack }) {
                 ultimaVez: dadosDB?.lastDate || (estudadoFinal ? 'Agora' : null),
                 minutos: dadosDB?.minutes || 0,
                 questoes: dadosDB?.questions || 0,
-                acertos: dadosDB?.correct || 0
+                acertos: dadosDB?.correct || 0,
+                inCiclo: isTopicInCiclo
             };
         });
 
+        // Só conta para o progresso se estiver no ciclo (opcional, dependendo se é Edital Verticalizado ou Progresso do Ciclo)
+        // Aqui mantemos a lógica de "Edital Completo", então conta tudo, mas podemos ajustar se o usuário quiser ver só o ciclo.
         const totalAssuntos = assuntosProcessados.length;
         const concluidos = assuntosProcessados.filter(a => a.estudado).length;
         const progresso = totalAssuntos > 0 ? (concluidos / totalAssuntos) * 100 : 0;
@@ -259,12 +279,16 @@ function EditalPage({ user, activeCicloId, onStartStudy, onBack }) {
         totalTopicosGlobal += totalAssuntos;
         totalConcluidosGlobal += concluidos;
 
+        // CORREÇÃO: Leitura estrita da propriedade inCiclo da disciplina
+        const isDiscInCiclo = disc.inCiclo !== false;
+
         return {
             ...disc,
             assuntos: assuntosProcessados,
             progresso,
             totalAssuntos,
             concluidos,
+            inCiclo: isDiscInCiclo, // Propriedade crítica para renderização
             stats: {
                 desempenho: desempenhoDisc,
                 questoes: statsDisc.questoes,
@@ -464,28 +488,38 @@ function EditalPage({ user, activeCicloId, onStartStudy, onBack }) {
             {editalProcessado.map((disc, idx) => {
                 const desempenhoConfig = getDesempenhoConfig(disc.stats.desempenho, disc.stats.questoes);
                 const DesempenhoIcon = desempenhoConfig.icon;
+                const isInCiclo = disc.inCiclo; // Verifica se está no ciclo
 
                 return (
-                <div key={idx} className="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-hidden shadow-sm hover:border-red-200 dark:hover:border-red-900/30 transition-all duration-300">
+                <div key={idx} className={`bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-hidden shadow-sm transition-all duration-300 ${isInCiclo ? 'hover:border-red-200 dark:hover:border-red-900/30' : 'opacity-70 hover:opacity-100'}`}>
 
                     {/* CABEÇALHO DA DISCIPLINA */}
                     <div className="flex flex-col lg:flex-row lg:items-stretch">
                         <button onClick={() => toggleDisciplina(disc.nome)} className="flex-1 flex items-center gap-5 p-5 text-left cursor-pointer group">
                             <div className="relative">
-                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center border transition-colors ${disc.progresso === 100 ? 'bg-emerald-100 dark:bg-emerald-900/20 text-emerald-600 border-emerald-200 dark:border-emerald-800' : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-500 border-zinc-200 dark:border-zinc-800 group-hover:text-red-500'}`}>
+                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center border transition-colors ${!isInCiclo ? 'bg-zinc-50 dark:bg-zinc-900/50 border-dashed border-zinc-300 dark:border-zinc-700 text-zinc-300' : disc.progresso === 100 ? 'bg-emerald-100 dark:bg-emerald-900/20 text-emerald-600 border-emerald-200 dark:border-emerald-800' : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-500 border-zinc-200 dark:border-zinc-800 group-hover:text-red-500'}`}>
                                     {disc.progresso === 100 ? <CheckCircle2 size={22} /> : <LayoutGrid size={22} />}
                                 </div>
-                                <svg className="absolute -top-1 -left-1 w-14 h-14 pointer-events-none" viewBox="0 0 100 100">
-                                    <circle cx="50" cy="50" r="48" fill="none" stroke="currentColor" className="text-zinc-200 dark:text-zinc-800" strokeWidth="2" />
-                                    <circle cx="50" cy="50" r="48" fill="none" stroke={disc.progresso === 100 ? '#10b981' : '#dc2626'} strokeWidth="2" strokeDasharray="301.59" strokeDashoffset={301.59 * (1 - disc.progresso / 100)} transform="rotate(-90 50 50)" className="transition-all duration-1000 ease-out" />
-                                </svg>
+                                {isInCiclo && (
+                                    <svg className="absolute -top-1 -left-1 w-14 h-14 pointer-events-none" viewBox="0 0 100 100">
+                                        <circle cx="50" cy="50" r="48" fill="none" stroke="currentColor" className="text-zinc-200 dark:text-zinc-800" strokeWidth="2" />
+                                        <circle cx="50" cy="50" r="48" fill="none" stroke={disc.progresso === 100 ? '#10b981' : '#dc2626'} strokeWidth="2" strokeDasharray="301.59" strokeDashoffset={301.59 * (1 - disc.progresso / 100)} transform="rotate(-90 50 50)" className="transition-all duration-1000 ease-out" />
+                                    </svg>
+                                )}
                             </div>
 
                             <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2">
-                                    <h3 className="font-bold text-zinc-900 dark:text-white text-base md:text-lg truncate group-hover:text-red-600 dark:group-hover:text-red-400 transition-colors">{disc.nome}</h3>
+                                    <h3 className={`font-bold text-base md:text-lg truncate transition-colors ${isInCiclo ? 'text-zinc-900 dark:text-white group-hover:text-red-600 dark:group-hover:text-red-400' : 'text-zinc-500 dark:text-zinc-500 line-through'}`}>{disc.nome}</h3>
 
-                                    {Number(disc.peso) >= 3 && (
+                                    {!isInCiclo && (
+                                        <div className="flex items-center gap-1 px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 rounded-full border border-zinc-200 dark:border-zinc-700">
+                                            <Ban size={10} />
+                                            <span className="text-[9px] font-bold uppercase tracking-wide">Fora do Ciclo</span>
+                                        </div>
+                                    )}
+
+                                    {isInCiclo && Number(disc.peso) >= 3 && (
                                         <div className="hidden sm:flex items-center gap-1 px-2 py-0.5 bg-orange-100 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 rounded-full border border-orange-200 dark:border-orange-900/30 animate-pulse">
                                             <Flame size={10} fill="currentColor" />
                                             <span className="text-[9px] font-bold uppercase tracking-wide">Alta Relevância</span>
@@ -498,26 +532,36 @@ function EditalPage({ user, activeCicloId, onStartStudy, onBack }) {
                                         <CheckSquare size={12} /> {disc.concluidos}/{disc.totalAssuntos} Tópicos
                                     </span>
 
-                                    <span className="px-2 py-1 rounded-md bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 text-[10px] font-bold uppercase flex items-center gap-1">
-                                        <Clock size={12} /> {formatMinutesToTime(disc.stats.minutos)}
-                                    </span>
+                                    {isInCiclo && (
+                                        <>
+                                            <span className="px-2 py-1 rounded-md bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 text-[10px] font-bold uppercase flex items-center gap-1">
+                                                <Clock size={12} /> {formatMinutesToTime(disc.stats.minutos)}
+                                            </span>
 
-                                    <span className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase flex items-center gap-1 ${desempenhoConfig.style}`}>
-                                        <DesempenhoIcon size={12} /> {desempenhoConfig.label} De Precisão
-                                    </span>
+                                            <span className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase flex items-center gap-1 ${desempenhoConfig.style}`}>
+                                                <DesempenhoIcon size={12} /> {desempenhoConfig.label} De Precisão
+                                            </span>
+                                        </>
+                                    )}
                                 </div>
                             </div>
                             <ChevronDown size={20} className={`text-zinc-400 transition-transform ${expandedDisciplinas[disc.nome] ? 'rotate-180' : ''}`}/>
                         </button>
 
                         <div className="flex items-center justify-end gap-3 p-4 lg:p-5 border-t lg:border-t-0 lg:border-l border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-black/10">
-                            <div className="hidden sm:flex flex-col items-end mr-2">
-                                <span className="text-[10px] font-bold text-zinc-400 uppercase">Último Estudo</span>
-                                <span className="text-xs font-mono text-zinc-700 dark:text-zinc-300">{formatDateRelative(disc.stats.ultimaData)}</span>
-                            </div>
-                            <button onClick={() => setStudyModalData({ disciplina: disc, assunto: null })} className="w-full sm:w-auto px-5 py-2.5 bg-zinc-900 dark:bg-white hover:bg-red-600 dark:hover:bg-red-600 text-white dark:text-black hover:text-white dark:hover:text-white rounded-lg font-bold text-xs uppercase tracking-wide shadow transition-all active:scale-95 flex items-center justify-center gap-2">
-                                <Play size={12} fill="currentColor" /> Estudar
-                            </button>
+                            {isInCiclo ? (
+                                <>
+                                    <div className="hidden sm:flex flex-col items-end mr-2">
+                                        <span className="text-[10px] font-bold text-zinc-400 uppercase">Último Estudo</span>
+                                        <span className="text-xs font-mono text-zinc-700 dark:text-zinc-300">{formatDateRelative(disc.stats.ultimaData)}</span>
+                                    </div>
+                                    <button onClick={() => setStudyModalData({ disciplina: disc, assunto: null })} className="w-full sm:w-auto px-5 py-2.5 bg-zinc-900 dark:bg-white hover:bg-red-600 dark:hover:bg-red-600 text-white dark:text-black hover:text-white dark:hover:text-white rounded-lg font-bold text-xs uppercase tracking-wide shadow transition-all active:scale-95 flex items-center justify-center gap-2">
+                                        <Play size={12} fill="currentColor" /> Estudar
+                                    </button>
+                                </>
+                            ) : (
+                                <span className="text-xs font-bold text-zinc-400 uppercase px-4">Disciplina Inativa</span>
+                            )}
                         </div>
                     </div>
 
@@ -529,19 +573,22 @@ function EditalPage({ user, activeCicloId, onStartStudy, onBack }) {
                                         const questStats = getProgressStats(assunto.acertos, assunto.questoes);
                                         const hasActivity = assunto.minutos > 0 || assunto.questoes > 0;
                                         const isHot = assunto.relevancia >= 4 && !assunto.estudado;
+                                        const isTopicInCiclo = assunto.inCiclo; // Verifica se tópico está no ciclo
 
                                         return (
                                         <div
                                             key={i}
                                             className={`flex flex-col md:flex-row md:items-center p-4 sm:px-6 transition-all gap-4 hover:bg-white dark:hover:bg-zinc-800/50
                                                 ${assunto.estudado ? 'bg-emerald-50/40 dark:bg-emerald-900/10' : ''}
+                                                ${!isTopicInCiclo ? 'opacity-60 bg-zinc-100/50 dark:bg-zinc-900/50' : ''}
                                             `}
                                         >
                                             <div className="flex items-start gap-4 flex-1 relative">
                                                 <button
                                                     onClick={() => handleToggleCheck(disc.id, disc.nome, assunto.nome, assunto.estudado)}
-                                                    disabled={loadingCheck[`${disc.nome}-${assunto.nome}`.toLowerCase().trim()]}
+                                                    disabled={loadingCheck[`${disc.nome}-${assunto.nome}`.toLowerCase().trim()] || !isTopicInCiclo}
                                                     className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all flex-shrink-0 shadow-sm z-10 ${
+                                                        !isTopicInCiclo ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-300 cursor-not-allowed' :
                                                         assunto.estudado
                                                         ? 'bg-emerald-500 text-white shadow-emerald-500/20'
                                                         : 'bg-white dark:bg-zinc-800 border-2 border-zinc-200 dark:border-zinc-700 text-zinc-300 dark:text-zinc-600 hover:border-red-400 hover:text-red-400'
@@ -552,9 +599,15 @@ function EditalPage({ user, activeCicloId, onStartStudy, onBack }) {
 
                                                 <div className="flex-1 min-w-0 z-10">
                                                     <div className="flex items-center gap-2 flex-wrap">
-                                                        <p className={`text-[15px] leading-snug ${assunto.estudado ? 'text-zinc-500 dark:text-zinc-500 line-through decoration-2 decoration-emerald-500/50 font-medium' : 'text-zinc-800 dark:text-zinc-100 font-bold'}`}>{assunto.nome}</p>
+                                                        <p className={`text-[15px] leading-snug ${assunto.estudado ? 'text-zinc-500 dark:text-zinc-500 line-through decoration-2 decoration-emerald-500/50 font-medium' : isTopicInCiclo ? 'text-zinc-800 dark:text-zinc-100 font-bold' : 'text-zinc-500 dark:text-zinc-500 line-through decoration-zinc-400'}`}>{assunto.nome}</p>
 
-                                                        {isHot && (
+                                                        {!isTopicInCiclo && (
+                                                            <div className="flex items-center gap-1 px-1.5 py-0.5 bg-zinc-200 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 rounded text-[9px] font-bold uppercase tracking-wide">
+                                                                Fora do Ciclo
+                                                            </div>
+                                                        )}
+
+                                                        {isHot && isInCiclo && isTopicInCiclo && (
                                                             <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-sm ml-2">
                                                                 <Flame size={14} fill="currentColor" className="drop-shadow-sm" />
                                                                 <span className="text-[10px] font-bold uppercase tracking-wider leading-none whitespace-nowrap">
@@ -563,41 +616,43 @@ function EditalPage({ user, activeCicloId, onStartStudy, onBack }) {
                                                             </div>
                                                         )}
                                                     </div>
-                                                    {!hasActivity && !assunto.estudado && <p className="text-xs text-red-500 font-medium mt-1 flex items-center gap-1"><AlertCircle size={10}/> Não iniciado</p>}
+                                                    {!hasActivity && !assunto.estudado && isTopicInCiclo && <p className="text-xs text-red-500 font-medium mt-1 flex items-center gap-1"><AlertCircle size={10}/> Não iniciado</p>}
                                                 </div>
                                             </div>
 
                                             {/* ZONA DE ESTATÍSTICAS ALINHADA */}
-                                            <div className="flex items-center justify-end gap-4 w-full md:w-auto pl-14 md:pl-0 z-10">
-                                                <div className="flex items-center gap-6 mr-4">
-                                                    <div className="flex flex-col items-end w-16">
-                                                        <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider mb-0.5">Tempo</span>
-                                                        <span className="text-xs font-black text-zinc-700 dark:text-zinc-300">
-                                                            {formatMinutesToTime(assunto.minutos)}
-                                                        </span>
-                                                    </div>
-
-                                                    <div className="flex flex-col items-end w-28">
-                                                        <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider mb-0.5">Questões</span>
-                                                        <div className="flex items-center gap-1.5">
-                                                            <span className={`text-xs font-black ${questStats.colorText}`}>
-                                                                {questStats.perc}%
-                                                            </span>
-                                                            <span className="text-[10px] font-medium text-zinc-400">
-                                                                ({assunto.acertos}/{assunto.questoes})
+                                            {isInCiclo && isTopicInCiclo && (
+                                                <div className="flex items-center justify-end gap-4 w-full md:w-auto pl-14 md:pl-0 z-10">
+                                                    <div className="flex items-center gap-6 mr-4">
+                                                        <div className="flex flex-col items-end w-16">
+                                                            <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider mb-0.5">Tempo</span>
+                                                            <span className="text-xs font-black text-zinc-700 dark:text-zinc-300">
+                                                                {formatMinutesToTime(assunto.minutos)}
                                                             </span>
                                                         </div>
-                                                    </div>
-                                                </div>
 
-                                                <button
-                                                    onClick={() => handleStartTopicStudy(disc, assunto.nome)}
-                                                    className="p-2.5 rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-red-500 hover:text-white dark:hover:bg-red-600 transition-all text-zinc-400 dark:text-zinc-500 shadow-sm"
-                                                    title="Estudar este tópico"
-                                                >
-                                                    <Play size={16} fill="currentColor" />
-                                                </button>
-                                            </div>
+                                                        <div className="flex flex-col items-end w-28">
+                                                            <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider mb-0.5">Questões</span>
+                                                            <div className="flex items-center gap-1.5">
+                                                                <span className={`text-xs font-black ${questStats.colorText}`}>
+                                                                    {questStats.perc}%
+                                                                </span>
+                                                                <span className="text-[10px] font-medium text-zinc-400">
+                                                                    ({assunto.acertos}/{assunto.questoes})
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <button
+                                                        onClick={() => handleStartTopicStudy(disc, assunto.nome)}
+                                                        className="p-2.5 rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-red-500 hover:text-white dark:hover:bg-red-600 transition-all text-zinc-400 dark:text-zinc-500 shadow-sm"
+                                                        title="Estudar este tópico"
+                                                    >
+                                                        <Play size={16} fill="currentColor" />
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
                                     )})}
                                     {disc.assuntos.length === 0 && <div className="p-6 text-center text-xs text-zinc-400 italic">Sem tópicos cadastrados.</div>}

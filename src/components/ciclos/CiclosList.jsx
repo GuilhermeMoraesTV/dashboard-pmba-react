@@ -1,6 +1,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../../firebaseConfig';
-import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
+import {
+  collection,
+  query,
+  onSnapshot,
+  orderBy,
+  doc,
+  writeBatch,
+  getDocs,
+  where
+} from 'firebase/firestore';
 import CicloCreateWizard from '../ciclos/CicloCreateWizard';
 import CicloEditModal from './CicloEditModal';
 import { useCiclos } from '../../hooks/useCiclos';
@@ -19,11 +28,13 @@ import {
   RotateCw,
   Trophy,
   Map,
-  BarChart3
+  BarChart3,
+  Trash2, // Novo ícone
+  AlertOctagon // Novo ícone para o modal de perigo
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// --- MODAL DE CONFIRMAÇÃO ---
+// --- MODAL DE ARQUIVAMENTO (Soft Delete) ---
 function ModalConfirmacaoArquivamento({ ciclo, onClose, onConfirm, loading }) {
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex justify-center items-center p-4 animate-fade-in" onClick={onClose}>
@@ -31,8 +42,8 @@ function ModalConfirmacaoArquivamento({ ciclo, onClose, onConfirm, loading }) {
         className="bg-white dark:bg-zinc-950 p-0 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 w-full max-w-md relative overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="bg-red-500/10 p-6 flex flex-col items-center border-b border-red-500/20">
-            <div className="w-16 h-16 bg-red-500/20 text-red-600 dark:text-red-500 rounded-full flex items-center justify-center mb-4 shadow-[0_0_15px_rgba(239,68,68,0.4)]">
+        <div className="bg-amber-500/10 p-6 flex flex-col items-center border-b border-amber-500/20">
+            <div className="w-16 h-16 bg-amber-500/20 text-amber-600 dark:text-amber-500 rounded-full flex items-center justify-center mb-4 shadow-[0_0_15px_rgba(245,158,11,0.4)]">
                 <Archive size={32} />
             </div>
             <h2 className="text-xl font-black text-zinc-900 dark:text-white uppercase tracking-tight">
@@ -41,11 +52,46 @@ function ModalConfirmacaoArquivamento({ ciclo, onClose, onConfirm, loading }) {
         </div>
         <div className="p-6 text-center">
             <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-6">
-              O ciclo <strong className="text-zinc-900 dark:text-white">"{ciclo.nome}"</strong> será movido para o arquivo morto.
+              O ciclo <strong className="text-zinc-900 dark:text-white">"{ciclo.nome}"</strong> será movido para o <strong>Arquivo Morto</strong> no seu perfil.
+              <br/><span className="text-xs opacity-70">(Seus dados e horas serão preservados).</span>
             </p>
             <div className="flex gap-3">
               <button onClick={onClose} disabled={loading} className="flex-1 px-4 py-3 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 rounded-xl font-bold text-xs uppercase tracking-wider hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors">Cancelar</button>
-              <button onClick={onConfirm} disabled={loading} className="flex-1 px-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold text-xs uppercase tracking-wider shadow-lg shadow-red-900/20 transition-all flex items-center justify-center gap-2">{loading ? "Processando..." : "Confirmar"}</button>
+              <button onClick={onConfirm} disabled={loading} className="flex-1 px-4 py-3 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold text-xs uppercase tracking-wider shadow-lg shadow-amber-900/20 transition-all flex items-center justify-center gap-2">{loading ? "Arquivando..." : "Arquivar"}</button>
+            </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --- MODAL DE EXCLUSÃO (Hard Delete) ---
+function ModalConfirmacaoExclusao({ ciclo, onClose, onConfirm, loading }) {
+  return (
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex justify-center items-center p-4 animate-fade-in" onClick={onClose}>
+      <div
+        className="bg-white dark:bg-zinc-950 p-0 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 w-full max-w-md relative overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="bg-red-600/10 p-6 flex flex-col items-center border-b border-red-500/20">
+            <div className="w-16 h-16 bg-red-600/20 text-red-600 rounded-full flex items-center justify-center mb-4 shadow-[0_0_15px_rgba(220,38,38,0.4)]">
+                <AlertOctagon size={32} />
+            </div>
+            <h2 className="text-xl font-black text-zinc-900 dark:text-white uppercase tracking-tight">
+              Excluir Tudo?
+            </h2>
+        </div>
+        <div className="p-6 text-center">
+            <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">
+              Você está prestes a apagar o ciclo <strong className="text-red-600 font-bold">"{ciclo.nome}"</strong>.
+            </p>
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/50 p-3 rounded-xl text-xs text-red-800 dark:text-red-300 font-medium mb-6 text-left">
+               <AlertTriangle size={14} className="inline mr-1 -mt-0.5"/>
+               <strong>Atenção:</strong> Todos os registros de estudo e horas vinculados a este ciclo também serão apagados permanentemente. Isso reduzirá seu tempo total acumulado.
+            </div>
+            <div className="flex gap-3">
+              <button onClick={onClose} disabled={loading} className="flex-1 px-4 py-3 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 rounded-xl font-bold text-xs uppercase tracking-wider hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors">Cancelar</button>
+              <button onClick={onConfirm} disabled={loading} className="flex-1 px-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold text-xs uppercase tracking-wider shadow-lg shadow-red-900/20 transition-all flex items-center justify-center gap-2">{loading ? "Apagando..." : "Excluir Definitivamente"}</button>
             </div>
         </div>
       </div>
@@ -134,11 +180,19 @@ const CicloCard = ({ ciclo, onClick, onMenuToggle, isMenuOpen, onAction, registr
                         <button onClick={(e) => onMenuToggle(e, ciclo.id)} className="p-1.5 sm:p-2 -mr-2 -mt-2 text-zinc-400 hover:text-zinc-800 dark:hover:text-white rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"><MoreVertical size={18} className="sm:w-5 sm:h-5" /></button>
                         <AnimatePresence>
                             {isMenuOpen && (
-                                <motion.div initial={{ opacity: 0, y: 5, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} onClick={(e) => e.stopPropagation()} className="absolute top-8 right-0 w-40 sm:w-48 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xl py-1 z-50 overflow-hidden ring-1 ring-black/5">
+                                <motion.div initial={{ opacity: 0, y: 5, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} onClick={(e) => e.stopPropagation()} className="absolute top-8 right-0 w-44 sm:w-52 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xl py-1 z-50 overflow-hidden ring-1 ring-black/5">
+
                                     {!ciclo.ativo && (<button onClick={(e) => onAction(e, 'ativar', ciclo)} className="w-full text-left px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-emerald-600 dark:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/10 flex items-center gap-2 transition-colors"><Zap size={14} /> Ativar</button>)}
+
                                     <button onClick={(e) => onAction(e, 'editar', ciclo)} className="w-full text-left px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 flex items-center gap-2 transition-colors"><Edit size={14} /> Editar</button>
+
+                                    <button onClick={(e) => onAction(e, 'arquivar', ciclo)} className="w-full text-left px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-amber-600 dark:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/10 flex items-center gap-2 transition-colors"><Archive size={14} /> Arquivar</button>
+
                                     <div className="h-px bg-zinc-100 dark:bg-zinc-800 my-1"></div>
-                                    <button onClick={(e) => onAction(e, 'arquivar', ciclo)} className="w-full text-left px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-red-600 dark:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 flex items-center gap-2 transition-colors"><Archive size={14} /> Arquivar</button>
+
+                                    <button onClick={(e) => onAction(e, 'excluir', ciclo)} className="w-full text-left px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-red-600 dark:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 flex items-center gap-2 transition-colors">
+                                        <Trash2 size={14} /> Excluir Tudo
+                                    </button>
                                 </motion.div>
                             )}
                         </AnimatePresence>
@@ -203,8 +257,14 @@ function CiclosList({ onCicloClick, user, onCicloAtivado, registrosEstudo }) {
   const [loadingList, setLoadingList] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [menuAberto, setMenuAberto] = useState(null);
+
+  // States para os Modais de Ação
   const [cicloParaArquivar, setCicloParaArquivar] = useState(null);
+  const [cicloParaExcluir, setCicloParaExcluir] = useState(null);
   const [cicloParaEditar, setCicloParaEditar] = useState(null);
+
+  // Loading específico para delete (já que arquivar usa o hook)
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const { ativarCiclo, arquivarCiclo, loading: actionLoading, error: actionError } = useCiclos(user);
 
@@ -255,6 +315,8 @@ function CiclosList({ onCicloClick, user, onCicloAtivado, registrosEstudo }) {
           setCicloParaEditar(ciclo);
       } else if (action === 'arquivar') {
           setCicloParaArquivar(ciclo);
+      } else if (action === 'excluir') {
+          setCicloParaExcluir(ciclo);
       }
   };
 
@@ -264,10 +326,50 @@ function CiclosList({ onCicloClick, user, onCicloAtivado, registrosEstudo }) {
     setCicloParaArquivar(null);
   };
 
+  // --- LÓGICA DE EXCLUSÃO PROFUNDA (Ciclo + Registros) ---
+  const handleConfirmarExclusao = async () => {
+    if (deleteLoading || !cicloParaExcluir) return;
+    setDeleteLoading(true);
+
+    const { id } = cicloParaExcluir;
+
+    try {
+        // 1. Buscar todos os registros vinculados a este ciclo
+        const registrosQuery = query(
+            collection(db, 'users', user.uid, 'registrosEstudo'),
+            where('cicloId', '==', id)
+        );
+        const snapshot = await getDocs(registrosQuery);
+
+        const batch = writeBatch(db);
+
+        // 2. Adicionar cada registro para deleção no batch
+        snapshot.docs.forEach((docRef) => {
+            batch.delete(docRef.ref);
+        });
+
+        // 3. Deletar o documento do ciclo
+        const cicloRef = doc(db, 'users', user.uid, 'ciclos', id);
+        batch.delete(cicloRef);
+
+        // 4. Executar o batch
+        await batch.commit();
+
+    } catch (error) {
+        console.error("Erro ao excluir ciclo:", error);
+        alert("Erro ao excluir ciclo. Tente novamente.");
+    } finally {
+        setDeleteLoading(false);
+        setCicloParaExcluir(null);
+    }
+  };
+
   return (
     <div className="p-0 min-h-[50vh] animate-fade-in pb-12">
       <AnimatePresence>
         {cicloParaArquivar && <ModalConfirmacaoArquivamento ciclo={cicloParaArquivar} onClose={() => setCicloParaArquivar(null)} onConfirm={handleConfirmarArquivamento} loading={actionLoading} />}
+
+        {cicloParaExcluir && <ModalConfirmacaoExclusao ciclo={cicloParaExcluir} onClose={() => setCicloParaExcluir(null)} onConfirm={handleConfirmarExclusao} loading={deleteLoading} />}
 
         {showCreateModal && <CicloCreateWizard onClose={() => setShowCreateModal(false)} user={user} onCicloAtivado={onCicloAtivado} />}
 

@@ -21,15 +21,19 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+
+
     // --- 3.1 ACTIVE SESSIONS / ACTIVE TIMERS (✅ CORREÇÃO DO SEU ERRO) ---
     // Se o seu hook está lendo "active_sessions", precisa existir regra aqui.
     // Recomendo padronizar para "active_timers", mas deixei os dois liberados.
 
-    match /active_sessions/{uid} {
-      // Admin consegue ler todos os ativos
-      allow read: if isAdmin();
-      // Usuário pode criar/atualizar/apagar apenas o próprio doc
-      allow create, update, delete: if request.auth != null && request.auth.uid == uid;
+    // --- ACTIVE TIMERS (Admin tracking) ---
+    match /active_timers/{uid} {
+      // Admin pode ler todos; usuário pode ler o próprio
+      allow read: if request.auth != null && (request.auth.uid == uid || isAdmin());
+
+      // Usuário só escreve/apaga o próprio doc
+      allow write: if request.auth != null && request.auth.uid == uid;
     }
 
     match /active_timers/{uid} {

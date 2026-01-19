@@ -534,7 +534,8 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   return (
     <div className="flex min-h-screen bg-background-light dark:bg-background-dark text-text-primary dark:text-text-dark-primary transition-colors duration-300 overflow-x-hidden">
 
-      {activeTab === 'home' && <BroadcastReceiver />}
+      {/* ✅ BROADCAST SÓ APARECE SE O TOUR NÃO ESTIVER ATIVO */}
+      {activeTab === 'home' && <BroadcastReceiver canShow={!tourState.isActive} />}
 
       <DownloadAlert isVisible={isDownloadAlertVisible} onDismiss={() => setIsDownloadAlertVisible(false)} />
       <ShareCardPreviewModal data={sharePreviewData} onClose={() => setSharePreviewData(null)} onDownload={handleDownloadPDF} />

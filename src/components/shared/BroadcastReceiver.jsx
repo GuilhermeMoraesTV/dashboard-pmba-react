@@ -5,7 +5,8 @@ import { collection, query, orderBy, limit, onSnapshot, doc, setDoc, getDoc } fr
 import { motion, AnimatePresence } from 'framer-motion';
 import { Megaphone, Check, Zap, AlertTriangle } from 'lucide-react';
 
-const BroadcastReceiver = () => {
+// Recebe a prop canShow (padrão true)
+const BroadcastReceiver = ({ canShow = true }) => {
     const [notification, setNotification] = useState(null);
     const [isVisible, setIsVisible] = useState(false);
     const location = useLocation();
@@ -13,6 +14,7 @@ const BroadcastReceiver = () => {
     const isHome = location.pathname === '/';
     const user = auth.currentUser;
 
+    // 1. Busca a notificação (independente do tour)
     useEffect(() => {
         if (!isHome || !user) return;
 
@@ -35,13 +37,13 @@ const BroadcastReceiver = () => {
                 const oneDay = 24 * 60 * 60 * 1000;
 
                 if (timeDiff < oneDay) {
-                    // Verificação de leitura no Firestore para persistência global
+                    // Verificação de leitura no Firestore
                     const readRef = doc(db, 'users', user.uid, 'broadcasts_read', msgId);
                     const readSnap = await getDoc(readRef);
 
                     if (!readSnap.exists()) {
+                        // Apenas salva a notificação na memória, não mostra ainda
                         setNotification({ ...data, id: msgId });
-                        setIsVisible(true);
                     }
                 }
             }
@@ -50,12 +52,21 @@ const BroadcastReceiver = () => {
         return () => unsub();
     }, [isHome, user]);
 
+    // 2. Controla a visibilidade baseado na notificação E na permissão (canShow)
+    useEffect(() => {
+        if (notification && canShow) {
+            // Pequeno delay para não "pipocar" instantaneamente após o tour fechar
+            const timer = setTimeout(() => setIsVisible(true), 500);
+            return () => clearTimeout(timer);
+        } else {
+            setIsVisible(false);
+        }
+    }, [notification, canShow]);
+
     const handleClose = () => {
         if (notification?.id && user) {
-            // Fecha a interface instantaneamente para melhor UX
             setIsVisible(false);
 
-            // Grava a visualização no banco em background
             const readRef = doc(db, 'users', user.uid, 'broadcasts_read', notification.id);
             setDoc(readRef, {
                 readAt: new Date(),
