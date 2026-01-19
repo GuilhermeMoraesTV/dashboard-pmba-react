@@ -110,7 +110,6 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     );
   }
 
-  // --- ESTADOS ---
   const [activeTab, setActiveTab] = useState('home');
   const [loading, setLoading] = useState(true);
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
@@ -144,21 +143,18 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     };
   }, [allRegistrosEstudo, todayStr]);
 
-  // --- ESCUTAR EVENTO PARA SUBIR/DESCER TIMER ---
   useEffect(() => {
     const handleTimerRaise = (event) => setIsTimerRaised(event.detail);
     window.addEventListener('toggle-timer-raise', handleTimerRaise);
     return () => window.removeEventListener('toggle-timer-raise', handleTimerRaise);
   }, []);
 
-  // ✅ helper: limpar "active_timers/{uid}" quando sessão termina/cancela
   const clearActiveTimerDoc = useCallback(async () => {
     try {
       await deleteDoc(doc(db, 'active_timers', user.uid));
     } catch {}
   }, [user?.uid]);
 
-  // --- RESTAURAÇÃO DE SESSÃO / PENDÊNCIA ---
   useEffect(() => {
     const savedSession = localStorage.getItem(STORAGE_KEY);
     if (savedSession) {
@@ -166,7 +162,6 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         const parsed = JSON.parse(savedSession);
         if (parsed && parsed.disciplinaId && parsed.disciplinaNome) {
           if (parsed.isFinishing && parsed.tempMinutes) {
-            // se estava finalizando, não deve aparecer como timer ativo no Admin
             clearActiveTimerDoc();
 
             setPendingReviewData({
@@ -195,7 +190,6 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     }
   }, [clearActiveTimerDoc]);
 
-  // --- ACTIONS ---
   const addRegistroEstudo = async (data) => {
     try {
       const collectionRef = collection(db, 'users', user.uid, 'registrosEstudo');
@@ -252,8 +246,6 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     setFinishModalData(null);
     setPendingReviewData(null);
     localStorage.removeItem(STORAGE_KEY);
-
-    // ✅ remove do admin tracking
     clearActiveTimerDoc();
   };
 
@@ -305,8 +297,6 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       setFinishModalData(null);
       setPendingReviewData(null);
       setActiveStudySession(null);
-
-      // ✅ remove do admin tracking
       clearActiveTimerDoc();
     } catch (e) {
       console.error("Erro ao salvar timer:", e);
@@ -351,7 +341,6 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   };
 
   const handleLogout = async () => {
-    // ✅ garante limpeza do admin tracking
     clearActiveTimerDoc();
     signOut(auth).catch((error) => console.error('Logout Error:', error));
   };
@@ -399,7 +388,6 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     });
   };
 
-  // Efeitos
   useEffect(() => {
     if (!user || loading) return;
     const tourType = 'main';
@@ -420,14 +408,21 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     return () => unsubscribe();
   }, [user]);
 
+  // ✅ Normalização dos assuntos (mantém consistência)
   useEffect(() => {
     if (!user || !activeCicloId) {
       setActiveCycleDisciplines([]);
       return;
     }
-    const q = query(collection(db, 'users', user.uid, 'ciclos', activeCicloId, 'disciplinas'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const discs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const qDisc = query(collection(db, 'users', user.uid, 'ciclos', activeCicloId, 'disciplinas'));
+    const unsubscribe = onSnapshot(qDisc, (snapshot) => {
+      const discs = snapshot.docs.map(d => {
+        const data = d.data();
+        const assuntos = Array.isArray(data.assuntos)
+          ? data.assuntos.map(a => (typeof a === 'string' ? { nome: a, inCiclo: true } : { ...a, nome: (a?.nome || '').trim(), inCiclo: a?.inCiclo !== false })).filter(a => a.nome)
+          : [];
+        return { id: d.id, ...data, assuntos, inCiclo: data.inCiclo !== false };
+      });
       setActiveCycleDisciplines(discs);
     });
     return () => unsubscribe();
@@ -436,14 +431,14 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   useEffect(() => {
     if (!user) return;
     setLoading(true);
-    const q = query(collection(db, 'users', user.uid, 'registrosEstudo'), orderBy('timestamp', 'desc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const registros = snapshot.docs.map(doc => {
-        const data = doc.data();
+    const qReg = query(collection(db, 'users', user.uid, 'registrosEstudo'), orderBy('timestamp', 'desc'));
+    const unsubscribe = onSnapshot(qReg, (snapshot) => {
+      const registros = snapshot.docs.map(docSnap => {
+        const data = docSnap.data();
         let dataStr = data.data;
         if (data.data && typeof data.data.toDate === 'function') dataStr = dateToYMD(data.data.toDate());
         if (!dataStr && data.timestamp && typeof data.timestamp.toDate === 'function') dataStr = dateToYMD(data.timestamp.toDate());
-        return { id: doc.id, ...data, data: dataStr, tempoEstudadoMinutos: data.tempoEstudadoMinutos, questoesFeitas: data.questoesFeitas, acertos: data.acertos };
+        return { id: docSnap.id, ...data, data: dataStr, tempoEstudadoMinutos: data.tempoEstudadoMinutos, questoesFeitas: data.questoesFeitas, acertos: data.acertos };
       });
       setAllRegistrosEstudo(registros);
       setLoading(false);
@@ -459,8 +454,8 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
 
   useEffect(() => {
     if (!user) return;
-    const q = query(collection(db, 'users', user.uid, 'metas'), orderBy('startDate', 'desc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => setGoalsHistory(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
+    const qMeta = query(collection(db, 'users', user.uid, 'metas'), orderBy('startDate', 'desc'));
+    const unsubscribe = onSnapshot(qMeta, (snapshot) => setGoalsHistory(snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }))));
     return () => unsubscribe();
   }, [user]);
 
@@ -534,7 +529,6 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   return (
     <div className="flex min-h-screen bg-background-light dark:bg-background-dark text-text-primary dark:text-text-dark-primary transition-colors duration-300 overflow-x-hidden">
 
-      {/* ✅ BROADCAST SÓ APARECE SE O TOUR NÃO ESTIVER ATIVO */}
       {activeTab === 'home' && <BroadcastReceiver canShow={!tourState.isActive} />}
 
       <DownloadAlert isVisible={isDownloadAlertVisible} onDismiss={() => setIsDownloadAlertVisible(false)} />
@@ -580,8 +574,6 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
           onMaximize={() => setActiveStudySession(prev => ({ ...prev, isMinimized: false }))}
           onMinimize={() => setActiveStudySession(prev => ({ ...prev, isMinimized: true }))}
           raised={isTimerRaised}
-
-          // ✅ NOVO: passa usuário pro timer publicar no Admin
           userUid={user.uid}
           userName={user.displayName || 'Estudante'}
           userPhotoURL={user.photoURL || null}

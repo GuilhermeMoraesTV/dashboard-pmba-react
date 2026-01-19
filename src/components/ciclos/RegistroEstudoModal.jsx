@@ -4,11 +4,11 @@ import { db } from '../../firebaseConfig';
 import { X, Save, Clock, Target, List, AlertTriangle, ChevronDown, CheckSquare } from 'lucide-react';
 
 const getLocalDateString = () => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 };
 
 function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disciplinasDoCiclo, initialData }) {
@@ -39,36 +39,63 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  const isTimeFromTimer = useMemo(() => initialData?.tempoEstudadoMinutos !== undefined && initialData.tempoEstudadoMinutos > 0, [initialData]);
+  const isTimeFromTimer = useMemo(
+    () => initialData?.tempoEstudadoMinutos !== undefined && initialData.tempoEstudadoMinutos > 0,
+    [initialData]
+  );
+
   const tiposDeEstudo = ['Teoria', 'Questões', 'Revisão', 'Resumo', 'Simulado', 'Outro'];
+
+  // ✅ filtra disciplinas ativas (se por algum motivo vierem removidas)
+  const disciplinasAtivas = useMemo(() => {
+    return (disciplinasDoCiclo || []).filter(d => d && d.inCiclo !== false);
+  }, [disciplinasDoCiclo]);
 
   useEffect(() => {
     const fetchAssuntos = async () => {
-        if (!formData.disciplinaId || !cicloId || !userId) {
-            setAssuntosDisponiveis([]);
-            return;
+      if (!formData.disciplinaId || !cicloId || !userId) {
+        setAssuntosDisponiveis([]);
+        return;
+      }
+
+      // tenta do cache local primeiro
+      const disciplinaLocal = disciplinasAtivas.find(d => d.id === formData.disciplinaId);
+
+      const normalizeAssuntos = (arr) => {
+        const list = Array.isArray(arr) ? arr : [];
+        // ✅ filtra assuntos ativos
+        return list
+          .map(a => (typeof a === 'string' ? { nome: a, inCiclo: true } : { ...a, nome: (a?.nome || '').trim(), inCiclo: a?.inCiclo !== false }))
+          .filter(a => a.nome && a.inCiclo !== false);
+      };
+
+      if (disciplinaLocal && Array.isArray(disciplinaLocal.assuntos)) {
+        setAssuntosDisponiveis(normalizeAssuntos(disciplinaLocal.assuntos));
+        return;
+      }
+
+      setLoadingAssuntos(true);
+      try {
+        const disciplinaRef = doc(db, 'users', userId, 'ciclos', cicloId, 'disciplinas', formData.disciplinaId);
+        const disciplinaDoc = await getDoc(disciplinaRef);
+        if (disciplinaDoc.exists()) {
+          const data = disciplinaDoc.data();
+          setAssuntosDisponiveis(normalizeAssuntos(data.assuntos));
+        } else {
+          setAssuntosDisponiveis([]);
         }
-        const disciplinaLocal = disciplinasDoCiclo.find(d => d.id === formData.disciplinaId);
-        if (disciplinaLocal && Array.isArray(disciplinaLocal.assuntos)) {
-            setAssuntosDisponiveis(disciplinaLocal.assuntos);
-            return;
-        }
-        setLoadingAssuntos(true);
-        try {
-            const disciplinaRef = doc(db, 'users', userId, 'ciclos', cicloId, 'disciplinas', formData.disciplinaId);
-            const disciplinaDoc = await getDoc(disciplinaRef);
-            if (disciplinaDoc.exists()) {
-                const data = disciplinaDoc.data();
-                if (data.assuntos && Array.isArray(data.assuntos)) setAssuntosDisponiveis(data.assuntos);
-                else setAssuntosDisponiveis([]);
-            }
-        } catch (error) { console.error("Erro:", error); setAssuntosDisponiveis([]); }
-        finally { setLoadingAssuntos(false); }
+      } catch (error) {
+        console.error("Erro:", error);
+        setAssuntosDisponiveis([]);
+      } finally {
+        setLoadingAssuntos(false);
+      }
     };
+
     fetchAssuntos();
     setSelectedAssuntoNome('');
     setMarkAsFinished(false);
-  }, [formData.disciplinaId, cicloId, userId, disciplinasDoCiclo]);
+  }, [formData.disciplinaId, cicloId, userId, disciplinasAtivas]);
 
   const handleChange = (e) => {
     const { name, value, type } = e.target;
@@ -83,18 +110,18 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
     const totalMinutesFromForm = (Number(formData.horas || 0) * 60) + Number(formData.minutos || 0);
 
     if (!formData.disciplinaId || !formData.data || (totalMinutesFromForm <= 0 && formData.questoesFeitas <= 0)) {
-        setErrorMessage('Preencha disciplina, data e tempo ou questões.');
-        setLoading(false);
-        return;
+      setErrorMessage('Preencha disciplina, data e tempo ou questões.');
+      setLoading(false);
+      return;
     }
 
     if (!selectedAssuntoNome) {
-        setErrorMessage('Selecione um assunto/tópico para salvar.');
-        setLoading(false);
-        return;
+      setErrorMessage('Selecione um assunto/tópico para salvar.');
+      setLoading(false);
+      return;
     }
 
-    const disciplinaNome = disciplinasDoCiclo.find(d => d.id === formData.disciplinaId)?.nome || 'Desconhecida';
+    const disciplinaNome = disciplinasAtivas.find(d => d.id === formData.disciplinaId)?.nome || 'Desconhecida';
 
     try {
       const registro = {
@@ -115,20 +142,20 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
       await addRegistroEstudo(registro);
 
       if (markAsFinished) {
-          const checkData = {
-              cicloId,
-              disciplinaId: formData.disciplinaId,
-              disciplinaNome,
-              assunto: selectedAssuntoNome,
-              data: formData.data,
-              timestamp: serverTimestamp(),
-              tempoEstudadoMinutos: 0,
-              questoesFeitas: 0,
-              acertos: 0,
-              tipoEstudo: 'check_manual',
-              obs: 'Concluído via Registro Manual'
-          };
-          await addDoc(collection(db, 'users', userId, 'registrosEstudo'), checkData);
+        const checkData = {
+          cicloId,
+          disciplinaId: formData.disciplinaId,
+          disciplinaNome,
+          assunto: selectedAssuntoNome,
+          data: formData.data,
+          timestamp: serverTimestamp(),
+          tempoEstudadoMinutos: 0,
+          questoesFeitas: 0,
+          acertos: 0,
+          tipoEstudo: 'check_manual',
+          obs: 'Concluído via Registro Manual'
+        };
+        await addDoc(collection(db, 'users', userId, 'registrosEstudo'), checkData);
       }
 
       setLoading(false);
@@ -144,11 +171,11 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex justify-center items-center p-4 animate-fade-in" onClick={onClose}>
       <div className="bg-white dark:bg-zinc-950 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
         <div className="relative flex justify-between items-center p-6 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50">
-            <div className="flex items-center gap-4 relative z-10">
-                <div className="w-12 h-12 bg-red-500/10 text-red-600 dark:text-red-500 rounded-xl flex items-center justify-center shadow-sm ring-1 ring-red-500/20"><Save size={24} /></div>
-                <div><h2 className="text-xl font-black text-zinc-900 dark:text-white uppercase tracking-tight leading-none">Registrar Estudo</h2></div>
-            </div>
-            <button onClick={onClose} className="relative z-10 p-2 text-zinc-400 hover:text-red-500 hover:bg-white dark:hover:bg-zinc-800 rounded-full transition-all"><X size={24} /></button>
+          <div className="flex items-center gap-4 relative z-10">
+            <div className="w-12 h-12 bg-red-500/10 text-red-600 dark:text-red-500 rounded-xl flex items-center justify-center shadow-sm ring-1 ring-red-500/20"><Save size={24} /></div>
+            <div><h2 className="text-xl font-black text-zinc-900 dark:text-white uppercase tracking-tight leading-none">Registrar Estudo</h2></div>
+          </div>
+          <button onClick={onClose} className="relative z-10 p-2 text-zinc-400 hover:text-red-500 hover:bg-white dark:hover:bg-zinc-800 rounded-full transition-all"><X size={24} /></button>
         </div>
 
         <form onSubmit={handleSubmit} id="registro-form" className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar relative z-10">
@@ -157,81 +184,79 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
           )}
 
           <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="group">
-                  <label className="block text-sm font-bold text-zinc-700 dark:text-zinc-300 mb-1.5">Disciplina</label>
-                  <div className="relative">
-                      <select name="disciplinaId" value={formData.disciplinaId} onChange={handleChange} required className="w-full p-3 border border-zinc-200 dark:border-zinc-700 rounded-xl bg-zinc-50 dark:bg-zinc-900/50 focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all outline-none text-zinc-800 dark:text-white font-medium appearance-none">
-                        <option value="">Selecione...</option>
-                        {disciplinasDoCiclo.map(disc => (<option key={disc.id} value={disc.id}>{disc.nome}</option>))}
-                      </select>
-                      <ChevronDown className="absolute right-3 top-3.5 text-zinc-400 pointer-events-none" size={18} />
-                  </div>
-                </div>
-                <div className="group">
-                    <label className="block text-sm font-bold text-zinc-700 dark:text-zinc-300 mb-1.5">Data</label>
-                    <input type="date" name="data" value={formData.data} onChange={handleChange} required className="w-full p-3 border border-zinc-200 dark:border-zinc-700 rounded-xl bg-zinc-50 dark:bg-zinc-900/50 focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all outline-none text-zinc-800 dark:text-white font-bold" />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="group">
+                <label className="block text-sm font-bold text-zinc-700 dark:text-zinc-300 mb-1.5">Disciplina</label>
+                <div className="relative">
+                  <select name="disciplinaId" value={formData.disciplinaId} onChange={handleChange} required className="w-full p-3 border border-zinc-200 dark:border-zinc-700 rounded-xl bg-zinc-50 dark:bg-zinc-900/50 focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all outline-none text-zinc-800 dark:text-white font-medium appearance-none">
+                    <option value="">Selecione...</option>
+                    {disciplinasAtivas.map(disc => (<option key={disc.id} value={disc.id}>{disc.nome}</option>))}
+                  </select>
+                  <ChevronDown className="absolute right-3 top-3.5 text-zinc-400 pointer-events-none" size={18} />
                 </div>
               </div>
+              <div className="group">
+                <label className="block text-sm font-bold text-zinc-700 dark:text-zinc-300 mb-1.5">Data</label>
+                <input type="date" name="data" value={formData.data} onChange={handleChange} required className="w-full p-3 border border-zinc-200 dark:border-zinc-700 rounded-xl bg-zinc-50 dark:bg-zinc-900/50 focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all outline-none text-zinc-800 dark:text-white font-bold" />
+              </div>
+            </div>
 
-              {formData.disciplinaId && (
-                  <div className="animate-fade-in group">
-                    <label className="block text-sm font-bold text-zinc-700 dark:text-zinc-300 mb-1.5 flex justify-between">
-                        Assunto {loadingAssuntos && <span className="text-red-500 text-[10px]">Carregando...</span>}
-                    </label>
-                    <div className="relative">
-                      <select
-                        value={selectedAssuntoNome}
-                        onChange={(e) => setSelectedAssuntoNome(e.target.value)}
-                        className="w-full p-3 border border-zinc-200 dark:border-zinc-700 rounded-xl bg-zinc-50 dark:bg-zinc-900/50 focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all outline-none text-zinc-800 dark:text-white font-medium appearance-none"
-                        disabled={loadingAssuntos || assuntosDisponiveis.length === 0}
-                      >
-                        <option value="">Selecione o assunto...</option>
-                        {/* CORREÇÃO DO ERRO AQUI: */}
-                        {assuntosDisponiveis.map((assunto, idx) => {
-                            // Verifica se é objeto ou string para extrair o nome
-                            const nome = typeof assunto === 'object' ? assunto.nome : assunto;
-                            return <option key={idx} value={nome}>{nome}</option>;
-                        })}
-                      </select>
-                      <Target className="absolute right-3 top-3.5 text-zinc-400 pointer-events-none" size={18} />
-                    </div>
+            {formData.disciplinaId && (
+              <div className="animate-fade-in group">
+                <label className="block text-sm font-bold text-zinc-700 dark:text-zinc-300 mb-1.5 flex justify-between">
+                  Assunto {loadingAssuntos && <span className="text-red-500 text-[10px]">Carregando...</span>}
+                </label>
+                <div className="relative">
+                  <select
+                    value={selectedAssuntoNome}
+                    onChange={(e) => setSelectedAssuntoNome(e.target.value)}
+                    className="w-full p-3 border border-zinc-200 dark:border-zinc-700 rounded-xl bg-zinc-50 dark:bg-zinc-900/50 focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all outline-none text-zinc-800 dark:text-white font-medium appearance-none"
+                    disabled={loadingAssuntos || assuntosDisponiveis.length === 0}
+                  >
+                    <option value="">Selecione o assunto...</option>
+                    {assuntosDisponiveis.map((assunto, idx) => {
+                      const nome = typeof assunto === 'object' ? assunto.nome : assunto;
+                      return <option key={idx} value={nome}>{nome}</option>;
+                    })}
+                  </select>
+                  <Target className="absolute right-3 top-3.5 text-zinc-400 pointer-events-none" size={18} />
+                </div>
 
-                    {selectedAssuntoNome && (
-                        <div onClick={() => setMarkAsFinished(!markAsFinished)} className={`mt-4 p-3 rounded-xl border-2 cursor-pointer transition-all flex items-center gap-4 ${markAsFinished ? 'bg-emerald-50 dark:bg-emerald-900/10 border-emerald-500' : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 hover:border-emerald-300'}`}>
-                            <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-colors ${markAsFinished ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-zinc-300 dark:border-zinc-600 text-transparent'}`}><CheckSquare size={14} strokeWidth={4} /></div>
-                            <div><p className={`text-sm font-bold ${markAsFinished ? 'text-emerald-700 dark:text-emerald-400' : 'text-zinc-700 dark:text-zinc-300'}`}>Teoria Finalizada</p><p className="text-xs text-zinc-500">Marcar este tópico como concluído.</p></div>
-                        </div>
-                    )}
+                {selectedAssuntoNome && (
+                  <div onClick={() => setMarkAsFinished(!markAsFinished)} className={`mt-4 p-3 rounded-xl border-2 cursor-pointer transition-all flex items-center gap-4 ${markAsFinished ? 'bg-emerald-50 dark:bg-emerald-900/10 border-emerald-500' : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 hover:border-emerald-300'}`}>
+                    <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-colors ${markAsFinished ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-zinc-300 dark:border-zinc-600 text-transparent'}`}><CheckSquare size={14} strokeWidth={4} /></div>
+                    <div><p className={`text-sm font-bold ${markAsFinished ? 'text-emerald-700 dark:text-emerald-400' : 'text-zinc-700 dark:text-zinc-300'}`}>Teoria Finalizada</p><p className="text-xs text-zinc-500">Marcar este tópico como concluído.</p></div>
                   </div>
-              )}
+                )}
+              </div>
+            )}
           </div>
 
           <div className="space-y-4">
             <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2 mb-2"><List size={14} /> Tipo</h3>
             <div className="flex flex-wrap gap-2">
-                {tiposDeEstudo.map(tipo => (
-                    <button key={tipo} type="button" onClick={() => setFormData(prev => ({...prev, tipoEstudo: tipo}))} className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wide transition-all border ${formData.tipoEstudo === tipo ? 'bg-red-600 text-white border-red-600 shadow-lg shadow-red-500/20' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border-transparent hover:bg-zinc-200 dark:hover:bg-zinc-700'}`}>{tipo}</button>
-                ))}
+              {tiposDeEstudo.map(tipo => (
+                <button key={tipo} type="button" onClick={() => setFormData(prev => ({...prev, tipoEstudo: tipo}))} className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wide transition-all border ${formData.tipoEstudo === tipo ? 'bg-red-600 text-white border-red-600 shadow-lg shadow-red-500/20' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border-transparent hover:bg-zinc-200 dark:hover:bg-zinc-700'}`}>{tipo}</button>
+              ))}
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-2">
-              <div className="space-y-4 bg-zinc-50 dark:bg-zinc-900/30 p-4 rounded-2xl border border-zinc-100 dark:border-zinc-800">
-                  <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2"><Clock size={14} className="text-amber-500" /> Tempo</h3>
-                  <div className="flex gap-3 items-end">
-                      <div className="flex-1"><label className="text-xs font-semibold text-zinc-500 mb-1 block">Horas</label><input type="number" name="horas" value={formData.horas} onChange={handleChange} min="0" disabled={isTimeFromTimer} className="w-full p-3 text-center text-xl font-black border border-zinc-200 dark:border-zinc-700 rounded-xl bg-white dark:bg-zinc-900 focus:ring-2 focus:ring-amber-500 outline-none transition-all disabled:opacity-50" placeholder="0" /></div>
-                      <span className="text-zinc-400 font-bold pb-4">:</span>
-                      <div className="flex-1"><label className="text-xs font-semibold text-zinc-500 mb-1 block">Minutos</label><input type="number" name="minutos" value={formData.minutos} onChange={handleChange} min="0" max="59" disabled={isTimeFromTimer} className="w-full p-3 text-center text-xl font-black border border-zinc-200 dark:border-zinc-700 rounded-xl bg-white dark:bg-zinc-900 focus:ring-2 focus:ring-amber-500 outline-none transition-all disabled:opacity-50" placeholder="0" /></div>
-                  </div>
+            <div className="space-y-4 bg-zinc-50 dark:bg-zinc-900/30 p-4 rounded-2xl border border-zinc-100 dark:border-zinc-800">
+              <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2"><Clock size={14} className="text-amber-500" /> Tempo</h3>
+              <div className="flex gap-3 items-end">
+                <div className="flex-1"><label className="text-xs font-semibold text-zinc-500 mb-1 block">Horas</label><input type="number" name="horas" value={formData.horas} onChange={handleChange} min="0" disabled={isTimeFromTimer} className="w-full p-3 text-center text-xl font-black border border-zinc-200 dark:border-zinc-700 rounded-xl bg-white dark:bg-zinc-900 focus:ring-2 focus:ring-amber-500 outline-none transition-all disabled:opacity-50" placeholder="0" /></div>
+                <span className="text-zinc-400 font-bold pb-4">:</span>
+                <div className="flex-1"><label className="text-xs font-semibold text-zinc-500 mb-1 block">Minutos</label><input type="number" name="minutos" value={formData.minutos} onChange={handleChange} min="0" max="59" disabled={isTimeFromTimer} className="w-full p-3 text-center text-xl font-black border border-zinc-200 dark:border-zinc-700 rounded-xl bg-white dark:bg-zinc-900 focus:ring-2 focus:ring-amber-500 outline-none transition-all disabled:opacity-50" placeholder="0" /></div>
               </div>
-              <div className="space-y-4 bg-zinc-50 dark:bg-zinc-900/30 p-4 rounded-2xl border border-zinc-100 dark:border-zinc-800">
-                  <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2"><Target size={14} className="text-emerald-500" /> Questões</h3>
-                  <div className="flex gap-3">
-                      <div className="flex-1"><label className="text-xs font-semibold text-zinc-500 mb-1 block">Feitas</label><input type="number" name="questoesFeitas" value={formData.questoesFeitas} onChange={handleChange} min="0" className="w-full p-3 text-center text-xl font-black border border-zinc-200 dark:border-zinc-700 rounded-xl bg-white dark:bg-zinc-900 focus:ring-2 focus:ring-emerald-500 outline-none transition-all" /></div>
-                      <div className="flex-1"><label className="text-xs font-semibold text-zinc-500 mb-1 block">Acertos</label><input type="number" name="acertos" value={formData.acertos} onChange={handleChange} min="0" max={formData.questoesFeitas} className="w-full p-3 text-center text-xl font-black border border-zinc-200 dark:border-zinc-700 rounded-xl bg-white dark:bg-zinc-900 focus:ring-2 focus:ring-emerald-500 outline-none transition-all" /></div>
-                  </div>
+            </div>
+            <div className="space-y-4 bg-zinc-50 dark:bg-zinc-900/30 p-4 rounded-2xl border border-zinc-100 dark:border-zinc-800">
+              <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2"><Target size={14} className="text-emerald-500" /> Questões</h3>
+              <div className="flex gap-3">
+                <div className="flex-1"><label className="text-xs font-semibold text-zinc-500 mb-1 block">Feitas</label><input type="number" name="questoesFeitas" value={formData.questoesFeitas} onChange={handleChange} min="0" className="w-full p-3 text-center text-xl font-black border border-zinc-200 dark:border-zinc-700 rounded-xl bg-white dark:bg-zinc-900 focus:ring-2 focus:ring-emerald-500 outline-none transition-all" /></div>
+                <div className="flex-1"><label className="text-xs font-semibold text-zinc-500 mb-1 block">Acertos</label><input type="number" name="acertos" value={formData.acertos} onChange={handleChange} min="0" max={formData.questoesFeitas} className="w-full p-3 text-center text-xl font-black border border-zinc-200 dark:border-zinc-700 rounded-xl bg-white dark:bg-zinc-900 focus:ring-2 focus:ring-emerald-500 outline-none transition-all" /></div>
               </div>
+            </div>
           </div>
         </form>
 

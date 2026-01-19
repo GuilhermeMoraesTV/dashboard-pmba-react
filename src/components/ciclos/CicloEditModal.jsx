@@ -374,6 +374,16 @@ const DisciplineEditorItem = ({ disciplina, onUpdate, onRequestDelete, onRestore
     onUpdate(disciplina.id, { ...disciplina, assuntos: newTopics });
   };
 
+  // ✅ helper (garante objeto normalizado)
+  const normalizeTopic = (a) => {
+    if (typeof a === 'string') return { nome: a, inCiclo: true };
+    return { ...a, nome: (a?.nome || '').trim(), inCiclo: a?.inCiclo !== false };
+  };
+
+  const assuntosNorm = useMemo(() => (disciplina.assuntos || []).map(normalizeTopic).filter(a => a.nome), [disciplina.assuntos]);
+  const assuntosAtivos = useMemo(() => assuntosNorm.filter(a => a.inCiclo !== false), [assuntosNorm]);
+  const assuntosRemovidos = useMemo(() => assuntosNorm.filter(a => a.inCiclo === false), [assuntosNorm]);
+
   if (!isInCiclo) {
     return (
       <motion.div layout className="bg-zinc-100 dark:bg-zinc-900/30 border border-zinc-200 dark:border-zinc-800 rounded-xl p-3 flex items-center justify-between opacity-70 hover:opacity-100 transition-opacity">
@@ -442,7 +452,7 @@ const DisciplineEditorItem = ({ disciplina, onUpdate, onRequestDelete, onRestore
 
             <div className="flex items-center gap-3 pl-8">
               <span className="flex items-center gap-1 text-[10px] font-bold uppercase text-zinc-500">
-                <Layers size={10} /> {disciplina.assuntos?.filter(a => typeof a === 'object' ? a.inCiclo !== false : true).length || 0} Assuntos
+                <Layers size={10} /> {assuntosAtivos.length} Assuntos
               </span>
               <span className="w-px h-3 bg-zinc-200 dark:bg-zinc-700"></span>
               <div className="flex items-center gap-0.5">
@@ -523,41 +533,69 @@ const DisciplineEditorItem = ({ disciplina, onUpdate, onRequestDelete, onRestore
                     </button>
                   </form>
 
+                  {/* ✅ AGORA: Lista principal mostra APENAS assuntos ATIVOS (sumiu do ciclo quando remove) */}
                   <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar pr-1 bg-zinc-100/50 dark:bg-black/20 p-2 rounded-lg border border-zinc-200/50 dark:border-zinc-800">
-                    {disciplina.assuntos && disciplina.assuntos.map((assunto, index) => {
-                      const nomeAssunto = typeof assunto === 'object' ? assunto.nome : assunto;
-                      const isTopicInCiclo = typeof assunto === 'object' ? (assunto.inCiclo !== false) : true;
+                    {assuntosAtivos.map((assuntoObj, indexAtivo) => {
+                      // precisamos achar o índice real no array original para deletar/editar corretamente
+                      const realIndex = assuntosNorm.findIndex((a, idx) => idx >= 0 && a.nome === assuntoObj.nome && a.inCiclo === assuntoObj.inCiclo && (disciplina.assuntos?.[idx] !== undefined));
+                      const idxToUse = realIndex >= 0 ? realIndex : indexAtivo;
 
                       return (
-                        <div key={index} className={`flex items-center gap-2 group/item p-2 rounded border transition-all ${isTopicInCiclo ? 'bg-white dark:bg-zinc-900 border-zinc-100 dark:border-zinc-800' : 'bg-zinc-100/50 dark:bg-zinc-800/50 border-zinc-200/50 dark:border-zinc-700/50 opacity-70'}`}>
-                          {isTopicInCiclo ? (
-                            <div className="w-1.5 h-1.5 bg-zinc-300 rounded-full flex-shrink-0"></div>
-                          ) : (
-                            <Ban size={12} className="text-amber-500 flex-shrink-0" />
-                          )}
+                        <div key={`${assuntoObj.nome}-${idxToUse}`} className="flex items-center gap-2 group/item p-2 rounded border transition-all bg-white dark:bg-zinc-900 border-zinc-100 dark:border-zinc-800">
+                          <div className="w-1.5 h-1.5 bg-zinc-300 rounded-full flex-shrink-0"></div>
 
                           <input
-                            className={`flex-1 bg-transparent border-none text-xs p-0 focus:ring-0 font-medium ${isTopicInCiclo ? 'text-zinc-700 dark:text-zinc-300' : 'text-zinc-400 line-through'}`}
-                            value={nomeAssunto}
-                            onChange={(e) => updateTopicText(index, e.target.value)}
-                            disabled={!isTopicInCiclo}
+                            className="flex-1 bg-transparent border-none text-xs p-0 focus:ring-0 font-medium text-zinc-700 dark:text-zinc-300"
+                            value={assuntoObj.nome}
+                            onChange={(e) => updateTopicText(idxToUse, e.target.value)}
                           />
 
                           <div className="flex gap-1 opacity-100 sm:opacity-0 group-hover/item:opacity-100 transition-opacity">
-                            {!isTopicInCiclo && (
-                              <button onClick={() => restoreTopic(index)} className="p-1 text-emerald-500 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 rounded" title="Restaurar ao Ciclo">
-                                <Undo2 size={14} />
-                              </button>
-                            )}
-                            <button onClick={() => setTopicToDelete(index)} className="p-1 text-zinc-300 hover:text-red-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors" title={isTopicInCiclo ? "Excluir" : "Excluir Definitivamente"}>
+                            <button onClick={() => setTopicToDelete(idxToUse)} className="p-1 text-zinc-300 hover:text-red-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors" title="Excluir">
                               <Trash2 size={14} />
                             </button>
                           </div>
                         </div>
                       );
                     })}
-                    {(!disciplina.assuntos || disciplina.assuntos.length === 0) && <div className="text-center py-6 text-xs text-zinc-400 italic">Nenhum tópico cadastrado.</div>}
+
+                    {assuntosAtivos.length === 0 && (
+                      <div className="text-center py-6 text-xs text-zinc-400 italic">
+                        Nenhum tópico ativo no ciclo.
+                      </div>
+                    )}
                   </div>
+
+                  {/* ✅ Removidos (para restaurar) */}
+                  {assuntosRemovidos.length > 0 && (
+                    <div className="mt-3">
+                      <div className="text-[10px] font-black uppercase text-amber-600 dark:text-amber-400 tracking-wider mb-2">
+                        Fora do Ciclo ({assuntosRemovidos.length})
+                      </div>
+                      <div className="space-y-2 bg-amber-50/40 dark:bg-amber-900/10 p-2 rounded-lg border border-amber-200/40 dark:border-amber-900/20">
+                        {assuntosRemovidos.map((assuntoObj, idx) => {
+                          const realIndex = assuntosNorm.findIndex((a, i) => a.nome === assuntoObj.nome && a.inCiclo === false && (disciplina.assuntos?.[i] !== undefined));
+                          const idxToUse = realIndex >= 0 ? realIndex : idx;
+
+                          return (
+                            <div key={`${assuntoObj.nome}-removed-${idxToUse}`} className="flex items-center gap-2 p-2 rounded border bg-white/60 dark:bg-zinc-900/40 border-amber-200/40 dark:border-amber-900/20">
+                              <Ban size={12} className="text-amber-500 flex-shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <span className="text-xs font-bold text-zinc-500 dark:text-zinc-400 line-through truncate block">{assuntoObj.nome}</span>
+                              </div>
+                              <button onClick={() => restoreTopic(idxToUse)} className="px-2 py-1 rounded-lg text-[10px] font-bold uppercase bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100 flex items-center gap-1">
+                                <Undo2 size={12} /> Restaurar
+                              </button>
+                              <button onClick={() => setTopicToDelete(idxToUse)} className="p-1 text-zinc-300 hover:text-red-500 hover:bg-white/50 dark:hover:bg-zinc-800 rounded" title="Excluir definitivamente">
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                 </div>
 
               </div>
@@ -589,7 +627,6 @@ function CicloEditModal({ onClose, user, ciclo }) {
 
   const [deleteModalInfo, setDeleteModalInfo] = useState(null);
 
-  // mantém seu hook (não mexi no resto), mas o save agora é batch direto
   useCiclos(user);
 
   const initialDisciplinaIdsRef = useRef([]);
@@ -624,8 +661,8 @@ function CicloEditModal({ onClose, user, ciclo }) {
 
           const assuntosNormalizados = (d.assuntos || []).map(a => {
             if (typeof a === 'string') return { nome: a, inCiclo: true };
-            return { ...a, inCiclo: a.inCiclo !== false };
-          });
+            return { ...a, inCiclo: a.inCiclo !== false, nome: (a?.nome || '').trim() };
+          }).filter(a => a.nome);
 
           return {
             id: docSnap.id,
@@ -698,7 +735,9 @@ function CicloEditModal({ onClose, user, ciclo }) {
     setDisciplinas(prev => prev.map(d => d.id === id ? { ...d, inCiclo: true } : d));
   };
 
-  // ✅✅✅ CORREÇÃO PRINCIPAL: batch salva ciclo + subcoleção (disciplina e assuntos com inCiclo)
+  // ✅✅✅ CORREÇÃO PRINCIPAL:
+  // - subcoleção mantém TUDO (incluindo inCiclo=false) -> Edital marca corretamente e permite restaurar
+  // - doc do ciclo (ciclo.disciplinas) salva APENAS ativos (e assuntos ativos) -> some do Ciclo de verdade
   const handleSave = async () => {
     if (!user || !ciclo) return;
     if (horasTotais <= 0) return alert("Defina uma carga horária maior que zero.");
@@ -714,12 +753,10 @@ function CicloEditModal({ onClose, user, ciclo }) {
 
       const batch = writeBatch(db);
 
-      // Descobre quais foram removidas definitivamente (hard delete)
       const currentIds = disciplinas.filter(d => !String(d.id).startsWith('new-')).map(d => d.id);
       const toDeleteIds = (initialDisciplinaIdsRef.current || []).filter(id => !currentIds.includes(id));
 
-      // Prepara disciplinas para persistir (incluindo novas com ID real)
-      const disciplinasFinal = [];
+      const disciplinasFinalFull = [];
       let orderIndex = 0;
 
       for (const d of disciplinasComCalculo) {
@@ -727,7 +764,6 @@ function CicloEditModal({ onClose, user, ciclo }) {
         const discRef = isNew ? doc(disciplinasCol) : doc(disciplinasCol, d.id);
         const discIdFinal = discRef.id;
 
-        // Normaliza assuntos SEMPRE para objeto e garantindo boolean
         const assuntosNormalizados = (d.assuntos || [])
           .map(a => {
             if (typeof a === 'string') return { nome: a, inCiclo: true };
@@ -754,7 +790,7 @@ function CicloEditModal({ onClose, user, ciclo }) {
 
         batch.set(discRef, payload, { merge: true });
 
-        disciplinasFinal.push({
+        disciplinasFinalFull.push({
           id: discIdFinal,
           nome: payload.nome,
           assuntos: payload.assuntos,
@@ -768,19 +804,26 @@ function CicloEditModal({ onClose, user, ciclo }) {
         orderIndex += 1;
       }
 
-      // Deleta hard deletadas
+      // hard delete
       toDeleteIds.forEach(id => {
         const ref = doc(disciplinasCol, id);
         batch.delete(ref);
       });
 
-      // Atualiza ciclo doc (merge) — mantendo compatibilidade com campos antigos
+      // ✅ O ciclo doc recebe SOMENTE ativos e assuntos ativos (para sumir do ciclo de verdade)
+      const disciplinasForCicloDoc = disciplinasFinalFull
+        .filter(d => d.inCiclo !== false)
+        .map(d => ({
+          ...d,
+          assuntos: (d.assuntos || []).filter(a => (typeof a === 'object' ? (a.inCiclo !== false) : true))
+        }));
+
       batch.set(cicloRef, {
         nome: (nome || '').trim(),
         cargaHorariaTotal: Number(horasTotais),
         cargaHorariaSemanalTotal: Number(horasTotais),
         gradeHoraria: metodoCargaHoraria === 'grade' ? availabilityGrid : null,
-        disciplinas: disciplinasFinal,
+        disciplinas: disciplinasForCicloDoc,
         updatedAt: serverTimestamp()
       }, { merge: true });
 
