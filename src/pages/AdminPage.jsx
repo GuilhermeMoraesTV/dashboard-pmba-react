@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { db } from '../firebaseConfig';
 import {
@@ -10,20 +10,20 @@ import {
   onSnapshot,
   limit,
   orderBy,
-  addDoc,
-  serverTimestamp,
   where,
+  addDoc,
+  serverTimestamp
 } from 'firebase/firestore';
 import {
   ShieldAlert, Database, Users, Activity, Server, Lock,
-  Loader2, Search, Crown, Maximize2, Trash2, X, Bell, ExternalLink, LayoutGrid, Flame, Siren,
+  Loader2, Search, Maximize2, Trash2, X, Bell, ExternalLink, LayoutGrid, Flame, Siren,
   BadgeAlert, Megaphone, FileSpreadsheet, Target, Zap, AlertTriangle, CheckCircle2,
   ChevronDown, ChevronUp, Timer, Trophy, SlidersHorizontal, ListFilter, Eye, Clock, HelpCircle,
   ArrowUpRight, ArrowDownRight
 } from 'lucide-react';
 
 // ==================================================================================
-// 🚀 AUTOMATIZAÇÃO DE EDITAIS (VITE GLOB IMPORT) - VERSÃO DEFINITIVA (NAMED EXPORTS)
+// 🚀 AUTOMATIZAÇÃO DE EDITAIS (VITE GLOB IMPORT)
 // ==================================================================================
 const seedModules = import.meta.glob('../components/admin/SeedEdital*.jsx', { eager: true });
 
@@ -445,7 +445,7 @@ const EditaisManagerModal = ({ isOpen, onClose }) => {
   );
 };
 
-// --- Hook robusto para timer sincronizado no Admin ---
+// --- Hook corrigido para Sincronização Precisa do Timer ---
 const useSyncedSeconds = (session) => {
   const [live, setLive] = useState(0);
 
@@ -453,74 +453,66 @@ const useSyncedSeconds = (session) => {
     if (!session) return;
 
     const tick = () => {
-      // Tentativa múltiplos nomes (inclui displaySecondsSnapshot)
-      const baseSec =
-        Number(session.displaySecondsSnapshot ?? session.seconds ?? session.elapsedSeconds ?? session.remainingSeconds ?? session.timeLeftSeconds ?? 0);
+      // 1. Base: snapshot que o usuário enviou
+      const baseSec = Number(session.displaySecondsSnapshot ?? session.seconds ?? 0);
 
-      // timestamp robusto (number | Date | Firestore Timestamp)
-      const tsCandidate =
-        session.lastTimestamp ??
-        session.heartbeatAt ??
-        session.updatedAtMs ??
-        session.updatedAt ??
-        session.updatedAt?.toMillis?.();
+      // 2. Se estiver PAUSADO ou FINALIZADO, não adianta calcular delta. Confie no snapshot.
+      // Isso corrige o problema de zerar: o admin mostrará exatamente onde o user parou.
+      if (session.isPaused) {
+        setLive(baseSec);
+        return;
+      }
 
-      const baseTs = toMillisSafe(tsCandidate) ?? Date.now();
-      const delta = Math.floor((Date.now() - baseTs) / 1000);
+      // 3. Se estiver RODANDO: Calcule o delta desde o último update do servidor.
+      // Usamos updatedAt (ServerTimestamp) para saber quando o dado chegou no banco.
+      // Adicionamos a diferença entre AGORA e QUANDO chegou.
+      const lastUpdate = toMillisSafe(session.updatedAt) || Date.now();
+      const delta = Math.floor((Date.now() - lastUpdate) / 1000);
 
-      const paused = !!session.isPaused;
-
-      // direção (count up vs down)
-      const explicitDown =
-        session.countDirection === 'down' ||
-        session.isCountDown === true ||
-        session.direction === 'down' ||
-        session.timerType === 'pomodoro' ||
-        session.mode === 'pomodoro';
-
-      // heurística: if mode === 'free' or timerType === 'livre' -> count up
-      const isCountUp = !explicitDown && (session.mode === 'free' || session.timerType === 'livre');
+      // 4. Lógica de direção (Pomodoro desce, Livre sobe)
+      // Ajuste para não ultrapassar 0 no pomodoro
+      const isPomodoro = (session.timerType === 'pomodoro' || session.mode === 'pomodoro');
+      const isResting = !!session.isResting;
 
       let next = baseSec;
-      if (!paused) next = isCountUp ? (baseSec + delta) : Math.max(0, baseSec - delta);
 
-      setLive(Math.max(0, Math.floor(next)));
+      if (isPomodoro && !isResting) {
+        // Contagem regressiva do foco
+        next = Math.max(0, baseSec - delta);
+      } else if (isResting) {
+         // Contagem regressiva do descanso
+         next = Math.max(0, baseSec - delta);
+      } else {
+        // Contagem progressiva (Modo Livre)
+        next = baseSec + delta;
+      }
+
+      setLive(Math.floor(next));
     };
 
     tick();
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
   }, [
-    session?.id,
-    session?.uid,
     session?.displaySecondsSnapshot,
-    session?.seconds,
-    session?.elapsedSeconds,
-    session?.remainingSeconds,
-    session?.timeLeftSeconds,
-    session?.lastTimestamp,
-    session?.heartbeatAt,
-    session?.updatedAtMs,
     session?.updatedAt,
     session?.isPaused,
-    session?.mode,
     session?.timerType,
-    session?.countDirection,
-    session?.isCountDown,
-    session?.direction,
+    session?.mode,
+    session?.isResting
   ]);
 
   return live;
 };
 
-// --- SUBCOMPONENTE: UMA LINHA DE SESSÃO (usa hook por sessão) ---
+// --- SUBCOMPONENTE: UMA LINHA DE SESSÃO ---
 const SessionRow = ({ s, getUser, cicloNameByKey, isExpanded, toggleExpand, onOpenUser }) => {
   const liveSeconds = useSyncedSeconds(s);
   const user = getUser(s.uid);
   const key = `${s.uid}_${s.cicloId || ''}`;
   const cicloNome = s.cicloNome || cicloNameByKey.get(key) || null;
 
-  const phaseLabel = (s.phase === 'rest') ? 'Descanso' : 'Foco';
+  const phaseLabel = (s.phase === 'rest' || s.isResting) ? 'Descanso' : 'Foco';
   const typeLabel = s?.timerType === 'pomodoro' ? 'Pomodoro' : 'Livre';
   const pausedLabel = s.isPaused ? 'Pausado' : '';
 
@@ -564,7 +556,7 @@ const SessionRow = ({ s, getUser, cicloNameByKey, isExpanded, toggleExpand, onOp
               {formatClock(liveSeconds)}
             </p>
             <p className="text-[9px] text-zinc-400">
-              {formatTimeAgo(new Date(toMillisSafe(s.lastTimestamp || s.updatedAt) || Date.now()))}
+              {s.isPaused ? 'Pausado' : 'Rodando'}
             </p>
           </div>
           <div className="p-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900">
@@ -629,7 +621,7 @@ const SessionRow = ({ s, getUser, cicloNameByKey, isExpanded, toggleExpand, onOp
   );
 };
 
-// --- MODAL DETALHADO DO USUÁRIO (Perfil + Registros) ---
+// --- MODAL DETALHADO DO USUÁRIO ---
 const UserDetailModal = ({ isOpen, onClose, user, records = [] }) => {
   const [tab, setTab] = useState('perfil'); // perfil | registros
 
@@ -792,14 +784,14 @@ const UserDetailModal = ({ isOpen, onClose, user, records = [] }) => {
   );
 };
 
-// --- CARD “ESTUDANDO AGORA” (MULTI-USUÁRIO + EXPANSÍVEL + AO VIVO) ---
+// --- CARD “ESTUDANDO AGORA” ---
 const StudyingNowPanel = ({ sessions = [], getUser, cicloNameByKey, onOpenUser }) => {
   const [expandedAll, setExpandedAll] = useState(false);
   const [expandedUid, setExpandedUid] = useState(null);
 
   const counts = useMemo(() => {
-    const focus = sessions.filter(s => (s.phase || 'focus') === 'focus' && !s.isPaused).length;
-    const rest = sessions.filter(s => (s.phase || '') === 'rest' && !s.isPaused).length;
+    const focus = sessions.filter(s => (s.phase === 'focus' || !s.isResting) && !s.isPaused).length;
+    const rest = sessions.filter(s => (s.phase === 'rest' || s.isResting) && !s.isPaused).length;
     const paused = sessions.filter(s => !!s.isPaused).length;
     return { focus, rest, paused, total: sessions.length };
   }, [sessions]);
@@ -942,7 +934,7 @@ function AdminPage() {
     return () => unsub();
   }, []);
 
-  // ACTIVE SESSIONS (real-time) - leitura robusta
+  // ACTIVE SESSIONS (real-time)
   useEffect(() => {
     const q = query(collection(db, 'active_timers'), orderBy('updatedAt', 'desc'), limit(160));
     const unsub = onSnapshot(q, (snap) => {
@@ -952,11 +944,9 @@ function AdminPage() {
           id: docu.id,
           uid: d.uid || docu.id,
           ...d,
-          // try multiple timestamp fields
-          updatedAt: d.updatedAt?.toDate?.() || d.heartbeatAt?.toDate?.() || new Date(),
-          lastTimestamp: d.lastTimestamp ?? d.heartbeatAt ?? d.updatedAt ?? Date.now(),
-          // robust seconds snapshot
-          seconds: Number(d.displaySecondsSnapshot ?? d.seconds ?? d.elapsedSeconds ?? d.remainingSeconds ?? d.timeLeftSeconds ?? 0),
+          updatedAt: d.updatedAt?.toDate?.() || new Date(),
+          // Se não houver snapshot, usa seconds
+          displaySecondsSnapshot: Number(d.displaySecondsSnapshot ?? d.seconds ?? 0),
         };
       });
       setActiveSessions(data);
@@ -966,14 +956,13 @@ function AdminPage() {
     return () => unsub();
   }, []);
 
-  // ✅ Cache de ciclos (para mostrar nome do ciclo no Feed e no Estudando Agora)
+  // ✅ Cache de ciclos
   useEffect(() => {
-    // Leve e suficiente: puxa até 800 ciclos recentes (sem mexer no resto)
     const q = query(collectionGroup(db, 'ciclos'), limit(800));
     const unsub = onSnapshot(q, (snap) => {
       const next = new Map();
       snap.docs.forEach(docu => {
-        const path = docu.ref.path; // users/{uid}/ciclos/{cicloId}
+        const path = docu.ref.path;
         const parts = path.split('/');
         const uid = parts[1];
         const cicloId = parts[3];
@@ -1006,7 +995,7 @@ function AdminPage() {
     const active7Days = new Set();
     const active24Hours = new Set();
 
-    const statsByUid = new Map(); // minutes / questions / correct
+    const statsByUid = new Map();
 
     studyRecords.forEach(reg => {
       if (!reg.uid) return;
@@ -1066,7 +1055,7 @@ function AdminPage() {
     const TTL = 2 * 60 * 1000; // 2 min
     const now = Date.now();
     return activeSessions
-      .filter(s => (now - (toMillisSafe(s.lastTimestamp || s.updatedAt) || 0)) <= TTL)
+      .filter(s => (now - (toMillisSafe(s.updatedAt) || 0)) <= TTL)
       .map(s => ({ ...s, uid: s.uid || s.id }));
   }, [activeSessions]);
 
@@ -1074,8 +1063,8 @@ function AdminPage() {
   const studyingNowSessions = useMemo(() => {
     // ordena: quem está em foco e não pausado primeiro
     const rank = (s) => {
-      if (!s.isPaused && s.phase === 'focus') return 0;
-      if (!s.isPaused && s.phase === 'rest') return 1;
+      if (!s.isPaused && s.phase === 'focus' && !s.isResting) return 0;
+      if (!s.isPaused && (s.phase === 'rest' || s.isResting)) return 1;
       if (s.isPaused) return 2;
       return 3;
     };
@@ -1092,7 +1081,6 @@ function AdminPage() {
     return arr.slice(0, rankingLimit);
   }, [dashboardData.enrichedUsers, rankingMetric, rankingLimit]);
 
-  // compute simple trend (heuristic): up if lastStudy < 24h, down if no study in 7d, else stable
   const computeTrend = (user) => {
     if (!user) return 0;
     if (user.lastStudy && (new Date() - user.lastStudy) < 86400000) return 1;
@@ -1100,7 +1088,6 @@ function AdminPage() {
     return 0;
   };
 
-  // ✅ Feed filtrado por usuário
   const feedList = useMemo(() => {
     const base = studyRecords;
     if (selectedFeedUid === 'all') return base.slice(0, 60);

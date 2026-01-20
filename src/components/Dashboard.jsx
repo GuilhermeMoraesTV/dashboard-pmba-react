@@ -27,7 +27,6 @@ import OnboardingTour from '../components/shared/OnboardingTour';
 import BroadcastReceiver from '../components/shared/BroadcastReceiver';
 
 const ADMIN_UID = 'OLoJi457GQNE2eTSOcz9DAD6ppZ2';
-const STORAGE_KEY = '@ModoQAP:ActiveSession';
 
 const dateToYMD = (date) => {
   const d = date.getDate();
@@ -110,6 +109,9 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     );
   }
 
+  // ✅ CHAVE DE STORAGE ÚNICA
+  const STORAGE_KEY = useMemo(() => `@ModoQAP:ActiveSession:${user.uid}`, [user.uid]);
+
   const [activeTab, setActiveTab] = useState('home');
   const [loading, setLoading] = useState(true);
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
@@ -155,6 +157,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     } catch {}
   }, [user?.uid]);
 
+  // ✅ Restauração com Chave Única
   useEffect(() => {
     const savedSession = localStorage.getItem(STORAGE_KEY);
     if (savedSession) {
@@ -188,7 +191,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         localStorage.removeItem(STORAGE_KEY);
       }
     }
-  }, [clearActiveTimerDoc]);
+  }, [clearActiveTimerDoc, STORAGE_KEY]);
 
   const addRegistroEstudo = async (data) => {
     try {
@@ -408,7 +411,6 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     return () => unsubscribe();
   }, [user]);
 
-  // ✅ Normalização dos assuntos (mantém consistência)
   useEffect(() => {
     if (!user || !activeCicloId) {
       setActiveCycleDisciplines([]);
