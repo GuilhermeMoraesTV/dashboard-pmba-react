@@ -118,7 +118,7 @@ const getLogoUrl = (cicloData) => {
     const searchString = (cicloData.templateOrigem || cicloData.nome || '').toLowerCase();
     const ufs = ['ac', 'al', 'ap', 'am', 'ba', 'ce', 'df', 'es', 'go', 'ma', 'mt', 'ms', 'mg', 'pa', 'pb', 'pr', 'pe', 'pi', 'erj', 'rn', 'rs', 'ro', 'rr', 'sc', 'sp', 'se', 'to'];
     const prefixos = ['pm', 'pc', 'cbm', 'bm', 'pp'];
-    const especiais = ['gcm', 'aquiraz', 'pf', 'prf', 'depen', 'eb', 'fab', 'marinha'];
+    const especiais = ['gcm', 'aquiraz', 'recife', 'pf', 'prf', 'depen', 'eb', 'fab', 'marinha'];
     let todasSiglas = [...especiais];
     prefixos.forEach(prefixo => {
         ufs.forEach(uf => {
@@ -129,6 +129,7 @@ const getLogoUrl = (cicloData) => {
     const encontrada = todasSiglas.find(sigla => searchString.includes(sigla));
     if (encontrada) {
         if(encontrada === 'gcm' || encontrada === 'aquiraz') return '/logosEditais/logo-aquiraz.png';
+        if(encontrada === 'gcm' || encontrada === 'recife') return '/logosEditais/logo-recife.png';
         return `/logosEditais/logo-${encontrada}.png`;
     }
     return null;

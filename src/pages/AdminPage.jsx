@@ -53,6 +53,8 @@ const CATALOGO_EDITAIS = Object.entries(seedModules)
 
     let logoFinal = config.logo || `/logosEditais/logo-${siglaLower}.png`;
     if (!config.logo && siglaLower.includes('aquiraz')) logoFinal = '/logosEditais/logo-aquiraz.png';
+    if (!config.logo && siglaLower.includes('recife')) logoFinal = '/logosEditais/logo-recife.png';
+
 
     return {
       id: idFinal,
