@@ -164,9 +164,13 @@ function StudyTimer({
       isPaused: !!isPausedRef.current,
       isResting: !!isRestingRef.current,
 
-      // Snapshot exato do momento (CRUCIAL para o Admin não pular tempo)
+      // Snapshot exato do momento (admin usa isso como BASE)
       displaySecondsSnapshot: Number(secondsRef.current || 0),
 
+      // ✅ NOVO: timestamp do snapshot (âncora estável)
+      snapshotAt: serverTimestamp(),
+
+      // Controle de frescor/monitoramento (TTL no Admin)
       updatedAt: serverTimestamp(),
       heartbeatAt: serverTimestamp(),
 
@@ -189,19 +193,35 @@ function StudyTimer({
     }
   }, [activeTimerDocRef, buildActiveTimerPayload]);
 
-  const patchActiveTimer = useCallback(async (extra = {}) => {
+  /**
+   * ✅ PATCH com opções:
+   * - includeSnapshot: grava displaySecondsSnapshot + snapshotAt (evita jitter no Admin quando false)
+   * - touchUpdatedAt / touchHeartbeat: mantém TTL vivo
+   */
+  const patchActiveTimer = useCallback(async (extra = {}, opts = {}) => {
     if (!activeTimerDocRef) return;
-    try {
-      // Forçamos o snapshot atual para garantir que o admin tenha o valor correto
-      await updateDoc(activeTimerDocRef, {
-        ...extra,
+
+    const {
+      includeSnapshot = true,
+      touchUpdatedAt = true,
+      touchHeartbeat = true,
+    } = opts;
+
+    const patch = {
+      ...extra,
+      ...(includeSnapshot ? {
         displaySecondsSnapshot: Number(secondsRef.current || 0),
-        updatedAt: serverTimestamp(),
-        heartbeatAt: serverTimestamp(),
-      });
+        snapshotAt: serverTimestamp(),
+      } : {}),
+      ...(touchUpdatedAt ? { updatedAt: serverTimestamp() } : {}),
+      ...(touchHeartbeat ? { heartbeatAt: serverTimestamp() } : {}),
+    };
+
+    try {
+      await updateDoc(activeTimerDocRef, patch);
     } catch (e) {
       // se doc não existe ainda, cria
-      await upsertActiveTimer(extra, { merge: true });
+      await upsertActiveTimer(patch, { merge: true });
     }
   }, [activeTimerDocRef, upsertActiveTimer]);
 
@@ -212,14 +232,13 @@ function StudyTimer({
     } catch {}
   }, [activeTimerDocRef]);
 
-  // Heartbeat (30s)
+  // ✅ Heartbeat (30s) — NÃO atualiza snapshot para não “voltar tempo” no Admin
   useEffect(() => {
     if (!activeTimerDocRef) return;
     if (isPreparing) return;
 
     const t = setInterval(() => {
-      // Envia heartbeat, mas mantém o snapshot atual
-      patchActiveTimer({});
+      patchActiveTimer({}, { includeSnapshot: false, touchUpdatedAt: true, touchHeartbeat: true });
     }, 30000);
 
     return () => clearInterval(t);
@@ -276,13 +295,13 @@ function StudyTimer({
     else if (isRestingRef.current) prefix = isRunning ? "Descansando" : "Descanso Pausado";
     else if (isPomodoroFinishedRef.current) prefix = "Concluído!";
     else if (isRunning) prefix = (settings.mode === 'pomodoro') ? "Focando" : "Estudando";
-    document.title = `${prefix}: ${timeString} - ${disciplina.nome}`;
+    document.title = `${prefix}: ${timeString} - ${(disciplina?.nome || 'Disciplina')}`;
   }, [disciplina?.nome, settings.mode]);
 
   const updateMediaSession = useCallback((isRunning, displaySeconds) => {
     if (!('mediaSession' in navigator)) return;
     try {
-      const mainTitle = assunto ? `${disciplina.nome} • ${assunto}` : disciplina.nome;
+      const mainTitle = assunto ? `${disciplina?.nome || 'Disciplina'} • ${assunto}` : (disciplina?.nome || 'Disciplina');
 
       let contextLabel = 'Estudando';
       if (isRestFinishedRef.current) contextLabel = 'Descanso Finalizado';
@@ -408,7 +427,7 @@ function StudyTimer({
 
     if (audioRef.current) audioRef.current.pause();
     setIsPaused(true);
-    isPausedRef.current = true; // Ensure Ref is updated before patching
+    isPausedRef.current = true;
 
     saveToStorage({
       isPaused: true, isResting: !!isRestingRef.current, restFinished: false, pomodoroBlockFinished: false,
@@ -421,13 +440,12 @@ function StudyTimer({
     updateExternalStatus(false, secondsRef.current);
     updateMediaSession(false, secondsRef.current);
 
-    // ✅ Firestore: Envia snapshot exato ao pausar
+    // ✅ Firestore: snapshot exato ao pausar
     patchActiveTimer({
       status: 'paused',
       isPaused: true,
-      displaySecondsSnapshot: secondsRef.current,
       runningSince: null,
-    });
+    }, { includeSnapshot: true });
   }, [commitFocusSegment, commitRestSegment, saveToStorage, settings.mode, settings.pomodoroTime, settings.restTime, updateExternalStatus, updateMediaSession, patchActiveTimer]);
 
   const resumeTimer = useCallback(() => {
@@ -453,13 +471,12 @@ function StudyTimer({
     updateExternalStatus(true, secondsRef.current);
     updateMediaSession(true, secondsRef.current);
 
-    // ✅ Firestore: Envia snapshot exato ao retomar
+    // ✅ Firestore: snapshot + runningSince no retomar
     patchActiveTimer({
       status: 'running',
       isPaused: false,
-      displaySecondsSnapshot: secondsRef.current,
       runningSince: serverTimestamp(),
-    });
+    }, { includeSnapshot: true });
   }, [saveToStorage, updateExternalStatus, updateMediaSession, patchActiveTimer]);
 
   const handleTogglePause = useCallback(() => {
@@ -496,13 +513,11 @@ function StudyTimer({
     updateExternalStatus(false, 0);
     updateMediaSession(false, 0);
 
-    // ✅ Firestore
     patchActiveTimer({
       status: 'pomodoro_finished',
       isPaused: true,
       runningSince: null,
-      displaySecondsSnapshot: 0,
-    });
+    }, { includeSnapshot: true });
   }, [commitFocusSegment, getSoundUrl, saveToStorage, settings.soundVolume, updateExternalStatus, updateMediaSession, patchActiveTimer]);
 
   const handleRestComplete = useCallback(() => {
@@ -535,13 +550,11 @@ function StudyTimer({
     updateExternalStatus(false, 0);
     updateMediaSession(false, 0);
 
-    // ✅ Firestore
     patchActiveTimer({
       status: 'rest_finished',
       isPaused: true,
       runningSince: null,
-      displaySecondsSnapshot: 0,
-    });
+    }, { includeSnapshot: true });
   }, [commitRestSegment, getSoundUrl, saveToStorage, settings.soundVolume, updateExternalStatus, updateMediaSession, patchActiveTimer]);
 
   const handleStop = useCallback(() => {
@@ -561,15 +574,15 @@ function StudyTimer({
 
     // Snapshot final
     if (isRestingRef.current) {
-        const duration = settings.restTime * 60;
-        const remaining = Math.max(0, duration - (restElapsedBaseRef.current || 0));
-        secondsRef.current = remaining;
+      const duration = settings.restTime * 60;
+      const remaining = Math.max(0, duration - (restElapsedBaseRef.current || 0));
+      secondsRef.current = remaining;
     } else if (settings.mode === 'pomodoro') {
-        const duration = settings.pomodoroTime * 60;
-        const remaining = Math.max(0, duration - (focusBlockElapsedBaseRef.current || 0));
-        secondsRef.current = remaining;
+      const duration = settings.pomodoroTime * 60;
+      const remaining = Math.max(0, duration - (focusBlockElapsedBaseRef.current || 0));
+      secondsRef.current = remaining;
     } else {
-        secondsRef.current = finalTotalFocus;
+      secondsRef.current = finalTotalFocus;
     }
     setSeconds(secondsRef.current);
 
@@ -592,8 +605,7 @@ function StudyTimer({
       status: 'finishing',
       isPaused: true,
       runningSince: null,
-      displaySecondsSnapshot: Number(secondsRef.current || 0),
-    });
+    }, { includeSnapshot: true });
 
     const finalMinutes = Math.round(finalTotalFocus / 60);
     onStop(Math.max(1, finalMinutes));
@@ -631,14 +643,12 @@ function StudyTimer({
     updateExternalStatus(true, totalSeconds);
     updateMediaSession(true, totalSeconds);
 
-    // ✅ Firestore
     patchActiveTimer({
       status: 'running',
       isPaused: false,
       isResting: false,
       runningSince: serverTimestamp(),
-      displaySecondsSnapshot: totalSeconds,
-    });
+    }, { includeSnapshot: true });
   }, [saveToStorage, settings.pomodoroTime, updateExternalStatus, updateMediaSession, patchActiveTimer]);
 
   const handleStartRest = useCallback(() => {
@@ -670,14 +680,12 @@ function StudyTimer({
     updateExternalStatus(true, restSeconds);
     updateMediaSession(true, restSeconds);
 
-    // ✅ Firestore
     patchActiveTimer({
       status: 'running',
       isPaused: false,
       isResting: true,
       runningSince: serverTimestamp(),
-      displaySecondsSnapshot: restSeconds,
-    });
+    }, { includeSnapshot: true });
   }, [saveToStorage, settings.restTime, updateExternalStatus, updateMediaSession, patchActiveTimer]);
 
   const handleBackToStudy = useCallback(() => {
@@ -708,14 +716,12 @@ function StudyTimer({
       updateExternalStatus(true, totalSeconds);
       updateMediaSession(true, totalSeconds);
 
-      // ✅ Firestore
       patchActiveTimer({
         status: 'running',
         isPaused: false,
         isResting: false,
         runningSince: serverTimestamp(),
-        displaySecondsSnapshot: totalSeconds,
-      });
+      }, { includeSnapshot: true });
       return;
     }
 
@@ -733,14 +739,12 @@ function StudyTimer({
     updateExternalStatus(true, secondsRef.current);
     updateMediaSession(true, secondsRef.current);
 
-    // ✅ Firestore
     patchActiveTimer({
       status: 'running',
       isPaused: false,
       isResting: false,
       runningSince: serverTimestamp(),
-      displaySecondsSnapshot: secondsRef.current,
-    });
+    }, { includeSnapshot: true });
   }, [saveToStorage, settings.mode, settings.pomodoroTime, updateExternalStatus, updateMediaSession, patchActiveTimer]);
 
   // ===== Restore =====
@@ -807,13 +811,12 @@ function StudyTimer({
           updateExternalStatus(false, secondsRef.current);
           updateMediaSession(false, secondsRef.current);
 
-          // ✅ Firestore: sessão restaurada como pausada
+          // ✅ Firestore: sessão restaurada como pausada (snapshot consistente)
           upsertActiveTimer({
             status: 'paused',
             isPaused: true,
             runningSince: null,
             createdAt: serverTimestamp(),
-            displaySecondsSnapshot: Number(secondsRef.current || 0),
           }, { merge: true });
         }
       } catch (e) { console.error(e); }
@@ -861,13 +864,12 @@ function StudyTimer({
     updateExternalStatus(true, secondsRef.current);
     updateMediaSession(true, secondsRef.current);
 
-    // ✅ Firestore: sessão começou rodando
+    // ✅ Firestore: sessão começou rodando (snapshot + runningSince)
     upsertActiveTimer({
       status: 'running',
       isPaused: false,
       runningSince: serverTimestamp(),
       createdAt: serverTimestamp(),
-      displaySecondsSnapshot: Number(secondsRef.current || 0),
     }, { merge: true });
   }, [isPreparing, countdown, settings.mode, settings.pomodoroTime, saveToStorage, updateExternalStatus, updateMediaSession, upsertActiveTimer]);
 
@@ -907,7 +909,6 @@ function StudyTimer({
 
         secondsRef.current = remaining; setSeconds(remaining);
 
-        // APENAS VISUAL: Não atualiza a base totalFocusRef
         const currentTotalFocus = (totalFocusRef.current || 0) + delta;
         setTotalFocusSeconds(currentTotalFocus);
 
@@ -965,7 +966,7 @@ function StudyTimer({
           </div>
           <div className="flex flex-col mr-2 min-w-0">
             <span className="text-[10px] text-zinc-500 dark:text-zinc-400 uppercase font-bold tracking-wider truncate">
-              {assunto ? assunto : (isResting ? 'Descanso' : disciplina.nome)}
+              {assunto ? assunto : (isResting ? 'Descanso' : (disciplina?.nome || 'Disciplina'))}
             </span>
             <span className="text-xl font-mono font-bold text-zinc-900 dark:text-white leading-none">{formatClock(seconds)}</span>
           </div>
@@ -1117,7 +1118,7 @@ function StudyTimer({
           {isResting ? 'Modo Descanso' : (isPaused ? 'Pausado' : (isPomodoro ? 'Modo Pomodoro' : 'Modo Livre'))}
         </div>
 
-        <h2 className="text-xl md:text-4xl font-bold text-zinc-800 dark:text-zinc-300 mb-2 tracking-tight max-w-3xl leading-tight line-clamp-2">{disciplina.nome}</h2>
+        <h2 className="text-xl md:text-4xl font-bold text-zinc-800 dark:text-zinc-300 mb-2 tracking-tight max-w-3xl leading-tight line-clamp-2">{disciplina?.nome || 'Disciplina'}</h2>
         {assunto && <p className="text-zinc-500 dark:text-zinc-400 text-sm font-bold uppercase tracking-wide mb-4">{assunto}</p>}
 
         {isPomodoro && (

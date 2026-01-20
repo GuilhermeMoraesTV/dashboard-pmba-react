@@ -55,7 +55,6 @@ const CATALOGO_EDITAIS = Object.entries(seedModules)
     if (!config.logo && siglaLower.includes('aquiraz')) logoFinal = '/logosEditais/logo-aquiraz.png';
     if (!config.logo && siglaLower.includes('recife')) logoFinal = '/logosEditais/logo-recife.png';
 
-
     return {
       id: idFinal,
       titulo: tituloFinal,
@@ -448,6 +447,7 @@ const EditaisManagerModal = ({ isOpen, onClose }) => {
 };
 
 // --- Hook corrigido para Sincronização Precisa do Timer ---
+// ✅ Corrige "timer adiantado" por clock skew: usa o instante LOCAL em que o snapshot chegou.
 const useSyncedSeconds = (session) => {
   const [live, setLive] = useState(0);
 
@@ -458,34 +458,37 @@ const useSyncedSeconds = (session) => {
       // 1. Base: snapshot que o usuário enviou
       const baseSec = Number(session.displaySecondsSnapshot ?? session.seconds ?? 0);
 
-      // 2. Se estiver PAUSADO ou FINALIZADO, não adianta calcular delta. Confie no snapshot.
-      // Isso corrige o problema de zerar: o admin mostrará exatamente onde o user parou.
+      // 2. Se estiver PAUSADO, confie no snapshot
       if (session.isPaused) {
         setLive(baseSec);
         return;
       }
 
-      // 3. Se estiver RODANDO: Calcule o delta desde o último update do servidor.
-      // Usamos updatedAt (ServerTimestamp) para saber quando o dado chegou no banco.
-      // Adicionamos a diferença entre AGORA e QUANDO chegou.
-      const lastUpdate = toMillisSafe(session.updatedAt) || Date.now();
-      const delta = Math.floor((Date.now() - lastUpdate) / 1000);
+      // 3. Delta local desde que o admin recebeu o último snapshot (sem depender do relógio do servidor)
+      // Preferimos performance.now() (monótono, não sofre ajuste manual do relógio do SO).
+      let delta = 0;
+
+      if (typeof session._receivedPerf === 'number') {
+        delta = Math.floor((performance.now() - session._receivedPerf) / 1000);
+      } else if (typeof session._receivedAt === 'number') {
+        delta = Math.floor((Date.now() - session._receivedAt) / 1000);
+      } else {
+        // fallback (não ideal): pode gerar "adiantado" se houver skew
+        const lastUpdate = toMillisSafe(session.updatedAt) || Date.now();
+        delta = Math.floor((Date.now() - lastUpdate) / 1000);
+      }
 
       // 4. Lógica de direção (Pomodoro desce, Livre sobe)
-      // Ajuste para não ultrapassar 0 no pomodoro
       const isPomodoro = (session.timerType === 'pomodoro' || session.mode === 'pomodoro');
       const isResting = !!session.isResting;
 
       let next = baseSec;
 
       if (isPomodoro && !isResting) {
-        // Contagem regressiva do foco
         next = Math.max(0, baseSec - delta);
       } else if (isResting) {
-         // Contagem regressiva do descanso
-         next = Math.max(0, baseSec - delta);
+        next = Math.max(0, baseSec - delta);
       } else {
-        // Contagem progressiva (Modo Livre)
         next = baseSec + delta;
       }
 
@@ -501,7 +504,9 @@ const useSyncedSeconds = (session) => {
     session?.isPaused,
     session?.timerType,
     session?.mode,
-    session?.isResting
+    session?.isResting,
+    session?._receivedAt,
+    session?._receivedPerf
   ]);
 
   return live;
@@ -516,7 +521,6 @@ const SessionRow = ({ s, getUser, cicloNameByKey, isExpanded, toggleExpand, onOp
 
   const phaseLabel = (s.phase === 'rest' || s.isResting) ? 'Descanso' : 'Foco';
   const typeLabel = s?.timerType === 'pomodoro' ? 'Pomodoro' : 'Livre';
-  const pausedLabel = s.isPaused ? 'Pausado' : '';
 
   return (
     <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white/70 dark:bg-zinc-900/30 overflow-hidden">
@@ -940,6 +944,9 @@ function AdminPage() {
   useEffect(() => {
     const q = query(collection(db, 'active_timers'), orderBy('updatedAt', 'desc'), limit(160));
     const unsub = onSnapshot(q, (snap) => {
+      const nowAt = Date.now();
+      const nowPerf = (typeof performance !== 'undefined' && performance.now) ? performance.now() : null;
+
       const data = snap.docs.map(docu => {
         const d = docu.data();
         return {
@@ -947,10 +954,16 @@ function AdminPage() {
           uid: d.uid || docu.id,
           ...d,
           updatedAt: d.updatedAt?.toDate?.() || new Date(),
+
           // Se não houver snapshot, usa seconds
           displaySecondsSnapshot: Number(d.displaySecondsSnapshot ?? d.seconds ?? 0),
+
+          // ✅ Marcação LOCAL do recebimento do snapshot (anti "30s adiantado")
+          _receivedAt: nowAt,
+          _receivedPerf: typeof nowPerf === 'number' ? nowPerf : undefined,
         };
       });
+
       setActiveSessions(data);
     }, (error) => {
       console.error("Erro ao buscar active_timers:", error);
@@ -1063,7 +1076,6 @@ function AdminPage() {
 
   // ✅ “Estudando Agora”: mostrar TODOS
   const studyingNowSessions = useMemo(() => {
-    // ordena: quem está em foco e não pausado primeiro
     const rank = (s) => {
       if (!s.isPaused && s.phase === 'focus' && !s.isResting) return 0;
       if (!s.isPaused && (s.phase === 'rest' || s.isResting)) return 1;
