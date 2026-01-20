@@ -6,7 +6,7 @@ import { Download, RefreshCw } from 'lucide-react';
 const EDITAL_GCM_RECIFE_COMPLETO = {
   titulo: "GCM Recife",
   banca: "A definir (Pré-Edital)",
-  logoUrl: "/logosEditais/logo-gcmrecife.png",
+  logoUrl: "/logosEditais/logo-recife.png",
   instituicao: "GCM-RECIFE",
   disciplinas: [
     {
