@@ -120,7 +120,7 @@ const EDITAL_PPMG_2025 = {
         { nome: "Decreto Federal nº 11.615/2023 (Regulamenta Lei de Armas)", relevancia: 3 },
         { nome: "Lei de Execução Penal - LEP (Lei nº 7.210/1984)", relevancia: 5 }, // O mais importante da prova
         { nome: "Lei Estadual MG nº 11.404/1994 (Normas de execução penal)", relevancia: 5 },
-        { nome: "Regulamento e Normas de Procedimentos do Sistema Prisional de MG (REMP)", relevancia: 5 },
+        { nome: "Regulamento e Normas de Procedimentos do Sistema Prisional de MG (RENP)", relevancia: 5 },
         { nome: "Lei Estadual MG nº 14.695/2003 (Carreira de Policial Penal)", relevancia: 4 }
       ]
     }
