@@ -8,35 +8,27 @@ const Dashboard = lazy(() => import('./components/Dashboard'));
 const Login = lazy(() => import('./components/Login'));
 const Signup = lazy(() => import('./components/Signup'));
 const ForgotPassword = lazy(() => import('./components/ForgotPassword'));
+// ✅ 1. Importação Lazy da nova página de erro
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // --- 1. Lógica de Zoom do Sistema (ADICIONADO AQUI) ---
+  // --- Lógica de Zoom do Sistema ---
   useEffect(() => {
-    // Define a fonte base do HTML para 85% (aprox. 13.6px)
-    // Como o Tailwind usa 'rem', isso diminui todo o sistema proporcionalmente.
     document.documentElement.style.fontSize = '85%';
-
-    // Opcional: Garante que em celulares muito pequenos o texto não fique ilegível
     const handleResize = () => {
       if (window.innerWidth < 640) {
-        document.documentElement.style.fontSize = '90%'; // Um pouco maior no mobile
+        document.documentElement.style.fontSize = '90%';
       } else {
-        document.documentElement.style.fontSize = '95%'; // Menor no desktop
+        document.documentElement.style.fontSize = '95%';
       }
     };
-
-    // Executa na montagem
     handleResize();
-
-    // Adiciona listener se a tela mudar de tamanho
     window.addEventListener('resize', handleResize);
-
     return () => window.removeEventListener('resize', handleResize);
   }, []);
-  // -----------------------------------------------------
 
   // Lógica do Dark Mode
   const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -86,6 +78,7 @@ function App() {
         }
       >
         <Routes>
+          {/* Rotas Principais */}
           <Route
             path="/"
             element={
@@ -112,6 +105,10 @@ function App() {
             path="/forgot-password"
             element={user ? <Navigate to="/" /> : <ForgotPassword />}
           />
+
+          {/* ✅ 2. Rota Coringa (404) - Deve ser SEMPRE a última */}
+          <Route path="*" element={<NotFoundPage />} />
+
         </Routes>
       </Suspense>
     </BrowserRouter>

@@ -19,7 +19,7 @@ import {
   Loader2, Search, Maximize2, Trash2, X, Bell, ExternalLink, LayoutGrid, Flame, Siren,
   BadgeAlert, Megaphone, FileSpreadsheet, Target, Zap, AlertTriangle, CheckCircle2,
   ChevronDown, ChevronUp, Timer, Trophy, SlidersHorizontal, ListFilter, Eye, Clock, HelpCircle,
-  ArrowUpRight, ArrowDownRight
+  ArrowUpRight, ArrowDownRight, History, MessageSquare
 } from 'lucide-react';
 
 // ==================================================================================
@@ -245,15 +245,34 @@ const ExpandedModal = ({ isOpen, onClose, title, children }) => {
   );
 };
 
-// --- MODAL DE BROADCAST ---
+// --- MODAL DE BROADCAST COM HISTÓRICO ---
 const BroadcastModal = ({ isOpen, onClose }) => {
+  const [activeTab, setActiveTab] = useState('send'); // 'send' | 'history'
   const [message, setMessage] = useState('');
   const [category, setCategory] = useState('comunicado');
   const [sending, setSending] = useState(false);
+  const [history, setHistory] = useState([]);
 
   useEffect(() => {
     if (isOpen) document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = 'unset'; };
+  }, [isOpen]);
+
+  // Carregar histórico em tempo real
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const q = query(collection(db, 'system_broadcasts'), orderBy('timestamp', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const msgs = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        timestamp: doc.data().timestamp?.toDate ? doc.data().timestamp.toDate() : new Date()
+      }));
+      setHistory(msgs);
+    });
+
+    return () => unsubscribe();
   }, [isOpen]);
 
   if (!isOpen) return null;
@@ -272,8 +291,7 @@ const BroadcastModal = ({ isOpen, onClose }) => {
 
       setMessage('');
       setCategory('comunicado');
-      onClose();
-      alert("📣 Broadcast enviado com sucesso!");
+      setActiveTab('history'); // Muda para histórico após enviar
     } catch (error) {
       console.error("Erro ao enviar broadcast:", error);
       alert("Erro ao enviar.");
@@ -282,60 +300,152 @@ const BroadcastModal = ({ isOpen, onClose }) => {
     }
   };
 
+  const handleDeleteBroadcast = async (id) => {
+    if (window.confirm("ATENÇÃO: Deseja excluir esta mensagem? Ela desaparecerá para todos os usuários.")) {
+      try {
+        await deleteDoc(doc(db, 'system_broadcasts', id));
+      } catch (error) {
+        console.error("Erro ao excluir:", error);
+        alert("Erro ao excluir mensagem.");
+      }
+    }
+  };
+
+  const categoryStyles = {
+    comunicado: 'bg-red-50 text-red-600 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-900/40',
+    atualizacao: 'bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-900/40',
+    aviso: 'bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-900/40'
+  };
+
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fade-in">
-      <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="bg-white dark:bg-zinc-950 w-full max-w-md rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-2xl p-6">
-        <div className="flex items-center gap-3 mb-2">
-          <div className="p-2 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl text-indigo-600">
-            <Megaphone size={24} />
+      <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="bg-white dark:bg-zinc-950 w-full max-w-lg rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+
+        {/* Header */}
+        <div className="p-6 pb-2">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl text-indigo-600">
+                <Megaphone size={24} />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-zinc-900 dark:text-white">Central de Transmissão</h3>
+                <p className="text-xs text-zinc-500">Gerenciar pushes globais.</p>
+              </div>
+            </div>
+            <button onClick={onClose} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full"><X size={20}/></button>
           </div>
-          <div>
-            <h3 className="text-xl font-bold text-zinc-900 dark:text-white">Transmissão</h3>
-            <p className="text-xs text-zinc-500">Enviar push para todos online.</p>
+
+          {/* Tabs */}
+          <div className="flex p-1 bg-zinc-100 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 mb-2">
+            <button
+              onClick={() => setActiveTab('send')}
+              className={`flex-1 py-2 text-xs font-bold uppercase rounded-lg transition-all flex items-center justify-center gap-2 ${activeTab === 'send' ? 'bg-white dark:bg-zinc-800 shadow text-zinc-900 dark:text-white' : 'text-zinc-500 hover:text-zinc-800'}`}
+            >
+              <Zap size={14} /> Nova Transmissão
+            </button>
+            <button
+              onClick={() => setActiveTab('history')}
+              className={`flex-1 py-2 text-xs font-bold uppercase rounded-lg transition-all flex items-center justify-center gap-2 ${activeTab === 'history' ? 'bg-white dark:bg-zinc-800 shadow text-zinc-900 dark:text-white' : 'text-zinc-500 hover:text-zinc-800'}`}
+            >
+              <History size={14} /> Histórico
+            </button>
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-2 mb-4 mt-4">
-          <button
-            onClick={() => setCategory('comunicado')}
-            className={`flex flex-col items-center gap-1 p-2 rounded-xl border-2 transition-all ${category === 'comunicado' ? 'border-red-500 bg-red-50 dark:bg-red-900/20 text-red-600' : 'border-transparent bg-zinc-100 dark:bg-zinc-800 text-zinc-400 hover:bg-zinc-200'}`}
-          >
-            <Megaphone size={18} />
-            <span className="text-[10px] font-bold uppercase">Comunicado</span>
-          </button>
-          <button
-            onClick={() => setCategory('atualizacao')}
-            className={`flex flex-col items-center gap-1 p-2 rounded-xl border-2 transition-all ${category === 'atualizacao' ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600' : 'border-transparent bg-zinc-100 dark:bg-zinc-800 text-zinc-400 hover:bg-zinc-200'}`}
-          >
-            <Zap size={18} />
-            <span className="text-[10px] font-bold uppercase">Atualização</span>
-          </button>
-          <button
-            onClick={() => setCategory('aviso')}
-            className={`flex flex-col items-center gap-1 p-2 rounded-xl border-2 transition-all ${category === 'aviso' ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/20 text-amber-600' : 'border-transparent bg-zinc-100 dark:bg-zinc-800 text-zinc-400 hover:bg-zinc-200'}`}
-          >
-            <AlertTriangle size={18} />
-            <span className="text-[10px] font-bold uppercase">Aviso</span>
-          </button>
-        </div>
+        {/* Content Area */}
+        <div className="flex-1 overflow-y-auto p-6 pt-0 custom-scrollbar">
 
-        <textarea
-          className="w-full h-32 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none dark:text-white"
-          placeholder="Digite a mensagem aqui..."
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-        />
+          {activeTab === 'send' && (
+            <div className="space-y-4 pt-2">
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  onClick={() => setCategory('comunicado')}
+                  className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all ${category === 'comunicado' ? 'border-red-500 bg-red-50 dark:bg-red-900/20 text-red-600' : 'border-transparent bg-zinc-100 dark:bg-zinc-800 text-zinc-400 hover:bg-zinc-200'}`}
+                >
+                  <Megaphone size={20} />
+                  <span className="text-[10px] font-bold uppercase">Comunicado</span>
+                </button>
+                <button
+                  onClick={() => setCategory('atualizacao')}
+                  className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all ${category === 'atualizacao' ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600' : 'border-transparent bg-zinc-100 dark:bg-zinc-800 text-zinc-400 hover:bg-zinc-200'}`}
+                >
+                  <Zap size={20} />
+                  <span className="text-[10px] font-bold uppercase">Atualização</span>
+                </button>
+                <button
+                  onClick={() => setCategory('aviso')}
+                  className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all ${category === 'aviso' ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/20 text-amber-600' : 'border-transparent bg-zinc-100 dark:bg-zinc-800 text-zinc-400 hover:bg-zinc-200'}`}
+                >
+                  <AlertTriangle size={20} />
+                  <span className="text-[10px] font-bold uppercase">Aviso</span>
+                </button>
+              </div>
 
-        <div className="flex gap-3 mt-4 justify-end">
-          <button onClick={onClose} className="px-4 py-2 text-sm font-bold text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg">Cancelar</button>
-          <button
-            onClick={handleSend}
-            disabled={!message || sending}
-            className="px-4 py-2 text-sm font-bold bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-lg hover:opacity-90 disabled:opacity-50 flex items-center gap-2 shadow-lg"
-          >
-            {sending ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} fill="currentColor" />}
-            {sending ? 'Enviando...' : 'Transmitir'}
-          </button>
+              <div className="space-y-1">
+                <label className="text-xs font-bold uppercase text-zinc-500 ml-1">Mensagem</label>
+                <textarea
+                  className="w-full h-32 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none dark:text-white"
+                  placeholder="Digite a mensagem que aparecerá para todos os usuários..."
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2 justify-end">
+                <button onClick={onClose} className="px-4 py-2 text-sm font-bold text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg">Cancelar</button>
+                <button
+                  onClick={handleSend}
+                  disabled={!message || sending}
+                  className="px-6 py-2 text-sm font-bold bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-lg hover:opacity-90 disabled:opacity-50 flex items-center gap-2 shadow-lg"
+                >
+                  {sending ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} fill="currentColor" />}
+                  {sending ? 'Enviando...' : 'Transmitir'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'history' && (
+            <div className="space-y-3 pt-2">
+              {history.length === 0 ? (
+                <div className="text-center py-10 text-zinc-400">
+                  <History size={32} className="mx-auto mb-2 opacity-30" />
+                  <p className="text-sm">Nenhum broadcast enviado ainda.</p>
+                </div>
+              ) : (
+                history.map((msg) => (
+                  <motion.div
+                    key={msg.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30 flex items-start justify-between gap-3 group"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded border ${categoryStyles[msg.category] || categoryStyles.comunicado}`}>
+                          {msg.category}
+                        </span>
+                        <span className="text-[10px] text-zinc-400 flex items-center gap-1">
+                          <Clock size={10} /> {formatTimeAgo(msg.timestamp)}
+                        </span>
+                      </div>
+                      <p className="text-sm text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap leading-relaxed">
+                        {msg.message}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleDeleteBroadcast(msg.id)}
+                      className="p-2 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                      title="Excluir Broadcast"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </motion.div>
+                ))
+              )}
+            </div>
+          )}
         </div>
       </motion.div>
     </div>

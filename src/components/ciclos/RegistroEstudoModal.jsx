@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { serverTimestamp, doc, getDoc, addDoc, collection } from 'firebase/firestore';
+import { serverTimestamp, doc, getDoc, addDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
 import { X, Save, Clock, Target, List, AlertTriangle, ChevronDown, CheckSquare } from 'lucide-react';
 
@@ -36,6 +36,7 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
   const [selectedAssuntoNome, setSelectedAssuntoNome] = useState('');
   const [loadingAssuntos, setLoadingAssuntos] = useState(false);
   const [markAsFinished, setMarkAsFinished] = useState(false);
+  const [checkingFinishedStatus, setCheckingFinishedStatus] = useState(false); // Novo loading para o check
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -46,11 +47,11 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
 
   const tiposDeEstudo = ['Teoria', 'Questões', 'Revisão', 'Resumo', 'Simulado', 'Outro'];
 
-  // ✅ filtra disciplinas ativas (se por algum motivo vierem removidas)
   const disciplinasAtivas = useMemo(() => {
     return (disciplinasDoCiclo || []).filter(d => d && d.inCiclo !== false);
   }, [disciplinasDoCiclo]);
 
+  // Carrega Assuntos
   useEffect(() => {
     const fetchAssuntos = async () => {
       if (!formData.disciplinaId || !cicloId || !userId) {
@@ -58,12 +59,10 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
         return;
       }
 
-      // tenta do cache local primeiro
       const disciplinaLocal = disciplinasAtivas.find(d => d.id === formData.disciplinaId);
 
       const normalizeAssuntos = (arr) => {
         const list = Array.isArray(arr) ? arr : [];
-        // ✅ filtra assuntos ativos
         return list
           .map(a => (typeof a === 'string' ? { nome: a, inCiclo: true } : { ...a, nome: (a?.nome || '').trim(), inCiclo: a?.inCiclo !== false }))
           .filter(a => a.nome && a.inCiclo !== false);
@@ -96,6 +95,41 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
     setSelectedAssuntoNome('');
     setMarkAsFinished(false);
   }, [formData.disciplinaId, cicloId, userId, disciplinasAtivas]);
+
+  // NOVA LÓGICA: Verifica se o assunto já foi finalizado
+  useEffect(() => {
+    const checkTopicStatus = async () => {
+      if (!selectedAssuntoNome || !cicloId || !userId || !formData.disciplinaId) {
+        setMarkAsFinished(false);
+        return;
+      }
+
+      setCheckingFinishedStatus(true);
+      try {
+        const registrosRef = collection(db, 'users', userId, 'registrosEstudo');
+        const q = query(
+          registrosRef,
+          where('cicloId', '==', cicloId),
+          where('disciplinaId', '==', formData.disciplinaId),
+          where('assunto', '==', selectedAssuntoNome),
+          where('tipoEstudo', '==', 'check_manual')
+        );
+
+        const snapshot = await getDocs(q);
+        if (!snapshot.empty) {
+          setMarkAsFinished(true);
+        } else {
+          setMarkAsFinished(false);
+        }
+      } catch (error) {
+        console.error("Erro ao verificar status do tópico:", error);
+      } finally {
+        setCheckingFinishedStatus(false);
+      }
+    };
+
+    checkTopicStatus();
+  }, [selectedAssuntoNome, cicloId, userId, formData.disciplinaId]);
 
   const handleChange = (e) => {
     const { name, value, type } = e.target;
@@ -141,21 +175,40 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
 
       await addRegistroEstudo(registro);
 
+      // Lógica inteligente para Check Manual
+      // Se estava marcado e o usuário desmarcou, deveríamos deletar?
+      // Por padrão, aqui só ADICIONA se estiver marcado.
+      // Para não complicar a lógica de delete, assumimos que se o usuário
+      // manteve marcado (ou marcou agora), garantimos que o registro existe.
       if (markAsFinished) {
-        const checkData = {
-          cicloId,
-          disciplinaId: formData.disciplinaId,
-          disciplinaNome,
-          assunto: selectedAssuntoNome,
-          data: formData.data,
-          timestamp: serverTimestamp(),
-          tempoEstudadoMinutos: 0,
-          questoesFeitas: 0,
-          acertos: 0,
-          tipoEstudo: 'check_manual',
-          obs: 'Concluído via Registro Manual'
-        };
-        await addDoc(collection(db, 'users', userId, 'registrosEstudo'), checkData);
+        // Verifica se já existe para não duplicar desnecessariamente,
+        // embora o dashboard filtre duplicatas visuais, é bom evitar no banco.
+        const registrosRef = collection(db, 'users', userId, 'registrosEstudo');
+        const q = query(
+          registrosRef,
+          where('cicloId', '==', cicloId),
+          where('disciplinaId', '==', formData.disciplinaId),
+          where('assunto', '==', selectedAssuntoNome),
+          where('tipoEstudo', '==', 'check_manual')
+        );
+        const snapshot = await getDocs(q);
+
+        if (snapshot.empty) {
+            const checkData = {
+              cicloId,
+              disciplinaId: formData.disciplinaId,
+              disciplinaNome,
+              assunto: selectedAssuntoNome,
+              data: formData.data,
+              timestamp: serverTimestamp(),
+              tempoEstudadoMinutos: 0,
+              questoesFeitas: 0,
+              acertos: 0,
+              tipoEstudo: 'check_manual',
+              obs: 'Concluído via Registro Manual'
+            };
+            await addDoc(collection(db, 'users', userId, 'registrosEstudo'), checkData);
+        }
       }
 
       setLoading(false);
@@ -224,8 +277,17 @@ function RegistroEstudoModal({ onClose, addRegistroEstudo, cicloId, userId, disc
 
                 {selectedAssuntoNome && (
                   <div onClick={() => setMarkAsFinished(!markAsFinished)} className={`mt-4 p-3 rounded-xl border-2 cursor-pointer transition-all flex items-center gap-4 ${markAsFinished ? 'bg-emerald-50 dark:bg-emerald-900/10 border-emerald-500' : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 hover:border-emerald-300'}`}>
-                    <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-colors ${markAsFinished ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-zinc-300 dark:border-zinc-600 text-transparent'}`}><CheckSquare size={14} strokeWidth={4} /></div>
-                    <div><p className={`text-sm font-bold ${markAsFinished ? 'text-emerald-700 dark:text-emerald-400' : 'text-zinc-700 dark:text-zinc-300'}`}>Teoria Finalizada</p><p className="text-xs text-zinc-500">Marcar este tópico como concluído.</p></div>
+                    <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-colors ${markAsFinished ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-zinc-300 dark:border-zinc-600 text-transparent'}`}>
+                        {checkingFinishedStatus ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <CheckSquare size={14} strokeWidth={4} />}
+                    </div>
+                    <div>
+                        <p className={`text-sm font-bold ${markAsFinished ? 'text-emerald-700 dark:text-emerald-400' : 'text-zinc-700 dark:text-zinc-300'}`}>
+                            {markAsFinished ? 'Tópico Concluído' : 'Marcar como Concluído'}
+                        </p>
+                        <p className="text-xs text-zinc-500">
+                            {markAsFinished ? 'Este assunto já está marcado como finalizado.' : 'Clique para marcar este tópico como finalizado.'}
+                        </p>
+                    </div>
                   </div>
                 )}
               </div>

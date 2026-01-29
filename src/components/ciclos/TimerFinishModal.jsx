@@ -6,9 +6,9 @@ import {
   RotateCcw, Trash2
 } from 'lucide-react';
 import { db } from '../../firebaseConfig';
-import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, query, where } from 'firebase/firestore';
 
-// --- Modal de Confirmação de Descarte (Igual ao do Timer) ---
+// --- Modal de Confirmação de Descarte ---
 const DiscardConfirmationModal = ({ isOpen, onConfirm, onCancel }) => {
     if (!isOpen) return null;
     return (
@@ -41,7 +41,7 @@ function TimerFinishModal({
   activeCicloId,
   userUid,
   onConfirm,
-  onCancel, // Botão Retomar (usado apenas no footer agora)
+  onCancel, // Botão Retomar
   onDiscard, // Botão Descartar
   initialAssunto
 }) {
@@ -53,12 +53,12 @@ function TimerFinishModal({
   const [obs, setObs] = useState('');
   const [loadingAssuntos, setLoadingAssuntos] = useState(false);
   const [markAsFinished, setMarkAsFinished] = useState(false);
+  const [checkingFinishedStatus, setCheckingFinishedStatus] = useState(false); // Novo loading
   const [disciplinaManual, setDisciplinaManual] = useState('');
   const [todasDisciplinas, setTodasDisciplinas] = useState([]);
   const [erroDisciplina, setErroDisciplina] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  // Estado para o modal de confirmação de descarte
   const [showDiscardModal, setShowDiscardModal] = useState(false);
 
   const normalize = (str) => str ? str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase() : "";
@@ -69,6 +69,7 @@ function TimerFinishModal({
     }
   }, [initialAssunto]);
 
+  // Carrega Assuntos
   useEffect(() => {
     const fetchAssuntos = async () => {
         if(!activeCicloId || !userUid) return;
@@ -104,6 +105,53 @@ function TimerFinishModal({
     };
     fetchAssuntos();
   }, [activeCicloId, userUid, disciplinaNome, initialAssunto]);
+
+  // NOVA LÓGICA: Verifica se o assunto já foi finalizado
+  useEffect(() => {
+    const checkTopicStatus = async () => {
+      if (!assuntoSelecionado || !activeCicloId || !userUid || (!disciplinaManual && !disciplinaNome)) {
+        setMarkAsFinished(false);
+        return;
+      }
+
+      setCheckingFinishedStatus(true);
+      try {
+        const registrosRef = collection(db, 'users', userUid, 'registrosEstudo');
+
+        // Tentamos buscar pela disciplinaManual (se corrigida) ou pela original
+        const disciplinaBusca = disciplinaManual || disciplinaNome;
+
+        // Nota: Idealmente usaríamos ID, mas neste modal o ID vem meio "flutuante" dependendo do fluxo
+        // Então buscaremos por cicloId + nome disciplina + assunto + tipo check_manual
+        const q = query(
+          registrosRef,
+          where('cicloId', '==', activeCicloId),
+          where('assunto', '==', assuntoSelecionado),
+          where('tipoEstudo', '==', 'check_manual')
+        );
+
+        const snapshot = await getDocs(q);
+
+        // Filtro adicional no cliente para garantir que é a mesma disciplina (caso nomes de assuntos se repitam)
+        const checkExists = snapshot.docs.some(doc => {
+            const data = doc.data();
+            return normalize(data.disciplinaNome) === normalize(disciplinaBusca);
+        });
+
+        if (checkExists) {
+          setMarkAsFinished(true);
+        } else {
+          setMarkAsFinished(false);
+        }
+      } catch (error) {
+        console.error("Erro ao verificar status do tópico:", error);
+      } finally {
+        setCheckingFinishedStatus(false);
+      }
+    };
+
+    checkTopicStatus();
+  }, [assuntoSelecionado, activeCicloId, userUid, disciplinaManual, disciplinaNome]);
 
   const handleManualDisciplinaChange = (novaDisciplinaNome) => {
       setDisciplinaManual(novaDisciplinaNome);
@@ -183,7 +231,6 @@ function TimerFinishModal({
   return (
     <div className="fixed inset-0 z-[10000] bg-black/90 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 animate-fade-in">
 
-      {/* Modal de confirmação de descarte */}
       <AnimatePresence>
         <DiscardConfirmationModal
             isOpen={showDiscardModal}
@@ -199,11 +246,9 @@ function TimerFinishModal({
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
-        // AJUSTE MOBILE: max-h-[90vh] e overflow-hidden para não estourar a tela
         className="bg-white dark:bg-zinc-950 w-full max-w-2xl rounded-3xl shadow-2xl border border-zinc-200 dark:border-zinc-800 flex flex-col relative max-h-[90vh] overflow-hidden"
       >
         {/* HEADER */}
-        {/* AJUSTE MOBILE: Padding reduzido (p-4) */}
         <div className="bg-zinc-50 dark:bg-zinc-900/50 p-4 sm:p-6 border-b border-zinc-100 dark:border-zinc-800 flex flex-col sm:flex-row justify-between items-center gap-4 shrink-0">
           <div className="flex items-center gap-3 sm:gap-4 w-full sm:w-auto">
              <div className="p-2 sm:p-3 bg-emerald-100 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-500 rounded-2xl shadow-sm shrink-0">
@@ -219,11 +264,10 @@ function TimerFinishModal({
                 <BookOpen size={16} className="text-zinc-400 sm:w-[18px] sm:h-[18px]" />
                 <span className="font-bold text-zinc-700 dark:text-zinc-200 text-xs sm:text-sm truncate max-w-[200px]">{erroDisciplina ? "Selecione..." : (disciplinaManual || disciplinaNome)}</span>
              </div>
-             {/* BOTÃO RETOMAR REMOVIDO DAQUI CONFORME SOLICITADO */}
           </div>
         </div>
 
-        {/* CONTENT - Com Scroll para telas pequenas */}
+        {/* CONTENT */}
         <div className="p-4 sm:p-6 md:p-8 overflow-y-auto flex-1">
           {step === 1 ? (
             <div className="flex flex-col items-center justify-center py-4 sm:py-8 space-y-6 sm:space-y-8 h-full">
@@ -242,28 +286,17 @@ function TimerFinishModal({
                 </button>
               </div>
 
-              {/* --- BOTÕES DE AÇÃO SECUNDÁRIOS --- */}
+              {/* BOTOES SECUNDARIOS */}
               <div className="flex gap-3 sm:gap-4 mt-4 sm:mt-6 w-full max-w-md">
-
-                  {/* BOTÃO DESCARTAR */}
                   {onDiscard && (
-                      <button
-                        onClick={() => setShowDiscardModal(true)}
-                        className="flex-1 flex items-center justify-center gap-2 px-3 py-3 rounded-xl border-2 border-red-100 dark:border-red-900/30 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 font-bold uppercase text-[10px] sm:text-xs tracking-wider transition-all"
-                      >
+                      <button onClick={() => setShowDiscardModal(true)} className="flex-1 flex items-center justify-center gap-2 px-3 py-3 rounded-xl border-2 border-red-100 dark:border-red-900/30 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 font-bold uppercase text-[10px] sm:text-xs tracking-wider transition-all">
                           <Trash2 size={16} /> Descartar
                       </button>
                   )}
-
-                  {/* BOTÃO RETOMAR ESTUDO (Grande) */}
-                  <button
-                    onClick={onCancel}
-                    className="flex-[2] flex items-center justify-center gap-2 px-3 py-3 rounded-xl border-2 border-zinc-200 dark:border-zinc-700 hover:border-zinc-400 dark:hover:border-zinc-600 text-zinc-600 dark:text-zinc-300 hover:text-black dark:hover:text-white font-bold uppercase text-[10px] sm:text-xs tracking-wider transition-all"
-                  >
+                  <button onClick={onCancel} className="flex-[2] flex items-center justify-center gap-2 px-3 py-3 rounded-xl border-2 border-zinc-200 dark:border-zinc-700 hover:border-zinc-400 dark:hover:border-zinc-600 text-zinc-600 dark:text-zinc-300 hover:text-black dark:hover:text-white font-bold uppercase text-[10px] sm:text-xs tracking-wider transition-all">
                       <RotateCcw size={16} /> Retomar
                   </button>
               </div>
-
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-8">
@@ -310,8 +343,17 @@ function TimerFinishModal({
 
                       {assuntoSelecionado && (
                           <div onClick={() => setMarkAsFinished(!markAsFinished)} className={`p-3 sm:p-4 rounded-xl border-2 cursor-pointer transition-all flex items-center gap-4 ${markAsFinished ? 'bg-emerald-50 dark:bg-emerald-900/10 border-emerald-500' : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 hover:border-emerald-300'}`}>
-                              <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-colors shrink-0 ${markAsFinished ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-zinc-300 dark:border-zinc-600 text-transparent'}`}><CheckSquare size={14} strokeWidth={4} /></div>
-                              <div><p className={`text-sm font-bold ${markAsFinished ? 'text-emerald-700 dark:text-emerald-400' : 'text-zinc-700 dark:text-zinc-300'}`}>Teoria Finalizada</p><p className="text-xs text-zinc-500">Marcar este tópico como concluído no edital.</p></div>
+                              <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-colors shrink-0 ${markAsFinished ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-zinc-300 dark:border-zinc-600 text-transparent'}`}>
+                                {checkingFinishedStatus ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <CheckSquare size={14} strokeWidth={4} />}
+                              </div>
+                              <div>
+                                <p className={`text-sm font-bold ${markAsFinished ? 'text-emerald-700 dark:text-emerald-400' : 'text-zinc-700 dark:text-zinc-300'}`}>
+                                    {markAsFinished ? 'Tópico Concluído' : 'Marcar como Concluído'}
+                                </p>
+                                <p className="text-xs text-zinc-500">
+                                    {markAsFinished ? 'Este assunto já está marcado como finalizado.' : 'Clique para marcar este tópico como finalizado.'}
+                                </p>
+                              </div>
                           </div>
                       )}
                   </div>

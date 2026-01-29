@@ -389,12 +389,21 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
   const [disciplinasLoaded, setDisciplinasLoaded] = useState(false);
   const [registrosLoaded, setRegistrosLoaded] = useState(false);
 
-  // === DISPARAR EVENTO PARA SUBIR O TIMER ===
+  // === CONTROLE DA POSIÇÃO DO TIMER (3 ESTADOS) ===
+  // 1. Ciclo Aberto -> detail: true (bottom-56)
+  // 2. Configurações Abertas (Menu ou Modal) -> detail: 'top' (top-28)
   useEffect(() => {
-    // Quando entrar nesta página, avisa o Dashboard para subir o timer
-    window.dispatchEvent(new CustomEvent('toggle-timer-raise', { detail: true }));
+    const shouldRaiseTop = showOptions || showTimerSettings;
+    if (shouldRaiseTop) {
+        window.dispatchEvent(new CustomEvent('toggle-timer-raise', { detail: 'top' }));
+    } else {
+        // Estado padrão desta página: Levantado apenas o suficiente para os FABs
+        window.dispatchEvent(new CustomEvent('toggle-timer-raise', { detail: true }));
+    }
+  }, [showOptions, showTimerSettings]);
 
-    // Quando sair (voltar para lista ou mudar de aba), avisa para descer
+  // Cleanup ao sair da página
+  useEffect(() => {
     return () => {
         window.dispatchEvent(new CustomEvent('toggle-timer-raise', { detail: false }));
     };

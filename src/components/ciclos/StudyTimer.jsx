@@ -193,11 +193,6 @@ function StudyTimer({
     }
   }, [activeTimerDocRef, buildActiveTimerPayload]);
 
-  /**
-   * ✅ PATCH com opções:
-   * - includeSnapshot: grava displaySecondsSnapshot + snapshotAt (evita jitter no Admin quando false)
-   * - touchUpdatedAt / touchHeartbeat: mantém TTL vivo
-   */
   const patchActiveTimer = useCallback(async (extra = {}, opts = {}) => {
     if (!activeTimerDocRef) return;
 
@@ -220,7 +215,6 @@ function StudyTimer({
     try {
       await updateDoc(activeTimerDocRef, patch);
     } catch (e) {
-      // se doc não existe ainda, cria
       await upsertActiveTimer(patch, { merge: true });
     }
   }, [activeTimerDocRef, upsertActiveTimer]);
@@ -232,7 +226,6 @@ function StudyTimer({
     } catch {}
   }, [activeTimerDocRef]);
 
-  // ✅ Heartbeat (30s) — NÃO atualiza snapshot para não “voltar tempo” no Admin
   useEffect(() => {
     if (!activeTimerDocRef) return;
     if (isPreparing) return;
@@ -243,8 +236,6 @@ function StudyTimer({
 
     return () => clearInterval(t);
   }, [activeTimerDocRef, isPreparing, patchActiveTimer]);
-
-  // ===========================
 
   useEffect(() => {
     if (document.documentElement.classList.contains('dark')) setIsDark(true);
@@ -398,7 +389,6 @@ function StudyTimer({
     restStartRef.current = null;
   }, [getRestRunningDeltaSeconds]);
 
-  // ===== Pause / Resume =====
   const pauseTimer = useCallback(() => {
     if (isRestFinishedRef.current) return;
     if (isPomodoroFinishedRef.current && !isRestingRef.current) return;
@@ -440,7 +430,6 @@ function StudyTimer({
     updateExternalStatus(false, secondsRef.current);
     updateMediaSession(false, secondsRef.current);
 
-    // ✅ Firestore: snapshot exato ao pausar
     patchActiveTimer({
       status: 'paused',
       isPaused: true,
@@ -471,7 +460,6 @@ function StudyTimer({
     updateExternalStatus(true, secondsRef.current);
     updateMediaSession(true, secondsRef.current);
 
-    // ✅ Firestore: snapshot + runningSince no retomar
     patchActiveTimer({
       status: 'running',
       isPaused: false,
@@ -572,7 +560,6 @@ function StudyTimer({
     setTotalFocusSeconds(finalTotalFocus);
     focusBlockStartRef.current = null;
 
-    // Snapshot final
     if (isRestingRef.current) {
       const duration = settings.restTime * 60;
       const remaining = Math.max(0, duration - (restElapsedBaseRef.current || 0));
@@ -600,7 +587,6 @@ function StudyTimer({
 
     updateExternalStatus(false, secondsRef.current);
 
-    // ✅ Firestore
     patchActiveTimer({
       status: 'finishing',
       isPaused: true,
@@ -811,7 +797,6 @@ function StudyTimer({
           updateExternalStatus(false, secondsRef.current);
           updateMediaSession(false, secondsRef.current);
 
-          // ✅ Firestore: sessão restaurada como pausada (snapshot consistente)
           upsertActiveTimer({
             status: 'paused',
             isPaused: true,
@@ -829,7 +814,6 @@ function StudyTimer({
       if (originalTitleRef.current) document.title = originalTitleRef.current;
       if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [disciplina?.id, STORAGE_KEY]);
 
   // ===== Init =====
@@ -864,7 +848,6 @@ function StudyTimer({
     updateExternalStatus(true, secondsRef.current);
     updateMediaSession(true, secondsRef.current);
 
-    // ✅ Firestore: sessão começou rodando (snapshot + runningSince)
     upsertActiveTimer({
       status: 'running',
       isPaused: false,
@@ -948,12 +931,20 @@ function StudyTimer({
   ]);
 
   if (isMinimized) {
+    // === LÓGICA DE POSICIONAMENTO DINÂMICO ===
+    // 'top': Configurações abertas -> bottom-[350px] (320px do bottom-80 + 30px)
+    // true: Ciclo aberto -> bottom-56 (acima dos botões)
+    // false: Padrão -> bottom-24
+    let positionClass = 'bottom-24';
+    if (raised === 'top') positionClass = 'bottom-[350px]';
+    else if (raised) positionClass = 'bottom-56';
+
     return (
       <motion.div
         layout
         initial={false}
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
-        className={`fixed right-4 z-[9999] animate-fade-in ${raised ? 'bottom-48' : 'bottom-24'}`}
+        className={`fixed right-4 z-[9999] animate-fade-in ${positionClass}`}
       >
         <div
           className="bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md border border-zinc-200 dark:border-zinc-700 shadow-2xl rounded-2xl p-3 flex items-center gap-4 w-auto max-w-[300px] cursor-pointer hover:scale-105 transition-transform"
@@ -1140,9 +1131,21 @@ function StudyTimer({
         </div>
 
         <div className="flex items-center gap-6 md:gap-12">
-          {!isResting && (
+          {isResting ? (
+            <button
+              onClick={handleRestComplete}
+              className="group flex flex-col items-center gap-2 text-zinc-400 hover:text-blue-500 transition-colors"
+            >
+              <div className="w-14 h-14 rounded-full border-2 border-zinc-200 dark:border-zinc-800 group-hover:border-blue-500/50 flex items-center justify-center bg-white dark:bg-zinc-900 transition-all shadow-sm">
+                <CheckCircle2 size={24} />
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-center">Finalizar Descanso</span>
+            </button>
+          ) : (
             <button onClick={() => setIsCancelModalOpen(true)} className="group flex flex-col items-center gap-2 text-zinc-400 hover:text-red-500 transition-colors">
-              <div className="w-14 h-14 rounded-full border-2 border-zinc-200 dark:border-zinc-800 group-hover:border-red-500/50 flex items-center justify-center bg-white dark:bg-zinc-900 transition-all shadow-sm"><X size={24} /></div>
+              <div className="w-14 h-14 rounded-full border-2 border-zinc-200 dark:border-zinc-800 group-hover:border-red-500/50 flex items-center justify-center bg-white dark:bg-zinc-900 transition-all shadow-sm">
+                <X size={24} />
+              </div>
               <span className="text-[10px] font-bold uppercase tracking-wider text-center">Cancelar</span>
             </button>
           )}
@@ -1158,7 +1161,7 @@ function StudyTimer({
 
           <button onClick={handleStop} className="group flex flex-col items-center gap-2 text-zinc-400 hover:text-emerald-500 transition-colors">
             <div className="w-14 h-14 rounded-full border-2 border-zinc-200 dark:border-zinc-800 group-hover:border-emerald-500/50 flex items-center justify-center bg-white dark:bg-zinc-900 transition-all shadow-sm"><Square size={24} fill="currentColor" /></div>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-center">Finalizar</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-center">Finalizar Estudo</span>
           </button>
         </div>
       </div>
