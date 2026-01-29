@@ -326,7 +326,7 @@ function Home({ registrosEstudo, allRegistrosEstudo = [], goalsHistory, setActiv
               <div className="flex-1 pointer-events-auto">
                 <div className="flex items-center gap-3 mb-0.5">
                    <h3 className="text-[11px] md:text-xs font-black uppercase tracking-[0.2em] bg-gradient-to-r from-orange-600 to-amber-600 dark:from-orange-400 dark:to-amber-400 bg-clip-text text-transparent drop-shadow-sm">
-                      Sequência de Fogo
+                      Sequência de Estudo
                    </h3>
 
                    <div className="relative z-50">
@@ -351,7 +351,7 @@ function Home({ registrosEstudo, allRegistrosEstudo = [], goalsHistory, setActiv
                               onClick={(e) => e.stopPropagation()}
                             >
                                 <div className="px-3 py-2 border-b border-zinc-100 dark:border-zinc-800 mb-1 text-left">
-                                  <span className="text-[9px] font-black text-orange-500 uppercase tracking-widest">Fonte de Dados</span>
+                                  <span className="text-[9px] font-black text-orange-500 uppercase tracking-widest">Configuração de Sequência</span>
                                 </div>
 
                                 <button
