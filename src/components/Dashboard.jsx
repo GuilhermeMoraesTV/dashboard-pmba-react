@@ -25,6 +25,7 @@ import StudyTimer from '../components/ciclos/StudyTimer';
 import TimerFinishModal from '../components/ciclos/TimerFinishModal';
 import OnboardingTour from '../components/shared/OnboardingTour';
 import BroadcastReceiver from '../components/shared/BroadcastReceiver';
+import SimuladosPage from '../pages/SimuladosPage';
 
 const ADMIN_UID = 'OLoJi457GQNE2eTSOcz9DAD6ppZ2';
 
@@ -518,6 +519,13 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
             onCreateCycle={() => setActiveTab('ciclos')}
           />
         );
+    case 'simulados': //
+            return (
+              <SimuladosPage
+                user={user}
+                activeCycleDisciplines={activeCycleDisciplines}
+              />
+            );
       case 'profile':
         return <ProfilePage user={user} allRegistrosEstudo={allRegistrosEstudo} onDeleteRegistro={deleteRegistro} />;
       case 'admin':

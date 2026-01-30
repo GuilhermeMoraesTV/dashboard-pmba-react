@@ -9,7 +9,8 @@ import {
   User,
   ShieldAlert,
   LayoutList,
-  BarChart2
+  BarChart2,
+  ClipboardList
 } from 'lucide-react';
 
 // UID do Administrador
@@ -33,6 +34,7 @@ function NavSideBar({
       { id: 'ciclos', label: 'Meus Ciclos', icon: <RefreshCw size={22} /> },
       { id: 'edital', label: 'Edital', icon: <LayoutList size={22} /> },
       { id: 'stats', label: 'Desempenho', icon: <BarChart2 size={22} /> },
+      { id: 'simulados', label: 'Simulados', icon: <ClipboardList size={22} /> },
       { id: 'goals', label: 'Metas', icon: <Target size={22} /> },
       { id: 'calendar', label: 'Calendário', icon: <Calendar size={22} /> },
     ];
