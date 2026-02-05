@@ -183,13 +183,13 @@ function StudyTimer({
   const buildActiveTimerPayload = useCallback((extra = {}) => {
     const phase =
       isRestFinishedRef.current ? 'rest_finished' :
-      isPomodoroFinishedRef.current ? 'pomodoro_finished' :
-      isRestingRef.current ? 'rest' :
-      'focus';
+        isPomodoroFinishedRef.current ? 'pomodoro_finished' :
+          isRestingRef.current ? 'rest' :
+            'focus';
 
     const timerTypeLabel =
       isCountdown ? 'cronometro' :
-      (effectiveMode === 'pomodoro' ? 'pomodoro' : 'livre');
+        (effectiveMode === 'pomodoro' ? 'pomodoro' : 'livre');
 
     return {
       uid: userUid || null,
@@ -1051,10 +1051,10 @@ function StudyTimer({
         resumeTimer({ source: 'watchdog' });
       }
 
-      // se áudio foi interrompido, tenta retomar (mantém notificação/lockscreen mais estável)
-      if (audioRef.current && audioRef.current.paused && !isPausedRef.current) {
-        audioRef.current.play().catch(() => { });
-      }
+      // 🔴 CORREÇÃO: Removido o bloco que forçava audioRef.current.play()
+      // Se o browser/SO pausou o áudio (ex: Youtube), deixamos pausado.
+      // O timer visual continua rodando normalmente.
+
     }, 1500);
 
     return () => clearInterval(t);

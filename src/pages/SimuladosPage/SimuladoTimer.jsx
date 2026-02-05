@@ -67,7 +67,8 @@ function SimuladoTimer({
   onMaximize,
   onMinimize,
   userUid,
-  userName
+  userName,
+  userPhotoURL // Adicionado para exibir a foto no painel de monitoramento
 }) {
   const themeColor = '#dc2626'; // Vermelho Tático para Simulados
   const STORAGE_KEY = useMemo(() => `@ModoQAP:SimuladoActive:${userUid}`, [userUid]);
@@ -111,33 +112,54 @@ function SimuladoTimer({
     return doc(db, 'users', userUid, 'personal_timers', 'active_simulado');
   }, [userUid]);
 
+  const globalTimerRef = useMemo(() => {
+    if (!userUid) return null;
+    return doc(db, 'active_timers', userUid);
+  }, [userUid]);
+
   const safeUpdateFirebase = useCallback(async (isRunning) => {
-    if (!simuladoDocRef) return;
+    if (!userUid) return;
+
+    // Payload completo para ser lido pelo painel de monitoramento
+    const payload = {
+      uid: userUid,
+      userName: userName || 'Candidato',
+      photoURL: userPhotoURL || null,
+      titulo: tituloSimulado || 'Simulado Sem Título',
+      disciplinaNome: tituloSimulado || 'Simulado', // Alias para monitores que buscam disciplina
+      assunto: 'Prova em Andamento',
+      mode: mode || 'free',
+      status: isRunning ? 'running' : 'paused',
+      secondsSnapshot: Number(secondsRef.current) || 0,
+      updatedAt: serverTimestamp(),
+      heartbeatAt: serverTimestamp(),
+      isSimulado: true, // 🔴 FLAG IMPORTANTE: Identifica que é um simulado
+      timerType: 'simulado'
+    };
+
     try {
-      const payload = {
-        uid: userUid,
-        userName: userName || 'Candidato',
-        titulo: tituloSimulado || 'Simulado Sem Título',
-        mode: mode || 'free',
-        status: isRunning ? 'running' : 'paused',
-        secondsSnapshot: Number(secondsRef.current) || 0,
-        updatedAt: serverTimestamp(),
-        heartbeatAt: serverTimestamp()
-      };
-      await setDoc(simuladoDocRef, payload, { merge: true });
+      // 1. Atualiza persistência local do usuário (para reload)
+      if (simuladoDocRef) {
+        await setDoc(simuladoDocRef, payload, { merge: true });
+      }
+
+      // 2. Atualiza monitoramento global (para o painel de controle)
+      if (globalTimerRef) {
+        await setDoc(globalTimerRef, payload, { merge: true });
+      }
     } catch (e) {
       console.warn("Firebase Sync ignorado (Permissão ou Rede):", e?.message);
     }
-  }, [simuladoDocRef, userUid, userName, tituloSimulado, mode]);
+  }, [simuladoDocRef, globalTimerRef, userUid, userName, userPhotoURL, tituloSimulado, mode]);
 
   const safeRemoveFirebase = useCallback(async () => {
-    if (!simuladoDocRef) return;
     try {
-      await deleteDoc(simuladoDocRef);
+      if (simuladoDocRef) await deleteDoc(simuladoDocRef);
+      if (globalTimerRef) await deleteDoc(globalTimerRef);
     } catch (e) {
       console.warn("Erro ao limpar Firebase:", e?.message);
     }
-  }, [simuladoDocRef]);
+  }, [simuladoDocRef, globalTimerRef]);
 
   // --- Local Storage ---
   const saveToStorage = useCallback((paused, currentElapsed, finished = false) => {
@@ -506,7 +528,7 @@ function SimuladoTimer({
     return () => clearInterval(t);
   }, [isPreparing, userUid, safeUpdateFirebase]);
 
-  // ✅ WATCHDOG: retoma se pausar sozinho + tenta reativar áudio se o SO interromper
+  // ✅ WATCHDOG: Corrigido para não brigar com o YouTube
   useEffect(() => {
     if (isPreparing) return;
 
@@ -524,9 +546,10 @@ function SimuladoTimer({
         resumeSimulado('watchdog');
       }
 
-      if (audioRef.current && audioRef.current.paused && !isPausedRef.current) {
-        audioRef.current.play().catch(() => {});
-      }
+      // 🔴 CORREÇÃO: Removido o bloco que forçava audioRef.current.play()
+      // Se o browser/SO pausou o áudio (ex: Youtube), deixamos pausado.
+      // O timer visual continua rodando normalmente.
+
     }, 1500);
 
     return () => clearInterval(t);

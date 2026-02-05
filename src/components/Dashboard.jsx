@@ -8,9 +8,10 @@ import { signOut } from 'firebase/auth';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { AnimatePresence, motion } from 'framer-motion';
-import { X, CheckCircle2, Download, AlertTriangle, Maximize2, ClipboardList } from 'lucide-react';
+import { X, CheckCircle2, Download, AlertTriangle, Maximize2, ClipboardList, AlertCircle } from 'lucide-react';
 import ShareCard from '../components/shared/ShareCard';
 
+// --- IMPORTS DE COMPONENTES ---
 import NavSideBar from '../components/dashboard/NavSideBar';
 import Header from '../components/dashboard/Header';
 import Home from '../components/dashboard/Home';
@@ -25,9 +26,11 @@ import StudyTimer from '../components/ciclos/StudyTimer';
 import TimerFinishModal from '../components/ciclos/TimerFinishModal';
 import OnboardingTour from '../components/shared/OnboardingTour';
 import BroadcastReceiver from '../components/shared/BroadcastReceiver';
+import FeedbackWidget from '../components/FeedbackWidget';
+
+// --- IMPORTS DE SIMULADO ---
 import SimuladosPage from '../pages/SimuladosPage';
 import SimuladoTimer from '../pages/SimuladosPage/SimuladoTimer';
-import FeedbackWidget from '../components/FeedbackWidget';
 
 const ADMIN_UID = 'OLoJi457GQNE2eTSOcz9DAD6ppZ2';
 
@@ -36,6 +39,57 @@ const dateToYMD = (date) => {
   const m = date.getMonth() + 1;
   const y = date.getFullYear();
   return '' + y + '-' + (m <= 9 ? '0' + m : m) + '-' + (d <= 9 ? '0' + d : d);
+};
+
+// --- COMPONENTES AUXILIARES ---
+
+// 1. Alerta de Conflito (Visual Bonito)
+const WarningModal = ({ isOpen, onClose, title, message }) => {
+  if (!isOpen) return null;
+  return (
+    <AnimatePresence>
+      <motion.div
+        className="fixed inset-0 z-[10001] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+      >
+        <motion.div
+          initial={{ scale: 0.9, opacity: 0, y: 20 }}
+          animate={{ scale: 1, opacity: 1, y: 0 }}
+          exit={{ scale: 0.95, opacity: 0, y: 10 }}
+          transition={{ type: "spring", duration: 0.5 }}
+          className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl p-6 w-full max-w-md relative overflow-hidden"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Background decorativo */}
+          <div className="absolute top-0 left-0 w-full h-1 bg-amber-500" />
+
+          <div className="flex flex-col items-center text-center">
+            <div className="w-16 h-16 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center mb-4 text-amber-600 dark:text-amber-500">
+              <AlertCircle size={32} strokeWidth={2.5} />
+            </div>
+
+            <h3 className="text-xl font-bold text-zinc-900 dark:text-white mb-2">
+              {title}
+            </h3>
+
+            <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-6 leading-relaxed">
+              {message}
+            </p>
+
+            <button
+              onClick={onClose}
+              className="w-full py-3 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-bold hover:opacity-90 transition-opacity"
+            >
+              Entendi
+            </button>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
 };
 
 const DownloadAlert = ({ isVisible, onDismiss }) => (
@@ -100,49 +154,50 @@ const ShareCardPreviewModal = ({ data, onClose, onDownload }) => {
   );
 };
 
+// --- COMPONENTE PRINCIPAL ---
 function Dashboard({ user, isDarkMode, toggleTheme }) {
   if (!user) {
     return (
       <div className="flex justify-center items-center min-h-screen bg-background-light dark:bg-background-dark">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-accent mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-red-600 mx-auto mb-4"></div>
           <h2 className="text-lg font-medium text-gray-600 dark:text-gray-300">Carregando...</h2>
         </div>
       </div>
     );
   }
 
-  // ✅ CHAVES DE STORAGE ÚNICAS
+  // ✅ CHAVES DE STORAGE LOCAIS (Fallback)
   const STUDY_STORAGE_KEY = useMemo(() => `@ModoQAP:ActiveSession:${user.uid}`, [user.uid]);
   const SIMULADO_STORAGE_KEY = useMemo(() => `@ModoQAP:SimuladoActive:${user.uid}`, [user.uid]);
   const SIMULADO_PENDING_KEY = useMemo(() => `@ModoQAP:SimuladoPending:${user.uid}`, [user.uid]);
 
-  // --- ESTADOS ---
+  // --- ESTADOS DE UI ---
   const [activeTab, setActiveTab] = useState('home');
   const [loading, setLoading] = useState(true);
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
-
   const [forceOpenVisual, setForceOpenVisual] = useState(false);
   const [isTimerRaised, setIsTimerRaised] = useState(false);
-
   const [sharePreviewData, setSharePreviewData] = useState(null);
   const [isDownloadAlertVisible, setIsDownloadAlertVisible] = useState(false);
-
   const [tourState, setTourState] = useState({ isActive: false, type: 'main' });
+  const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
 
-  // Estados de Estudo e Feedback
+  // --- NOVO: Estado para o Alerta de Conflito ---
+  const [warningAlert, setWarningAlert] = useState({ isOpen: false, title: '', message: '' });
+
+  // --- ESTADOS DE SESSÃO (Estudo) ---
   const [activeStudySession, setActiveStudySession] = useState(null);
   const [finishModalData, setFinishModalData] = useState(null);
   const [pendingReviewData, setPendingReviewData] = useState(null);
-  const [isFeedbackOpen, setIsFeedbackOpen] = useState(false); // ✅ Controle do Widget
 
-  // Estados de Simulado
+  // --- ESTADOS DE SESSÃO (Simulado) ---
   const [activeSimuladoSession, setActiveSimuladoSession] = useState(null);
   const [finishedSimuladoData, setFinishedSimuladoData] = useState(null);
   const [pendingSimuladoReview, setPendingSimuladoReview] = useState(null);
 
-  // Dados do Firestore
+  // --- DADOS DO FIRESTORE ---
   const [goalsHistory, setGoalsHistory] = useState([]);
   const [activeCicloId, setActiveCicloId] = useState(null);
   const [activeCicloData, setActiveCicloData] = useState(null);
@@ -160,7 +215,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     };
   }, [allRegistrosEstudo, todayStr]);
 
-  // Listener para evento customizado de Timer (para levantar UI)
+  // --- HANDLERS DE LIMPEZA ---
   useEffect(() => {
     const handleTimerRaise = (event) => setIsTimerRaised(event.detail);
     window.addEventListener('toggle-timer-raise', handleTimerRaise);
@@ -168,26 +223,98 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   }, []);
 
   const clearActiveTimerDoc = useCallback(async () => {
-    try {
-      await deleteDoc(doc(db, 'active_timers', user.uid));
-    } catch {}
+    try { await deleteDoc(doc(db, 'active_timers', user.uid)); } catch {}
   }, [user?.uid]);
 
   const clearActiveSimuladoDoc = useCallback(async () => {
-    try {
-        await deleteDoc(doc(db, `users/${user.uid}/personal_timers/active_simulado`));
-    } catch {}
+    try { await deleteDoc(doc(db, `users/${user.uid}/personal_timers/active_simulado`)); } catch {}
   }, [user?.uid]);
 
-  // ✅ Restauração Unificada de Sessões (Estudo e Simulado)
+  // -------------------------------------------------------------
+  // 🔥 SINCRONIZAÇÃO EM TEMPO REAL (CROSS-DEVICE & CROSS-TAB)
+  // -------------------------------------------------------------
+
+  // 1. Ouvinte: Timer de Estudo Ativo
   useEffect(() => {
-    // 1. Restaurar Estudo
+    if (!user) return;
+    const activeStudyRef = doc(db, 'active_timers', user.uid);
+
+    const unsubscribe = onSnapshot(activeStudyRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+
+        // Se for um timer do tipo 'simulado' gravado aqui por engano, ignoramos
+        if (data.isSimulado) return;
+
+        // Se o status for 'finished', não montamos o timer (deixamos o modal de conclusão lidar)
+        if (data.status === 'finishing' || data.status === 'finished') return;
+
+        // Atualiza estado local se diferente (garante sync entre abas)
+        setActiveStudySession(prev => {
+          // Se já existe e é igual, não faz nada para evitar re-render
+          if (prev && prev.disciplina.id === data.disciplinaId && prev.assunto === data.assunto) return prev;
+
+          return {
+            disciplina: { id: data.disciplinaId, nome: data.disciplinaNome },
+            assunto: data.assunto,
+            isMinimized: true // Ao syncar de outro device, inicia minimizado
+          };
+        });
+      } else {
+        // Se o documento sumiu do banco, e não estamos finalizando, limpa o estado
+        if (!finishModalData && !pendingReviewData) {
+           setActiveStudySession(null);
+        }
+      }
+    });
+
+    return () => unsubscribe();
+  }, [user, finishModalData, pendingReviewData]);
+
+  // 2. Ouvinte: Timer de Simulado Ativo
+  useEffect(() => {
+    if (!user) return;
+    const activeSimRef = doc(db, 'users', user.uid, 'personal_timers', 'active_simulado');
+
+    const unsubscribe = onSnapshot(activeSimRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+
+        // Se já foi finalizado, não restaura aqui
+        if (data.status === 'finished') return;
+
+        setActiveSimuladoSession(prev => {
+           if (prev && prev.titulo === data.titulo) return prev;
+           return {
+             titulo: data.titulo,
+             mode: data.mode,
+             initialSeconds: data.initialSeconds || 0,
+             isMinimized: true // Ao syncar, inicia minimizado
+           };
+        });
+      } else {
+        // Se sumiu do banco, limpa estado local (a menos que esteja no fluxo de conclusão)
+        if (!finishedSimuladoData) {
+           setActiveSimuladoSession(null);
+        }
+      }
+    });
+
+    return () => unsubscribe();
+  }, [user, finishedSimuladoData]);
+
+
+  // -------------------------------------------------------------
+  // RESTAURAÇÃO LOCAL (FALLBACK / REFRESH)
+  // -------------------------------------------------------------
+  useEffect(() => {
+    // Tenta restaurar dados pendentes de conclusão (que não estão mais no active_timer)
     const savedStudy = localStorage.getItem(STUDY_STORAGE_KEY);
     if (savedStudy) {
       try {
         const parsed = JSON.parse(savedStudy);
-        if (parsed && parsed.disciplinaId && parsed.disciplinaNome) {
-          if (parsed.isFinishing && parsed.tempMinutes) {
+        // Se estava finalizando, restaura o modal de conclusão
+        if (parsed.isFinishing && parsed.tempMinutes) {
             clearActiveTimerDoc();
             setPendingReviewData({
               minutes: parsed.tempMinutes,
@@ -196,39 +323,10 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
               reason: 'Sessão interrompida (Atualização/Fechamento)',
               originalData: parsed
             });
-          } else {
-            setActiveStudySession({
-              disciplina: { id: parsed.disciplinaId, nome: parsed.disciplinaNome },
-              assunto: parsed.assunto,
-              isMinimized: true
-            });
-          }
         }
-      } catch (e) {
-        console.error("Erro ao restaurar sessão estudo:", e);
-        localStorage.removeItem(STUDY_STORAGE_KEY);
-      }
+      } catch (e) {}
     }
 
-    // 2. Restaurar Simulado Ativo
-    const savedSimulado = localStorage.getItem(SIMULADO_STORAGE_KEY);
-    if (savedSimulado) {
-      try {
-        const parsed = JSON.parse(savedSimulado);
-        if (parsed && parsed.titulo && !parsed.isFinished) {
-          setActiveSimuladoSession({
-            titulo: parsed.titulo,
-            mode: parsed.mode,
-            initialSeconds: parsed.initialSeconds,
-            isMinimized: true
-          });
-        }
-      } catch (e) {
-        console.error("Erro restaurar simulado:", e);
-      }
-    }
-
-    // 3. Restaurar Simulado Pendente de Registro
     const pendingSimulado = localStorage.getItem(SIMULADO_PENDING_KEY);
     if (pendingSimulado) {
       try {
@@ -238,9 +336,9 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         }
       } catch (e) {}
     }
+  }, [STUDY_STORAGE_KEY, SIMULADO_PENDING_KEY, clearActiveTimerDoc]);
 
-  }, [clearActiveTimerDoc, STUDY_STORAGE_KEY, SIMULADO_STORAGE_KEY, SIMULADO_PENDING_KEY]);
-
+  // --- ACTIONS DE BANCO DE DADOS ---
   const addRegistroEstudo = async (data) => {
     try {
       const collectionRef = collection(db, 'users', user.uid, 'registrosEstudo');
@@ -250,8 +348,19 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     }
   };
 
-  // --- Handlers de Estudo ---
+  // ---------------------------------------------
+  // HANDLERS: ESTUDO (CRONÔMETRO/POMODORO)
+  // ---------------------------------------------
   const handleStartStudy = (disciplina, assunto = null) => {
+    // 🔴 ALERTA DE CONFLITO
+    if (activeSimuladoSession) {
+      setWarningAlert({
+        isOpen: true,
+        title: "Sessão Conflitante",
+        message: "Você tem um Simulado em andamento. Finalize-o antes de iniciar uma sessão de estudo."
+      });
+      return;
+    }
     setActiveStudySession({ disciplina, assunto, isMinimized: false });
   };
 
@@ -311,11 +420,16 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     try {
       const storageData = JSON.parse(localStorage.getItem(STUDY_STORAGE_KEY) || '{}');
       const finalDisciplinaId = activeStudySession?.disciplina?.id || storageData.disciplinaId || 'restored_id';
-
       localStorage.removeItem(STUDY_STORAGE_KEY);
+
+      const isEdital = activeCicloData?.editalId || activeCicloData?.templateId;
+      const tipoCiclo = isEdital ? 'Edital Base' : 'Ciclo Manual';
+      const nomeCiclo = activeCicloData?.nome || 'Ciclo Personalizado';
 
       const registroEstudoData = {
         cicloId: activeCicloId,
+        cicloNome: nomeCiclo,
+        cicloTipo: tipoCiclo,
         disciplinaId: finalDisciplinaId,
         disciplinaNome: nomeDisciplinaFinal,
         data: dateToYMD(new Date()),
@@ -332,6 +446,8 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       if (markAsFinished && assunto) {
         const checkData = {
           cicloId: activeCicloId,
+          cicloNome: nomeCiclo,
+          cicloTipo: tipoCiclo,
           disciplinaId: finalDisciplinaId,
           disciplinaNome: nomeDisciplinaFinal,
           assunto: assunto,
@@ -356,26 +472,40 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     }
   };
 
-  // --- Handlers de SIMULADO ---
+  // ---------------------------------------------
+  // HANDLERS: SIMULADO
+  // ---------------------------------------------
   const handleStartSimulado = (config) => {
+    // 🔴 ALERTA DE CONFLITO
+    if (activeStudySession) {
+      setWarningAlert({
+        isOpen: true,
+        title: "Sessão Conflitante",
+        message: "Você tem uma sessão de estudo ativa. Finalize-a antes de iniciar o Simulado."
+      });
+      return;
+    }
+
+    // Configura o objeto da sessão garantindo initialSeconds
     setActiveSimuladoSession({
         ...config,
-        initialSeconds: config.totalSeconds,
+        initialSeconds: Number(config.totalSeconds) || Number(config.initialSeconds) || 14400, // Fallback 4h
         isMinimized: false
     });
   };
 
   const handleFinishSimulado = (minutes) => {
     const data = {
-        titulo: activeSimuladoSession.titulo,
+        titulo: activeSimuladoSession?.titulo || 'Simulado',
         data: dateToYMD(new Date()),
         durationMinutes: minutes
     };
+    // Salva estado pendente para a tela de Simulado processar (modal de notas)
     localStorage.setItem(SIMULADO_PENDING_KEY, JSON.stringify(data));
     setFinishedSimuladoData(data);
     setActiveSimuladoSession(null);
     clearActiveSimuladoDoc();
-    setActiveTab('simulados');
+    setActiveTab('simulados'); // Redireciona para a aba para mostrar o modal
   };
 
   const handleRecoverSimulado = () => {
@@ -389,6 +519,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   const handleCancelSimulado = () => {
     setActiveSimuladoSession(null);
     clearActiveSimuladoDoc();
+    localStorage.removeItem(SIMULADO_STORAGE_KEY);
   };
 
   const handleClearSimuladoData = () => {
@@ -396,7 +527,9 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     localStorage.removeItem(SIMULADO_PENDING_KEY);
   };
 
-  // --- Handlers Genéricos ---
+  // ---------------------------------------------
+  // HANDLERS GENÉRICOS & ACTIONS
+  // ---------------------------------------------
   const deleteRegistro = async (id) => { await deleteDoc(doc(db, 'users', user.uid, 'registrosEstudo', id)); };
   const deleteData = async (collectionName, id) => { await deleteDoc(doc(db, 'users', user.uid, collectionName, id)); };
 
@@ -482,7 +615,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     });
   };
 
-  // --- Effects (Loads) ---
+  // --- LOADS & EFFECTS (Firestore) ---
   useEffect(() => {
     if (!user || loading) return;
     const tourType = 'main';
@@ -497,8 +630,15 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     const ciclosRef = collection(db, 'users', user.uid, 'ciclos');
     const q = query(ciclosRef, where('ativo', '==', true), where('arquivado', '==', false));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      if (snapshot.empty) { setActiveCicloId(null); setActiveCicloData(null); }
-      else { const cicloDoc = snapshot.docs[0]; setActiveCicloId(cicloDoc.id); setActiveCicloData({ id: cicloDoc.id, ...cicloDoc.data() }); }
+      if (snapshot.empty) {
+        setActiveCicloId(null);
+        setActiveCicloData(null);
+      }
+      else {
+        const cicloDoc = snapshot.docs[0];
+        setActiveCicloId(cicloDoc.id);
+        setActiveCicloData({ id: cicloDoc.id, ...cicloDoc.data() });
+      }
     });
     return () => unsubscribe();
   }, [user]);
@@ -532,7 +672,15 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         let dataStr = data.data;
         if (data.data && typeof data.data.toDate === 'function') dataStr = dateToYMD(data.data.toDate());
         if (!dataStr && data.timestamp && typeof data.timestamp.toDate === 'function') dataStr = dateToYMD(data.timestamp.toDate());
-        return { id: docSnap.id, ...data, data: dataStr, tempoEstudadoMinutos: data.tempoEstudadoMinutos, questoesFeitas: data.questoesFeitas, acertos: data.acertos };
+
+        return {
+          id: docSnap.id,
+          ...data,
+          data: dataStr,
+          tempoEstudadoMinutos: data.tempoEstudadoMinutos,
+          questoesFeitas: data.questoesFeitas,
+          acertos: data.acertos
+        };
       });
       setAllRegistrosEstudo(registros);
       setLoading(false);
@@ -553,11 +701,12 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     return () => unsubscribe();
   }, [user]);
 
+  // --- RENDER TAB CONTENT ---
   const renderTabContent = () => {
     if (loading && ['home', 'calendar', 'stats'].includes(activeTab)) {
       return (
         <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-accent mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-red-600 mx-auto mb-4"></div>
         </div>
       );
     }
@@ -633,6 +782,14 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   return (
     <div className="flex min-h-screen bg-background-light dark:bg-background-dark text-text-primary dark:text-text-dark-primary transition-colors duration-300 overflow-x-hidden">
 
+      {/* --- RENDERIZAÇÃO DO MODAL DE ALERTA --- */}
+      <WarningModal
+        isOpen={warningAlert.isOpen}
+        title={warningAlert.title}
+        message={warningAlert.message}
+        onClose={() => setWarningAlert(prev => ({ ...prev, isOpen: false }))}
+      />
+
       {activeTab === 'home' && <BroadcastReceiver canShow={!tourState.isActive} />}
 
       <DownloadAlert isVisible={isDownloadAlertVisible} onDismiss={() => setIsDownloadAlertVisible(false)} />
@@ -656,7 +813,6 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
 
       <div className={`flex-grow w-full transition-all duration-300 pt-[80px] px-4 md:px-8 lg:pt-8 pb-10 ${isSidebarExpanded ? 'lg:ml-[260px]' : 'lg:ml-[80px]'}`}>
 
-        {/* ✅ Header com onOpenFeedback conectado */}
         <Header
           user={user}
           activeTab={activeTab}
@@ -681,15 +837,14 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         onFinish={() => handleTourCloseOrFinish(tourState.type)}
       />
 
-      {/* ✅ Widget com a prop isSidebarOpen adicionada */}
       <FeedbackWidget
         user={user}
         isOpen={isFeedbackOpen}
         onClose={() => setIsFeedbackOpen(false)}
-        isSidebarOpen={isMobileOpen} // <--- AQUI ESTÁ A CORREÇÃO
+        isSidebarOpen={isMobileOpen}
       />
 
-      {/* --- TIMER DE ESTUDO --- */}
+      {/* --- TIMER DE ESTUDO (STUDY TIMER) --- */}
       {activeStudySession && (
         <StudyTimer
           disciplina={activeStudySession.disciplina}
@@ -711,7 +866,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         <SimuladoTimer
           tituloSimulado={activeSimuladoSession.titulo}
           mode={activeSimuladoSession.mode}
-          initialSeconds={activeSimuladoSession.initialSeconds || activeSimuladoSession.totalSeconds}
+          initialSeconds={activeSimuladoSession.initialSeconds || activeSimuladoSession.totalSeconds || 0}
           isMinimized={activeSimuladoSession.isMinimized}
           onStop={handleFinishSimulado}
           onCancel={handleCancelSimulado}

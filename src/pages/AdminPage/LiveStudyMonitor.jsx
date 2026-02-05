@@ -1,66 +1,54 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Users, Timer, ChevronDown, ChevronUp, Clock, Zap, HelpCircle, Eye
+  Users, ChevronDown, ChevronUp, Zap, Coffee,
+  PauseCircle, BookOpen, Clock, Activity, Target,
+  MoreHorizontal, Play, ClipboardList, AlertCircle
 } from 'lucide-react';
 
-// --- UTILS LOCAIS ---
+// --- UTILS ---
 const formatClock = (totalSeconds) => {
   const safe = Math.max(0, Number(totalSeconds) || 0);
   const hours = Math.floor(safe / 3600);
   const minutes = Math.floor((safe % 3600) / 60);
   const seconds = safe % 60;
-  return [hours, minutes, seconds].map(v => String(v).padStart(2, '0')).join(':');
+
+  return (
+    <span className="font-mono font-semibold tracking-wide tabular-nums">
+      {[hours, minutes, seconds].map(v => String(v).padStart(2, '0')).join(':')}
+    </span>
+  );
 };
 
 const toDateSafe = (value) => {
-    if (!value) return null;
-    if (value?.toDate) return value.toDate();
-    if (value instanceof Date) return value;
-    const n = Number(value);
-    if (!Number.isNaN(n) && n > 0) return new Date(n);
-    return null;
-  };
+  if (!value) return null;
+  if (value?.toDate) return value.toDate();
+  if (value instanceof Date) return value;
+  const n = Number(value);
+  if (!Number.isNaN(n) && n > 0) return new Date(n);
+  return null;
+};
 
 const toMillisSafe = (value) => {
-    const d = toDateSafe(value);
-    return d ? d.getTime() : null;
+  const d = toDateSafe(value);
+  return d ? d.getTime() : null;
 };
 
-// --- COMPONENTE AVATAR SIMPLES ---
-const Avatar = ({ user, size = "md" }) => {
-    const sizeClasses = { sm: "w-8 h-8 text-[10px]", md: "w-10 h-10 text-xs", lg: "w-16 h-16 text-lg" };
-    return (
-      <div className={`${sizeClasses[size]} rounded-full flex-shrink-0 bg-gradient-to-br from-zinc-100 to-zinc-200 dark:from-zinc-800 dark:to-zinc-900 border-2 border-white dark:border-zinc-700 shadow-sm overflow-hidden flex items-center justify-center relative`}>
-        {user?.photoURL ? (
-          <img src={user.photoURL} alt={user?.name || 'user'} className="w-full h-full object-cover" />
-        ) : (
-          <span className="font-black text-zinc-500 dark:text-zinc-400">
-            {user?.name ? user.name.substring(0, 2).toUpperCase() : <Users size={14} />}
-          </span>
-        )}
-      </div>
-    );
-};
-
-// --- HOOK DE SINCRONIZAÇÃO DE TIMER ---
+// --- HOOK DE TIMER UNIFICADO (Estudo + Simulado) ---
 const useSyncedSeconds = (session) => {
   const [live, setLive] = useState(0);
 
   useEffect(() => {
     if (!session) return;
-
     const tick = () => {
-      // 1. Base: snapshot que o usuário enviou
-      const baseSec = Number(session.displaySecondsSnapshot ?? session.seconds ?? 0);
+      // Tenta ler snapshot do Estudo OU do Simulado
+      const baseSec = Number(session.displaySecondsSnapshot ?? session.secondsSnapshot ?? session.seconds ?? 0);
 
-      // 2. Se estiver PAUSADO, confie no snapshot
-      if (session.isPaused) {
+      if (session.isPaused || session.status === 'paused') {
         setLive(baseSec);
         return;
       }
 
-      // 3. Delta local
       let delta = 0;
       if (typeof session._receivedPerf === 'number') {
         delta = Math.floor((performance.now() - session._receivedPerf) / 1000);
@@ -71,16 +59,21 @@ const useSyncedSeconds = (session) => {
         delta = Math.floor((Date.now() - lastUpdate) / 1000);
       }
 
-      // 4. Direção
+      // Lógica de direção (Contagem regressiva ou progressiva)
       const isPomodoro = (session.timerType === 'pomodoro' || session.mode === 'pomodoro');
+      const isCountdown = session.mode === 'countdown'; // Simulado countdown
       const isResting = !!session.isResting;
 
       let next = baseSec;
-      if (isPomodoro && !isResting) {
+
+      if ((isPomodoro && !isResting) || isCountdown) {
+        // Decrescente
         next = Math.max(0, baseSec - delta);
       } else if (isResting) {
+        // Descanso decrescente (ou crescente dependendo da config, assumindo decrescente padrao pomodoro)
         next = Math.max(0, baseSec - delta);
       } else {
+        // Crescente (Livre)
         next = baseSec + delta;
       }
 
@@ -90,217 +83,350 @@ const useSyncedSeconds = (session) => {
     tick();
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
-  }, [
-    session?.displaySecondsSnapshot,
-    session?.updatedAt,
-    session?.isPaused,
-    session?.timerType,
-    session?.mode,
-    session?.isResting,
-    session?._receivedAt,
-    session?._receivedPerf
-  ]);
+  }, [session]);
 
   return live;
 };
 
-// --- SUBCOMPONENTE LINHA DE SESSÃO ---
-const SessionRow = ({ s, getUser, cicloNameByKey, isExpanded, toggleExpand, onOpenUser }) => {
-  const liveSeconds = useSyncedSeconds(s);
-  const user = getUser(s.uid);
-  const key = `${s.uid}_${s.cicloId || ''}`;
-  const cicloNome = s.cicloNome || cicloNameByKey.get(key) || null;
+// --- COMPONENTES DE UI ---
 
-  const phaseLabel = (s.phase === 'rest' || s.isResting) ? 'Descanso' : 'Foco';
-  const typeLabel = s?.timerType === 'pomodoro' ? 'Pomodoro' : 'Livre';
+const PulsingAvatar = ({ user, status }) => {
+  // Simulado é sempre ativo visualmente se não estiver pausado
+  const isActive = status === 'focus' || status === 'simulado';
+
+  // Cores do anel/fundo baseadas no status
+  const gradients = {
+    focus: 'from-emerald-400 to-teal-500',
+    rest: 'from-blue-400 to-indigo-500',
+    paused: 'from-amber-400 to-orange-500',
+    simulado: 'from-red-500 to-rose-600'
+  };
+
+  const badgeColors = {
+    focus: 'bg-emerald-500',
+    rest: 'bg-blue-500',
+    paused: 'bg-amber-500',
+    simulado: 'bg-red-600'
+  };
+
+  const currentGradient = gradients[status] || gradients.paused;
+  const currentBadgeColor = badgeColors[status] || badgeColors.paused;
 
   return (
-    <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white/70 dark:bg-zinc-900/30 overflow-hidden">
-      <button
+    <div className="relative flex items-center justify-center">
+      {/* Ondas pulsantes */}
+      {isActive && (
+        <>
+          <span className={`absolute inline-flex h-full w-full rounded-full opacity-20 animate-ping duration-[3s] ${status === 'simulado' ? 'bg-red-500' : 'bg-emerald-400'}`} />
+          <span className={`absolute inline-flex h-[110%] w-[110%] rounded-full border opacity-50 ${status === 'simulado' ? 'border-red-500/30' : 'border-emerald-500/30'}`} />
+        </>
+      )}
+
+      <div className={`relative z-10 w-12 h-12 rounded-full p-[2px] bg-gradient-to-br ${currentGradient}`}>
+        <div className="w-full h-full rounded-full bg-white dark:bg-zinc-900 overflow-hidden flex items-center justify-center border-2 border-white dark:border-zinc-900">
+           {user?.photoURL ? (
+             <img src={user.photoURL} alt={user.name} className="w-full h-full object-cover" />
+           ) : (
+             <span className="font-bold text-zinc-500 text-xs">
+               {user?.name?.substring(0,2).toUpperCase() || <Users size={16}/>}
+             </span>
+           )}
+        </div>
+
+        {/* Badge de Ícone */}
+        <div className={`absolute -bottom-1 -right-1 z-20 p-1 rounded-full text-white shadow-sm border border-white dark:border-zinc-900 ${currentBadgeColor}`}>
+          {status === 'focus' && <Zap size={10} fill="currentColor" />}
+          {status === 'rest' && <Coffee size={10} />}
+          {status === 'paused' && <PauseCircle size={10} />}
+          {status === 'simulado' && <ClipboardList size={10} />}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- CARD DA SESSÃO ---
+const SessionCard = ({ s, getUser, cicloNameByKey, isExpanded, toggleExpand, onOpenUser }) => {
+  const liveSeconds = useSyncedSeconds(s);
+  const user = getUser(s.uid);
+
+  // Determinar se é Simulado ou Estudo Normal
+  // O SimuladoTimer salva "titulo" e "mode", mas não "disciplinaNome" geralmente.
+  // Vamos assumir que se tem 'titulo' e não tem 'disciplinaNome' (ou tem flag isSimulado), é simulado.
+  const isSimulado = s.isSimulado || (!!s.titulo && !s.disciplinaNome);
+
+  const key = `${s.uid}_${s.cicloId || ''}`;
+  const cicloNome = s.cicloNome || cicloNameByKey.get(key) || 'Ciclo Avulso';
+
+  // Lógica de Status
+  const isPaused = s.isPaused || s.status === 'paused';
+  const isResting = s.phase === 'rest' || s.isResting;
+
+  let status = 'focus';
+  if (isPaused) status = 'paused';
+  else if (isSimulado) status = 'simulado';
+  else if (isResting) status = 'rest';
+
+  // Cores Temáticas
+  const theme = {
+    focus: 'emerald',
+    rest: 'blue',
+    paused: 'amber',
+    simulado: 'red'
+  };
+  const color = theme[status];
+
+  // Dados de Exibição
+  const titleDisplay = isSimulado ? s.titulo : (s.disciplinaNome || 'Estudo Livre');
+  const subTitleDisplay = isSimulado ? 'Simulado em Andamento' : s.assunto;
+  const modeDisplay = isSimulado
+    ? (s.mode === 'countdown' ? 'Simulado (Tempo Limite)' : 'Simulado (Livre)')
+    : (s.timerType === 'pomodoro' ? 'Pomodoro' : 'Cronômetro Livre');
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, scale: 0.98 }}
+      animate={{ opacity: 1, scale: 1 }}
+      className={`group relative overflow-hidden rounded-xl transition-all duration-300 border backdrop-blur-sm ${
+        isExpanded
+          ? `bg-white dark:bg-zinc-800 border-${color}-500/30 shadow-lg shadow-${color}-500/10`
+          : 'bg-white/80 dark:bg-zinc-900/60 border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700'
+      }`}
+    >
+      {/* Barra lateral colorida animada */}
+      <div className={`absolute left-0 top-0 bottom-0 w-1 transition-colors duration-500 bg-${color}-500`} />
+
+      {/* Background sutil de urgência para simulado */}
+      {status === 'simulado' && (
+         <div className="absolute inset-0 bg-red-500/5 animate-pulse pointer-events-none" />
+      )}
+
+      {/* Conteúdo Principal */}
+      <div
         onClick={() => toggleExpand(s.uid)}
-        className="w-full text-left p-4 flex items-center justify-between gap-4 hover:bg-zinc-50 dark:hover:bg-zinc-900/40 transition-colors"
+        className="p-4 pl-5 cursor-pointer flex flex-col md:flex-row items-start md:items-center gap-4 relative z-10"
       >
-        <div className="flex items-center gap-3 min-w-0">
-          <Avatar user={user} size="md" />
-          <div className="min-w-0">
-            <p className="text-sm font-black text-zinc-900 dark:text-white truncate">
-              {user.name || s.userName || 'Usuário'}
-            </p>
-            <p className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate">
-              {(s.disciplinaNome || 'Disciplina')}{s.assunto ? ` • ${s.assunto}` : ''}{cicloNome ? ` • ${cicloNome}` : ''}
-            </p>
-            <div className="mt-1 flex flex-wrap gap-2">
-              <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700">
-                {typeLabel}
-              </span>
-              <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${phaseLabel === 'Descanso'
-                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-200'
-                : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200'
-                }`}>
-                {phaseLabel}
-              </span>
-              {s.isPaused && (
-                <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-200">
-                  Pausado
+        {/* 1. Avatar & Nome */}
+        <div className="flex items-center gap-4 min-w-[200px]">
+          <PulsingAvatar user={user} status={status} />
+          <div className="flex flex-col">
+            <h3 className="text-sm font-bold text-zinc-800 dark:text-zinc-100 leading-tight">
+              {user.name || 'Usuário'}
+            </h3>
+            <span className={`text-[10px] font-bold uppercase tracking-wider mt-1 text-${color}-600 dark:text-${color}-400 flex items-center gap-1`}>
+              {status === 'focus' && 'Focando Agora'}
+              {status === 'rest' && 'Descansando'}
+              {status === 'paused' && 'Em Pausa'}
+              {status === 'simulado' && (
+                 <> <AlertCircle size={10} /> Realizando Simulado </>
+              )}
+            </span>
+          </div>
+        </div>
+
+        {/* 2. Conteúdo Central (Disciplina ou Simulado) */}
+        <div className="flex-1 w-full md:w-auto min-w-0 pr-2">
+            <div className="flex flex-col gap-1">
+              <div className="flex items-start gap-2">
+                {isSimulado ? (
+                   <ClipboardList size={14} className="mt-0.5 text-red-500 flex-shrink-0" />
+                ) : (
+                   <BookOpen size={14} className="mt-0.5 text-zinc-400 flex-shrink-0" />
+                )}
+
+                <span className={`text-sm font-semibold leading-snug break-words line-clamp-2 ${isSimulado ? 'text-red-700 dark:text-red-300' : 'text-zinc-700 dark:text-zinc-200'}`}>
+                  {titleDisplay}
+                </span>
+              </div>
+              {subTitleDisplay && (
+                <span className="text-xs text-zinc-500 dark:text-zinc-400 pl-6 break-words line-clamp-1">
+                  {subTitleDisplay}
                 </span>
               )}
             </div>
-          </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="text-right">
-            <p className="text-lg font-black font-mono text-zinc-900 dark:text-white leading-none">
+        {/* 3. Timer & Toggle (Direita) */}
+        <div className="flex items-center justify-between w-full md:w-auto gap-4 md:pl-4 border-t md:border-t-0 border-zinc-100 dark:border-zinc-800 pt-3 md:pt-0">
+           {/* Pílula do Timer */}
+           <div className={`px-3 py-1.5 rounded-lg flex items-center gap-2 border bg-${color}-50 dark:bg-${color}-900/10 border-${color}-100 dark:border-${color}-800/30 text-${color}-700 dark:text-${color}-300`}>
+              <Clock size={14} className={(status === 'focus' || status === 'simulado') && !isPaused ? 'animate-pulse' : ''} />
               {formatClock(liveSeconds)}
-            </p>
-            <p className="text-[9px] text-zinc-400">
-              {s.isPaused ? 'Pausado' : 'Rodando'}
-            </p>
-          </div>
-          <div className="p-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900">
-            {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-          </div>
-        </div>
-      </button>
+           </div>
 
+           <div className={`p-1.5 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-transform duration-300 text-zinc-400 ${isExpanded ? 'rotate-180' : ''}`}>
+             <ChevronDown size={18} />
+           </div>
+        </div>
+      </div>
+
+      {/* Área Expandida */}
       <AnimatePresence>
         {isExpanded && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="overflow-hidden"
+            className="border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50/80 dark:bg-black/20"
           >
-            <div className="p-4 pt-0">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">Sessão atual</p>
-                  <div className="mt-2">
-                    <p className="text-sm font-black text-zinc-900 dark:text-white">
-                      {(s.disciplinaNome || 'Disciplina')}
-                    </p>
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                      {s.assunto || 'Sem assunto'} {cicloNome ? `• ${cicloNome}` : ''}
-                    </p>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <div className="text-[10px] font-black px-2 py-1 rounded-full bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-200 border border-red-100 dark:border-red-900/40 flex items-center gap-2">
-                        <Clock size={12} /> <span> {formatClock(liveSeconds)}</span>
-                      </div>
-                      <div className="text-[10px] font-black px-2 py-1 rounded-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 flex items-center gap-2">
-                        <Zap size={12} /> <span>{typeLabel}</span>
-                      </div>
-                      <div className="text-[10px] font-black px-2 py-1 rounded-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 flex items-center gap-2">
-                        <HelpCircle size={12} /> <span>{phaseLabel}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+            <div className="p-4 pl-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+               {/* Info */}
+               <div className="space-y-2">
+                 <h4 className="text-[10px] uppercase font-bold text-zinc-400 tracking-wider flex items-center gap-1">
+                   <Activity size={12} /> Detalhes da Sessão
+                 </h4>
+                 <div className="bg-white dark:bg-zinc-900 rounded-lg p-3 border border-zinc-200 dark:border-zinc-800 shadow-sm grid grid-cols-2 gap-2 text-xs">
+                    {!isSimulado && (
+                        <>
+                            <div className="text-zinc-500">Ciclo Atual</div>
+                            <div className="font-semibold text-right text-zinc-800 dark:text-zinc-200 truncate">{cicloNome}</div>
+                        </>
+                    )}
 
-                <div className="p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-gradient-to-br from-zinc-950 to-zinc-900 text-white">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-white/60">Ações</p>
-                  <div className="mt-3 flex flex-col gap-2">
-                    <button
-                      onClick={() => onOpenUser(user)}
-                      className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 font-black text-xs shadow-lg shadow-red-900/30 transition-colors"
-                    >
-                      <Eye size={16} /> Ver perfil + registros
-                    </button>
-                    <div className="text-[10px] text-white/70">
-                      Atualiza em tempo real • inclui pausado/descanso.
+                    <div className="text-zinc-500">Início</div>
+                    <div className="font-semibold text-right text-zinc-800 dark:text-zinc-200">
+                       {toDateSafe(s.createdAt)?.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) || '--:--'}
                     </div>
-                  </div>
-                </div>
-              </div>
+
+                    <div className="text-zinc-500">Tipo</div>
+                    <div className="font-semibold text-right text-zinc-800 dark:text-zinc-200 capitalize">
+                       {modeDisplay}
+                    </div>
+                 </div>
+               </div>
+
+               {/* Ações */}
+               <div className="flex flex-col justify-end space-y-2">
+                 <h4 className="text-[10px] uppercase font-bold text-zinc-400 tracking-wider flex items-center gap-1">
+                   <Target size={12} /> Ações
+                 </h4>
+                 <button
+                   onClick={(e) => { e.stopPropagation(); onOpenUser(user); }}
+                   className="flex items-center justify-center gap-2 w-full py-2.5 rounded-lg bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-bold text-xs hover:opacity-90 transition-opacity shadow-md"
+                 >
+                   Ver Histórico Completo
+                 </button>
+               </div>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </motion.div>
   );
 };
 
-// --- COMPONENTE PRINCIPAL DO PAINEL ---
+// --- COMPONENTE PRINCIPAL ---
 const StudyingNowPanel = ({ sessions = [], getUser, cicloNameByKey, onOpenUser }) => {
-  const [expandedAll, setExpandedAll] = useState(false);
   const [expandedUid, setExpandedUid] = useState(null);
 
+  // Contadores
   const counts = useMemo(() => {
-    const focus = sessions.filter(s => (s.phase === 'focus' || !s.isResting) && !s.isPaused).length;
-    const rest = sessions.filter(s => (s.phase === 'rest' || s.isResting) && !s.isPaused).length;
-    const paused = sessions.filter(s => !!s.isPaused).length;
-    return { focus, rest, paused, total: sessions.length };
+    let focus = 0;
+    let rest = 0;
+    let paused = 0;
+    let simulado = 0;
+
+    sessions.forEach(s => {
+       const isSim = s.isSimulado || (!!s.titulo && !s.disciplinaNome);
+       const isPausedSess = s.isPaused || s.status === 'paused';
+
+       if (isPausedSess) {
+         paused++;
+       } else if (isSim) {
+         simulado++;
+       } else if (s.isResting || s.phase === 'rest') {
+         rest++;
+       } else {
+         focus++;
+       }
+    });
+
+    return { focus, rest, paused, simulado, total: sessions.length };
   }, [sessions]);
 
-  const chip = (label, value, cls) => (
-    <span className={`text-[10px] font-black uppercase px-2 py-1 rounded-full border ${cls}`}>
-      {label}: {value}
-    </span>
-  );
-
-  const toggleExpand = (uid) => setExpandedUid(prev => (prev === uid ? null : uid));
+  const toggleExpand = (uid) => setExpandedUid(prev => prev === uid ? null : uid);
 
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 shadow-sm h-full flex flex-col">
-      <div className="absolute inset-0 pointer-events-none opacity-30 dark:opacity-20 bg-[radial-gradient(circle_at_20%_20%,rgba(239,68,68,0.25),transparent_45%),radial-gradient(circle_at_80%_30%,rgba(239,68,68,0.18),transparent_45%),radial-gradient(circle_at_40%_90%,rgba(16,185,129,0.18),transparent_50%)]" />
+    <div className="relative h-full flex flex-col overflow-hidden rounded-3xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 shadow-2xl">
 
-      <div className="relative p-5 md:p-6 pb-3 flex items-start justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-zinc-100 dark:bg-zinc-900 rounded-lg text-zinc-500 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-800 relative">
-            <Timer size={18} strokeWidth={2.5} />
-            <span className="absolute -top-1 -right-1 flex h-3 w-3">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
-            </span>
-          </div>
-          <div>
-            <h3 className="text-sm font-extrabold text-zinc-900 dark:text-white uppercase tracking-tight">
-              Estudando Agora
-            </h3>
-            <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-              {counts.total === 0 ? 'Nenhuma sessão ativa agora' : `${counts.total} usuário(s) com timer aberto`}
-            </p>
+      {/* BACKGROUND DECORATIVO */}
+      <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
+        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-indigo-500/10 rounded-full blur-[100px]" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-emerald-500/10 rounded-full blur-[100px]" />
+        <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 brightness-100 contrast-150 mix-blend-overlay"></div>
+      </div>
 
-            <div className="mt-2 flex flex-wrap gap-2">
-              {chip('Foco', counts.focus, 'bg-emerald-50 text-emerald-700 border-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-200 dark:border-emerald-900/40')}
-              {chip('Descanso', counts.rest, 'bg-blue-50 text-blue-700 border-blue-100 dark:bg-blue-900/20 dark:text-blue-200 dark:border-blue-900/40')}
-              {chip('Pausado', counts.paused, 'bg-amber-50 text-amber-700 border-amber-100 dark:bg-amber-900/20 dark:text-amber-200 dark:border-amber-900/40')}
-            </div>
+      {/* HEADER */}
+      <div className="relative z-10 px-6 py-5 flex flex-col md:flex-row items-start md:items-end justify-between gap-4 border-b border-zinc-200/50 dark:border-zinc-800/50 bg-white/50 dark:bg-zinc-900/50 backdrop-blur-md">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+             <span className="relative flex h-3 w-3">
+               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+               <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+             </span>
+             <span className="text-[10px] font-black uppercase tracking-widest text-red-500">Ao Vivo</span>
           </div>
+          <h2 className="text-2xl font-black text-zinc-900 dark:text-white tracking-tight">Monitoramento</h2>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400 font-medium">
+             {sessions.length} {sessions.length === 1 ? 'aluno conectado' : 'alunos conectados'}
+          </p>
         </div>
 
-        <button
-          onClick={() => setExpandedAll(v => !v)}
-          className="flex items-center gap-2 px-3 py-2 rounded-xl bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 transition-colors text-xs font-black"
-        >
-          {expandedAll ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-          {expandedAll ? 'Recolher' : 'Expandir'}
-        </button>
+        {/* Status Pills */}
+        <div className="flex flex-wrap gap-2">
+           {counts.simulado > 0 && (
+             <div className="px-3 py-1 rounded-full bg-red-100/50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 text-xs font-bold flex items-center gap-1.5 animate-pulse">
+               <ClipboardList size={12} fill="currentColor" /> {counts.simulado} Simulados
+             </div>
+           )}
+           <div className="px-3 py-1 rounded-full bg-emerald-100/50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 text-xs font-bold flex items-center gap-1.5">
+             <Zap size={12} fill="currentColor" /> {counts.focus} Estudando
+           </div>
+           <div className="px-3 py-1 rounded-full bg-blue-100/50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400 text-xs font-bold flex items-center gap-1.5">
+             <Coffee size={12} /> {counts.rest} Descansando
+           </div>
+           <div className="px-3 py-1 rounded-full bg-amber-100/50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 text-xs font-bold flex items-center gap-1.5">
+             <PauseCircle size={12} /> {counts.paused} Pausados
+           </div>
+        </div>
       </div>
 
-      <div className="relative px-5 md:px-6 pb-6 flex-1 overflow-y-auto custom-scrollbar">
-        {sessions.length === 0 ? (
-          <div className="p-5 rounded-2xl bg-zinc-50 dark:bg-zinc-900/40 border border-zinc-200 dark:border-zinc-800 text-sm text-zinc-500">
-            Quando alguém iniciar o timer, aparece aqui automaticamente (em tempo real).
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {sessions.map((s) => {
-              const isExpanded = expandedAll || expandedUid === s.uid;
-              return (
-                <SessionRow
-                  key={s.id || s.uid}
-                  s={s}
-                  getUser={getUser}
-                  cicloNameByKey={cicloNameByKey}
-                  isExpanded={isExpanded}
-                  toggleExpand={toggleExpand}
-                  onOpenUser={onOpenUser}
-                />
-              );
-            })}
-          </div>
-        )}
+      {/* LISTA DE SESSÕES */}
+      <div className="relative z-10 flex-1 overflow-y-auto p-4 md:p-6 space-y-3 custom-scrollbar">
+        <AnimatePresence mode='popLayout'>
+          {sessions.length === 0 ? (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex flex-col items-center justify-center h-full min-h-[300px] text-center"
+            >
+               <div className="w-20 h-20 bg-zinc-100 dark:bg-zinc-800 rounded-full flex items-center justify-center mb-4">
+                 <Users size={32} className="text-zinc-300 dark:text-zinc-600" />
+               </div>
+               <h3 className="text-lg font-bold text-zinc-700 dark:text-zinc-200">Sala Vazia</h3>
+               <p className="text-sm text-zinc-500 dark:text-zinc-400 max-w-xs mx-auto mt-2">
+                 Assim que os alunos iniciarem os estudos ou simulados, eles aparecerão aqui.
+               </p>
+            </motion.div>
+          ) : (
+            sessions.map((s) => (
+              <SessionCard
+                key={`${s.uid}_${s.status}`} // Chave composta para forçar re-render se status mudar drasticamente
+                s={s}
+                getUser={getUser}
+                cicloNameByKey={cicloNameByKey}
+                isExpanded={expandedUid === s.uid}
+                toggleExpand={toggleExpand}
+                onOpenUser={onOpenUser}
+              />
+            ))
+          )}
+        </AnimatePresence>
       </div>
+
+      {/* FOOTER SOMBRA */}
+      <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-white dark:from-zinc-950 to-transparent pointer-events-none z-20" />
     </div>
   );
 };

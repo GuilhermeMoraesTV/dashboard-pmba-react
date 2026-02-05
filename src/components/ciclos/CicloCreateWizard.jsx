@@ -54,7 +54,7 @@ const createArc = (start, end, r) => {
 const CATEGORIES_CONFIG = {
     pm: { label: 'Polícia Militar', icon: Shield, color: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-900/20' },
     pc: { label: 'Polícia Civil', icon: BadgeAlert, color: 'text-zinc-600 dark:text-zinc-400', bg: 'bg-zinc-100 dark:bg-zinc-800' },
-    federal: { label: 'Carreiras Federais', icon: Globe, color: 'text-blue-700', bg: 'bg-blue-50 dark:bg-blue-900/20' }, // <--- Movido para baixo
+    federal: { label: 'Carreiras Federais', icon: Globe, color: 'text-blue-700', bg: 'bg-blue-50 dark:bg-blue-900/20' },
     pp: { label: 'Polícia Penal', icon: Lock, color: 'text-slate-600 dark:text-slate-400', bg: 'bg-slate-100 dark:bg-slate-800' },
     cbm: { label: 'Corpo de Bombeiros', icon: Flame, color: 'text-red-600', bg: 'bg-red-50 dark:bg-red-900/20' },
     gcm: { label: 'Guarda Municipal', icon: Siren, color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
@@ -217,7 +217,6 @@ const TemplateSelectionModal = ({ isOpen, onClose, onSelect, templates, loading 
     const [localSelectedId, setLocalSelectedId] = useState(null);
 
     const categorizedTemplates = useMemo(() => {
-        // AQUI DEFINIMOS A ORDEM DE EXIBIÇÃO
         const groups = { pm: [], pc: [], federal: [], pp: [], cbm: [], gcm: [], outros: [] };
 
         if (!templates) return groups;
@@ -225,7 +224,6 @@ const TemplateSelectionModal = ({ isOpen, onClose, onSelect, templates, loading 
         templates.forEach(t => {
             const textToCheck = (t.titulo + ' ' + (t.instituicao || '') + ' ' + (t.tipo || '')).toLowerCase();
 
-            // Lógica de distribuição (A ordem aqui não muda a exibição, apenas onde cai)
             if (textToCheck.includes('federal') || textToCheck.includes('prf') || textToCheck.includes('pf') || textToCheck.includes('depen')) groups.federal.push(t);
             else if (textToCheck.includes('pm') || textToCheck.includes('policia militar') || textToCheck.includes('polícia militar')) groups.pm.push(t);
             else if (textToCheck.includes('pc') || textToCheck.includes('policia civil') || textToCheck.includes('polícia civil')) groups.pc.push(t);
@@ -271,7 +269,6 @@ const TemplateSelectionModal = ({ isOpen, onClose, onSelect, templates, loading 
                         </div>
                     ) : (
                         <div className="space-y-6 pb-10">
-                            {/* O loop itera na ordem das chaves do objeto groups (pm, pc, federal...) */}
                             {Object.keys(categorizedTemplates).map(key => (
                                 categorizedTemplates[key].length > 0 && (
                                     <TemplateSection
@@ -740,14 +737,21 @@ function CicloCreateWizard({ onClose, user, onCicloAtivado }) {
       }
   };
 
+  // 🔥 FUNÇÃO ATUALIZADA COM TIPO E DATA
   const handleFinalSubmit = async () => {
       if (horasTotais <= 0) return alert("Por favor, defina uma carga horária maior que zero.");
       if (disciplinas.length === 0) return alert("Adicione pelo menos uma disciplina ao ciclo.");
 
+      // Determinar se é manual ou padrão
+      const isManual = selectedTemplateId === 'manual';
+
       const cicloData = {
           nome: nomeCiclo,
           cargaHorariaTotal: Number(horasTotais),
-          templateId: selectedTemplateId === 'manual' ? null : selectedTemplateId,
+          templateId: isManual ? null : selectedTemplateId,
+          editalId: isManual ? null : selectedTemplateId, // ✅ ID do Edital para o Modal de Detalhes
+          tipo: isManual ? 'manual' : 'padrao',           // ✅ Flag Manual/Padrão
+          criadoEm: new Date(),                           // ✅ Data de criação
           disciplinas: disciplinasComCalculo.map(d => ({
               nome: d.nome,
               assuntos: d.assuntos,
