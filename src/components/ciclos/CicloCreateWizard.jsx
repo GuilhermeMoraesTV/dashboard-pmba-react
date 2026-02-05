@@ -8,7 +8,7 @@ import {
   ArrowRight, ArrowLeft, Layers, Plus, Trash2,
   Grid, Type, Minus, BookOpen,
   Library, Edit2, ChevronDown, ChevronUp, GripVertical, Search,
-  FileText, Star, Shield, Flame, Lock, Siren, BadgeAlert, Briefcase
+  FileText, Star, Shield, Flame, Lock, Siren, BadgeAlert, Briefcase, Globe
 } from 'lucide-react';
 
 // ============================================================================
@@ -48,12 +48,13 @@ const createArc = (start, end, r) => {
 };
 
 // ============================================================================
-// 2. MODAL DE SELEÇÃO DE EDITAL (CORRIGIDO)
+// 2. MODAL DE SELEÇÃO DE EDITAL (ORDEM ATUALIZADA)
 // ============================================================================
 
 const CATEGORIES_CONFIG = {
     pm: { label: 'Polícia Militar', icon: Shield, color: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-900/20' },
     pc: { label: 'Polícia Civil', icon: BadgeAlert, color: 'text-zinc-600 dark:text-zinc-400', bg: 'bg-zinc-100 dark:bg-zinc-800' },
+    federal: { label: 'Carreiras Federais', icon: Globe, color: 'text-blue-700', bg: 'bg-blue-50 dark:bg-blue-900/20' }, // <--- Movido para baixo
     pp: { label: 'Polícia Penal', icon: Lock, color: 'text-slate-600 dark:text-slate-400', bg: 'bg-slate-100 dark:bg-slate-800' },
     cbm: { label: 'Corpo de Bombeiros', icon: Flame, color: 'text-red-600', bg: 'bg-red-50 dark:bg-red-900/20' },
     gcm: { label: 'Guarda Municipal', icon: Siren, color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
@@ -202,7 +203,6 @@ const TemplateSection = ({ categoryKey, items, selectedId, onHighlight, onConfir
 };
 
 const TemplateSelectionModal = ({ isOpen, onClose, onSelect, templates, loading }) => {
-    // 1. Hook de Scroll Lock (DEVE vir antes de qualquer retorno)
     useEffect(() => {
         if (isOpen) {
             document.body.style.overflow = 'hidden';
@@ -214,17 +214,20 @@ const TemplateSelectionModal = ({ isOpen, onClose, onSelect, templates, loading 
         };
     }, [isOpen]);
 
-    // 2. Hook de Estado (DEVE vir antes do retorno)
     const [localSelectedId, setLocalSelectedId] = useState(null);
 
-    // 3. Hook de Memo (DEVE vir antes do retorno)
     const categorizedTemplates = useMemo(() => {
-        const groups = { pm: [], pc: [], pp: [], cbm: [], gcm: [], outros: [] };
-        if (!templates) return groups; // Proteção extra
+        // AQUI DEFINIMOS A ORDEM DE EXIBIÇÃO
+        const groups = { pm: [], pc: [], federal: [], pp: [], cbm: [], gcm: [], outros: [] };
+
+        if (!templates) return groups;
 
         templates.forEach(t => {
-            const textToCheck = (t.titulo + ' ' + (t.instituicao || '')).toLowerCase();
-            if (textToCheck.includes('pm') || textToCheck.includes('policia militar') || textToCheck.includes('polícia militar')) groups.pm.push(t);
+            const textToCheck = (t.titulo + ' ' + (t.instituicao || '') + ' ' + (t.tipo || '')).toLowerCase();
+
+            // Lógica de distribuição (A ordem aqui não muda a exibição, apenas onde cai)
+            if (textToCheck.includes('federal') || textToCheck.includes('prf') || textToCheck.includes('pf') || textToCheck.includes('depen')) groups.federal.push(t);
+            else if (textToCheck.includes('pm') || textToCheck.includes('policia militar') || textToCheck.includes('polícia militar')) groups.pm.push(t);
             else if (textToCheck.includes('pc') || textToCheck.includes('policia civil') || textToCheck.includes('polícia civil')) groups.pc.push(t);
             else if (textToCheck.includes('pp') || textToCheck.includes('policia penal') || textToCheck.includes('polícia penal') || textToCheck.includes('penal')) groups.pp.push(t);
             else if (textToCheck.includes('cbm') || textToCheck.includes('bombeiro')) groups.cbm.push(t);
@@ -234,12 +237,10 @@ const TemplateSelectionModal = ({ isOpen, onClose, onSelect, templates, loading 
         return groups;
     }, [templates]);
 
-    // Função Helper
     const handleHighlight = (template) => {
         setLocalSelectedId(prev => prev === template.id ? null : template.id);
     };
 
-    // 4. AGORA SIM, o Retorno Condicional (O erro estava aqui antes)
     if (!isOpen) return null;
 
     return (
@@ -270,6 +271,7 @@ const TemplateSelectionModal = ({ isOpen, onClose, onSelect, templates, loading 
                         </div>
                     ) : (
                         <div className="space-y-6 pb-10">
+                            {/* O loop itera na ordem das chaves do objeto groups (pm, pc, federal...) */}
                             {Object.keys(categorizedTemplates).map(key => (
                                 categorizedTemplates[key].length > 0 && (
                                     <TemplateSection
