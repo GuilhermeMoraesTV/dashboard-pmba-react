@@ -69,7 +69,7 @@ function SimuladoTimer({
   userUid,
   userName
 }) {
-  const themeColor = '#dc2626';
+  const themeColor = '#dc2626'; // Vermelho Tático para Simulados
   const STORAGE_KEY = useMemo(() => `@ModoQAP:SimuladoActive:${userUid}`, [userUid]);
 
   // Estados
@@ -354,7 +354,9 @@ function SimuladoTimer({
     try { audioRef.current.setAttribute('playsinline', ''); } catch {}
     alarmRef.current = new Audio(ALARM_URL);
 
+    // ✅ Verifica preferência de tema do sistema/app
     if (document.documentElement.classList.contains('dark')) setIsDark(true);
+    else setIsDark(false);
 
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
@@ -647,9 +649,9 @@ function SimuladoTimer({
         isOpen={isCancelModalOpen}
         onConfirm={handleCancelSession}
         onCancel={() => setIsCancelModalOpen(false)}
-        title="Abandonar Simulado?"
+        title="Cancelar Simulado?"
         description="Todo o progresso será perdido."
-        confirmText="Sim, Abandonar"
+        confirmText="Sim, Cancelar"
         isDestructive={true}
       />
 
@@ -689,6 +691,8 @@ function SimuladoTimer({
               transition={{ duration: 0.5 }}
               className="relative text-[15rem] font-black drop-shadow-2xl"
             >
+              {/* ✅ Efeito de Glow idêntico ao StudyTimer */}
+              <div className="absolute inset-0 blur-[100px] rounded-full" style={{ backgroundColor: themeColor, opacity: 0.3 }} />
               <span className="relative z-10 text-zinc-900 dark:text-white">{countdown > 0 ? countdown : "GO!"}</span>
             </motion.div>
             <p className="mt-8 text-zinc-500 text-xl uppercase tracking-[0.5em] font-bold">Boa Prova</p>
@@ -715,11 +719,13 @@ function SimuladoTimer({
         </div>
 
         <div className="relative mb-16 md:mb-20">
+          {/* ✅ Efeito de Blur atrás do cronômetro (estilo StudyTimer) */}
           <div className="absolute -inset-10 blur-[60px] md:blur-[100px] opacity-20 rounded-full transition-colors duration-700" style={{ backgroundColor: isPaused ? '#71717a' : themeColor }}></div>
           <div
             className="text-7xl sm:text-9xl md:text-[12rem] font-mono font-bold leading-none tracking-tighter tabular-nums transition-colors duration-300 select-none drop-shadow-2xl"
             style={{ color: isPaused ? '#a1a1aa' : (mode === 'countdown' && seconds < 600 ? '#ef4444' : '#18181b') }}
           >
+            {/* ✅ Texto branco no dark mode, como pedido */}
             <span className={`${isPaused ? 'text-zinc-400' : (mode === 'countdown' && seconds < 600 ? 'text-red-500 animate-pulse' : 'text-zinc-900 dark:text-white')}`}>
               {formatClock(seconds)}
             </span>

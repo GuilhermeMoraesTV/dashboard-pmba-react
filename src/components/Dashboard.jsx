@@ -26,7 +26,7 @@ import TimerFinishModal from '../components/ciclos/TimerFinishModal';
 import OnboardingTour from '../components/shared/OnboardingTour';
 import BroadcastReceiver from '../components/shared/BroadcastReceiver';
 import SimuladosPage from '../pages/SimuladosPage';
-import SimuladoTimer from '../components/dashboard/SimuladoTimer';
+import SimuladoTimer from '../pages/SimuladosPage/SimuladoTimer';
 import FeedbackWidget from '../components/FeedbackWidget';
 
 const ADMIN_UID = 'OLoJi457GQNE2eTSOcz9DAD6ppZ2';

@@ -1520,7 +1520,7 @@ function StudyTimer({
               className="relative text-[15rem] font-black drop-shadow-2xl"
             >
               <div className="absolute inset-0 blur-[100px] rounded-full" style={{ backgroundColor: themeColor, opacity: 0.3 }} />
-              <span className="relative z-10 text-white dark:text-white">{countdown > 0 ? countdown : "GO!"}</span>
+              <span className="relative z-10 text-black dark:text-white">{countdown > 0 ? countdown : "GO!"}</span>
             </motion.div>
 
             <p className="mt-8 text-zinc-500 text-xl uppercase tracking-[0.5em] font-bold">
