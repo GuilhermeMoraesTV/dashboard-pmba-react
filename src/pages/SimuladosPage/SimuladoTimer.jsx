@@ -4,7 +4,7 @@ import {
   Maximize, Sun, Moon, ClipboardList
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { doc, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, deleteDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
 
 const WHITE_NOISE_URL = 'https://raw.githubusercontent.com/anars/blank-audio/master/10-minutes-of-silence.mp3';
@@ -59,8 +59,8 @@ const ConfirmationModal = ({ isOpen, onConfirm, onCancel, title, description, co
 
 function SimuladoTimer({
   tituloSimulado,
-  mode = 'free',            // 'free' | 'countdown'
-  initialSeconds = 0,        // duração total em segundos (apenas countdown)
+  mode = 'free',
+  initialSeconds = 0,
   onStop,
   onCancel,
   isMinimized,
@@ -68,45 +68,63 @@ function SimuladoTimer({
   onMinimize,
   userUid,
   userName,
-  userPhotoURL // Adicionado para exibir a foto no painel de monitoramento
+  userPhotoURL
 }) {
-  const themeColor = '#dc2626'; // Vermelho Tático para Simulados
+  const themeColor = '#dc2626';
   const STORAGE_KEY = useMemo(() => `@ModoQAP:SimuladoActive:${userUid}`, [userUid]);
 
-  // Estados
+  const tabIdRef = useRef(
+    (() => {
+      try { if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID(); } catch {}
+      return `tab_${Math.random().toString(16).slice(2)}_${Date.now()}`;
+    })()
+  );
+
+  const mountedAtRef = useRef(Date.now());
+  const hasWrittenFirebaseRef = useRef(false);
+  const hasEverSeenDocRef = useRef(false);
+
+  const bcRef = useRef(null);
+
   const [isPreparing, setIsPreparing] = useState(true);
   const [countdown, setCountdown] = useState(3);
   const [isDark, setIsDark] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
 
-  const [seconds, setSeconds] = useState(0); // display
+  const [seconds, setSeconds] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
 
-  // Refs (Persistência entre renders)
   const intervalRef = useRef(null);
+
   const audioRef = useRef(null);
   const alarmRef = useRef(null);
 
-  const startTimeRef = useRef(null);       // início do segmento em execução
-  const accumulatedBaseRef = useRef(0);    // total acumulado (elapsed) antes do segmento atual
+  // ✅ Motor em MILISSEGUNDOS (NUNCA PULA)
+  const startTimeMsRef = useRef(null);   // Date.now() quando rodando
+  const accumulatedMsRef = useRef(0);    // total acumulado em ms quando pausado/antes do run atual
 
-  const secondsRef = useRef(0);            // display atual
+  const secondsRef = useRef(0);
   const isPausedRef = useRef(false);
 
   const originalTitleRef = useRef(document.title);
 
-  // ✅ Watchdog / intenção do usuário
   const desiredRunningRef = useRef(false);
   const lastExplicitToggleAtRef = useRef(0);
 
-  // ✅ evita “time up” disparar várias vezes
   const timeUpFiredRef = useRef(false);
+  const lastAppliedRemoteSigRef = useRef('');
+
+  // anti-jitter local
+  const lastLocalRunStartMsRef = useRef(0);
+  const lastLocalElapsedMsAtRunStartRef = useRef(0);
+
+  // persist leve
+  const lastPersistSecondRef = useRef(-1);
 
   useEffect(() => { secondsRef.current = seconds; }, [seconds]);
   useEffect(() => { isPausedRef.current = isPaused; }, [isPaused]);
 
-  // --- FIREBASE (safe) ---
   const simuladoDocRef = useMemo(() => {
     if (!userUid) return null;
     return doc(db, 'users', userUid, 'personal_timers', 'active_simulado');
@@ -117,57 +135,32 @@ function SimuladoTimer({
     return doc(db, 'active_timers', userUid);
   }, [userUid]);
 
-  const safeUpdateFirebase = useCallback(async (isRunning) => {
-    if (!userUid) return;
-
-    // Payload completo para ser lido pelo painel de monitoramento
-    const payload = {
-      uid: userUid,
-      userName: userName || 'Candidato',
-      photoURL: userPhotoURL || null,
-      titulo: tituloSimulado || 'Simulado Sem Título',
-      disciplinaNome: tituloSimulado || 'Simulado', // Alias para monitores que buscam disciplina
-      assunto: 'Prova em Andamento',
-      mode: mode || 'free',
-      status: isRunning ? 'running' : 'paused',
-      secondsSnapshot: Number(secondsRef.current) || 0,
-      updatedAt: serverTimestamp(),
-      heartbeatAt: serverTimestamp(),
-      isSimulado: true, // 🔴 FLAG IMPORTANTE: Identifica que é um simulado
-      timerType: 'simulado'
-    };
-
-    try {
-      // 1. Atualiza persistência local do usuário (para reload)
-      if (simuladoDocRef) {
-        await setDoc(simuladoDocRef, payload, { merge: true });
-      }
-
-      // 2. Atualiza monitoramento global (para o painel de controle)
-      if (globalTimerRef) {
-        await setDoc(globalTimerRef, payload, { merge: true });
-      }
-    } catch (e) {
-      console.warn("Firebase Sync ignorado (Permissão ou Rede):", e?.message);
+  // ✅ elapsed atual em ms
+  const getCurrentElapsedMs = useCallback(() => {
+    let ms = accumulatedMsRef.current || 0;
+    if (!isPausedRef.current && startTimeMsRef.current) {
+      ms += Math.max(0, Date.now() - startTimeMsRef.current);
     }
-  }, [simuladoDocRef, globalTimerRef, userUid, userName, userPhotoURL, tituloSimulado, mode]);
+    return Math.max(0, Number(ms) || 0);
+  }, []);
 
-  const safeRemoveFirebase = useCallback(async () => {
-    try {
-      if (simuladoDocRef) await deleteDoc(simuladoDocRef);
-      if (globalTimerRef) await deleteDoc(globalTimerRef);
-    } catch (e) {
-      console.warn("Erro ao limpar Firebase:", e?.message);
+  // ✅ converte ms -> segundos para display (1 único floor)
+  const msToDisplaySeconds = useCallback((elapsedMs) => {
+    const elapsedSec = Math.floor(Math.max(0, Number(elapsedMs) || 0) / 1000);
+    if (mode === 'countdown') {
+      const total = Math.max(0, Number(initialSeconds) || 0);
+      return Math.max(0, total - elapsedSec);
     }
-  }, [simuladoDocRef, globalTimerRef]);
+    return elapsedSec;
+  }, [mode, initialSeconds]);
 
-  // --- Local Storage ---
-  const saveToStorage = useCallback((paused, currentElapsed, finished = false) => {
+  const saveToStorage = useCallback((paused, currentElapsedMs, finished = false) => {
     const data = {
       titulo: tituloSimulado,
       mode,
       initialSeconds,
-      accumulatedTime: currentElapsed, // aqui SEMPRE guardamos ELAPSED (tempo decorrido)
+      accumulatedTimeMs: Number(currentElapsedMs) || 0, // ms
+      accumulatedTime: Math.floor((Number(currentElapsedMs) || 0) / 1000), // compat (sec)
       isPaused: paused,
       lastTimestamp: Date.now(),
       isFinished: finished
@@ -175,7 +168,6 @@ function SimuladoTimer({
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   }, [STORAGE_KEY, tituloSimulado, mode, initialSeconds]);
 
-  // --- UI externa: title + MediaSession ---
   const updateExternalStatus = useCallback((isRunning, displaySeconds) => {
     const timeStr = formatClock(displaySeconds);
     const label = mode === 'countdown' ? 'Restante' : 'Tempo';
@@ -184,7 +176,6 @@ function SimuladoTimer({
   }, [mode]);
 
   const computeMediaPositionState = useCallback((displaySeconds) => {
-    // displaySeconds = remaining (countdown) ou elapsed (free)
     let duration = 60;
     let position = 0;
 
@@ -192,13 +183,12 @@ function SimuladoTimer({
       const total = Math.max(1, Number(initialSeconds) || 1);
       duration = total;
       const remaining = Math.max(0, Number(displaySeconds) || 0);
-      position = Math.min(total, Math.max(0, total - remaining)); // elapsed dentro do countdown
+      position = Math.min(total, Math.max(0, total - remaining));
       return { duration, position };
     }
 
-    // free (count up)
     position = Math.max(0, Number(displaySeconds) || 0);
-    duration = Math.max(3600, position + 60); // sempre > position (duração “deslizante”)
+    duration = Math.max(3600, position + 60);
     return { duration, position };
   }, [mode, initialSeconds]);
 
@@ -232,27 +222,281 @@ function SimuladoTimer({
         }
       }
     } catch {}
-  }, [tituloSimulado, mode, computeMediaPositionState]);
+  }, [tituloSimulado, computeMediaPositionState, mode]);
 
-  // --- Controle Play/Pause/Stop vindo da lockscreen / notificação / teclas de mídia ---
+  const clearTimers = useCallback(() => {
+    clearInterval(intervalRef.current);
+    intervalRef.current = null;
+  }, []);
+
+  const handleTimeUp = useCallback(() => {
+    if (timeUpFiredRef.current) return;
+    timeUpFiredRef.current = true;
+
+    if (alarmRef.current) alarmRef.current.play().catch(() => {});
+    safeNotify("Tempo do simulado acabou!", "O cronômetro zerou.");
+  }, []);
+
+  // ✅ render a partir de ms
+  const renderFromElapsedMs = useCallback((elapsedMs) => {
+    const display = msToDisplaySeconds(elapsedMs);
+
+    // só atualiza se mudou o segundo (evita render sem necessidade)
+    if (display !== secondsRef.current) {
+      setSeconds(display);
+      secondsRef.current = display;
+    }
+
+    if (mode === 'countdown' && display <= 0) {
+      handleTimeUp();
+    }
+  }, [msToDisplaySeconds, mode, handleTimeUp]);
+
+  // ✅ LOOP DO TIMER (antes isso tinha sumido, por isso congelou)
+  const startTickLoop = useCallback(() => {
+    clearTimers();
+
+    const tick = () => {
+      if (isPausedRef.current) return;
+
+      const elapsedMsNow = getCurrentElapsedMs();
+      renderFromElapsedMs(elapsedMsNow);
+
+      // persist a cada segundo real (leve)
+      const elapsedSecNow = Math.floor(elapsedMsNow / 1000);
+      if (elapsedSecNow !== lastPersistSecondRef.current) {
+        lastPersistSecondRef.current = elapsedSecNow;
+
+        saveToStorage(false, elapsedMsNow, false);
+        updateExternalStatus(true, secondsRef.current);
+        updateMediaSession(true, secondsRef.current);
+
+        if (mode === 'countdown' && secondsRef.current <= 0) {
+          // cai para pause "timeup"
+          pauseSimuladoRef.current?.('timeup');
+        }
+      }
+    };
+
+    // tick curto pra manter responsivo (sem pulo e sem pesar)
+    tick();
+    intervalRef.current = setInterval(tick, 200);
+  }, [clearTimers, getCurrentElapsedMs, renderFromElapsedMs, saveToStorage, updateExternalStatus, updateMediaSession, mode]);
+
+  // ref pra evitar deps circulares com pauseSimulado
+  const pauseSimuladoRef = useRef(null);
+
+  const postBC = useCallback((payload) => {
+    try {
+      if (!bcRef.current) return;
+      bcRef.current.postMessage({ from: tabIdRef.current, ...payload });
+    } catch {}
+  }, []);
+
+  const safeUpdateFirebase = useCallback(async (isRunning) => {
+    if (!userUid) return;
+
+    const elapsedMsNow = getCurrentElapsedMs();
+    const elapsedSecNow = Math.floor(elapsedMsNow / 1000);
+
+    const payload = {
+      uid: userUid,
+      userName: userName || 'Candidato',
+      photoURL: userPhotoURL || null,
+      titulo: tituloSimulado || 'Simulado Sem Título',
+      disciplinaNome: tituloSimulado || 'Simulado',
+      assunto: 'Prova em Andamento',
+      mode: mode || 'free',
+      initialSeconds: Number(initialSeconds) || 0, // ✅ IMPORTANTE pro dashboard
+      status: isRunning ? 'running' : 'paused',
+
+      secondsSnapshot: Number(secondsRef.current) || 0,
+      elapsedSnapshot: Number(elapsedSecNow) || 0,
+      elapsedMsSnapshot: Number(elapsedMsNow) || 0,
+
+      runStartedAt: isRunning ? serverTimestamp() : null,
+      elapsedAtRunStart: isRunning ? Math.floor((Number(lastLocalElapsedMsAtRunStartRef.current || accumulatedMsRef.current || 0)) / 1000) : null,
+      elapsedMsAtRunStart: isRunning ? Number(lastLocalElapsedMsAtRunStartRef.current || accumulatedMsRef.current || 0) : null,
+
+      updatedBy: tabIdRef.current,
+      updatedAt: serverTimestamp(),
+      heartbeatAt: serverTimestamp(),
+      isSimulado: true,
+      timerType: 'simulado'
+    };
+
+    try {
+      if (simuladoDocRef) await setDoc(simuladoDocRef, payload, { merge: true });
+      if (globalTimerRef) await setDoc(globalTimerRef, payload, { merge: true });
+
+      hasWrittenFirebaseRef.current = true;
+    } catch (e) {
+      console.warn("Firebase Sync ignorado (Permissão ou Rede):", e?.message);
+    }
+  }, [simuladoDocRef, globalTimerRef, userUid, userName, userPhotoURL, tituloSimulado, mode, initialSeconds, getCurrentElapsedMs]);
+
+  const safeRemoveFirebase = useCallback(async () => {
+    try {
+      if (simuladoDocRef) await deleteDoc(simuladoDocRef);
+      if (globalTimerRef) await deleteDoc(globalTimerRef);
+    } catch (e) {
+      console.warn("Erro ao limpar Firebase:", e?.message);
+    }
+  }, [simuladoDocRef, globalTimerRef]);
+
+  // ✅ aplica estado remoto/local por ms sem pulo
+  const applyStateFromElapsedMs = useCallback((nextRunning, nextElapsedMs, source = 'remote') => {
+    const elapsedMs = Math.max(0, Number(nextElapsedMs) || 0);
+
+    clearTimers();
+    accumulatedMsRef.current = elapsedMs;
+
+    if (nextRunning) {
+      startTimeMsRef.current = Date.now();
+      desiredRunningRef.current = true;
+
+      lastLocalRunStartMsRef.current = startTimeMsRef.current;
+      lastLocalElapsedMsAtRunStartRef.current = elapsedMs;
+
+      setIsPaused(false);
+      isPausedRef.current = false;
+
+      if (audioRef.current) audioRef.current.play().catch(() => {});
+      startTickLoop(); // ✅ IMPORTANTE: voltar a “rodar” o display
+    } else {
+      startTimeMsRef.current = null;
+      desiredRunningRef.current = false;
+
+      setIsPaused(true);
+      isPausedRef.current = true;
+
+      if (audioRef.current) audioRef.current.pause();
+    }
+
+    renderFromElapsedMs(elapsedMs);
+    saveToStorage(!nextRunning, elapsedMs, false);
+    updateExternalStatus(nextRunning, secondsRef.current);
+    updateMediaSession(nextRunning, secondsRef.current);
+
+    void source;
+  }, [clearTimers, renderFromElapsedMs, saveToStorage, updateExternalStatus, updateMediaSession, startTickLoop]);
+
+  // BroadcastChannel
+  useEffect(() => {
+    if (!userUid) return;
+
+    const channelName = `ModoQAP:SimuladoBC:${userUid}`;
+    try {
+      bcRef.current = new BroadcastChannel(channelName);
+    } catch {
+      bcRef.current = null;
+    }
+    if (!bcRef.current) return;
+
+    bcRef.current.onmessage = (ev) => {
+      const msg = ev?.data;
+      if (!msg || msg.from === tabIdRef.current) return;
+      if (msg.type !== 'SIMULADO_SYNC') return;
+
+      if (typeof msg.running === 'boolean' && Number.isFinite(Number(msg.elapsedMs))) {
+        applyStateFromElapsedMs(msg.running, Number(msg.elapsedMs), 'bc');
+      }
+
+      if (msg.action === 'CANCEL') {
+        clearTimers();
+        try { localStorage.removeItem(STORAGE_KEY); } catch {}
+        onCancel?.();
+      }
+
+      if (msg.action === 'STOP') {
+        clearTimers();
+        try { localStorage.removeItem(STORAGE_KEY); } catch {}
+        onCancel?.();
+      }
+    };
+
+    return () => {
+      try { bcRef.current?.close?.(); } catch {}
+      bcRef.current = null;
+    };
+  }, [userUid, applyStateFromElapsedMs, STORAGE_KEY, onCancel, clearTimers]);
+
+  // ✅ PAUSE (ms exato)
+  const pauseSimulado = useCallback(async (source = 'user') => {
+    if (isPausedRef.current) return;
+
+    desiredRunningRef.current = false;
+    if (source !== 'watchdog' && source !== 'remote' && source !== 'bc') lastExplicitToggleAtRef.current = Date.now();
+
+    const frozenMs = getCurrentElapsedMs();
+
+    clearTimers();
+    accumulatedMsRef.current = frozenMs;
+    startTimeMsRef.current = null;
+
+    setIsPaused(true);
+    isPausedRef.current = true;
+
+    renderFromElapsedMs(frozenMs);
+    saveToStorage(true, frozenMs, false);
+
+    updateExternalStatus(false, secondsRef.current);
+    updateMediaSession(false, secondsRef.current);
+
+    if (audioRef.current) audioRef.current.pause();
+
+    if (source !== 'bc') postBC({ type: 'SIMULADO_SYNC', running: false, elapsedMs: frozenMs });
+    if (source !== 'remote' && source !== 'bc') await safeUpdateFirebase(false);
+  }, [getCurrentElapsedMs, clearTimers, renderFromElapsedMs, saveToStorage, updateExternalStatus, updateMediaSession, postBC, safeUpdateFirebase]);
+
+  // guarda ref pro tick chamar pause timeup sem deps circulares
+  useEffect(() => { pauseSimuladoRef.current = pauseSimulado; }, [pauseSimulado]);
+
+  // ✅ RESUME (ms exato + tick loop)
+  const resumeSimulado = useCallback(async (source = 'user') => {
+    if (!isPausedRef.current) return;
+    if (mode === 'countdown' && secondsRef.current <= 0) return;
+
+    desiredRunningRef.current = true;
+    if (source !== 'watchdog' && source !== 'remote' && source !== 'bc') lastExplicitToggleAtRef.current = Date.now();
+
+    const baseMs = Math.max(0, Number(accumulatedMsRef.current || 0));
+
+    startTimeMsRef.current = Date.now();
+    lastLocalRunStartMsRef.current = startTimeMsRef.current;
+    lastLocalElapsedMsAtRunStartRef.current = baseMs;
+
+    setIsPaused(false);
+    isPausedRef.current = false;
+
+    if (audioRef.current) audioRef.current.play().catch(() => {});
+
+    startTickLoop(); // ✅ IMPORTANTE: agora o display atualiza
+
+    if (source !== 'bc') postBC({ type: 'SIMULADO_SYNC', running: true, elapsedMs: baseMs });
+    if (source !== 'remote' && source !== 'bc') await safeUpdateFirebase(true);
+
+    updateExternalStatus(true, secondsRef.current);
+    updateMediaSession(true, secondsRef.current);
+  }, [mode, startTickLoop, postBC, safeUpdateFirebase, updateExternalStatus, updateMediaSession]);
+
+  const handleTogglePause = useCallback((source = 'user') => {
+    if (isPausedRef.current) resumeSimulado(source);
+    else pauseSimulado(source);
+  }, [pauseSimulado, resumeSimulado]);
+
   const handleStopRef = useRef(null);
   const handleTogglePauseRef = useRef(null);
+  useEffect(() => { handleTogglePauseRef.current = handleTogglePause; }, [handleTogglePause]);
 
+  // MediaSession
   useEffect(() => {
     if (!('mediaSession' in navigator)) return;
 
     try {
-      navigator.mediaSession.setActionHandler('play', () => {
-        handleTogglePauseRef.current?.('media_play');
-      });
-      navigator.mediaSession.setActionHandler('pause', () => {
-        handleTogglePauseRef.current?.('media_pause');
-      });
-      navigator.mediaSession.setActionHandler('stop', () => {
-        handleStopRef.current?.();
-      });
-
-      // Ignorar seeks (não aplicamos)
+      navigator.mediaSession.setActionHandler('play', () => handleTogglePauseRef.current?.('media_play'));
+      navigator.mediaSession.setActionHandler('pause', () => handleTogglePauseRef.current?.('media_pause'));
+      navigator.mediaSession.setActionHandler('stop', () => handleStopRef.current?.());
       navigator.mediaSession.setActionHandler('seekto', () => {});
       navigator.mediaSession.setActionHandler('seekbackward', () => {});
       navigator.mediaSession.setActionHandler('seekforward', () => {});
@@ -270,105 +514,7 @@ function SimuladoTimer({
     };
   }, []);
 
-  // --- Core: updateDisplay (ELAPSED -> displaySeconds) ---
-  const pauseSimulado = useCallback(async (source = 'user') => {
-    if (isPausedRef.current) return;
-
-    desiredRunningRef.current = false;
-    if (source !== 'watchdog') lastExplicitToggleAtRef.current = Date.now();
-
-    clearInterval(intervalRef.current);
-
-    // “commita” segmento em execução
-    if (startTimeRef.current) {
-      const now = Date.now();
-      const delta = Math.floor((now - startTimeRef.current) / 1000);
-      accumulatedBaseRef.current += Math.max(0, delta);
-      startTimeRef.current = null;
-    }
-
-    setIsPaused(true);
-    isPausedRef.current = true;
-
-    // display depende do modo
-    const elapsed = accumulatedBaseRef.current || 0;
-    if (mode === 'countdown') {
-      const total = Number(initialSeconds) || 0;
-      const remaining = Math.max(0, total - elapsed);
-      setSeconds(remaining);
-      secondsRef.current = remaining;
-      saveToStorage(true, elapsed, false);
-      updateExternalStatus(false, remaining);
-      updateMediaSession(false, remaining);
-    } else {
-      setSeconds(elapsed);
-      secondsRef.current = elapsed;
-      saveToStorage(true, elapsed, false);
-      updateExternalStatus(false, elapsed);
-      updateMediaSession(false, elapsed);
-    }
-
-    if (audioRef.current) audioRef.current.pause();
-    await safeUpdateFirebase(false);
-  }, [mode, initialSeconds, saveToStorage, updateExternalStatus, updateMediaSession, safeUpdateFirebase]);
-
-  const resumeSimulado = useCallback(async (source = 'user') => {
-    if (!isPausedRef.current) return;
-
-    // se countdown já acabou, não retoma
-    if (mode === 'countdown' && secondsRef.current <= 0) return;
-
-    desiredRunningRef.current = true;
-    if (source !== 'watchdog') lastExplicitToggleAtRef.current = Date.now();
-
-    startTimeRef.current = Date.now();
-
-    setIsPaused(false);
-    isPausedRef.current = false;
-
-    if (audioRef.current) audioRef.current.play().catch(() => {});
-    await safeUpdateFirebase(true);
-
-    updateExternalStatus(true, secondsRef.current);
-    updateMediaSession(true, secondsRef.current);
-  }, [mode, safeUpdateFirebase, updateExternalStatus, updateMediaSession]);
-
-  const handleTogglePause = useCallback((source = 'user') => {
-    if (isPausedRef.current) resumeSimulado(source);
-    else pauseSimulado(source);
-  }, [pauseSimulado, resumeSimulado]);
-
-  useEffect(() => { handleTogglePauseRef.current = handleTogglePause; }, [handleTogglePause]);
-
-  const handleTimeUp = useCallback(() => {
-    if (timeUpFiredRef.current) return;
-    timeUpFiredRef.current = true;
-
-    if (alarmRef.current) alarmRef.current.play().catch(() => {});
-    safeNotify("Tempo do simulado acabou!", "O cronômetro zerou.");
-
-    // pausa (isso também atualiza MediaSession + Storage + Firebase)
-    pauseSimulado('timeup');
-  }, [pauseSimulado]);
-
-  const updateDisplayFromElapsed = useCallback((elapsedTotal) => {
-    const elapsed = Math.max(0, Number(elapsedTotal) || 0);
-
-    if (mode === 'countdown') {
-      const total = Number(initialSeconds) || 0;
-      const remaining = Math.max(0, total - elapsed);
-
-      setSeconds(remaining);
-      secondsRef.current = remaining;
-
-      if (remaining <= 0) handleTimeUp();
-    } else {
-      setSeconds(elapsed);
-      secondsRef.current = elapsed;
-    }
-  }, [mode, initialSeconds, handleTimeUp]);
-
-  // --- Setup Inicial & Restore ---
+  // Setup Inicial & Restore
   useEffect(() => {
     audioRef.current = new Audio(WHITE_NOISE_URL);
     audioRef.current.loop = true;
@@ -376,7 +522,6 @@ function SimuladoTimer({
     try { audioRef.current.setAttribute('playsinline', ''); } catch {}
     alarmRef.current = new Audio(ALARM_URL);
 
-    // ✅ Verifica preferência de tema do sistema/app
     if (document.documentElement.classList.contains('dark')) setIsDark(true);
     else setIsDark(false);
 
@@ -392,36 +537,37 @@ function SimuladoTimer({
           const lastTs = Number(data.lastTimestamp) || now;
           const wasPaused = !!data.isPaused;
 
-          // sempre tratamos accumulatedTime como ELAPSED
-          const baseElapsed = Number(data.accumulatedTime) || 0;
-          const deltaSinceClose = wasPaused ? 0 : Math.max(0, Math.floor((now - lastTs) / 1000));
-          const restoredElapsed = baseElapsed + deltaSinceClose;
+          const baseMs = Number.isFinite(Number(data.accumulatedTimeMs))
+            ? Number(data.accumulatedTimeMs)
+            : (Number(data.accumulatedTime) || 0) * 1000;
 
-          accumulatedBaseRef.current = restoredElapsed;
+          const deltaSinceCloseMs = wasPaused ? 0 : Math.max(0, now - lastTs);
+          const restoredMs = Math.max(0, baseMs + deltaSinceCloseMs);
+
+          accumulatedMsRef.current = restoredMs;
 
           if (wasPaused) {
             desiredRunningRef.current = false;
             setIsPaused(true);
             isPausedRef.current = true;
-            startTimeRef.current = null;
+            startTimeMsRef.current = null;
           } else {
             desiredRunningRef.current = true;
             setIsPaused(false);
             isPausedRef.current = false;
-            startTimeRef.current = now;
+
+            startTimeMsRef.current = now;
+            lastLocalRunStartMsRef.current = now;
+            lastLocalElapsedMsAtRunStartRef.current = restoredMs;
+
             audioRef.current.play().catch(() => {});
+            startTickLoop(); // ✅ IMPORTANTE no restore rodando
           }
 
-          // Recalcula display conforme modo
-          updateDisplayFromElapsed(restoredElapsed);
+          renderFromElapsedMs(restoredMs);
 
-          // Atualiza title/media
-          const display = (mode === 'countdown')
-            ? Math.max(0, (Number(initialSeconds) || 0) - restoredElapsed)
-            : restoredElapsed;
-
-          updateExternalStatus(!wasPaused, display);
-          updateMediaSession(!wasPaused, display);
+          updateExternalStatus(!wasPaused, secondsRef.current);
+          updateMediaSession(!wasPaused, secondsRef.current);
 
           safeUpdateFirebase(!wasPaused);
         }
@@ -431,7 +577,7 @@ function SimuladoTimer({
     }
 
     return () => {
-      clearInterval(intervalRef.current);
+      clearTimers();
       if (audioRef.current) audioRef.current.pause();
       if (alarmRef.current) alarmRef.current.pause();
       document.title = originalTitleRef.current;
@@ -445,7 +591,7 @@ function SimuladoTimer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // --- Countdown Inicial (3..2..1) ---
+  // Countdown Inicial (3..2..1)
   useEffect(() => {
     if (!isPreparing) return;
 
@@ -454,13 +600,15 @@ function SimuladoTimer({
       return () => clearTimeout(timer);
     }
 
-    // start
     setIsPreparing(false);
-
     timeUpFiredRef.current = false;
 
-    accumulatedBaseRef.current = 0;
-    startTimeRef.current = Date.now();
+    accumulatedMsRef.current = 0;
+
+    const now = Date.now();
+    startTimeMsRef.current = now;
+    lastLocalRunStartMsRef.current = now;
+    lastLocalElapsedMsAtRunStartRef.current = 0;
 
     desiredRunningRef.current = true;
     lastExplicitToggleAtRef.current = Date.now();
@@ -470,73 +618,38 @@ function SimuladoTimer({
 
     if (audioRef.current) audioRef.current.play().catch(() => {});
 
-    // display inicial
     const displayInitial = mode === 'countdown' ? Number(initialSeconds) || 0 : 0;
     setSeconds(displayInitial);
     secondsRef.current = displayInitial;
 
     saveToStorage(false, 0, false);
+    postBC({ type: 'SIMULADO_SYNC', running: true, elapsedMs: 0 });
     safeUpdateFirebase(true);
 
     updateExternalStatus(true, displayInitial);
     updateMediaSession(true, displayInitial);
-  }, [isPreparing, countdown, mode, initialSeconds, saveToStorage, safeUpdateFirebase, updateExternalStatus, updateMediaSession]);
 
-  // --- Loop do Timer (tick) ---
-  useEffect(() => {
-    if (isPreparing || isPaused) {
-      clearInterval(intervalRef.current);
-      return;
-    }
+    startTickLoop(); // ✅ IMPORTANTE: inicia o tick no start
+  }, [isPreparing, countdown, mode, initialSeconds, saveToStorage, safeUpdateFirebase, updateExternalStatus, updateMediaSession, postBC, startTickLoop]);
 
-    const tick = () => {
-      const now = Date.now();
-      const segStart = startTimeRef.current || now;
-      const deltaSegment = Math.floor((now - segStart) / 1000);
-      const elapsedTotal = (accumulatedBaseRef.current || 0) + Math.max(0, deltaSegment);
-
-      // Atualiza display (remaining ou elapsed)
-      updateDisplayFromElapsed(elapsedTotal);
-
-      // Persistimos sempre ELAPSED no storage
-      saveToStorage(false, elapsedTotal, false);
-
-      // Atualiza title/media de acordo com display
-      const display = (mode === 'countdown')
-        ? Math.max(0, (Number(initialSeconds) || 0) - elapsedTotal)
-        : elapsedTotal;
-
-      updateExternalStatus(true, display);
-      updateMediaSession(true, display);
-    };
-
-    tick();
-    intervalRef.current = setInterval(tick, 1000);
-    return () => clearInterval(intervalRef.current);
-  }, [isPreparing, isPaused, mode, initialSeconds, updateDisplayFromElapsed, saveToStorage, updateExternalStatus, updateMediaSession]);
-
-  // ✅ Heartbeat Firebase (mantém “vivo” no backend)
+  // Heartbeat
   useEffect(() => {
     if (isPreparing) return;
     if (!userUid) return;
 
     const t = setInterval(() => {
-      // só manda heartbeat (merge)
       safeUpdateFirebase(!isPausedRef.current);
     }, 30000);
 
     return () => clearInterval(t);
   }, [isPreparing, userUid, safeUpdateFirebase]);
 
-  // ✅ WATCHDOG: Corrigido para não brigar com o YouTube
+  // Watchdog
   useEffect(() => {
     if (isPreparing) return;
 
     const t = setInterval(() => {
-      // se usuário quer pausado, não mexe
       if (!desiredRunningRef.current) return;
-
-      // se countdown acabou, não mexe
       if (mode === 'countdown' && secondsRef.current <= 0) return;
 
       const sinceToggle = Date.now() - (lastExplicitToggleAtRef.current || 0);
@@ -545,63 +658,170 @@ function SimuladoTimer({
       if (isPausedRef.current) {
         resumeSimulado('watchdog');
       }
-
-      // 🔴 CORREÇÃO: Removido o bloco que forçava audioRef.current.play()
-      // Se o browser/SO pausou o áudio (ex: Youtube), deixamos pausado.
-      // O timer visual continua rodando normalmente.
-
     }, 1500);
 
     return () => clearInterval(t);
   }, [isPreparing, mode, resumeSimulado]);
 
-  // --- HANDLERS STOP/CANCEL (inclui MediaSession) ---
+  // Firestore sync (cross-device)
+  useEffect(() => {
+    if (!simuladoDocRef) return;
+
+    const unsub = onSnapshot(
+      simuladoDocRef,
+      { includeMetadataChanges: true },
+      (snap) => {
+        if (snap.metadata?.hasPendingWrites) return;
+
+        if (!snap.exists()) {
+          const graceMs = 8000;
+          const age = Date.now() - (mountedAtRef.current || Date.now());
+          const canCancelNow = hasEverSeenDocRef.current || hasWrittenFirebaseRef.current || (!isPreparing && age > graceMs);
+          if (!canCancelNow) return;
+
+          clearTimers();
+          try { localStorage.removeItem(STORAGE_KEY); } catch {}
+
+          postBC({ type: 'SIMULADO_SYNC', action: 'CANCEL', running: false, elapsedMs: accumulatedMsRef.current || 0 });
+          onCancel?.();
+          return;
+        }
+
+        hasEverSeenDocRef.current = true;
+
+        const data = snap.data() || {};
+        if (!data.isSimulado && data.timerType !== 'simulado') return;
+        if (data.updatedBy && data.updatedBy === tabIdRef.current) return;
+
+        const sig = JSON.stringify({
+          status: data.status,
+          elapsedMsSnapshot: data.elapsedMsSnapshot,
+          elapsedMsAtRunStart: data.elapsedMsAtRunStart,
+          runStartedAt: data.runStartedAt ? (data.runStartedAt.toMillis ? data.runStartedAt.toMillis() : data.runStartedAt) : null,
+          mode: data.mode,
+          initialSeconds: data.initialSeconds,
+          titulo: data.titulo
+        });
+        if (sig === lastAppliedRemoteSigRef.current) return;
+        lastAppliedRemoteSigRef.current = sig;
+
+        if (isPreparing) {
+          setIsPreparing(false);
+          setCountdown(0);
+        }
+
+        const remoteMode = data.mode || mode;
+        const remoteInitialSeconds = Number(data.initialSeconds ?? initialSeconds) || 0;
+
+        const isRemoteRunning = data.status === 'running';
+
+        let remoteElapsedMs = NaN;
+
+        if (isRemoteRunning && data.runStartedAt?.toMillis && Number.isFinite(Number(data.elapsedMsAtRunStart))) {
+          const runStartedAtMs = data.runStartedAt.toMillis();
+          const deltaMs = Math.max(0, Date.now() - runStartedAtMs);
+          remoteElapsedMs = Math.max(0, Number(data.elapsedMsAtRunStart) + deltaMs);
+        } else if (Number.isFinite(Number(data.elapsedMsSnapshot))) {
+          remoteElapsedMs = Math.max(0, Number(data.elapsedMsSnapshot));
+        } else if (Number.isFinite(Number(data.elapsedSnapshot))) {
+          remoteElapsedMs = Math.max(0, Number(data.elapsedSnapshot) * 1000);
+        } else {
+          const secSnap = Math.max(0, Number(data.secondsSnapshot) || 0);
+          if (remoteMode === 'countdown') {
+            const total = remoteInitialSeconds;
+            const elapsedSec = Math.max(0, total - secSnap);
+            remoteElapsedMs = elapsedSec * 1000;
+          } else {
+            remoteElapsedMs = secSnap * 1000;
+          }
+        }
+
+        const remoteElapsedMsInt = Math.max(0, Math.floor(Number(remoteElapsedMs) || 0));
+        const localElapsedMsNow = getCurrentElapsedMs();
+
+        const sameRunningState = (isRemoteRunning === !isPausedRef.current);
+        const closeEnough = Math.abs(remoteElapsedMsInt - localElapsedMsNow) <= 750;
+
+        // trava anti-jitter local: se eu acabei de dar play, não aceito remoto “adiantar”
+        if (sameRunningState && isRemoteRunning && lastLocalRunStartMsRef.current) {
+          const localDeltaMs = Math.max(0, Date.now() - lastLocalRunStartMsRef.current);
+          const maxAllowed = Math.max(0, Number(lastLocalElapsedMsAtRunStartRef.current || 0) + localDeltaMs);
+
+          if (remoteElapsedMsInt > maxAllowed + 250) {
+            postBC({ type: 'SIMULADO_SYNC', running: true, elapsedMs: Math.min(remoteElapsedMsInt, maxAllowed) });
+            return;
+          }
+        }
+
+        if (sameRunningState && closeEnough) {
+          postBC({ type: 'SIMULADO_SYNC', running: isRemoteRunning, elapsedMs: remoteElapsedMsInt });
+          return;
+        }
+
+        applyStateFromElapsedMs(isRemoteRunning, remoteElapsedMsInt, 'remote');
+        postBC({ type: 'SIMULADO_SYNC', running: isRemoteRunning, elapsedMs: remoteElapsedMsInt });
+
+        void remoteMode;
+        void remoteInitialSeconds;
+      }
+    );
+
+    return () => unsub();
+  }, [
+    simuladoDocRef,
+    STORAGE_KEY,
+    onCancel,
+    isPreparing,
+    mode,
+    initialSeconds,
+    applyStateFromElapsedMs,
+    postBC,
+    clearTimers,
+    getCurrentElapsedMs
+  ]);
+
   const handleStop = useCallback(() => {
     desiredRunningRef.current = false;
 
-    clearInterval(intervalRef.current);
+    clearTimers();
     if (audioRef.current) audioRef.current.pause();
 
-    // computa ELAPSED final
-    let finalElapsed = accumulatedBaseRef.current || 0;
-    if (!isPausedRef.current && startTimeRef.current) {
-      const delta = Math.floor((Date.now() - startTimeRef.current) / 1000);
-      finalElapsed += Math.max(0, delta);
-    }
+    const finalMs = getCurrentElapsedMs();
 
-    // marca finalizado no storage
-    saveToStorage(true, finalElapsed, true);
+    saveToStorage(true, finalMs, true);
+    postBC({ type: 'SIMULADO_SYNC', action: 'STOP', running: false, elapsedMs: finalMs });
 
-    // limpa firebase
     safeRemoveFirebase();
 
-    // atualiza media/title como pausado
+    const finalSec = Math.floor(finalMs / 1000);
     const display = (mode === 'countdown')
-      ? Math.max(0, (Number(initialSeconds) || 0) - finalElapsed)
-      : finalElapsed;
+      ? Math.max(0, (Number(initialSeconds) || 0) - finalSec)
+      : finalSec;
 
     updateExternalStatus(false, display);
     updateMediaSession(false, display);
 
-    // retorna minutos
-    const minutes = Math.max(1, Math.round(finalElapsed / 60));
+    const minutes = Math.max(1, Math.round(finalSec / 60));
     onStop(minutes);
-  }, [mode, initialSeconds, saveToStorage, safeRemoveFirebase, updateExternalStatus, updateMediaSession, onStop]);
+  }, [clearTimers, getCurrentElapsedMs, saveToStorage, postBC, safeRemoveFirebase, mode, initialSeconds, updateExternalStatus, updateMediaSession, onStop]);
 
   useEffect(() => { handleStopRef.current = handleStop; }, [handleStop]);
 
   const handleCancelSession = useCallback(() => {
     desiredRunningRef.current = false;
 
-    clearInterval(intervalRef.current);
+    clearTimers();
     localStorage.removeItem(STORAGE_KEY);
+
+    postBC({ type: 'SIMULADO_SYNC', action: 'CANCEL', running: false, elapsedMs: accumulatedMsRef.current || 0 });
+
     safeRemoveFirebase();
 
     updateExternalStatus(false, secondsRef.current);
     updateMediaSession(false, secondsRef.current);
 
     onCancel();
-  }, [STORAGE_KEY, safeRemoveFirebase, updateExternalStatus, updateMediaSession, onCancel]);
+  }, [clearTimers, STORAGE_KEY, postBC, safeRemoveFirebase, updateExternalStatus, updateMediaSession, onCancel]);
 
   const toggleTheme = () => {
     if (isDark) {
@@ -621,7 +841,7 @@ function SimuladoTimer({
     }
   };
 
-  // --- RENDER: MODO MINIMIZADO ---
+  // --- RENDER: MINIMIZADO ---
   if (isMinimized) {
     const borderColor = isPaused ? '#fbbf24' : themeColor;
     return (
@@ -665,7 +885,7 @@ function SimuladoTimer({
     );
   }
 
-  // --- RENDER: MODO FULL ---
+  // --- RENDER: FULL ---
   return (
     <div className="fixed inset-0 z-[9999] bg-zinc-50 dark:bg-zinc-950 flex flex-col items-center justify-center animate-fade-in overflow-hidden font-sans">
       <ConfirmationModal
@@ -714,7 +934,6 @@ function SimuladoTimer({
               transition={{ duration: 0.5 }}
               className="relative text-[15rem] font-black drop-shadow-2xl"
             >
-              {/* ✅ Efeito de Glow idêntico ao StudyTimer */}
               <div className="absolute inset-0 blur-[100px] rounded-full" style={{ backgroundColor: themeColor, opacity: 0.3 }} />
               <span className="relative z-10 text-zinc-900 dark:text-white">{countdown > 0 ? countdown : "GO!"}</span>
             </motion.div>
@@ -742,13 +961,11 @@ function SimuladoTimer({
         </div>
 
         <div className="relative mb-16 md:mb-20">
-          {/* ✅ Efeito de Blur atrás do cronômetro (estilo StudyTimer) */}
           <div className="absolute -inset-10 blur-[60px] md:blur-[100px] opacity-20 rounded-full transition-colors duration-700" style={{ backgroundColor: isPaused ? '#71717a' : themeColor }}></div>
           <div
             className="text-7xl sm:text-9xl md:text-[12rem] font-mono font-bold leading-none tracking-tighter tabular-nums transition-colors duration-300 select-none drop-shadow-2xl"
             style={{ color: isPaused ? '#a1a1aa' : (mode === 'countdown' && seconds < 600 ? '#ef4444' : '#18181b') }}
           >
-            {/* ✅ Texto branco no dark mode, como pedido */}
             <span className={`${isPaused ? 'text-zinc-400' : (mode === 'countdown' && seconds < 600 ? 'text-red-500 animate-pulse' : 'text-zinc-900 dark:text-white')}`}>
               {formatClock(seconds)}
             </span>
@@ -772,7 +989,7 @@ function SimuladoTimer({
             <span className="mt-2 text-[10px] md:text-sm font-bold uppercase">{isPaused ? 'Retomar' : 'Pausar'}</span>
           </button>
 
-          <button onClick={handleStop} className="group flex flex-col items-center gap-2 text-zinc-400 hover:text-emerald-500 transition-colors">
+          <button onClick={handleStopRef.current || (() => {})} className="group flex flex-col items-center gap-2 text-zinc-400 hover:text-emerald-500 transition-colors">
             <div className="w-14 h-14 rounded-full border-2 border-zinc-200 dark:border-zinc-800 group-hover:border-emerald-500/50 flex items-center justify-center bg-white dark:bg-zinc-900 transition-all shadow-sm">
               <Square size={24} fill="currentColor" />
             </div>

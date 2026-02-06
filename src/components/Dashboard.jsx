@@ -284,14 +284,21 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         if (data.status === 'finished') return;
 
         setActiveSimuladoSession(prev => {
-           if (prev && prev.titulo === data.titulo) return prev;
-           return {
-             titulo: data.titulo,
-             mode: data.mode,
-             initialSeconds: data.initialSeconds || 0,
-             isMinimized: true // Ao syncar, inicia minimizado
-           };
+          const next = {
+            titulo: data.titulo,
+            mode: data.mode,
+            initialSeconds: Number(data.initialSeconds || 0),
+            isMinimized: true
+          };
+          if (
+            prev &&
+            prev.titulo === next.titulo &&
+            prev.mode === next.mode &&
+            Number(prev.initialSeconds || 0) === Number(next.initialSeconds || 0)
+          ) return prev;
+          return next;
         });
+
       } else {
         // Se sumiu do banco, limpa estado local (a menos que esteja no fluxo de conclusão)
         if (!finishedSimuladoData) {
@@ -874,6 +881,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
           onMinimize={() => setActiveSimuladoSession(prev => ({ ...prev, isMinimized: true }))}
           userUid={user.uid}
           userName={user.displayName || 'Candidato'}
+          userPhotoURL={user.photoURL || null}
         />
       )}
 

@@ -1,16 +1,23 @@
+// StudyTimer.jsx
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   Play, Pause, Square, Minimize2, X, AlertTriangle,
   Maximize, Repeat, Coffee, CheckCircle2, Sun, Moon, AlarmClock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import TimerSettingsModal, { useTimerSettings } from './TimerSettingsModal';
-import { doc, setDoc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { useTimerSettings } from './TimerSettingsModal';
+import {
+  doc,
+  setDoc,
+  updateDoc,
+  deleteDoc,
+  serverTimestamp,
+  onSnapshot
+} from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
 
 const WHITE_NOISE_URL = 'https://raw.githubusercontent.com/anars/blank-audio/master/10-minutes-of-silence.mp3';
 const DEFAULT_ALARM_URL = 'https://actions.google.com/sounds/v1/alarms/beep_short.ogg';
-
 const ACTIVE_TIMER_COLLECTION = 'active_timers';
 
 const DEFAULT_SOUNDS = [
@@ -38,7 +45,19 @@ const formatHMFromSeconds = (totalSeconds) => {
   return `${m}m`;
 };
 
-const ConfirmationModal = ({ isOpen, onConfirm, onCancel, title, description, confirmText, isDestructive }) => {
+const rememberJson = (str) => {
+  try { return JSON.parse(str || ''); } catch { return null; }
+};
+
+const ConfirmationModal = ({
+  isOpen,
+  onConfirm,
+  onCancel,
+  title,
+  description,
+  confirmText,
+  isDestructive
+}) => {
   if (!isOpen) return null;
   return (
     <motion.div
@@ -56,10 +75,16 @@ const ConfirmationModal = ({ isOpen, onConfirm, onCancel, title, description, co
           </div>
         </div>
         <div className="mt-6 flex justify-end gap-3">
-          <button onClick={onCancel} className="px-4 py-2 text-sm font-semibold text-zinc-600 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800 rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-700">
+          <button
+            onClick={onCancel}
+            className="px-4 py-2 text-sm font-semibold text-zinc-600 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800 rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-700"
+          >
             Cancelar
           </button>
-          <button onClick={onConfirm} className={`px-4 py-2 text-sm font-bold text-white rounded-lg ${isDestructive ? 'bg-red-600 hover:bg-red-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}>
+          <button
+            onClick={onConfirm}
+            className={`px-4 py-2 text-sm font-bold text-white rounded-lg ${isDestructive ? 'bg-red-600 hover:bg-red-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}
+          >
             {confirmText || 'Confirmar'}
           </button>
         </div>
@@ -82,12 +107,9 @@ function StudyTimer({
   userName,
   userPhotoURL,
 
-  // ===========================
-  // ✅ NOVAS PROPS (SIMULADOS)
-  // ===========================
   variant = 'study', // 'study' | 'simulado'
-  timerMode, // 'free' | 'countdown' (apenas para variant='simulado')
-  countdownSeconds = 0, // apenas para timerMode='countdown'
+  timerMode, // 'free' | 'countdown' (apenas variant='simulado')
+  countdownSeconds = 0, // apenas timerMode='countdown'
   storageKeyOverride,
   activeTimerCollectionOverride,
   activeTimerDocIdOverride,
@@ -95,55 +117,48 @@ function StudyTimer({
 }) {
   const { settings } = useTimerSettings();
 
-  // ✅ STORAGE KEY (override para não conflitar com o timer do dashboard)
+  // ========= IDs / cross-tab =========
+  const tabIdRef = useRef(
+    (() => {
+      try { if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID(); } catch {}
+      return `tab_${Math.random().toString(16).slice(2)}_${Date.now()}`;
+    })()
+  );
+
+  const mountedAtRef = useRef(Date.now());
+  const hasWrittenFirebaseRef = useRef(false);
+  const hasEverSeenDocRef = useRef(false);
+  const bcRef = useRef(null);
+
+  // ========= Storage Key =========
   const STORAGE_KEY = useMemo(() => {
     if (storageKeyOverride) return storageKeyOverride;
     return `@ModoQAP:ActiveSession:${userUid}`;
   }, [storageKeyOverride, userUid]);
 
+  // ========= UI state =========
   const [isPreparing, setIsPreparing] = useState(true);
   const [countdown, setCountdown] = useState(3);
 
-  // seconds = o que aparece no display
   const [seconds, setSeconds] = useState(0);
-
-  // Total de foco acumulado
   const [totalFocusSeconds, setTotalFocusSeconds] = useState(0);
 
   const [isPaused, setIsPaused] = useState(false);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-
   const [isDark, setIsDark] = useState(true);
 
-  // Estados de Controle de Fluxo (pomodoro)
+  // overlays (study)
   const [isPomodoroFinished, setIsPomodoroFinished] = useState(false);
   const [isResting, setIsResting] = useState(false);
   const [isRestFinished, setIsRestFinished] = useState(false);
 
-  const intervalRef = useRef(null);
-  const audioRef = useRef(null);
-  const alarmRef = useRef(null);
-  const originalTitleRef = useRef(document.title);
-
-  // Refs para evitar stale closures
+  // ========= refs (evitar stale) =========
   const secondsRef = useRef(0);
   const isPausedRef = useRef(false);
   const isRestingRef = useRef(false);
   const isPomodoroFinishedRef = useRef(false);
   const isRestFinishedRef = useRef(false);
-
-  const totalFocusRef = useRef(0);
-  const focusBlockElapsedBaseRef = useRef(0);
-  const focusBlockStartRef = useRef(null);
-  const restElapsedBaseRef = useRef(0);
-  const restStartRef = useRef(null);
-
-  // ===========================
-  // ✅ WATCHDOG: intenção do usuário
-  // ===========================
-  const desiredRunningRef = useRef(false);       // “deveria estar rodando?”
-  const lastExplicitToggleAtRef = useRef(0);     // evita watchdog brigar com clique do usuário
 
   useEffect(() => { secondsRef.current = seconds; }, [seconds]);
   useEffect(() => { isPausedRef.current = isPaused; }, [isPaused]);
@@ -151,9 +166,68 @@ function StudyTimer({
   useEffect(() => { isPomodoroFinishedRef.current = isPomodoroFinished; }, [isPomodoroFinished]);
   useEffect(() => { isRestFinishedRef.current = isRestFinished; }, [isRestFinished]);
 
-  // ===========================
-  // ✅ DEFINIÇÃO DO MODO REAL
-  // ===========================
+  // ========= motor =========
+  const intervalRef = useRef(null);
+
+  // foco: acumulado (ms) + start (ms)
+  const focusAccumulatedMsRef = useRef(0);
+  const focusStartMsRef = useRef(null);
+
+  // pomodoro: elapsed do bloco de foco (ms)
+  const focusBlockElapsedBaseMsRef = useRef(0);
+
+  // descanso: elapsed do descanso (ms)
+  const restElapsedBaseMsRef = useRef(0);
+  const restStartMsRef = useRef(null);
+
+  // watchdog: intenção do usuário
+  const desiredRunningRef = useRef(false);
+  const lastExplicitToggleAtRef = useRef(0);
+
+  // anti-jitter local
+  const lastLocalRunStartMsRef = useRef(0);
+  const lastLocalElapsedMsAtRunStartRef = useRef(0);
+
+  // persist leve
+  const lastPersistDisplaySecondRef = useRef(-1);
+
+  // locks de ações
+  const stopInFlightRef = useRef(false);
+  const cancelInFlightRef = useRef(false);
+
+  // ========= audio =========
+  const audioRef = useRef(null);
+  const alarmRef = useRef(null);
+  const originalTitleRef = useRef(document.title);
+
+  // ========= Wake Lock =========
+  const wakeLockRef = useRef(null);
+  const wakeLockWantedRef = useRef(false);
+
+  const requestWakeLock = useCallback(async () => {
+    try {
+      if (!('wakeLock' in navigator)) return;
+      if (!wakeLockWantedRef.current) return;
+      if (wakeLockRef.current) return;
+
+      const lock = await navigator.wakeLock.request('screen');
+      wakeLockRef.current = lock;
+
+      lock.addEventListener('release', () => {
+        wakeLockRef.current = null;
+      });
+    } catch {}
+  }, []);
+
+  const releaseWakeLock = useCallback(async () => {
+    try {
+      wakeLockWantedRef.current = false;
+      if (wakeLockRef.current) await wakeLockRef.current.release();
+    } catch {}
+    wakeLockRef.current = null;
+  }, []);
+
+  // ========= modo efetivo =========
   const effectiveMode = useMemo(() => {
     if (variant === 'simulado') {
       if (timerMode === 'countdown') return 'countdown';
@@ -165,11 +239,14 @@ function StudyTimer({
   const isPomodoro = effectiveMode === 'pomodoro';
   const isCountdown = effectiveMode === 'countdown';
 
-  const themeColor = isResting ? '#3B82F6' : settings.color;
+  const safeCountdownSeconds = useMemo(() => {
+    const n = Number(countdownSeconds) || 0;
+    return Math.max(0, Math.floor(n));
+  }, [countdownSeconds]);
 
-  // ===========================
-  // ✅ Firestore: coleção/doc (override para simulados)
-  // ===========================
+  const themeColor = (variant !== 'simulado' && isResting) ? '#3B82F6' : settings.color;
+
+  // ========= Firestore doc =========
   const activeTimerCollectionName = activeTimerCollectionOverride || ACTIVE_TIMER_COLLECTION;
   const activeTimerDocId = activeTimerDocIdOverride || userUid;
 
@@ -180,132 +257,7 @@ function StudyTimer({
     return doc(db, activeTimerCollectionName, activeTimerDocId);
   }, [userUid, activeTimerCollectionName, activeTimerDocId]);
 
-  const buildActiveTimerPayload = useCallback((extra = {}) => {
-    const phase =
-      isRestFinishedRef.current ? 'rest_finished' :
-        isPomodoroFinishedRef.current ? 'pomodoro_finished' :
-          isRestingRef.current ? 'rest' :
-            'focus';
-
-    const timerTypeLabel =
-      isCountdown ? 'cronometro' :
-        (effectiveMode === 'pomodoro' ? 'pomodoro' : 'livre');
-
-    return {
-      uid: userUid || null,
-      userName: userName || 'Estudante',
-      userPhotoURL: userPhotoURL || null,
-
-      disciplinaId: disciplina?.id || null,
-      disciplinaNome: disciplina?.nome || '',
-      assunto: assunto ?? null,
-
-      timerType: timerTypeLabel,
-      mode: effectiveMode,
-
-      phase,
-      isPaused: !!isPausedRef.current,
-      isResting: !!isRestingRef.current,
-
-      displaySecondsSnapshot: Number(secondsRef.current || 0),
-      snapshotAt: serverTimestamp(),
-
-      updatedAt: serverTimestamp(),
-      heartbeatAt: serverTimestamp(),
-
-      ...extra,
-    };
-  }, [
-    userUid, userName, userPhotoURL,
-    disciplina?.id, disciplina?.nome,
-    assunto,
-    effectiveMode,
-    isCountdown
-  ]);
-
-  const upsertActiveTimer = useCallback(async (extra = {}, { merge = true } = {}) => {
-    if (!activeTimerDocRef) return;
-    try {
-      const payload = buildActiveTimerPayload(extra);
-      await setDoc(activeTimerDocRef, payload, { merge });
-    } catch (e) {
-      console.error('active_timers upsert error:', e);
-    }
-  }, [activeTimerDocRef, buildActiveTimerPayload]);
-
-  const patchActiveTimer = useCallback(async (extra = {}, opts = {}) => {
-    if (!activeTimerDocRef) return;
-
-    const {
-      includeSnapshot = true,
-      touchUpdatedAt = true,
-      touchHeartbeat = true,
-    } = opts;
-
-    const patch = {
-      ...extra,
-      ...(includeSnapshot ? {
-        displaySecondsSnapshot: Number(secondsRef.current || 0),
-        snapshotAt: serverTimestamp(),
-      } : {}),
-      ...(touchUpdatedAt ? { updatedAt: serverTimestamp() } : {}),
-      ...(touchHeartbeat ? { heartbeatAt: serverTimestamp() } : {}),
-    };
-
-    try {
-      await updateDoc(activeTimerDocRef, patch);
-    } catch (e) {
-      await upsertActiveTimer(patch, { merge: true });
-    }
-  }, [activeTimerDocRef, upsertActiveTimer]);
-
-  const removeActiveTimer = useCallback(async () => {
-    if (!activeTimerDocRef) return;
-    try {
-      await deleteDoc(activeTimerDocRef);
-    } catch { }
-  }, [activeTimerDocRef]);
-
-  useEffect(() => {
-    if (!activeTimerDocRef) return;
-    if (isPreparing) return;
-
-    const t = setInterval(() => {
-      patchActiveTimer({}, { includeSnapshot: false, touchUpdatedAt: true, touchHeartbeat: true });
-    }, 30000);
-
-    return () => clearInterval(t);
-  }, [activeTimerDocRef, isPreparing, patchActiveTimer]);
-
-  useEffect(() => {
-    if (document.documentElement.classList.contains('dark')) setIsDark(true);
-    else setIsDark(false);
-  }, []);
-
-  const toggleTheme = () => {
-    if (isDark) {
-      document.documentElement.classList.remove('dark');
-      setIsDark(false);
-    } else {
-      document.documentElement.classList.add('dark');
-      setIsDark(true);
-    }
-  };
-
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => { });
-    } else {
-      document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => { });
-    }
-  };
-
-  const getSoundUrl = useCallback(() => {
-    if (settings.soundType === 'custom' && settings.customSoundUrl) return settings.customSoundUrl;
-    const sound = DEFAULT_SOUNDS.find(s => s.id === settings.selectedSoundId) || DEFAULT_SOUNDS[0];
-    return sound.url;
-  }, [settings.soundType, settings.customSoundUrl, settings.selectedSoundId]);
-
+  // ========= helpers =========
   const safeNotify = (title, body) => {
     try {
       if (!('Notification' in window)) return;
@@ -314,10 +266,113 @@ function StudyTimer({
       } else if (Notification.permission !== 'denied') {
         Notification.requestPermission().then((p) => {
           if (p === 'granted') new Notification(title, { body });
-        }).catch(() => { });
+        }).catch(() => {});
       }
-    } catch { }
+    } catch {}
   };
+
+  const getSoundUrl = useCallback(() => {
+    if (settings.soundType === 'custom' && settings.customSoundUrl) return settings.customSoundUrl;
+    const sound = DEFAULT_SOUNDS.find(s => s.id === settings.selectedSoundId) || DEFAULT_SOUNDS[0];
+    return sound.url;
+  }, [settings.soundType, settings.customSoundUrl, settings.selectedSoundId]);
+
+  // ========= fechar overlays em qualquer aba/dispositivo (correção do seu bug) =========
+  const closeAllOverlaysLocal = useCallback(() => {
+    setIsCancelModalOpen(false);
+
+    if (variant !== 'simulado') {
+      if (isPomodoroFinishedRef.current) { setIsPomodoroFinished(false); isPomodoroFinishedRef.current = false; }
+      if (isRestFinishedRef.current) { setIsRestFinished(false); isRestFinishedRef.current = false; }
+    }
+  }, [variant]);
+
+  // ========= ms -> display seconds =========
+  const getCurrentFocusElapsedMs = useCallback(() => {
+    let ms = Number(focusAccumulatedMsRef.current || 0);
+    if (!isPausedRef.current && focusStartMsRef.current) {
+      ms += Math.max(0, Date.now() - focusStartMsRef.current);
+    }
+    return Math.max(0, ms);
+  }, []);
+
+  const getCurrentRestElapsedMs = useCallback(() => {
+    let ms = Number(restElapsedBaseMsRef.current || 0);
+    if (!isPausedRef.current && restStartMsRef.current) {
+      ms += Math.max(0, Date.now() - restStartMsRef.current);
+    }
+    return Math.max(0, ms);
+  }, []);
+
+  const getCurrentPomodoroBlockElapsedMs = useCallback(() => {
+    let ms = Number(focusBlockElapsedBaseMsRef.current || 0);
+    if (!isPausedRef.current && focusStartMsRef.current) {
+      ms += Math.max(0, Date.now() - focusStartMsRef.current);
+    }
+    return Math.max(0, ms);
+  }, []);
+
+  const getDisplaySecondsFromCurrentState = useCallback(() => {
+    if (variant !== 'simulado' && isRestFinishedRef.current) return 0;
+    if (variant !== 'simulado' && isPomodoroFinishedRef.current && !isRestingRef.current) return 0;
+
+    if (effectiveMode === 'countdown') {
+      const totalMs = Math.max(0, safeCountdownSeconds * 1000);
+      const elapsedMs = getCurrentFocusElapsedMs();
+      const remainingMs = Math.max(0, totalMs - elapsedMs);
+      return Math.floor(remainingMs / 1000);
+    }
+
+    if (variant !== 'simulado' && isRestingRef.current) {
+      const durationMs = Math.max(1, Number(settings.restTime || 1) * 60 * 1000);
+      const elapsedMs = getCurrentRestElapsedMs();
+      const remainingMs = Math.max(0, durationMs - elapsedMs);
+      return Math.floor(remainingMs / 1000);
+    }
+
+    if (effectiveMode === 'pomodoro' && variant !== 'simulado') {
+      const durationMs = Math.max(1, Number(settings.pomodoroTime || 1) * 60 * 1000);
+      const elapsedMs = getCurrentPomodoroBlockElapsedMs();
+      const remainingMs = Math.max(0, durationMs - elapsedMs);
+      return Math.floor(remainingMs / 1000);
+    }
+
+    const elapsedMs = getCurrentFocusElapsedMs();
+    return Math.floor(elapsedMs / 1000);
+  }, [
+    effectiveMode,
+    variant,
+    safeCountdownSeconds,
+    settings.restTime,
+    settings.pomodoroTime,
+    getCurrentFocusElapsedMs,
+    getCurrentRestElapsedMs,
+    getCurrentPomodoroBlockElapsedMs
+  ]);
+
+  const setSecondsIfChanged = useCallback((nextSeconds) => {
+    const safe = Math.max(0, Number(nextSeconds) || 0);
+    if (safe !== secondsRef.current) {
+      secondsRef.current = safe;
+      setSeconds(safe);
+    }
+  }, []);
+
+  // ========= title + media session =========
+  const restoreDocumentTitle = useCallback(() => {
+    try { document.title = originalTitleRef.current || 'ModoQAP'; } catch {}
+  }, []);
+
+  const clearMediaSession = useCallback(() => {
+    try {
+      if (!('mediaSession' in navigator)) return;
+      navigator.mediaSession.playbackState = "none";
+      if ('setPositionState' in navigator.mediaSession) {
+        try { navigator.mediaSession.setPositionState(null); } catch {}
+      }
+      try { navigator.mediaSession.metadata = null; } catch {}
+    } catch {}
+  }, []);
 
   const updateExternalStatus = useCallback((isRunning, displaySeconds) => {
     const timeString = formatClock(displaySeconds);
@@ -335,18 +390,12 @@ function StudyTimer({
     document.title = `${prefix}: ${timeString} - ${(disciplina?.nome || 'Disciplina')}`;
   }, [disciplina?.nome, settings.mode, variant]);
 
-  // ===========================
-  // ✅ MEDIA SESSION: metadata + position (lockscreen/notificação)
-  // ===========================
   const computeMediaPositionState = useCallback((displaySeconds) => {
-    // Queremos um “progress bar” que continue contando mesmo em background.
-    // Para countdown/pomodoro/rest: duration é fixo e position sobe (elapsed).
-    // Para free: duration cresce conforme o tempo passa.
     let duration = 60;
     let position = 0;
 
     if (effectiveMode === 'countdown') {
-      const total = Math.max(1, Number(countdownSeconds) || 1);
+      const total = Math.max(1, safeCountdownSeconds || 1);
       duration = total;
       const remaining = Math.max(0, Number(displaySeconds) || 0);
       position = Math.min(total, Math.max(0, total - remaining));
@@ -369,16 +418,17 @@ function StudyTimer({
       return { duration, position };
     }
 
-    // free (count up)
     position = Math.max(0, Number(displaySeconds) || 0);
-    duration = Math.max(3600, position + 60); // sempre > position
+    duration = Math.max(3600, position + 60);
     return { duration, position };
-  }, [effectiveMode, variant, settings.restTime, settings.pomodoroTime, countdownSeconds]);
+  }, [effectiveMode, variant, settings.restTime, settings.pomodoroTime, safeCountdownSeconds]);
 
   const updateMediaSession = useCallback((isRunning, displaySeconds) => {
     if (!('mediaSession' in navigator)) return;
     try {
-      const mainTitle = assunto ? `${disciplina?.nome || 'Disciplina'} • ${assunto}` : (disciplina?.nome || 'Disciplina');
+      const mainTitle = assunto
+        ? `${disciplina?.nome || 'Disciplina'} • ${assunto}`
+        : (disciplina?.nome || 'Disciplina');
 
       let contextLabel = 'Estudando';
       if (variant === 'simulado') contextLabel = 'Simulado';
@@ -386,7 +436,6 @@ function StudyTimer({
       else if (isRestingRef.current) contextLabel = 'Descansando';
       else if (settings.mode === 'pomodoro') contextLabel = 'Foco';
 
-      // Linha de status (muitos SOs mostram isso na notificação/lockscreen)
       const timerLine = `${contextLabel} • ${formatClock(displaySeconds)}`;
 
       navigator.mediaSession.metadata = new MediaMetadata({
@@ -398,352 +447,526 @@ function StudyTimer({
 
       navigator.mediaSession.playbackState = isRunning ? "playing" : "paused";
 
-      // position state (progress + “continua contando” em alguns lockscreens)
       if ('setPositionState' in navigator.mediaSession) {
         const { duration, position } = computeMediaPositionState(displaySeconds);
-
-        // playbackRate > 0 é o ideal quando rodando.
-        // Em pause, tentamos playbackRate=0 (muitos browsers aceitam).
         const playbackRate = isRunning ? 1 : 0;
 
         try {
           navigator.mediaSession.setPositionState({ duration, position, playbackRate });
-        } catch (e) {
-          // fallback: se algum browser rejeitar playbackRate=0
+        } catch {
           try {
             if (!isRunning) navigator.mediaSession.setPositionState(null);
             else navigator.mediaSession.setPositionState({ duration, position, playbackRate: 1 });
-          } catch { }
+          } catch {}
         }
       }
-    } catch { }
-  }, [assunto, disciplina?.nome, settings.mode, settings.pomodoroTime, variant, computeMediaPositionState]);
+    } catch {}
+  }, [assunto, disciplina?.nome, settings.mode, variant, computeMediaPositionState]);
 
-  // ✅ handlers Play/Pause/Stop para barra de notificação / lockscreen / media keys
-  useEffect(() => {
-    if (!('mediaSession' in navigator)) return;
-
+  // ========= broadcast channel =========
+  const postBC = useCallback((payload) => {
     try {
-      navigator.mediaSession.setActionHandler('play', () => {
-        // play vindo do SO
-        handleTogglePauseRef.current?.('media_play');
-      });
-      navigator.mediaSession.setActionHandler('pause', () => {
-        handleTogglePauseRef.current?.('media_pause');
-      });
-      navigator.mediaSession.setActionHandler('stop', () => {
-        handleStopRef.current?.();
-      });
-
-      // alguns SOs mostram seek: opcional (não mudamos tempo do timer, só ignoramos)
-      navigator.mediaSession.setActionHandler('seekto', () => { });
-      navigator.mediaSession.setActionHandler('seekbackward', () => { });
-      navigator.mediaSession.setActionHandler('seekforward', () => { });
-    } catch { }
-
-    return () => {
-      try {
-        navigator.mediaSession.setActionHandler('play', null);
-        navigator.mediaSession.setActionHandler('pause', null);
-        navigator.mediaSession.setActionHandler('stop', null);
-        navigator.mediaSession.setActionHandler('seekto', null);
-        navigator.mediaSession.setActionHandler('seekbackward', null);
-        navigator.mediaSession.setActionHandler('seekforward', null);
-      } catch { }
-    };
+      if (!bcRef.current) return;
+      bcRef.current.postMessage({ from: tabIdRef.current, ...payload });
+    } catch {}
   }, []);
 
-  // ===========================
-  // ✅ Storage helpers (mantém compatível)
-  // ===========================
+  useEffect(() => {
+    if (!userUid) return;
+
+    const channelName = `ModoQAP:StudyTimerBC:${userUid}:${activeTimerCollectionName || 'active_timers'}:${activeTimerDocId || userUid}`;
+    try {
+      bcRef.current = new BroadcastChannel(channelName);
+    } catch {
+      bcRef.current = null;
+    }
+
+    if (!bcRef.current) return;
+
+    return () => {
+      try { bcRef.current?.close?.(); } catch {}
+      bcRef.current = null;
+    };
+  }, [userUid, activeTimerCollectionName, activeTimerDocId]);
+
+  // ========= storage =========
   const saveToStorage = useCallback((payload) => {
     const currentStorage = rememberJson(localStorage.getItem(STORAGE_KEY)) || {};
     if (currentStorage.isFinishing) return;
 
     const data = {
       ...currentStorage,
-      schemaVersion: 3,
+      schemaVersion: 4,
 
       disciplinaId: disciplina?.id,
       disciplinaNome: disciplina?.nome,
       assunto: assunto ?? null,
 
-      // ✅ mode agora pode ser 'countdown'
+      variant,
       mode: effectiveMode,
 
-      // pomodoro/rest
-      pomodoroDuration: settings.pomodoroTime * 60,
-      restDuration: settings.restTime * 60,
-
-      // countdown
-      countdownSeconds: isCountdown ? Number(countdownSeconds) : 0,
+      pomodoroDuration: Number(settings.pomodoroTime || 0) * 60,
+      restDuration: Number(settings.restTime || 0) * 60,
+      countdownSeconds: isCountdown ? Number(safeCountdownSeconds) : 0,
 
       isPaused: !!payload.isPaused,
       isResting: !!payload.isResting,
       pomodoroBlockFinished: !!payload.pomodoroBlockFinished,
       restFinished: !!payload.restFinished,
 
-      totalFocusSeconds: Number(payload.totalFocusSeconds) || 0,
-      focusBlockElapsedSeconds: Number(payload.focusBlockElapsedSeconds) || 0,
-      restElapsedSeconds: Number(payload.restElapsedSeconds) || 0,
-
-      // countdown elapsed base
-      countdownElapsedSeconds: Number(payload.countdownElapsedSeconds) || 0,
+      focusAccumulatedMs: Math.max(0, Number(payload.focusAccumulatedMs) || 0),
+      focusBlockElapsedBaseMs: Math.max(0, Number(payload.focusBlockElapsedBaseMs) || 0),
+      restElapsedBaseMs: Math.max(0, Number(payload.restElapsedBaseMs) || 0),
 
       lastTimestamp: Number(payload.lastTimestamp) || Date.now(),
     };
 
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   }, [
-    disciplina, assunto,
+    STORAGE_KEY,
+    disciplina?.id, disciplina?.nome, assunto,
+    variant,
     effectiveMode,
     settings.pomodoroTime, settings.restTime,
-    STORAGE_KEY,
-    isCountdown,
-    countdownSeconds
+    isCountdown, safeCountdownSeconds
   ]);
 
-  function rememberJson(str) {
-    try { return JSON.parse(str || ''); } catch { return null; }
-  }
-
-  const getPomodoroRunningDeltaSeconds = useCallback(() => {
-    const start = focusBlockStartRef.current;
-    if (!start) return 0;
-    const duration = settings.pomodoroTime * 60;
-    const elapsedBase = focusBlockElapsedBaseRef.current || 0;
-    const raw = Math.floor((Date.now() - start) / 1000);
-    const remainingInBlock = Math.max(0, duration - elapsedBase);
-    return Math.max(0, Math.min(remainingInBlock, raw));
-  }, [settings.pomodoroTime]);
-
-  const getFreeRunningDeltaSeconds = useCallback(() => {
-    const start = focusBlockStartRef.current;
-    if (!start) return 0;
-    const raw = Math.floor((Date.now() - start) / 1000);
-    return Math.max(0, raw);
-  }, []);
-
-  // ✅ Countdown delta (elapsed desde start)
-  const getCountdownRunningDeltaSeconds = useCallback(() => {
-    const start = focusBlockStartRef.current;
-    if (!start) return 0;
-    const raw = Math.floor((Date.now() - start) / 1000);
-    return Math.max(0, raw);
-  }, []);
-
-  const getRestRunningDeltaSeconds = useCallback(() => {
-    const start = restStartRef.current;
-    if (!start) return 0;
-    const duration = settings.restTime * 60;
-    const elapsedBase = restElapsedBaseRef.current || 0;
-    const raw = Math.floor((Date.now() - start) / 1000);
-    const remaining = Math.max(0, duration - elapsedBase);
-    return Math.max(0, Math.min(remaining, raw));
-  }, [settings.restTime]);
-
-  const commitFocusSegment = useCallback(() => {
-    if (effectiveMode === 'pomodoro') {
-      const delta = getPomodoroRunningDeltaSeconds();
-      if (delta <= 0) return;
-      focusBlockElapsedBaseRef.current = (focusBlockElapsedBaseRef.current || 0) + delta;
-      totalFocusRef.current = (totalFocusRef.current || 0) + delta;
-      setTotalFocusSeconds(totalFocusRef.current);
-      focusBlockStartRef.current = null;
-      return;
-    }
-
-    if (effectiveMode === 'countdown') {
-      const delta = getCountdownRunningDeltaSeconds();
-      if (delta <= 0) return;
-      totalFocusRef.current = (totalFocusRef.current || 0) + delta;
-      setTotalFocusSeconds(totalFocusRef.current);
-      focusBlockStartRef.current = null;
-      return;
-    }
-
-    const delta = getFreeRunningDeltaSeconds();
-    if (delta <= 0) return;
-    totalFocusRef.current = (totalFocusRef.current || 0) + delta;
-    setTotalFocusSeconds(totalFocusRef.current);
-    focusBlockStartRef.current = null;
-  }, [
-    effectiveMode,
-    getPomodoroRunningDeltaSeconds,
-    getFreeRunningDeltaSeconds,
-    getCountdownRunningDeltaSeconds
-  ]);
-
-  const commitRestSegment = useCallback(() => {
-    const delta = getRestRunningDeltaSeconds();
-    if (delta <= 0) return;
-    restElapsedBaseRef.current = (restElapsedBaseRef.current || 0) + delta;
-    restStartRef.current = null;
-  }, [getRestRunningDeltaSeconds]);
-
-  // refs para action handlers (evitar stale)
-  const handleStopRef = useRef(null);
-  const handleTogglePauseRef = useRef(null);
-
-  const pauseTimer = useCallback((opts = {}) => {
-    const source = opts.source || 'user';
-
-    // simulado não usa pomodoro/rest
-    if (variant !== 'simulado') {
-      if (isRestFinishedRef.current) return;
-      if (isPomodoroFinishedRef.current && !isRestingRef.current) return;
-    }
-
-    if (isPausedRef.current) return;
-
-    // intenção do usuário: pausar
-    desiredRunningRef.current = false;
-    if (source !== 'watchdog') lastExplicitToggleAtRef.current = Date.now();
-
+  // ========= tick loop =========
+  const clearTick = useCallback(() => {
     clearInterval(intervalRef.current);
+    intervalRef.current = null;
+  }, []);
 
-    // countdown/free/pomodoro
-    if (variant !== 'simulado' && isRestingRef.current) {
-      commitRestSegment();
-      const duration = settings.restTime * 60;
-      const remaining = Math.max(0, duration - (restElapsedBaseRef.current || 0));
-      secondsRef.current = remaining;
-      setSeconds(remaining);
+  // ========= Firestore payload / upsert / patch =========
+  const buildActiveTimerPayload = useCallback((extra = {}) => {
+    const phase =
+      (variant !== 'simulado' && isRestFinishedRef.current) ? 'rest_finished'
+        : (variant !== 'simulado' && isPomodoroFinishedRef.current) ? 'pomodoro_finished'
+          : (variant !== 'simulado' && isRestingRef.current) ? 'rest'
+            : 'focus';
+
+    const timerTypeLabel =
+      isCountdown ? 'cronometro'
+        : (effectiveMode === 'pomodoro' ? 'pomodoro' : 'livre');
+
+    const nowFocusElapsedMs = getCurrentFocusElapsedMs();
+    const nowRestElapsedMs = getCurrentRestElapsedMs();
+    const nowPomoElapsedMs = getCurrentPomodoroBlockElapsedMs();
+
+    // 🔒 uiOverlay: garante “fecha overlay” cross-aba/dispositivo
+    // - none quando rodando/pausado normal
+    // - pomodoro_finished/rest_finished quando exibindo telas finais
+    const uiOverlay =
+      (variant !== 'simulado' && isRestFinishedRef.current) ? 'rest_finished'
+        : (variant !== 'simulado' && isPomodoroFinishedRef.current) ? 'pomodoro_finished'
+          : (isCancelModalOpen ? 'cancel_confirm' : 'none');
+
+    return {
+      uid: userUid || null,
+      userName: userName || 'Estudante',
+      userPhotoURL: userPhotoURL || null,
+
+      disciplinaId: disciplina?.id || null,
+      disciplinaNome: disciplina?.nome || '',
+      assunto: assunto ?? null,
+
+      timerType: timerTypeLabel,
+      mode: effectiveMode,
+      variant: variant || 'study',
+
+      phase,
+      uiOverlay,
+
+      isPaused: !!isPausedRef.current,
+      isResting: !!isRestingRef.current,
+
+      displaySecondsSnapshot: Number(secondsRef.current || 0),
+      snapshotAt: serverTimestamp(),
+
+      focusElapsedMsSnapshot: Number(nowFocusElapsedMs || 0),
+      restElapsedMsSnapshot: Number(nowRestElapsedMs || 0),
+      pomodoroElapsedMsSnapshot: Number(nowPomoElapsedMs || 0),
+
+      status: isPausedRef.current ? 'paused' : 'running',
+      runStartedAt: (!isPausedRef.current) ? serverTimestamp() : null,
+
+      elapsedMsAtRunStart: (!isPausedRef.current)
+        ? (variant !== 'simulado' && isRestingRef.current)
+          ? Number(restElapsedBaseMsRef.current || 0)
+          : (effectiveMode === 'pomodoro' && variant !== 'simulado')
+            ? Number(focusBlockElapsedBaseMsRef.current || 0)
+            : Number(focusAccumulatedMsRef.current || 0)
+        : null,
+
+      countdownSeconds: isCountdown ? Number(safeCountdownSeconds || 0) : 0,
+      pomodoroSeconds: Number(settings.pomodoroTime || 0) * 60,
+      restSeconds: Number(settings.restTime || 0) * 60,
+
+      updatedBy: tabIdRef.current,
+      updatedAt: serverTimestamp(),
+      heartbeatAt: serverTimestamp(),
+
+      ...extra,
+    };
+  }, [
+    userUid, userName, userPhotoURL,
+    disciplina?.id, disciplina?.nome, assunto,
+    effectiveMode, variant, isCountdown, safeCountdownSeconds,
+    settings.pomodoroTime, settings.restTime,
+    getCurrentFocusElapsedMs, getCurrentRestElapsedMs, getCurrentPomodoroBlockElapsedMs,
+    isCancelModalOpen
+  ]);
+
+  const upsertActiveTimer = useCallback(async (extra = {}, { merge = true } = {}) => {
+    if (!activeTimerDocRef) return;
+    try {
+      const payload = buildActiveTimerPayload(extra);
+      await setDoc(activeTimerDocRef, payload, { merge });
+      hasWrittenFirebaseRef.current = true;
+    } catch (e) {
+      console.error('active_timers upsert error:', e);
+    }
+  }, [activeTimerDocRef, buildActiveTimerPayload]);
+
+  const patchActiveTimer = useCallback(async (extra = {}, opts = {}) => {
+    if (!activeTimerDocRef) return;
+
+    const {
+      includeSnapshot = true,
+      touchUpdatedAt = true,
+      touchHeartbeat = true,
+    } = opts;
+
+    const patch = {
+      ...extra,
+      ...(includeSnapshot ? {
+        displaySecondsSnapshot: Number(secondsRef.current || 0),
+        snapshotAt: serverTimestamp(),
+        focusElapsedMsSnapshot: Number(getCurrentFocusElapsedMs() || 0),
+        restElapsedMsSnapshot: Number(getCurrentRestElapsedMs() || 0),
+        pomodoroElapsedMsSnapshot: Number(getCurrentPomodoroBlockElapsedMs() || 0),
+      } : {}),
+      ...(touchUpdatedAt ? { updatedAt: serverTimestamp() } : {}),
+      ...(touchHeartbeat ? { heartbeatAt: serverTimestamp() } : {}),
+    };
+
+    try {
+      await updateDoc(activeTimerDocRef, patch);
+      hasWrittenFirebaseRef.current = true;
+    } catch {
+      await upsertActiveTimer(patch, { merge: true });
+    }
+  }, [activeTimerDocRef, upsertActiveTimer, getCurrentFocusElapsedMs, getCurrentRestElapsedMs, getCurrentPomodoroBlockElapsedMs]);
+
+  const removeActiveTimer = useCallback(async () => {
+    if (!activeTimerDocRef) return;
+    try { await deleteDoc(activeTimerDocRef); } catch {}
+  }, [activeTimerDocRef]);
+
+  // ========= heartbeat =========
+  useEffect(() => {
+    if (!activeTimerDocRef) return;
+    if (isPreparing) return;
+
+    const t = setInterval(() => {
+      patchActiveTimer({}, { includeSnapshot: false, touchUpdatedAt: true, touchHeartbeat: true });
+    }, 30000);
+
+    return () => clearInterval(t);
+  }, [activeTimerDocRef, isPreparing, patchActiveTimer]);
+
+  // ========= theme init =========
+  useEffect(() => {
+    if (document.documentElement.classList.contains('dark')) setIsDark(true);
+    else setIsDark(false);
+  }, []);
+
+  const toggleTheme = () => {
+    if (isDark) {
+      document.documentElement.classList.remove('dark');
+      setIsDark(false);
     } else {
-      commitFocusSegment();
+      document.documentElement.classList.add('dark');
+      setIsDark(true);
+    }
+  };
 
-      if (effectiveMode === 'pomodoro') {
-        const duration = settings.pomodoroTime * 60;
-        const remaining = Math.max(0, duration - (focusBlockElapsedBaseRef.current || 0));
-        secondsRef.current = remaining;
-        setSeconds(remaining);
-      } else if (effectiveMode === 'countdown') {
-        // remaining já está em secondsRef
-        secondsRef.current = Number(secondsRef.current || 0);
-        setSeconds(secondsRef.current);
-      } else {
-        secondsRef.current = totalFocusRef.current || 0;
-        setSeconds(secondsRef.current);
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {});
+    } else {
+      document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {});
+    }
+  };
+
+  // ========= exportLocalStateForSync =========
+  const exportLocalStateForSync = useCallback(() => {
+    const focusElapsedMs = getCurrentFocusElapsedMs();
+    const restElapsedMs = getCurrentRestElapsedMs();
+    const pomoElapsedMs = getCurrentPomodoroBlockElapsedMs();
+
+    const uiOverlay =
+      (variant !== 'simulado' && isRestFinishedRef.current) ? 'rest_finished'
+        : (variant !== 'simulado' && isPomodoroFinishedRef.current) ? 'pomodoro_finished'
+          : (isCancelModalOpen ? 'cancel_confirm' : 'none');
+
+    return {
+      variant,
+      mode: effectiveMode,
+      isPaused: !!isPausedRef.current,
+      isResting: !!isRestingRef.current,
+      isPomodoroFinished: !!isPomodoroFinishedRef.current,
+      isRestFinished: !!isRestFinishedRef.current,
+      focusElapsedMs,
+      restElapsedMs,
+      pomodoroElapsedMs: pomoElapsedMs,
+      countdownSeconds: isCountdown ? Number(safeCountdownSeconds || 0) : 0,
+      uiOverlay,
+      updatedBy: tabIdRef.current,
+      ts: Date.now(),
+    };
+  }, [
+    variant,
+    effectiveMode,
+    isCountdown,
+    safeCountdownSeconds,
+    getCurrentFocusElapsedMs,
+    getCurrentRestElapsedMs,
+    getCurrentPomodoroBlockElapsedMs,
+    isCancelModalOpen
+  ]);
+
+  // ========= STOP/CANCEL helpers =========
+  const cleanupAndCancel = useCallback(async (source = 'local') => {
+    if (cancelInFlightRef.current) return;
+    cancelInFlightRef.current = true;
+
+    desiredRunningRef.current = false;
+
+    clearTick();
+    try { audioRef.current?.pause?.(); } catch {}
+    try { alarmRef.current?.pause?.(); } catch {}
+
+    await releaseWakeLock();
+
+    try { localStorage.removeItem(STORAGE_KEY); } catch {}
+    await removeActiveTimer();
+
+    restoreDocumentTitle();
+    clearMediaSession();
+
+    if (source !== 'bc') postBC({ type: 'TIMER_ACTION', action: 'CANCEL' });
+
+    onCancel?.();
+
+    setTimeout(() => { cancelInFlightRef.current = false; }, 250);
+  }, [
+    STORAGE_KEY,
+    clearTick,
+    removeActiveTimer,
+    postBC,
+    onCancel,
+    releaseWakeLock,
+    restoreDocumentTitle,
+    clearMediaSession
+  ]);
+
+  const handleStopInternal = useCallback(async (reason = 'user') => {
+    if (stopInFlightRef.current) return;
+    stopInFlightRef.current = true;
+
+    desiredRunningRef.current = false;
+
+    clearTick();
+    try { audioRef.current?.pause?.(); } catch {}
+    try { alarmRef.current?.pause?.(); } catch {}
+
+    await releaseWakeLock();
+
+    const now = Date.now();
+
+    if (variant !== 'simulado' && isRestingRef.current) {
+      if (restStartMsRef.current) {
+        const d = Math.max(0, now - restStartMsRef.current);
+        restElapsedBaseMsRef.current = (restElapsedBaseMsRef.current || 0) + d;
+        restStartMsRef.current = null;
+      }
+    } else {
+      if (focusStartMsRef.current) {
+        const d = Math.max(0, now - focusStartMsRef.current);
+        focusAccumulatedMsRef.current = (focusAccumulatedMsRef.current || 0) + d;
+
+        if (effectiveMode === 'pomodoro' && variant !== 'simulado') {
+          focusBlockElapsedBaseMsRef.current = (focusBlockElapsedBaseMsRef.current || 0) + d;
+        }
+
+        focusStartMsRef.current = null;
       }
     }
 
-    if (audioRef.current) audioRef.current.pause();
     setIsPaused(true);
     isPausedRef.current = true;
 
+    const totalFocusSec = Math.floor((focusAccumulatedMsRef.current || 0) / 1000);
+    setTotalFocusSeconds(totalFocusSec);
+
+    const display = getDisplaySecondsFromCurrentState();
+    setSecondsIfChanged(display);
+
     saveToStorage({
       isPaused: true,
       isResting: !!isRestingRef.current,
-      restFinished: false,
-      pomodoroBlockFinished: false,
-
-      totalFocusSeconds: totalFocusRef.current || 0,
-      focusBlockElapsedSeconds: focusBlockElapsedBaseRef.current || 0,
-      restElapsedSeconds: restElapsedBaseRef.current || 0,
-
-      countdownElapsedSeconds: totalFocusRef.current || 0,
-
+      restFinished: !!isRestFinishedRef.current,
+      pomodoroBlockFinished: !!isPomodoroFinishedRef.current,
+      focusAccumulatedMs: focusAccumulatedMsRef.current || 0,
+      focusBlockElapsedBaseMs: focusBlockElapsedBaseMsRef.current || 0,
+      restElapsedBaseMs: restElapsedBaseMsRef.current || 0,
       lastTimestamp: Date.now(),
     });
 
-    updateExternalStatus(false, secondsRef.current);
-    updateMediaSession(false, secondsRef.current);
-
-    patchActiveTimer({
-      status: 'paused',
+    await patchActiveTimer({
+      status: 'finishing',
       isPaused: true,
-      runningSince: null,
+      runStartedAt: null,
+      elapsedMsAtRunStart: null,
+      // 🔒 garante que UI volte ao timer em outras abas/dispositivos quando nova sessão rodar
+      uiOverlay: 'none',
     }, { includeSnapshot: true });
+
+    if (reason !== 'bc') postBC({ type: 'TIMER_ACTION', action: 'STOP' });
+
+    restoreDocumentTitle();
+    clearMediaSession();
+
+    const finalMinutes = Math.max(1, Math.round(totalFocusSec / 60));
+    onStop?.(finalMinutes);
+
+    setTimeout(() => { stopInFlightRef.current = false; }, 250);
   }, [
-    variant,
-    commitFocusSegment, commitRestSegment,
-    saveToStorage,
+    clearTick,
     effectiveMode,
-    settings.pomodoroTime, settings.restTime,
-    updateExternalStatus, updateMediaSession,
-    patchActiveTimer
+    variant,
+    getDisplaySecondsFromCurrentState,
+    setSecondsIfChanged,
+    saveToStorage,
+    patchActiveTimer,
+    postBC,
+    onStop,
+    releaseWakeLock,
+    restoreDocumentTitle,
+    clearMediaSession
   ]);
 
-  const resumeTimer = useCallback((opts = {}) => {
-    const source = opts.source || 'user';
+  const cleanupAndStop = useCallback((source = 'local') => {
+    void source;
+    handleStopInternal(source === 'bc' ? 'bc' : 'user');
+  }, [handleStopInternal]);
 
-    if (variant !== 'simulado') {
-      if (isRestFinishedRef.current) return;
-      if (isPomodoroFinishedRef.current && !isRestingRef.current) return;
-    }
+  const handleStop = useCallback(() => {
+    handleStopInternal('user');
+  }, [handleStopInternal]);
 
-    if (!isPausedRef.current) return;
+  // ========= tick =========
+  const startTickLoop = useCallback(() => {
+    clearTick();
 
-    // intenção do usuário: rodar
-    desiredRunningRef.current = true;
-    if (source !== 'watchdog') lastExplicitToggleAtRef.current = Date.now();
+    const tick = () => {
+      if (isPausedRef.current) return;
 
-    if (variant !== 'simulado' && isRestingRef.current) restStartRef.current = Date.now();
-    else focusBlockStartRef.current = Date.now();
+      const display = getDisplaySecondsFromCurrentState();
+      setSecondsIfChanged(display);
 
-    if (audioRef.current) audioRef.current.play().catch(() => { });
-    setIsPaused(false);
-    isPausedRef.current = false;
+      const focusElapsedMsNow = getCurrentFocusElapsedMs();
+      setTotalFocusSeconds(Math.floor(focusElapsedMsNow / 1000));
 
-    saveToStorage({
-      isPaused: false,
-      isResting: !!isRestingRef.current,
-      restFinished: false,
-      pomodoroBlockFinished: false,
+      if (display !== lastPersistDisplaySecondRef.current) {
+        lastPersistDisplaySecondRef.current = display;
 
-      totalFocusSeconds: totalFocusRef.current || 0,
-      focusBlockElapsedSeconds: focusBlockElapsedBaseRef.current || 0,
-      restElapsedSeconds: restElapsedBaseRef.current || 0,
+        saveToStorage({
+          isPaused: false,
+          isResting: !!isRestingRef.current,
+          restFinished: !!isRestFinishedRef.current,
+          pomodoroBlockFinished: !!isPomodoroFinishedRef.current,
+          focusAccumulatedMs: focusElapsedMsNow,
+          focusBlockElapsedBaseMs: getCurrentPomodoroBlockElapsedMs(),
+          restElapsedBaseMs: getCurrentRestElapsedMs(),
+          lastTimestamp: Date.now(),
+        });
 
-      countdownElapsedSeconds: totalFocusRef.current || 0,
+        updateExternalStatus(true, display);
+        updateMediaSession(true, display);
 
-      lastTimestamp: Date.now(),
-    });
+        if (effectiveMode === 'countdown') {
+          if (display <= 0) handleStopInternal('timeup');
+        } else if (variant !== 'simulado' && isRestingRef.current) {
+          if (display <= 0) handleRestComplete();
+        } else if (effectiveMode === 'pomodoro' && variant !== 'simulado') {
+          if (display <= 0) handlePomodoroComplete();
+        }
+      }
+    };
 
-    updateExternalStatus(true, secondsRef.current);
-    updateMediaSession(true, secondsRef.current);
+    tick();
+    intervalRef.current = setInterval(tick, 200);
+  }, [
+    clearTick,
+    effectiveMode,
+    variant,
+    getDisplaySecondsFromCurrentState,
+    setSecondsIfChanged,
+    getCurrentFocusElapsedMs,
+    getCurrentPomodoroBlockElapsedMs,
+    getCurrentRestElapsedMs,
+    saveToStorage,
+    updateExternalStatus,
+    updateMediaSession,
+    handleStopInternal,
+    // abaixo são declaradas depois, mas JS hoista apenas a const? não: são useCallback (ok porque estão no mesmo scope e já definidas no runtime)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  ]);
 
-    patchActiveTimer({
-      status: 'running',
-      isPaused: false,
-      runningSince: serverTimestamp(),
-    }, { includeSnapshot: true });
-  }, [variant, saveToStorage, updateExternalStatus, updateMediaSession, patchActiveTimer]);
-
-  const handleTogglePause = useCallback((source = 'user') => {
-    if (isPausedRef.current) resumeTimer({ source });
-    else pauseTimer({ source });
-  }, [pauseTimer, resumeTimer]);
-
-  // manter ref para MediaSession action handlers
-  useEffect(() => { handleTogglePauseRef.current = handleTogglePause; }, [handleTogglePause]);
-
+  // ========= completes (pomodoro/rest) =========
   const handlePomodoroComplete = useCallback(() => {
-    clearInterval(intervalRef.current);
-    commitFocusSegment();
-
+    clearTick();
     desiredRunningRef.current = false;
+
+    const now = Date.now();
+    if (focusStartMsRef.current) {
+      const delta = Math.max(0, now - focusStartMsRef.current);
+
+      focusBlockElapsedBaseMsRef.current = Math.min(
+        Number(settings.pomodoroTime || 1) * 60 * 1000,
+        (focusBlockElapsedBaseMsRef.current || 0) + delta
+      );
+
+      focusAccumulatedMsRef.current = (focusAccumulatedMsRef.current || 0) + delta;
+      focusStartMsRef.current = null;
+    }
 
     setIsPomodoroFinished(true);
     setIsPaused(true);
     isPomodoroFinishedRef.current = true;
     isPausedRef.current = true;
-    focusBlockStartRef.current = null;
-    secondsRef.current = 0;
-    setSeconds(0);
 
-    if (audioRef.current) audioRef.current.pause();
+    setSecondsIfChanged(0);
+
+    try { audioRef.current?.pause?.(); } catch {}
     if (alarmRef.current) {
       alarmRef.current.src = getSoundUrl();
       alarmRef.current.volume = settings.soundVolume || 0.5;
-      alarmRef.current.play().catch(() => { });
+      alarmRef.current.play().catch(() => {});
     }
 
+    setTotalFocusSeconds(Math.floor((focusAccumulatedMsRef.current || 0) / 1000));
+
     saveToStorage({
-      isPaused: true, isResting: false, restFinished: false, pomodoroBlockFinished: true,
-      totalFocusSeconds: totalFocusRef.current || 0,
-      focusBlockElapsedSeconds: focusBlockElapsedBaseRef.current || 0,
-      restElapsedSeconds: restElapsedBaseRef.current || 0,
+      isPaused: true,
+      isResting: false,
+      restFinished: false,
+      pomodoroBlockFinished: true,
+      focusAccumulatedMs: focusAccumulatedMsRef.current || 0,
+      focusBlockElapsedBaseMs: focusBlockElapsedBaseMsRef.current || 0,
+      restElapsedBaseMs: restElapsedBaseMsRef.current || 0,
       lastTimestamp: Date.now(),
     });
 
@@ -753,37 +976,66 @@ function StudyTimer({
     patchActiveTimer({
       status: 'pomodoro_finished',
       isPaused: true,
-      runningSince: null,
+      runStartedAt: null,
+      elapsedMsAtRunStart: null,
+      phase: 'pomodoro_finished',
+      uiOverlay: 'pomodoro_finished',
     }, { includeSnapshot: true });
-  }, [commitFocusSegment, getSoundUrl, saveToStorage, settings.soundVolume, updateExternalStatus, updateMediaSession, patchActiveTimer]);
+
+    releaseWakeLock();
+  }, [
+    clearTick,
+    getSoundUrl,
+    settings.pomodoroTime,
+    settings.soundVolume,
+    saveToStorage,
+    updateExternalStatus,
+    updateMediaSession,
+    patchActiveTimer,
+    setSecondsIfChanged,
+    releaseWakeLock
+  ]);
 
   const handleRestComplete = useCallback(() => {
-    clearInterval(intervalRef.current);
-    commitRestSegment();
-
+    clearTick();
     desiredRunningRef.current = false;
+
+    const now = Date.now();
+    if (restStartMsRef.current) {
+      const delta = Math.max(0, now - restStartMsRef.current);
+      restElapsedBaseMsRef.current = Math.min(
+        Number(settings.restTime || 1) * 60 * 1000,
+        (restElapsedBaseMsRef.current || 0) + delta
+      );
+      restStartMsRef.current = null;
+    }
 
     setIsPaused(true);
     setIsRestFinished(true);
     isPausedRef.current = true;
     isRestFinishedRef.current = true;
-    secondsRef.current = 0;
-    setSeconds(0);
 
-    if (audioRef.current) audioRef.current.pause();
+    setSecondsIfChanged(0);
+
+    try { audioRef.current?.pause?.(); } catch {}
     if (alarmRef.current) {
       alarmRef.current.src = getSoundUrl();
       alarmRef.current.volume = settings.soundVolume || 0.5;
-      alarmRef.current.play().catch(() => { });
+      alarmRef.current.play().catch(() => {});
     }
 
     safeNotify("Descanso Finalizado!", "Hora de voltar a estudar.");
 
+    setTotalFocusSeconds(Math.floor((focusAccumulatedMsRef.current || 0) / 1000));
+
     saveToStorage({
-      isPaused: true, isResting: true, restFinished: true, pomodoroBlockFinished: false,
-      totalFocusSeconds: totalFocusRef.current || 0,
-      focusBlockElapsedSeconds: focusBlockElapsedBaseRef.current || 0,
-      restElapsedSeconds: restElapsedBaseRef.current || 0,
+      isPaused: true,
+      isResting: true,
+      restFinished: true,
+      pomodoroBlockFinished: false,
+      focusAccumulatedMs: focusAccumulatedMsRef.current || 0,
+      focusBlockElapsedBaseMs: focusBlockElapsedBaseMsRef.current || 0,
+      restElapsedBaseMs: restElapsedBaseMsRef.current || 0,
       lastTimestamp: Date.now(),
     });
 
@@ -793,636 +1045,997 @@ function StudyTimer({
     patchActiveTimer({
       status: 'rest_finished',
       isPaused: true,
-      runningSince: null,
+      runStartedAt: null,
+      elapsedMsAtRunStart: null,
+      phase: 'rest_finished',
+      uiOverlay: 'rest_finished',
     }, { includeSnapshot: true });
-  }, [commitRestSegment, getSoundUrl, saveToStorage, settings.soundVolume, updateExternalStatus, updateMediaSession, patchActiveTimer]);
 
-  const handleStop = useCallback(() => {
+    releaseWakeLock();
+  }, [
+    clearTick,
+    getSoundUrl,
+    settings.restTime,
+    settings.soundVolume,
+    saveToStorage,
+    updateExternalStatus,
+    updateMediaSession,
+    patchActiveTimer,
+    setSecondsIfChanged,
+    releaseWakeLock
+  ]);
+
+  // ========= PAUSE / RESUME =========
+  const pauseTimer = useCallback(async (opts = {}) => {
+    const source = opts.source || 'user';
+
+    if (variant !== 'simulado') {
+      if (isRestFinishedRef.current) return;
+      if (isPomodoroFinishedRef.current && !isRestingRef.current) return;
+    }
+    if (isPausedRef.current) return;
+
     desiredRunningRef.current = false;
-
-    clearInterval(intervalRef.current);
-    if (audioRef.current) audioRef.current.pause();
-    if (alarmRef.current) alarmRef.current.pause();
-
-    let finalTotalFocus = totalFocusRef.current || 0;
-
-    // ✅ simulado: calcula corretamente
-    if (effectiveMode === 'countdown') {
-      const elapsed = Math.max(0, (Number(countdownSeconds) || 0) - (Number(secondsRef.current) || 0));
-      finalTotalFocus = elapsed;
-    } else if (!isPausedRef.current && (variant === 'simulado' || (!isRestingRef.current && !isPomodoroFinishedRef.current && !isRestFinishedRef.current))) {
-      if (effectiveMode === 'pomodoro') finalTotalFocus += getPomodoroRunningDeltaSeconds();
-      else if (effectiveMode === 'countdown') finalTotalFocus += getCountdownRunningDeltaSeconds();
-      else finalTotalFocus += getFreeRunningDeltaSeconds();
+    if (source !== 'watchdog' && source !== 'remote' && source !== 'bc') {
+      lastExplicitToggleAtRef.current = Date.now();
     }
 
-    totalFocusRef.current = finalTotalFocus;
-    setTotalFocusSeconds(finalTotalFocus);
-    focusBlockStartRef.current = null;
+    clearTick();
+
+    const now = Date.now();
 
     if (variant !== 'simulado' && isRestingRef.current) {
-      const duration = settings.restTime * 60;
-      const remaining = Math.max(0, duration - (restElapsedBaseRef.current || 0));
-      secondsRef.current = remaining;
-    } else if (effectiveMode === 'pomodoro') {
-      const duration = settings.pomodoroTime * 60;
-      const remaining = Math.max(0, duration - (focusBlockElapsedBaseRef.current || 0));
-      secondsRef.current = remaining;
-    } else if (effectiveMode === 'countdown') {
-      // mantém remaining
-      secondsRef.current = Math.max(0, Number(secondsRef.current || 0));
+      if (restStartMsRef.current) {
+        const delta = Math.max(0, now - restStartMsRef.current);
+        restElapsedBaseMsRef.current = (restElapsedBaseMsRef.current || 0) + delta;
+        restStartMsRef.current = null;
+      }
     } else {
-      secondsRef.current = finalTotalFocus;
+      if (focusStartMsRef.current) {
+        const delta = Math.max(0, now - focusStartMsRef.current);
+        focusAccumulatedMsRef.current = (focusAccumulatedMsRef.current || 0) + delta;
+
+        if (effectiveMode === 'pomodoro' && variant !== 'simulado') {
+          focusBlockElapsedBaseMsRef.current = (focusBlockElapsedBaseMsRef.current || 0) + delta;
+        }
+
+        focusStartMsRef.current = null;
+      }
     }
 
-    setSeconds(secondsRef.current);
+    let frozenDisplaySeconds = 0;
+
+    if (effectiveMode === 'countdown') {
+      const totalMs = Math.max(0, safeCountdownSeconds * 1000);
+      const elapsedMs = Math.max(0, Number(focusAccumulatedMsRef.current || 0));
+      frozenDisplaySeconds = Math.floor(Math.max(0, totalMs - elapsedMs) / 1000);
+    } else if (variant !== 'simulado' && isRestingRef.current) {
+      const durationMs = Math.max(1, Number(settings.restTime || 1) * 60 * 1000);
+      const elapsedMs = Math.max(0, Number(restElapsedBaseMsRef.current || 0));
+      frozenDisplaySeconds = Math.floor(Math.max(0, durationMs - elapsedMs) / 1000);
+    } else if (effectiveMode === 'pomodoro' && variant !== 'simulado') {
+      const durationMs = Math.max(1, Number(settings.pomodoroTime || 1) * 60 * 1000);
+      const elapsedMs = Math.max(0, Number(focusBlockElapsedBaseMsRef.current || 0));
+      frozenDisplaySeconds = Math.floor(Math.max(0, durationMs - elapsedMs) / 1000);
+    } else {
+      frozenDisplaySeconds = Math.floor(Math.max(0, Number(focusAccumulatedMsRef.current || 0)) / 1000);
+    }
 
     setIsPaused(true);
     isPausedRef.current = true;
+
+    setSecondsIfChanged(frozenDisplaySeconds);
+    setTotalFocusSeconds(Math.floor(Math.max(0, Number(focusAccumulatedMsRef.current || 0)) / 1000));
+
+    try { audioRef.current?.pause?.(); } catch {}
+
+    await releaseWakeLock();
 
     saveToStorage({
       isPaused: true,
       isResting: !!isRestingRef.current,
       restFinished: !!isRestFinishedRef.current,
       pomodoroBlockFinished: !!isPomodoroFinishedRef.current,
-
-      totalFocusSeconds: finalTotalFocus,
-      focusBlockElapsedSeconds: focusBlockElapsedBaseRef.current || 0,
-      restElapsedSeconds: restElapsedBaseRef.current || 0,
-
-      countdownElapsedSeconds: finalTotalFocus,
-
+      focusAccumulatedMs: Number(focusAccumulatedMsRef.current || 0),
+      focusBlockElapsedBaseMs: Number(focusBlockElapsedBaseMsRef.current || 0),
+      restElapsedBaseMs: Number(restElapsedBaseMsRef.current || 0),
       lastTimestamp: Date.now(),
     });
 
-    updateExternalStatus(false, secondsRef.current);
-    updateMediaSession(false, secondsRef.current);
+    updateExternalStatus(false, frozenDisplaySeconds);
+    updateMediaSession(false, frozenDisplaySeconds);
 
-    patchActiveTimer({
-      status: 'finishing',
+    await patchActiveTimer({
+      status: 'paused',
       isPaused: true,
-      runningSince: null,
+      runStartedAt: null,
+      elapsedMsAtRunStart: null,
+      uiOverlay: 'none',
     }, { includeSnapshot: true });
 
-    const finalMinutes = Math.round(finalTotalFocus / 60);
-    onStop(Math.max(1, finalMinutes));
+    if (source !== 'bc') {
+      postBC({ type: 'TIMER_SYNC', state: exportLocalStateForSync() });
+      postBC({ type: 'TIMER_ACTION', action: 'CLOSE_OVERLAYS' });
+    }
   }, [
     variant,
     effectiveMode,
-    countdownSeconds,
-    onStop,
+    safeCountdownSeconds,
+    settings.restTime,
+    settings.pomodoroTime,
+    clearTick,
+    setSecondsIfChanged,
     saveToStorage,
-    settings.pomodoroTime, settings.restTime,
     updateExternalStatus,
     updateMediaSession,
-    getPomodoroRunningDeltaSeconds,
-    getFreeRunningDeltaSeconds,
-    getCountdownRunningDeltaSeconds,
-    patchActiveTimer
+    patchActiveTimer,
+    postBC,
+    exportLocalStateForSync,
+    releaseWakeLock
   ]);
 
-  // manter ref para stop (MediaSession stop)
-  useEffect(() => { handleStopRef.current = handleStop; }, [handleStop]);
+  const resumeTimer = useCallback(async (opts = {}) => {
+    const source = opts.source || 'user';
 
-  const handleRepeatCycle = useCallback(() => {
-    if (alarmRef.current) alarmRef.current.pause();
+    if (variant !== 'simulado') {
+      if (isRestFinishedRef.current) return;
+      if (isPomodoroFinishedRef.current && !isRestingRef.current) return;
+    }
+    if (!isPausedRef.current) return;
 
-    desiredRunningRef.current = true;
-    lastExplicitToggleAtRef.current = Date.now();
-
-    setIsPomodoroFinished(false);
-    setIsResting(false);
-    setIsRestFinished(false);
-    isPomodoroFinishedRef.current = false;
-    isRestingRef.current = false;
-    isRestFinishedRef.current = false;
-    setIsPaused(false);
-    isPausedRef.current = false;
-
-    focusBlockElapsedBaseRef.current = 0;
-    const totalSeconds = settings.pomodoroTime * 60;
-    secondsRef.current = totalSeconds;
-    setSeconds(totalSeconds);
-    focusBlockStartRef.current = Date.now();
-
-    saveToStorage({
-      isPaused: false, isResting: false, restFinished: false, pomodoroBlockFinished: false,
-      totalFocusSeconds: totalFocusRef.current || 0,
-      focusBlockElapsedSeconds: 0,
-      restElapsedSeconds: 0,
-      lastTimestamp: Date.now(),
-    });
-
-    if (audioRef.current) audioRef.current.play().catch(() => { });
-    updateExternalStatus(true, totalSeconds);
-    updateMediaSession(true, totalSeconds);
-
-    patchActiveTimer({
-      status: 'running',
-      isPaused: false,
-      isResting: false,
-      runningSince: serverTimestamp(),
-    }, { includeSnapshot: true });
-  }, [saveToStorage, settings.pomodoroTime, updateExternalStatus, updateMediaSession, patchActiveTimer]);
-
-  const handleStartRest = useCallback(() => {
-    if (alarmRef.current) alarmRef.current.pause();
+    // ✅ quando retoma, fecha overlays em TODO lugar
+    closeAllOverlaysLocal();
 
     desiredRunningRef.current = true;
-    lastExplicitToggleAtRef.current = Date.now();
-
-    setIsPomodoroFinished(false);
-    setIsResting(true);
-    setIsRestFinished(false);
-    setIsPaused(false);
-    isPomodoroFinishedRef.current = false;
-    isRestingRef.current = true;
-    isRestFinishedRef.current = false;
-    isPausedRef.current = false;
-
-    restElapsedBaseRef.current = 0;
-    const restSeconds = settings.restTime * 60;
-    secondsRef.current = restSeconds;
-    setSeconds(restSeconds);
-    restStartRef.current = Date.now();
-
-    saveToStorage({
-      isPaused: false, isResting: true, restFinished: false, pomodoroBlockFinished: false,
-      totalFocusSeconds: totalFocusRef.current || 0,
-      focusBlockElapsedSeconds: focusBlockElapsedBaseRef.current || 0,
-      restElapsedSeconds: 0,
-      lastTimestamp: Date.now(),
-    });
-
-    if (audioRef.current) audioRef.current.play().catch(() => { });
-    updateExternalStatus(true, restSeconds);
-    updateMediaSession(true, restSeconds);
-
-    patchActiveTimer({
-      status: 'running',
-      isPaused: false,
-      isResting: true,
-      runningSince: serverTimestamp(),
-    }, { includeSnapshot: true });
-  }, [saveToStorage, settings.restTime, updateExternalStatus, updateMediaSession, patchActiveTimer]);
-
-  const handleBackToStudy = useCallback(() => {
-    if (alarmRef.current) alarmRef.current.pause();
-
-    desiredRunningRef.current = true;
-    lastExplicitToggleAtRef.current = Date.now();
-
-    setIsRestFinished(false);
-    setIsResting(false);
-    setIsPomodoroFinished(false);
-    isRestFinishedRef.current = false;
-    isRestingRef.current = false;
-    isPomodoroFinishedRef.current = false;
-    setIsPaused(false);
-    isPausedRef.current = false;
-
-    if (settings.mode === 'pomodoro') {
-      focusBlockElapsedBaseRef.current = 0;
-      const totalSeconds = settings.pomodoroTime * 60;
-      secondsRef.current = totalSeconds;
-      setSeconds(totalSeconds);
-      focusBlockStartRef.current = Date.now();
-      saveToStorage({
-        isPaused: false, isResting: false, restFinished: false, pomodoroBlockFinished: false,
-        totalFocusSeconds: totalFocusRef.current || 0,
-        focusBlockElapsedSeconds: 0,
-        restElapsedSeconds: 0,
-        lastTimestamp: Date.now(),
-      });
-      if (audioRef.current) audioRef.current.play().catch(() => { });
-      updateExternalStatus(true, totalSeconds);
-      updateMediaSession(true, totalSeconds);
-
-      patchActiveTimer({
-        status: 'running',
-        isPaused: false,
-        isResting: false,
-        runningSince: serverTimestamp(),
-      }, { includeSnapshot: true });
-      return;
+    if (source !== 'watchdog' && source !== 'remote' && source !== 'bc') {
+      lastExplicitToggleAtRef.current = Date.now();
     }
 
-    focusBlockStartRef.current = Date.now();
-    secondsRef.current = totalFocusRef.current || 0;
-    setSeconds(secondsRef.current);
-    saveToStorage({
-      isPaused: false, isResting: false, restFinished: false, pomodoroBlockFinished: false,
-      totalFocusSeconds: totalFocusRef.current || 0,
-      focusBlockElapsedSeconds: 0,
-      restElapsedSeconds: 0,
-      lastTimestamp: Date.now(),
-    });
-    if (audioRef.current) audioRef.current.play().catch(() => { });
-    updateExternalStatus(true, secondsRef.current);
-    updateMediaSession(true, secondsRef.current);
+    if (variant !== 'simulado' && isRestingRef.current) {
+      restStartMsRef.current = Date.now();
+      lastLocalRunStartMsRef.current = restStartMsRef.current;
+      lastLocalElapsedMsAtRunStartRef.current = restElapsedBaseMsRef.current || 0;
+    } else {
+      focusStartMsRef.current = Date.now();
+      lastLocalRunStartMsRef.current = focusStartMsRef.current;
+      lastLocalElapsedMsAtRunStartRef.current =
+        (effectiveMode === 'pomodoro' && variant !== 'simulado')
+          ? (focusBlockElapsedBaseMsRef.current || 0)
+          : (focusAccumulatedMsRef.current || 0);
+    }
 
-    patchActiveTimer({
+    setIsPaused(false);
+    isPausedRef.current = false;
+
+    wakeLockWantedRef.current = true;
+    requestWakeLock();
+
+    if (audioRef.current) audioRef.current.play().catch(() => {});
+
+    const display = getDisplaySecondsFromCurrentState();
+    setSecondsIfChanged(display);
+
+    startTickLoop();
+
+    await patchActiveTimer({
       status: 'running',
       isPaused: false,
-      isResting: false,
-      runningSince: serverTimestamp(),
+      runStartedAt: serverTimestamp(),
+      elapsedMsAtRunStart: lastLocalElapsedMsAtRunStartRef.current || 0,
+      phase: (variant !== 'simulado' && isRestingRef.current) ? 'rest' : 'focus',
+      uiOverlay: 'none',
     }, { includeSnapshot: true });
-  }, [saveToStorage, settings.mode, settings.pomodoroTime, updateExternalStatus, updateMediaSession, patchActiveTimer]);
 
-  // ===========================
-  // ✅ WATCHDOG: se pausar “sozinho”, retoma.
-  // ===========================
+    updateExternalStatus(true, display);
+    updateMediaSession(true, display);
+
+    if (source !== 'bc') {
+      postBC({ type: 'TIMER_ACTION', action: 'CLOSE_OVERLAYS' });
+      postBC({ type: 'TIMER_SYNC', state: exportLocalStateForSync() });
+    }
+  }, [
+    variant,
+    effectiveMode,
+    getDisplaySecondsFromCurrentState,
+    setSecondsIfChanged,
+    startTickLoop,
+    patchActiveTimer,
+    updateExternalStatus,
+    updateMediaSession,
+    postBC,
+    exportLocalStateForSync,
+    requestWakeLock,
+    closeAllOverlaysLocal
+  ]);
+
+  const handleTogglePause = useCallback((source = 'user') => {
+    if (isPausedRef.current) resumeTimer({ source });
+    else pauseTimer({ source });
+  }, [pauseTimer, resumeTimer]);
+
+  // ========= Wake Lock: re-request ao voltar visível + resync =========
+  useEffect(() => {
+    const onVis = () => {
+      try {
+        const display = getDisplaySecondsFromCurrentState();
+        setSecondsIfChanged(display);
+        if (!isPausedRef.current) {
+          updateExternalStatus(true, display);
+          updateMediaSession(true, display);
+        }
+      } catch {}
+
+      if (document.visibilityState === 'visible') {
+        if (wakeLockWantedRef.current) requestWakeLock();
+      }
+    };
+
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, [getDisplaySecondsFromCurrentState, setSecondsIfChanged, updateExternalStatus, updateMediaSession, requestWakeLock]);
+
+  // ========= applyRemoteState =========
+  const applyRemoteState = useCallback((remote, source = 'remote') => {
+    if (!remote) return;
+    if (remote.updatedBy && remote.updatedBy === tabIdRef.current) return;
+
+    if (isPreparing) {
+      setIsPreparing(false);
+      setCountdown(0);
+    }
+
+    // ✅ FECHA overlays quando:
+    // - qualquer outra aba/dispositivo mandar CLOSE_OVERLAYS (via uiOverlay === 'none' + running/paused normal)
+    // - ou quando remoto entrar em "running"
+    const remoteUiOverlay = String(remote.uiOverlay || 'none');
+    const shouldCloseOverlays = (remoteUiOverlay === 'none') || (!remote.isPaused);
+    if (shouldCloseOverlays) closeAllOverlaysLocal();
+
+    if (variant !== 'simulado') {
+      const rResting = !!remote.isResting;
+      const rPomoFinished = !!remote.isPomodoroFinished;
+      const rRestFinished = !!remote.isRestFinished;
+
+      setIsResting(rResting); isRestingRef.current = rResting;
+
+      // Se remoto diz que NÃO está finished, fecha local definitivamente
+      if (!rPomoFinished && isPomodoroFinishedRef.current) { setIsPomodoroFinished(false); isPomodoroFinishedRef.current = false; }
+      if (!rRestFinished && isRestFinishedRef.current) { setIsRestFinished(false); isRestFinishedRef.current = false; }
+
+      // Se remoto diz finished, abre
+      if (rPomoFinished) { setIsPomodoroFinished(true); isPomodoroFinishedRef.current = true; }
+      if (rRestFinished) { setIsRestFinished(true); isRestFinishedRef.current = true; }
+    }
+
+    const focusMs = Math.max(0, Number(remote.focusElapsedMs) || 0);
+    const restMs = Math.max(0, Number(remote.restElapsedMs) || 0);
+    const pomoMs = Math.max(0, Number(remote.pomodoroElapsedMs) || 0);
+
+    focusAccumulatedMsRef.current = focusMs;
+    restElapsedBaseMsRef.current = restMs;
+
+    if (effectiveMode === 'pomodoro' && variant !== 'simulado') {
+      focusBlockElapsedBaseMsRef.current = pomoMs;
+    }
+
+    const rPaused = !!remote.isPaused;
+
+    clearTick();
+    focusStartMsRef.current = null;
+    restStartMsRef.current = null;
+
+    if (rPaused) {
+      setIsPaused(true);
+      isPausedRef.current = true;
+      desiredRunningRef.current = false;
+
+      wakeLockWantedRef.current = false;
+      releaseWakeLock();
+
+      const display = getDisplaySecondsFromCurrentState();
+      setSecondsIfChanged(display);
+      updateExternalStatus(false, display);
+      updateMediaSession(false, display);
+
+      try { audioRef.current?.pause?.(); } catch {}
+    } else {
+      setIsPaused(false);
+      isPausedRef.current = false;
+      desiredRunningRef.current = true;
+
+      wakeLockWantedRef.current = true;
+      requestWakeLock();
+
+      if (variant !== 'simulado' && isRestingRef.current) {
+        restStartMsRef.current = Date.now();
+        lastLocalRunStartMsRef.current = restStartMsRef.current;
+        lastLocalElapsedMsAtRunStartRef.current = restElapsedBaseMsRef.current || 0;
+      } else {
+        focusStartMsRef.current = Date.now();
+        lastLocalRunStartMsRef.current = focusStartMsRef.current;
+        lastLocalElapsedMsAtRunStartRef.current =
+          (effectiveMode === 'pomodoro' && variant !== 'simulado')
+            ? (focusBlockElapsedBaseMsRef.current || 0)
+            : (focusAccumulatedMsRef.current || 0);
+      }
+
+      if (audioRef.current) audioRef.current.play().catch(() => {});
+      startTickLoop();
+
+      const display = getDisplaySecondsFromCurrentState();
+      setSecondsIfChanged(display);
+      updateExternalStatus(true, display);
+      updateMediaSession(true, display);
+    }
+
+    setTotalFocusSeconds(Math.floor(getCurrentFocusElapsedMs() / 1000));
+
+    saveToStorage({
+      isPaused: rPaused,
+      isResting: !!isRestingRef.current,
+      restFinished: !!isRestFinishedRef.current,
+      pomodoroBlockFinished: !!isPomodoroFinishedRef.current,
+      focusAccumulatedMs: getCurrentFocusElapsedMs(),
+      focusBlockElapsedBaseMs: getCurrentPomodoroBlockElapsedMs(),
+      restElapsedBaseMs: getCurrentRestElapsedMs(),
+      lastTimestamp: Date.now(),
+    });
+
+    void source;
+  }, [
+    isPreparing,
+    variant,
+    effectiveMode,
+    clearTick,
+    startTickLoop,
+    getDisplaySecondsFromCurrentState,
+    setSecondsIfChanged,
+    updateExternalStatus,
+    updateMediaSession,
+    getCurrentFocusElapsedMs,
+    getCurrentPomodoroBlockElapsedMs,
+    getCurrentRestElapsedMs,
+    saveToStorage,
+    requestWakeLock,
+    releaseWakeLock,
+    closeAllOverlaysLocal
+  ]);
+
+  // ========= BC onmessage =========
+  useEffect(() => {
+    if (!bcRef.current) return;
+
+    bcRef.current.onmessage = (ev) => {
+      const msg = ev?.data;
+      if (!msg || msg.from === tabIdRef.current) return;
+
+      if (msg.type === 'TIMER_SYNC' && msg.state) {
+        applyRemoteState(msg.state, 'bc');
+      }
+
+      if (msg.type === 'TIMER_ACTION' && msg.action === 'CLOSE_OVERLAYS') {
+        // ✅ a correção que faltava: qualquer aba que receber isso fecha a “tela de finalização”
+        closeAllOverlaysLocal();
+      }
+
+      if (msg.type === 'TIMER_ACTION' && msg.action === 'CANCEL') {
+        cleanupAndCancel('bc');
+      }
+
+      if (msg.type === 'TIMER_ACTION' && msg.action === 'STOP') {
+        cleanupAndStop('bc');
+      }
+    };
+  }, [applyRemoteState, cleanupAndCancel, cleanupAndStop, closeAllOverlaysLocal]);
+
+  // ========= Firestore sync (cross-device) =========
+  const lastAppliedRemoteSigRef = useRef('');
+
+  useEffect(() => {
+    if (!activeTimerDocRef) return;
+
+    const unsub = onSnapshot(
+      activeTimerDocRef,
+      { includeMetadataChanges: true },
+      (snap) => {
+        if (snap.metadata?.hasPendingWrites) return;
+
+        if (!snap.exists()) {
+          const graceMs = 8000;
+          const age = Date.now() - (mountedAtRef.current || Date.now());
+          const canCancelNow =
+            hasEverSeenDocRef.current ||
+            hasWrittenFirebaseRef.current ||
+            (!isPreparing && age > graceMs);
+
+          if (!canCancelNow) return;
+
+          cleanupAndCancel('remote_missing');
+          return;
+        }
+
+        hasEverSeenDocRef.current = true;
+
+        const data = snap.data() || {};
+        if (data.updatedBy && data.updatedBy === tabIdRef.current) return;
+
+        const sig = JSON.stringify({
+          status: data.status,
+          phase: data.phase,
+          uiOverlay: data.uiOverlay,
+          isPaused: data.isPaused,
+          isResting: data.isResting,
+          focusElapsedMsSnapshot: data.focusElapsedMsSnapshot,
+          restElapsedMsSnapshot: data.restElapsedMsSnapshot,
+          pomodoroElapsedMsSnapshot: data.pomodoroElapsedMsSnapshot,
+          runStartedAt: data.runStartedAt?.toMillis ? data.runStartedAt.toMillis() : null,
+          elapsedMsAtRunStart: data.elapsedMsAtRunStart,
+          mode: data.mode,
+        });
+        if (sig === lastAppliedRemoteSigRef.current) return;
+        lastAppliedRemoteSigRef.current = sig;
+
+        const isRemoteRunning = data.status === 'running' && !data.isPaused;
+
+        let remoteState = {
+          variant: data.variant || variant,
+          mode: data.mode || effectiveMode,
+          isPaused: !isRemoteRunning,
+          isResting: !!data.isResting,
+          isPomodoroFinished: data.phase === 'pomodoro_finished',
+          isRestFinished: data.phase === 'rest_finished',
+          focusElapsedMs: Math.max(0, Number(data.focusElapsedMsSnapshot) || 0),
+          restElapsedMs: Math.max(0, Number(data.restElapsedMsSnapshot) || 0),
+          pomodoroElapsedMs: Math.max(0, Number(data.pomodoroElapsedMsSnapshot) || 0),
+          countdownSeconds: Number(data.countdownSeconds || 0),
+          uiOverlay: data.uiOverlay || 'none',
+          updatedBy: data.updatedBy || null,
+        };
+
+        if (
+          isRemoteRunning &&
+          data.runStartedAt?.toMillis &&
+          Number.isFinite(Number(data.elapsedMsAtRunStart))
+        ) {
+          const runStartedAtMs = data.runStartedAt.toMillis();
+          const deltaMs = Math.max(0, Date.now() - runStartedAtMs);
+          const base = Math.max(0, Number(data.elapsedMsAtRunStart) || 0);
+
+          if (data.phase === 'rest') remoteState.restElapsedMs = base + deltaMs;
+          else if ((data.mode === 'pomodoro') && data.phase === 'focus') remoteState.pomodoroElapsedMs = base + deltaMs;
+          else remoteState.focusElapsedMs = base + deltaMs;
+        }
+
+        applyRemoteState(remoteState, 'remote');
+        postBC({ type: 'TIMER_SYNC', state: remoteState });
+      }
+    );
+
+    return () => unsub();
+  }, [
+    activeTimerDocRef,
+    applyRemoteState,
+    postBC,
+    isPreparing,
+    variant,
+    effectiveMode,
+    cleanupAndCancel
+  ]);
+
+  // ========= watchdog =========
   useEffect(() => {
     if (isPreparing) return;
 
     const t = setInterval(() => {
-      // se o usuário não quer rodando, não mexe
       if (!desiredRunningRef.current) return;
-
-      // se finalizou etapas, não mexe
       if (variant !== 'simulado' && (isPomodoroFinishedRef.current || isRestFinishedRef.current)) return;
 
-      // evita brigar com toque recente
       const sinceToggle = Date.now() - (lastExplicitToggleAtRef.current || 0);
       if (sinceToggle < 1200) return;
 
-      // se pausou “do nada”, retoma
       if (isPausedRef.current) {
         resumeTimer({ source: 'watchdog' });
       }
-
-      // 🔴 CORREÇÃO: Removido o bloco que forçava audioRef.current.play()
-      // Se o browser/SO pausou o áudio (ex: Youtube), deixamos pausado.
-      // O timer visual continua rodando normalmente.
-
     }, 1500);
 
     return () => clearInterval(t);
   }, [isPreparing, resumeTimer, variant]);
 
-  // ===== Restore =====
+  // ========= init audio + restore =========
   useEffect(() => {
-    const savedSession = localStorage.getItem(STORAGE_KEY);
-
     audioRef.current = new Audio(WHITE_NOISE_URL);
     audioRef.current.loop = true;
     audioRef.current.volume = 0.01;
-    try { audioRef.current.setAttribute('playsinline', ''); } catch { }
+    try { audioRef.current.setAttribute('playsinline', ''); } catch {}
 
     alarmRef.current = new Audio();
     alarmRef.current.src = DEFAULT_ALARM_URL;
 
+    const savedSession = localStorage.getItem(STORAGE_KEY);
     if (savedSession) {
       try {
         const data = JSON.parse(savedSession);
 
-        if (String(data.disciplinaId) === String(disciplina?.id) && !data.isFinishing) {
+        const sameDisciplina = String(data.disciplinaId || '') === String(disciplina?.id || '');
+        const isValid = (variant === 'simulado') ? true : sameDisciplina;
+
+        if (isValid && !data.isFinishing) {
           setIsPreparing(false);
+          setCountdown(0);
 
-          const schemaVersion = Number(data.schemaVersion || 1);
           const sessionMode = data.mode || effectiveMode;
-
-          let restoredTotalFocus = 0;
-          let restoredFocusBlockElapsed = 0;
-          let restoredRestElapsed = 0;
-          let restoredCountdownElapsed = 0;
-
-          if (schemaVersion >= 3) {
-            restoredTotalFocus = Number(data.totalFocusSeconds) || 0;
-            restoredFocusBlockElapsed = Number(data.focusBlockElapsedSeconds) || 0;
-            restoredRestElapsed = Number(data.restElapsedSeconds) || 0;
-            restoredCountdownElapsed = Number(data.countdownElapsedSeconds) || 0;
-          } else if (schemaVersion >= 2) {
-            restoredTotalFocus = Number(data.totalFocusSeconds) || 0;
-            restoredFocusBlockElapsed = Number(data.focusBlockElapsedSeconds) || 0;
-            restoredRestElapsed = Number(data.restElapsedSeconds) || 0;
-          } else {
-            restoredTotalFocus = Number(data.accumulatedTime) || 0;
-            restoredFocusBlockElapsed = Number(data.accumulatedTime) || 0;
-          }
-
           const wasPaused = !!data.isPaused;
+
+          const focusMs = Number.isFinite(Number(data.focusAccumulatedMs))
+            ? Number(data.focusAccumulatedMs)
+            : (Number(data.totalFocusSeconds || 0) * 1000);
+
+          const pomoMs = Number.isFinite(Number(data.focusBlockElapsedBaseMs))
+            ? Number(data.focusBlockElapsedBaseMs)
+            : (Number(data.focusBlockElapsedSeconds || 0) * 1000);
+
+          const restMs = Number.isFinite(Number(data.restElapsedBaseMs))
+            ? Number(data.restElapsedBaseMs)
+            : (Number(data.restElapsedSeconds || 0) * 1000);
+
           const lastTs = Number(data.lastTimestamp) || Date.now();
-          const inactiveDelta = wasPaused ? 0 : Math.max(0, Math.floor((Date.now() - lastTs) / 1000));
+          const inactiveDeltaMs = wasPaused ? 0 : Math.max(0, Date.now() - lastTs);
 
-          totalFocusRef.current = restoredTotalFocus;
-          setTotalFocusSeconds(restoredTotalFocus);
+          const rResting = !!data.isResting;
+          const rPomoFinished = !!data.pomodoroBlockFinished;
+          const rRestFinished = !!data.restFinished;
 
-          const pomoFinished = !!(schemaVersion >= 2 ? data.pomodoroBlockFinished : data.pomodoroFinished);
-          const resting = !!(schemaVersion >= 2 ? data.isResting : false);
-          const restFinished = !!(schemaVersion >= 2 ? data.restFinished : false);
-
-          // simulado não usa overlays pomodoro/rest
           if (variant !== 'simulado') {
-            setIsPomodoroFinished(pomoFinished); isPomodoroFinishedRef.current = pomoFinished;
-            setIsResting(resting); isRestingRef.current = resting;
-            setIsRestFinished(restFinished); isRestFinishedRef.current = restFinished;
+            setIsResting(rResting); isRestingRef.current = rResting;
+            setIsPomodoroFinished(rPomoFinished); isPomodoroFinishedRef.current = rPomoFinished;
+            setIsRestFinished(rRestFinished); isRestFinishedRef.current = rRestFinished;
           }
 
-          // bases
-          focusBlockElapsedBaseRef.current = restoredFocusBlockElapsed;
-          restElapsedBaseRef.current = restoredRestElapsed;
-
-          // ✅ aplica delta enquanto estava em background (se estava rodando)
-          if (!wasPaused && inactiveDelta > 0) {
+          if (!wasPaused && inactiveDeltaMs > 0) {
             if (sessionMode === 'countdown') {
-              restoredCountdownElapsed = (restoredCountdownElapsed || restoredTotalFocus || 0) + inactiveDelta;
-              restoredTotalFocus = (restoredTotalFocus || 0) + inactiveDelta;
+              focusAccumulatedMsRef.current = focusMs + inactiveDeltaMs;
+              focusBlockElapsedBaseMsRef.current = pomoMs;
+              restElapsedBaseMsRef.current = restMs;
             } else if (sessionMode === 'pomodoro' && variant !== 'simulado') {
-              if (resting) {
-                restElapsedBaseRef.current = Math.min((settings.restTime * 60), (restElapsedBaseRef.current || 0) + inactiveDelta);
+              if (rResting) {
+                restElapsedBaseMsRef.current = Math.min(Number(settings.restTime || 1) * 60 * 1000, restMs + inactiveDeltaMs);
+                focusAccumulatedMsRef.current = focusMs;
+                focusBlockElapsedBaseMsRef.current = pomoMs;
               } else {
-                focusBlockElapsedBaseRef.current = Math.min((settings.pomodoroTime * 60), (focusBlockElapsedBaseRef.current || 0) + inactiveDelta);
-                totalFocusRef.current = (totalFocusRef.current || 0) + inactiveDelta;
-                restoredTotalFocus = totalFocusRef.current;
+                focusBlockElapsedBaseMsRef.current = Math.min(Number(settings.pomodoroTime || 1) * 60 * 1000, pomoMs + inactiveDeltaMs);
+                focusAccumulatedMsRef.current = focusMs + inactiveDeltaMs;
               }
             } else {
-              totalFocusRef.current = (totalFocusRef.current || 0) + inactiveDelta;
-              restoredTotalFocus = totalFocusRef.current;
+              focusAccumulatedMsRef.current = focusMs + inactiveDeltaMs;
+              focusBlockElapsedBaseMsRef.current = pomoMs;
+              restElapsedBaseMsRef.current = restMs;
             }
-            setTotalFocusSeconds(restoredTotalFocus);
-          }
-
-          if (sessionMode === 'countdown') {
-            const total = Number(data.countdownSeconds || countdownSeconds || 0);
-            const elapsed = (restoredCountdownElapsed || restoredTotalFocus || 0);
-            const remaining = Math.max(0, total - elapsed);
-            secondsRef.current = remaining;
-            setSeconds(remaining);
-            totalFocusRef.current = elapsed;
-            setTotalFocusSeconds(elapsed);
-          } else if (resting && variant !== 'simulado') {
-            const restDuration = Number(data.restDuration || (settings.restTime * 60)) || (settings.restTime * 60);
-            const remaining = Math.max(0, restDuration - (restElapsedBaseRef.current || 0));
-            secondsRef.current = restFinished ? 0 : remaining;
-            setSeconds(secondsRef.current);
-          } else if (sessionMode === 'pomodoro') {
-            const duration = Number(data.pomodoroDuration || (settings.pomodoroTime * 60)) || (settings.pomodoroTime * 60);
-            const remaining = Math.max(0, duration - (focusBlockElapsedBaseRef.current || 0));
-            secondsRef.current = pomoFinished ? 0 : remaining;
-            setSeconds(secondsRef.current);
           } else {
-            secondsRef.current = restoredTotalFocus;
-            setSeconds(restoredTotalFocus);
+            focusAccumulatedMsRef.current = focusMs;
+            focusBlockElapsedBaseMsRef.current = pomoMs;
+            restElapsedBaseMsRef.current = restMs;
           }
 
-          // ✅ respeita paused salvo (não força pause)
           setIsPaused(wasPaused);
           isPausedRef.current = wasPaused;
 
-          if (!wasPaused) {
-            // se estava rodando, retoma startRefs para continuar “delta” daqui
-            if (variant !== 'simulado' && resting) restStartRef.current = Date.now();
-            else focusBlockStartRef.current = Date.now();
+          const display = getDisplaySecondsFromCurrentState();
+          setSecondsIfChanged(display);
 
+          setTotalFocusSeconds(Math.floor(getCurrentFocusElapsedMs() / 1000));
+
+          updateExternalStatus(!wasPaused, display);
+          updateMediaSession(!wasPaused, display);
+
+          if (!wasPaused) {
             desiredRunningRef.current = true;
-            if (audioRef.current) audioRef.current.play().catch(() => { });
-            updateExternalStatus(true, secondsRef.current);
-            updateMediaSession(true, secondsRef.current);
+
+            wakeLockWantedRef.current = true;
+            requestWakeLock();
+
+            if (variant !== 'simulado' && isRestingRef.current) {
+              restStartMsRef.current = Date.now();
+              lastLocalRunStartMsRef.current = restStartMsRef.current;
+              lastLocalElapsedMsAtRunStartRef.current = restElapsedBaseMsRef.current || 0;
+            } else {
+              focusStartMsRef.current = Date.now();
+              lastLocalRunStartMsRef.current = focusStartMsRef.current;
+              lastLocalElapsedMsAtRunStartRef.current =
+                (sessionMode === 'pomodoro' && variant !== 'simulado')
+                  ? (focusBlockElapsedBaseMsRef.current || 0)
+                  : (focusAccumulatedMsRef.current || 0);
+            }
+
+            if (audioRef.current) audioRef.current.play().catch(() => {});
+            startTickLoop();
 
             upsertActiveTimer({
               status: 'running',
               isPaused: false,
-              runningSince: serverTimestamp(),
+              runStartedAt: serverTimestamp(),
+              elapsedMsAtRunStart: lastLocalElapsedMsAtRunStartRef.current || 0,
               createdAt: serverTimestamp(),
+              phase: rResting ? 'rest' : 'focus',
+              uiOverlay: 'none',
             }, { merge: true });
+
+            postBC({ type: 'TIMER_ACTION', action: 'CLOSE_OVERLAYS' });
           } else {
             desiredRunningRef.current = false;
-            focusBlockStartRef.current = null;
-            restStartRef.current = null;
+            focusStartMsRef.current = null;
+            restStartMsRef.current = null;
 
-            updateExternalStatus(false, secondsRef.current);
-            updateMediaSession(false, secondsRef.current);
+            wakeLockWantedRef.current = false;
+            releaseWakeLock();
 
             upsertActiveTimer({
               status: 'paused',
               isPaused: true,
-              runningSince: null,
+              runStartedAt: null,
+              elapsedMsAtRunStart: null,
               createdAt: serverTimestamp(),
+              phase: rRestFinished ? 'rest_finished' : (rPomoFinished ? 'pomodoro_finished' : (rResting ? 'rest' : 'focus')),
+              uiOverlay: 'none',
             }, { merge: true });
           }
         }
-      } catch (e) { console.error(e); }
+      } catch (e) {
+        console.error(e);
+      }
     }
 
     return () => {
-      clearInterval(intervalRef.current);
-      if (audioRef.current) audioRef.current.pause();
-      if (alarmRef.current) alarmRef.current.pause();
-      if (originalTitleRef.current) document.title = originalTitleRef.current;
-      if (document.fullscreenElement) document.exitFullscreen().catch(() => { });
-      // opcional: limpar positionState
-      try {
-        if ('mediaSession' in navigator && 'setPositionState' in navigator.mediaSession) {
-          navigator.mediaSession.setPositionState(null);
-        }
-      } catch { }
+      clearTick();
+      try { audioRef.current?.pause?.(); } catch {}
+      try { alarmRef.current?.pause?.(); } catch {}
+
+      releaseWakeLock();
+      restoreDocumentTitle();
+      clearMediaSession();
+
+      if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
     };
   }, [
     disciplina?.id,
     STORAGE_KEY,
     variant,
     effectiveMode,
-    countdownSeconds,
+    safeCountdownSeconds,
     settings.pomodoroTime,
     settings.restTime,
-    upsertActiveTimer,
+    startTickLoop,
+    setSecondsIfChanged,
+    getDisplaySecondsFromCurrentState,
+    getCurrentFocusElapsedMs,
     updateExternalStatus,
-    updateMediaSession
+    updateMediaSession,
+    upsertActiveTimer,
+    clearTick,
+    requestWakeLock,
+    releaseWakeLock,
+    restoreDocumentTitle,
+    clearMediaSession,
+    postBC
   ]);
 
-  // ===== Init =====
+  // ========= init “GO!” =========
   useEffect(() => {
     if (!isPreparing) return;
-    if (countdown > 0) {
-      const timer = setTimeout(() => setCountdown(c => c - 1), 1000);
-      return () => clearTimeout(timer);
-    }
 
-    if (audioRef.current) audioRef.current.play().catch(() => { });
+    if (countdown > 0) {
+      const t = setTimeout(() => setCountdown(c => c - 1), 1000);
+      return () => clearTimeout(t);
+    }
 
     setIsPreparing(false);
 
-    totalFocusRef.current = 0; setTotalFocusSeconds(0);
-    setIsPaused(false); isPausedRef.current = false;
+    focusAccumulatedMsRef.current = 0;
+    focusBlockElapsedBaseMsRef.current = 0;
+    restElapsedBaseMsRef.current = 0;
+
+    closeAllOverlaysLocal();
+
+    setIsPaused(false);
+    isPausedRef.current = false;
 
     desiredRunningRef.current = true;
     lastExplicitToggleAtRef.current = Date.now();
 
-    // simulado não usa pomodoro/rest overlays
     if (variant !== 'simulado') {
       setIsPomodoroFinished(false); isPomodoroFinishedRef.current = false;
       setIsResting(false); isRestingRef.current = false;
       setIsRestFinished(false); isRestFinishedRef.current = false;
-      focusBlockElapsedBaseRef.current = 0; restElapsedBaseRef.current = 0;
     }
 
-    // ✅ init seconds
-    if (effectiveMode === 'pomodoro') {
-      const total = settings.pomodoroTime * 60;
-      secondsRef.current = total; setSeconds(total);
-      focusBlockStartRef.current = Date.now();
-    } else if (effectiveMode === 'countdown') {
-      const total = Math.max(1, Number(countdownSeconds) || 0);
-      secondsRef.current = total; setSeconds(total);
-      focusBlockStartRef.current = Date.now();
-    } else {
-      secondsRef.current = 0; setSeconds(0);
-      focusBlockStartRef.current = Date.now();
-    }
+    focusStartMsRef.current = Date.now();
+    lastLocalRunStartMsRef.current = focusStartMsRef.current;
+    lastLocalElapsedMsAtRunStartRef.current = 0;
+
+    wakeLockWantedRef.current = true;
+    requestWakeLock();
+
+    if (audioRef.current) audioRef.current.play().catch(() => {});
+
+    const display = getDisplaySecondsFromCurrentState();
+    setSecondsIfChanged(display);
+    setTotalFocusSeconds(0);
 
     saveToStorage({
-      isPaused: false, isResting: false, restFinished: false, pomodoroBlockFinished: false,
-      totalFocusSeconds: 0, focusBlockElapsedSeconds: 0, restElapsedSeconds: 0,
-      countdownElapsedSeconds: 0,
+      isPaused: false,
+      isResting: false,
+      restFinished: false,
+      pomodoroBlockFinished: false,
+      focusAccumulatedMs: 0,
+      focusBlockElapsedBaseMs: 0,
+      restElapsedBaseMs: 0,
       lastTimestamp: Date.now(),
     });
 
-    updateExternalStatus(true, secondsRef.current);
-    updateMediaSession(true, secondsRef.current);
+    updateExternalStatus(true, display);
+    updateMediaSession(true, display);
 
     upsertActiveTimer({
       status: 'running',
       isPaused: false,
-      runningSince: serverTimestamp(),
+      runStartedAt: serverTimestamp(),
+      elapsedMsAtRunStart: 0,
       createdAt: serverTimestamp(),
+      phase: 'focus',
+      uiOverlay: 'none',
     }, { merge: true });
+
+    startTickLoop();
+
+    // ✅ fecha overlay em TODAS as outras abas/dispositivos
+    postBC({ type: 'TIMER_ACTION', action: 'CLOSE_OVERLAYS' });
+    postBC({ type: 'TIMER_SYNC', state: exportLocalStateForSync() });
   }, [
     isPreparing,
     countdown,
+    variant,
     effectiveMode,
-    countdownSeconds,
-    settings.pomodoroTime,
+    startTickLoop,
+    getDisplaySecondsFromCurrentState,
+    setSecondsIfChanged,
     saveToStorage,
     updateExternalStatus,
     updateMediaSession,
     upsertActiveTimer,
-    variant
+    postBC,
+    exportLocalStateForSync,
+    requestWakeLock,
+    closeAllOverlaysLocal
   ]);
 
-  // ===== Tick =====
-  useEffect(() => {
-    if (isPreparing) return;
+  // ========= pomodoro actions =========
+  const handleRepeatCycle = useCallback(() => {
+    try { alarmRef.current?.pause?.(); } catch {}
 
-    // simulado não usa overlays de pomodoro/rest
-    if (variant !== 'simulado' && (isPomodoroFinished || isRestFinished)) return;
+    desiredRunningRef.current = true;
+    lastExplicitToggleAtRef.current = Date.now();
 
-    if (isPaused) {
-      clearInterval(intervalRef.current);
-      updateExternalStatus(false, secondsRef.current);
-      updateMediaSession(false, secondsRef.current);
-      return;
-    }
+    closeAllOverlaysLocal();
 
-    const tick = () => {
-      // ✅ COUNTDOWN (simulado)
-      if (effectiveMode === 'countdown') {
-        const total = Math.max(1, Number(countdownSeconds) || 0);
-        const delta = getCountdownRunningDeltaSeconds();
-        const elapsed = (totalFocusRef.current || 0) + delta;
-        const remaining = Math.max(0, total - elapsed);
+    setIsPomodoroFinished(false);
+    setIsResting(false);
+    setIsRestFinished(false);
+    isPomodoroFinishedRef.current = false;
+    isRestingRef.current = false;
+    isRestFinishedRef.current = false;
 
-        secondsRef.current = remaining;
-        setSeconds(remaining);
+    setIsPaused(false);
+    isPausedRef.current = false;
 
-        setTotalFocusSeconds(elapsed);
+    focusBlockElapsedBaseMsRef.current = 0;
 
-        saveToStorage({
-          isPaused: false,
-          isResting: false,
-          restFinished: false,
-          pomodoroBlockFinished: false,
-          totalFocusSeconds: elapsed,
-          focusBlockElapsedSeconds: 0,
-          restElapsedSeconds: 0,
-          countdownElapsedSeconds: elapsed,
-          lastTimestamp: Date.now(),
-        });
+    focusStartMsRef.current = Date.now();
+    lastLocalRunStartMsRef.current = focusStartMsRef.current;
+    lastLocalElapsedMsAtRunStartRef.current = 0;
 
-        updateExternalStatus(true, remaining);
-        updateMediaSession(true, remaining);
+    wakeLockWantedRef.current = true;
+    requestWakeLock();
 
-        if (remaining <= 0) {
-          totalFocusRef.current = total;
-          setTotalFocusSeconds(total);
-          handleStop();
-        }
+    if (audioRef.current) audioRef.current.play().catch(() => {});
 
-        return;
-      }
+    const display = getDisplaySecondsFromCurrentState();
+    setSecondsIfChanged(display);
+    startTickLoop();
 
-      // ===== REST (somente modo estudo) =====
-      if (variant !== 'simulado' && isRestingRef.current) {
-        const duration = settings.restTime * 60;
-        const delta = getRestRunningDeltaSeconds();
-        const elapsed = (restElapsedBaseRef.current || 0) + delta;
-        const remaining = Math.max(0, duration - elapsed);
-        secondsRef.current = remaining; setSeconds(remaining);
-        saveToStorage({
-          isPaused: false, isResting: true, restFinished: false, pomodoroBlockFinished: false,
-          totalFocusSeconds: totalFocusRef.current || 0,
-          focusBlockElapsedSeconds: focusBlockElapsedBaseRef.current || 0,
-          restElapsedSeconds: elapsed, lastTimestamp: Date.now(),
-        });
-        updateExternalStatus(true, remaining); updateMediaSession(true, remaining);
-        if (remaining <= 0) handleRestComplete();
-        return;
-      }
+    saveToStorage({
+      isPaused: false,
+      isResting: false,
+      restFinished: false,
+      pomodoroBlockFinished: false,
+      focusAccumulatedMs: getCurrentFocusElapsedMs(),
+      focusBlockElapsedBaseMs: 0,
+      restElapsedBaseMs: 0,
+      lastTimestamp: Date.now(),
+    });
 
-      // ===== POMODORO (somente modo estudo) =====
-      if (effectiveMode === 'pomodoro' && variant !== 'simulado') {
-        const duration = settings.pomodoroTime * 60;
-        const delta = getPomodoroRunningDeltaSeconds();
-        const elapsedInBlock = (focusBlockElapsedBaseRef.current || 0) + delta;
-        const remaining = Math.max(0, duration - elapsedInBlock);
+    updateExternalStatus(true, display);
+    updateMediaSession(true, display);
 
-        secondsRef.current = remaining; setSeconds(remaining);
+    patchActiveTimer({
+      status: 'running',
+      isPaused: false,
+      isResting: false,
+      runStartedAt: serverTimestamp(),
+      elapsedMsAtRunStart: 0,
+      phase: 'focus',
+      uiOverlay: 'none',
+    }, { includeSnapshot: true });
 
-        const currentTotalFocus = (totalFocusRef.current || 0) + delta;
-        setTotalFocusSeconds(currentTotalFocus);
-
-        saveToStorage({
-          isPaused: false, isResting: false, restFinished: false, pomodoroBlockFinished: false,
-          totalFocusSeconds: currentTotalFocus,
-          focusBlockElapsedSeconds: elapsedInBlock,
-          restElapsedSeconds: restElapsedBaseRef.current || 0, lastTimestamp: Date.now(),
-        });
-        updateExternalStatus(true, remaining); updateMediaSession(true, remaining);
-        if (remaining <= 0) handlePomodoroComplete();
-        return;
-      }
-
-      // ===== FREE (conta para cima) =====
-      const delta = getFreeRunningDeltaSeconds();
-      const currentTotal = (totalFocusRef.current || 0) + delta;
-      secondsRef.current = currentTotal; setSeconds(currentTotal); setTotalFocusSeconds(currentTotal);
-      saveToStorage({
-        isPaused: false, isResting: false, restFinished: false, pomodoroBlockFinished: false,
-        totalFocusSeconds: currentTotal, focusBlockElapsedSeconds: 0, restElapsedSeconds: 0, lastTimestamp: Date.now(),
-        countdownElapsedSeconds: currentTotal,
-      });
-      updateExternalStatus(true, currentTotal); updateMediaSession(true, currentTotal);
-    };
-
-    if (variant !== 'simulado' && isRestingRef.current && !restStartRef.current) restStartRef.current = Date.now();
-    if (!focusBlockStartRef.current) focusBlockStartRef.current = Date.now();
-
-    tick();
-    intervalRef.current = setInterval(tick, 1000);
-    return () => clearInterval(intervalRef.current);
+    // ✅ FECHA overlay em outras abas/dispositivos
+    postBC({ type: 'TIMER_ACTION', action: 'CLOSE_OVERLAYS' });
+    postBC({ type: 'TIMER_SYNC', state: exportLocalStateForSync() });
   }, [
-    variant,
-    isPreparing, isPaused,
-    isPomodoroFinished, isRestFinished,
-    effectiveMode, countdownSeconds,
-    settings.mode, settings.pomodoroTime, settings.restTime,
-    saveToStorage, updateExternalStatus, updateMediaSession,
-    getPomodoroRunningDeltaSeconds, getFreeRunningDeltaSeconds, getRestRunningDeltaSeconds,
-    getCountdownRunningDeltaSeconds,
-    handlePomodoroComplete, handleRestComplete,
-    handleStop
+    getDisplaySecondsFromCurrentState,
+    setSecondsIfChanged,
+    startTickLoop,
+    saveToStorage,
+    updateExternalStatus,
+    updateMediaSession,
+    patchActiveTimer,
+    exportLocalStateForSync,
+    postBC,
+    getCurrentFocusElapsedMs,
+    requestWakeLock,
+    closeAllOverlaysLocal
   ]);
 
+  const handleStartRest = useCallback(() => {
+    try { alarmRef.current?.pause?.(); } catch {}
+
+    desiredRunningRef.current = true;
+    lastExplicitToggleAtRef.current = Date.now();
+
+    closeAllOverlaysLocal();
+
+    setIsPomodoroFinished(false);
+    setIsResting(true);
+    setIsRestFinished(false);
+    setIsPaused(false);
+
+    isPomodoroFinishedRef.current = false;
+    isRestingRef.current = true;
+    isRestFinishedRef.current = false;
+    isPausedRef.current = false;
+
+    restElapsedBaseMsRef.current = 0;
+    restStartMsRef.current = Date.now();
+    lastLocalRunStartMsRef.current = restStartMsRef.current;
+    lastLocalElapsedMsAtRunStartRef.current = 0;
+
+    wakeLockWantedRef.current = true;
+    requestWakeLock();
+
+    if (audioRef.current) audioRef.current.play().catch(() => {});
+
+    const display = getDisplaySecondsFromCurrentState();
+    setSecondsIfChanged(display);
+    startTickLoop();
+
+    saveToStorage({
+      isPaused: false,
+      isResting: true,
+      restFinished: false,
+      pomodoroBlockFinished: false,
+      focusAccumulatedMs: getCurrentFocusElapsedMs(),
+      focusBlockElapsedBaseMs: focusBlockElapsedBaseMsRef.current || 0,
+      restElapsedBaseMs: 0,
+      lastTimestamp: Date.now(),
+    });
+
+    updateExternalStatus(true, display);
+    updateMediaSession(true, display);
+
+    patchActiveTimer({
+      status: 'running',
+      isPaused: false,
+      isResting: true,
+      runStartedAt: serverTimestamp(),
+      elapsedMsAtRunStart: 0,
+      phase: 'rest',
+      uiOverlay: 'none',
+    }, { includeSnapshot: true });
+
+    // ✅ FECHA overlay em outras abas/dispositivos
+    postBC({ type: 'TIMER_ACTION', action: 'CLOSE_OVERLAYS' });
+    postBC({ type: 'TIMER_SYNC', state: exportLocalStateForSync() });
+  }, [
+    getDisplaySecondsFromCurrentState,
+    setSecondsIfChanged,
+    startTickLoop,
+    saveToStorage,
+    updateExternalStatus,
+    updateMediaSession,
+    patchActiveTimer,
+    exportLocalStateForSync,
+    postBC,
+    getCurrentFocusElapsedMs,
+    requestWakeLock,
+    closeAllOverlaysLocal
+  ]);
+
+  const handleBackToStudy = useCallback(() => {
+    try { alarmRef.current?.pause?.(); } catch {}
+
+    desiredRunningRef.current = true;
+    lastExplicitToggleAtRef.current = Date.now();
+
+    closeAllOverlaysLocal();
+
+    setIsRestFinished(false);
+    setIsResting(false);
+    setIsPomodoroFinished(false);
+    setIsPaused(false);
+
+    isRestFinishedRef.current = false;
+    isRestingRef.current = false;
+    isPomodoroFinishedRef.current = false;
+    isPausedRef.current = false;
+
+    focusStartMsRef.current = Date.now();
+    lastLocalRunStartMsRef.current = focusStartMsRef.current;
+    lastLocalElapsedMsAtRunStartRef.current =
+      (settings.mode === 'pomodoro')
+        ? (focusBlockElapsedBaseMsRef.current || 0)
+        : (focusAccumulatedMsRef.current || 0);
+
+    wakeLockWantedRef.current = true;
+    requestWakeLock();
+
+    if (audioRef.current) audioRef.current.play().catch(() => {});
+
+    const display = getDisplaySecondsFromCurrentState();
+    setSecondsIfChanged(display);
+    startTickLoop();
+
+    saveToStorage({
+      isPaused: false,
+      isResting: false,
+      restFinished: false,
+      pomodoroBlockFinished: false,
+      focusAccumulatedMs: getCurrentFocusElapsedMs(),
+      focusBlockElapsedBaseMs: focusBlockElapsedBaseMsRef.current || 0,
+      restElapsedBaseMs: restElapsedBaseMsRef.current || 0,
+      lastTimestamp: Date.now(),
+    });
+
+    updateExternalStatus(true, display);
+    updateMediaSession(true, display);
+
+    patchActiveTimer({
+      status: 'running',
+      isPaused: false,
+      isResting: false,
+      runStartedAt: serverTimestamp(),
+      elapsedMsAtRunStart: lastLocalElapsedMsAtRunStartRef.current || 0,
+      phase: 'focus',
+      uiOverlay: 'none',
+    }, { includeSnapshot: true });
+
+    // ✅ FECHA overlay em outras abas/dispositivos
+    postBC({ type: 'TIMER_ACTION', action: 'CLOSE_OVERLAYS' });
+    postBC({ type: 'TIMER_SYNC', state: exportLocalStateForSync() });
+  }, [
+    settings.mode,
+    getDisplaySecondsFromCurrentState,
+    startTickLoop,
+    saveToStorage,
+    updateExternalStatus,
+    updateMediaSession,
+    patchActiveTimer,
+    exportLocalStateForSync,
+    postBC,
+    getCurrentFocusElapsedMs,
+    requestWakeLock,
+    closeAllOverlaysLocal
+  ]);
+
+  const finishText = finishButtonLabel || (variant === 'simulado' ? 'Finalizar Simulado' : 'Finalizar Estudo');
+
+  // ========= minimized UI =========
   if (isMinimized) {
     let positionClass = 'bottom-24';
     if (raised === 'top') positionClass = 'bottom-[350px]';
@@ -1441,19 +2054,22 @@ function StudyTimer({
           onClick={onWidgetMode}
         >
           <div className="relative flex items-center justify-center w-10 h-10 bg-zinc-100 dark:bg-zinc-800 rounded-full shrink-0">
-            <div className={`absolute inset-0 rounded-full ${isPaused ? '' : 'animate-ping'}`} style={{ backgroundColor: isPaused ? 'transparent' : `${themeColor}40` }}></div>
-            <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: isPaused ? '#fbbf24' : themeColor }}></div>
+            <div className={`absolute inset-0 rounded-full ${isPaused ? '' : 'animate-ping'}`} style={{ backgroundColor: isPaused ? 'transparent' : `${themeColor}40` }} />
+            <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: isPaused ? '#fbbf24' : themeColor }} />
           </div>
 
           <div className="flex flex-col mr-2 min-w-0">
             <span className="text-[10px] text-zinc-500 dark:text-zinc-400 uppercase font-bold tracking-wider truncate">
-              {assunto ? assunto : (isResting ? 'Descanso' : (disciplina?.nome || 'Disciplina'))}
+              {assunto ? assunto : (variant !== 'simulado' && isResting ? 'Descanso' : (disciplina?.nome || 'Disciplina'))}
             </span>
             <span className="text-xl font-mono font-bold text-zinc-900 dark:text-white leading-none">{formatClock(seconds)}</span>
           </div>
 
           <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-            <button onClick={() => handleTogglePause('user')} className="p-2 rounded-full bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-900 dark:text-white">
+            <button
+              onClick={() => handleTogglePause('user')}
+              className="p-2 rounded-full bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-900 dark:text-white"
+            >
               {isPaused ? <Play size={14} fill="currentColor" /> : <Pause size={14} fill="currentColor" />}
             </button>
           </div>
@@ -1462,18 +2078,12 @@ function StudyTimer({
     );
   }
 
-  const finishText = finishButtonLabel || (variant === 'simulado' ? 'Finalizar Simulado' : 'Finalizar Estudo');
-
+  // ========= FULL UI =========
   return (
     <div className="fixed inset-0 z-[9999] bg-zinc-50 dark:bg-zinc-950 flex flex-col items-center justify-center animate-fade-in overflow-hidden font-sans">
       <ConfirmationModal
         isOpen={isCancelModalOpen}
-        onConfirm={() => {
-          desiredRunningRef.current = false;
-          localStorage.removeItem(STORAGE_KEY);
-          removeActiveTimer();
-          onCancel();
-        }}
+        onConfirm={() => cleanupAndCancel('user')}
         onCancel={() => setIsCancelModalOpen(false)}
         title="Cancelar Sessão?"
         description="Todo o tempo desta sessão será descartado."
@@ -1481,23 +2091,39 @@ function StudyTimer({
         isDestructive={true}
       />
 
-      <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, currentColor 1px, transparent 0)', backgroundSize: '40px 40px', color: themeColor }}></div>
-      <div className="absolute top-0 left-0 w-full h-1 opacity-50" style={{ background: `linear-gradient(90deg, transparent, ${themeColor}, transparent)` }}></div>
+      <div
+        className="absolute inset-0 opacity-[0.03] pointer-events-none"
+        style={{
+          backgroundImage: 'radial-gradient(circle at 2px 2px, currentColor 1px, transparent 0)',
+          backgroundSize: '40px 40px',
+          color: themeColor
+        }}
+      />
+      <div className="absolute top-0 left-0 w-full h-1 opacity-50" style={{ background: `linear-gradient(90deg, transparent, ${themeColor}, transparent)` }} />
 
       <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20 opacity-80 pointer-events-none transition-all">
         <img src="/logo-pmba.png" alt="Logo" className="h-20 md:h-28 w-auto drop-shadow-2xl grayscale-[0.2]" />
       </div>
 
       <div className="absolute top-6 right-6 flex gap-3 z-[100]">
-        <button onClick={toggleTheme} className="p-3 rounded-full bg-white dark:bg-zinc-900 text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 transition-all shadow-sm">
+        <button
+          onClick={toggleTheme}
+          className="p-3 rounded-full bg-white dark:bg-zinc-900 text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 transition-all shadow-sm"
+        >
           {isDark ? <Sun size={20} /> : <Moon size={20} />}
         </button>
 
-        <button onClick={toggleFullscreen} className="p-3 rounded-full bg-white dark:bg-zinc-900 text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 transition-all shadow-sm">
+        <button
+          onClick={toggleFullscreen}
+          className="p-3 rounded-full bg-white dark:bg-zinc-900 text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 transition-all shadow-sm"
+        >
           {isFullscreen ? <Minimize2 size={20} /> : <Maximize size={20} />}
         </button>
 
-        <button onClick={onWidgetMinimize} className="flex items-center gap-2 bg-white dark:bg-zinc-900 text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 transition-all px-4 py-2 rounded-full shadow-sm">
+        <button
+          onClick={onWidgetMinimize}
+          className="flex items-center gap-2 bg-white dark:bg-zinc-900 text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 transition-all px-4 py-2 rounded-full shadow-sm"
+        >
           <Minimize2 size={20} />
           <span className="hidden md:inline text-sm font-bold uppercase tracking-wide">Minimizar</span>
         </button>
@@ -1530,7 +2156,7 @@ function StudyTimer({
         )}
       </AnimatePresence>
 
-      {/* ✅ overlays pomodoro/rest ficam somente no modo estudo */}
+      {/* overlays pomodoro/rest apenas no study */}
       {variant !== 'simulado' && (
         <>
           <AnimatePresence>
@@ -1550,10 +2176,17 @@ function StudyTimer({
                 </p>
 
                 <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md">
-                  <button onClick={handleStop} className="flex-1 py-4 rounded-xl bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-white font-bold uppercase tracking-wide hover:bg-zinc-300 dark:hover:bg-zinc-700 transition-colors">
+                  <button
+                    onClick={handleStop}
+                    className="flex-1 py-4 rounded-xl bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-white font-bold uppercase tracking-wide hover:bg-zinc-300 dark:hover:bg-zinc-700 transition-colors"
+                  >
                     Salvar Sessão
                   </button>
-                  <button onClick={handleRepeatCycle} className="flex-1 py-4 rounded-xl font-bold uppercase tracking-wide text-white hover:opacity-90 transition-opacity flex items-center justify-center gap-2 shadow-lg" style={{ backgroundColor: themeColor }}>
+                  <button
+                    onClick={handleRepeatCycle}
+                    className="flex-1 py-4 rounded-xl font-bold uppercase tracking-wide text-white hover:opacity-90 transition-opacity flex items-center justify-center gap-2 shadow-lg"
+                    style={{ backgroundColor: themeColor }}
+                  >
                     <Repeat size={20} /> Novo Ciclo
                   </button>
                 </div>
@@ -1585,10 +2218,17 @@ function StudyTimer({
                 </p>
 
                 <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md">
-                  <button onClick={handleBackToStudy} className="flex-1 py-4 rounded-xl font-bold uppercase tracking-wide text-white hover:opacity-90 transition-opacity flex items-center justify-center gap-2 shadow-lg" style={{ backgroundColor: themeColor }}>
+                  <button
+                    onClick={handleBackToStudy}
+                    className="flex-1 py-4 rounded-xl font-bold uppercase tracking-wide text-white hover:opacity-90 transition-opacity flex items-center justify-center gap-2 shadow-lg"
+                    style={{ backgroundColor: themeColor }}
+                  >
                     <Play size={20} /> Retomar Estudo
                   </button>
-                  <button onClick={handleStop} className="flex-1 py-4 rounded-xl bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-white font-bold uppercase tracking-wide hover:bg-zinc-300 dark:hover:bg-zinc-700 transition-colors">
+                  <button
+                    onClick={handleStop}
+                    className="flex-1 py-4 rounded-xl bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-white font-bold uppercase tracking-wide hover:bg-zinc-300 dark:hover:bg-zinc-700 transition-colors"
+                  >
                     Finalizar
                   </button>
                 </div>
@@ -1610,11 +2250,10 @@ function StudyTimer({
           className="mb-8 px-5 py-2 rounded-full border text-[10px] md:text-xs font-bold tracking-[0.2em] uppercase flex items-center gap-3 transition-colors shadow-sm bg-white dark:bg-zinc-900"
           style={{ borderColor: `${themeColor}40`, color: themeColor }}
         >
-          <span className={`w-2 h-2 rounded-full ${isPaused ? 'bg-zinc-400' : 'animate-pulse'}`} style={{ backgroundColor: isPaused ? undefined : themeColor }}></span>
+          <span className={`w-2 h-2 rounded-full ${isPaused ? 'bg-zinc-400' : 'animate-pulse'}`} style={{ backgroundColor: isPaused ? undefined : themeColor }} />
           {variant === 'simulado'
             ? (isPaused ? 'Simulado Pausado' : (effectiveMode === 'countdown' ? 'Cronômetro' : 'Tempo Livre'))
-            : (isResting ? 'Modo Descanso' : (isPaused ? 'Pausado' : (isPomodoro ? 'Modo Pomodoro' : 'Modo Livre')))
-          }
+            : (isResting ? 'Modo Descanso' : (isPaused ? 'Pausado' : (isPomodoro ? 'Modo Pomodoro' : 'Modo Livre')))}
         </div>
 
         <h2 className="text-xl md:text-4xl font-bold text-zinc-800 dark:text-zinc-300 mb-2 tracking-tight max-w-3xl leading-tight line-clamp-2">
@@ -1629,12 +2268,12 @@ function StudyTimer({
         )}
 
         <div className="relative mb-16 md:mb-20">
-          <div className="absolute -inset-10 blur-[60px] md:blur-[100px] opacity-20 rounded-full transition-colors duration-700" style={{ backgroundColor: isPaused ? '#71717a' : themeColor }}></div>
+          <div className="absolute -inset-10 blur-[60px] md:blur-[100px] opacity-20 rounded-full transition-colors duration-700" style={{ backgroundColor: isPaused ? '#71717a' : themeColor }} />
           <div
             className="text-7xl sm:text-9xl md:text-[12rem] font-mono font-bold leading-none tracking-tighter tabular-nums transition-colors duration-300 select-none drop-shadow-2xl"
-            style={{ color: isPaused ? '#a1a1aa' : (isResting ? '#3B82F6' : '#18181b') }}
+            style={{ color: isPaused ? '#a1a1aa' : (variant !== 'simulado' && isResting ? '#3B82F6' : '#18181b') }}
           >
-            <span className={`${isPaused ? 'text-zinc-400' : (isResting ? 'text-blue-500' : 'text-zinc-900 dark:text-white')}`}>
+            <span className={`${isPaused ? 'text-zinc-400' : (variant !== 'simulado' && isResting ? 'text-blue-500' : 'text-zinc-900 dark:text-white')}`}>
               {formatClock(seconds)}
             </span>
           </div>
@@ -1652,7 +2291,10 @@ function StudyTimer({
               <span className="text-[10px] font-bold uppercase tracking-wider text-center">Finalizar Descanso</span>
             </button>
           ) : (
-            <button onClick={() => setIsCancelModalOpen(true)} className="group flex flex-col items-center gap-2 text-zinc-400 hover:text-red-500 transition-colors">
+            <button
+              onClick={() => setIsCancelModalOpen(true)}
+              className="group flex flex-col items-center gap-2 text-zinc-400 hover:text-red-500 transition-colors"
+            >
               <div className="w-14 h-14 rounded-full border-2 border-zinc-200 dark:border-zinc-800 group-hover:border-red-500/50 flex items-center justify-center bg-white dark:bg-zinc-900 transition-all shadow-sm">
                 <X size={24} />
               </div>
@@ -1669,7 +2311,10 @@ function StudyTimer({
             <span className="mt-2 text-[10px] md:text-sm font-bold uppercase">{isPaused ? 'Retomar' : 'Pausar'}</span>
           </button>
 
-          <button onClick={handleStop} className="group flex flex-col items-center gap-2 text-zinc-400 hover:text-emerald-500 transition-colors">
+          <button
+            onClick={handleStop}
+            className="group flex flex-col items-center gap-2 text-zinc-400 hover:text-emerald-500 transition-colors"
+          >
             <div className="w-14 h-14 rounded-full border-2 border-zinc-200 dark:border-zinc-800 group-hover:border-emerald-500/50 flex items-center justify-center bg-white dark:bg-zinc-900 transition-all shadow-sm">
               <Square size={24} fill="currentColor" />
             </div>
