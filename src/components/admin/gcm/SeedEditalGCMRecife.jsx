@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
-import { db } from '../../firebaseConfig';
+import { db } from '../../../firebaseConfig';
 import { doc, setDoc } from 'firebase/firestore';
 import { Download, RefreshCw } from 'lucide-react';
 
 const EDITAL_GCM_RECIFE_COMPLETO = {
+  id: "gcm_recife",
   titulo: "GCM Recife",
   banca: "A definir (Pré-Edital)",
-  logoUrl: "/logosEditais/logo-recife.png",
+  logoUrl: "/logosEditais/logo-gcmrecife.png",
   instituicao: "GCM-RECIFE",
+  tipo: "gcm",
   disciplinas: [
     {
       nome: "Língua Portuguesa",
@@ -183,7 +185,7 @@ export const editalConfig = {
     titulo: "GCM Recife",
     banca: "A Definir (Pré-Edital)",
     tipo: "gcm",
-    logo: "/logosEditais/logo-recife.png"
+    logo: "/logosEditais/logo-gcmrecife.png"
 };
 
 export default SeedEditalGCMRecife;

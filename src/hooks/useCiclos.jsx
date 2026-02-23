@@ -14,20 +14,12 @@ import {
 
 /**
  * CALCULA A DISTRIBUIÇÃO DE TEMPO BASEADO NO PESO (PRIORIDADE)
- * Lógica: Proporção direta.
- * Peso maior = Mais tempo de estudo.
  */
 const calcularDistribuicao = (disciplinas, cargaHorariaTotalMinutos) => {
-  // 1. Soma total dos pesos
   const totalPesos = disciplinas.reduce((acc, d) => acc + (Number(d.peso) || 1), 0);
-
-  // Se não houver peso (evitar divisão por zero), zera o tempo
   if (totalPesos === 0) return disciplinas.map(d => ({ ...d, tempoAlocadoMinutos: 0 }));
-
-  // 2. Valor em minutos de "1 ponto" de peso
   const tempoPorPonto = cargaHorariaTotalMinutos / totalPesos;
 
-  // 3. Distribui
   return disciplinas.map(disciplina => {
     const peso = Number(disciplina.peso) || 1;
     return {
@@ -41,7 +33,6 @@ export const useCiclos = (user) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Desativa ciclos anteriores para manter apenas um ativo (regra de negócio opcional, mas recomendada)
   const desativarCiclosAntigos = async (batch, userId) => {
     const ciclosRef = collection(db, 'users', userId, 'ciclos');
     const q = query(ciclosRef, where('ativo', '==', true));
@@ -51,6 +42,7 @@ export const useCiclos = (user) => {
     });
   };
 
+  // --- FUNÇÃO CORRIGIDA PARA SALVAR A LOGO ---
   const criarCiclo = async (cicloData) => {
     if (!user) {
       setError("Usuário não autenticado");
@@ -62,8 +54,6 @@ export const useCiclos = (user) => {
     try {
       const cargaHorariaTotal = Number(cicloData.cargaHorariaTotal || 0);
       const cargaHorariaTotalMinutos = cargaHorariaTotal * 60;
-
-      // Calcula tempos antes de salvar
       const disciplinasComTempo = calcularDistribuicao(cicloData.disciplinas, cargaHorariaTotalMinutos);
 
       const batch = writeBatch(db);
@@ -74,6 +64,7 @@ export const useCiclos = (user) => {
       // 2. Cria documento do Ciclo Principal
       const cicloRef = doc(collection(db, 'users', user.uid, 'ciclos'));
 
+      // 🔥 AQUI ESTAVA O ERRO: Adicionamos logoUrl, editalId e tipo
       batch.set(cicloRef, {
         nome: cicloData.nome,
         cargaHorariaSemanalTotal: cargaHorariaTotal,
@@ -81,19 +72,20 @@ export const useCiclos = (user) => {
         dataCriacao: serverTimestamp(),
         arquivado: false,
         conclusoes: 0,
-        templateOrigem: cicloData.templateId || null
+        // Campos essenciais para a Logo funcionar
+        logoUrl: cicloData.logoUrl || null,
+        editalId: cicloData.editalId || cicloData.templateId || null,
+        templateOrigem: cicloData.templateId || null,
+        tipo: cicloData.tipo || 'padrao'
       });
 
       // 3. Cria Subcoleção de Disciplinas
       for (const disciplina of disciplinasComTempo) {
         const disciplinaRef = doc(collection(db, 'users', user.uid, 'ciclos', cicloRef.id, 'disciplinas'));
-
         batch.set(disciplinaRef, {
           nome: disciplina.nome,
-          // Agora usamos 'peso' explicitamente, sem inversão de valores
           peso: Number(disciplina.peso) || 1,
           tempoAlocadoSemanalMinutos: Number(disciplina.tempoAlocadoMinutos || 0),
-          // Garante que assuntos seja um array
           assuntos: Array.isArray(disciplina.assuntos) ? disciplina.assuntos : []
         });
       }
@@ -133,21 +125,30 @@ export const useCiclos = (user) => {
     } catch (err) { console.error("Erro ao arquivar ciclo:", err); setError(err.message); setLoading(false); return false; }
   };
 
-  // Função de Edição também atualizada para usar PESO
+  // --- EDIÇÃO CORRIGIDA PARA NÃO PERDER A LOGO ---
   const editarCiclo = async (cicloId, cicloData) => {
     if (!user) { setError("Usuário não autenticado"); return false; }
     setLoading(true); setError(null);
     try {
       const cargaHorariaTotal = Number(cicloData.cargaHorariaTotal || 0);
       const cargaHorariaTotalMinutos = cargaHorariaTotal * 60;
-
       const disciplinasComTempo = calcularDistribuicao(cicloData.disciplinas, cargaHorariaTotalMinutos);
 
       const batch = writeBatch(db);
-
       const cicloRef = doc(db, 'users', user.uid, 'ciclos', cicloId);
-      batch.update(cicloRef, { nome: cicloData.nome, cargaHorariaSemanalTotal: cargaHorariaTotal });
 
+      // Atualiza dados básicos e preserva/atualiza logo se enviada
+      const updateData = {
+        nome: cicloData.nome,
+        cargaHorariaSemanalTotal: cargaHorariaTotal
+      };
+
+      if (cicloData.logoUrl !== undefined) updateData.logoUrl = cicloData.logoUrl;
+      if (cicloData.tipo !== undefined) updateData.tipo = cicloData.tipo;
+
+      batch.update(cicloRef, updateData);
+
+      // Lógica de Disciplinas (Mantida igual)
       const disciplinasRef = collection(db, 'users', user.uid, 'ciclos', cicloId, 'disciplinas');
       const disciplinasSnapshot = await getDocs(disciplinasRef);
       const disciplinasExistentes = disciplinasSnapshot.docs.map(d => d.id);
@@ -159,21 +160,19 @@ export const useCiclos = (user) => {
 
         if (disciplina.id && !String(disciplina.id).startsWith('temp-') && !String(disciplina.id).startsWith('manual-')) {
           disciplinaRef = doc(db, 'users', user.uid, 'ciclos', cicloId, 'disciplinas', disciplina.id);
-
-          const updateData = {
+          const discUpdate = {
             nome: disciplina.nome,
-            peso: Number(disciplina.peso) || 1, // Atualizado para peso
+            peso: Number(disciplina.peso) || 1,
             tempoAlocadoSemanalMinutos: tempoAlocadoNumerico,
           };
-          if (disciplina.assuntos) updateData.assuntos = disciplina.assuntos;
-
-          batch.update(disciplinaRef, updateData);
+          if (disciplina.assuntos) discUpdate.assuntos = disciplina.assuntos;
+          batch.update(disciplinaRef, discUpdate);
           disciplinasEditadasIds.add(disciplina.id);
         } else {
           disciplinaRef = doc(collection(db, 'users', user.uid, 'ciclos', cicloId, 'disciplinas'));
           batch.set(disciplinaRef, {
             nome: disciplina.nome,
-            peso: Number(disciplina.peso) || 1, // Atualizado para peso
+            peso: Number(disciplina.peso) || 1,
             tempoAlocadoSemanalMinutos: tempoAlocadoNumerico,
             assuntos: disciplina.assuntos || []
           });
@@ -181,7 +180,6 @@ export const useCiclos = (user) => {
         }
       }
 
-      // Deleta disciplinas que foram removidas da lista
       for (const id of disciplinasExistentes) {
         if (!disciplinasEditadasIds.has(id)) {
           const disciplinaRef = doc(db, 'users', user.uid, 'ciclos', cicloId, 'disciplinas', id);
@@ -205,7 +203,6 @@ export const useCiclos = (user) => {
           const proximaConclusaoId = conclusoesAtuais + 1;
           batch.update(cicloRef, { conclusoes: proximaConclusaoId, ultimaConclusao: serverTimestamp() });
 
-          // Atualiza registros pendentes
           const registrosRef = collection(db, 'users', user.uid, 'registrosEstudo');
           const q = query(registrosRef, where('cicloId', '==', cicloId));
           const registrosSnapshot = await getDocs(q);

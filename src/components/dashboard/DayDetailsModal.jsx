@@ -80,7 +80,7 @@ const AdvancedChart = ({ data, totalMinutes }) => {
            <span className="text-2xl font-black tracking-tighter leading-none">
              {formatTime(totalMinutes)}
            </span>
-           <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 mt-1">Total</span>
+           <span className="text-[15px] font-bold uppercase tracking-widest text-zinc-400 mt-1">Total</span>
         </div>
       </div>
 
@@ -189,21 +189,21 @@ const MetricsDisplay = ({ time, questions, correct, variant = 'row' }) => {
             <div className="flex flex-col min-w-[50px]">
                 <span className={labelClass}>Tempo</span>
                 <div className="flex items-center justify-end gap-1">
-                    <Clock size={10} className="text-blue-500" />
+                    <Clock size={12} className="text-blue-500" />
                     <span className={valueClass}>{time > 0 ? formatTime(time) : '-'}</span>
                 </div>
             </div>
             <div className="flex flex-col min-w-[40px]">
-                <span className={labelClass}>Qts</span>
+                <span className={labelClass}>Questões</span>
                 <div className="flex items-center justify-end gap-1">
-                    <List size={10} className="text-violet-500" />
+                    <List size={12} className="text-violet-500" />
                     <span className={valueClass}>{questions}</span>
                 </div>
             </div>
             <div className="flex flex-col min-w-[40px]">
                 <span className={labelClass}>Acertos</span>
                 <div className="flex items-center justify-end gap-1">
-                    <CheckCircle2 size={10} className="text-emerald-500" />
+                    <CheckCircle2 size={12} className="text-emerald-500" />
                     <span className={valueClass}>{correct}</span>
                 </div>
             </div>

@@ -44,25 +44,42 @@ const EDITAL_CBMBA_COMPLETO = {
         { nome: "Trigonometria: razões, funções, fórmulas e triângulos", relevancia: 3 }
       ]
     },
+    // --- CIÊNCIAS NATURAIS DIVIDIDAS ---
     {
-      nome: "Ciências Naturais",
+      nome: "Física",
       peso: 2,
-      importancia: "Alta", // Específico para Bombeiros
+      importancia: "Alta", // Essencial para Bombeiros (Mecânica, Termologia)
+      assuntos: [
+        { nome: "Leis e conceitos fundamentais da Física aplicados à vida prática", relevancia: 5 },
+        { nome: "Mecânica: Movimento, Força e Leis de Newton", relevancia: 5 }, // Detalhado para clareza
+      ]
+    },
+    {
+      nome: "Química",
+      peso: 2,
+      importancia: "Alta", // Essencial para entender combustão e produtos perigosos
+      assuntos: [
+        { nome: "Identificação de compostos, estruturas e propriedades", relevancia: 4 },
+        { nome: "Natureza mutável e transformações contínuas da matéria", relevancia: 3 },
+        { nome: "Aplicações modernas de materiais e substâncias químicas", relevancia: 3 },
+        { nome: "Cálculos químicos (estequiometria, leis ponderais)", relevancia: 5 },
+      ]
+    },
+    {
+      nome: "Biologia",
+      peso: 2,
+      importancia: "Média",
       assuntos: [
         { nome: "Visão unificada do mundo físico, químico e biológico", relevancia: 2 },
-        { nome: "Física: leis e conceitos fundamentais aplicados à vida prática", relevancia: 5 },
-        { nome: "Química: identificação de compostos, estruturas e propriedades", relevancia: 4 },
-        { nome: "Aplicações modernas de materiais e substâncias químicas", relevancia: 3 },
-        { nome: "Cálculos químicos (estequiometria, leis ponderais)", relevancia: 4 },
-        { nome: "Biologia: organização da vida e biodiversidade", relevancia: 3 },
+        { nome: "Organização da vida e biodiversidade", relevancia: 3 },
         { nome: "Ecossistemas: análise e potencial de utilização", relevancia: 3 },
         { nome: "Ecologia: biosfera, teia da vida e estratégias de sobrevivência", relevancia: 4 },
         { nome: "Interferência do homem nos ecossistemas", relevancia: 4 },
         { nome: "Saúde e vida: epidemias e endemias no Brasil", relevancia: 5 },
-        { nome: "Natureza mutável e transformações contínuas", relevancia: 2 },
         { nome: "Tecnologia a serviço do desenvolvimento e manutenção da vida", relevancia: 3 }
       ]
     },
+    // -----------------------------------
     {
       nome: "Atualidades",
       peso: 1,

@@ -128,7 +128,7 @@ const SimuladoTableRow = ({ item, onDeleteRequest, onEditRequest, compareMode, i
                <div className="shrink-0 flex flex-col items-end gap-1">
                     <div className={`px-2.5 py-1 rounded-full text-xs font-black ${badgeColor}`}>{item.resumo.porcentagem.toFixed(0)}%</div>
 
-                    {/* AQUI: NOMES COMPLETOS NO MOBILE */}
+                    {/* NOMES COMPLETOS NO MOBILE */}
                     <div className="flex flex-col items-end text-[9px] font-black leading-tight">
                         <span className="text-emerald-600">Acertos {item.resumo.totalAcertos}</span>
                         <span className={`text-zinc-800 dark:text-zinc-100 ${points < 0 ? 'text-red-500' : ''}`}>Pontos {points.toFixed(1)}</span>
@@ -172,11 +172,12 @@ const SimuladoTableRow = ({ item, onDeleteRequest, onEditRequest, compareMode, i
                         <div className="bg-white dark:bg-zinc-900 p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm flex flex-col justify-between"><div className="flex items-center gap-2 mb-2 text-red-500"><AlertTriangle size={16} /><span className="text-[10px] font-bold text-zinc-400 uppercase">Atenção</span></div><div><p className="font-bold text-zinc-800 dark:text-white text-xs truncate" title={stats.worst.nome}>{stats.worst.nome}</p><p className="text-[10px] text-zinc-500">{(stats.worst.acertos * stats.worst.peso).toFixed(1)} pontos</p></div></div>
                         <div className="bg-white dark:bg-zinc-900 p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm flex flex-col justify-between"><div className="flex items-center gap-2 mb-2 text-blue-500"><Target size={16} /><span className="text-[10px] font-bold text-zinc-400 uppercase">Precisão</span></div><div><p className="font-bold text-zinc-800 dark:text-white text-xl">{stats.precisao.toFixed(0)}%</p><p className="text-[10px] text-zinc-500">Nas respondidas</p></div></div>
 
-                        <div className="bg-white dark:bg-zinc-900 p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
+                        {/* CORREÇÃO AQUI: CARD AÇÕES AGORA É COL-SPAN-2 NO MOBILE */}
+                        <div className="col-span-2 md:col-span-1 bg-white dark:bg-zinc-900 p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
                             <div className="text-[10px] font-bold text-zinc-400 uppercase mb-2">Ações</div>
                             <div className="flex gap-2">
-                                <button onClick={(e)=>{e.stopPropagation(); onEditRequest(item)}} className="flex-1 px-3 py-2 rounded-lg text-xs font-black bg-blue-600 hover:bg-blue-700 text-white shadow-sm flex items-center justify-center gap-2"><Pencil size={14}/> Editar</button>
-                                <button onClick={(e)=>{e.stopPropagation(); onDeleteRequest(item)}} className="flex-1 px-3 py-2 rounded-lg text-xs font-black bg-red-600 hover:bg-red-700 text-white shadow-sm flex items-center justify-center gap-2"><Trash2 size={14}/> Excluir</button>
+                                <button onClick={(e)=>{e.stopPropagation(); onEditRequest(item)}} className="flex-1 px-3 py-2 rounded-lg text-xs font-black bg-blue-600 hover:bg-blue-700 text-white shadow-sm flex items-center justify-center gap-2 whitespace-nowrap"><Pencil size={14}/> Editar</button>
+                                <button onClick={(e)=>{e.stopPropagation(); onDeleteRequest(item)}} className="flex-1 px-3 py-2 rounded-lg text-xs font-black bg-red-600 hover:bg-red-700 text-white shadow-sm flex items-center justify-center gap-2 whitespace-nowrap"><Trash2 size={14}/> Excluir</button>
                             </div>
                         </div>
                     </div>

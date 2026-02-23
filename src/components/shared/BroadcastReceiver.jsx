@@ -1,20 +1,37 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { db, auth } from '../../firebaseConfig';
 import { collection, query, orderBy, limit, onSnapshot, doc, setDoc, getDoc } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Megaphone, Check, Zap, AlertTriangle } from 'lucide-react';
+import { Megaphone, Check, Zap, AlertTriangle, Bell, X, ChevronLeft, ChevronRight } from 'lucide-react';
 
-// Recebe a prop canShow (padrão true)
+// ID DO ADMIN
+const ADMIN_UID = 'OLoJi457GQNE2eTSOcz9DAD6ppZ2';
+
+// Quantas vezes o broadcast pode aparecer antes de ser silenciado
+// Admin sempre vê sem limite (para preview). Usuários normais respeitam este valor.
+const MAX_VIEWS = 2;
+
 const BroadcastReceiver = ({ canShow = true }) => {
     const [notification, setNotification] = useState(null);
     const [isVisible, setIsVisible] = useState(false);
+    const [currentIndex, setCurrentIndex] = useState(0);
+
     const location = useLocation();
 
-    const isHome = location.pathname === '/';
-    const user = auth.currentUser;
+    // Usamos um ref de Set para rastrear IDs já processados nesta sessão.
+    // Isso evita reprocessar o mesmo msgId quando o onSnapshot dispara múltiplas vezes.
+    const processedInSession = useRef(new Set());
 
-    // 1. Busca a notificação (independente do tour)
+    const user = auth.currentUser;
+    const isHome = location.pathname === '/';
+    const isAdmin = user?.uid === ADMIN_UID;
+
+    const preloadImages = (urls) => {
+        if (!urls?.length) return;
+        urls.forEach((src) => { const img = new Image(); img.src = src; });
+    };
+
     useEffect(() => {
         if (!isHome || !user) return;
 
@@ -25,151 +42,269 @@ const BroadcastReceiver = ({ canShow = true }) => {
         );
 
         const unsub = onSnapshot(q, async (snap) => {
-            if (!snap.empty) {
-                const data = snap.docs[0].data();
-                const msgId = snap.docs[0].id;
+            if (snap.empty) return;
 
-                const now = new Date();
-                const msgTime = data.timestamp?.toDate();
-                if (!msgTime) return;
+            const snapDoc = snap.docs[0];
+            const data = snapDoc.data();
+            const msgId = snapDoc.id;
 
-                const timeDiff = now - msgTime;
-                const oneDay = 24 * 60 * 60 * 1000;
+            // Já processamos este ID nesta sessão? Para.
+            if (processedInSession.current.has(msgId)) return;
 
-                if (timeDiff < oneDay) {
-                    // Verificação de leitura no Firestore
-                    const readRef = doc(db, 'users', user.uid, 'broadcasts_read', msgId);
-                    const readSnap = await getDoc(readRef);
+            // --- BROADCAST DE TESTE: só admin vê ---
+            if (data.targetUid) {
+                if (!isAdmin) return;
+                // Admin vê broadcasts de teste sem limite (para validar)
+                processedInSession.current.add(msgId);
+                setNotification({ ...data, id: msgId });
+                setCurrentIndex(0);
+                if (data.imageUrls?.length) preloadImages(data.imageUrls);
+                return;
+            }
 
-                    if (!readSnap.exists()) {
-                        // Apenas salva a notificação na memória, não mostra ainda
-                        setNotification({ ...data, id: msgId });
-                    }
+            // --- BROADCAST INATIVO: ninguém vê ---
+            if (data.active === false) return;
+
+            // --- BROADCAST NORMAL: admin + usuários respeitam MAX_VIEWS ---
+            const now = new Date();
+            const msgTime = data.timestamp?.toDate?.();
+            if (!msgTime || now - msgTime >= 24 * 60 * 60 * 1000) return;
+
+            // Lê o contador no Firestore
+            const readRef = doc(db, 'users', user.uid, 'broadcasts_read', msgId);
+            let viewCount = 0;
+
+            try {
+                const readSnap = await getDoc(readRef);
+                viewCount = readSnap.exists() ? (readSnap.data().viewCount ?? 0) : 0;
+            } catch {
+                // Se falhar a leitura (ex: permissão), não exibe
+                return;
+            }
+
+            // Ainda dentro do limite?
+            if (viewCount < MAX_VIEWS) {
+                // Marca como processado nesta sessão ANTES de exibir
+                processedInSession.current.add(msgId);
+
+                // Incrementa o contador no Firestore imediatamente
+                try {
+                    await setDoc(readRef, {
+                        viewCount: viewCount + 1,
+                        lastSeenAt: new Date(),
+                        msgId,
+                    });
+                } catch {
+                    // Se não conseguir salvar, não exibe para evitar loop
+                    return;
                 }
+
+                setNotification({ ...data, id: msgId });
+                setCurrentIndex(0);
+                if (data.imageUrls?.length) preloadImages(data.imageUrls);
             }
         });
 
         return () => unsub();
-    }, [isHome, user]);
+    }, [isHome, user, isAdmin]);
 
-    // 2. Controla a visibilidade baseado na notificação E na permissão (canShow)
     useEffect(() => {
-        if (notification && canShow) {
-            // Pequeno delay para não "pipocar" instantaneamente após o tour fechar
-            const timer = setTimeout(() => setIsVisible(true), 500);
+        if (notification && canShow && !isVisible) {
+            const timer = setTimeout(() => setIsVisible(true), 100);
             return () => clearTimeout(timer);
-        } else {
+        } else if (!notification) {
             setIsVisible(false);
         }
     }, [notification, canShow]);
 
     const handleClose = () => {
-        if (notification?.id && user) {
-            setIsVisible(false);
-
-            const readRef = doc(db, 'users', user.uid, 'broadcasts_read', notification.id);
-            setDoc(readRef, {
-                readAt: new Date(),
-                msgId: notification.id
-            }).catch(err => console.error("Erro ao registrar leitura:", err));
-
-            setTimeout(() => setNotification(null), 300);
-        }
+        if (!notification) return;
+        setIsVisible(false);
+        setTimeout(() => {
+            setNotification(null);
+            setCurrentIndex(0);
+        }, 500);
     };
 
-    if (!isHome || !user) return null;
+    if (!isHome || !user || !notification) return null;
 
-    const getStyleConfig = (type) => {
-        switch (type) {
-            case 'atualizacao':
-                return {
-                    icon: Zap,
-                    iconBg: 'bg-blue-50 dark:bg-blue-900/20',
-                    iconColor: 'text-blue-600 dark:text-blue-500',
-                    title: 'Nova Atualização',
-                    btnBg: 'bg-blue-600 hover:bg-blue-700',
-                    gradient: 'from-blue-600 via-cyan-500 to-blue-600',
-                    ring: 'ring-blue-50/50 dark:ring-blue-900/5'
-                };
-            case 'aviso':
-                return {
-                    icon: AlertTriangle,
-                    iconBg: 'bg-amber-50 dark:bg-amber-900/20',
-                    iconColor: 'text-amber-600 dark:text-amber-500',
-                    title: 'Aviso Importante',
-                    btnBg: 'bg-amber-600 hover:bg-amber-700',
-                    gradient: 'from-amber-600 via-orange-500 to-amber-600',
-                    ring: 'ring-amber-50/50 dark:ring-amber-900/5'
-                };
-            case 'comunicado':
-            default:
-                return {
-                    icon: Megaphone,
-                    iconBg: 'bg-red-50 dark:bg-red-900/20',
-                    iconColor: 'text-red-600 dark:text-red-500',
-                    title: 'Comunicado Oficial',
-                    btnBg: 'bg-red-600 hover:bg-red-700',
-                    gradient: 'from-red-600 via-orange-500 to-red-600',
-                    ring: 'ring-red-50/50 dark:ring-red-900/5'
-                };
-        }
+    // --- MODO 1: CARROSSEL DE IMAGENS ---
+    const images = notification.imageUrls || (notification.imageUrl ? [notification.imageUrl] : []);
+
+    if (images.length > 0) {
+        const nextSlide = (e) => { e?.stopPropagation(); setCurrentIndex((prev) => (prev + 1) % images.length); };
+        const prevSlide = (e) => { e?.stopPropagation(); setCurrentIndex((prev) => (prev === 0 ? images.length - 1 : prev - 1)); };
+
+        return (
+            <AnimatePresence>
+                {isVisible && (
+                    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 md:p-8">
+                        <motion.div
+                            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                            className="absolute inset-0 bg-black/80 backdrop-blur-md transition-all cursor-default"
+                        />
+
+                        <div className="relative z-10 flex flex-col md:flex-row items-center gap-3 md:gap-4 w-full max-w-7xl justify-center h-full pointer-events-none">
+
+                            {images.length > 1 && (
+                                <button onClick={prevSlide} className="hidden md:flex pointer-events-auto p-2 bg-white/10 hover:bg-white/20 text-white rounded-full backdrop-blur-md transition-all border border-white/10 hover:scale-110 shadow-xl shrink-0">
+                                    <ChevronLeft size={24} />
+                                </button>
+                            )}
+
+                            <motion.div
+                                initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+                                transition={{ type: "spring", duration: 0.4 }}
+                                className="relative pointer-events-auto flex flex-col items-center"
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                <button onClick={handleClose} className="absolute top-3 right-3 p-2 bg-black/50 hover:bg-red-600 text-white rounded-full backdrop-blur-md border border-white/10 transition-all z-50 shadow-lg" title="Fechar">
+                                    <X size={18} />
+                                </button>
+
+                                <div className="relative flex items-center justify-center min-h-[50vh] md:min-h-[60vh] min-w-[300px] w-auto">
+                                    <motion.img
+                                        key={currentIndex}
+                                        src={images[currentIndex]}
+                                        alt={`Slide ${currentIndex}`}
+                                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}
+                                        drag="x" dragConstraints={{ left: 0, right: 0 }} dragElastic={0.2}
+                                        onDragEnd={(e, { offset, velocity }) => {
+                                            const swipe = Math.abs(offset.x) * velocity.x;
+                                            if (swipe < -200) nextSlide();
+                                            else if (swipe > 200) prevSlide();
+                                        }}
+                                        className="relative z-10 w-auto h-auto max-w-[95vw] md:max-w-[80vw] max-h-[70vh] md:max-h-[85vh] object-contain block cursor-grab active:cursor-grabbing rounded-2xl overflow-hidden shadow-2xl border border-zinc-800"
+                                    />
+
+                                    {images.length > 1 && (
+                                        <div className="absolute bottom-4 left-0 w-full hidden md:flex justify-center gap-2 z-20 pointer-events-none">
+                                            {images.map((_, idx) => (
+                                                <div key={idx} className={`h-1.5 rounded-full transition-all shadow-sm ${idx === currentIndex ? 'bg-white w-6' : 'bg-white/40 w-1.5'}`} />
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {images.length > 1 && (
+                                    <div className="flex md:hidden items-center justify-between w-full mt-4 px-4">
+                                        <button onClick={(e) => { e.stopPropagation(); prevSlide(); }} className="p-3 bg-white/10 text-white rounded-full active:bg-white/20 border border-white/5">
+                                            <ChevronLeft size={24} />
+                                        </button>
+                                        <div className="flex gap-1.5">
+                                            {images.map((_, idx) => (
+                                                <div key={idx} className={`h-1.5 rounded-full transition-all ${idx === currentIndex ? 'bg-white w-5' : 'bg-white/20 w-1.5'}`} />
+                                            ))}
+                                        </div>
+                                        <button onClick={(e) => { e.stopPropagation(); nextSlide(); }} className="p-3 bg-white/10 text-white rounded-full active:bg-white/20 border border-white/5">
+                                            <ChevronRight size={24} />
+                                        </button>
+                                    </div>
+                                )}
+                            </motion.div>
+
+                            {images.length > 1 && (
+                                <button onClick={nextSlide} className="hidden md:flex pointer-events-auto p-2 bg-white/10 hover:bg-white/20 text-white rounded-full backdrop-blur-md transition-all border border-white/10 hover:scale-110 shadow-xl shrink-0">
+                                    <ChevronRight size={24} />
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                )}
+            </AnimatePresence>
+        );
+    }
+
+    // --- MODO 2: TEXTO ---
+    const getTheme = (type) => {
+        const redThemeBase = {
+            bgClass: 'bg-gradient-to-br from-red-50 to-red-100 border-r border-red-100/50',
+            titleColor: 'text-red-700',
+            iconColor: 'text-red-600',
+            barColor: 'bg-red-600',
+            button: 'bg-red-600 hover:bg-red-700 text-white shadow-red-200'
+        };
+        const styles = {
+            atualizacao: { ...redThemeBase, title: 'ATUALIZAÇÃO', icon: Zap },
+            urgente:     { ...redThemeBase, title: 'URGENTE',     icon: Bell },
+            aviso:       { ...redThemeBase, title: 'ATENÇÃO',     icon: AlertTriangle },
+            comunicado:  { ...redThemeBase, title: 'COMUNICADO',  icon: Megaphone }
+        };
+        return styles[type] || styles.comunicado;
     };
 
-    const currentStyle = notification ? getStyleConfig(notification.category) : getStyleConfig('comunicado');
-    const CurrentIcon = currentStyle.icon;
+    const theme = getTheme(notification.category);
+    const Icon = theme.icon;
+    const isLongText = notification.message && notification.message.length > 150;
 
     return (
         <AnimatePresence>
-            {isVisible && notification && (
+            {isVisible && (
                 <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+                    <style>{`
+                        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+                        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+                        .custom-scrollbar::-webkit-scrollbar-thumb { background: #ef4444; border-radius: 10px; }
+                        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #dc2626; }
+                    `}</style>
 
                     <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        className="absolute inset-0 bg-black/80 backdrop-blur-md transition-all cursor-default"
                     />
 
                     <motion.div
-                        initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                        initial={{ scale: 0.9, opacity: 0, y: 50 }}
                         animate={{ scale: 1, opacity: 1, y: 0 }}
-                        exit={{ scale: 0.9, opacity: 0, y: 20 }}
-                        transition={{ type: "spring", duration: 0.5, bounce: 0.3 }}
-                        className="relative w-[95%] max-w-md md:max-w-lg max-h-[90vh] flex flex-col bg-white dark:bg-zinc-950 rounded-3xl shadow-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800"
+                        exit={{ scale: 0.9, opacity: 0, y: 50 }}
+                        transition={{ type: "spring", duration: 0.6, bounce: 0.3 }}
+                        className={`
+                            relative w-full overflow-hidden bg-white
+                            rounded-3xl shadow-2xl border border-zinc-200
+                            flex flex-col md:flex-row
+                            max-h-[85vh] md:max-h-auto
+                            ${isLongText ? 'max-w-4xl' : 'max-w-[360px] md:max-w-2xl'}
+                        `}
+                        onClick={(e) => e.stopPropagation()}
                     >
-                        <div className={`absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r ${currentStyle.gradient} shrink-0`} />
-
-                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-10 dark:opacity-[0.05]">
-                            <img
-                                src="/logo-pmba.png"
-                                alt="Logo Sistema"
-                                className="w-[80%] h-[80%] object-contain grayscale"
-                            />
+                        {/* Lado Esquerdo */}
+                        <div className={`relative overflow-hidden flex flex-col items-center justify-center shrink-0 w-full md:w-5/12 py-10 md:py-0 md:min-h-[300px] ${theme.bgClass}`}>
+                            <div className="absolute inset-0 flex items-center justify-center opacity-[0.07] pointer-events-none mix-blend-multiply">
+                                <img src="/logo-pmba.png" alt="Watermark" className="w-[140%] h-[140%] object-contain scale-150 grayscale" />
+                            </div>
+                            <motion.div initial={{ scale: 0, rotate: -45 }} animate={{ scale: 1, rotate: 0 }} transition={{ delay: 0.2 }} className="relative z-10 w-16 h-16 md:w-20 md:h-20 bg-white/60 backdrop-blur-md rounded-2xl border border-white/40 flex items-center justify-center shadow-lg mb-3 md:mb-4">
+                                <Icon size={32} className={`${theme.iconColor} drop-shadow-sm md:w-10 md:h-10`} />
+                            </motion.div>
+                            <div className="relative z-10 text-center px-4">
+                                <h2 className={`text-xl md:text-3xl font-black ${theme.titleColor} uppercase tracking-widest drop-shadow-sm font-sans`}>{theme.title}</h2>
+                                <div className={`h-1 w-12 ${theme.barColor} mx-auto mt-2 rounded-full opacity-50`}></div>
+                            </div>
                         </div>
 
-                        <div className="relative z-10 flex flex-col items-center p-5 md:p-8 text-center h-full">
-
-                            <div className={`mb-4 p-3 rounded-full shadow-inner shrink-0 ${currentStyle.iconBg} ${currentStyle.iconColor} ring-4 ${currentStyle.ring}`}>
-                                <CurrentIcon className="w-10 h-10 animate-pulse" />
-                            </div>
-
-                            <h2 className="text-xl md:text-2xl font-black uppercase tracking-tight text-zinc-900 dark:text-white mb-6 shrink-0">
-                                {currentStyle.title}
-                            </h2>
-
-                            <div className="w-full bg-zinc-50/80 dark:bg-black/40 rounded-xl p-3 md:p-4 border border-zinc-100 dark:border-zinc-800 mb-5 backdrop-blur-sm overflow-y-auto max-h-[40vh] md:max-h-[300px] custom-scrollbar">
-                                <p className="text-sm md:text-base font-medium text-zinc-700 dark:text-zinc-200 leading-relaxed whitespace-pre-wrap text-left md:text-center">
-                                    {notification.message}
-                                </p>
-                            </div>
-
-                            <button
-                                onClick={handleClose}
-                                className={`w-full py-3 text-white rounded-xl font-bold uppercase tracking-wide transition-all transform active:scale-95 shadow-lg flex items-center justify-center gap-2 shrink-0 text-xs md:text-sm ${currentStyle.btnBg}`}
-                            >
-                                <Check size={16} strokeWidth={3} />
-                                Ciente
+                        {/* Lado Direito */}
+                        <div className="flex flex-col relative bg-white overflow-hidden w-full md:w-7/12">
+                            <button onClick={handleClose} className="absolute top-3 right-3 p-1.5 text-zinc-400 hover:text-red-500 hover:bg-zinc-100 transition-colors z-20 rounded-full">
+                                <X size={18} />
                             </button>
+                            <div className="flex-1 p-6 md:p-8 overflow-y-auto custom-scrollbar">
+                                <div className="flex items-center gap-2 mb-4 shrink-0">
+                                    <div className={`w-1 h-6 rounded-full ${theme.barColor}`}></div>
+                                    <h3 className={`text-lg font-bold ${theme.titleColor} uppercase tracking-tight`}>{theme.title}</h3>
+                                </div>
+                                <div className="prose prose-sm prose-zinc max-w-none">
+                                    <p className="text-sm md:text-base text-zinc-600 whitespace-pre-wrap font-medium leading-relaxed">{notification.message}</p>
+                                </div>
+                            </div>
+                            <div className="p-4 md:p-5 pt-2 mt-auto border-t border-zinc-100 bg-zinc-50 shrink-0 flex flex-col items-center justify-center">
+                                <button onClick={handleClose} className={`px-6 py-2 rounded-lg font-bold text-[10px] uppercase tracking-widest shadow-md hover:shadow-lg transition-all transform active:scale-95 flex items-center gap-2 mb-3 ${theme.button}`}>
+                                    <Check size={14} strokeWidth={3} /> Ciente
+                                </button>
+                                <div className="flex items-center justify-center gap-2 opacity-40">
+                                    <img src="/logo-pmba.png" alt="Logo Sistema" className="h-4 w-auto object-contain grayscale" />
+                                    <div className="h-3 w-px bg-zinc-300"></div>
+                                    <h1 className="text-red-600 font-black tracking-widest uppercase text-[9px]">MODOQAP</h1>
+                                </div>
+                            </div>
                         </div>
                     </motion.div>
                 </div>

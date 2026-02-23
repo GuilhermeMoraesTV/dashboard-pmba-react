@@ -10,6 +10,8 @@ import {
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { AnimatePresence, motion } from 'framer-motion';
+import { CATALOGO_EDITAIS } from './AdminPage/EditaisManager';
+import { useForceUnlock } from '../hooks/useForceUnlock';
 
 import {
   User, Save, X, Archive, Loader2, Upload, Trash2,
@@ -17,7 +19,7 @@ import {
   AlertTriangle, ChevronDown, ChevronUp, Camera, Target, Zap,
   ArchiveRestore, Search, LayoutDashboard, ArrowLeft,
   Edit2, AlertOctagon, RotateCw, BookOpen, ChevronLeft, ChevronRight,
-  CornerDownRight, Check, Database, History, Calendar
+  CornerDownRight, Check, History, Calendar
 } from 'lucide-react';
 
 // --- UTILITÁRIOS ---
@@ -54,36 +56,34 @@ const Portal = ({ children }) => {
   return createPortal(children, document.body);
 };
 
-// --- FUNÇÃO DE LOGO OTIMIZADA ---
+// ============================================================================
+// 🚀 FUNÇÃO DE LOGO INTELIGENTE (ATUALIZADA)
+// ============================================================================
 const getLogo = (ciclo) => {
-  if(!ciclo) return null;
-  if(ciclo.logoUrl) return ciclo.logoUrl;
+  if (!ciclo) return null;
 
-  const searchString = (ciclo.templateOrigem || ciclo.nome || '').toLowerCase();
-  const ufs = [
-    'ac', 'al', 'ap', 'am', 'ba', 'ce', 'df', 'es', 'go', 'ma', 'mt', 'ms', 'mg',
-    'pa', 'pb', 'pr', 'pe', 'pi', 'erj', 'rn', 'rs', 'ro', 'rr', 'sc', 'sp', 'se', 'to'
-  ];
-  const prefixos = ['pm', 'pc', 'cbm', 'bm', 'pp'];
-  const especiais = ['gcm', 'aquiraz', 'recife', 'pf', 'prf', 'depen', 'eb', 'fab', 'marinha'];
+  // 1) Prioridade máxima: o que está salvo no banco
+  if (ciclo.logoUrl) return ciclo.logoUrl;
 
-  let todasSiglas = [...especiais];
-  prefixos.forEach(prefixo => {
-    ufs.forEach(uf => {
-      todasSiglas.push(`${prefixo}${uf}`);
-    });
-  });
-  todasSiglas.sort((a, b) => b.length - a.length);
-
-  const encontrada = todasSiglas.find(sigla => searchString.includes(sigla));
-
-  if (encontrada) {
-    if(encontrada === 'gcm' || encontrada === 'aquiraz') return '/logosEditais/logo-aquiraz.png';
-    if(encontrada === 'gcm' || encontrada === 'recife') return '/logosEditais/logo-recife.png';
-    return `/logosEditais/logo-${encontrada}.png`;
+  // 2) Fallback: catálogo pelo templateId
+  if (ciclo.templateId) {
+    const editalTemplate = CATALOGO_EDITAIS.find(e => e.id === ciclo.templateId);
+    if (editalTemplate) return editalTemplate.logoUrl || editalTemplate.logo;
   }
+
+  // 3) Fallback legado (opcional)
+  const nomeLower = (ciclo.templateOrigem || ciclo.nome || "").toLowerCase();
+  if (nomeLower.includes("pmba")) return "/logosEditais/logo-pmba.png";
+
+  // 4) Fallback dinâmico final (mesmo padrão dos outros arquivos)
+  if (ciclo.templateId && ciclo.templateId !== "manual") {
+    const idLimpo = ciclo.templateId.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+    return `/logosEditais/logo-${idLimpo}.png`;
+  }
+
   return null;
 };
+
 
 // --- COMPONENTE MINI CALENDÁRIO ---
 const MiniCalendar = ({ records, selectedDate, onSelectDate }) => {
@@ -604,7 +604,7 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
             }, { merge: true });
 
             await auth.currentUser.reload();
-            setMessage({ type: 'success', text: 'Perfil sincronizado com sucesso!' });
+            setMessage({ type: 'success', text: 'Perfil atualizado com sucesso!' });
             setIsEditingName(false);
         } catch (error) {
             console.error("Erro ao sincronizar perfil:", error);

@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
-import { db } from '../../firebaseConfig';
+import { db } from '../../../firebaseConfig';
 import { doc, setDoc } from 'firebase/firestore';
 import { Download, RefreshCw } from 'lucide-react';
 
 const EDITAL_GCM_AQUIRAZ_COMPLETO = {
+  id: "gcm_aquiraz",
   titulo: "GCM Aquiraz",
   banca: "Instituto Consulpam",
-  logoUrl: "/logosEditais/logo-aquiraz.png",
+  logoUrl: "/logosEditais/logo-fcmaquiraz.png",
   instituicao: "GCM",
+  tipo: "gcm",
   disciplinas: [
     {
       nome: "Língua Portuguesa",
@@ -217,7 +219,7 @@ export const editalConfig = {
     titulo: "GCM Aquiraz",
     banca: "Instituto Consulpam",
     tipo: "gcm",
-    logo: "/logosEditais/logo-aquiraz.png"
+    logo: "/logosEditais/logo-gcmaquiraz.png"
 };
 
 export default SeedEditalGCMAquiraz;

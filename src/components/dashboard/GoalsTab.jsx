@@ -1,56 +1,40 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   Target, Clock, Trophy, Plus, Minus, Save, History,
-  Shield, Zap, Calendar, BarChart3, CheckCircle2, RotateCcw, Trash2
+  Shield, Zap, Calendar, BarChart3, CheckCircle2, RotateCcw, Trash2, Rocket, AlertTriangle
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 
 // --- COMPONENTE DE CONTROLE (INPUT) ---
 const ControlCard = ({ label, value, onChange, icon: Icon, unit, step, min, max, colorClass }) => {
   return (
-    // Reduzindo padding em mobile (p-3) e ajustando a altura dos elementos
     <div className="bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-700/50 rounded-xl p-3 sm:p-4 relative overflow-hidden group transition-all hover:border-zinc-300 dark:hover:border-zinc-600">
       <div className="relative z-10 flex justify-between items-center mb-3 sm:mb-4">
         <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-500 flex items-center gap-2">
           <Icon size={14} className={colorClass} /> <span className="hidden sm:inline">{label}</span>
-          {/* Exibe apenas a primeira palavra no mobile para economizar espaço */}
           <span className="sm:hidden">{label.split(' ')[0]}</span>
         </h3>
-        {/* Fontes reduzidas em mobile (text-xl) */}
         <span className={`text-xl sm:text-2xl font-black ${colorClass}`}>
           {value} <span className="text-sm font-bold text-zinc-400">{unit}</span>
         </span>
       </div>
 
-      {/* Input e Botões mais compactos */}
       <div className="relative z-10 flex items-center gap-2 sm:gap-3 bg-white dark:bg-zinc-950 p-1 sm:p-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 shadow-inner">
-        <button
-          onClick={() => onChange(-step)}
-          className="p-2 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-red-500 transition-colors active:scale-95"
-        >
-          <Minus size={14} /> {/* Ícone menor */}
+        <button onClick={() => onChange(-step)} className="p-2 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-red-500 transition-colors active:scale-95">
+          <Minus size={14} />
         </button>
 
         <input
-          type="range"
-          min={min}
-          max={max}
-          step={step}
-          value={value}
+          type="range" min={min} max={max} step={step} value={value}
           onChange={(e) => onChange(Number(e.target.value) - value)}
           className="flex-1 h-2 bg-zinc-200 dark:bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-red-600"
         />
 
-        <button
-          onClick={() => onChange(step)}
-          className="p-2 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-emerald-500 transition-colors active:scale-95"
-        >
-          <Plus size={14} /> {/* Ícone menor */}
+        <button onClick={() => onChange(step)} className="p-2 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-emerald-500 transition-colors active:scale-95">
+          <Plus size={14} />
         </button>
       </div>
 
-      {/* CORREÇÃO AQUI: O tamanho base é 60 (para mobile). O lg:size-100 aplica um tamanho grande, mas não exagerado (400px).
-          A classe sm:size-80 anterior estava sendo aplicada no desktop, causando o problema. */}
       <div className={`absolute -bottom-4 -right-4 opacity-5 group-hover:opacity-10 transition-opacity transform rotate-12 ${colorClass}`}>
         <Icon size={60} className="lg:size-100 md:size-80" />
       </div>
@@ -58,11 +42,49 @@ const ControlCard = ({ label, value, onChange, icon: Icon, unit, step, min, max,
   );
 };
 
+// --- COMPONENTE DE AVISO DE ATUALIZAÇÃO (VERMELHO) ---
+const ComingSoonBanner = () => (
+    <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="mb-6 bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-900/10 dark:to-orange-900/10 border border-red-100 dark:border-red-900/30 rounded-2xl p-5 relative overflow-hidden"
+    >
+        <div className="absolute top-0 right-0 p-4 opacity-10 pointer-events-none">
+            <Rocket size={120} className="text-red-600 dark:text-red-400 transform -rotate-12" />
+        </div>
+
+        <div className="relative z-10 flex gap-4 items-start">
+            <div className="bg-white dark:bg-zinc-900 p-2.5 rounded-xl shadow-sm text-red-600 dark:text-red-500 shrink-0">
+                <AlertTriangle size={24} />
+            </div>
+            <div>
+                <h3 className="text-sm font-black text-red-900 dark:text-red-100 uppercase tracking-tight mb-1 flex items-center gap-2">
+                    Em Breve: Guia de Estudos Inteligente <span className="bg-red-600 text-white text-[9px] px-2 py-0.5 rounded-full">BETA 2.0</span>
+                </h3>
+                <p className="text-xs md:text-sm text-red-800/80 dark:text-red-200/80 leading-relaxed font-medium">
+                    Estamos transformando esta página! Nas próximas atualizações, suas metas deixarão de ser apenas números genéricos.
+                    Você terá um <strong>Guia de Estudo e Revisão Estratégico</strong>, com direcionamento específico por disciplina e tópicos do seu edital, otimizando seu tempo e foco.
+                </p>
+            </div>
+        </div>
+    </motion.div>
+);
+
 function GoalsTab({ onSetGoal, goalsHistory, onDeleteGoal }) {
   const currentGoal = goalsHistory && goalsHistory[0];
   const [questionsGoal, setQuestionsGoal] = useState(0);
   const [hoursGoal, setHoursGoal] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Efeito de segurança para garantir que o scroll esteja liberado ao montar este componente
+  useEffect(() => {
+    // Isso "conserta" qualquer trava residual deixada por modais anteriores
+    document.body.style.overflow = '';
+    document.documentElement.style.overflow = '';
+    document.body.style.position = '';
+    document.body.style.top = '';
+    document.body.style.width = '';
+  }, []);
 
   useEffect(() => {
     if (currentGoal) {
@@ -115,40 +137,39 @@ function GoalsTab({ onSetGoal, goalsHistory, onDeleteGoal }) {
   };
 
   return (
-    <div className="animate-fade-in space-y-6 sm:space-y-8 pb-12"> {/* Margem vertical menor */}
+    <div className="animate-fade-in space-y-6 sm:space-y-8 pb-12">
 
-      {/* --- CABEÇALHO INTERNO DA PÁGINA (PADRONIZADO) --- */}
-      <div className="mb-4 sm:mb-8 border-b border-zinc-200 dark:border-zinc-800 pb-4 sm:pb-6"> {/* Padding e margem menores */}
+      {/* --- CABEÇALHO INTERNO DA PÁGINA --- */}
+      <div className="mb-4 sm:mb-8 border-b border-zinc-200 dark:border-zinc-800 pb-4 sm:pb-6">
         <div className="flex items-center gap-3 mb-2">
             <div className="p-2.5 bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-500 rounded-xl">
-                {/* CORREÇÃO AQUI: Removemos o className="sm:size-28" que estava deixando o ícone gigante no desktop */}
                 <Target size={24} strokeWidth={2} />
             </div>
-            <h1 className="text-2xl sm:text-3xl font-black text-zinc-800 dark:text-white tracking-tight uppercase"> {/* Título menor */}
-                Estratégia & Metas
+            <h1 className="text-2xl sm:text-3xl font-black text-zinc-800 dark:text-white tracking-tight uppercase">
+                Metas de Estudo Diário
             </h1>
         </div>
       </div>
 
-      {/* Layout principal: 1 coluna em mobile, 3 colunas em desktop */}
+      {/* --- AVISO DE ATUALIZAÇÃO FUTURA (VERMELHO) --- */}
+      <ComingSoonBanner />
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
 
         {/* 1. Configuração Diária */}
         <div className="lg:col-span-2 space-y-6">
-          <div id="goals-controls" className="bg-white dark:bg-zinc-950 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-800 p-4 sm:p-6 relative overflow-hidden"> {/* Padding reduzido */}
+          <div id="goals-controls" className="bg-white dark:bg-zinc-950 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-800 p-4 sm:p-6 relative overflow-hidden">
               <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${stats.level.bg}`}></div>
 
-              <div className="flex justify-between items-center mb-4 sm:mb-6 pl-2"> {/* Margem reduzida */}
-                  <h2 className="text-base sm:text-lg font-bold text-zinc-800 dark:text-white flex items-center gap-2"> {/* Título menor */}
-                      {/* CORREÇÃO AQUI: Removemos o className="sm:size-18" */}
+              <div className="flex justify-between items-center mb-4 sm:mb-6 pl-2">
+                  <h2 className="text-base sm:text-lg font-bold text-zinc-800 dark:text-white flex items-center gap-2">
                       <Zap size={16} className="text-amber-500" /> Configuração Diária
                   </h2>
-                  <span className={`px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-[9px] sm:text-[10px] font-black border ${stats.level.color} ${stats.level.border} bg-opacity-10 bg-zinc-100 dark:bg-zinc-900 uppercase tracking-wide`}> {/* Level menor */}
+                  <span className={`px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-[9px] sm:text-[10px] font-black border ${stats.level.color} ${stats.level.border} bg-opacity-10 bg-zinc-100 dark:bg-zinc-900 uppercase tracking-wide`}>
                       NÍVEL: {stats.level.label}
                   </span>
               </div>
 
-              {/* AQUI ESTÁ A CORREÇÃO CRUCIAL: Adicionar o ID para o destaque mobile */}
               <div id="goals-controls-inner" className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                   <ControlCard
                       label="Meta de Horas"
@@ -171,29 +192,29 @@ function GoalsTab({ onSetGoal, goalsHistory, onDeleteGoal }) {
               </div>
 
               {/* Projeção de Impacto */}
-              <div className="mt-6 sm:mt-8 p-4 sm:p-5 bg-zinc-50 dark:bg-zinc-900/30 rounded-xl border border-zinc-200 dark:border-zinc-800"> {/* Padding reduzido */}
+              <div className="mt-6 sm:mt-8 p-4 sm:p-5 bg-zinc-50 dark:bg-zinc-900/30 rounded-xl border border-zinc-200 dark:border-zinc-800">
                   <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-3 sm:mb-4 flex items-center gap-2">
                       <BarChart3 size={14} /> Projeção de Impacto
                   </h3>
-                  <div className="grid grid-cols-2 gap-3 sm:gap-4"> {/* Gap reduzido */}
-                      <div className="flex items-center justify-between p-2 sm:p-3 bg-white dark:bg-zinc-950 rounded-lg border border-zinc-200 dark:border-zinc-800/50"> {/* Padding reduzido */}
+                  <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                      <div className="flex items-center justify-between p-2 sm:p-3 bg-white dark:bg-zinc-950 rounded-lg border border-zinc-200 dark:border-zinc-800/50">
                           <div>
                               <p className="text-[10px] text-zinc-400 font-bold uppercase">Semanal</p>
                               <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Consistência</p>
                           </div>
                           <div className="text-right">
-                              <p className="text-base sm:text-lg font-black text-zinc-800 dark:text-white">{stats.weeklyHours.toFixed(1)}h</p> {/* Fonte reduzida */}
-                              <p className="text-[10px] sm:text-xs font-bold text-emerald-500">{stats.weeklyQuestions} qst</p> {/* Fonte reduzida */}
+                              <p className="text-base sm:text-lg font-black text-zinc-800 dark:text-white">{stats.weeklyHours.toFixed(1)}h</p>
+                              <p className="text-[10px] sm:text-xs font-bold text-emerald-500">{stats.weeklyQuestions} qst</p>
                           </div>
                       </div>
-                      <div className="flex items-center justify-between p-2 sm:p-3 bg-white dark:bg-zinc-950 rounded-lg border border-zinc-200 dark:border-zinc-800/50"> {/* Padding reduzido */}
+                      <div className="flex items-center justify-between p-2 sm:p-3 bg-white dark:bg-zinc-950 rounded-lg border border-zinc-200 dark:border-zinc-800/50">
                           <div>
                               <p className="text-[10px] text-zinc-400 font-bold uppercase">Mensal</p>
                               <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Evolução</p>
                           </div>
                           <div className="text-right">
-                              <p className="text-base sm:text-lg font-black text-zinc-800 dark:text-white">{stats.monthlyHours.toFixed(1)}h</p> {/* Fonte reduzida */}
-                              <p className="text-[10px] sm:text-xs font-bold text-emerald-500">{stats.monthlyQuestions} qst</p> {/* Fonte reduzida */}
+                              <p className="text-base sm:text-lg font-black text-zinc-800 dark:text-white">{stats.monthlyHours.toFixed(1)}h</p>
+                              <p className="text-[10px] sm:text-xs font-bold text-emerald-500">{stats.monthlyQuestions} qst</p>
                           </div>
                       </div>
                   </div>
@@ -208,7 +229,6 @@ function GoalsTab({ onSetGoal, goalsHistory, onDeleteGoal }) {
                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700"></div>
                     {isLoading ? 'Salvando...' : (
                         <>
-                            {/* CORREÇÃO AQUI: Removemos o className="sm:size-20" */}
                             <Save size={16} />
                             <span className="uppercase tracking-wide">Confirmar Nova Meta</span>
                         </>
@@ -220,24 +240,21 @@ function GoalsTab({ onSetGoal, goalsHistory, onDeleteGoal }) {
 
         {/* 2. Histórico */}
         <div className="lg:col-span-1">
-           <div className="bg-white dark:bg-zinc-950 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-800 p-4 sm:p-6 h-full flex flex-col relative overflow-hidden"> {/* Padding reduzido */}
+           <div className="bg-white dark:bg-zinc-950 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-800 p-4 sm:p-6 h-full flex flex-col relative overflow-hidden">
              <div className="absolute -top-10 -right-10 text-zinc-100 dark:text-zinc-900 pointer-events-none transform -rotate-12">
-                {/* CORREÇÃO AQUI: Removemos o className="sm:size-150" */}
                 <History size={100} strokeWidth={1} />
             </div>
 
             <div className="flex items-center justify-between mb-6 relative z-10">
                 <h2 className="text-lg font-bold text-zinc-800 dark:text-white flex items-center gap-2">
-                  {/* CORREÇÃO AQUI: Removemos o className="sm:size-20" */}
                   <History size={18} className="text-red-500" /> Histórico
                 </h2>
-                <span className="text-[9px] font-black text-zinc-400 bg-zinc-100 dark:bg-zinc-900 px-2 py-0.5 rounded uppercase tracking-wide"> {/* Fonte menor */}
+                <span className="text-[9px] font-black text-zinc-400 bg-zinc-100 dark:bg-zinc-900 px-2 py-0.5 rounded uppercase tracking-wide">
                     Registro
                 </span>
             </div>
 
-            {/* Lista do Histórico */}
-            <div className="space-y-3 flex-1 overflow-y-auto pr-2 custom-scrollbar max-h-[400px] sm:max-h-[600px] relative z-10"> {/* Altura máxima controlada */}
+            <div className="space-y-3 flex-1 overflow-y-auto pr-2 custom-scrollbar max-h-[400px] sm:max-h-[600px] relative z-10">
               {goalsHistory && goalsHistory.length > 0 ? (
                 goalsHistory.map((goal, index) => {
                   const isActive = index === 0;
@@ -259,15 +276,14 @@ function GoalsTab({ onSetGoal, goalsHistory, onDeleteGoal }) {
                     >
                       <div className="flex justify-between items-start mb-3">
                         <div>
-                            <p className="text-[9px] font-bold uppercase tracking-wider text-zinc-400 mb-0.5">DATA DE INÍCIO</p> {/* Fonte menor */}
+                            <p className="text-[9px] font-bold uppercase tracking-wider text-zinc-400 mb-0.5">DATA DE INÍCIO</p>
                             <p className="text-xs font-mono text-zinc-600 dark:text-zinc-300 font-bold flex items-center gap-1">
-                              {/* CORREÇÃO AQUI: Removemos o className="sm:size-12" */}
                               <Calendar size={10} /> {date.toLocaleDateString('pt-BR')}
                             </p>
                         </div>
 
                         {isActive ? (
-                          <span className="text-[8px] font-black bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400 py-0.5 px-1.5 rounded flex items-center gap-1"> {/* Fonte menor */}
+                          <span className="text-[8px] font-black bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400 py-0.5 px-1.5 rounded flex items-center gap-1">
                             <CheckCircle2 size={9} /> ATIVA
                           </span>
                         ) : (
@@ -281,14 +297,14 @@ function GoalsTab({ onSetGoal, goalsHistory, onDeleteGoal }) {
                                     className="p-1 rounded-md bg-zinc-200 dark:bg-zinc-800 text-zinc-400 hover:text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
                                     title="Excluir Registro"
                                 >
-                                    <Trash2 size={12} /> {/* Ícone menor */}
+                                    <Trash2 size={12} />
                                 </button>
 
                                 <button
                                     onClick={() => handleReactivate(goal)}
                                     className="text-[8px] font-bold bg-white dark:bg-zinc-800 text-indigo-500 border border-indigo-200 dark:border-indigo-900 py-1 px-2 rounded flex items-center gap-1 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 shadow-sm"
                                 >
-                                    <RotateCcw size={9} /> USAR {/* Ícone e fonte menor */}
+                                    <RotateCcw size={9} /> USAR
                                 </button>
                             </div>
                         )}
@@ -309,7 +325,6 @@ function GoalsTab({ onSetGoal, goalsHistory, onDeleteGoal }) {
                 })
               ) : (
                 <div className="text-center py-10 text-zinc-400">
-                    {/* CORREÇÃO AQUI: Removemos o className="sm:size-40" */}
                     <Shield size={32} className="mx-auto mb-2 opacity-20" />
                     <p className="text-sm">Nenhuma estratégia definida.</p>
                 </div>

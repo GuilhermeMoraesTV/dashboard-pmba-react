@@ -170,4 +170,4 @@ export const editalConfig = {
     logo: "/logosEditais/logo-ppmg.png"
 };
 
-export default SeedEditalPPMG;
+export default SeedEditalPPMG;//

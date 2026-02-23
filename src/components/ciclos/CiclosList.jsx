@@ -10,9 +10,12 @@ import {
   getDocs,
   where
 } from 'firebase/firestore';
-import CicloCreateWizard from '../ciclos/CicloCreateWizard';
+import CicloCreateWizard from '../ciclos/CicloCreateWizard/CicloCreateWizard';
 import CicloEditModal from './CicloEditModal';
 import { useCiclos } from '../../hooks/useCiclos';
+import { CATALOGO_EDITAIS } from '../../pages/AdminPage/EditaisManager';
+import { useForceUnlock } from '../../hooks/useForceUnlock';
+
 import {
   MoreVertical,
   Plus,
@@ -29,8 +32,8 @@ import {
   Trophy,
   Map,
   BarChart3,
-  Trash2, // Novo ícone
-  AlertOctagon // Novo ícone para o modal de perigo
+  Trash2,
+  AlertOctagon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -99,50 +102,62 @@ function ModalConfirmacaoExclusao({ ciclo, onClose, onConfirm, loading }) {
   );
 }
 
-// --- FUNÇÃO DE LOGO ---
+// ============================================================================
+// 🚀 FUNÇÃO DE LOGO BLINDADA (Compatível com GCM e Padrão)
+// ============================================================================
+// ... imports ...
+
+// ============================================================================
+// 🚀 FUNÇÃO DE LOGO BLINDADA (CORRIGIDA)
+// ============================================================================
 const getLogo = (ciclo) => {
-    if(!ciclo) return null;
-    if(ciclo.logoUrl) return ciclo.logoUrl;
+    if (!ciclo) return null;
 
-    const searchString = (ciclo.templateOrigem || ciclo.nome || '').toLowerCase();
-    const ufs = ['ac', 'al', 'ap', 'am', 'ba', 'ce', 'df', 'es', 'go', 'ma', 'mt', 'ms', 'mg', 'pa', 'pb', 'pr', 'pe', 'pi', 'erj', 'rn', 'rs', 'ro', 'rr', 'sc', 'sp', 'se', 'to'];
-    const prefixos = ['pm', 'pc', 'cbm', 'bm', 'pp'];
-    const especiais = ['gcm', 'aquiraz', 'recife', 'pf', 'prf', 'depen', 'eb', 'fab', 'marinha'];
+    // 1. PRIORIDADE ABSOLUTA: O que está salvo no banco do usuário (vindo do Wizard)
+    if (ciclo.logoUrl) return ciclo.logoUrl;
 
-    let todasSiglas = [...especiais];
-    prefixos.forEach(prefixo => {
-        ufs.forEach(uf => {
-            todasSiglas.push(`${prefixo}${uf}`);
-        });
-    });
-    todasSiglas.sort((a, b) => b.length - a.length);
-
-    const encontrada = todasSiglas.find(sigla => searchString.includes(sigla));
-
-    if (encontrada) {
-        if(encontrada === 'gcm' || encontrada === 'aquiraz') return '/logosEditais/logo-aquiraz.png';
-        if(encontrada === 'gcm' || encontrada === 'recife') return '/logosEditais/logo-recife.png';
-        return `/logosEditais/logo-${encontrada}.png`;
+    // 2. Tenta achar no Catálogo importado
+    if (ciclo.templateId && CATALOGO_EDITAIS) {
+        const editalTemplate = CATALOGO_EDITAIS.find(e => e.id === ciclo.templateId);
+        if (editalTemplate && (editalTemplate.logoUrl || editalTemplate.logo)) {
+            return editalTemplate.logoUrl || editalTemplate.logo;
+        }
     }
-    return null;
+
+    // 3. Fallback Dinâmico Inteligente
+    // Se o templateId for "gcm_viana", removemos o "_" para virar "gcmviana"
+    // e buscamos a imagem: /logosEditais/logo-gcmviana.png
+    if (ciclo.templateId && ciclo.templateId !== 'manual') {
+        const idLimpo = ciclo.templateId.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+        return `/logosEditais/logo-${idLimpo}.png`;
+    }
+
+    // 4. Último recurso (Legado)
+    const nomeLower = ciclo.nome?.toLowerCase() || "";
+    if (nomeLower.includes("pmba")) return "/logosEditais/logo-pmba.png";
+    if (nomeLower.includes("pmal")) return "/logosEditais/logo-pmal.png";
+
+    return null; // Retorna null para exibir o ícone padrão se não achar imagem
 };
 
 // --- COMPONENTE CARD OTIMIZADO ---
 const CicloCard = ({ ciclo, onClick, onMenuToggle, isMenuOpen, onAction, registrosEstudo }) => {
     const concluidos = ciclo.conclusoes || 0;
+
+    // Chama a função corrigida
     const logo = getLogo(ciclo);
 
-    // Calcular progresso
+    // Debug: Descomente para ver no console o que está acontecendo com a logo
+    // console.log(`Ciclo: ${ciclo.nome}, ID: ${ciclo.templateId}, Logo Detectada: ${logo}`);
+
+    // Calcular progresso (MANTIDO IGUAL AO SEU CÓDIGO)
     const { totalHoras, progressoPercent } = useMemo(() => {
         if (!registrosEstudo) return { totalHoras: 0, progressoPercent: 0 };
-
         const registrosDoCiclo = registrosEstudo.filter(r => r.cicloId === ciclo.id && !r.conclusaoId && r.tipoEstudo !== 'check_manual');
         const minutosTotais = registrosDoCiclo.reduce((acc, curr) => acc + Number(curr.tempoEstudadoMinutos || 0), 0);
         const horasTotais = Math.round(minutosTotais / 60 * 10) / 10;
-
         const metaSemanal = Number(ciclo.cargaHorariaSemanalTotal) || 1;
         const percent = Math.min((horasTotais / metaSemanal) * 100, 100);
-
         return { totalHoras: horasTotais, progressoPercent: percent };
     }, [ciclo.id, registrosEstudo, ciclo.cargaHorariaSemanalTotal]);
 
@@ -156,14 +171,25 @@ const CicloCard = ({ ciclo, onClick, onMenuToggle, isMenuOpen, onAction, registr
             {/* --- LOGO OTIMIZADA PARA MOBILE --- */}
             {logo ? (
                 <div className="absolute bottom-0 right-0 w-20 h-20 sm:w-24 sm:h-24 md:w-36 md:h-36 opacity-25 md:opacity-20 transition-all duration-700 ease-out group-hover:scale-110 group-hover:opacity-40 z-0 pointer-events-none filter saturate-150">
-                    <img src={logo} alt="Logo Edital" className="w-full h-full object-contain" />
+                    <img
+                        src={logo}
+                        alt="Logo Edital"
+                        className="w-full h-full object-contain"
+                        onError={(e) => {
+                            // Se a imagem der erro (404), esconde ela para mostrar o ícone padrão
+                            e.target.style.display = 'none';
+                            e.target.parentElement.style.display = 'none';
+                        }}
+                    />
                 </div>
             ) : (
+                // Ícone padrão caso não tenha logo
                 <div className="absolute -bottom-6 -right-6 text-red-500/10 dark:text-red-500/5 transition-all duration-700 ease-out group-hover:scale-125 group-hover:rotate-[-10deg] z-0 pointer-events-none">
                     {ciclo.ativo ? <Target strokeWidth={1.5} size={100} className="sm:w-[140px] sm:h-[140px]" /> : <BookOpen strokeWidth={1.5} size={100} className="sm:w-[140px] sm:h-[140px]" />}
                 </div>
             )}
 
+            {/* ... RESTANTE DO CONTEÚDO DO CARD (Igual ao seu código) ... */}
             <div className="relative z-10 flex flex-col h-full">
                 <div className="flex justify-between items-start mb-3 sm:mb-4">
                     <div className="flex flex-wrap gap-2 items-center">
@@ -182,15 +208,10 @@ const CicloCard = ({ ciclo, onClick, onMenuToggle, isMenuOpen, onAction, registr
                         <AnimatePresence>
                             {isMenuOpen && (
                                 <motion.div initial={{ opacity: 0, y: 5, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} onClick={(e) => e.stopPropagation()} className="absolute top-8 right-0 w-44 sm:w-52 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xl py-1 z-50 overflow-hidden ring-1 ring-black/5">
-
                                     {!ciclo.ativo && (<button onClick={(e) => onAction(e, 'ativar', ciclo)} className="w-full text-left px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-emerald-600 dark:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/10 flex items-center gap-2 transition-colors"><Zap size={14} /> Ativar</button>)}
-
                                     <button onClick={(e) => onAction(e, 'editar', ciclo)} className="w-full text-left px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 flex items-center gap-2 transition-colors"><Edit size={14} /> Editar</button>
-
                                     <button onClick={(e) => onAction(e, 'arquivar', ciclo)} className="w-full text-left px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-amber-600 dark:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/10 flex items-center gap-2 transition-colors"><Archive size={14} /> Arquivar</button>
-
                                     <div className="h-px bg-zinc-100 dark:bg-zinc-800 my-1"></div>
-
                                     <button onClick={(e) => onAction(e, 'excluir', ciclo)} className="w-full text-left px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-red-600 dark:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 flex items-center gap-2 transition-colors">
                                         <Trash2 size={14} /> Excluir Tudo
                                     </button>
@@ -204,11 +225,7 @@ const CicloCard = ({ ciclo, onClick, onMenuToggle, isMenuOpen, onAction, registr
                     <h3 className="text-lg sm:text-xl md:text-2xl font-black text-zinc-900 dark:text-white leading-tight mb-2 line-clamp-2 group-hover:text-red-600 dark:group-hover:text-red-500 transition-colors">
                         {ciclo.nome}
                     </h3>
-
-                    {/* Barra decorativa (Escondida no mobile para economizar espaço) */}
                     <div className="hidden sm:block w-8 h-1 bg-red-500 rounded-full mb-4 group-hover:w-16 transition-all duration-500"></div>
-
-                    {/* Metadados: Linha no Mobile / Coluna no Desktop */}
                     <div className="flex flex-row sm:flex-col gap-3 sm:gap-2 mb-3 sm:mb-4 flex-wrap">
                         <div className="flex items-center gap-1.5 sm:gap-2 text-zinc-500 dark:text-zinc-400 text-xs md:text-sm">
                             <Clock size={12} className="text-red-500/70 sm:w-[14px] sm:h-[14px]" />
@@ -223,7 +240,6 @@ const CicloCard = ({ ciclo, onClick, onMenuToggle, isMenuOpen, onAction, registr
                         </div>
                     </div>
 
-                    {/* BARRA DE PROGRESSO */}
                     <div className="mt-auto">
                         <div className="flex justify-between items-end mb-1">
                             <span className="text-[10px] sm:text-[12px] font-bold text-zinc-400 uppercase flex items-center gap-1">
@@ -254,17 +270,16 @@ const CicloCard = ({ ciclo, onClick, onMenuToggle, isMenuOpen, onAction, registr
 };
 
 function CiclosList({ onCicloClick, user, onCicloAtivado, registrosEstudo }) {
+    useForceUnlock();
   const [ciclos, setCiclos] = useState([]);
   const [loadingList, setLoadingList] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [menuAberto, setMenuAberto] = useState(null);
 
-  // States para os Modais de Ação
   const [cicloParaArquivar, setCicloParaArquivar] = useState(null);
   const [cicloParaExcluir, setCicloParaExcluir] = useState(null);
   const [cicloParaEditar, setCicloParaEditar] = useState(null);
 
-  // Loading específico para delete (já que arquivar usa o hook)
   const [deleteLoading, setDeleteLoading] = useState(false);
 
   const { ativarCiclo, arquivarCiclo, loading: actionLoading, error: actionError } = useCiclos(user);
@@ -294,7 +309,6 @@ function CiclosList({ onCicloClick, user, onCicloAtivado, registrosEstudo }) {
     return () => unsubscribe();
   }, [user]);
 
-  // ORDENAÇÃO: Ciclo Ativo primeiro
   const sortedCiclos = useMemo(() => {
       return [...ciclos].sort((a, b) => {
           if (a.ativo && !b.ativo) return -1;
@@ -327,7 +341,6 @@ function CiclosList({ onCicloClick, user, onCicloAtivado, registrosEstudo }) {
     setCicloParaArquivar(null);
   };
 
-  // --- LÓGICA DE EXCLUSÃO PROFUNDA (Ciclo + Registros) ---
   const handleConfirmarExclusao = async () => {
     if (deleteLoading || !cicloParaExcluir) return;
     setDeleteLoading(true);
@@ -335,7 +348,6 @@ function CiclosList({ onCicloClick, user, onCicloAtivado, registrosEstudo }) {
     const { id } = cicloParaExcluir;
 
     try {
-        // 1. Buscar todos os registros vinculados a este ciclo
         const registrosQuery = query(
             collection(db, 'users', user.uid, 'registrosEstudo'),
             where('cicloId', '==', id)
@@ -344,16 +356,13 @@ function CiclosList({ onCicloClick, user, onCicloAtivado, registrosEstudo }) {
 
         const batch = writeBatch(db);
 
-        // 2. Adicionar cada registro para deleção no batch
         snapshot.docs.forEach((docRef) => {
             batch.delete(docRef.ref);
         });
 
-        // 3. Deletar o documento do ciclo
         const cicloRef = doc(db, 'users', user.uid, 'ciclos', id);
         batch.delete(cicloRef);
 
-        // 4. Executar o batch
         await batch.commit();
 
     } catch (error) {

@@ -14,22 +14,22 @@ import ShareCard from '../components/shared/ShareCard';
 // --- IMPORTS DE COMPONENTES ---
 import NavSideBar from '../components/dashboard/NavSideBar';
 import Header from '../components/dashboard/Header';
-import Home from '../components/dashboard/Home';
+import Home from '../pages/HomePage/HomePage';
 import GoalsTab from '../components/dashboard/GoalsTab';
 import CalendarTab from '../components/dashboard/CalendarTab';
 import CiclosPage from '../pages/CiclosPage';
 import ProfilePage from '../pages/ProfilePage';
-import AdminPage from '../pages/AdminPage';
+import AdminPage from '../pages/AdminPage/AdminPage';
 import EditalPage from '../pages/EditalPage';
-import Desempenho from '../pages/PerformanceHub';
-import StudyTimer from '../components/ciclos/StudyTimer';
+import Desempenho from '../pages/DesempenhoPage/DesempenhoPage';
+import StudyTimer from '../components/ciclos/StudyTimer/StudyTimer';
 import TimerFinishModal from '../components/ciclos/TimerFinishModal';
 import OnboardingTour from '../components/shared/OnboardingTour';
 import BroadcastReceiver from '../components/shared/BroadcastReceiver';
 import FeedbackWidget from '../components/FeedbackWidget';
 
 // --- IMPORTS DE SIMULADO ---
-import SimuladosPage from '../pages/SimuladosPage';
+import SimuladosPage from '../pages/SimuladosPage/SimuladosPage';
 import SimuladoTimer from '../pages/SimuladosPage/SimuladoTimer';
 
 const ADMIN_UID = 'OLoJi457GQNE2eTSOcz9DAD6ppZ2';
@@ -43,7 +43,6 @@ const dateToYMD = (date) => {
 
 // --- COMPONENTES AUXILIARES ---
 
-// 1. Alerta de Conflito (Visual Bonito)
 const WarningModal = ({ isOpen, onClose, title, message }) => {
   if (!isOpen) return null;
   return (
@@ -63,22 +62,13 @@ const WarningModal = ({ isOpen, onClose, title, message }) => {
           className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl p-6 w-full max-w-md relative overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Background decorativo */}
           <div className="absolute top-0 left-0 w-full h-1 bg-amber-500" />
-
           <div className="flex flex-col items-center text-center">
             <div className="w-16 h-16 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center mb-4 text-amber-600 dark:text-amber-500">
               <AlertCircle size={32} strokeWidth={2.5} />
             </div>
-
-            <h3 className="text-xl font-bold text-zinc-900 dark:text-white mb-2">
-              {title}
-            </h3>
-
-            <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-6 leading-relaxed">
-              {message}
-            </p>
-
+            <h3 className="text-xl font-bold text-zinc-900 dark:text-white mb-2">{title}</h3>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-6 leading-relaxed">{message}</p>
             <button
               onClick={onClose}
               className="w-full py-3 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-bold hover:opacity-90 transition-opacity"
@@ -167,7 +157,6 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     );
   }
 
-  // ✅ CHAVES DE STORAGE LOCAIS (Fallback)
   const STUDY_STORAGE_KEY = useMemo(() => `@ModoQAP:ActiveSession:${user.uid}`, [user.uid]);
   const SIMULADO_STORAGE_KEY = useMemo(() => `@ModoQAP:SimuladoActive:${user.uid}`, [user.uid]);
   const SIMULADO_PENDING_KEY = useMemo(() => `@ModoQAP:SimuladoPending:${user.uid}`, [user.uid]);
@@ -183,8 +172,6 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   const [isDownloadAlertVisible, setIsDownloadAlertVisible] = useState(false);
   const [tourState, setTourState] = useState({ isActive: false, type: 'main' });
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
-
-  // --- NOVO: Estado para o Alerta de Conflito ---
   const [warningAlert, setWarningAlert] = useState({ isOpen: false, title: '', message: '' });
 
   // --- ESTADOS DE SESSÃO (Estudo) ---
@@ -215,7 +202,6 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     };
   }, [allRegistrosEstudo, todayStr]);
 
-  // --- HANDLERS DE LIMPEZA ---
   useEffect(() => {
     const handleTimerRaise = (event) => setIsTimerRaised(event.detail);
     window.addEventListener('toggle-timer-raise', handleTimerRaise);
@@ -231,7 +217,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   }, [user?.uid]);
 
   // -------------------------------------------------------------
-  // 🔥 SINCRONIZAÇÃO EM TEMPO REAL (CROSS-DEVICE & CROSS-TAB)
+  // 🔥 SINCRONIZAÇÃO EM TEMPO REAL
   // -------------------------------------------------------------
 
   // 1. Ouvinte: Timer de Estudo Ativo
@@ -242,28 +228,20 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     const unsubscribe = onSnapshot(activeStudyRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
-
-        // Se for um timer do tipo 'simulado' gravado aqui por engano, ignoramos
         if (data.isSimulado) return;
-
-        // Se o status for 'finished', não montamos o timer (deixamos o modal de conclusão lidar)
         if (data.status === 'finishing' || data.status === 'finished') return;
 
-        // Atualiza estado local se diferente (garante sync entre abas)
         setActiveStudySession(prev => {
-          // Se já existe e é igual, não faz nada para evitar re-render
           if (prev && prev.disciplina.id === data.disciplinaId && prev.assunto === data.assunto) return prev;
-
           return {
             disciplina: { id: data.disciplinaId, nome: data.disciplinaNome },
             assunto: data.assunto,
-            isMinimized: true // Ao syncar de outro device, inicia minimizado
+            isMinimized: true
           };
         });
       } else {
-        // Se o documento sumiu do banco, e não estamos finalizando, limpa o estado
         if (!finishModalData && !pendingReviewData) {
-           setActiveStudySession(null);
+          setActiveStudySession(null);
         }
       }
     });
@@ -280,29 +258,37 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       if (docSnap.exists()) {
         const data = docSnap.data();
 
-        // Se já foi finalizado, não restaura aqui
         if (data.status === 'finished') return;
 
+        if (!data.isSimulado && data.timerType !== 'simulado') return;
+
         setActiveSimuladoSession(prev => {
+          const isMinimized = prev ? prev.isMinimized : true;
+          const titulo = prev?.titulo ? prev.titulo : (data.titulo || 'Simulado');
+          const isNewSession = prev?.isNewSession === true ? true : false;
+
           const next = {
-            titulo: data.titulo,
+            titulo,
             mode: data.mode,
             initialSeconds: Number(data.initialSeconds || 0),
-            isMinimized: true
+            isMinimized,
+            isNewSession,
           };
+
           if (
             prev &&
             prev.titulo === next.titulo &&
             prev.mode === next.mode &&
-            Number(prev.initialSeconds || 0) === Number(next.initialSeconds || 0)
+            Number(prev.initialSeconds || 0) === Number(next.initialSeconds || 0) &&
+            prev.isMinimized === next.isMinimized
           ) return prev;
+
           return next;
         });
 
       } else {
-        // Se sumiu do banco, limpa estado local (a menos que esteja no fluxo de conclusão)
         if (!finishedSimuladoData) {
-           setActiveSimuladoSession(null);
+          setActiveSimuladoSession(null);
         }
       }
     });
@@ -310,26 +296,23 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     return () => unsubscribe();
   }, [user, finishedSimuladoData]);
 
-
   // -------------------------------------------------------------
   // RESTAURAÇÃO LOCAL (FALLBACK / REFRESH)
   // -------------------------------------------------------------
   useEffect(() => {
-    // Tenta restaurar dados pendentes de conclusão (que não estão mais no active_timer)
     const savedStudy = localStorage.getItem(STUDY_STORAGE_KEY);
     if (savedStudy) {
       try {
         const parsed = JSON.parse(savedStudy);
-        // Se estava finalizando, restaura o modal de conclusão
         if (parsed.isFinishing && parsed.tempMinutes) {
-            clearActiveTimerDoc();
-            setPendingReviewData({
-              minutes: parsed.tempMinutes,
-              disciplinaNome: parsed.disciplinaNome,
-              assuntoInicial: parsed.assunto,
-              reason: 'Sessão interrompida (Atualização/Fechamento)',
-              originalData: parsed
-            });
+          clearActiveTimerDoc();
+          setPendingReviewData({
+            minutes: parsed.tempMinutes,
+            disciplinaNome: parsed.disciplinaNome,
+            assuntoInicial: parsed.assunto,
+            reason: 'Sessão interrompida (Atualização/Fechamento)',
+            originalData: parsed
+          });
         }
       } catch (e) {}
     }
@@ -356,10 +339,9 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   };
 
   // ---------------------------------------------
-  // HANDLERS: ESTUDO (CRONÔMETRO/POMODORO)
+  // HANDLERS: ESTUDO
   // ---------------------------------------------
   const handleStartStudy = (disciplina, assunto = null) => {
-    // 🔴 ALERTA DE CONFLITO
     if (activeSimuladoSession) {
       setWarningAlert({
         isOpen: true,
@@ -378,13 +360,12 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       return;
     }
     const currentStorage = JSON.parse(localStorage.getItem(STUDY_STORAGE_KEY) || '{}');
-    const updatedStorage = {
+    localStorage.setItem(STUDY_STORAGE_KEY, JSON.stringify({
       ...currentStorage,
       isFinishing: true,
       tempMinutes: minutes,
       isPaused: true
-    };
-    localStorage.setItem(STUDY_STORAGE_KEY, JSON.stringify(updatedStorage));
+    }));
     setFinishModalData({
       minutes,
       disciplinaNome: activeStudySession.disciplina.nome,
@@ -417,9 +398,24 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     clearActiveTimerDoc();
   };
 
+  // ✅ CORREÇÃO: Quando o TimerFinishModal salva internamente (savedInternal = true),
+  // o Dashboard apenas faz a limpeza do estado — sem salvar novamente no Firestore.
+  // Isso evita o registro duplicado com assunto concatenado ("Assunto1 +2").
   const handleConfirmFinishStudy = async (resultData) => {
     const dataRef = finishModalData || pendingReviewData;
     if (!dataRef) return;
+
+    // Se o TimerFinishModal já salvou cada tópico individualmente, apenas limpa o estado
+    if (resultData.savedInternal) {
+      localStorage.removeItem(STUDY_STORAGE_KEY);
+      setFinishModalData(null);
+      setPendingReviewData(null);
+      setActiveStudySession(null);
+      clearActiveTimerDoc();
+      return;
+    }
+
+    // Fallback: salva normalmente (caso venha de um fluxo antigo sem savedInternal)
     const { minutes } = dataRef;
     const { questions, correct, obs, assunto, disciplinaNomeCorrigido, markAsFinished } = resultData;
     const nomeDisciplinaFinal = disciplinaNomeCorrigido || dataRef.disciplinaNome;
@@ -433,7 +429,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       const tipoCiclo = isEdital ? 'Edital Base' : 'Ciclo Manual';
       const nomeCiclo = activeCicloData?.nome || 'Ciclo Personalizado';
 
-      const registroEstudoData = {
+      await addRegistroEstudo({
         cicloId: activeCicloId,
         cicloNome: nomeCiclo,
         cicloTipo: tipoCiclo,
@@ -446,18 +442,16 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         obs: obs || 'Sessão via Timer',
         assunto: assunto || null,
         timestamp: Timestamp.now()
-      };
-
-      await addRegistroEstudo(registroEstudoData);
+      });
 
       if (markAsFinished && assunto) {
-        const checkData = {
+        await addDoc(collection(db, 'users', user.uid, 'registrosEstudo'), {
           cicloId: activeCicloId,
           cicloNome: nomeCiclo,
           cicloTipo: tipoCiclo,
           disciplinaId: finalDisciplinaId,
           disciplinaNome: nomeDisciplinaFinal,
-          assunto: assunto,
+          assunto,
           data: dateToYMD(new Date()),
           timestamp: Timestamp.now(),
           tempoEstudadoMinutos: 0,
@@ -465,8 +459,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
           acertos: 0,
           tipoEstudo: 'check_manual',
           obs: 'Concluído via Timer'
-        };
-        await addDoc(collection(db, 'users', user.uid, 'registrosEstudo'), checkData);
+        });
       }
 
       setFinishModalData(null);
@@ -483,7 +476,6 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   // HANDLERS: SIMULADO
   // ---------------------------------------------
   const handleStartSimulado = (config) => {
-    // 🔴 ALERTA DE CONFLITO
     if (activeStudySession) {
       setWarningAlert({
         isOpen: true,
@@ -493,26 +485,29 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       return;
     }
 
-    // Configura o objeto da sessão garantindo initialSeconds
     setActiveSimuladoSession({
-        ...config,
-        initialSeconds: Number(config.totalSeconds) || Number(config.initialSeconds) || 14400, // Fallback 4h
-        isMinimized: false
+      titulo: config.titulo || 'Simulado',
+      mode: config.mode || 'free',
+      initialSeconds: Number(config.totalSeconds) || Number(config.initialSeconds) || 14400,
+      isMinimized: false,
+      isNewSession: true,
     });
   };
 
-  const handleFinishSimulado = (minutes) => {
+  const handleFinishSimulado = async (minutes) => {
+    const tituloFinal = activeSimuladoSession?.titulo || 'Simulado';
+
     const data = {
-        titulo: activeSimuladoSession?.titulo || 'Simulado',
-        data: dateToYMD(new Date()),
-        durationMinutes: minutes
+      titulo: tituloFinal,
+      data: dateToYMD(new Date()),
+      durationMinutes: minutes
     };
-    // Salva estado pendente para a tela de Simulado processar (modal de notas)
+
     localStorage.setItem(SIMULADO_PENDING_KEY, JSON.stringify(data));
     setFinishedSimuladoData(data);
     setActiveSimuladoSession(null);
     clearActiveSimuladoDoc();
-    setActiveTab('simulados'); // Redireciona para a aba para mostrar o modal
+    setActiveTab('simulados');
   };
 
   const handleRecoverSimulado = () => {
@@ -535,14 +530,13 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   };
 
   // ---------------------------------------------
-  // HANDLERS GENÉRICOS & ACTIONS
+  // HANDLERS GENÉRICOS
   // ---------------------------------------------
   const deleteRegistro = async (id) => { await deleteDoc(doc(db, 'users', user.uid, 'registrosEstudo', id)); };
   const deleteData = async (collectionName, id) => { await deleteDoc(doc(db, 'users', user.uid, collectionName, id)); };
 
   const addGoal = async (goalData) => {
-    const newGoal = { ...goalData, startDate: dateToYMD(new Date()) };
-    await addDoc(collection(db, 'users', user.uid, 'metas'), newGoal);
+    await addDoc(collection(db, 'users', user.uid, 'metas'), { ...goalData, startDate: dateToYMD(new Date()) });
   };
 
   const handleTourCloseOrFinish = (type) => {
@@ -588,17 +582,15 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     try {
       const targetWidthPx = 340;
       const targetHeightPx = element.offsetHeight;
-      const scaleFactor = 4.0;
-      const canvas = await html2canvas(element, { scale: scaleFactor, useCORS: true, backgroundColor: sharePreviewData.isDarkMode ? '#18181b' : '#ffffff' });
+      const canvas = await html2canvas(element, { scale: 4.0, useCORS: true, backgroundColor: sharePreviewData.isDarkMode ? '#18181b' : '#ffffff' });
       const pxToMm = 0.264583;
-      const pdfWidthMm = targetWidthPx * pxToMm;
-      const pdfHeightMm = targetHeightPx * pxToMm;
       const imgData = canvas.toDataURL('image/jpeg', 1.0);
-      const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: [pdfWidthMm, pdfHeightMm] });
-      pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidthMm, pdfHeightMm);
+      const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: [targetWidthPx * pxToMm, targetHeightPx * pxToMm] });
+      pdf.addImage(imgData, 'JPEG', 0, 0, targetWidthPx * pxToMm, targetHeightPx * pxToMm);
       pdf.save(`Progresso_${dateToYMD(new Date())}.pdf`);
       setSharePreviewData(null);
-      showDownloadSuccess();
+      setIsDownloadAlertVisible(true);
+      setTimeout(() => setIsDownloadAlertVisible(false), 3500);
     } catch (e) {
       console.error('Erro ao gerar PDF:', e);
       alert('Falha ao gerar PDF.');
@@ -607,22 +599,17 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     }
   };
 
-  const showDownloadSuccess = () => {
-    setIsDownloadAlertVisible(true);
-    setTimeout(() => setIsDownloadAlertVisible(false), 3500);
-  };
-
   const handleShareGoal = (stats) => {
     setSharePreviewData({
-      stats: stats,
+      stats,
       userName: user.displayName || 'Estudante',
       dayData: dayToShareData,
       goals: goalsHistory[0] || { questions: 0, hours: 0 },
-      isDarkMode: isDarkMode
+      isDarkMode
     });
   };
 
-  // --- LOADS & EFFECTS (Firestore) ---
+  // --- EFFECTS (Firestore) ---
   useEffect(() => {
     if (!user || loading) return;
     const tourType = 'main';
@@ -634,65 +621,49 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
 
   useEffect(() => {
     if (!user) return;
-    const ciclosRef = collection(db, 'users', user.uid, 'ciclos');
-    const q = query(ciclosRef, where('ativo', '==', true), where('arquivado', '==', false));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      if (snapshot.empty) {
-        setActiveCicloId(null);
-        setActiveCicloData(null);
-      }
+    const q = query(collection(db, 'users', user.uid, 'ciclos'), where('ativo', '==', true), where('arquivado', '==', false));
+    return onSnapshot(q, (snapshot) => {
+      if (snapshot.empty) { setActiveCicloId(null); setActiveCicloData(null); }
       else {
         const cicloDoc = snapshot.docs[0];
         setActiveCicloId(cicloDoc.id);
         setActiveCicloData({ id: cicloDoc.id, ...cicloDoc.data() });
       }
     });
-    return () => unsubscribe();
   }, [user]);
 
   useEffect(() => {
-    if (!user || !activeCicloId) {
-      setActiveCycleDisciplines([]);
-      return;
-    }
-    const qDisc = query(collection(db, 'users', user.uid, 'ciclos', activeCicloId, 'disciplinas'));
-    const unsubscribe = onSnapshot(qDisc, (snapshot) => {
-      const discs = snapshot.docs.map(d => {
-        const data = d.data();
-        const assuntos = Array.isArray(data.assuntos)
-          ? data.assuntos.map(a => (typeof a === 'string' ? { nome: a, inCiclo: true } : { ...a, nome: (a?.nome || '').trim(), inCiclo: a?.inCiclo !== false })).filter(a => a.nome)
-          : [];
-        return { id: d.id, ...data, assuntos, inCiclo: data.inCiclo !== false };
-      });
-      setActiveCycleDisciplines(discs);
-    });
-    return () => unsubscribe();
+    if (!user || !activeCicloId) { setActiveCycleDisciplines([]); return; }
+    return onSnapshot(
+      query(collection(db, 'users', user.uid, 'ciclos', activeCicloId, 'disciplinas')),
+      (snapshot) => {
+        setActiveCycleDisciplines(snapshot.docs.map(d => {
+          const data = d.data();
+          const assuntos = Array.isArray(data.assuntos)
+            ? data.assuntos.map(a => (typeof a === 'string' ? { nome: a, inCiclo: true } : { ...a, nome: (a?.nome || '').trim(), inCiclo: a?.inCiclo !== false })).filter(a => a.nome)
+            : [];
+          return { id: d.id, ...data, assuntos, inCiclo: data.inCiclo !== false };
+        }));
+      }
+    );
   }, [user, activeCicloId]);
 
   useEffect(() => {
     if (!user) return;
     setLoading(true);
-    const qReg = query(collection(db, 'users', user.uid, 'registrosEstudo'), orderBy('timestamp', 'desc'));
-    const unsubscribe = onSnapshot(qReg, (snapshot) => {
-      const registros = snapshot.docs.map(docSnap => {
-        const data = docSnap.data();
-        let dataStr = data.data;
-        if (data.data && typeof data.data.toDate === 'function') dataStr = dateToYMD(data.data.toDate());
-        if (!dataStr && data.timestamp && typeof data.timestamp.toDate === 'function') dataStr = dateToYMD(data.timestamp.toDate());
-
-        return {
-          id: docSnap.id,
-          ...data,
-          data: dataStr,
-          tempoEstudadoMinutos: data.tempoEstudadoMinutos,
-          questoesFeitas: data.questoesFeitas,
-          acertos: data.acertos
-        };
-      });
-      setAllRegistrosEstudo(registros);
-      setLoading(false);
-    });
-    return () => unsubscribe();
+    return onSnapshot(
+      query(collection(db, 'users', user.uid, 'registrosEstudo'), orderBy('timestamp', 'desc')),
+      (snapshot) => {
+        setAllRegistrosEstudo(snapshot.docs.map(docSnap => {
+          const data = docSnap.data();
+          let dataStr = data.data;
+          if (data.data && typeof data.data.toDate === 'function') dataStr = dateToYMD(data.data.toDate());
+          if (!dataStr && data.timestamp && typeof data.timestamp.toDate === 'function') dataStr = dateToYMD(data.timestamp.toDate());
+          return { id: docSnap.id, ...data, data: dataStr };
+        }));
+        setLoading(false);
+      }
+    );
   }, [user]);
 
   useEffect(() => {
@@ -703,9 +674,10 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
 
   useEffect(() => {
     if (!user) return;
-    const qMeta = query(collection(db, 'users', user.uid, 'metas'), orderBy('startDate', 'desc'));
-    const unsubscribe = onSnapshot(qMeta, (snapshot) => setGoalsHistory(snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }))));
-    return () => unsubscribe();
+    return onSnapshot(
+      query(collection(db, 'users', user.uid, 'metas'), orderBy('startDate', 'desc')),
+      (snapshot) => setGoalsHistory(snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() })))
+    );
   }, [user]);
 
   // --- RENDER TAB CONTENT ---
@@ -719,63 +691,19 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     }
     switch (activeTab) {
       case 'home':
-        return (
-          <Home
-            registrosEstudo={activeRegistrosEstudo}
-            allRegistrosEstudo={allRegistrosEstudo}
-            goalsHistory={goalsHistory}
-            setActiveTab={handleGoToActiveCycle}
-            activeCicloData={activeCicloData}
-            activeCicloId={activeCicloId}
-            onDeleteRegistro={deleteRegistro}
-          />
-        );
+        return <Home registrosEstudo={activeRegistrosEstudo} allRegistrosEstudo={allRegistrosEstudo} goalsHistory={goalsHistory} setActiveTab={handleGoToActiveCycle} activeCicloData={activeCicloData} activeCicloId={activeCicloId} onDeleteRegistro={deleteRegistro} />;
       case 'goals':
         return <GoalsTab goalsHistory={goalsHistory} onSetGoal={addGoal} onDeleteGoal={(id) => deleteData('metas', id)} />;
       case 'calendar':
         return <CalendarTab registrosEstudo={allRegistrosEstudo} goalsHistory={goalsHistory} onDeleteRegistro={deleteRegistro} />;
       case 'ciclos':
-        return (
-          <CiclosPage
-            user={user}
-            onStartStudy={handleStartStudy}
-            onCicloAtivado={handleCicloCreationOrActivation}
-            addRegistroEstudo={addRegistroEstudo}
-            activeCicloId={activeCicloId}
-            forceOpenVisual={forceOpenVisual}
-            onGoToEdital={() => setActiveTab('edital')}
-            registrosEstudo={allRegistrosEstudo}
-          />
-        );
+        return <CiclosPage user={user} onStartStudy={handleStartStudy} onCicloAtivado={handleCicloCreationOrActivation} addRegistroEstudo={addRegistroEstudo} activeCicloId={activeCicloId} forceOpenVisual={forceOpenVisual} onGoToEdital={() => setActiveTab('edital')} registrosEstudo={allRegistrosEstudo} />;
       case 'edital':
-        return (
-          <EditalPage
-            user={user}
-            activeCicloId={activeCicloId}
-            onStartStudy={handleStartStudy}
-            onBack={handleGoToActiveCycle}
-          />
-        );
+        return <EditalPage user={user} activeCicloId={activeCicloId} onStartStudy={handleStartStudy} onBack={handleGoToActiveCycle} />;
       case 'stats':
-        return (
-          <Desempenho
-            registrosEstudo={allRegistrosEstudo}
-            disciplinasDoCiclo={activeCycleDisciplines}
-            activeCicloId={activeCicloId}
-            metas={goalsHistory}
-            onCreateCycle={() => setActiveTab('ciclos')}
-          />
-        );
+        return <Desempenho registrosEstudo={allRegistrosEstudo} disciplinasDoCiclo={activeCycleDisciplines} activeCicloId={activeCicloId} metas={goalsHistory} onCreateCycle={() => setActiveTab('ciclos')} />;
       case 'simulados':
-        return (
-          <SimuladosPage
-            user={user}
-            activeCycleDisciplines={activeCycleDisciplines}
-            onStartSimulado={handleStartSimulado}
-            initialData={finishedSimuladoData}
-            onClearInitialData={handleClearSimuladoData}
-          />
-        );
+        return <SimuladosPage user={user} activeCycleDisciplines={activeCycleDisciplines} onStartSimulado={handleStartSimulado} initialData={finishedSimuladoData} onClearInitialData={handleClearSimuladoData} />;
       case 'profile':
         return <ProfilePage user={user} allRegistrosEstudo={allRegistrosEstudo} onDeleteRegistro={deleteRegistro} />;
       case 'admin':
@@ -789,7 +717,6 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   return (
     <div className="flex min-h-screen bg-background-light dark:bg-background-dark text-text-primary dark:text-text-dark-primary transition-colors duration-300 overflow-x-hidden">
 
-      {/* --- RENDERIZAÇÃO DO MODAL DE ALERTA --- */}
       <WarningModal
         isOpen={warningAlert.isOpen}
         title={warningAlert.title}
@@ -816,42 +743,25 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         setExpanded={setIsSidebarExpanded}
         isMobileOpen={isMobileOpen}
         setMobileOpen={setIsMobileOpen}
+        isDarkMode={isDarkMode}
+        toggleTheme={toggleTheme}
+        registrosEstudo={allRegistrosEstudo}
+        goalsHistory={goalsHistory}
+        activeCicloId={activeCicloId}
+        onShareGoal={handleShareGoal}
+        onOpenFeedback={() => setIsFeedbackOpen(true)}
       />
 
-      <div className={`flex-grow w-full transition-all duration-300 pt-[80px] px-4 md:px-8 lg:pt-8 pb-10 ${isSidebarExpanded ? 'lg:ml-[260px]' : 'lg:ml-[80px]'}`}>
-
-        <Header
-          user={user}
-          activeTab={activeTab}
-          isDarkMode={isDarkMode}
-          toggleTheme={toggleTheme}
-          registrosEstudo={allRegistrosEstudo}
-          goalsHistory={goalsHistory}
-          activeCicloId={activeCicloId}
-          onShareGoal={handleShareGoal}
-          onOpenFeedback={() => setIsFeedbackOpen(true)}
-        />
-
-        <main className="mt-6 max-w-7xl mx-auto animate-fade-in">{renderTabContent()}</main>
+      <div className={`flex-grow w-full transition-all duration-300 pt-[80px] px-4 md:px-8 lg:pt-[90px] pb-10 ${isSidebarExpanded ? 'lg:ml-[260px]' : 'lg:ml-[80px]'}`}>
+        <Header user={user} activeTab={activeTab} />
+        <main className="mt-2 max-w-7xl mx-auto animate-fade-in">{renderTabContent()}</main>
       </div>
 
-      <OnboardingTour
-        isActive={tourState.isActive}
-        tourType={tourState.type}
-        activeTab={activeTab}
-        setActiveTab={handleTabChange}
-        onClose={() => handleTourCloseOrFinish(tourState.type)}
-        onFinish={() => handleTourCloseOrFinish(tourState.type)}
-      />
+      <OnboardingTour isActive={tourState.isActive} tourType={tourState.type} activeTab={activeTab} setActiveTab={handleTabChange} onClose={() => handleTourCloseOrFinish(tourState.type)} onFinish={() => handleTourCloseOrFinish(tourState.type)} />
 
-      <FeedbackWidget
-        user={user}
-        isOpen={isFeedbackOpen}
-        onClose={() => setIsFeedbackOpen(false)}
-        isSidebarOpen={isMobileOpen}
-      />
+      <FeedbackWidget user={user} isOpen={isFeedbackOpen} onClose={() => setIsFeedbackOpen(false)} isSidebarOpen={isMobileOpen} />
 
-      {/* --- TIMER DE ESTUDO (STUDY TIMER) --- */}
+      {/* --- TIMER DE ESTUDO --- */}
       {activeStudySession && (
         <StudyTimer
           disciplina={activeStudySession.disciplina}
@@ -873,8 +783,9 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         <SimuladoTimer
           tituloSimulado={activeSimuladoSession.titulo}
           mode={activeSimuladoSession.mode}
-          initialSeconds={activeSimuladoSession.initialSeconds || activeSimuladoSession.totalSeconds || 0}
+          initialSeconds={activeSimuladoSession.initialSeconds || 0}
           isMinimized={activeSimuladoSession.isMinimized}
+          isNewSession={activeSimuladoSession.isNewSession === true}
           onStop={handleFinishSimulado}
           onCancel={handleCancelSimulado}
           onMaximize={() => setActiveSimuladoSession(prev => ({ ...prev, isMinimized: false }))}
@@ -885,13 +796,10 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         />
       )}
 
-      {/* --- RECOVERY MODAL DE ESTUDO --- */}
+      {/* --- RECOVERY: ESTUDO --- */}
       {pendingReviewData && !finishModalData && (
         <div className="fixed bottom-24 right-4 z-[9999] animate-fade-in">
-          <div
-            onClick={() => setFinishModalData(pendingReviewData)}
-            className="bg-amber-900/90 backdrop-blur-md border border-amber-500/50 shadow-[0_0_20px_rgba(245,158,11,0.2)] rounded-2xl p-3 flex items-center gap-4 w-auto max-w-[320px] overflow-hidden hover:scale-105 transition-transform cursor-pointer"
-          >
+          <div onClick={() => setFinishModalData(pendingReviewData)} className="bg-amber-900/90 backdrop-blur-md border border-amber-500/50 shadow-[0_0_20px_rgba(245,158,11,0.2)] rounded-2xl p-3 flex items-center gap-4 w-auto max-w-[320px] overflow-hidden hover:scale-105 transition-transform cursor-pointer">
             <div className="relative flex items-center justify-center w-10 h-10 bg-amber-800 rounded-full shrink-0">
               <div className="absolute inset-0 rounded-full bg-amber-500/20 animate-ping"></div>
               <AlertTriangle size={20} className="text-amber-200 relative z-10" />
@@ -908,13 +816,10 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         </div>
       )}
 
-      {/* --- RECOVERY MODAL DE SIMULADO --- */}
+      {/* --- RECOVERY: SIMULADO --- */}
       {pendingSimuladoReview && !finishedSimuladoData && (
         <div className="fixed bottom-24 right-4 z-[9999] animate-fade-in">
-          <div
-            onClick={handleRecoverSimulado}
-            className="bg-red-900/90 backdrop-blur-md border border-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.2)] rounded-2xl p-3 flex items-center gap-4 w-auto max-w-[320px] overflow-hidden hover:scale-105 transition-transform cursor-pointer"
-          >
+          <div onClick={handleRecoverSimulado} className="bg-red-900/90 backdrop-blur-md border border-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.2)] rounded-2xl p-3 flex items-center gap-4 w-auto max-w-[320px] overflow-hidden hover:scale-105 transition-transform cursor-pointer">
             <div className="relative flex items-center justify-center w-10 h-10 bg-red-800 rounded-full shrink-0">
               <div className="absolute inset-0 rounded-full bg-red-500/20 animate-ping"></div>
               <ClipboardList size={20} className="text-red-200 relative z-10" />
@@ -942,6 +847,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
           onConfirm={handleConfirmFinishStudy}
           onCancel={handleRetomarEstudo}
           onDiscard={handleConfirmCancelStudy}
+          activeCicloData={activeCicloData}
         />
       )}
 

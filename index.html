@@ -38,7 +38,11 @@
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
-      overflow: hidden;
+      overflow: auto;
+    }
+    /* Classe para travar o scroll APENAS durante o loading */
+    body.loading-active {
+      overflow: hidden !important;
     }
 
     /* Loading Screen Styles - Tema Militar Dark */

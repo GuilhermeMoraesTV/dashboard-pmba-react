@@ -2,13 +2,18 @@ rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
-    // A regra deve corresponder ao caminho completo do arquivo
+    // Regra para Imagens de Perfil (Usuário escreve na própria pasta)
     match /profile_images/{userId}/{allPaths=**} {
-      // Qualquer usuário autenticado pode ler (para ver perfis)
       allow read: if request.auth != null;
-
-      // Apenas o proprietário da pasta (userId) pode escrever
       allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // --- NOVA REGRA PARA LOGOS DE EDITAIS ---
+    // Leitura: Todos os usuários logados
+    // Escrita: Apenas o ADMIN (OLoJi457GQNE2eTSOcz9DAD6ppZ2)
+    match /editais_logos/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == "OLoJi457GQNE2eTSOcz9DAD6ppZ2";
     }
   }
 }

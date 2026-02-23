@@ -2,25 +2,33 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   collection, query, orderBy, onSnapshot, addDoc, deleteDoc, doc, Timestamp, updateDoc
 } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
+import { db } from '../../firebaseConfig';
 import { ClipboardList } from 'lucide-react';
 
 // Importação dos Módulos Separados
-import HeaderSimulado from './SimuladosPage/HeaderSimulado';
-import SimuladosList from './SimuladosPage/SimuladosList';
-import SimuladoCreationModal from './SimuladosPage/SimuladoCreationModal';
-import SimuladoEditModal from './SimuladosPage/SimuladoEditModal';
-import SimuladoComparisonModal from './SimuladosPage/SimuladoComparisonModal';
-import StartSimuladoModal from './SimuladosPage/StartSimuladoModal';
+import HeaderSimulado from './HeaderSimulado';
+import SimuladosList from './SimuladosList';
+import SimuladoCreationModal from './SimuladoCreationModal';
+import SimuladoEditModal from './SimuladoEditModal';
+import SimuladoComparisonModal from './SimuladoComparisonModal';
+import StartSimuladoModal from './StartSimuladoModal';
+
+// --- GAMIFICAÇÃO ---
+import { useLevelSystem } from '../../hooks/useLevelSystem';
+import { useForceUnlock } from '../../hooks/useForceUnlock';
 
 const SimuladosPage = ({ user, activeCycleDisciplines, onStartSimulado, initialData, onClearInitialData }) => {
+  // Hook de Gamificação
+  useForceUnlock();
+  const { processSimuladoResult, checkAndAwardMilestone } = useLevelSystem(user);
+
   const [simulados, setSimulados] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
 
   // Modais de Controle
-  const [isModalOpen, setIsModalOpen] = useState(false); // Novo Registro (Manual e Finish Timer)
-  const [isStartModalOpen, setIsStartModalOpen] = useState(false); // Iniciar Timer
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isStartModalOpen, setIsStartModalOpen] = useState(false);
   const [editModal, setEditModal] = useState({ open: false, item: null });
 
   // Comparação
@@ -31,7 +39,6 @@ const SimuladosPage = ({ user, activeCycleDisciplines, onStartSimulado, initialD
   // Estado do Timer Finalizado
   const [finishedSimuladoData, setFinishedSimuladoData] = useState(null);
 
-  // Efeito para abrir o modal quando o simulado termina via timer externo (Dashboard)
   useEffect(() => {
     if (initialData) {
       setFinishedSimuladoData(initialData);
@@ -39,7 +46,6 @@ const SimuladosPage = ({ user, activeCycleDisciplines, onStartSimulado, initialD
     }
   }, [initialData]);
 
-  // Carregar dados do Firebase
   useEffect(() => {
     if (!user) return;
     const q = query(collection(db, 'users', user.uid, 'simulados'), orderBy('data', 'desc'));
@@ -53,10 +59,22 @@ const SimuladosPage = ({ user, activeCycleDisciplines, onStartSimulado, initialD
   // --- CRUD OPERATIONS ---
   const handleCreate = async (data) => {
     try {
+      // 1. Salvar no Banco de Dados
       await addDoc(collection(db, 'users', user.uid, 'simulados'), {
         ...data,
         timestamp: Timestamp.now()
       });
+
+      // 2. Processar Gamificação (XP)
+      // O hook já dispara a notificação visual, não precisamos de alert()
+      const porcentagem = data.resumo?.porcentagem || 0;
+
+      // Verifica Conquista de "Primeiro Simulado"
+      await checkAndAwardMilestone('FIRST_SIMULADO');
+
+      // Processa XP de Desempenho (Base + Bônus)
+      await processSimuladoResult(porcentagem);
+
     } catch (e) {
       alert("Erro ao salvar simulado.");
       console.error(e);
@@ -89,7 +107,6 @@ const SimuladosPage = ({ user, activeCycleDisciplines, onStartSimulado, initialD
   };
 
   // --- LÓGICA DE NEGÓCIO ---
-
   const kpis = useMemo(() => {
     if (simulados.length === 0) return null;
     const totalSimulados = simulados.length;
@@ -187,7 +204,7 @@ const SimuladosPage = ({ user, activeCycleDisciplines, onStartSimulado, initialD
             <ClipboardList size={32} className="text-zinc-400" />
           </div>
           <h3 className="text-2xl font-black text-zinc-800 dark:text-white mb-2">Sem registros ainda</h3>
-          <p className="text-zinc-500 mb-6">Registre seu primeiro simulado para desbloquear análises.</p>
+          <p className="text-zinc-500 mb-6">Registre seu primeiro simulado para desbloquear análises e ganhar XP!</p>
           <button onClick={() => setIsStartModalOpen(true)} className="bg-emerald-600 text-white px-8 py-3 rounded-xl font-bold shadow-lg shadow-emerald-600/20 hover:bg-emerald-700 transition-colors">
             Iniciar Simulado
           </button>
@@ -196,7 +213,7 @@ const SimuladosPage = ({ user, activeCycleDisciplines, onStartSimulado, initialD
         <SimuladosList
             filteredSimulados={filteredSimulados}
             loading={loading}
-            onDeleteRequest={null} // Gerenciado internamente no List agora, mas precisamos da função de confirmação
+            onDeleteRequest={null}
             onConfirmDelete={handleConfirmDelete}
             onEditRequest={(item) => setEditModal({ open: true, item })}
             compareMode={compareMode}

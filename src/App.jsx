@@ -2,13 +2,14 @@ import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from './firebaseConfig';
+// Importe o componente Footer (ajuste o caminho se necessário)
+import Footer from './components/Footer';
 
 // Importações Lazy
 const Dashboard = lazy(() => import('./components/Dashboard'));
 const Login = lazy(() => import('./components/Login'));
 const Signup = lazy(() => import('./components/Signup'));
 const ForgotPassword = lazy(() => import('./components/ForgotPassword'));
-// ✅ 1. Importação Lazy da nova página de erro
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 
 function App() {
@@ -70,47 +71,55 @@ function App() {
 
   return (
     <BrowserRouter>
-      <Suspense
-        fallback={
-          <div className="flex justify-center items-center min-h-screen bg-background-color dark:bg-dark-background-color">
-            <div className="w-8 h-8 border-4 border-zinc-300 border-t-zinc-600 rounded-full animate-spin"></div>
-          </div>
-        }
-      >
-        <Routes>
-          {/* Rotas Principais */}
-          <Route
-            path="/"
-            element={
-              user ? (
-                <Dashboard
-                  user={user}
-                  isDarkMode={isDarkMode}
-                  toggleTheme={toggleTheme}
-                />
-              ) : (
-                <Navigate to="/login" />
-              )
-            }
-          />
-          <Route
-            path="/login"
-            element={user ? <Navigate to="/" /> : <Login />}
-          />
-          <Route
-            path="/signup"
-            element={user ? <Navigate to="/" /> : <Signup />}
-          />
-          <Route
-            path="/forgot-password"
-            element={user ? <Navigate to="/" /> : <ForgotPassword />}
-          />
+      {/* ESTRUTURA DE LAYOUT:
+          - 'flex flex-col min-h-screen' garante que o container ocupe toda a altura.
+          - 'flex-grow' no Suspense/Main empurra o Footer para o final.
+      */}
+      <div className="flex flex-col min-h-screen bg-background-color dark:bg-dark-background-color transition-colors">
 
-          {/* ✅ 2. Rota Coringa (404) - Deve ser SEMPRE a última */}
-          <Route path="*" element={<NotFoundPage />} />
+        <Suspense
+          fallback={
+            <div className="flex flex-grow justify-center items-center">
+              <div className="w-8 h-8 border-4 border-zinc-300 border-t-zinc-600 rounded-full animate-spin"></div>
+            </div>
+          }
+        >
+          <main className="flex-grow">
+            <Routes>
+              <Route
+                path="/"
+                element={
+                  user ? (
+                    <Dashboard
+                      user={user}
+                      isDarkMode={isDarkMode}
+                      toggleTheme={toggleTheme}
+                    />
+                  ) : (
+                    <Navigate to="/login" />
+                  )
+                }
+              />
+              <Route
+                path="/login"
+                element={user ? <Navigate to="/" /> : <Login />}
+              />
+              <Route
+                path="/signup"
+                element={user ? <Navigate to="/" /> : <Signup />}
+              />
+              <Route
+                path="/forgot-password"
+                element={user ? <Navigate to="/" /> : <ForgotPassword />}
+              />
+              <Route path="*" element={<NotFoundPage />} />
+            </Routes>
+          </main>
+        </Suspense>
 
-        </Routes>
-      </Suspense>
+        {/* O Footer é renderizado aqui, fora do Routes, para aparecer em todas as páginas */}
+        <Footer />
+      </div>
     </BrowserRouter>
   );
 }

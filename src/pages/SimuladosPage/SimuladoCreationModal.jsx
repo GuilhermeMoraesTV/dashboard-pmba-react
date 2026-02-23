@@ -57,7 +57,7 @@ const CloseConfirmationModal = ({ isOpen, onCancel, onConfirm }) => {
 // ============================================================================
 // COMPONENTE PRINCIPAL DO MODAL DE CRIAÇÃO
 // ============================================================================
-const NovoSimuladoModal = ({ isOpen, onClose, onSave, disciplinasSugestivas, initialData, onClearInitialData }) => {
+const SimuladoCreationModal = ({ isOpen, onClose, onSave, disciplinasSugestivas, initialData, onClearInitialData }) => {
   const DRAFT_KEY = 'simulado_draft_v7_ultra';
 
   const [titulo, setTitulo] = useState('');
@@ -78,6 +78,24 @@ const NovoSimuladoModal = ({ isOpen, onClose, onSave, disciplinasSugestivas, ini
 
   const [manualHours, setManualHours] = useState('');
   const [manualMins, setManualMins] = useState('');
+
+  // ✅ TRAVA DE SCROLL ROBUSTA (Igual ao ModalSelecaoEdital)
+  useEffect(() => {
+    if (isOpen) {
+        document.body.style.overflow = 'hidden';
+        document.documentElement.style.overflow = 'hidden';
+        document.body.style.overscrollBehavior = 'none';
+    } else {
+        document.body.style.overflow = '';
+        document.documentElement.style.overflow = '';
+        document.body.style.overscrollBehavior = '';
+    }
+    return () => {
+        document.body.style.overflow = '';
+        document.documentElement.style.overflow = '';
+        document.body.style.overscrollBehavior = '';
+    };
+  }, [isOpen]);
 
   // Verifica se houve alteração
   const isDirty = useMemo(() => {
@@ -109,20 +127,26 @@ const NovoSimuladoModal = ({ isOpen, onClose, onSave, disciplinasSugestivas, ini
     handleClose();
   };
 
+  // Função dedicada para resetar o rascunho enquanto o modal está aberto
+  const handleDiscardDraft = () => {
+    localStorage.removeItem(DRAFT_KEY);
+    setDraftLoaded(false);
+    // Reseta para o estado inicial limpo
+    setTitulo('');
+    setBanca('');
+    setData(new Date().toISOString().split('T')[0]);
+    setDisciplinas(buildInitialDisciplinas());
+    setDurationMinutes(null);
+    setManualHours('');
+    setManualMins('');
+  };
+
   // Reset de erros ao abrir
   useEffect(() => {
     if (isOpen) {
       setFieldErrors({ titulo: false, data: false, disciplinas: false });
     }
   }, [isOpen]);
-
-  useEffect(() => {
-    if (isOpen && initialData && initialData.durationMinutes != null) {
-      setDurationMinutes(initialData.durationMinutes);
-    } else if (!isOpen) {
-      setDurationMinutes(null);
-    }
-  }, [isOpen, initialData]);
 
   const buildInitialDisciplinas = useCallback(() => {
       const baseObj = { _id: Date.now(), nome: '', questoes: '', acertos: '', branco: '', peso: 1 };
@@ -136,6 +160,7 @@ const NovoSimuladoModal = ({ isOpen, onClose, onSave, disciplinasSugestivas, ini
       return [baseObj];
     }, [disciplinasSugestivas]);
 
+  // EFEITO PRINCIPAL DE CARREGAMENTO (Mount/Open)
   useEffect(() => {
       if (!isOpen) return;
 
@@ -156,40 +181,47 @@ const NovoSimuladoModal = ({ isOpen, onClose, onSave, disciplinasSugestivas, ini
         nextDurationMinutes = initialData.durationMinutes;
       }
 
-      if (initialData && draftObj && draftObj.titulo === initialData.titulo) {
-        nextTitulo = draftObj.titulo || '';
-        nextBanca = draftObj.banca || '';
-        nextData = draftObj.data || initialData.data || nextData;
-        nextDisciplinas = draftObj.disciplinas || buildInitialDisciplinas();
-        setDraftLoaded(true);
-      } else if (initialData) {
+      // LÓGICA DE CARREGAMENTO
+      if (initialData) {
+        // Se temos dados iniciais (Ex: veio do Timer), IGNORA O RASCUNHO e usa os dados
         nextTitulo = initialData.titulo || '';
         nextData = initialData.data || nextData;
-        nextBanca = '';
+        nextBanca = ''; // Geralmente timer não tem banca definida ainda
+        // Se o timer passou disciplinas pré-configuradas (futuro), usaria aqui. Por enquanto reseta ou usa sugestivas.
         nextDisciplinas = buildInitialDisciplinas();
         setDraftLoaded(false);
       } else if (draftObj) {
+        // Se NÃO tem initialData, mas tem rascunho
         nextTitulo = draftObj.titulo || '';
         nextBanca = draftObj.banca || '';
         nextData = draftObj.data || nextData;
         nextDisciplinas = draftObj.disciplinas || buildInitialDisciplinas();
+        // Recupera tempo manual do rascunho se existir
+        if (draftObj.durationMinutes) nextDurationMinutes = draftObj.durationMinutes;
         setDraftLoaded(true);
       } else {
+        // Limpo (Novo Simulado Manual sem rascunho)
         nextDisciplinas = buildInitialDisciplinas();
         setDraftLoaded(false);
+        // GARANTIR LIMPEZA TOTAL
+        nextTitulo = '';
+        nextBanca = '';
+        nextDurationMinutes = null;
       }
 
+      // Aplica os estados
       setTitulo(nextTitulo);
       setBanca(nextBanca);
       setData(nextData);
       setDisciplinas(nextDisciplinas);
       setDurationMinutes(nextDurationMinutes);
 
-      if (!initialData) {
-        const h = nextDurationMinutes ? Math.floor(nextDurationMinutes / 60) : '';
-        const m = nextDurationMinutes ? (nextDurationMinutes % 60) : '';
-        setManualHours(h === '' ? '' : String(h).padStart(2, '0'));
-        setManualMins(m === '' ? '' : String(m).padStart(2, '0'));
+      // Sincroniza inputs manuais de hora/min
+      if (nextDurationMinutes) {
+        const h = Math.floor(nextDurationMinutes / 60);
+        const m = nextDurationMinutes % 60;
+        setManualHours(String(h).padStart(2, '0'));
+        setManualMins(String(m).padStart(2, '0'));
       } else {
         setManualHours('');
         setManualMins('');
@@ -204,15 +236,22 @@ const NovoSimuladoModal = ({ isOpen, onClose, onSave, disciplinasSugestivas, ini
       });
     }, [isOpen, initialData, disciplinasSugestivas, buildInitialDisciplinas]);
 
+  // Efeito para Salvar Rascunho Automaticamente
   useEffect(() => {
-      if (isOpen) {
-        const payload = { titulo, banca, data, disciplinas };
-        const isDirtyCheck = titulo || banca || disciplinas.some(d => d.nome || d.questoes);
+      if (isOpen && !initialData) { // Só salva rascunho se for edição manual, não vindo do timer
+        const payload = {
+            titulo,
+            banca,
+            data,
+            disciplinas,
+            durationMinutes // Salva também o tempo manual
+        };
+        const isDirtyCheck = titulo || banca || (durationMinutes !== null) || disciplinas.some(d => d.nome || d.questoes);
         if (isDirtyCheck) {
           localStorage.setItem(DRAFT_KEY, JSON.stringify(payload));
         }
       }
-    }, [titulo, banca, data, disciplinas, isOpen]);
+    }, [titulo, banca, data, disciplinas, durationMinutes, isOpen, initialData]);
 
   const handleChange = (idx, field, val) => {
     if (['questoes', 'acertos', 'branco', 'peso'].includes(field)) {
@@ -222,7 +261,6 @@ const NovoSimuladoModal = ({ isOpen, onClose, onSave, disciplinasSugestivas, ini
     arr[idx] = { ...arr[idx], [field]: val };
     setDisciplinas(arr);
 
-    // Se o usuário editar algo nas disciplinas, removemos o erro visual de "disciplinas vazias"
     if (fieldErrors.disciplinas) {
         setFieldErrors(prev => ({ ...prev, disciplinas: false }));
     }
@@ -230,7 +268,6 @@ const NovoSimuladoModal = ({ isOpen, onClose, onSave, disciplinasSugestivas, ini
 
   const addMateria = () => {
     setDisciplinas([{ _id: Date.now(), nome: '', questoes: '', acertos: '', branco: '', peso: 1 }, ...disciplinas]);
-    // Remove erro ao adicionar
     if (fieldErrors.disciplinas) setFieldErrors(prev => ({ ...prev, disciplinas: false }));
   };
 
@@ -271,11 +308,9 @@ const NovoSimuladoModal = ({ isOpen, onClose, onSave, disciplinasSugestivas, ini
   // FUNÇÃO DE SAVE COM VALIDAÇÃO VISUAL
   // =================================================================
   const handleSave = () => {
-    // 1. Resetar erros
     const newErrors = { titulo: false, data: false, disciplinas: false };
     let hasError = false;
 
-    // 2. Validar Título e Data
     if (!titulo.trim()) {
         newErrors.titulo = true;
         hasError = true;
@@ -285,7 +320,6 @@ const NovoSimuladoModal = ({ isOpen, onClose, onSave, disciplinasSugestivas, ini
         hasError = true;
     }
 
-    // 3. Validar Disciplinas
     const validas = disciplinas
       .map(d => ({ ...d, nome: (d.nome || '').trim() }))
       .filter(d => d.nome && Number(d.questoes) > 0);
@@ -295,11 +329,8 @@ const NovoSimuladoModal = ({ isOpen, onClose, onSave, disciplinasSugestivas, ini
         hasError = true;
     }
 
-    // 4. Se houver erro, atualiza estado e para
     if (hasError) {
         setFieldErrors(newErrors);
-
-        // Se o erro for nas disciplinas e não estamos na aba, muda para a aba
         if (newErrors.disciplinas && activeTab !== 'subjects') {
             setActiveTab('subjects');
         } else if ((newErrors.titulo || newErrors.data) && activeTab !== 'details') {
@@ -308,7 +339,6 @@ const NovoSimuladoModal = ({ isOpen, onClose, onSave, disciplinasSugestivas, ini
         return;
     }
 
-    // 5. Validação Lógica (Alertas de Integridade - mantém alert pois é regra de negócio complexa)
     for (let d of validas) {
       if ((Number(d.acertos) + Number(d.branco)) > Number(d.questoes)) {
         return alert(`Erro em "${d.nome}": A soma de Acertos + Brancos não pode ser maior que o total de Questões.`);
@@ -324,7 +354,6 @@ const NovoSimuladoModal = ({ isOpen, onClose, onSave, disciplinasSugestivas, ini
       seen.add(k);
     }
 
-    // 6. Sucesso - Salvar
     setLoading(true);
     const payload = {
       titulo,
@@ -347,18 +376,29 @@ const NovoSimuladoModal = ({ isOpen, onClose, onSave, disciplinasSugestivas, ini
         porcentagem: totais.notaFinal
       }
     };
+
     onSave(payload);
-    if (!initialData) localStorage.removeItem(DRAFT_KEY);
+
+    // CORREÇÃO: Limpa o rascunho SEMPRE ao salvar com sucesso, independente de ser manual ou timer
+    // Isso evita que dados antigos apareçam na próxima criação
+    localStorage.removeItem(DRAFT_KEY);
+
     setLoading(false);
     handleClose();
+
+    // Reset local
     setTitulo('');
     setDisciplinas([]);
+    setManualHours('');
+    setManualMins('');
+    setDurationMinutes(null);
   };
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center p-3 md:p-4 bg-zinc-900/60 backdrop-blur-md animate-fade-in font-sans">
+    // ✅ CORREÇÃO: Mesma estrutura do ModalSelecaoEdital
+    <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm font-sans overflow-hidden">
 
       <CloseConfirmationModal
         isOpen={confirmCloseOpen}
@@ -366,7 +406,12 @@ const NovoSimuladoModal = ({ isOpen, onClose, onSave, disciplinasSugestivas, ini
         onConfirm={discardAndClose}
       />
 
-      <div className="bg-white dark:bg-zinc-950 rounded-3xl shadow-2xl border border-zinc-200 dark:border-zinc-800 w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden relative">
+      <div className={`
+          bg-white dark:bg-zinc-950 rounded-3xl shadow-2xl border border-zinc-200 dark:border-zinc-800
+          w-full max-w-[95%] sm:max-w-2xl md:max-w-4xl lg:max-w-5xl
+          h-auto max-h-[85vh]
+          flex flex-col overflow-hidden relative
+      `}>
 
         {/* HEADER VERMELHO */}
         <div className="relative bg-red-600 pt-6 pb-6 px-6 overflow-hidden shrink-0">
@@ -381,10 +426,21 @@ const NovoSimuladoModal = ({ isOpen, onClose, onSave, disciplinasSugestivas, ini
                 <span className="bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border border-white/10">
                   {initialData ? 'Finalizar' : 'Novo Registro'}
                 </span>
+
+                {/* CORREÇÃO: Botão de Descartar Rascunho */}
                 {draftLoaded && !initialData && (
-                   <span className="bg-blue-500/80 backdrop-blur-sm px-2 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest text-white border border-white/10 flex items-center gap-1">
-                     <RotateCcw size={10} /> Rascunho
-                   </span>
+                   <div className="flex items-center gap-2 bg-blue-500/80 backdrop-blur-sm px-2 py-1 rounded-full border border-white/10">
+                     <span className="text-[9px] font-bold uppercase tracking-widest text-white flex items-center gap-1">
+                       <RotateCcw size={10} /> Rascunho Recuperado
+                     </span>
+                     <button
+                        onClick={handleDiscardDraft}
+                        className="p-1 -my-1 rounded-full hover:bg-white/20 text-white transition-colors"
+                        title="Descartar Rascunho"
+                     >
+                        <X size={12} strokeWidth={3} />
+                     </button>
+                   </div>
                 )}
               </div>
               <h3 className="text-2xl font-black text-white tracking-tight">
@@ -404,7 +460,7 @@ const NovoSimuladoModal = ({ isOpen, onClose, onSave, disciplinasSugestivas, ini
         </div>
 
         {/* TABS COM INDICADOR DE ERRO */}
-        <div className="flex border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50">
+        <div className="flex border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 shrink-0">
             <button
               onClick={() => setActiveTab('details')}
               className={`flex-1 py-3 text-xs md:text-sm font-bold border-b-2 transition-colors flex items-center justify-center gap-2 relative ${
@@ -790,7 +846,7 @@ const NovoSimuladoModal = ({ isOpen, onClose, onSave, disciplinasSugestivas, ini
         </div>
 
         {/* FOOTER - TOTAIS E AÇÕES */}
-        <div className="bg-white dark:bg-zinc-950 border-t border-zinc-200 dark:border-zinc-800 p-4 md:p-6 relative z-20">
+        <div className="bg-white dark:bg-zinc-950 border-t border-zinc-200 dark:border-zinc-800 p-4 md:p-6 relative z-20 shrink-0">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6 mb-4 md:mb-5">
             <div className="text-center bg-zinc-50 dark:bg-zinc-900/50 rounded-xl py-2">
                 <span className="text-[9px] md:text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Total</span>
@@ -839,4 +895,4 @@ const NovoSimuladoModal = ({ isOpen, onClose, onSave, disciplinasSugestivas, ini
   );
 };
 
-export default NovoSimuladoModal;
+export default SimuladoCreationModal;
