@@ -7,7 +7,7 @@ import CicloVisual from '../components/ciclos/CicloVisual';
 import RegistroEstudoModal from '../components/ciclos/RegistroEstudoModal';
 import DisciplinaDetalheModal from '../components/ciclos/DisciplinaDetalheModal';
 import ModalConclusaoCiclo from '../components/ciclos/ModalConclusaoCiclo';
-import HistoricoModal from '../components/Dashboard/HistoricoModal';
+import HistoricoModal from '../components/dashboard/HistoricoModal';
 import { useCiclos } from '../hooks/useCiclos';
 import TimerSettingsModal, { useTimerSettings } from '../components/ciclos/StudyTimer/TimerSettingsModal';
 

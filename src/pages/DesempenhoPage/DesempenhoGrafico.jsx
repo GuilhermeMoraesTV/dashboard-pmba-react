@@ -51,7 +51,7 @@ const hasDataForPeriod = (registros, periodCheck) => {
   if (!registros || registros.length === 0) return false;
   const now = startOfToday();
   let startDate;
-  const endDate = endOfDay(new Date());
+  let endDate = endOfDay(new Date());
   switch (periodCheck) {
     case 'TODAY': startDate = now; break;
     case '7D':   startDate = subDays(now, 7); break;
