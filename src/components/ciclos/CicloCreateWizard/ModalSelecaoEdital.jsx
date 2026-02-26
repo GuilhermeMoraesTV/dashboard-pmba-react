@@ -15,7 +15,6 @@ const MODAL_LAYOUT = {
     zIndex: 'z-[100]',
 };
 
-// ... (CATEGORIA_CONFIG mantido igual - deve estar presente no arquivo)
 const CATEGORIA_CONFIG = {
     pm:      { icon: ShieldAlert, bg: 'bg-zinc-100 dark:bg-zinc-800',         color: 'text-zinc-700 dark:text-zinc-300',     label: 'Polícia Militar' },
     pc:      { icon: BadgeAlert,  bg: 'bg-zinc-100 dark:bg-zinc-800',         color: 'text-zinc-700 dark:text-zinc-300',     label: 'Polícia Civil' },
@@ -24,13 +23,10 @@ const CATEGORIA_CONFIG = {
     gcm:     { icon: Siren,       bg: 'bg-blue-50 dark:bg-blue-900/20',       color: 'text-blue-500 dark:text-blue-400',     label: 'Guarda Municipal' },
     fa:      { icon: Target,      bg: 'bg-green-50 dark:bg-green-900/20',     color: 'text-green-700 dark:text-green-400',   label: 'Forças Armadas' },
     federal: { icon: Globe,       bg: 'bg-blue-50 dark:bg-blue-900/20',       color: 'text-blue-600 dark:text-blue-400',     label: 'Carreiras Federais' },
-    outros:  { icon: LayoutGrid,  bg: 'bg-emerald-50 dark:bg-emerald-900/20', color: 'text-emerald-600 dark:text-emerald-400', label: 'Outros Concursos' },
+    adm:     { icon: Briefcase,   bg: 'bg-emerald-50 dark:bg-emerald-900/20', color: 'text-emerald-600 dark:text-emerald-400', label: 'Administrativos' },
 };
 
-// ... (CardEdital e SecaoModelo mantidos iguais) ...
-// (Para economizar espaço, assumo que você já tem o código dos componentes internos)
 const CardEdital = ({ dados, unico, idSelecionado, aoDestacar, aoConfirmar, aoClickCard }) => {
-    // ... lógica do CardEdital ...
     const editalBase = unico ? dados : dados[0];
     const variosCargos = !unico;
     const [menuAberto, setMenuAberto] = useState(false);
@@ -258,7 +254,7 @@ const CardEdital = ({ dados, unico, idSelecionado, aoDestacar, aoConfirmar, aoCl
 };
 
 const SecaoModelo = ({ chaveCategoria, itens, idSelecionado, aoDestacar, aoConfirmar, aoClickCard, config }) => {
-    const defaultConfig = CATEGORIA_CONFIG[chaveCategoria] || CATEGORIA_CONFIG['outros'];
+    const defaultConfig = CATEGORIA_CONFIG[chaveCategoria] || CATEGORIA_CONFIG['adm'];
     const Icone = config?.icon || defaultConfig.icon;
     const bgClass = config?.bg || defaultConfig.bg;
     const colorClass = config?.color || defaultConfig.color;
@@ -354,7 +350,7 @@ const ModalSelecaoEdital = ({ aberto, aoFechar, aoSelecionar, modelos, carregand
     }, [aberto]);
 
     const modelosCategorizados = useMemo(() => {
-        const grupos = { pm: [], pc: [], pp: [], cbm: [], gcm: [], fa: [], federal: [], outros: [] };
+        const grupos = { pm: [], pc: [], pp: [], cbm: [], gcm: [], fa: [], federal: [], adm: [] };
         if (!modelos) return grupos;
 
         const modelosFiltrados = modelos.filter(m => {
@@ -375,7 +371,7 @@ const ModalSelecaoEdital = ({ aberto, aoFechar, aoSelecionar, modelos, carregand
             else if (textoBusca.includes('cbm') || textoBusca.includes('bombeiro')) grupos.cbm.push(m);
             else if (textoBusca.includes('gcm') || textoBusca.includes('guarda') || textoBusca.includes('cgm')) grupos.gcm.push(m);
             else if (textoBusca.includes('exército') || textoBusca.includes('marinha') || textoBusca.includes('aeronáutica') || textoBusca.includes('forças armadas') || textoBusca.includes('esa') || textoBusca.includes('eear') || textoBusca.includes('espcex') || textoBusca.includes('fuzileiro') || textoBusca.includes('aprendiz') || textoBusca.includes('sargento')) grupos.fa.push(m);
-            else grupos.outros.push(m);
+            else grupos.adm.push(m);
         });
         return grupos;
     }, [modelos, termoBusca]);

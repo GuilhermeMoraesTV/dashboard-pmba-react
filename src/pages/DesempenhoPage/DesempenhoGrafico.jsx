@@ -208,7 +208,7 @@ const DesempenhoGrafico = ({ registrosEstudo }) => {
     if (!registrosEstudo?.length) return { chartData: [], totals: { hours: 0, questions: 0 } };
     const now = startOfToday();
     let startDate;
-    const endDate = endOfDay(new Date());
+    let endDate = endOfDay(new Date());
 
     switch (period) {
       case 'TODAY': startDate = now; break;

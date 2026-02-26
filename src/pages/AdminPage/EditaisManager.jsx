@@ -7,7 +7,7 @@ import {
   ShieldAlert, BadgeAlert, Lock, Flame, Siren, LayoutGrid,
   CheckCircle2, Trash2, X, Server, Globe, Search, Plus, Save,
   Image as ImageIcon, Edit, AlertCircle, Check, Eye, EyeOff,
-  Link, Copy, Layers, Target
+  Link, Copy, Layers, Target, Briefcase
 } from 'lucide-react';
 
 // ==================================================================================
@@ -72,7 +72,7 @@ export const CATALOGO_EDITAIS = Object.entries(seedModules)
       else if (idFinal.includes('pp')) tipoFinal = 'pp';
       else if (idFinal.includes('cbm') || idFinal.includes('bm')) tipoFinal = 'cbm';
       else if (idFinal.includes('gcm') || idFinal.includes('gm')) tipoFinal = 'gcm';
-      else tipoFinal = 'outros';
+      else tipoFinal = 'adm';
     }
     return {
       id: idFinal,
@@ -103,7 +103,7 @@ const CATEGORIAS_EDITAL = [
     { id: 'pp',      label: 'Polícia Penal (PP)',       icon: Lock,       color: 'text-zinc-700'  },
     { id: 'cbm',     label: 'Bombeiros (CBM)',          icon: Flame,      color: 'text-red-500'   },
     { id: 'federal', label: 'Carreiras Federais',       icon: Globe,      color: 'text-blue-500'  },
-    { id: 'outros',  label: 'Outros Concursos',         icon: LayoutGrid, color: 'text-emerald-500' },
+    { id: 'adm',     label: 'Administrativo',           icon: Briefcase,  color: 'text-emerald-500' },
 ];
 
 const CARGOS_POR_TIPO = {
@@ -114,7 +114,12 @@ const CARGOS_POR_TIPO = {
     cbm:     ['Soldado','Oficial','Condutor'],
     federal: ['Agente','Escrivão','Delegado','Policial Rodoviário','Agente Administrativo'],
     gcm:     ['Guarda Municipal','Inspetor','Subinspetor'],
-    outros:  ['Técnico','Analista','Assistente']
+    adm:     [
+        'Assistente Administrativo', 'Analista Administrativo', 'Técnico Administrativo',
+        'Auxiliar Administrativo', 'Recepcionista', 'Secretário(a)', 'Contador',
+        'Gestor de RH', 'Analista Financeiro', 'Auxiliar de Escritório', 'Auditor',
+        'Técnico Judiciário', 'Analista Judiciário', 'Professor', 'Merendeira'
+    ]
 };
 
 const getPrefixoInstituicao = (tipo, estado, cidade) => {
@@ -158,7 +163,7 @@ const CustomEditalModal = ({ onClose, editalToEdit, showToast, allEditais }) => 
                 estado:      'BA',
                 titulo:      editalToEdit.titulo,
                 banca:       editalToEdit.banca,
-                tipo:        editalToEdit.tipo || 'outros',
+                tipo:        editalToEdit.tipo || 'adm',
                 logoFile:    null,
                 logoPreview: editalToEdit.logoUrl || editalToEdit.logo,
             });
@@ -167,7 +172,7 @@ const CustomEditalModal = ({ onClose, editalToEdit, showToast, allEditais }) => 
                 nome: editalToEdit.cargo || '',
                 json: JSON.stringify(editalToEdit.disciplinas || [], null, 2)
             }]);
-            const cargosPadrao = CARGOS_POR_TIPO[editalToEdit.tipo || 'outros'] || [];
+            const cargosPadrao = CARGOS_POR_TIPO[editalToEdit.tipo || 'adm'] || [];
             if (editalToEdit.cargo && !cargosPadrao.includes(editalToEdit.cargo)) {
                 setIsCustomCargo(true);
             }
@@ -208,8 +213,8 @@ const CustomEditalModal = ({ onClose, editalToEdit, showToast, allEditais }) => 
             return next;
         });
 
-        if (formData.tipo === 'outros' && !isEditing) setShowSidebar(true);
-        else if (formData.tipo !== 'outros' && !isEditing) setShowSidebar(false);
+        if (formData.tipo === 'adm' && !isEditing) setShowSidebar(true);
+        else if (formData.tipo !== 'adm' && !isEditing) setShowSidebar(false);
     }, [formData.cidade, formData.estado, formData.tipo, cargos, activeCargoIndex, isEditing, allEditais]);
 
     const handleAddCargo = () => {
@@ -368,7 +373,7 @@ const CustomEditalModal = ({ onClose, editalToEdit, showToast, allEditais }) => 
                                         setManualOverride({ banca: false, logo: false });
                                         setFormData(prev => ({ ...prev, tipo: e.target.value }));
                                         setIsCustomCargo(false);
-                                        if (e.target.value === 'outros') setShowSidebar(true);
+                                        if (e.target.value === 'adm') setShowSidebar(true);
                                     }}
                                 >
                                     {CATEGORIAS_EDITAL.map(cat => <option key={cat.id} value={cat.id}>{cat.label}</option>)}
@@ -628,7 +633,7 @@ const EditaisManagerModal = ({ isOpen, onClose }) => {
       .map(t => ({
         ...t,
         logo:      t.logoUrl || t.logo,
-        type:      t.tipo || 'outros',
+        type:      t.tipo || 'adm',
         isCustom:  true,
         isInstalled: true,
         ativo:     t.ativo !== undefined ? t.ativo : true,
@@ -648,7 +653,7 @@ const EditaisManagerModal = ({ isOpen, onClose }) => {
     { id: 'pp',      label: 'Polícia Penal',  icon: Lock,       color: 'text-zinc-700'    },
     { id: 'cbm',     label: 'Bombeiros',      icon: Flame,      color: 'text-red-500'     },
     { id: 'gcm',     label: 'Guarda Mun.',    icon: Siren,      color: 'text-blue-400'    },
-    { id: 'outros',  label: 'Outros',         icon: LayoutGrid, color: 'text-emerald-500' },
+    { id: 'adm',     label: 'Administrativo', icon: Briefcase,  color: 'text-emerald-500' },
   ];
 
   const filteredEditais = allEditais.filter(e => {
