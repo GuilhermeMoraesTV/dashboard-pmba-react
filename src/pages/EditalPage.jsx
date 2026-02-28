@@ -335,7 +335,13 @@ function EditalPage({ user, activeCicloId, onStartStudy, onBack }) {
         if (reg.assunto) {
             const key = `${reg.disciplinaNome}-${reg.assunto}`.toLowerCase().trim();
             if (!mapaDetalhado[key]) mapaDetalhado[key] = { count: 0, minutes: 0, questions: 0, correct: 0, lastDate: null, hasManualCheck: false };
-            mapaDetalhado[key].count += 1;
+
+            // CORREÇÃO 1: SÓ INCREMENTA CONTAGEM SE NÃO FOR APENAS CHECK MANUAL
+            // Isso evita contagem dupla quando o Timer salva estudo + check
+            if (reg.tipoEstudo !== 'check_manual') {
+                mapaDetalhado[key].count += 1;
+            }
+
             mapaDetalhado[key].minutes += Number(reg.tempoEstudadoMinutos || 0);
             mapaDetalhado[key].questions += Number(reg.questoesFeitas || 0);
             mapaDetalhado[key].correct += Number(reg.acertos || 0);
@@ -529,7 +535,7 @@ function EditalPage({ user, activeCicloId, onStartStudy, onBack }) {
                 const DesempenhoIcon = desempenhoConfig.icon;
                 const isInCiclo = disc.inCiclo;
                 return (
-                <div key={idx} className={`bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-hidden shadow-sm transition-all duration-300 ${isInCiclo ? 'hover:border-red-200 dark:hover:border-red-900/30' : 'opacity-70 hover:opacity-100'}`}>
+                <div key={idx} className={`bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-hidden shadow-sm transition-all duration-300 ${isInCiclo ? 'hover:border-red-200 dark:hover:border-red-900/30' : 'opacity-70 hover:opacity-100'}`}>
 
                     <div className="flex flex-col md:flex-row md:items-stretch">
 
@@ -552,11 +558,11 @@ function EditalPage({ user, activeCicloId, onStartStudy, onBack }) {
                                 </div>
 
                                 <div className="flex flex-wrap items-center gap-2 mt-2">
-                                    <span className="px-2 py-1 rounded-md bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 text-[10px] font-bold uppercase flex items-center gap-1"><CheckSquare size={12} /> {disc.concluidos}/{disc.totalAssuntos} Tópicos</span>
+                                    <span className="px-1.5 py-0.5 rounded-md bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 text-[9px] font-bold uppercase flex items-center gap-1"><CheckSquare size={10} /> {disc.concluidos}/{disc.totalAssuntos} Tópicos</span>
                                     {isInCiclo && (
                                         <>
-                                            <span className="px-2 py-1 rounded-md bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 text-[10px] font-bold uppercase flex items-center gap-1"><Clock size={12} /> {formatMinutesToTime(disc.stats.minutos)}</span>
-                                            <span className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase flex items-center gap-1 ${desempenhoConfig.style}`}><DesempenhoIcon size={12} /> {desempenhoConfig.label} De Precisão</span>
+                                            <span className="px-1.5 py-0.5 rounded-md bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 text-[9px] font-bold uppercase flex items-center gap-1"><Clock size={10} /> {formatMinutesToTime(disc.stats.minutos)}</span>
+                                            <span className={`px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase flex items-center gap-1 ${desempenhoConfig.style}`}><DesempenhoIcon size={10} /> {desempenhoConfig.label} Precisão</span>
 
                                             <button
                                                 onClick={(e) => {

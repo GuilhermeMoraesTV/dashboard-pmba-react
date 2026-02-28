@@ -14,7 +14,7 @@ import TimerSettingsModal, { useTimerSettings } from '../components/ciclos/Study
 import {
   ArrowLeft, Trophy, Target, CalendarDays,
   BookOpen, ChevronRight, History, Timer, X, Trash2,
-  AlertOctagon, Shield, Plus, LayoutList
+  AlertOctagon, Shield, Plus, LayoutList, RotateCw
 } from 'lucide-react';
 
 // --- FUNÇÕES AUXILIARES ---
@@ -30,7 +30,7 @@ const formatVisualNumber = (minutes) => {
   return `${hours}h ${mins}m`;
 };
 
-// --- MODAL DE CONFIRMAÇÃO DE EXCLUSÃO (ATUALIZADO PARA NÃO CORTAR) ---
+// --- MODAL DE CONFIRMAÇÃO DE EXCLUSÃO ---
 const DeleteConfirmationModal = ({ isOpen, onClose, onConfirm, loading }) => {
     if (!isOpen) return null;
     return (
@@ -183,6 +183,8 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
     hover: { opacity: 1, width: "auto", marginLeft: 8, display: "block" }
   };
 
+  const concluidos = ciclo.conclusoes || 0;
+
   // --- RENDERIZAÇÃO ---
   return (
     <div className="relative flex flex-col h-full animate-fade-in">
@@ -211,11 +213,67 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
 
               <div className="flex-1 z-10">
                   <div className="flex flex-col gap-3">
-                      <div className="flex items-center gap-3">
+
+                      {/* --- TÍTULO E BADGES --- */}
+                      <div className="flex flex-wrap items-center gap-3">
                           <h1 className="text-3xl font-black text-zinc-900 dark:text-white uppercase tracking-tight leading-none">{ciclo.nome}</h1>
-                          {ciclo.ativo ? (<span className="flex h-3 w-3 relative"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span></span>) : (<span className="px-2 py-0.5 rounded bg-zinc-200 dark:bg-zinc-800 text-[10px] font-bold text-zinc-500 uppercase">Arquivado</span>)}
+                          <div className="flex flex-wrap gap-2 items-center w-full sm:w-auto mt-1 sm:mt-0">
+
+                            {/* Status Badge */}
+                            {ciclo.ativo ? (
+                                <span className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-[10px] font-bold text-emerald-600 dark:text-emerald-500 uppercase tracking-widest">
+                                    <span className="flex h-2 w-2 relative">
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                                    </span>
+                                    Ativo
+                                </span>
+                            ) : (
+                                <span className="px-2 py-0.5 rounded bg-zinc-200 dark:bg-zinc-800 text-[10px] font-bold text-zinc-500 uppercase">Arquivado</span>
+                            )}
+
+                            {/* --- RODA "CICLO" DE CONCLUSÕES --- */}
+                            <div className={`flex items-center gap-2 pl-1.5 pr-3 py-1 rounded-lg border transition-all ${
+                                concluidos > 0
+                                ? 'bg-amber-50 dark:bg-amber-900/10 border-amber-500/20 shadow-[0_0_10px_rgba(245,158,11,0.1)]'
+                                : 'bg-zinc-100 dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-700'
+                            }`}>
+                                <div className="relative flex items-center justify-center w-8 h-8 shrink-0">
+                                    <motion.svg
+                                        animate={{ rotate: 360 }}
+                                        transition={{ repeat: Infinity, duration: 15, ease: "linear" }}
+                                        className="absolute inset-0 w-full h-full"
+                                        viewBox="0 0 100 100"
+                                    >
+                                        <circle
+                                            cx="50" cy="50" r="44"
+                                            fill="none" stroke="currentColor" strokeWidth="6"
+                                            strokeDasharray="16 12" strokeLinecap="round"
+                                            className={concluidos > 0 ? "text-amber-500/60" : "text-zinc-300 dark:text-zinc-600"}
+                                        />
+                                    </motion.svg>
+                                    <div className={`absolute inset-0 flex items-center justify-center z-10 rounded-full ${
+                                        concluidos > 0 ? 'text-amber-600 dark:text-amber-500' : 'text-zinc-500'
+                                    }`}>
+                                        <span className="text-xl font-black leading-none mt-[1px]">{concluidos}</span>
+                                    </div>
+                                </div>
+                                <div className="flex flex-col justify-center ml-1">
+                                    <span className="text-[8px] font-bold uppercase tracking-widest text-zinc-500 dark:text-zinc-400 leading-none mb-0.5">
+                                        Ciclos
+                                    </span>
+                                    <span className={`text-[10px] font-black uppercase tracking-wide leading-none ${
+                                        concluidos > 0 ? 'text-amber-600 dark:text-amber-500' : 'text-zinc-600 dark:text-zinc-400'
+                                    }`}>
+                                        Concluídos
+                                    </span>
+                                </div>
+                            </div>
+
+                          </div>
                       </div>
-                      <div className="flex flex-col sm:flex-row gap-3 sm:gap-6">
+
+                      <div className="flex flex-col sm:flex-row gap-3 sm:gap-6 mt-1">
                         <div className="flex items-center gap-4">
                             <div className="flex items-center gap-1.5 text-zinc-400"><CalendarDays size={13} /><p className="text-[10px] font-bold uppercase tracking-wide">Início: <span className="text-zinc-600 dark:text-zinc-300">{formattedStartDate}</span></p></div>
                         </div>
@@ -240,30 +298,28 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
               </div>
           </div>
 
-          {/* --- NOVA BARRA DE FERRAMENTAS MINIMALISTA (OPÇÃO 1) --- */}
+          {/* --- BARRA DE FERRAMENTAS MINIMALISTA --- */}
           <div className="flex items-center justify-between mt-8 mb-4 px-2">
               <h3 className="text-sm font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2">
                  <LayoutList size={16} /> Meu Progresso
               </h3>
 
-              <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800/50 p-1 rounded-lg">
+              <div className="flex items-center gap-2">
                    <button
                       onClick={() => setShowTimerSettings(true)}
-                      className="flex items-center gap-2 px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wide text-zinc-500 hover:text-blue-600 hover:bg-white dark:hover:bg-zinc-800 transition-all"
+                      className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white hover:bg-red-50 border border-zinc-200 hover:border-red-200 dark:bg-zinc-800 dark:hover:bg-red-900/10 dark:border-zinc-700 dark:hover:border-red-900/30 text-zinc-600 hover:text-red-700 dark:text-zinc-300 dark:hover:text-red-400 text-[10px] font-bold uppercase tracking-wide transition-all group shadow-sm"
                       title="Configurar Cronômetro"
                   >
-                      <Timer size={14} />
+                      <Timer size={14} className="text-red-600 dark:text-red-500 group-hover:scale-110 transition-transform" />
                       <span className="hidden sm:inline">Configuração do Cronômetro</span>
                   </button>
 
-                  <div className="w-px h-4 bg-zinc-300 dark:bg-zinc-700 mx-1"></div>
-
                    <button
                       onClick={() => setShowHistoryModal(true)}
-                      className="flex items-center gap-2 px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wide text-zinc-500 hover:text-indigo-600 hover:bg-white dark:hover:bg-zinc-800 transition-all"
+                      className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white hover:bg-red-50 border border-zinc-200 hover:border-red-200 dark:bg-zinc-800 dark:hover:bg-red-900/10 dark:border-zinc-700 dark:hover:border-red-900/30 text-zinc-600 hover:text-red-700 dark:text-zinc-300 dark:hover:text-red-400 text-[10px] font-bold uppercase tracking-wide transition-all group shadow-sm"
                       title="Ver Histórico Completo"
                   >
-                      <History size={14} />
+                      <History size={14} className="text-red-600 dark:text-red-500 group-hover:scale-110 transition-transform" />
                       <span className="hidden sm:inline">Histórico de Estudos</span>
                   </button>
               </div>
@@ -309,7 +365,6 @@ function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, onStartStu
 
       {/* Modais */}
       <AnimatePresence>
-        {/* Passando className para garantir altura máxima no desktop */}
         {showTimerSettings && (
             <TimerSettingsModal
                 isOpen={showTimerSettings}

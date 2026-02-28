@@ -105,11 +105,6 @@ function ModalConfirmacaoExclusao({ ciclo, onClose, onConfirm, loading }) {
 // ============================================================================
 // 🚀 FUNÇÃO DE LOGO BLINDADA (Compatível com GCM e Padrão)
 // ============================================================================
-// ... imports ...
-
-// ============================================================================
-// 🚀 FUNÇÃO DE LOGO BLINDADA (CORRIGIDA)
-// ============================================================================
 const getLogo = (ciclo) => {
     if (!ciclo) return null;
 
@@ -125,8 +120,6 @@ const getLogo = (ciclo) => {
     }
 
     // 3. Fallback Dinâmico Inteligente
-    // Se o templateId for "gcm_viana", removemos o "_" para virar "gcmviana"
-    // e buscamos a imagem: /logosEditais/logo-gcmviana.png
     if (ciclo.templateId && ciclo.templateId !== 'manual') {
         const idLimpo = ciclo.templateId.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
         return `/logosEditais/logo-${idLimpo}.png`;
@@ -137,20 +130,16 @@ const getLogo = (ciclo) => {
     if (nomeLower.includes("pmba")) return "/logosEditais/logo-pmba.png";
     if (nomeLower.includes("pmal")) return "/logosEditais/logo-pmal.png";
 
-    return null; // Retorna null para exibir o ícone padrão se não achar imagem
+    return null;
 };
 
 // --- COMPONENTE CARD OTIMIZADO ---
 const CicloCard = ({ ciclo, onClick, onMenuToggle, isMenuOpen, onAction, registrosEstudo }) => {
     const concluidos = ciclo.conclusoes || 0;
 
-    // Chama a função corrigida
     const logo = getLogo(ciclo);
 
-    // Debug: Descomente para ver no console o que está acontecendo com a logo
-    // console.log(`Ciclo: ${ciclo.nome}, ID: ${ciclo.templateId}, Logo Detectada: ${logo}`);
-
-    // Calcular progresso (MANTIDO IGUAL AO SEU CÓDIGO)
+    // Calcular progresso
     const { totalHoras, progressoPercent } = useMemo(() => {
         if (!registrosEstudo) return { totalHoras: 0, progressoPercent: 0 };
         const registrosDoCiclo = registrosEstudo.filter(r => r.cicloId === ciclo.id && !r.conclusaoId && r.tipoEstudo !== 'check_manual');
@@ -176,20 +165,17 @@ const CicloCard = ({ ciclo, onClick, onMenuToggle, isMenuOpen, onAction, registr
                         alt="Logo Edital"
                         className="w-full h-full object-contain"
                         onError={(e) => {
-                            // Se a imagem der erro (404), esconde ela para mostrar o ícone padrão
                             e.target.style.display = 'none';
                             e.target.parentElement.style.display = 'none';
                         }}
                     />
                 </div>
             ) : (
-                // Ícone padrão caso não tenha logo
                 <div className="absolute -bottom-6 -right-6 text-red-500/10 dark:text-red-500/5 transition-all duration-700 ease-out group-hover:scale-125 group-hover:rotate-[-10deg] z-0 pointer-events-none">
                     {ciclo.ativo ? <Target strokeWidth={1.5} size={100} className="sm:w-[140px] sm:h-[140px]" /> : <BookOpen strokeWidth={1.5} size={100} className="sm:w-[140px] sm:h-[140px]" />}
                 </div>
             )}
 
-            {/* ... RESTANTE DO CONTEÚDO DO CARD (Igual ao seu código) ... */}
             <div className="relative z-10 flex flex-col h-full">
                 <div className="flex justify-between items-start mb-3 sm:mb-4">
                     <div className="flex flex-wrap gap-2 items-center">
@@ -197,10 +183,56 @@ const CicloCard = ({ ciclo, onClick, onMenuToggle, isMenuOpen, onAction, registr
                             {ciclo.ativo && (<span className="relative flex h-1.5 w-1.5"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span></span>)}
                             {ciclo.ativo ? 'ATIVO' : 'INATIVO'}
                         </div>
-                        <div className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md text-[9px] sm:text-[10px] font-black uppercase tracking-widest border flex items-center gap-1.5 transition-all ${concluidos > 0 ? 'bg-amber-500/10 text-amber-600 dark:text-amber-500 border-amber-500/20 shadow-[0_0_10px_rgba(245,158,11,0.2)]' : 'bg-zinc-50 dark:bg-zinc-800/50 text-zinc-400 border-zinc-200 dark:border-zinc-700'}`} title="Conclusões">
-                            {concluidos > 0 ? <Trophy size={10} className="sm:w-3 sm:h-3" /> : <RotateCw size={10} className="sm:w-3 sm:h-3" />}
-                            <span>{concluidos}x</span>
+
+                        {/* --- RODA DE CICLO ANIMADA (ESCALA REDUZIDA -1 PONTO) --- */}
+                        <div className={`flex items-center gap-1.5 sm:gap-2 pl-1.5 pr-2.5 py-1 sm:py-1.5 rounded-lg border transition-all ${
+                            concluidos > 0
+                            ? 'bg-amber-50 dark:bg-amber-900/10 border-amber-500/20 shadow-[0_0_10px_rgba(245,158,11,0.1)]'
+                            : 'bg-zinc-100 dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-700'
+                        }`}>
+                            <div className="relative flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 shrink-0">
+                                {/* Roda tracejada giratória */}
+                                <motion.svg
+                                    animate={{ rotate: 360 }}
+                                    transition={{ repeat: Infinity, duration: 15, ease: "linear" }}
+                                    className="absolute inset-0 w-full h-full"
+                                    viewBox="0 0 100 100"
+                                >
+                                    <circle
+                                        cx="50" cy="50" r="44"
+                                        fill="none" stroke="currentColor" strokeWidth="5"
+                                        strokeDasharray="14 10" strokeLinecap="round"
+                                        className={concluidos > 0 ? "text-amber-500/60" : "text-zinc-300 dark:text-zinc-600"}
+                                    />
+                                </motion.svg>
+
+                                {/* Número Centralizado Absolutamente */}
+                                <div className="absolute inset-0 flex items-center justify-center z-10">
+                                    <span className={`text-base sm:text-lg font-black tracking-tighter leading-none mt-[1px] ${
+                                        concluidos > 0 ? 'text-amber-600 dark:text-amber-500' : 'text-zinc-500'
+                                    }`}>
+                                        {concluidos}
+                                    </span>
+                                </div>
+
+                                {/* Ícone pequeno sobreposto */}
+                                <div className="absolute -bottom-1 -right-1 bg-white dark:bg-zinc-900 rounded-full p-[3px] shadow-sm border border-zinc-100 dark:border-zinc-800 z-20">
+                                    {concluidos > 0 ? <Trophy size={10} className="text-amber-500" /> : <RotateCw size={10} className="text-zinc-400" />}
+                                </div>
+                            </div>
+
+                            <div className="flex flex-col justify-center">
+                                <span className="text-[8px] font-bold uppercase tracking-widest text-zinc-500 dark:text-zinc-400 leading-none mb-0.5">
+                                    Ciclos Semanais
+                                </span>
+                                <span className={`text-[9px] sm:text-[10px] font-black uppercase tracking-wide leading-none ${
+                                    concluidos > 0 ? 'text-amber-600 dark:text-amber-500' : 'text-zinc-600 dark:text-zinc-400'
+                                }`}>
+                                    Concluídos
+                                </span>
+                            </div>
                         </div>
+
                     </div>
 
                     <div className="relative">

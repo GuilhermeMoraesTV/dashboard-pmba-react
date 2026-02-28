@@ -6,7 +6,10 @@ import {
   Trash2, Split, X, AlertCircle, ChevronDown, ChevronUp, LogOut
 } from 'lucide-react';
 import { db } from '../../firebaseConfig';
-import { doc, getDoc, collection, getDocs, query, where, writeBatch, Timestamp } from 'firebase/firestore';
+import {
+  doc, getDoc, collection, getDocs, query, where,
+  writeBatch, Timestamp, increment // <--- IMPORTANTE: Adicionado increment
+} from 'firebase/firestore';
 import { useLevelSystem } from '../../hooks/useLevelSystem';
 
 // ----------------------------------------------------
@@ -405,7 +408,7 @@ function TimerFinishModal({
   }, [activeCicloId, userUid, updateTopicData]);
 
   // ---------------------------
-  // SAVE
+  // SAVE (COM AGREGAÇÃO "BALA DE PRATA")
   // ---------------------------
   const handleSaveSession = async (e) => {
     e.preventDefault();
@@ -492,6 +495,18 @@ function TimerFinishModal({
           });
         }
       }
+
+      // --- AGREGAÇÃO DE DADOS (BALA DE PRATA) ---
+      // Atualiza o documento de totais gerais com os dados desta sessão
+      const statsRef = doc(db, 'users', userUid, 'stats', 'geral');
+      // Usamos 'merge: true' para garantir que se o documento não existir, ele seja criado
+      batch.set(statsRef, {
+        totalHorasMinutos: increment(timeMinutes), // timeMinutes é o total da sessão
+        totalQuestoes: increment(totalQuestions),
+        totalAcertos: increment(totalCorrect),
+        lastUpdated: now
+      }, { merge: true });
+      // ------------------------------------------
 
       await batch.commit();
 

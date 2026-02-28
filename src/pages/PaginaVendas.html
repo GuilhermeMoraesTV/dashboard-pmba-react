@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="pt-br" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MODOQAP | A Evolução dos Estudos</title>
+    <meta name="description" content="Plataforma de alta performance para concursos policiais.">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Plus+Jakarta+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+                        display: ['"Outfit"', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            red: '#ef4444',
+                            darkRed: '#b91c1c',
+                            black: '#050505',
+                            surface: '#0f0f0f',
+                            border: '#27272a'
+                        }
+                    },
+                    animation: {
+                        'blob': 'blob 10s infinite',
+                        'float': 'float 6s ease-in-out infinite',
+                        'scroll': 'scroll 40s linear infinite',
+                        'spin-slow': 'spin 20s linear infinite',
+                        'shine': 'shine 1.5s infinite',
+                    },
+                    keyframes: {
+                        blob: {
+                            '0%': { transform: 'translate(0px, 0px) scale(1)' },
+                            '33%': { transform: 'translate(30px, -50px) scale(1.1)' },
+                            '66%': { transform: 'translate(-20px, 20px) scale(0.9)' },
+                            '100%': { transform: 'translate(0px, 0px) scale(1)' },
+                        },
+                        float: {
+                            '0%, 100%': { transform: 'translateY(0)' },
+                            '50%': { transform: 'translateY(-20px)' },
+                        },
+                        scroll: {
+                            '0%': { transform: 'translateX(0)' },
+                            '100%': { transform: 'translateX(-100%)' },
+                        },
+                        shine: {
+                            '0%': { transform: 'translateX(-100%)' },
+                            '100%': { transform: 'translateX(100%)' }
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body { background-color: #050505; color: #e4e4e7; overflow-x: hidden; }
+
+        /* BACKGROUND GRID */
+        .bg-grid-pattern {
+            background-size: 50px 50px;
+            background-image: linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+                              linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+            mask-image: radial-gradient(circle at center, black 40%, transparent 100%);
+        }
+
+        /* GLASS CARD */
+        .glass-card {
+            background: rgba(20, 20, 20, 0.6);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            transition: all 0.3s ease;
+        }
+
+        /* HOVER EFFECTS */
+        .hover-glow:hover {
+            border-color: #ef4444;
+            box-shadow: 0 0 30px -5px rgba(239, 68, 68, 0.2);
+            transform: translateY(-5px);
+        }
+
+        /* NOTEBOOK MOCKUP CSS */
+        .mockup-laptop {
+            background: #171717;
+            border-radius: 12px 12px 0 0;
+            border: 1px solid #333;
+            position: relative;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8);
+            transform-style: preserve-3d;
+            perspective: 1000px;
+        }
+        .mockup-laptop::after {
+            content: ''; position: absolute; bottom: -12px; left: -5%; width: 110%; height: 12px;
+            background: #262626; border-radius: 0 0 10px 10px; border-top: 1px solid #404040;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+        }
+        .camera-dot {
+            width: 4px; height: 4px; background: #333; border-radius: 50%;
+            position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+            box-shadow: 0 0 2px rgba(255,255,255,0.2);
+        }
+
+        /* GRADIENT TEXT */
+        .text-gradient-red {
+            background: linear-gradient(135deg, #ef4444 0%, #ffffff 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        /* SCROLLBAR */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #050505; }
+        ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #ef4444; }
+    </style>
+</head>
+<body class="antialiased selection:bg-brand-red selection:text-white">
+
+<div class="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+    <div class="absolute top-0 -left-4 w-96 h-96 bg-brand-red opacity-10 rounded-full mix-blend-multiply filter blur-[100px] animate-blob"></div>
+    <div class="absolute top-40 right-0 w-96 h-96 bg-purple-900 opacity-10 rounded-full mix-blend-multiply filter blur-[100px] animate-blob animation-delay-2000"></div>
+    <div class="absolute -bottom-8 left-20 w-96 h-96 bg-blue-900 opacity-10 rounded-full mix-blend-multiply filter blur-[100px] animate-blob animation-delay-4000"></div>
+    <div class="absolute inset-0 bg-grid-pattern opacity-40"></div>
+</div>
+
+<nav class="fixed w-full z-50 top-0 border-b border-white/5 bg-black/80 backdrop-blur-lg transition-all duration-300">
+    <div class="max-w-7xl w-full mx-auto px-6 h-20 flex justify-between items-center">
+        <a href="#" class="flex items-center gap-3 group">
+            <div class="transition-all duration-500 flex items-center justify-center group-hover:scale-105">
+                <img src="../../public/logo-pmba.png" alt="Logo" class="h-12 w-auto object-contain drop-shadow-sm" />
+            </div>
+            <h1 class="text-brand-red font-black tracking-widest uppercase text-2xl opacity-80 m-0">MODOQAP</h1>
+        </a>
+        <div class="hidden md:flex items-center gap-1 bg-white/5 p-1.5 rounded-full border border-white/10">
+            <a href="#features" class="px-5 py-2 rounded-full text-sm font-medium text-zinc-400 hover:text-white hover:bg-white/10 transition-all">Recursos</a>
+            <a href="#methodology" class="px-5 py-2 rounded-full text-sm font-medium text-zinc-400 hover:text-white hover:bg-white/10 transition-all">Método</a>
+            <a href="#pricing" class="px-5 py-2 rounded-full text-sm font-medium text-zinc-400 hover:text-white hover:bg-white/10 transition-all">Planos</a>
+        </div>
+        <div class="flex items-center gap-4">
+            <a href="login.php" class="hidden sm:block text-sm font-semibold text-zinc-400 hover:text-white">Entrar</a>
+            <a href="register.php" class="bg-white text-black px-6 py-2.5 rounded-full text-sm font-bold hover:bg-brand-red hover:text-white hover:shadow-[0_0_20px_rgba(239,68,68,0.4)] transition-all transform hover:-translate-y-0.5">Começar</a>
+        </div>
+    </div>
+</nav>
+
+<section class="relative pt-32 pb-20 overflow-hidden">
+    <div class="max-w-7xl mx-auto px-6 relative z-10 flex flex-col items-center text-center">
+
+        <div class="inline-flex items-center gap-2 px-4 py-2 bg-brand-red/10 border border-brand-red/20 rounded-full mb-8 animate-fade-in-down" data-aos="fade-down">
+            <span class="relative flex h-3 w-3"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-red opacity-75"></span><span class="relative inline-flex rounded-full h-3 w-3 bg-brand-red"></span></span>
+            <span class="text-xs font-bold text-brand-red uppercase tracking-widest">Nova Turma 2026</span>
+        </div>
+
+        <h1 class="text-5xl md:text-8xl font-display font-extrabold text-white leading-[1.1] mb-6 tracking-tight" data-aos="fade-up">
+            Sua Aprovação <br><span class="text-transparent bg-clip-text bg-gradient-to-r from-brand-red via-red-400 to-white">Não é Sorte.</span>
+        </h1>
+
+        <p class="text-lg md:text-xl text-zinc-400 max-w-2xl mb-10 leading-relaxed" data-aos="fade-up" data-aos-delay="100">
+            O único sistema que combina inteligência de dados, cronometragem líquida e análise de desempenho para te colocar dentro das vagas.
+        </p>
+
+        <div class="flex flex-col sm:flex-row gap-4 mb-20" data-aos="fade-up" data-aos-delay="200">
+            <a href="register.php" class="relative group px-8 py-4 bg-brand-red rounded-2xl overflow-hidden shadow-[0_0_40px_-10px_rgba(239,68,68,0.5)] transition-all hover:scale-105">
+                <div class="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent translate-x-[-100%] group-hover:animate-shine"></div>
+                <span class="relative text-white font-bold text-lg flex items-center gap-3"><i class="fa-solid fa-rocket"></i> Acessar Sistema</span>
+            </a>
+            <a href="#showcase" class="px-8 py-4 rounded-2xl border border-zinc-700 hover:border-zinc-500 hover:bg-zinc-800 text-white font-bold text-lg transition-all flex items-center gap-3">
+                <i class="fa-solid fa-play"></i> Ver por dentro
+            </a>
+        </div>
+
+        <div class="relative w-full max-w-5xl mx-auto" data-aos="zoom-in-up" data-aos-duration="1000">
+            <div class="absolute -inset-10 bg-brand-red/20 blur-[100px] rounded-full -z-10"></div>
+
+            <div class="mockup-laptop bg-black p-2 animate-float">
+                <div class="camera-dot"></div>
+                <div class="relative w-full aspect-video bg-zinc-900 rounded-lg overflow-hidden border border-zinc-800 group cursor-pointer">
+
+                    <div class="absolute inset-0 flex items-center justify-center bg-zinc-900 group-hover:bg-zinc-800 transition-colors">
+                        <div class="text-center">
+                            <div class="w-20 h-20 bg-brand-red/10 rounded-full flex items-center justify-center mx-auto mb-4 text-brand-red animate-pulse border border-brand-red/20">
+                                <i class="fa-solid fa-clapperboard text-4xl"></i>
+                            </div>
+                            <p class="text-zinc-500 font-mono text-sm uppercase tracking-widest">Insira GIF do Dashboard</p>
+                        </div>
+                    </div>
+
+                    <div class="absolute top-10 right-10 bg-black/80 backdrop-blur-md border border-white/10 p-4 rounded-xl shadow-2xl transform translate-x-10 group-hover:translate-x-0 transition-transform duration-500">
+                        <div class="flex items-center gap-3">
+                            <div class="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                            <span class="text-xs font-bold text-white">Cronômetro Ativo</span>
+                        </div>
+                        <div class="text-2xl font-mono font-bold text-white mt-1">02:45:12</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="py-12 bg-black/50 border-y border-white/5 overflow-hidden relative">
+    <div class="max-w-7xl mx-auto px-6 mb-8 flex justify-between items-end">
+        <div>
+            <p class="text-brand-red font-bold uppercase tracking-widest text-xs mb-2">Comunidade</p>
+            <h3 class="text-2xl font-display font-bold text-white">Quem usa, aprova.</h3>
+        </div>
+        <div class="flex gap-2 text-zinc-600">
+            <i class="fa-solid fa-arrow-left"></i> <i class="fa-solid fa-hand-pointer"></i> <i class="fa-solid fa-arrow-right"></i>
+        </div>
+    </div>
+
+    <div class="absolute inset-y-0 left-0 w-32 bg-gradient-to-r from-[#050505] to-transparent z-10 pointer-events-none"></div>
+    <div class="absolute inset-y-0 right-0 w-32 bg-gradient-to-l from-[#050505] to-transparent z-10 pointer-events-none"></div>
+
+    <div class="flex gap-6 animate-scroll w-max hover:[animation-play-state:paused] cursor-grab active:cursor-grabbing px-6">
+
+        <div class="w-80 glass-card p-6 rounded-2xl flex flex-col gap-4 border border-zinc-800 shrink-0 hover:border-brand-red/50 transition-colors">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-zinc-700 rounded-full flex items-center justify-center font-bold text-white">G</div>
+                <div>
+                    <h4 class="text-white font-bold text-sm">Gabriel Silva</h4>
+                    <span class="text-xs text-green-500 font-bold bg-green-500/10 px-2 py-0.5 rounded-full">Aprovado PMBA</span>
+                </div>
+            </div>
+            <p class="text-zinc-400 text-sm italic leading-relaxed">"O edital verticalizado mudou meu jogo. Eu estudava aleatório, agora sei exatamente o que falta. A plataforma é insana."</p>
+            <div class="flex text-yellow-500 text-xs"><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i></div>
+        </div>
+
+        <div class="w-80 glass-card p-6 rounded-2xl flex flex-col gap-4 border border-zinc-800 shrink-0 hover:border-brand-red/50 transition-colors">
+            <div class="w-10 h-10 bg-brand-red rounded-full flex items-center justify-center font-bold text-white">A</div>
+            <div class="flex items-center gap-3">
+                <div>
+                    <h4 class="text-white font-bold text-sm">Ana Clara</h4>
+                    <span class="text-xs text-zinc-500 font-bold">3 meses de estudo</span>
+                </div>
+            </div>
+            <p class="text-zinc-400 text-sm italic leading-relaxed">"A correção de redação é surreal. O feedback é detalhado demais, melhorei minha nota em 2 semanas."</p>
+            <div class="flex text-yellow-500 text-xs"><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i></div>
+        </div>
+
+        <div class="w-80 glass-card p-6 rounded-2xl flex flex-col gap-4 border border-zinc-800 shrink-0 hover:border-brand-red/50 transition-colors">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center font-bold text-white">R</div>
+                <div>
+                    <h4 class="text-white font-bold text-sm">Rafael Costa</h4>
+                    <span class="text-xs text-green-500 font-bold bg-green-500/10 px-2 py-0.5 rounded-full">Aprovado CBMBA</span>
+                </div>
+            </div>
+            <p class="text-zinc-400 text-sm italic leading-relaxed">"O cronômetro líquido não deixa a gente se enganar. Melhor investimento que fiz para minha preparação."</p>
+            <div class="flex text-yellow-500 text-xs"><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i></div>
+        </div>
+
+        <div class="w-80 glass-card p-6 rounded-2xl flex flex-col gap-4 border border-zinc-800 shrink-0 hover:border-brand-red/50 transition-colors">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-purple-600 rounded-full flex items-center justify-center font-bold text-white">L</div>
+                <div>
+                    <h4 class="text-white font-bold text-sm">Lucas M.</h4>
+                    <span class="text-xs text-zinc-500 font-bold">Foco Total</span>
+                </div>
+            </div>
+            <p class="text-zinc-400 text-sm italic leading-relaxed">"Interface limpa, sem travamentos. Dá gosto de entrar pra estudar todo dia. O dashboard é viciante."</p>
+            <div class="flex text-yellow-500 text-xs"><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i></div>
+        </div>
+
+        <div class="w-80 glass-card p-6 rounded-2xl flex flex-col gap-4 border border-zinc-800 shrink-0 hover:border-brand-red/50 transition-colors">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-zinc-700 rounded-full flex items-center justify-center font-bold text-white">M</div>
+                <div>
+                    <h4 class="text-white font-bold text-sm">Marcos V.</h4>
+                    <span class="text-xs text-green-500 font-bold bg-green-500/10 px-2 py-0.5 rounded-full">Aprovado PMPE</span>
+                </div>
+            </div>
+            <p class="text-zinc-400 text-sm italic leading-relaxed">"Saí de 60% para 85% de acertos só usando o banco de questões focado da plataforma."</p>
+            <div class="flex text-yellow-500 text-xs"><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i></div>
+        </div>
+    </div>
+</section>
+
+<section class="py-24 relative overflow-hidden">
+    <div class="max-w-6xl mx-auto px-6">
+        <div class="text-center mb-16" data-aos="fade-up">
+            <h2 class="text-3xl md:text-5xl font-display font-bold text-white mb-6">Pare de estudar no escuro.</h2>
+            <p class="text-zinc-400 max-w-xl mx-auto">A diferença entre quem passa e quem quase passa é a organização.</p>
+        </div>
+
+        <div class="grid md:grid-cols-2 gap-8">
+            <div class="p-8 rounded-3xl bg-zinc-900/30 border border-zinc-800 flex flex-col items-center text-center opacity-60 hover:opacity-100 transition-opacity" data-aos="fade-right">
+                <div class="w-16 h-16 bg-zinc-800 rounded-full flex items-center justify-center mb-6 text-3xl text-zinc-500">
+                    <i class="fa-solid fa-xmark"></i>
+                </div>
+                <h3 class="text-xl font-bold text-zinc-300 mb-6">O Jeito Tradicional</h3>
+                <ul class="space-y-4 text-zinc-500 text-sm text-left w-full max-w-xs mx-auto">
+                    <li class="flex gap-3"><i class="fa-solid fa-circle-xmark mt-1"></i> PDFs soltos e planilhas confusas</li>
+                    <li class="flex gap-3"><i class="fa-solid fa-circle-xmark mt-1"></i> Não sabe quanto tempo real estudou</li>
+                    <li class="flex gap-3"><i class="fa-solid fa-circle-xmark mt-1"></i> Estuda o que gosta, não o que cai</li>
+                    <li class="flex gap-3"><i class="fa-solid fa-circle-xmark mt-1"></i> Sensação constante de atraso</li>
+                </ul>
+            </div>
+
+            <div class="p-10 rounded-3xl bg-gradient-to-b from-zinc-900 to-black border border-brand-red/30 shadow-[0_0_40px_-10px_rgba(239,68,68,0.15)] flex flex-col items-center text-center relative overflow-hidden transform md:scale-105 z-10" data-aos="fade-left">
+                <div class="absolute top-0 inset-x-0 h-1 bg-brand-red"></div>
+                <div class="w-20 h-20 bg-brand-red rounded-full flex items-center justify-center mb-6 text-4xl text-white shadow-lg shadow-brand-red/30">
+                    <i class="fa-solid fa-check"></i>
+                </div>
+                <h3 class="text-2xl font-bold text-white mb-6">O Jeito MODOQAP</h3>
+                <ul class="space-y-5 text-zinc-300 text-sm text-left w-full max-w-xs mx-auto font-medium">
+                    <li class="flex gap-3 items-center"><i class="fa-solid fa-circle-check text-brand-red text-lg"></i> <span>Edital 100% Verticalizado</span></li>
+                    <li class="flex gap-3 items-center"><i class="fa-solid fa-circle-check text-brand-red text-lg"></i> <span>Cronômetro de Horas Líquidas</span></li>
+                    <li class="flex gap-3 items-center"><i class="fa-solid fa-circle-check text-brand-red text-lg"></i> <span>Análise de Pontos Fracos</span></li>
+                    <li class="flex gap-3 items-center"><i class="fa-solid fa-circle-check text-brand-red text-lg"></i> <span>Clareza total do progresso</span></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section id="methodology" class="py-24 bg-brand-surface relative overflow-hidden">
+    <div class="max-w-7xl mx-auto px-6">
+        <div class="grid lg:grid-cols-2 gap-16 items-center">
+            <div data-aos="fade-right">
+                <span class="text-brand-red font-bold uppercase tracking-widest text-xs">Nossa Metodologia</span>
+                <h2 class="text-4xl font-display font-bold text-white mt-4 mb-6">O Ciclo da Aprovação.</h2>
+                <p class="text-zinc-400 text-lg mb-8">
+                    O MODOQAP não é apenas um app, é um método. Aplicamos o ciclo PDCA (Planejar, Executar, Checar, Agir) aos seus estudos automaticamente.
+                </p>
+
+                <div class="space-y-8">
+                    <div class="flex gap-4 group">
+                        <div class="flex-shrink-0 w-12 h-12 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-white font-bold text-lg group-hover:border-brand-red group-hover:text-brand-red transition-colors">1</div>
+                        <div>
+                            <h4 class="text-white font-bold text-lg group-hover:text-brand-red transition-colors">Organização Visual</h4>
+                            <p class="text-zinc-500 text-sm mt-1">Você sabe exatamente qual é a próxima missão assim que abre a plataforma.</p>
+                        </div>
+                    </div>
+                    <div class="flex gap-4 group">
+                        <div class="flex-shrink-0 w-12 h-12 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-white font-bold text-lg group-hover:border-brand-red group-hover:text-brand-red transition-colors">2</div>
+                        <div>
+                            <h4 class="text-white font-bold text-lg group-hover:text-brand-red transition-colors">Execução Medida</h4>
+                            <p class="text-zinc-500 text-sm mt-1">Cronometre o tempo. O que não é medido não pode ser melhorado.</p>
+                        </div>
+                    </div>
+                    <div class="flex gap-4 group">
+                        <div class="flex-shrink-0 w-12 h-12 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-white font-bold text-lg group-hover:border-brand-red group-hover:text-brand-red transition-colors">3</div>
+                        <div>
+                            <h4 class="text-white font-bold text-lg group-hover:text-brand-red transition-colors">Feedback Constante</h4>
+                            <p class="text-zinc-500 text-sm mt-1">Gráficos mostram se você está batendo a meta ou procrastinando.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="relative flex justify-center" data-aos="zoom-in">
+                <div class="absolute inset-0 bg-gradient-to-r from-brand-red/20 to-purple-600/20 blur-3xl rounded-full opacity-30"></div>
+
+                <div class="relative w-[400px] h-[400px] flex items-center justify-center">
+                    <div class="absolute w-full h-full border border-zinc-800 rounded-full"></div>
+                    <div class="absolute w-[70%] h-[70%] border border-dashed border-zinc-700 rounded-full animate-spin-slow"></div>
+
+                    <div class="relative z-10 text-center">
+                        <div class="w-24 h-24 bg-zinc-900 rounded-full flex items-center justify-center border-4 border-brand-red shadow-[0_0_30px_rgba(239,68,68,0.4)] mx-auto mb-4">
+                            <i class="fa-solid fa-rotate text-4xl text-white"></i>
+                        </div>
+                        <p class="text-white font-bold uppercase tracking-widest text-sm">Evolução<br>Contínua</p>
+                    </div>
+
+                    <div class="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-6 bg-zinc-800 p-4 rounded-xl border border-zinc-700 shadow-xl flex flex-col items-center w-32 animate-float">
+                        <i class="fa-solid fa-list-check text-brand-red mb-2 text-xl"></i>
+                        <span class="text-[10px] text-white font-bold uppercase">Planejar</span>
+                    </div>
+                    <div class="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-6 bg-zinc-800 p-4 rounded-xl border border-zinc-700 shadow-xl flex flex-col items-center w-32 animate-float animation-delay-2000">
+                        <i class="fa-solid fa-chart-line text-brand-red mb-2 text-xl"></i>
+                        <span class="text-[10px] text-white font-bold uppercase">Analisar</span>
+                    </div>
+                    <div class="absolute left-0 top-1/2 -translate-x-6 -translate-y-1/2 bg-zinc-800 p-4 rounded-xl border border-zinc-700 shadow-xl flex flex-col items-center w-32 animate-float animation-delay-4000">
+                        <i class="fa-solid fa-play text-brand-red mb-2 text-xl"></i>
+                        <span class="text-[10px] text-white font-bold uppercase">Executar</span>
+                    </div>
+                    <div class="absolute right-0 top-1/2 translate-x-6 -translate-y-1/2 bg-zinc-800 p-4 rounded-xl border border-zinc-700 shadow-xl flex flex-col items-center w-32 animate-float">
+                        <i class="fa-solid fa-trophy text-brand-red mb-2 text-xl"></i>
+                        <span class="text-[10px] text-white font-bold uppercase">Melhorar</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section id="features" class="py-32 relative">
+    <div class="max-w-7xl mx-auto px-6">
+        <div class="mb-16 text-center" data-aos="fade-up">
+            <h2 class="text-3xl md:text-5xl font-display font-bold text-white mb-4">
+                Ferramentas de <span class="text-gradient-red">Elite</span>
+            </h2>
+            <p class="text-zinc-400">Tudo centralizado em um ecossistema digital.</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 grid-rows-2 gap-6 md:h-[800px] h-auto">
+
+            <div class="md:col-span-2 md:row-span-2 glass-card rounded-[2rem] p-8 md:p-12 relative overflow-hidden group hover-glow" data-aos="fade-up">
+                <div class="absolute top-0 right-0 p-12 opacity-5 group-hover:opacity-10 transition-opacity transform group-hover:scale-110 duration-700">
+                    <i class="fa-solid fa-crosshairs text-9xl text-white"></i>
+                </div>
+
+                <div class="relative z-10 h-full flex flex-col">
+                    <div class="w-14 h-14 bg-brand-red rounded-2xl flex items-center justify-center text-white text-2xl mb-6 shadow-lg shadow-brand-red/30">
+                        <i class="fa-solid fa-list-check"></i>
+                    </div>
+                    <h3 class="text-3xl font-bold text-white mb-4">Edital Verticalizado Interativo</h3>
+                    <p class="text-zinc-400 text-lg mb-8 max-w-md">
+                        Não estude no escuro. Marque cada tópico estudado, acompanhe seu percentual de conclusão e saiba exatamente o que falta para fechar o edital.
+                    </p>
+
+                    <div class="mt-auto w-full aspect-[16/9] bg-black/50 rounded-xl border border-white/10 overflow-hidden relative group-hover:border-brand-red/30 transition-colors">
+                        <div class="absolute inset-0 flex items-center justify-center">
+                            <span class="text-zinc-600 text-xs font-bold uppercase tracking-widest"><i class="fa-regular fa-image mr-2"></i> GIF: Edital Interativo</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass-card rounded-[2rem] p-8 flex flex-col justify-between hover-glow group" data-aos="fade-up" data-aos-delay="100">
+                <div>
+                    <div class="w-12 h-12 bg-zinc-800 rounded-xl flex items-center justify-center text-white text-xl mb-4 group-hover:bg-brand-red transition-colors">
+                        <i class="fa-solid fa-chart-pie"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-white mb-2">Métricas Reais</h3>
+                    <p class="text-zinc-400 text-sm">Dashboard completo com seus pontos fortes e fracos.</p>
+                </div>
+                <div class="mt-6 h-24 bg-gradient-to-t from-brand-red/10 to-transparent rounded-lg border-b-2 border-brand-red relative overflow-hidden">
+                    <div class="absolute bottom-0 left-4 w-6 h-[40%] bg-brand-red/40 rounded-t-sm group-hover:h-[60%] transition-all duration-500"></div>
+                    <div class="absolute bottom-0 left-12 w-6 h-[70%] bg-brand-red/60 rounded-t-sm group-hover:h-[80%] transition-all duration-500 delay-75"></div>
+                    <div class="absolute bottom-0 left-20 w-6 h-[50%] bg-brand-red rounded-t-sm group-hover:h-[90%] transition-all duration-500 delay-150"></div>
+                </div>
+            </div>
+
+            <div class="glass-card rounded-[2rem] p-8 flex flex-col justify-between hover-glow group" data-aos="fade-up" data-aos-delay="200">
+                <div>
+                    <div class="w-12 h-12 bg-zinc-800 rounded-xl flex items-center justify-center text-white text-xl mb-4 group-hover:bg-brand-red transition-colors">
+                        <i class="fa-solid fa-clock"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-white mb-2">Cronômetro</h3>
+                    <p class="text-zinc-400 text-sm">Registre horas líquidas. Pause, retome e salve suas sessões.</p>
+                </div>
+                <div class="mt-4 flex items-center justify-center">
+                    <div class="text-3xl font-mono font-bold text-white tabular-nums tracking-widest group-hover:text-brand-red transition-colors">
+                        04:20:00
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</section>
+
+<section class="py-20 bg-gradient-to-b from-[#0a0a0a] to-black overflow-hidden">
+    <div class="max-w-7xl mx-auto px-6 grid lg:grid-cols-2 gap-16 items-center">
+        <div data-aos="fade-right">
+            <span class="text-brand-red font-bold uppercase tracking-widest text-xs">Responsividade Total</span>
+            <h2 class="text-4xl md:text-5xl font-display font-bold text-white mt-4 mb-6">Estude onde estiver.</h2>
+            <p class="text-zinc-400 text-lg mb-8">
+                Seja no ônibus, no intervalo do trabalho ou em casa. O MODOQAP se adapta perfeitamente ao seu celular ou tablet.
+            </p>
+            <ul class="space-y-4">
+                <li class="flex items-center gap-4 text-white">
+                    <span class="w-8 h-8 rounded-full bg-green-500/20 text-green-500 flex items-center justify-center text-sm"><i class="fa-solid fa-check"></i></span>
+                    Interface leve e rápida
+                </li>
+                <li class="flex items-center gap-4 text-white">
+                    <span class="w-8 h-8 rounded-full bg-green-500/20 text-green-500 flex items-center justify-center text-sm"><i class="fa-solid fa-check"></i></span>
+                    Modo Escuro nativo (Economia de bateria)
+                </li>
+                <li class="flex items-center gap-4 text-white">
+                    <span class="w-8 h-8 rounded-full bg-green-500/20 text-green-500 flex items-center justify-center text-sm"><i class="fa-solid fa-check"></i></span>
+                    Sincronização em tempo real
+                </li>
+            </ul>
+        </div>
+
+        <div class="relative flex justify-center" data-aos="fade-left">
+            <div class="relative w-[300px] h-[600px] bg-black border-4 border-zinc-800 rounded-[3rem] shadow-2xl overflow-hidden z-10 hover:-translate-y-2 transition-transform duration-500">
+                <div class="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-zinc-900 rounded-b-xl z-20"></div>
+                <div class="w-full h-full bg-zinc-900 flex items-center justify-center relative">
+                    <div class="text-center p-4">
+                        <i class="fa-solid fa-mobile-screen text-4xl text-zinc-700 mb-2"></i>
+                        <p class="text-xs text-zinc-500 uppercase">GIF Mobile</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] border border-white/5 rounded-full -z-0 animate-pulse"></div>
+        </div>
+    </div>
+</section>
+
+<section id="pricing" class="py-32 relative">
+    <div class="max-w-7xl mx-auto px-6">
+        <div class="text-center mb-16" data-aos="fade-up">
+            <h2 class="text-3xl md:text-5xl font-display font-bold text-white mb-4">Investimento</h2>
+            <p class="text-zinc-400">Quanto vale a sua aprovação?</p>
+        </div>
+
+        <div class="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+
+            <div class="glass-card rounded-3xl p-8 hover:border-zinc-600 transition-all flex flex-col" data-aos="fade-up" data-aos-delay="0">
+                <h3 class="text-zinc-400 font-bold uppercase tracking-widest text-sm mb-4">Mensal</h3>
+                <div class="mb-6">
+                    <span class="text-4xl font-display font-bold text-white">R$ 19,90</span>
+                    <span class="text-zinc-500">/mês</span>
+                </div>
+                <ul class="space-y-4 mb-8 flex-1 text-sm text-zinc-300">
+                    <li class="flex gap-3"><i class="fa-solid fa-check text-brand-red"></i> Acesso Completo</li>
+                    <li class="flex gap-3"><i class="fa-solid fa-check text-brand-red"></i> Banco de Questões</li>
+                    <li class="flex gap-3"><i class="fa-solid fa-check text-brand-red"></i> Sem fidelidade</li>
+                </ul>
+                <a href="register.php" class="w-full py-3 rounded-xl border border-zinc-700 text-white font-bold text-center hover:bg-white hover:text-black transition-all">Assinar</a>
+            </div>
+
+            <div class="bg-zinc-900 border-2 border-brand-red rounded-3xl p-8 relative transform md:-translate-y-6 shadow-[0_0_30px_-10px_rgba(239,68,68,0.3)] flex flex-col" data-aos="fade-up" data-aos-delay="100">
+                <div class="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-transparent via-brand-red to-transparent"></div>
+                <div class="bg-brand-red text-white text-xs font-bold px-3 py-1 rounded-full absolute -top-3 left-1/2 -translate-x-1/2 uppercase tracking-wide">Mais Escolhido</div>
+
+                <h3 class="text-brand-red font-bold uppercase tracking-widest text-sm mb-4">Semestral</h3>
+                <div class="mb-2">
+                    <span class="text-5xl font-display font-bold text-white">R$ 79,90</span>
+                </div>
+                <p class="text-zinc-500 text-xs mb-6">Pagamento único (equiv. R$ 13,30/mês)</p>
+
+                <ul class="space-y-4 mb-8 flex-1 text-sm text-white font-medium">
+                    <li class="flex gap-3"><i class="fa-solid fa-circle-check text-brand-red"></i> Tudo do Mensal</li>
+                    <li class="flex gap-3"><i class="fa-solid fa-circle-check text-brand-red"></i> Correção de Redação</li>
+                    <li class="flex gap-3"><i class="fa-solid fa-circle-check text-brand-red"></i> Mentoria em Grupo</li>
+                </ul>
+                <a href="register.php" class="w-full py-4 rounded-xl bg-brand-red text-white font-bold text-center hover:bg-red-700 transition-all shadow-lg hover:shadow-brand-red/40 transform hover:-translate-y-1">Quero Ser Aprovado</a>
+            </div>
+
+            <div class="glass-card rounded-3xl p-8 hover:border-zinc-600 transition-all flex flex-col" data-aos="fade-up" data-aos-delay="200">
+                <h3 class="text-zinc-400 font-bold uppercase tracking-widest text-sm mb-4">Vitalício</h3>
+                <div class="mb-6">
+                    <span class="text-4xl font-display font-bold text-white">R$ 149,90</span>
+                    <span class="text-zinc-500">/único</span>
+                </div>
+                <ul class="space-y-4 mb-8 flex-1 text-sm text-zinc-300">
+                    <li class="flex gap-3"><i class="fa-solid fa-check text-brand-red"></i> Acesso até passar</li>
+                    <li class="flex gap-3"><i class="fa-solid fa-check text-brand-red"></i> Todas atualizações</li>
+                    <li class="flex gap-3"><i class="fa-solid fa-check text-brand-red"></i> Acesso Antecipado</li>
+                </ul>
+                <a href="register.php" class="w-full py-3 rounded-xl border border-zinc-700 text-white font-bold text-center hover:bg-white hover:text-black transition-all">Assinar</a>
+            </div>
+
+        </div>
+    </div>
+</section>
+
+<footer class="bg-black border-t border-zinc-900 pt-16 pb-8">
+    <div class="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-8">
+        <div class="flex items-center gap-3">
+            <img src="../../public/logo-pmba.png" alt="Logo MODOQAP" class="h-8 w-auto object-contain opacity-80" />
+            <h1 class="text-brand-red font-black tracking-widest uppercase text-xl opacity-90 m-0">MODOQAP</h1>
+        </div>
+        <div class="flex gap-6">
+            <a href="#" class="text-zinc-500 hover:text-white transition-colors">Instagram</a>
+            <a href="#" class="text-zinc-500 hover:text-white transition-colors">YouTube</a>
+            <a href="#" class="text-zinc-500 hover:text-white transition-colors">Termos de Uso</a>
+        </div>
+        <p class="text-zinc-600 text-sm">&copy; 2025 MODOQAP.</p>
+    </div>
+</footer>
+
+<a href="" target="_blank" class="fixed bottom-6 right-6 w-16 h-16 bg-[#25D366] hover:bg-[#20bd5a] text-white rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(37,211,102,0.4)] transition-all hover:scale-110 z-50 animate-bounce">
+    <i class="fa-brands fa-whatsapp text-3xl"></i>
+</a>
+<script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+<script>
+    AOS.init({
+        duration: 800,
+        once: true,
+        offset: 50
+    });
+</script>
+</body>
+</html>

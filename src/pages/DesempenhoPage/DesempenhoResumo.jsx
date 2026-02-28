@@ -96,7 +96,6 @@ const RadarTooltip = ({ active, payload }) => {
   if (!active || !payload?.length) return null;
   // Payload pode vir misturado (meta vs usuario), filtramos o usuario (dataKey="A")
   const userData = payload.find(p => p.dataKey === 'A');
-  const metaData = payload.find(p => p.dataKey === 'meta');
 
   if (!userData) return null;
   const data = userData.payload;
@@ -105,7 +104,7 @@ const RadarTooltip = ({ active, payload }) => {
     <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700/50 px-3 py-2.5 rounded-xl shadow-xl z-50 min-w-[140px]">
       <div className="flex items-center gap-2 mb-2 pb-2 border-b border-zinc-100 dark:border-zinc-800">
         <div className="w-2 h-2 rounded-full bg-indigo-500"></div>
-        <p className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider truncate max-w-[120px]">{data.subject}</p>
+        <p className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider truncate max-w-[200px]">{data.subject}</p>
       </div>
 
       <div className="space-y-2">
@@ -144,12 +143,10 @@ const DesempenhoResumo = ({ registrosEstudo, activeCicloId, evolutionData }) => 
   const radarData = useMemo(() => {
     if (!registrosEstudo || registrosEstudo.length === 0) return [];
 
-    // 1. Filtrar pelo ciclo (se houver)
     const filtered = activeCicloId
       ? registrosEstudo.filter(r => r.cicloId === activeCicloId)
       : registrosEstudo;
 
-    // 2. Agrupar dados
     const groups = {};
 
     filtered.forEach(reg => {
@@ -165,35 +162,71 @@ const DesempenhoResumo = ({ registrosEstudo, activeCicloId, evolutionData }) => 
       }
     });
 
-    // 3. Formatar para Recharts (Com Meta Fixa de 80%)
     const result = Object.entries(groups)
       .map(([name, val]) => ({
         subject: name,
         A: val.totalQ > 0 ? Math.round((val.totalC / val.totalQ) * 100) : 0,
-        meta: 80, // Meta de "Corte" fictícia ou configurável
+        meta: 80,
         q: val.totalQ,
         fullMark: 100
       }))
-      .sort((a, b) => b.q - a.q)
-      .slice(0, 6);
+      .sort((a, b) => b.q - a.q);
 
     return result;
   }, [registrosEstudo, activeCicloId]);
 
-  // Renderer Customizado para os Textos do Radar
+  // ============================================================================
+  // RENDERER CUSTOMIZADO PARA AS LABELS DO RADAR (EVITA SOBREPOSIÇÃO)
+  // ============================================================================
   const renderPolarAngleAxis = ({ payload, x, y, cx, cy, ...rest }) => {
+    const text = payload.value || '';
+
+    // 1. Quebra de linha inteligente para nomes longos (evita que fiquem esticados)
+    let line1 = text;
+    let line2 = '';
+
+    if (text.length > 15) {
+      const words = text.split(' ');
+      if (words.length > 1) {
+        const mid = Math.ceil(words.length / 2);
+        line1 = words.slice(0, mid).join(' ');
+        line2 = words.slice(mid).join(' ');
+      } else {
+        // Se for uma palavra só muito gigante, usa reticências
+        line1 = text.substring(0, 13) + '...';
+      }
+    }
+
+    // 2. Cálculo de posições para repulsão das pontas inferiores
+    const isBottom = y > cy; // Está na metade de baixo do gráfico?
+    const isLeft = x < cx;   // Está na metade esquerda?
+    const isRight = x > cx;  // Está na metade direita?
+
+    // Afastamento base proporcional
+    let modX = x + (x - cx) / 5;
+    let modY = y + (y - cy) / 5;
+
+    // 🔥 A MÁGICA: Se estiver embaixo, empurra ainda mais para os lados e para baixo
+    if (isBottom) {
+       modY += 12; // empurra os textos de baixo mais para baixo
+       if (isLeft) modX -= 18;  // empurra inferior-esquerda mais para a esquerda
+       if (isRight) modX += 18; // empurra inferior-direita mais para a direita
+    }
+
     return (
       <text
         {...rest}
-        x={x + (x - cx) / 10}
-        y={y + (y - cy) / 10}
-        dy={4}
-        fontSize={10}
+        x={modX}
+        y={modY}
+        fontSize={9}
         fontWeight={700}
         fill="#71717a"
         textAnchor="middle"
       >
-        {payload.value}
+        {/* Renderiza a linha 1. O 'dy' compensa a altura se houver linha 2 */}
+        <tspan x={modX} dy={line2 ? "-4" : "4"}>{line1}</tspan>
+        {/* Se houver linha 2, renderiza logo abaixo da primeira */}
+        {line2 && <tspan x={modX} dy="12">{line2}</tspan>}
       </text>
     );
   };
@@ -222,7 +255,7 @@ const DesempenhoResumo = ({ registrosEstudo, activeCicloId, evolutionData }) => 
           </div>
         </div>
 
-        {/* CARD 2: Radar de Competências (Aumentado + Comparativo) */}
+        {/* CARD 2: Radar de Competências */}
         <div className="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-hidden flex flex-col min-h-[420px]">
           <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between bg-zinc-50/50 dark:bg-transparent">
             <div className="flex items-center gap-2.5">
@@ -261,27 +294,28 @@ const DesempenhoResumo = ({ registrosEstudo, activeCicloId, evolutionData }) => 
             ) : (
               <div className="w-full h-full min-h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <RadarChart cx="50%" cy="50%" outerRadius="75%" data={radarData}>
+                  <RadarChart cx="50%" cy="50%" outerRadius="70%" data={radarData}>
                     <PolarGrid stroke="#e4e4e7" strokeDasharray="3 3" className="dark:stroke-zinc-800" />
+
+                    {/* AQUI ESTÁ A CORREÇÃO EM AÇÃO */}
                     <PolarAngleAxis dataKey="subject" tick={renderPolarAngleAxis} />
+
                     <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
 
-                    {/* Camada da META (Fundo) */}
                     <Radar
                       name="Meta"
                       dataKey="meta"
-                      stroke="#a1a1aa" // zinc-400
+                      stroke="#a1a1aa"
                       strokeWidth={1}
                       strokeDasharray="4 4"
                       fill="#a1a1aa"
                       fillOpacity={0.05}
                     />
 
-                    {/* Camada do USUÁRIO (Frente) */}
                     <Radar
                       name="Você"
                       dataKey="A"
-                      stroke="#6366f1" // Indigo-500
+                      stroke="#6366f1"
                       strokeWidth={3}
                       fill="#6366f1"
                       fillOpacity={0.4}

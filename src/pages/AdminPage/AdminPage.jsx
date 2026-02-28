@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { db } from '../../firebaseConfig';
-import { collection, query, collectionGroup, deleteDoc, doc, onSnapshot, orderBy, limit } from 'firebase/firestore';
+import {
+  collection, query, collectionGroup, deleteDoc, doc, onSnapshot, orderBy, limit,
+  getDocs, setDoc, Timestamp // <--- Imports adicionados para o recálculo
+} from 'firebase/firestore';
 import {
   Users, Activity, Server, Loader2, Search, Maximize2, Trash2, X, FileSpreadsheet, Target,
   Clock, Zap, Trophy, ChevronRight, MoreHorizontal, Radio, LayoutGrid
@@ -9,7 +12,6 @@ import {
 
 // --- IMPORTS DOS COMPONENTES ---
 import HeaderAdmin from './HeaderAdmin';
-// CERTIFIQUE-SE DE QUE O CAMINHO ESTÁ CORRETO PARA O ARQUIVO ONDE COLOCAMOS O CÓDIGO DO "EditaisManagerModal"
 import EditaisManagerModal from './EditaisManager';
 import StudyingNowPanel from './LiveStudyMonitor';
 import UserDetailModal from './UserDetailModal';
@@ -139,7 +141,7 @@ const BentoCard = ({ title, subtitle, icon: Icon, children, className = "", acti
 
 // --- PÁGINA ADMIN ---
 function AdminPage() {
-    useForceUnlock();
+  useForceUnlock();
   const [users, setUsers] = useState([]);
   const [studyRecords, setStudyRecords] = useState([]);
   const [activeSessions, setActiveSessions] = useState([]);
@@ -277,47 +279,70 @@ function AdminPage() {
   };
 
   const handleOpenEditaisManager = () => {
-      console.log("Abrindo modal de editais..."); // Debug para verificar se clica
       setShowEditaisModal(true);
+  };
+
+  // --- FUNÇÃO "BALA DE PRATA" (Recálculo Global) ---
+  const handleRecalculateAllUsersStats = async () => {
+    try {
+      console.log("Iniciando recálculo global...");
+      // 1. Pegar todos os usuários
+      const usersSnapshot = await getDocs(collection(db, 'users'));
+
+      let processedCount = 0;
+
+      // 2. Iterar sobre cada usuário
+      for (const userDoc of usersSnapshot.docs) {
+        const uid = userDoc.id;
+
+        // 3. Pegar todos os registros de estudo desse usuário
+        const studyQuery = query(collection(db, 'users', uid, 'registrosEstudo'));
+        const studySnapshot = await getDocs(studyQuery);
+
+        let totalMin = 0;
+        let totalQ = 0;
+        let totalC = 0;
+
+        studySnapshot.forEach(doc => {
+          const d = doc.data();
+          totalMin += (Number(d.tempoEstudadoMinutos) || 0);
+          totalQ += (Number(d.questoesFeitas) || 0);
+          totalC += (Number(d.acertos) || 0);
+        });
+
+        // 4. Salvar no documento stats/geral
+        const statsRef = doc(db, 'users', uid, 'stats', 'geral');
+        await setDoc(statsRef, {
+          totalHorasMinutos: totalMin,
+          totalQuestoes: totalQ,
+          totalAcertos: totalC,
+          lastUpdated: Timestamp.now()
+        });
+
+        processedCount++;
+        console.log(`Usuário ${uid} processado. (${processedCount}/${usersSnapshot.size})`);
+      }
+
+      alert(`Sucesso! ${processedCount} usuários recalibrados.`);
+    } catch (error) {
+      console.error("Erro fatal no recálculo:", error);
+      alert("Erro ao recalcular estatísticas. Veja o console.");
+    }
   };
 
   return (
     <>
-      {/* Estilos Globais para Scrollbar */}
       <style dangerouslySetInnerHTML={{__html: `
-        .live-monitor-scroll::-webkit-scrollbar {
-          width: 8px;
-        }
-        .live-monitor-scroll::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        .live-monitor-scroll::-webkit-scrollbar-thumb {
-          background: #a1a1aa;
-          border-radius: 4px;
-          transition: background 0.2s ease;
-        }
-        .live-monitor-scroll::-webkit-scrollbar-thumb:hover {
-          background: #71717a;
-        }
-        .dark .live-monitor-scroll::-webkit-scrollbar-thumb {
-          background: #3f3f46;
-        }
-        .dark .live-monitor-scroll::-webkit-scrollbar-thumb:hover {
-          background: #52525b;
-        }
-        .live-monitor-scroll {
-          scrollbar-width: thin;
-          scrollbar-color: #a1a1aa transparent;
-        }
-        .dark .live-monitor-scroll {
-          scrollbar-color: #3f3f46 transparent;
-        }
+        .live-monitor-scroll::-webkit-scrollbar { width: 8px; }
+        .live-monitor-scroll::-webkit-scrollbar-track { background: transparent; }
+        .live-monitor-scroll::-webkit-scrollbar-thumb { background: #a1a1aa; border-radius: 4px; }
+        .live-monitor-scroll::-webkit-scrollbar-thumb:hover { background: #71717a; }
+        .dark .live-monitor-scroll::-webkit-scrollbar-thumb { background: #3f3f46; }
+        .dark .live-monitor-scroll::-webkit-scrollbar-thumb:hover { background: #52525b; }
       `}} />
 
       <div className="w-full pb-20 animate-slide-up space-y-8 max-w-[1600px] mx-auto px-4 sm:px-6 pt-10">
 
-        {/* --- MODAIS DE SUPORTE --- */}
-        {/* Renderização Condicional do Modal de Editais com Z-INDEX ALTO */}
         <AnimatePresence>
             {showEditaisModal && (
                 <EditaisManagerModal
@@ -329,7 +354,6 @@ function AdminPage() {
 
         <UserDetailModal isOpen={!!detailUser} onClose={() => setDetailUser(null)} user={detailUser} records={studyRecords} />
 
-        {/* --- MODAL EXPANDIDO (Tabelas) --- */}
         <ExpandedModal isOpen={!!expandedView} onClose={() => setExpandedView(null)} title={expandedView === 'users' ? "Base de Alunos" : "Feed Completo"}>
           <div className="space-y-6">
               <div className="flex justify-between items-center sticky top-0 bg-white dark:bg-zinc-950 z-20 py-2">
@@ -384,8 +408,11 @@ function AdminPage() {
           </div>
         </ExpandedModal>
 
-        {/* --- HEADER DE BOAS VINDAS --- */}
-        <HeaderAdmin newUsersCount={dashboardData.newUsers24h} />
+        {/* --- HEADER DE BOAS VINDAS + BOTÃO SECRETO --- */}
+        <HeaderAdmin
+            newUsersCount={dashboardData.newUsers24h}
+            onRecalculateStats={handleRecalculateAllUsersStats} // <--- Passando a função Bala de Prata
+        />
 
         {loading ? (
           <div className="flex flex-col items-center justify-center py-32 space-y-4">
@@ -403,7 +430,7 @@ function AdminPage() {
                   <KpiCard color="amber" icon={Radio} title="Online (24h)" value={dashboardData.active24h} subValue="Plantão Ativo" />
               </div>
 
-              {/* Card de Gerenciar Editais (Botão de Ação Destacado) */}
+              {/* Card de Gerenciar Editais */}
               <div
                 onClick={handleOpenEditaisManager}
                 className="bg-zinc-900 text-white rounded-3xl p-6 flex flex-col justify-between cursor-pointer group shadow-xl shadow-zinc-900/20 hover:scale-[1.02] transition-all relative overflow-hidden h-full min-h-[140px]"
@@ -422,10 +449,8 @@ function AdminPage() {
               </div>
             </div>
 
-            {/* --- [LINHA 2] Live Monitor (Dividido 50/50) --- */}
+            {/* --- [LINHA 2] Live Monitor --- */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-auto lg:h-[600px]">
-
-              {/* Esquerda: Estudando Agora */}
               <div className="h-full min-h-[600px] lg:min-h-0 flex flex-col">
                   <StudyingNowPanel
                       sessions={studyingNowSessions}
@@ -435,7 +460,6 @@ function AdminPage() {
                   />
               </div>
 
-              {/* Direita: Feed de Guerra */}
               <BentoCard
                   title="Feed de Guerra"
                   subtitle="Registro de atividades em tempo real"
@@ -486,8 +510,6 @@ function AdminPage() {
 
             {/* --- [LINHA 3] Novos Alunos e Ranking --- */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-              {/* Coluna 1: Novos Alunos */}
               <BentoCard
                 title="Novos Alunos"
                 icon={Users}
@@ -509,7 +531,6 @@ function AdminPage() {
                   </div>
               </BentoCard>
 
-              {/* Coluna 2 e 3: Ranking Global */}
               <div className="lg:col-span-2">
                   <BentoCard
                       title="Ranking Global"
@@ -545,7 +566,6 @@ function AdminPage() {
                       </div>
                   </BentoCard>
               </div>
-
             </div>
           </div>
         )}

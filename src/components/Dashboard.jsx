@@ -1,17 +1,19 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
-  collection, onSnapshot, query, orderBy, addDoc, deleteDoc, doc, where, Timestamp
+  collection, onSnapshot, query, orderBy, addDoc, deleteDoc, doc, where, Timestamp,
+  getDocs, getDoc, setDoc, updateDoc, increment // Imports Otimizados
 } from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
 import { signOut } from 'firebase/auth';
 
+// Bibliotecas de Terceiros
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { AnimatePresence, motion } from 'framer-motion';
 import { X, CheckCircle2, Download, AlertTriangle, Maximize2, ClipboardList, AlertCircle } from 'lucide-react';
-import ShareCard from '../components/shared/ShareCard';
 
-// --- IMPORTS DE COMPONENTES ---
+// Componentes
+import ShareCard from '../components/shared/ShareCard';
 import NavSideBar from '../components/dashboard/NavSideBar';
 import Header from '../components/dashboard/Header';
 import Home from '../pages/HomePage/HomePage';
@@ -27,8 +29,6 @@ import TimerFinishModal from '../components/ciclos/TimerFinishModal';
 import OnboardingTour from '../components/shared/OnboardingTour';
 import BroadcastReceiver from '../components/shared/BroadcastReceiver';
 import FeedbackWidget from '../components/FeedbackWidget';
-
-// --- IMPORTS DE SIMULADO ---
 import SimuladosPage from '../pages/SimuladosPage/SimuladosPage';
 import SimuladoTimer from '../pages/SimuladosPage/SimuladoTimer';
 
@@ -217,7 +217,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   }, [user?.uid]);
 
   // -------------------------------------------------------------
-  // 🔥 SINCRONIZAÇÃO EM TEMPO REAL
+  // 🔥 SINCRONIZAÇÃO EM TEMPO REAL (TIMERS - MANTIDO ON SNAPSHOT)
   // -------------------------------------------------------------
 
   // 1. Ouvinte: Timer de Estudo Ativo
@@ -257,9 +257,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     const unsubscribe = onSnapshot(activeSimRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
-
         if (data.status === 'finished') return;
-
         if (!data.isSimulado && data.timerType !== 'simulado') return;
 
         setActiveSimuladoSession(prev => {
@@ -274,18 +272,9 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
             isMinimized,
             isNewSession,
           };
-
-          if (
-            prev &&
-            prev.titulo === next.titulo &&
-            prev.mode === next.mode &&
-            Number(prev.initialSeconds || 0) === Number(next.initialSeconds || 0) &&
-            prev.isMinimized === next.isMinimized
-          ) return prev;
-
+          if (prev && prev.titulo === next.titulo && prev.mode === next.mode && Number(prev.initialSeconds || 0) === Number(next.initialSeconds || 0) && prev.isMinimized === next.isMinimized) return prev;
           return next;
         });
-
       } else {
         if (!finishedSimuladoData) {
           setActiveSimuladoSession(null);
@@ -296,9 +285,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     return () => unsubscribe();
   }, [user, finishedSimuladoData]);
 
-  // -------------------------------------------------------------
-  // RESTAURAÇÃO LOCAL (FALLBACK / REFRESH)
-  // -------------------------------------------------------------
+  // RESTAURAÇÃO LOCAL
   useEffect(() => {
     const savedStudy = localStorage.getItem(STUDY_STORAGE_KEY);
     if (savedStudy) {
@@ -328,49 +315,156 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     }
   }, [STUDY_STORAGE_KEY, SIMULADO_PENDING_KEY, clearActiveTimerDoc]);
 
-  // --- ACTIONS DE BANCO DE DADOS ---
+  // ---------------------------------------------
+  // 🔥 BUSCA DE HISTÓRICO OTIMIZADA (getDocs - Leitura Única)
+  // ---------------------------------------------
+  const fetchHistory = useCallback(async () => {
+    if (!user) return;
+    try {
+      const q = query(
+        collection(db, 'users', user.uid, 'registrosEstudo'),
+        orderBy('data', 'desc'),
+        orderBy('timestamp', 'desc')
+      );
+
+      const snapshot = await getDocs(q);
+
+      const registros = snapshot.docs.map(docSnap => {
+        const data = docSnap.data();
+        let dataStr = data.data;
+        if (data.data && typeof data.data.toDate === 'function') dataStr = dateToYMD(data.data.toDate());
+        if (!dataStr && data.timestamp && typeof data.timestamp.toDate === 'function') dataStr = dateToYMD(data.timestamp.toDate());
+        return { id: docSnap.id, ...data, data: dataStr };
+      });
+
+      setAllRegistrosEstudo(registros);
+      setLoading(false);
+    } catch (error) {
+      console.error("Erro ao buscar histórico:", error);
+      setLoading(false);
+    }
+  }, [user]);
+
+  // Carrega histórico ao iniciar
+  useEffect(() => {
+    fetchHistory();
+  }, [fetchHistory]);
+
+  // --------------------------------------------------------------------------
+  // 🔥 ACTIONS OTIMIZADAS (Com Agregação/Bala de Prata)
+  // --------------------------------------------------------------------------
+
+  // Função manual para Admin (Bala de Prata)
+  const recalculateAllStats = async () => {
+    if (!user) return;
+    setLoading(true);
+    try {
+      const q = query(collection(db, 'users', user.uid, 'registrosEstudo'));
+      const snapshot = await getDocs(q);
+
+      let totalMin = 0; let totalQ = 0; let totalC = 0;
+      snapshot.docs.forEach(doc => {
+        const d = doc.data();
+        totalMin += (Number(d.tempoEstudadoMinutos) || 0);
+        totalQ += (Number(d.questoesFeitas) || 0);
+        totalC += (Number(d.acertos) || 0);
+      });
+
+      const statsRef = doc(db, 'users', user.uid, 'stats', 'geral');
+      await setDoc(statsRef, {
+        totalHorasMinutos: totalMin,
+        totalQuestoes: totalQ,
+        totalAcertos: totalC,
+        lastUpdated: Timestamp.now()
+      });
+      alert("Estatísticas recalculadas e sincronizadas com sucesso!");
+    } catch (e) {
+      console.error(e);
+      alert("Erro ao recalcular.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const addRegistroEstudo = async (data) => {
     try {
+      // 1. Adiciona o registro individual
       const collectionRef = collection(db, 'users', user.uid, 'registrosEstudo');
       await addDoc(collectionRef, { ...data, timestamp: Timestamp.now() });
+
+      // 2. Agregação: Atualiza os totais
+      const statsRef = doc(db, 'users', user.uid, 'stats', 'geral');
+      const statsDoc = await getDoc(statsRef);
+      const valuesToIncrement = {
+        totalHorasMinutos: increment(data.tempoEstudadoMinutos || 0),
+        totalQuestoes: increment(data.questoesFeitas || 0),
+        totalAcertos: increment(data.acertos || 0)
+      };
+
+      if (!statsDoc.exists()) {
+        await setDoc(statsRef, {
+            totalHorasMinutos: data.tempoEstudadoMinutos || 0,
+            totalQuestoes: data.questoesFeitas || 0,
+            totalAcertos: data.acertos || 0
+        });
+      } else {
+        await updateDoc(statsRef, valuesToIncrement);
+      }
+
+      // 3. Atualiza a tela
+      fetchHistory();
     } catch (e) {
       console.error('Erro ao adicionar registro:', e);
     }
   };
 
+  const deleteRegistro = async (id) => {
+    try {
+      const docRef = doc(db, 'users', user.uid, 'registrosEstudo', id);
+      const docSnap = await getDoc(docRef);
+
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        await deleteDoc(docRef);
+
+        const statsRef = doc(db, 'users', user.uid, 'stats', 'geral');
+        try {
+            await updateDoc(statsRef, {
+              totalHorasMinutos: increment(-(data.tempoEstudadoMinutos || 0)),
+              totalQuestoes: increment(-(data.questoesFeitas || 0)),
+              totalAcertos: increment(-(data.acertos || 0))
+            });
+        } catch (err) { /* ignore */ }
+      }
+      fetchHistory();
+    } catch (e) {
+      console.error("Erro ao deletar", e);
+    }
+  };
+
+  const deleteData = async (collectionName, id) => { await deleteDoc(doc(db, 'users', user.uid, collectionName, id)); };
+
+  const addGoal = async (goalData) => { await addDoc(collection(db, 'users', user.uid, 'metas'), { ...goalData, startDate: dateToYMD(new Date()) }); };
+
   // ---------------------------------------------
-  // HANDLERS: ESTUDO
+  // HANDLERS (Estudo/Simulado/Geral)
   // ---------------------------------------------
   const handleStartStudy = (disciplina, assunto = null) => {
     if (activeSimuladoSession) {
-      setWarningAlert({
-        isOpen: true,
-        title: "Sessão Conflitante",
-        message: "Você tem um Simulado em andamento. Finalize-o antes de iniciar uma sessão de estudo."
-      });
+      setWarningAlert({ isOpen: true, title: "Sessão Conflitante", message: "Você tem um Simulado em andamento." });
       return;
     }
     setActiveStudySession({ disciplina, assunto, isMinimized: false });
   };
 
   const handleStopStudyRequest = (minutes) => {
-    if (!activeStudySession) return;
-    if (!activeCicloId) {
-      alert("Nenhum ciclo ativo encontrado. Ative um ciclo antes de salvar.");
+    if (!activeStudySession || !activeCicloId) {
+      if(!activeCicloId) alert("Nenhum ciclo ativo encontrado.");
       return;
     }
     const currentStorage = JSON.parse(localStorage.getItem(STUDY_STORAGE_KEY) || '{}');
-    localStorage.setItem(STUDY_STORAGE_KEY, JSON.stringify({
-      ...currentStorage,
-      isFinishing: true,
-      tempMinutes: minutes,
-      isPaused: true
-    }));
-    setFinishModalData({
-      minutes,
-      disciplinaNome: activeStudySession.disciplina.nome,
-      assuntoInicial: activeStudySession.assunto
-    });
+    localStorage.setItem(STUDY_STORAGE_KEY, JSON.stringify({ ...currentStorage, isFinishing: true, tempMinutes: minutes, isPaused: true }));
+    setFinishModalData({ minutes, disciplinaNome: activeStudySession.disciplina.nome, assuntoInicial: activeStudySession.assunto });
   };
 
   const handleRetomarEstudo = () => {
@@ -382,11 +476,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       delete currentStorage.tempMinutes;
       currentStorage.isPaused = true;
       localStorage.setItem(STUDY_STORAGE_KEY, JSON.stringify(currentStorage));
-      setActiveStudySession({
-        disciplina: { id: currentStorage.disciplinaId, nome: currentStorage.disciplinaNome },
-        assunto: currentStorage.assunto,
-        isMinimized: false
-      });
+      setActiveStudySession({ disciplina: { id: currentStorage.disciplinaId, nome: currentStorage.disciplinaNome }, assunto: currentStorage.assunto, isMinimized: false });
     }
   };
 
@@ -398,24 +488,20 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     clearActiveTimerDoc();
   };
 
-  // ✅ CORREÇÃO: Quando o TimerFinishModal salva internamente (savedInternal = true),
-  // o Dashboard apenas faz a limpeza do estado — sem salvar novamente no Firestore.
-  // Isso evita o registro duplicado com assunto concatenado ("Assunto1 +2").
   const handleConfirmFinishStudy = async (resultData) => {
     const dataRef = finishModalData || pendingReviewData;
     if (!dataRef) return;
 
-    // Se o TimerFinishModal já salvou cada tópico individualmente, apenas limpa o estado
     if (resultData.savedInternal) {
       localStorage.removeItem(STUDY_STORAGE_KEY);
       setFinishModalData(null);
       setPendingReviewData(null);
       setActiveStudySession(null);
       clearActiveTimerDoc();
+      fetchHistory();
       return;
     }
 
-    // Fallback: salva normalmente (caso venha de um fluxo antigo sem savedInternal)
     const { minutes } = dataRef;
     const { questions, correct, obs, assunto, disciplinaNomeCorrigido, markAsFinished } = resultData;
     const nomeDisciplinaFinal = disciplinaNomeCorrigido || dataRef.disciplinaNome;
@@ -460,6 +546,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
           tipoEstudo: 'check_manual',
           obs: 'Concluído via Timer'
         });
+        fetchHistory();
       }
 
       setFinishModalData(null);
@@ -472,37 +559,17 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     }
   };
 
-  // ---------------------------------------------
-  // HANDLERS: SIMULADO
-  // ---------------------------------------------
   const handleStartSimulado = (config) => {
     if (activeStudySession) {
-      setWarningAlert({
-        isOpen: true,
-        title: "Sessão Conflitante",
-        message: "Você tem uma sessão de estudo ativa. Finalize-a antes de iniciar o Simulado."
-      });
+      setWarningAlert({ isOpen: true, title: "Sessão Conflitante", message: "Finalize a sessão de estudo antes." });
       return;
     }
-
-    setActiveSimuladoSession({
-      titulo: config.titulo || 'Simulado',
-      mode: config.mode || 'free',
-      initialSeconds: Number(config.totalSeconds) || Number(config.initialSeconds) || 14400,
-      isMinimized: false,
-      isNewSession: true,
-    });
+    setActiveSimuladoSession({ titulo: config.titulo || 'Simulado', mode: config.mode || 'free', initialSeconds: Number(config.totalSeconds) || Number(config.initialSeconds) || 14400, isMinimized: false, isNewSession: true });
   };
 
   const handleFinishSimulado = async (minutes) => {
     const tituloFinal = activeSimuladoSession?.titulo || 'Simulado';
-
-    const data = {
-      titulo: tituloFinal,
-      data: dateToYMD(new Date()),
-      durationMinutes: minutes
-    };
-
+    const data = { titulo: tituloFinal, data: dateToYMD(new Date()), durationMinutes: minutes };
     localStorage.setItem(SIMULADO_PENDING_KEY, JSON.stringify(data));
     setFinishedSimuladoData(data);
     setActiveSimuladoSession(null);
@@ -529,16 +596,6 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     localStorage.removeItem(SIMULADO_PENDING_KEY);
   };
 
-  // ---------------------------------------------
-  // HANDLERS GENÉRICOS
-  // ---------------------------------------------
-  const deleteRegistro = async (id) => { await deleteDoc(doc(db, 'users', user.uid, 'registrosEstudo', id)); };
-  const deleteData = async (collectionName, id) => { await deleteDoc(doc(db, 'users', user.uid, collectionName, id)); };
-
-  const addGoal = async (goalData) => {
-    await addDoc(collection(db, 'users', user.uid, 'metas'), { ...goalData, startDate: dateToYMD(new Date()) });
-  };
-
   const handleTourCloseOrFinish = (type) => {
     if (user) localStorage.setItem(`onboarding_seen_${user.uid}_${type}`, 'true');
     setTourState({ isActive: false, type: 'main' });
@@ -561,10 +618,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
 
   const handleTabChange = (tab) => {
     setActiveTab(tab);
-    if (tab !== 'ciclos') {
-      setForceOpenVisual(false);
-      setIsTimerRaised(false);
-    }
+    if (tab !== 'ciclos') { setForceOpenVisual(false); setIsTimerRaised(false); }
   };
 
   const handleLogout = async () => {
@@ -573,16 +627,21 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     signOut(auth).catch((error) => console.error('Logout Error:', error));
   };
 
+  const handleShareGoal = (stats) => {
+    setSharePreviewData({ stats, userName: user.displayName || 'Estudante', dayData: dayToShareData, goals: goalsHistory[0] || { questions: 0, hours: 0 }, isDarkMode });
+  };
+
   const handleDownloadPDF = async () => {
     const element = document.getElementById('share-card-capture-target');
     if (!element) return alert('Erro ao capturar cartão.');
+
     const buttonWrapper = document.querySelector('.download-button-wrapper');
     if (buttonWrapper) buttonWrapper.style.display = 'none';
 
     try {
       const targetWidthPx = 340;
       const targetHeightPx = element.offsetHeight;
-      const canvas = await html2canvas(element, { scale: 4.0, useCORS: true, backgroundColor: sharePreviewData.isDarkMode ? '#18181b' : '#ffffff' });
+      const canvas = await html2canvas(element, { scale: 4.0, useCORS: true, backgroundColor: sharePreviewData?.isDarkMode ? '#18181b' : '#ffffff' });
       const pxToMm = 0.264583;
       const imgData = canvas.toDataURL('image/jpeg', 1.0);
       const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: [targetWidthPx * pxToMm, targetHeightPx * pxToMm] });
@@ -599,17 +658,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     }
   };
 
-  const handleShareGoal = (stats) => {
-    setSharePreviewData({
-      stats,
-      userName: user.displayName || 'Estudante',
-      dayData: dayToShareData,
-      goals: goalsHistory[0] || { questions: 0, hours: 0 },
-      isDarkMode
-    });
-  };
-
-  // --- EFFECTS (Firestore) ---
+  // --- EFEITOS GERAIS (Ciclos, Metas) ---
   useEffect(() => {
     if (!user || loading) return;
     const tourType = 'main';
@@ -647,24 +696,6 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       }
     );
   }, [user, activeCicloId]);
-
-  useEffect(() => {
-    if (!user) return;
-    setLoading(true);
-    return onSnapshot(
-      query(collection(db, 'users', user.uid, 'registrosEstudo'), orderBy('timestamp', 'desc')),
-      (snapshot) => {
-        setAllRegistrosEstudo(snapshot.docs.map(docSnap => {
-          const data = docSnap.data();
-          let dataStr = data.data;
-          if (data.data && typeof data.data.toDate === 'function') dataStr = dateToYMD(data.data.toDate());
-          if (!dataStr && data.timestamp && typeof data.timestamp.toDate === 'function') dataStr = dateToYMD(data.timestamp.toDate());
-          return { id: docSnap.id, ...data, data: dataStr };
-        }));
-        setLoading(false);
-      }
-    );
-  }, [user]);
 
   useEffect(() => {
     if (loading) return;
@@ -707,7 +738,10 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       case 'profile':
         return <ProfilePage user={user} allRegistrosEstudo={allRegistrosEstudo} onDeleteRegistro={deleteRegistro} />;
       case 'admin':
-        if (user.uid === ADMIN_UID) return <AdminPage />;
+        if (user.uid === ADMIN_UID) {
+          // PASSANDO A FUNÇÃO DE RECÁLCULO PARA O ADMIN
+          return <AdminPage onRecalculateStats={recalculateAllStats} />;
+        }
         return <div className="p-8 text-center text-red-500 font-bold">Acesso Negado</div>;
       default:
         return null;
@@ -717,12 +751,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   return (
     <div className="flex min-h-screen bg-background-light dark:bg-background-dark text-text-primary dark:text-text-dark-primary transition-colors duration-300 overflow-x-hidden">
 
-      <WarningModal
-        isOpen={warningAlert.isOpen}
-        title={warningAlert.title}
-        message={warningAlert.message}
-        onClose={() => setWarningAlert(prev => ({ ...prev, isOpen: false }))}
-      />
+      <WarningModal isOpen={warningAlert.isOpen} title={warningAlert.title} message={warningAlert.message} onClose={() => setWarningAlert(prev => ({ ...prev, isOpen: false }))} />
 
       {activeTab === 'home' && <BroadcastReceiver canShow={!tourState.isActive} />}
 
@@ -761,7 +790,6 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
 
       <FeedbackWidget user={user} isOpen={isFeedbackOpen} onClose={() => setIsFeedbackOpen(false)} isSidebarOpen={isMobileOpen} />
 
-      {/* --- TIMER DE ESTUDO --- */}
       {activeStudySession && (
         <StudyTimer
           disciplina={activeStudySession.disciplina}
@@ -778,7 +806,6 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         />
       )}
 
-      {/* --- TIMER DE SIMULADO --- */}
       {activeSimuladoSession && (
         <SimuladoTimer
           tituloSimulado={activeSimuladoSession.titulo}
@@ -796,7 +823,6 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         />
       )}
 
-      {/* --- RECOVERY: ESTUDO --- */}
       {pendingReviewData && !finishModalData && (
         <div className="fixed bottom-24 right-4 z-[9999] animate-fade-in">
           <div onClick={() => setFinishModalData(pendingReviewData)} className="bg-amber-900/90 backdrop-blur-md border border-amber-500/50 shadow-[0_0_20px_rgba(245,158,11,0.2)] rounded-2xl p-3 flex items-center gap-4 w-auto max-w-[320px] overflow-hidden hover:scale-105 transition-transform cursor-pointer">
@@ -816,7 +842,6 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         </div>
       )}
 
-      {/* --- RECOVERY: SIMULADO --- */}
       {pendingSimuladoReview && !finishedSimuladoData && (
         <div className="fixed bottom-24 right-4 z-[9999] animate-fade-in">
           <div onClick={handleRecoverSimulado} className="bg-red-900/90 backdrop-blur-md border border-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.2)] rounded-2xl p-3 flex items-center gap-4 w-auto max-w-[320px] overflow-hidden hover:scale-105 transition-transform cursor-pointer">
