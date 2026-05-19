@@ -1,80 +1,128 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useLayoutEffect, useRef } from 'react';
 import {
   collection, onSnapshot, query, orderBy, addDoc, deleteDoc, doc, where, Timestamp,
-  getDocs, getDoc, setDoc, updateDoc, increment // Imports Otimizados
-} from 'firebase/firestore';
+  getDocs, getDoc, setDoc, updateDoc, increment } from 'firebase/firestore';
+import { Suspense, lazy } from 'react';
 import { db, auth } from '../firebaseConfig';
 import { signOut } from 'firebase/auth';
-
-// Bibliotecas de Terceiros
-import html2canvas from 'html2canvas';
-import { jsPDF } from 'jspdf';
 import { AnimatePresence, motion } from 'framer-motion';
 import { X, CheckCircle2, Download, AlertTriangle, Maximize2, ClipboardList, AlertCircle } from 'lucide-react';
-
-// Componentes
-import ShareCard from '../components/shared/ShareCard';
 import NavSideBar from '../components/dashboard/NavSideBar';
 import Header from '../components/dashboard/Header';
-import Home from '../pages/HomePage/HomePage';
-import GoalsTab from '../components/dashboard/GoalsTab';
-import CalendarTab from '../components/dashboard/CalendarTab';
-import CiclosPage from '../pages/CiclosPage';
-import ProfilePage from '../pages/ProfilePage';
-import AdminPage from '../pages/AdminPage/AdminPage';
-import EditalPage from '../pages/EditalPage';
-import Desempenho from '../pages/DesempenhoPage/DesempenhoPage';
-import StudyTimer from '../components/ciclos/StudyTimer/StudyTimer';
-import TimerFinishModal from '../components/ciclos/TimerFinishModal';
-import OnboardingTour from '../components/shared/OnboardingTour';
-import BroadcastReceiver from '../components/shared/BroadcastReceiver';
-import FeedbackWidget from '../components/FeedbackWidget';
-import SimuladosPage from '../pages/SimuladosPage/SimuladosPage';
-import SimuladoTimer from '../pages/SimuladosPage/SimuladoTimer';
+import GlobalStudyRegisterFab from '../components/ciclos/GlobalStudyRegisterFab';
+const ShareCard = lazy(() => import('../components/shared/ShareCard'));
+const Home = lazy(() => import('../pages/HomePage/HomePage'));
+const GoalsTab = lazy(() => import('../components/dashboard/GoalsTab'));
+const CalendarTab = lazy(() => import('../components/dashboard/CalendarTab'));
+const CiclosPage = lazy(() => import('../pages/CiclosPage'));
+const CronogramaPage = lazy(() => import('../pages/CronogramaPage'));
+const PlanejamentoPage = lazy(() => import('../pages/PlanejamentoPage'));
+const ProfilePage = lazy(() => import('../pages/ProfilePage'));
+const AdminPage = lazy(() => import('../pages/AdminPage/AdminPage'));
+const EditalPage = lazy(() => import('../pages/EditalPage'));
+const Desempenho = lazy(() => import('../pages/DesempenhoPage/DesempenhoPage'));
+const StudyTimer = lazy(() => import('../components/ciclos/StudyTimer/StudyTimer'));
+const TimerFinishModal = lazy(() => import('../components/ciclos/TimerFinishModal'));
+const RegistroEstudoModal = lazy(() => import('../components/ciclos/RegistroEstudoModal'));
+const OnboardingTour = lazy(() => import('../components/shared/OnboardingTour'));
+const BroadcastReceiver = lazy(() => import('../components/shared/BroadcastReceiver'));
+const FeedbackWidget = lazy(() => import('../components/FeedbackWidget'));
+const SimuladosPage = lazy(() => import('../pages/SimuladosPage/SimuladosPage'));
+const SimuladoTimer = lazy(() => import('../pages/SimuladosPage/SimuladoTimer'));
+const NoticiasPage = lazy(() => import('../pages/NoticiasPage'));
+const RevisaoPage = lazy(() => import('../pages/RevisaoPage'));
 
-const ADMIN_UID = 'OLoJi457GQNE2eTSOcz9DAD6ppZ2';
+import { useNotifications } from '../hooks/useNotifications';
+import { useUserAccess } from '../hooks/useUserAccess';
+import {
+  marcarPendenciaTeoriaPorRegistro,
+  syncRegistroEstudoWithCronograma,
+  syncRegistroRevisaoWithCronograma,
+} from '../services/cronogramaProgressSync';
+import { upsertCicloRevisao } from '../services/cicloRevisoes';
 
 const dateToYMD = (date) => {
   const d = date.getDate();
   const m = date.getMonth() + 1;
   const y = date.getFullYear();
-  return '' + y + '-' + (m <= 9 ? '0' + m : m) + '-' + (d <= 9 ? '0' + d : d);
+  return '' + y + '-' + (m <= 9 ? '0'+m : m) + '-' + (d <= 9 ? '0'+d : d);
 };
 
-// --- COMPONENTES AUXILIARES ---
+const ymdToDateLocal = (value) => {
+  if (!value || typeof value !== 'string') return new Date();
+  const [year, month, day] = value.split('-').map(Number);
+  return new Date(year, (month || 1) - 1, day || 1, 12, 0, 0);
+};
+
+const getPreferredHomeContext = () => {
+  try { return localStorage.getItem('homeContextPreferred') || 'cronograma'; } catch { return 'cronograma'; }
+};
+
+const isRegistroContext = (value) => value === 'ciclo' || value === 'cronograma';
+
+const normalizeRegistroEstudo = (docSnap) => {
+  const data = docSnap.data();
+  let dataStr = data.data;
+  if (data.data?.toDate) dataStr = dateToYMD(data.data.toDate());
+  if (!dataStr && data.timestamp?.toDate) dataStr = dateToYMD(data.timestamp.toDate());
+  return {
+    id: docSnap.id,
+    ...data,
+    data: dataStr,
+    tempoEstudadoMinutos: Number(data.tempoEstudadoMinutos || 0),
+    questoesFeitas: Number(data.questoesFeitas || 0),
+    acertos: Number(data.acertos || 0),
+  };
+};
+
+const getCompletionDocId = (origemConclusaoId) => {
+  if (!origemConclusaoId) return null;
+  return `completion_${encodeURIComponent(String(origemConclusaoId)).replace(/\./g, '%2E')}`;
+};
+
+const isCicloPendingFinalization = (ciclo) => {
+  if (!ciclo?.id || ciclo.ativo === false) return false;
+  const totalSessoes = Number(ciclo.totalSessoesCiclo || 0);
+  const concluidas = new Set((ciclo.sessoesConcluidas || []).map(Number)).size;
+  return totalSessoes > 0 && concluidas >= totalSessoes;
+};
+
+const normalizeRegistroText = (value) =>
+  String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+
+const getAssuntoCicloPorSessao = (ciclo, disciplinas, sessao) => {
+  const disciplina = (disciplinas || []).find((item) => String(item?.id) === String(sessao?.disciplinaId));
+  const assuntos = Array.isArray(disciplina?.assuntos) ? disciplina.assuntos : [];
+  const assunto = assuntos[Number(sessao?.sessaoIndex || 0) % Math.max(1, assuntos.length)];
+  if (typeof assunto === 'string') return assunto;
+  return assunto?.nome || assunto?.titulo || assunto?.label || '';
+};
+
+const scrollToTopInstant = (element = null) => {
+  if (element) element.scrollTop = 0;
+  try {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  } catch {
+    window.scrollTo(0, 0);
+  }
+};
 
 const WarningModal = ({ isOpen, onClose, title, message }) => {
   if (!isOpen) return null;
   return (
     <AnimatePresence>
-      <motion.div
-        className="fixed inset-0 z-[10001] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={onClose}
-      >
-        <motion.div
-          initial={{ scale: 0.9, opacity: 0, y: 20 }}
-          animate={{ scale: 1, opacity: 1, y: 0 }}
-          exit={{ scale: 0.95, opacity: 0, y: 10 }}
-          transition={{ type: "spring", duration: 0.5 }}
-          className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl p-6 w-full max-w-md relative overflow-hidden"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="absolute top-0 left-0 w-full h-1 bg-amber-500" />
+      <motion.div className="fixed inset-0 z-[10001] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }} onClick={onClose}>
+        <motion.div initial={{ scale:0.9, opacity:0, y:20 }} animate={{ scale:1, opacity:1, y:0 }} exit={{ scale:0.95, opacity:0, y:10 }} transition={{ type:'spring', duration:0.5 }} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl p-6 w-full max-w-md relative overflow-hidden" onClick={(e)=>e.stopPropagation()}>
+          <div className="absolute top-0 left-0 w-full h-1 bg-amber-500"/>
           <div className="flex flex-col items-center text-center">
-            <div className="w-16 h-16 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center mb-4 text-amber-600 dark:text-amber-500">
-              <AlertCircle size={32} strokeWidth={2.5} />
-            </div>
+            <div className="w-16 h-16 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center mb-4 text-amber-600 dark:text-amber-500"><AlertCircle size={32} strokeWidth={2.5}/></div>
             <h3 className="text-xl font-bold text-zinc-900 dark:text-white mb-2">{title}</h3>
             <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-6 leading-relaxed">{message}</p>
-            <button
-              onClick={onClose}
-              className="w-full py-3 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-bold hover:opacity-90 transition-opacity"
-            >
-              Entendi
-            </button>
+            <button onClick={onClose} className="w-full py-3 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-bold hover:opacity-90 transition-opacity">Entendi</button>
           </div>
         </motion.div>
       </motion.div>
@@ -85,58 +133,39 @@ const WarningModal = ({ isOpen, onClose, title, message }) => {
 const DownloadAlert = ({ isVisible, onDismiss }) => (
   <AnimatePresence>
     {isVisible && (
-      <motion.div
-        initial={{ y: 50, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        exit={{ y: 50, opacity: 0 }}
-        transition={{ duration: 0.3 }}
-        className="fixed bottom-10 left-1/2 transform -translate-x-1/2 z-[10000] p-4 rounded-xl bg-emerald-600 shadow-xl text-white flex items-center gap-3"
-      >
-        <CheckCircle2 size={24} />
+      <motion.div initial={{ y:50, opacity:0 }} animate={{ y:0, opacity:1 }} exit={{ y:50, opacity:0 }} transition={{ duration:0.3 }} className="fixed bottom-10 left-1/2 transform -translate-x-1/2 z-[10000] p-4 rounded-xl bg-emerald-600 shadow-xl text-white flex items-center gap-3">
+        <CheckCircle2 size={24}/>
         <span className="font-bold">Download do Cartão iniciado!</span>
-        <motion.button whileHover={{ scale: 1.1 }} onClick={onDismiss} className="text-white/80 hover:text-white">
-          <X size={18} />
-        </motion.button>
+        <motion.button whileHover={{ scale:1.1 }} onClick={onDismiss} className="text-white/80 hover:text-white"><X size={18}/></motion.button>
       </motion.div>
     )}
   </AnimatePresence>
+);
+
+const SectionLoader = ({ minHeight = '16rem' }) => (
+  <div className="flex items-center justify-center" style={{ minHeight }}>
+    <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-t-2 border-red-600" />
+  </div>
 );
 
 const ShareCardPreviewModal = ({ data, onClose, onDownload }) => {
   if (!data) return null;
   return (
     <AnimatePresence>
-      <motion.div
-        className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-      >
-        <motion.div className="absolute inset-0 bg-zinc-900/70 backdrop-blur-sm" onClick={onClose} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} />
-        <motion.div
-          initial={{ scale: 0.9, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          exit={{ scale: 0.9, opacity: 0 }}
-          transition={{ duration: 0.3, ease: 'easeOut' }}
-          className="relative bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 w-[95%] max-w-lg p-4 sm:p-6 flex flex-col items-center max-h-[90vh] overflow-y-auto"
-        >
-          <div className="absolute top-3 right-3">
-            <button onClick={onClose} className="p-2 rounded-full bg-white/60 dark:bg-zinc-800/60 hover:bg-red-100 dark:hover:bg-red-900/30 text-zinc-600 hover:text-red-600 transition-all">
-              <X size={18} />
-            </button>
-          </div>
+      <motion.div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6" initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }}>
+        <motion.div className="absolute inset-0 bg-zinc-900/70 backdrop-blur-sm" onClick={onClose} initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }}/>
+        <motion.div initial={{ scale:0.9, opacity:0 }} animate={{ scale:1, opacity:1 }} exit={{ scale:0.9, opacity:0 }} transition={{ duration:0.3, ease:'easeOut' }} className="relative bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 w-[95%] max-w-lg p-4 sm:p-6 flex flex-col items-center max-h-[90vh] overflow-y-auto">
+          <div className="absolute top-3 right-3"><button onClick={onClose} className="p-2 rounded-full bg-white/60 dark:bg-zinc-800/60 hover:bg-red-100 dark:hover:bg-red-900/30 text-zinc-600 hover:text-red-600 transition-all"><X size={18}/></button></div>
           <h2 className="text-xl font-bold text-zinc-800 dark:text-white mt-4 mb-1">Preview do Cartão</h2>
           <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4 text-center">Visualize como ficará seu cartão antes de baixar.</p>
           <div id="share-card-capture-target" className="mb-4">
-            <ShareCard stats={data.stats} userName={data.userName} dayData={data.dayData} goals={data.goals} isDarkMode={data.isDarkMode} disableAnimations={true} />
+            <Suspense fallback={<SectionLoader minHeight="20rem" />}>
+              <ShareCard stats={data.stats} userName={data.userName} dayData={data.dayData} goals={data.goals} isDarkMode={data.isDarkMode} disableAnimations={true}/>
+            </Suspense>
           </div>
           <div className="flex gap-3 mt-2 mb-2 shrink-0 download-button-wrapper">
-            <button onClick={onDownload} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-600 text-white font-semibold shadow hover:bg-red-700 transition-all">
-              <Download size={16} /> Baixar PDF
-            </button>
-            <button onClick={onClose} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 font-semibold hover:bg-zinc-300 dark:hover:bg-zinc-700 transition-all">
-              <X size={16} /> Fechar
-            </button>
+            <button onClick={onDownload} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-600 text-white font-semibold shadow hover:bg-red-700 transition-all"><Download size={16}/> Baixar PDF</button>
+            <button onClick={onClose} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 font-semibold hover:bg-zinc-300 dark:hover:bg-zinc-700 transition-all"><X size={16}/> Fechar</button>
           </div>
         </motion.div>
       </motion.div>
@@ -144,7 +173,6 @@ const ShareCardPreviewModal = ({ data, onClose, onDownload }) => {
   );
 };
 
-// --- COMPONENTE PRINCIPAL ---
 function Dashboard({ user, isDarkMode, toggleTheme }) {
   if (!user) {
     return (
@@ -157,135 +185,243 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     );
   }
 
-  const STUDY_STORAGE_KEY = useMemo(() => `@ModoQAP:ActiveSession:${user.uid}`, [user.uid]);
+  const STUDY_STORAGE_KEY   = useMemo(() => `@ModoQAP:ActiveSession:${user.uid}`, [user.uid]);
   const SIMULADO_STORAGE_KEY = useMemo(() => `@ModoQAP:SimuladoActive:${user.uid}`, [user.uid]);
   const SIMULADO_PENDING_KEY = useMemo(() => `@ModoQAP:SimuladoPending:${user.uid}`, [user.uid]);
 
-  // --- ESTADOS DE UI ---
-  const [activeTab, setActiveTab] = useState('home');
-  const [loading, setLoading] = useState(true);
+  const {
+    notifications,
+    unreadCount,
+    broadcasts,
+    editalUpdates,
+    dismissedHistory,
+    readBroadcasts,
+    markBroadcastRead,
+    markAllRead,
+    dismissEditalUpdate,
+    applyEditalUpdate,
+    loading: loadingNotif,
+    deleteBroadcast,
+    deleteHistoryItem
+  } = useNotifications(user);
+  const userAccess = useUserAccess(user);
+
+  const [activeTab, setActiveTab]               = useState('home');
+  const [loading, setLoading]                   = useState(true);
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
-  const [isMobileOpen, setIsMobileOpen] = useState(false);
-  const [forceOpenVisual, setForceOpenVisual] = useState(false);
-  const [isTimerRaised, setIsTimerRaised] = useState(false);
+  const [isMobileOpen, setIsMobileOpen]         = useState(false);
+  const [forceOpenVisual, setForceOpenVisual]   = useState(false);
+  const [isTimerRaised, setIsTimerRaised]       = useState(false);
   const [sharePreviewData, setSharePreviewData] = useState(null);
   const [isDownloadAlertVisible, setIsDownloadAlertVisible] = useState(false);
-  const [tourState, setTourState] = useState({ isActive: false, type: 'main' });
-  const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
-  const [warningAlert, setWarningAlert] = useState({ isOpen: false, title: '', message: '' });
+  const [tourState, setTourState]               = useState({ isActive:false, type:'main' });
+  const [isFeedbackOpen, setIsFeedbackOpen]     = useState(false);
+  const [warningAlert, setWarningAlert]         = useState({ isOpen:false, title:'', message:'' });
 
-  // --- ESTADOS DE SESSÃO (Estudo) ---
-  const [activeStudySession, setActiveStudySession] = useState(null);
-  const [finishModalData, setFinishModalData] = useState(null);
-  const [pendingReviewData, setPendingReviewData] = useState(null);
+  const [activeStudySession, setActiveStudySession]   = useState(null);
+  const [finishModalData, setFinishModalData]         = useState(null);
+  const [pendingReviewData, setPendingReviewData]     = useState(null);
+  const [showGlobalRegistroModal, setShowGlobalRegistroModal] = useState(false);
 
-  // --- ESTADOS DE SESSÃO (Simulado) ---
   const [activeSimuladoSession, setActiveSimuladoSession] = useState(null);
-  const [finishedSimuladoData, setFinishedSimuladoData] = useState(null);
+  const [finishedSimuladoData, setFinishedSimuladoData]   = useState(null);
   const [pendingSimuladoReview, setPendingSimuladoReview] = useState(null);
 
-  // --- DADOS DO FIRESTORE ---
-  const [goalsHistory, setGoalsHistory] = useState([]);
-  const [activeCicloId, setActiveCicloId] = useState(null);
-  const [activeCicloData, setActiveCicloData] = useState(null);
+  const [goalsHistory, setGoalsHistory]           = useState([]);
+  const [activeCicloId, setActiveCicloId]         = useState(null);
+  const [activeCicloData, setActiveCicloData]     = useState(null);
+  const [activeCronogramaData, setActiveCronogramaData] = useState(null);
+  const [targetOpenCicloId, setTargetOpenCicloId] = useState(null);
   const [allRegistrosEstudo, setAllRegistrosEstudo] = useState([]);
-  const [activeRegistrosEstudo, setActiveRegistrosEstudo] = useState([]);
+  const [allSimulados, setAllSimulados]           = useState([]);
   const [activeCycleDisciplines, setActiveCycleDisciplines] = useState([]);
+  const mainContentRef = useRef(null);
 
   const todayStr = dateToYMD(new Date());
-
-  const dayToShareData = useMemo(() => {
-    const todayRecords = allRegistrosEstudo.filter(r => r.data === todayStr);
+  const hasActiveStudyContext = !!(activeCicloId || activeCronogramaData?.id);
+  const cicloPendenteFinalizacao = useMemo(
+    () => isCicloPendingFinalization(activeCicloData),
+    [activeCicloData]
+  );
+  const cicloFinalizacaoMessage = 'Seu ciclo chegou a 100%. Finalize a rodada antes de registrar novos estudos.';
+  const cicloFinalizacaoAlert = useMemo(() => {
+    if (!cicloPendenteFinalizacao) return null;
     return {
-      dayHours: todayRecords.filter(r => (Number(r.tempoEstudadoMinutos) || Number(r.duracaoMinutos)) > 0),
-      dayQuestions: todayRecords.filter(r => (Number(r.questoesFeitas) || 0) > 0),
+      id: `alerta_finalizar_ciclo_${activeCicloId || activeCicloData?.id || 'ativo'}`,
+      type: 'ciclo_finalizacao',
+      title: 'Finalize seu ciclo',
+      message: `${activeCicloData?.nome || 'Seu ciclo'} foi concluido. Registre a finalizacao para liberar uma nova rodada de estudos.`,
+      actionLabel: 'Finalizar Ciclo',
+      navigateTo: 'ciclos',
     };
-  }, [allRegistrosEstudo, todayStr]);
+  }, [activeCicloData?.id, activeCicloData?.nome, activeCicloId, cicloPendenteFinalizacao]);
+  const registroContextOptions = useMemo(() => {
+    const options = [];
 
-  useEffect(() => {
-    const handleTimerRaise = (event) => setIsTimerRaised(event.detail);
-    window.addEventListener('toggle-timer-raise', handleTimerRaise);
-    return () => window.removeEventListener('toggle-timer-raise', handleTimerRaise);
-  }, []);
+    if (activeCicloId) {
+      options.push({
+        type: 'ciclo',
+        id: activeCicloId,
+        label: activeCicloData?.nome || 'Ciclo',
+        disciplinas: Array.isArray(activeCycleDisciplines) ? activeCycleDisciplines : [],
+      });
+    }
 
-  const clearActiveTimerDoc = useCallback(async () => {
-    try { await deleteDoc(doc(db, 'active_timers', user.uid)); } catch {}
-  }, [user?.uid]);
+    if (activeCronogramaData?.id) {
+      const snapshot = Array.isArray(activeCronogramaData.disciplinasSnapshot)
+        ? activeCronogramaData.disciplinasSnapshot
+        : [];
+      const disciplinasCronograma = snapshot.length > 0
+        ? snapshot
+        : Object.values((activeCronogramaData.semanaTemplate || []).reduce((acc, slot) => {
+            const id = slot.disciplinaId || slot.id || slot.disciplinaNome;
+            if (!id) return acc;
+            if (!acc[id]) acc[id] = { id, nome: slot.disciplinaNome || 'Disciplina', assuntos: [] };
+            if (slot.assunto && !acc[id].assuntos.includes(slot.assunto)) acc[id].assuntos.push(slot.assunto);
+            return acc;
+          }, {}));
+      options.push({
+        type: 'cronograma',
+        id: activeCronogramaData.id,
+        label: activeCronogramaData.nome || 'Cronograma',
+        disciplinas: disciplinasCronograma,
+      });
+    }
 
-  const clearActiveSimuladoDoc = useCallback(async () => {
-    try { await deleteDoc(doc(db, `users/${user.uid}/personal_timers/active_simulado`)); } catch {}
-  }, [user?.uid]);
+    return options;
+  }, [activeCicloId, activeCicloData?.nome, activeCycleDisciplines, activeCronogramaData]);
 
-  // -------------------------------------------------------------
-  // 🔥 SINCRONIZAÇÃO EM TEMPO REAL (TIMERS - MANTIDO ON SNAPSHOT)
-  // -------------------------------------------------------------
+  const defaultRegistroContext = useMemo(() => {
+    const contextTypes = registroContextOptions.map((item) => item.type);
+    const sessionHint = activeStudySession?.defaultContext;
 
-  // 1. Ouvinte: Timer de Estudo Ativo
+    if (contextTypes.length === 1) return contextTypes[0];
+    if (isRegistroContext(sessionHint) && contextTypes.includes(sessionHint)) return sessionHint;
+
+    const preferred = getPreferredHomeContext();
+    if (contextTypes.includes(preferred)) return preferred;
+
+    return contextTypes[0] || null;
+  }, [registroContextOptions, activeStudySession?.defaultContext]);
+
   useEffect(() => {
     if (!user) return;
-    const activeStudyRef = doc(db, 'active_timers', user.uid);
+    const q = query(collection(db,'users',user.uid,'simulados'), orderBy('data','desc'));
+    return onSnapshot(q, (snap) => setAllSimulados(snap.docs.map(d => ({ id:d.id, ...d.data() }))));
+  }, [user]);
 
-    const unsubscribe = onSnapshot(activeStudyRef, (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        if (data.isSimulado) return;
-        if (data.status === 'finishing' || data.status === 'finished') return;
-
-        setActiveStudySession(prev => {
-          if (prev && prev.disciplina.id === data.disciplinaId && prev.assunto === data.assunto) return prev;
-          return {
-            disciplina: { id: data.disciplinaId, nome: data.disciplinaNome },
-            assunto: data.assunto,
-            isMinimized: true
-          };
+  const mergedAllRegistrosEstudo = useMemo(() => {
+    const virtual = [];
+    allSimulados.forEach(sim => {
+      const dataStr   = sim.data || dateToYMD(new Date());
+      const timestamp = sim.timestamp || Timestamp.now();
+      if (sim.durationMinutes > 0) {
+        virtual.push({
+          id:`vsim_time_${sim.id}`, cicloId:'simulados_virtuais', disciplinaId:'categoria_simulado',
+          disciplinaNome:'Simulado', disciplinaDisplay:'Simulado',
+          assunto: sim.titulo||'Simulado', simuladoTitulo: sim.titulo||'Simulado',
+          data:dataStr, timestamp, tempoEstudadoMinutos:sim.durationMinutes,
+          duracaoMinutos:sim.durationMinutes, questoesFeitas:0, acertos:0, tipoEstudo:'Simulado',
         });
-      } else {
-        if (!finishModalData && !pendingReviewData) {
-          setActiveStudySession(null);
-        }
+      }
+      if (sim.disciplinas?.length) {
+        sim.disciplinas.forEach((d, idx) => {
+          const nomeReal = (d.nome||'Geral').trim();
+          const discNorm = nomeReal.toLowerCase();
+          const matched  = activeCycleDisciplines?.find(ac => ac.nome.trim().toLowerCase() === discNorm);
+
+          virtual.push({
+            id:`vsim_q_${sim.id}_${idx}`, cicloId:'simulados_virtuais',
+            disciplinaId: matched ? matched.id : `vsim_disc_${discNorm}`,
+            disciplinaNome: nomeReal, disciplinaDisplay:'Simulado',
+            assunto: nomeReal, simuladoTitulo: sim.titulo||'Simulado',
+            data:dataStr, timestamp, tempoEstudadoMinutos:0,
+            questoesFeitas: Number(d.total||d.questoes||0), acertos: Number(d.acertos||0),
+            tipoEstudo:'Simulado',
+          });
+        });
       }
     });
 
-    return () => unsubscribe();
-  }, [user, finishModalData, pendingReviewData]);
+    return [...allRegistrosEstudo, ...virtual].sort((a,b) => {
+      const tA = a.timestamp?.seconds||0, tB = b.timestamp?.seconds||0;
+      if (a.data === b.data) return tB - tA;
+      return a.data < b.data ? 1 : -1;
+    });
+  }, [allRegistrosEstudo, allSimulados, activeCycleDisciplines]);
 
-  // 2. Ouvinte: Timer de Simulado Ativo
+  const mergedActiveRegistrosEstudo = useMemo(() => {
+    if (!activeCicloId) return mergedAllRegistrosEstudo.filter(r => r.tipoEstudo === 'Simulado');
+    return mergedAllRegistrosEstudo.filter(r => r.cicloId === activeCicloId || r.tipoEstudo === 'Simulado');
+  }, [mergedAllRegistrosEstudo, activeCicloId]);
+
+  const isNovoUsuarioPlanejamento = useMemo(() => {
+    const semCicloAtivo = !activeCicloId;
+    const semCronogramaAtivo = !activeCronogramaData?.id;
+    const semRegistros = mergedAllRegistrosEstudo.length === 0;
+    const semMetas = goalsHistory.length === 0;
+    return semCicloAtivo && semCronogramaAtivo && semRegistros && semMetas;
+  }, [activeCicloId, activeCronogramaData?.id, mergedAllRegistrosEstudo.length, goalsHistory.length]);
+
+  const dayToShareData = useMemo(() => {
+    const recs = mergedAllRegistrosEstudo.filter(r => r.data === todayStr);
+    return {
+      dayHours:     recs.filter(r => (Number(r.tempoEstudadoMinutos)||Number(r.duracaoMinutos)) > 0),
+      dayQuestions: recs.filter(r => (Number(r.questoesFeitas)||0) > 0),
+    };
+  }, [mergedAllRegistrosEstudo, todayStr]);
+
+  useEffect(() => {
+    const handler = (e) => setIsTimerRaised(e.detail);
+    window.addEventListener('toggle-timer-raise', handler);
+    return () => window.removeEventListener('toggle-timer-raise', handler);
+  }, []);
+
+  const clearActiveTimerDoc = useCallback(async () => {
+    try { await deleteDoc(doc(db,'active_timers',user.uid)); } catch {}
+  }, [user?.uid]);
+
+  const clearActiveSimuladoDoc = useCallback(async () => {
+    try { await deleteDoc(doc(db,`users/${user.uid}/personal_timers/active_simulado`)); } catch {}
+  }, [user?.uid]);
+
   useEffect(() => {
     if (!user) return;
-    const activeSimRef = doc(db, 'users', user.uid, 'personal_timers', 'active_simulado');
+    return onSnapshot(doc(db,'active_timers',user.uid), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data.isSimulado || data.status === 'finishing' || data.status === 'finished') return;
+        setActiveStudySession(prev => {
+          if (prev?.disciplina?.id === data.disciplinaId && prev?.assunto === data.assunto) return prev;
+          return { disciplina:{ id:data.disciplinaId, nome:data.disciplinaNome }, assunto:data.assunto, isMinimized:true, sessaoGlobalIndex: Number.isFinite(Number(data.sessaoGlobalIndex)) ? Number(data.sessaoGlobalIndex) : null };
+        });
+      } else {
+        if (!finishModalData && !pendingReviewData) setActiveStudySession(null);
+      }
+    });
+  }, [user, finishModalData, pendingReviewData]);
 
-    const unsubscribe = onSnapshot(activeSimRef, (docSnap) => {
+  useEffect(() => {
+    if (!user) return;
+    return onSnapshot(doc(db,'users',user.uid,'personal_timers','active_simulado'), (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
         if (data.status === 'finished') return;
         if (!data.isSimulado && data.timerType !== 'simulado') return;
-
         setActiveSimuladoSession(prev => {
-          const isMinimized = prev ? prev.isMinimized : true;
-          const titulo = prev?.titulo ? prev.titulo : (data.titulo || 'Simulado');
-          const isNewSession = prev?.isNewSession === true ? true : false;
-
-          const next = {
-            titulo,
-            mode: data.mode,
-            initialSeconds: Number(data.initialSeconds || 0),
-            isMinimized,
-            isNewSession,
-          };
-          if (prev && prev.titulo === next.titulo && prev.mode === next.mode && Number(prev.initialSeconds || 0) === Number(next.initialSeconds || 0) && prev.isMinimized === next.isMinimized) return prev;
+          const isMin    = prev ? prev.isMinimized : true;
+          const titulo   = prev?.titulo || data.titulo || 'Simulado';
+          const isNew    = prev?.isNewSession === true;
+          const next     = { titulo, mode:data.mode, initialSeconds:Number(data.initialSeconds||0), isMinimized:isMin, isNewSession:isNew };
+          if (prev && prev.titulo===next.titulo && prev.mode===next.mode && Number(prev.initialSeconds||0)===Number(next.initialSeconds||0) && prev.isMinimized===next.isMinimized) return prev;
           return next;
         });
       } else {
-        if (!finishedSimuladoData) {
-          setActiveSimuladoSession(null);
-        }
+        if (!finishedSimuladoData) setActiveSimuladoSession(null);
       }
     });
-
-    return () => unsubscribe();
   }, [user, finishedSimuladoData]);
 
-  // RESTAURAÇÃO LOCAL
   useEffect(() => {
     const savedStudy = localStorage.getItem(STUDY_STORAGE_KEY);
     if (savedStudy) {
@@ -294,426 +430,641 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         if (parsed.isFinishing && parsed.tempMinutes) {
           clearActiveTimerDoc();
           setPendingReviewData({
-            minutes: parsed.tempMinutes,
-            disciplinaNome: parsed.disciplinaNome,
-            assuntoInicial: parsed.assunto,
-            reason: 'Sessão interrompida (Atualização/Fechamento)',
-            originalData: parsed
+            minutes:parsed.tempMinutes,
+            disciplinaNome:parsed.disciplinaNome,
+            assuntoInicial:parsed.assunto,
+            defaultContext: parsed.defaultContext || null,
+            sessaoGlobalIndex: Number.isFinite(Number(parsed.sessaoGlobalIndex)) ? Number(parsed.sessaoGlobalIndex) : null,
+            reason:'Sessão interrompida (Atualização/Fechamento)',
+            originalData:parsed,
           });
         }
-      } catch (e) {}
+      } catch {}
     }
-
-    const pendingSimulado = localStorage.getItem(SIMULADO_PENDING_KEY);
-    if (pendingSimulado) {
-      try {
-        const parsed = JSON.parse(pendingSimulado);
-        if (parsed && parsed.titulo) {
-          setPendingSimuladoReview(parsed);
-        }
-      } catch (e) {}
+    const pendingSim = localStorage.getItem(SIMULADO_PENDING_KEY);
+    if (pendingSim) {
+      try { const p = JSON.parse(pendingSim); if (p?.titulo) setPendingSimuladoReview(p); } catch {}
     }
   }, [STUDY_STORAGE_KEY, SIMULADO_PENDING_KEY, clearActiveTimerDoc]);
 
-  // ---------------------------------------------
-  // 🔥 BUSCA DE HISTÓRICO OTIMIZADA (getDocs - Leitura Única)
-  // ---------------------------------------------
-  const fetchHistory = useCallback(async () => {
+  const fetchHistory = useCallback(() => {}, []);
+
+  useEffect(() => {
     if (!user) return;
-    try {
-      const q = query(
-        collection(db, 'users', user.uid, 'registrosEstudo'),
-        orderBy('data', 'desc'),
-        orderBy('timestamp', 'desc')
-      );
-
-      const snapshot = await getDocs(q);
-
-      const registros = snapshot.docs.map(docSnap => {
-        const data = docSnap.data();
-        let dataStr = data.data;
-        if (data.data && typeof data.data.toDate === 'function') dataStr = dateToYMD(data.data.toDate());
-        if (!dataStr && data.timestamp && typeof data.timestamp.toDate === 'function') dataStr = dateToYMD(data.timestamp.toDate());
-        return { id: docSnap.id, ...data, data: dataStr };
-      });
-
-      setAllRegistrosEstudo(registros);
+    setLoading(true);
+    const q = query(collection(db,'users',user.uid,'registrosEstudo'), orderBy('data','desc'), orderBy('timestamp','desc'));
+    return onSnapshot(q, (snap) => {
+      setAllRegistrosEstudo(snap.docs.map(normalizeRegistroEstudo));
       setLoading(false);
-    } catch (error) {
-      console.error("Erro ao buscar histórico:", error);
+    }, (error) => {
+      console.error('[Dashboard] Erro ao sincronizar registrosEstudo:', error);
       setLoading(false);
-    }
+    });
   }, [user]);
 
-  // Carrega histórico ao iniciar
-  useEffect(() => {
-    fetchHistory();
-  }, [fetchHistory]);
-
-  // --------------------------------------------------------------------------
-  // 🔥 ACTIONS OTIMIZADAS (Com Agregação/Bala de Prata)
-  // --------------------------------------------------------------------------
-
-  // Função manual para Admin (Bala de Prata)
   const recalculateAllStats = async () => {
     if (!user) return;
     setLoading(true);
     try {
-      const q = query(collection(db, 'users', user.uid, 'registrosEstudo'));
-      const snapshot = await getDocs(q);
+      const q = query(collection(db,'users',user.uid,'registrosEstudo'));
+      const snap = await getDocs(q);
+      let tMin=0, tQ=0, tC=0;
+      snap.docs.forEach(d => { const v=d.data(); tMin+=Number(v.tempoEstudadoMinutos||0); tQ+=Number(v.questoesFeitas||0); tC+=Number(v.acertos||0); });
 
-      let totalMin = 0; let totalQ = 0; let totalC = 0;
-      snapshot.docs.forEach(doc => {
-        const d = doc.data();
-        totalMin += (Number(d.tempoEstudadoMinutos) || 0);
-        totalQ += (Number(d.questoesFeitas) || 0);
-        totalC += (Number(d.acertos) || 0);
-      });
+      const simQ = query(collection(db,'users',user.uid,'simulados'));
+      const simSnap = await getDocs(simQ);
+      simSnap.docs.forEach(d => { const v=d.data(); tMin+=Number(v.durationMinutes||0); tQ+=Number(v.resumo?.totalQuestoes||0); tC+=Number(v.resumo?.totalAcertos||0); });
 
-      const statsRef = doc(db, 'users', user.uid, 'stats', 'geral');
-      await setDoc(statsRef, {
-        totalHorasMinutos: totalMin,
-        totalQuestoes: totalQ,
-        totalAcertos: totalC,
-        lastUpdated: Timestamp.now()
-      });
-      alert("Estatísticas recalculadas e sincronizadas com sucesso!");
-    } catch (e) {
-      console.error(e);
-      alert("Erro ao recalcular.");
-    } finally {
-      setLoading(false);
+      await setDoc(doc(db,'users',user.uid,'stats','geral'), { totalHorasMinutos:tMin, totalQuestoes:tQ, totalAcertos:tC, lastUpdated:Timestamp.now() });
+      alert('Estatísticas recalculadas com sucesso!');
+    } catch { alert('Erro ao recalcular.'); }
+    finally { setLoading(false); }
+  };
+
+  const syncRegistroEstudoWithCiclo = async (payload) => {
+    if (!payload?.cicloId || payload?.isRevisao || payload?.revisao || payload?.tipoEstudo === 'revisao') return;
+    const minutosRegistrados = Number(payload.tempoEstudadoMinutos || 0);
+    if (minutosRegistrados <= 0) return;
+
+    const cicloRef = doc(db, 'users', user.uid, 'ciclos', payload.cicloId);
+    const cicloSnap = await getDoc(cicloRef);
+    const cicloData = cicloSnap.data() || {};
+    const ordemSessoes = Array.isArray(cicloData.ordemSessoes) ? cicloData.ordemSessoes : [];
+    if (!ordemSessoes.length) return;
+
+    const tempoSessaoMinutos = Math.max(1, Number(cicloData.tempoSessaoMinutos || 50));
+    const concluidas = Array.isArray(cicloData.sessoesConcluidas) ? cicloData.sessoesConcluidas.map(Number) : [];
+    const progressoSessoes = cicloData.progressoSessoes || {};
+    const disciplinaIdRegistro = String(payload.disciplinaId || '').trim();
+    const assuntoRegistroNorm = normalizeRegistroText(payload.assunto);
+
+    const candidatos = ordemSessoes
+      .map((sessao, globalIndex) => ({ ...sessao, globalIndex }))
+      .filter((sessao) => {
+        if (concluidas.includes(Number(sessao.globalIndex))) return false;
+        if (Number.isFinite(Number(payload.sessaoGlobalIndex)) && Number(payload.sessaoGlobalIndex) !== Number(sessao.globalIndex)) return false;
+        if (disciplinaIdRegistro && String(sessao.disciplinaId || '') !== disciplinaIdRegistro) return false;
+        if (!assuntoRegistroNorm) return true;
+        const assuntoSessao = getAssuntoCicloPorSessao(cicloData, activeCycleDisciplines, sessao);
+        return !assuntoSessao || normalizeRegistroText(assuntoSessao) === assuntoRegistroNorm;
+      })
+      .sort((a, b) => Number(a.globalIndex) - Number(b.globalIndex));
+
+    if (!candidatos.length) return;
+
+    let minutosRestantes = minutosRegistrados;
+    const updates = {};
+    const novasConcluidas = [...concluidas];
+
+    for (const sessao of candidatos) {
+      if (minutosRestantes <= 0) break;
+      const index = Number(sessao.globalIndex);
+      const progressoAtual = Number(progressoSessoes?.[index] || progressoSessoes?.[String(index)] || 0);
+      const faltantes = Math.max(0, tempoSessaoMinutos - progressoAtual);
+      if (faltantes <= 0) continue;
+
+      const incremento = Math.min(faltantes, minutosRestantes);
+      const novoProgresso = progressoAtual + incremento;
+      const concluiu = novoProgresso >= tempoSessaoMinutos;
+
+      updates[`progressoSessoes.${index}`] = novoProgresso;
+      if (concluiu && !novasConcluidas.includes(index)) {
+        novasConcluidas.push(index);
+        updates.sessoesConcluidas = novasConcluidas;
+        updates[`sessoesConcluidasDetalhes.${index}`] = {
+          concluidaEm: payload.data,
+          atualizadoEm: Timestamp.now(),
+          origem: 'registro_manual',
+        };
+      }
+      minutosRestantes -= incremento;
+    }
+
+    if (Object.keys(updates).length) await updateDoc(cicloRef, updates);
+  };
+
+  const syncRegistroRevisaoWithCiclo = async (payload) => {
+    if (!payload?.cicloId) return;
+    const minutosRegistrados = Number(payload.tempoEstudadoMinutos || 0);
+    if (minutosRegistrados <= 0) return;
+
+    const revisoesRef = collection(db, 'users', user.uid, 'revisoesCiclo');
+    const snap = await getDocs(query(revisoesRef, where('cicloId', '==', payload.cicloId)));
+    const disciplinaIdRegistro = String(payload.disciplinaId || '').trim();
+    const assuntoRegistroNorm = normalizeRegistroText(payload.assunto);
+    const dataRegistro = String(payload.data || '');
+
+    const revisoes = snap.docs
+      .map((document) => ({ id: document.id, ...document.data() }))
+      .filter((rev) => {
+        if (rev.concluida) return false;
+        if (disciplinaIdRegistro && String(rev.disciplinaId || '') !== disciplinaIdRegistro) return false;
+        if (assuntoRegistroNorm && normalizeRegistroText(rev.assunto) !== assuntoRegistroNorm) return false;
+        if (dataRegistro && rev.dataAgendada && String(rev.dataAgendada) > dataRegistro) return false;
+        return true;
+      })
+      .sort((a, b) => String(a.dataAgendada || '').localeCompare(String(b.dataAgendada || '')));
+
+    let minutosRestantes = minutosRegistrados;
+    for (const rev of revisoes) {
+      if (minutosRestantes <= 0) break;
+      const revisaoRef = doc(revisoesRef, rev.id);
+      const tempoPlanejado = Math.max(1, Number(rev.tempoMinutos || 20));
+      const progressoAtual = Number(rev.progressoMinutos || 0);
+      const faltantes = Math.max(0, tempoPlanejado - progressoAtual);
+      if (faltantes <= 0) continue;
+
+      const incremento = Math.min(faltantes, minutosRestantes);
+      const novoProgresso = progressoAtual + incremento;
+      const concluiu = novoProgresso >= tempoPlanejado;
+
+      await setDoc(revisaoRef, {
+        progressoMinutos: novoProgresso,
+        tempoMinutos: tempoPlanejado,
+        ...(concluiu ? { concluida: true, concluidaEm: Timestamp.now() } : {}),
+        atualizadaEm: Timestamp.now(),
+      }, { merge: true });
+
+      minutosRestantes -= incremento;
     }
   };
 
   const addRegistroEstudo = async (data) => {
     try {
-      // 1. Adiciona o registro individual
-      const collectionRef = collection(db, 'users', user.uid, 'registrosEstudo');
-      await addDoc(collectionRef, { ...data, timestamp: Timestamp.now() });
+      const explicitContext = data?.contextoRegistro;
+      const hasCicloDisponivel = Boolean(activeCicloId);
+      const hasCronogramaDisponivel = Boolean(activeCronogramaData?.id);
 
-      // 2. Agregação: Atualiza os totais
-      const statsRef = doc(db, 'users', user.uid, 'stats', 'geral');
-      const statsDoc = await getDoc(statsRef);
-      const valuesToIncrement = {
-        totalHorasMinutos: increment(data.tempoEstudadoMinutos || 0),
-        totalQuestoes: increment(data.questoesFeitas || 0),
-        totalAcertos: increment(data.acertos || 0)
-      };
-
-      if (!statsDoc.exists()) {
-        await setDoc(statsRef, {
-            totalHorasMinutos: data.tempoEstudadoMinutos || 0,
-            totalQuestoes: data.questoesFeitas || 0,
-            totalAcertos: data.acertos || 0
-        });
-      } else {
-        await updateDoc(statsRef, valuesToIncrement);
+      let contextoRegistro = isRegistroContext(explicitContext) ? explicitContext : null;
+      if (!contextoRegistro) {
+        if (data?.cronogramaId && !data?.cicloId) contextoRegistro = 'cronograma';
+        else if (data?.cicloId && !data?.cronogramaId) contextoRegistro = 'ciclo';
+        else if (hasCicloDisponivel && !hasCronogramaDisponivel) contextoRegistro = 'ciclo';
+        else if (!hasCicloDisponivel && hasCronogramaDisponivel) contextoRegistro = 'cronograma';
       }
 
-      // 3. Atualiza a tela
-      fetchHistory();
-    } catch (e) {
-      console.error('Erro ao adicionar registro:', e);
-    }
+      const cicloIdResolved = contextoRegistro === 'ciclo'
+        ? (data?.cicloId || activeCicloId || null)
+        : null;
+      const cronogramaIdResolved = contextoRegistro === 'cronograma'
+        ? (data?.cronogramaId || activeCronogramaData?.id || null)
+        : null;
+
+      if (contextoRegistro === 'cronograma' && !cronogramaIdResolved) {
+        throw new Error('cronograma-id-obrigatorio');
+      }
+
+      if (contextoRegistro === 'ciclo' && String(cicloIdResolved || '') === String(activeCicloId || '') && cicloPendenteFinalizacao) {
+        setWarningAlert({ isOpen:true, title:'Ciclo aguardando finalizacao', message:cicloFinalizacaoMessage });
+        return;
+      }
+
+      const payload = {
+        ...data,
+        data: data?.data || dateToYMD(new Date()),
+        tempoEstudadoMinutos: Number(data?.tempoEstudadoMinutos || 0),
+        questoesFeitas: Number(data?.questoesFeitas || 0),
+        acertos: Number(data?.acertos || 0),
+        timestamp: Timestamp.now(),
+        ...(contextoRegistro ? { contextoRegistro } : {}),
+        ...(cicloIdResolved ? { cicloId: cicloIdResolved } : {}),
+        ...(cronogramaIdResolved ? { cronogramaId: cronogramaIdResolved } : {}),
+        ...(contextoRegistro === 'cronograma' && data?.naoConcluidoCronograma
+          ? { naoConcluidoCronograma: true }
+          : {}),
+      };
+
+      const completionDocId = getCompletionDocId(payload.origemConclusaoId);
+      let registroJaExistia = false;
+      if (completionDocId) {
+        const registroRef = doc(db,'users',user.uid,'registrosEstudo',completionDocId);
+        const existingRegistro = await getDoc(registroRef);
+        registroJaExistia = existingRegistro.exists();
+        await setDoc(registroRef, payload);
+      } else {
+        await addDoc(collection(db,'users',user.uid,'registrosEstudo'), payload);
+      }
+
+      if (registroJaExistia) return;
+
+      const intervaloRevisaoDias = Number(payload.intervaloRevisaoDias);
+      const intervalosRevisaoCiclo = payload.revisaoAutomaticaCiclo === true
+        ? [1, 7, 30]
+        : [intervaloRevisaoDias].filter((intervalo) => Number.isFinite(intervalo) && intervalo > 0);
+      const deveAgendarRevisaoCiclo = Boolean(
+        payload.cicloId &&
+        payload.assunto &&
+        intervalosRevisaoCiclo.length > 0
+      );
+
+      if (deveAgendarRevisaoCiclo) {
+        for (const intervalo of intervalosRevisaoCiclo) {
+          const baseDate = ymdToDateLocal(payload.data);
+          baseDate.setDate(baseDate.getDate() + intervalo);
+
+          await upsertCicloRevisao(db, user.uid, {
+            cicloId: payload.cicloId,
+            disciplinaId: payload.disciplinaId || null,
+            disciplinaNome: payload.disciplinaNome || 'Disciplina',
+            assunto: payload.assunto,
+            dataAgendada: dateToYMD(baseDate),
+            intervaloDias: intervalo,
+            origem: payload.revisaoAutomaticaCiclo === true ? 'registro_estudo_auto_1_7_30' : 'registro_estudo',
+          });
+        }
+      }
+
+      if (payload.contextoRegistro === 'ciclo' && payload.cicloId) {
+        const cicloRef = doc(db, 'users', user.uid, 'ciclos', payload.cicloId);
+        const disciplinaKey = payload.disciplinaId || null;
+        const assuntoAtual = String(payload.assunto || '').trim();
+
+        if (payload.teoriaNaoFinalizadaCiclo && disciplinaKey && assuntoAtual) {
+          await setDoc(cicloRef, {
+            pendenciasTeoria: {
+              [disciplinaKey]: {
+                assuntoAtual,
+                minutosAcumulados: Number(payload.tempoEstudadoMinutos || 0),
+                status: 'pendente',
+                atualizadoEm: Timestamp.now(),
+              },
+            },
+          }, { merge: true });
+        } else if (disciplinaKey && assuntoAtual && (payload.assuntoFinalizadoCiclo || payload.markAsFinished)) {
+          await setDoc(cicloRef, {
+            pendenciasTeoria: {
+              [disciplinaKey]: {
+                assuntoAtual: '',
+                minutosAcumulados: 0,
+                status: 'finalizado',
+                atualizadoEm: Timestamp.now(),
+              },
+            },
+          }, { merge: true });
+        }
+
+        if (!payload.teoriaNaoFinalizadaCiclo) {
+          await syncRegistroEstudoWithCiclo(payload);
+        }
+      }
+
+      const statsRef = doc(db,'users',user.uid,'stats','geral');
+      const statsDoc = await getDoc(statsRef);
+      const vals = {
+        totalHorasMinutos: increment(payload.tempoEstudadoMinutos),
+        totalQuestoes: increment(payload.questoesFeitas),
+        totalAcertos: increment(payload.acertos),
+      };
+      if (!statsDoc.exists()) {
+        await setDoc(statsRef, {
+          totalHorasMinutos: payload.tempoEstudadoMinutos,
+          totalQuestoes: payload.questoesFeitas,
+          totalAcertos: payload.acertos,
+        });
+      }
+      else await updateDoc(statsRef, vals);
+
+      const isRegistroRevisao = payload.isRevisao || payload.revisao || payload.tipoEstudo === 'revisao';
+
+      if (payload.contextoRegistro === 'cronograma' && payload.cronogramaId) {
+        if (isRegistroRevisao) {
+          await syncRegistroRevisaoWithCronograma({
+            db,
+            userUid: user.uid,
+            cronogramaId: payload.cronogramaId,
+            registro: payload,
+          });
+        } else if (payload.naoConcluidoCronograma) {
+          await marcarPendenciaTeoriaPorRegistro({
+            db,
+            userUid: user.uid,
+            cronogramaId: payload.cronogramaId,
+            registro: payload,
+          });
+        } else {
+          await syncRegistroEstudoWithCronograma({
+            db,
+            userUid: user.uid,
+            cronogramaId: payload.cronogramaId,
+            registro: payload,
+          });
+        }
+      }
+
+      if (payload.contextoRegistro === 'ciclo' && payload.cicloId && isRegistroRevisao) {
+        await syncRegistroRevisaoWithCiclo(payload);
+      }
+
+    } catch (e) { console.error(e); }
   };
 
   const deleteRegistro = async (id) => {
     try {
-      const docRef = doc(db, 'users', user.uid, 'registrosEstudo', id);
-      const docSnap = await getDoc(docRef);
-
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        await deleteDoc(docRef);
-
-        const statsRef = doc(db, 'users', user.uid, 'stats', 'geral');
-        try {
-            await updateDoc(statsRef, {
-              totalHorasMinutos: increment(-(data.tempoEstudadoMinutos || 0)),
-              totalQuestoes: increment(-(data.questoesFeitas || 0)),
-              totalAcertos: increment(-(data.acertos || 0))
-            });
-        } catch (err) { /* ignore */ }
+      const ref = doc(db,'users',user.uid,'registrosEstudo',id);
+      const snap = await getDoc(ref);
+      if (snap.exists()) {
+        const data = snap.data();
+        await deleteDoc(ref);
+        const statsRef = doc(db,'users',user.uid,'stats','geral');
+        try { await updateDoc(statsRef, { totalHorasMinutos:increment(-(data.tempoEstudadoMinutos||0)), totalQuestoes:increment(-(data.questoesFeitas||0)), totalAcertos:increment(-(data.acertos||0)) }); } catch {}
       }
-      fetchHistory();
+    } catch (e) { console.error(e); }
+  };
+
+  const deleteCompletionRegistro = async (completionData) => {
+    try {
+      const origemConclusaoId = typeof completionData === 'string'
+        ? completionData
+        : completionData?.origemConclusaoId;
+      if (!origemConclusaoId) return false;
+
+      let deleted = false;
+      const completionDocId = getCompletionDocId(origemConclusaoId);
+      if (completionDocId) {
+        const ref = doc(db,'users',user.uid,'registrosEstudo',completionDocId);
+        const snap = await getDoc(ref);
+        if (snap.exists()) {
+          await deleteRegistro(completionDocId);
+          deleted = true;
+        }
+      }
+
+      const q = query(
+        collection(db,'users',user.uid,'registrosEstudo'),
+        where('origemConclusaoId','==',origemConclusaoId)
+      );
+      const snap = await getDocs(q);
+      for (const document of snap.docs) {
+        if (document.id !== completionDocId) {
+          await deleteRegistro(document.id);
+          deleted = true;
+        }
+      }
+
+      return deleted;
     } catch (e) {
-      console.error("Erro ao deletar", e);
+      console.error('[Dashboard] Erro ao remover registro de conclusao:', e);
+      return false;
     }
   };
 
-  const deleteData = async (collectionName, id) => { await deleteDoc(doc(db, 'users', user.uid, collectionName, id)); };
+  const deleteData  = async (col, id) => { await deleteDoc(doc(db,'users',user.uid,col,id)); };
+  const addGoal     = async (goalData) => { await addDoc(collection(db,'users',user.uid,'metas'), { ...goalData, startDate:dateToYMD(new Date()) }); };
 
-  const addGoal = async (goalData) => { await addDoc(collection(db, 'users', user.uid, 'metas'), { ...goalData, startDate: dateToYMD(new Date()) }); };
-
-  // ---------------------------------------------
-  // HANDLERS (Estudo/Simulado/Geral)
-  // ---------------------------------------------
-  const handleStartStudy = (disciplina, assunto = null) => {
-    if (activeSimuladoSession) {
-      setWarningAlert({ isOpen: true, title: "Sessão Conflitante", message: "Você tem um Simulado em andamento." });
+  const handleStartStudy = (disciplina, assunto = null, options = {}) => {
+    if (activeSimuladoSession) { setWarningAlert({ isOpen:true, title:'Sessão Conflitante', message:'Você tem um Simulado em andamento.' }); return; }
+    const contextHint = isRegistroContext(options?.defaultContext) ? options.defaultContext : defaultRegistroContext;
+    setActiveStudySession({
+      disciplina,
+      assunto,
+      isMinimized:false,
+      defaultContext: contextHint,
+      sessaoGlobalIndex: Number.isFinite(Number(options?.sessaoGlobalIndex)) ? Number(options.sessaoGlobalIndex) : null,
+    });
+  };
+  const handleOpenGlobalRegistro = () => {
+    if (!hasActiveStudyContext) {
+      setWarningAlert({ isOpen:true, title:'Planejamento Necessario', message:'Ative um ciclo ou cronograma para registrar estudos.' });
       return;
     }
-    setActiveStudySession({ disciplina, assunto, isMinimized: false });
+    if (activeStudySession || activeSimuladoSession) {
+      setWarningAlert({ isOpen:true, title:'Sessao em andamento', message:'Finalize o timer ativo antes de abrir um novo registro manual.' });
+      return;
+    }
+    setShowGlobalRegistroModal(true);
   };
 
   const handleStopStudyRequest = (minutes) => {
-    if (!activeStudySession || !activeCicloId) {
-      if(!activeCicloId) alert("Nenhum ciclo ativo encontrado.");
+    if (!activeStudySession) return;
+    if (!hasActiveStudyContext) {
+      alert('Nenhum ciclo ou cronograma ativo encontrado.');
       return;
     }
-    const currentStorage = JSON.parse(localStorage.getItem(STUDY_STORAGE_KEY) || '{}');
-    localStorage.setItem(STUDY_STORAGE_KEY, JSON.stringify({ ...currentStorage, isFinishing: true, tempMinutes: minutes, isPaused: true }));
-    setFinishModalData({ minutes, disciplinaNome: activeStudySession.disciplina.nome, assuntoInicial: activeStudySession.assunto });
+    const cur = JSON.parse(localStorage.getItem(STUDY_STORAGE_KEY)||'{}');
+    localStorage.setItem(STUDY_STORAGE_KEY, JSON.stringify({ ...cur, isFinishing:true, tempMinutes:minutes, isPaused:true }));
+    setFinishModalData({
+      minutes,
+      disciplinaNome:activeStudySession.disciplina.nome,
+      assuntoInicial:activeStudySession.assunto,
+      defaultContext: activeStudySession.defaultContext || null,
+      sessaoGlobalIndex: activeStudySession.sessaoGlobalIndex ?? null,
+    });
   };
 
   const handleRetomarEstudo = () => {
-    setFinishModalData(null);
-    setPendingReviewData(null);
-    const currentStorage = JSON.parse(localStorage.getItem(STUDY_STORAGE_KEY) || '{}');
-    if (currentStorage.disciplinaId) {
-      delete currentStorage.isFinishing;
-      delete currentStorage.tempMinutes;
-      currentStorage.isPaused = true;
-      localStorage.setItem(STUDY_STORAGE_KEY, JSON.stringify(currentStorage));
-      setActiveStudySession({ disciplina: { id: currentStorage.disciplinaId, nome: currentStorage.disciplinaNome }, assunto: currentStorage.assunto, isMinimized: false });
+    setFinishModalData(null); setPendingReviewData(null);
+    const cur = JSON.parse(localStorage.getItem(STUDY_STORAGE_KEY)||'{}');
+    if (cur.disciplinaId) {
+      delete cur.isFinishing; delete cur.tempMinutes; cur.isPaused = true;
+      localStorage.setItem(STUDY_STORAGE_KEY, JSON.stringify(cur));
+      setActiveStudySession({
+        disciplina:{ id:cur.disciplinaId, nome:cur.disciplinaNome },
+        assunto:cur.assunto,
+        isMinimized:false,
+        defaultContext: isRegistroContext(cur.defaultContext) ? cur.defaultContext : null,
+        sessaoGlobalIndex: Number.isFinite(Number(cur.sessaoGlobalIndex)) ? Number(cur.sessaoGlobalIndex) : null,
+      });
     }
   };
 
   const handleConfirmCancelStudy = async () => {
-    setActiveStudySession(null);
-    setFinishModalData(null);
-    setPendingReviewData(null);
-    localStorage.removeItem(STUDY_STORAGE_KEY);
-    clearActiveTimerDoc();
+    setActiveStudySession(null); setFinishModalData(null); setPendingReviewData(null);
+    localStorage.removeItem(STUDY_STORAGE_KEY); clearActiveTimerDoc();
   };
 
   const handleConfirmFinishStudy = async (resultData) => {
     const dataRef = finishModalData || pendingReviewData;
     if (!dataRef) return;
-
     if (resultData.savedInternal) {
       localStorage.removeItem(STUDY_STORAGE_KEY);
-      setFinishModalData(null);
-      setPendingReviewData(null);
-      setActiveStudySession(null);
-      clearActiveTimerDoc();
-      fetchHistory();
-      return;
+      setFinishModalData(null); setPendingReviewData(null); setActiveStudySession(null);
+      clearActiveTimerDoc(); fetchHistory(); return;
     }
-
     const { minutes } = dataRef;
-    const { questions, correct, obs, assunto, disciplinaNomeCorrigido, markAsFinished } = resultData;
-    const nomeDisciplinaFinal = disciplinaNomeCorrigido || dataRef.disciplinaNome;
+    const {
+      questions,
+      correct,
+      obs,
+      assunto,
+      disciplinaNomeCorrigido,
+      markAsFinished,
+      contextoRegistro,
+      teoriaNaoFinalizadaCiclo,
+      naoConcluidoCronograma,
+    } = resultData;
+    const nomeFinal = disciplinaNomeCorrigido || dataRef.disciplinaNome;
 
     try {
-      const storageData = JSON.parse(localStorage.getItem(STUDY_STORAGE_KEY) || '{}');
-      const finalDisciplinaId = activeStudySession?.disciplina?.id || storageData.disciplinaId || 'restored_id';
+      const storageData = JSON.parse(localStorage.getItem(STUDY_STORAGE_KEY)||'{}');
+      const finalDiscId = activeStudySession?.disciplina?.id || storageData.disciplinaId || 'restored_id';
       localStorage.removeItem(STUDY_STORAGE_KEY);
 
-      const isEdital = activeCicloData?.editalId || activeCicloData?.templateId;
+      const isEdital  = activeCicloData?.editalId || activeCicloData?.templateId;
       const tipoCiclo = isEdital ? 'Edital Base' : 'Ciclo Manual';
       const nomeCiclo = activeCicloData?.nome || 'Ciclo Personalizado';
 
       await addRegistroEstudo({
-        cicloId: activeCicloId,
-        cicloNome: nomeCiclo,
-        cicloTipo: tipoCiclo,
-        disciplinaId: finalDisciplinaId,
-        disciplinaNome: nomeDisciplinaFinal,
-        data: dateToYMD(new Date()),
-        tempoEstudadoMinutos: minutes,
-        questoesFeitas: questions,
-        acertos: correct,
-        obs: obs || 'Sessão via Timer',
-        assunto: assunto || null,
-        timestamp: Timestamp.now()
+        cicloId:activeCicloId,
+        cicloNome:nomeCiclo,
+        cicloTipo:tipoCiclo,
+        disciplinaId:finalDiscId,
+        disciplinaNome:nomeFinal,
+        data:dateToYMD(new Date()),
+        tempoEstudadoMinutos:minutes,
+        questoesFeitas:questions,
+        acertos:correct,
+        obs:obs||'Sessão via Timer',
+        assunto:assunto||null,
+        timestamp:Timestamp.now(),
+        ...(Number.isFinite(Number(dataRef.sessaoGlobalIndex)) && !teoriaNaoFinalizadaCiclo ? { sessaoGlobalIndex: Number(dataRef.sessaoGlobalIndex) } : {}),
+        ...(isRegistroContext(contextoRegistro) ? { contextoRegistro } : {}),
+        ...(contextoRegistro === 'ciclo' && markAsFinished ? { assuntoFinalizadoCiclo: true, markAsFinished: true } : {}),
+        ...(contextoRegistro === 'ciclo' && teoriaNaoFinalizadaCiclo ? { teoriaNaoFinalizadaCiclo: true } : {}),
+        ...(contextoRegistro === 'cronograma' && naoConcluidoCronograma ? { naoConcluidoCronograma: true } : {}),
       });
 
-      if (markAsFinished && assunto) {
-        await addDoc(collection(db, 'users', user.uid, 'registrosEstudo'), {
-          cicloId: activeCicloId,
-          cicloNome: nomeCiclo,
-          cicloTipo: tipoCiclo,
-          disciplinaId: finalDisciplinaId,
-          disciplinaNome: nomeDisciplinaFinal,
-          assunto,
-          data: dateToYMD(new Date()),
-          timestamp: Timestamp.now(),
-          tempoEstudadoMinutos: 0,
-          questoesFeitas: 0,
-          acertos: 0,
-          tipoEstudo: 'check_manual',
-          obs: 'Concluído via Timer'
-        });
+      if (contextoRegistro === 'ciclo' && markAsFinished && assunto) {
+        await addDoc(collection(db,'users',user.uid,'registrosEstudo'), { cicloId:activeCicloId, cicloNome:nomeCiclo, cicloTipo:tipoCiclo, disciplinaId:finalDiscId, disciplinaNome:nomeFinal, assunto, data:dateToYMD(new Date()), timestamp:Timestamp.now(), tempoEstudadoMinutos:0, questoesFeitas:0, acertos:0, tipoEstudo:'check_manual', obs:'Concluído via Timer' });
         fetchHistory();
       }
 
-      setFinishModalData(null);
-      setPendingReviewData(null);
-      setActiveStudySession(null);
-      clearActiveTimerDoc();
-    } catch (e) {
-      console.error("Erro ao salvar timer:", e);
-      alert("Erro ao salvar sessão. Verifique sua conexão.");
-    }
+      setFinishModalData(null); setPendingReviewData(null); setActiveStudySession(null); clearActiveTimerDoc();
+    } catch (e) { console.error(e); alert('Erro ao salvar sessão. Verifique sua conexão.'); }
   };
 
   const handleStartSimulado = (config) => {
-    if (activeStudySession) {
-      setWarningAlert({ isOpen: true, title: "Sessão Conflitante", message: "Finalize a sessão de estudo antes." });
-      return;
-    }
-    setActiveSimuladoSession({ titulo: config.titulo || 'Simulado', mode: config.mode || 'free', initialSeconds: Number(config.totalSeconds) || Number(config.initialSeconds) || 14400, isMinimized: false, isNewSession: true });
+    if (activeStudySession) { setWarningAlert({ isOpen:true, title:'Sessão Conflitante', message:'Finalize a sessão de estudo antes.' }); return; }
+    setActiveSimuladoSession({ titulo:config.titulo||'Simulado', mode:config.mode||'free', initialSeconds:Number(config.totalSeconds)||Number(config.initialSeconds)||14400, isMinimized:false, isNewSession:true });
   };
 
   const handleFinishSimulado = async (minutes) => {
-    const tituloFinal = activeSimuladoSession?.titulo || 'Simulado';
-    const data = { titulo: tituloFinal, data: dateToYMD(new Date()), durationMinutes: minutes };
+    const titulo = activeSimuladoSession?.titulo||'Simulado';
+    const data   = { titulo, data:dateToYMD(new Date()), durationMinutes:minutes };
     localStorage.setItem(SIMULADO_PENDING_KEY, JSON.stringify(data));
-    setFinishedSimuladoData(data);
-    setActiveSimuladoSession(null);
-    clearActiveSimuladoDoc();
-    setActiveTab('simulados');
+    setFinishedSimuladoData(data); setActiveSimuladoSession(null); clearActiveSimuladoDoc(); setActiveTab('simulados');
   };
 
   const handleRecoverSimulado = () => {
-    if (pendingSimuladoReview) {
-      setFinishedSimuladoData(pendingSimuladoReview);
-      setPendingSimuladoReview(null);
-      setActiveTab('simulados');
+    if (pendingSimuladoReview) { setFinishedSimuladoData(pendingSimuladoReview); setPendingSimuladoReview(null); setActiveTab('simulados'); }
+  };
+
+  const handleCancelSimulado  = () => { setActiveSimuladoSession(null); clearActiveSimuladoDoc(); localStorage.removeItem(SIMULADO_STORAGE_KEY); };
+  const handleClearSimuladoData = () => { setFinishedSimuladoData(null); localStorage.removeItem(SIMULADO_PENDING_KEY); };
+
+  const handleTourCloseOrFinish = (type) => { if (user) localStorage.setItem(`onboarding_seen_${user.uid}_${type}`,'true'); setTourState({ isActive:false, type:'main' }); };
+
+  const setPreferredHomeContext = (value) => {
+    if (!isRegistroContext(value)) return;
+    try {
+      localStorage.setItem('homeContextPreferred', value);
+      window.dispatchEvent(new CustomEvent('home-context-preferred-change', { detail: value }));
+    } catch (error) {
+      void error;
     }
-  };
-
-  const handleCancelSimulado = () => {
-    setActiveSimuladoSession(null);
-    clearActiveSimuladoDoc();
-    localStorage.removeItem(SIMULADO_STORAGE_KEY);
-  };
-
-  const handleClearSimuladoData = () => {
-    setFinishedSimuladoData(null);
-    localStorage.removeItem(SIMULADO_PENDING_KEY);
-  };
-
-  const handleTourCloseOrFinish = (type) => {
-    if (user) localStorage.setItem(`onboarding_seen_${user.uid}_${type}`, 'true');
-    setTourState({ isActive: false, type: 'main' });
   };
 
   const handleCicloCreationOrActivation = (cicloId) => {
-    setActiveTab('ciclos');
-    setForceOpenVisual(true);
-    setTimeout(() => setForceOpenVisual(false), 1000);
-    if (user) {
-      const cycleTourSeen = localStorage.getItem(`onboarding_seen_${user.uid}_cycle_visual`);
-      if (!cycleTourSeen) setTourState({ isActive: true, type: 'cycle_visual' });
-    }
+    setPreferredHomeContext('ciclo');
+    if (cicloId) setTargetOpenCicloId(cicloId);
+    setActiveTab('ciclos'); setForceOpenVisual(true); setTimeout(() => setForceOpenVisual(false), 1000);
+    if (user) { const seen = localStorage.getItem(`onboarding_seen_${user.uid}_cycle_visual`); if (!seen) setTourState({ isActive:true, type:'cycle_visual' }); }
   };
 
-  const handleGoToActiveCycle = () => {
-    if (activeCicloId) handleCicloCreationOrActivation(activeCicloId);
-    else setActiveTab('ciclos');
+  const handleCronogramaCreation = () => {
+    setPreferredHomeContext('cronograma');
+    setActiveTab('cronograma');
   };
+
+  const handleGoToActiveCycle = () => { if (activeCicloId) handleCicloCreationOrActivation(activeCicloId); else setActiveTab('planejamento'); };
 
   const handleTabChange = (tab) => {
-    setActiveTab(tab);
-    if (tab !== 'ciclos') { setForceOpenVisual(false); setIsTimerRaised(false); }
+    const resolvedTab = tab === 'cronogramas' ? 'planejamento' : tab;
+    if (resolvedTab === 'cronograma') setPreferredHomeContext('cronograma');
+    if (resolvedTab === 'ciclos') setPreferredHomeContext('ciclo');
+    setActiveTab(resolvedTab);
+    if (resolvedTab !== 'ciclos') { setForceOpenVisual(false); setIsTimerRaised(false); }
   };
 
-  const handleLogout = async () => {
-    clearActiveTimerDoc();
-    clearActiveSimuladoDoc();
-    signOut(auth).catch((error) => console.error('Logout Error:', error));
-  };
+  const handleLogout     = async () => { clearActiveTimerDoc(); clearActiveSimuladoDoc(); signOut(auth).catch(console.error); };
 
-  const handleShareGoal = (stats) => {
-    setSharePreviewData({ stats, userName: user.displayName || 'Estudante', dayData: dayToShareData, goals: goalsHistory[0] || { questions: 0, hours: 0 }, isDarkMode });
-  };
+  const handleShareGoal  = (stats) => { setSharePreviewData({ stats, userName:user.displayName||'Estudante', dayData:dayToShareData, goals:goalsHistory[0]||{ questions:0, hours:0 }, isDarkMode }); };
+
+  useLayoutEffect(() => {
+    scrollToTopInstant(mainContentRef.current);
+  }, [activeTab]);
 
   const handleDownloadPDF = async () => {
-    const element = document.getElementById('share-card-capture-target');
-    if (!element) return alert('Erro ao capturar cartão.');
-
-    const buttonWrapper = document.querySelector('.download-button-wrapper');
-    if (buttonWrapper) buttonWrapper.style.display = 'none';
-
+    const el = document.getElementById('share-card-capture-target');
+    if (!el) return alert('Erro ao capturar cartão.');
+    const bw = document.querySelector('.download-button-wrapper');
+    if (bw) bw.style.display = 'none';
     try {
-      const targetWidthPx = 340;
-      const targetHeightPx = element.offsetHeight;
-      const canvas = await html2canvas(element, { scale: 4.0, useCORS: true, backgroundColor: sharePreviewData?.isDarkMode ? '#18181b' : '#ffffff' });
-      const pxToMm = 0.264583;
-      const imgData = canvas.toDataURL('image/jpeg', 1.0);
-      const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: [targetWidthPx * pxToMm, targetHeightPx * pxToMm] });
-      pdf.addImage(imgData, 'JPEG', 0, 0, targetWidthPx * pxToMm, targetHeightPx * pxToMm);
+      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+        import('html2canvas'),
+        import('jspdf'),
+      ]);
+      const W = 340, H = el.offsetHeight, pxMm = 0.264583;
+      const canvas = await html2canvas(el, { scale:4.0, useCORS:true, backgroundColor:sharePreviewData?.isDarkMode?'#18181b':'#ffffff' });
+      const pdf = new jsPDF({ orientation:'p', unit:'mm', format:[W*pxMm, H*pxMm] });
+      pdf.addImage(canvas.toDataURL('image/jpeg',1.0),'JPEG',0,0,W*pxMm,H*pxMm);
       pdf.save(`Progresso_${dateToYMD(new Date())}.pdf`);
-      setSharePreviewData(null);
-      setIsDownloadAlertVisible(true);
-      setTimeout(() => setIsDownloadAlertVisible(false), 3500);
-    } catch (e) {
-      console.error('Erro ao gerar PDF:', e);
-      alert('Falha ao gerar PDF.');
-    } finally {
-      if (buttonWrapper) buttonWrapper.style.display = 'flex';
-    }
+      setSharePreviewData(null); setIsDownloadAlertVisible(true); setTimeout(() => setIsDownloadAlertVisible(false),3500);
+    } catch { alert('Falha ao gerar PDF.'); }
+    finally { if (bw) bw.style.display = 'flex'; }
   };
 
-  // --- EFEITOS GERAIS (Ciclos, Metas) ---
   useEffect(() => {
     if (!user || loading) return;
-    const tourType = 'main';
-    const hasSeen = localStorage.getItem(`onboarding_seen_${user.uid}_${tourType}`);
-    const isTrulyNew = goalsHistory.length === 0 && allRegistrosEstudo.length === 0;
-    if (!hasSeen && isTrulyNew) setTourState({ isActive: true, type: tourType });
-    else if (!isTrulyNew && !hasSeen) handleTourCloseOrFinish(tourType);
-  }, [user, loading, goalsHistory.length, allRegistrosEstudo.length]);
+    const type    = 'main';
+    const hasSeen = localStorage.getItem(`onboarding_seen_${user.uid}_${type}`);
+    const isNew   = goalsHistory.length === 0 && mergedAllRegistrosEstudo.length === 0;
+
+    if (!hasSeen && isNew)  setTourState({ isActive:true, type });
+    else if (!isNew && !hasSeen) handleTourCloseOrFinish(type);
+  }, [user, loading, goalsHistory.length, mergedAllRegistrosEstudo.length]);
 
   useEffect(() => {
     if (!user) return;
-    const q = query(collection(db, 'users', user.uid, 'ciclos'), where('ativo', '==', true), where('arquivado', '==', false));
-    return onSnapshot(q, (snapshot) => {
-      if (snapshot.empty) { setActiveCicloId(null); setActiveCicloData(null); }
-      else {
-        const cicloDoc = snapshot.docs[0];
-        setActiveCicloId(cicloDoc.id);
-        setActiveCicloData({ id: cicloDoc.id, ...cicloDoc.data() });
-      }
+    const q = query(collection(db,'users',user.uid,'ciclos'), where('ativo','==',true), where('arquivado','==',false));
+    return onSnapshot(q, (snap) => {
+      if (snap.empty) { setActiveCicloId(null); setActiveCicloData(null); }
+      else { const d = snap.docs[0]; setActiveCicloId(d.id); setActiveCicloData({ id:d.id, ...d.data() }); }
+    });
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    const q = query(collection(db,'users',user.uid,'cronogramas'), where('ativo','==',true));
+    return onSnapshot(q, (snap) => {
+      if (snap.empty) setActiveCronogramaData(null);
+      else setActiveCronogramaData({ id:snap.docs[0].id, ...snap.docs[0].data() });
     });
   }, [user]);
 
   useEffect(() => {
     if (!user || !activeCicloId) { setActiveCycleDisciplines([]); return; }
     return onSnapshot(
-      query(collection(db, 'users', user.uid, 'ciclos', activeCicloId, 'disciplinas')),
-      (snapshot) => {
-        setActiveCycleDisciplines(snapshot.docs.map(d => {
-          const data = d.data();
-          const assuntos = Array.isArray(data.assuntos)
-            ? data.assuntos.map(a => (typeof a === 'string' ? { nome: a, inCiclo: true } : { ...a, nome: (a?.nome || '').trim(), inCiclo: a?.inCiclo !== false })).filter(a => a.nome)
-            : [];
-          return { id: d.id, ...data, assuntos, inCiclo: data.inCiclo !== false };
-        }));
-      }
+      query(collection(db,'users',user.uid,'ciclos',activeCicloId,'disciplinas')),
+      (snap) => setActiveCycleDisciplines(snap.docs.map(d => {
+        const data = d.data();
+        const assuntos = Array.isArray(data.assuntos)
+          ? data.assuntos.map(a => typeof a==='string' ? { nome:a, inCiclo:true } : { ...a, nome:(a?.nome||'').trim(), inCiclo:a?.inCiclo!==false }).filter(a=>a.nome)
+          : [];
+        return { id:d.id, ...data, assuntos, inCiclo:data.inCiclo!==false };
+      }))
     );
   }, [user, activeCicloId]);
 
   useEffect(() => {
-    if (loading) return;
-    if (!activeCicloId) setActiveRegistrosEstudo([]);
-    else setActiveRegistrosEstudo(allRegistrosEstudo.filter(r => r.cicloId === activeCicloId));
-  }, [activeCicloId, allRegistrosEstudo, loading]);
-
-  useEffect(() => {
     if (!user) return;
     return onSnapshot(
-      query(collection(db, 'users', user.uid, 'metas'), orderBy('startDate', 'desc')),
-      (snapshot) => setGoalsHistory(snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() })))
+      query(collection(db,'users',user.uid,'metas'), orderBy('startDate','desc')),
+      (snap) => setGoalsHistory(snap.docs.map(d => ({ id:d.id, ...d.data() })))
     );
   }, [user]);
 
-  // --- RENDER TAB CONTENT ---
   const renderTabContent = () => {
-    if (loading && ['home', 'calendar', 'stats'].includes(activeTab)) {
+    if (loading && ['home','calendar','stats'].includes(activeTab)) {
       return (
         <div className="flex justify-center items-center h-64">
           <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-red-600 mx-auto mb-4"></div>
@@ -722,26 +1073,46 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     }
     switch (activeTab) {
       case 'home':
-        return <Home registrosEstudo={activeRegistrosEstudo} allRegistrosEstudo={allRegistrosEstudo} goalsHistory={goalsHistory} setActiveTab={handleGoToActiveCycle} activeCicloData={activeCicloData} activeCicloId={activeCicloId} onDeleteRegistro={deleteRegistro} />;
+        return <Home registrosEstudo={mergedActiveRegistrosEstudo} allRegistrosEstudo={mergedAllRegistrosEstudo} goalsHistory={goalsHistory} setActiveTab={handleGoToActiveCycle} activeCicloData={activeCicloData} activeCronogramaData={activeCronogramaData} onGoToCronograma={() => handleCronogramaCreation(activeCronogramaData?.id)} onGoToRevisao={() => setActiveTab('revisoes')} onStartStudy={handleStartStudy} addRegistroEstudo={addRegistroEstudo} deleteCompletionRegistro={deleteCompletionRegistro} user={user} />;
       case 'goals':
-        return <GoalsTab goalsHistory={goalsHistory} onSetGoal={addGoal} onDeleteGoal={(id) => deleteData('metas', id)} />;
+        return <GoalsTab goalsHistory={goalsHistory} onSetGoal={addGoal} onDeleteGoal={(id)=>deleteData('metas',id)}/>;
       case 'calendar':
-        return <CalendarTab registrosEstudo={allRegistrosEstudo} goalsHistory={goalsHistory} onDeleteRegistro={deleteRegistro} />;
+        return <CalendarTab registrosEstudo={mergedAllRegistrosEstudo} goalsHistory={goalsHistory} onDeleteRegistro={deleteRegistro} activeCicloData={activeCicloData} activeCronogramaData={activeCronogramaData}/>;
       case 'ciclos':
-        return <CiclosPage user={user} onStartStudy={handleStartStudy} onCicloAtivado={handleCicloCreationOrActivation} addRegistroEstudo={addRegistroEstudo} activeCicloId={activeCicloId} forceOpenVisual={forceOpenVisual} onGoToEdital={() => setActiveTab('edital')} registrosEstudo={allRegistrosEstudo} />;
+        return <CiclosPage user={user} onStartStudy={handleStartStudy} onCicloAtivado={handleCicloCreationOrActivation} addRegistroEstudo={addRegistroEstudo} deleteCompletionRegistro={deleteCompletionRegistro} activeCicloId={activeCicloId} forceOpenVisual={forceOpenVisual} targetOpenCicloId={targetOpenCicloId} onTargetOpenHandled={() => setTargetOpenCicloId(null)} onGoToEdital={() => setActiveTab('edital')} registrosEstudo={mergedAllRegistrosEstudo} isTimerActive={!!(activeStudySession||activeSimuladoSession)}/>;
+      case 'planejamento':
+        return <PlanejamentoPage user={user} addRegistroEstudo={addRegistroEstudo} onStartStudy={handleStartStudy} onGoToEdital={() => setActiveTab('edital')} registrosEstudo={mergedAllRegistrosEstudo} isTimerActive={!!(activeStudySession||activeSimuladoSession)} onGoToCronograma={handleCronogramaCreation} onCicloAtivado={handleCicloCreationOrActivation} abrirDiretoSeletor={isNovoUsuarioPlanejamento} onOpenFeedback={() => setIsFeedbackOpen(true)} />;
+      case 'cronograma':
+        return <CronogramaPage user={user} onStartStudy={handleStartStudy} addRegistroEstudo={addRegistroEstudo} deleteCompletionRegistro={deleteCompletionRegistro} onGoToEdital={() => setActiveTab('edital')} onGoToRevisao={() => setActiveTab('revisoes')}/>;
+      case 'cronogramas':
+        return <PlanejamentoPage user={user} addRegistroEstudo={addRegistroEstudo} onStartStudy={handleStartStudy} onGoToEdital={() => setActiveTab('edital')} registrosEstudo={mergedAllRegistrosEstudo} isTimerActive={!!(activeStudySession||activeSimuladoSession)} onGoToCronograma={handleCronogramaCreation} onCicloAtivado={handleCicloCreationOrActivation} abrirDiretoSeletor={isNovoUsuarioPlanejamento} onOpenFeedback={() => setIsFeedbackOpen(true)} />;
       case 'edital':
-        return <EditalPage user={user} activeCicloId={activeCicloId} onStartStudy={handleStartStudy} onBack={handleGoToActiveCycle} />;
+        return (
+          <EditalPage
+            user={user}
+            activeCicloId={activeCicloId}
+            onStartStudy={handleStartStudy}
+            onBack={handleGoToActiveCycle}
+            editalUpdates={editalUpdates}
+            onApplyEditalUpdate={applyEditalUpdate}
+            onDismissEditalUpdate={dismissEditalUpdate}
+            loadingEditalUpdate={loadingNotif}
+            onGoToCronograma={() => handleCronogramaCreation(activeCronogramaData?.id)}
+          />
+        );
+      case 'revisoes':
+        return <RevisaoPage user={user} onStartStudy={handleStartStudy} addRegistroEstudo={addRegistroEstudo} deleteCompletionRegistro={deleteCompletionRegistro} />;
       case 'stats':
-        return <Desempenho registrosEstudo={allRegistrosEstudo} disciplinasDoCiclo={activeCycleDisciplines} activeCicloId={activeCicloId} metas={goalsHistory} onCreateCycle={() => setActiveTab('ciclos')} />;
+        return <Desempenho registrosEstudo={mergedAllRegistrosEstudo} disciplinasDoCiclo={activeCycleDisciplines} activeCicloId={activeCicloId} activeCronogramaId={activeCronogramaData?.id||null} activeCicloData={activeCicloData} activeCronogramaData={activeCronogramaData} metas={goalsHistory} onCreateCycle={() => setActiveTab('planejamento')}/>;
       case 'simulados':
-        return <SimuladosPage user={user} activeCycleDisciplines={activeCycleDisciplines} onStartSimulado={handleStartSimulado} initialData={finishedSimuladoData} onClearInitialData={handleClearSimuladoData} />;
+        return <SimuladosPage user={user} activeCycleDisciplines={activeCycleDisciplines} onStartSimulado={handleStartSimulado} initialData={finishedSimuladoData} onClearInitialData={handleClearSimuladoData}/>;
       case 'profile':
-        return <ProfilePage user={user} allRegistrosEstudo={allRegistrosEstudo} onDeleteRegistro={deleteRegistro} />;
+        return <ProfilePage user={user} allRegistrosEstudo={mergedAllRegistrosEstudo} onDeleteRegistro={deleteRegistro}/>;
+      case 'noticias':
+        return <NoticiasPage/>;
       case 'admin':
-        if (user.uid === ADMIN_UID) {
-          // PASSANDO A FUNÇÃO DE RECÁLCULO PARA O ADMIN
-          return <AdminPage onRecalculateStats={recalculateAllStats} />;
-        }
+        if (userAccess.isLoading) return <SectionLoader minHeight="20rem" />;
+        if (userAccess.permissions.adminPanel) return <AdminPage onRecalculateStats={recalculateAllStats} userAccess={userAccess} />;
         return <div className="p-8 text-center text-red-500 font-bold">Acesso Negado</div>;
       default:
         return null;
@@ -750,22 +1121,28 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
 
   return (
     <div className="flex min-h-screen bg-background-light dark:bg-background-dark text-text-primary dark:text-text-dark-primary transition-colors duration-300 overflow-x-hidden">
+      <WarningModal isOpen={warningAlert.isOpen} title={warningAlert.title} message={warningAlert.message} onClose={() => setWarningAlert(p => ({ ...p, isOpen:false }))}/>
+      {activeTab === 'home' && (
+        <Suspense fallback={null}>
+          <BroadcastReceiver canShow={!tourState.isActive} userAccess={userAccess}/>
+        </Suspense>
+      )}
+      <DownloadAlert isVisible={isDownloadAlertVisible} onDismiss={() => setIsDownloadAlertVisible(false)}/>
+      <ShareCardPreviewModal data={sharePreviewData} onClose={() => setSharePreviewData(null)} onDownload={handleDownloadPDF}/>
 
-      <WarningModal isOpen={warningAlert.isOpen} title={warningAlert.title} message={warningAlert.message} onClose={() => setWarningAlert(prev => ({ ...prev, isOpen: false }))} />
-
-      {activeTab === 'home' && <BroadcastReceiver canShow={!tourState.isActive} />}
-
-      <DownloadAlert isVisible={isDownloadAlertVisible} onDismiss={() => setIsDownloadAlertVisible(false)} />
-      <ShareCardPreviewModal data={sharePreviewData} onClose={() => setSharePreviewData(null)} onDownload={handleDownloadPDF} />
       {sharePreviewData && (
         <div className="fixed top-0 left-0 -translate-x-full z-[-1000] opacity-0">
-          <ShareCard stats={sharePreviewData.stats} userName={user.displayName || 'Estudante'} dayData={sharePreviewData.dayData} goals={sharePreviewData.goals} isDarkMode={sharePreviewData.isDarkMode} />
+          <Suspense fallback={null}>
+            <ShareCard stats={sharePreviewData.stats} userName={user.displayName||'Estudante'} dayData={sharePreviewData.dayData} goals={sharePreviewData.goals} isDarkMode={sharePreviewData.isDarkMode}/>
+          </Suspense>
         </div>
       )}
 
-      <NavSideBar
-        user={user}
-        activeTab={activeTab}
+      {/* NavSideBar com a prop nova para histórico */}
+        <NavSideBar
+          user={user}
+          userAccess={userAccess}
+          activeTab={activeTab}
         setActiveTab={handleTabChange}
         handleLogout={handleLogout}
         isExpanded={isSidebarExpanded}
@@ -774,53 +1151,102 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         setMobileOpen={setIsMobileOpen}
         isDarkMode={isDarkMode}
         toggleTheme={toggleTheme}
-        registrosEstudo={allRegistrosEstudo}
+        registrosEstudo={mergedAllRegistrosEstudo}
         goalsHistory={goalsHistory}
         activeCicloId={activeCicloId}
         onShareGoal={handleShareGoal}
         onOpenFeedback={() => setIsFeedbackOpen(true)}
+        activeCicloData={activeCicloData}
+        activeCronogramaData={activeCronogramaData}
+        onGoToCicloAtivo={handleGoToActiveCycle}
+        cicloFinalizacaoAlert={cicloFinalizacaoAlert}
+        notificationProps={{
+          notifications,
+          unreadCount,
+          readBroadcasts,
+          dismissedHistory,
+          onMarkBroadcastRead: markBroadcastRead,
+          onMarkAllRead: markAllRead,
+          onApplyEditalUpdate: applyEditalUpdate,
+          onDismissEditalUpdate: dismissEditalUpdate,
+          loadingNotif,
+          onNavigateToEdital: () => handleTabChange('edital'),
+          deleteBroadcast,
+          deleteHistoryItem
+        }}
       />
 
-      <div className={`flex-grow w-full transition-all duration-300 pt-[80px] px-4 md:px-8 lg:pt-[90px] pb-10 ${isSidebarExpanded ? 'lg:ml-[260px]' : 'lg:ml-[80px]'}`}>
-        <Header user={user} activeTab={activeTab} />
-        <main className="mt-2 max-w-7xl mx-auto animate-fade-in">{renderTabContent()}</main>
+      <div ref={mainContentRef} className={`flex-grow w-full transition-all duration-300 pt-[80px] px-4 md:px-8 lg:pt-[90px] pb-10 ${isSidebarExpanded ? 'lg:ml-[260px]' : 'lg:ml-[80px]'}`}>
+        <Header user={user} activeTab={activeTab}/>
+        <main className={`mt-2 animate-fade-in ${activeTab === 'home' ? 'w-full' : 'max-w-7xl mx-auto'}`}>
+          <Suspense fallback={<SectionLoader />}>
+            {renderTabContent()}
+          </Suspense>
+        </main>
       </div>
 
-      <OnboardingTour isActive={tourState.isActive} tourType={tourState.type} activeTab={activeTab} setActiveTab={handleTabChange} onClose={() => handleTourCloseOrFinish(tourState.type)} onFinish={() => handleTourCloseOrFinish(tourState.type)} />
+      <Suspense fallback={null}>
+        <OnboardingTour isActive={tourState.isActive} tourType={tourState.type} activeTab={activeTab} setActiveTab={handleTabChange} onClose={() => handleTourCloseOrFinish(tourState.type)} onFinish={() => handleTourCloseOrFinish(tourState.type)}/>
+        <FeedbackWidget user={user} isOpen={isFeedbackOpen} onClose={() => setIsFeedbackOpen(false)} isSidebarOpen={isMobileOpen}/>
+      </Suspense>
+      <GlobalStudyRegisterFab
+        onClick={handleOpenGlobalRegistro}
+        disabled={!hasActiveStudyContext}
+        disabledMessage="Ative um ciclo ou cronograma para registrar estudo"
+        hidden={showGlobalRegistroModal}
+      />
 
-      <FeedbackWidget user={user} isOpen={isFeedbackOpen} onClose={() => setIsFeedbackOpen(false)} isSidebarOpen={isMobileOpen} />
+      {showGlobalRegistroModal && hasActiveStudyContext && (
+        <Suspense fallback={null}>
+          <RegistroEstudoModal
+            onClose={() => setShowGlobalRegistroModal(false)}
+            addRegistroEstudo={addRegistroEstudo}
+            cicloId={activeCicloId || null}
+            userId={user.uid}
+            availableContexts={registroContextOptions}
+            defaultContext={defaultRegistroContext}
+            requireExplicitContextSelection={registroContextOptions.length > 1}
+          />
+        </Suspense>
+      )}
 
       {activeStudySession && (
-        <StudyTimer
-          disciplina={activeStudySession.disciplina}
-          assunto={activeStudySession.assunto}
-          isMinimized={activeStudySession.isMinimized}
-          onStop={handleStopStudyRequest}
-          onCancel={handleConfirmCancelStudy}
-          onMaximize={() => setActiveStudySession(prev => ({ ...prev, isMinimized: false }))}
-          onMinimize={() => setActiveStudySession(prev => ({ ...prev, isMinimized: true }))}
-          raised={isTimerRaised}
-          userUid={user.uid}
-          userName={user.displayName || 'Estudante'}
-          userPhotoURL={user.photoURL || null}
-        />
+        <Suspense fallback={null}>
+          <StudyTimer
+            disciplina={activeStudySession.disciplina}
+            assunto={activeStudySession.assunto}
+            contextHint={activeStudySession.defaultContext || defaultRegistroContext}
+            sessaoGlobalIndex={activeStudySession.sessaoGlobalIndex}
+            isMinimized={activeStudySession.isMinimized}
+            onStop={handleStopStudyRequest}
+            onCancel={handleConfirmCancelStudy}
+            onMaximize={() => setActiveStudySession(p => ({ ...p, isMinimized:false }))}
+            onMinimize={() => setActiveStudySession(p => ({ ...p, isMinimized:true }))}
+            raised={isTimerRaised}
+            userUid={user.uid}
+            userName={user.displayName||'Estudante'}
+            userPhotoURL={user.photoURL||null}
+          />
+        </Suspense>
       )}
 
       {activeSimuladoSession && (
-        <SimuladoTimer
-          tituloSimulado={activeSimuladoSession.titulo}
-          mode={activeSimuladoSession.mode}
-          initialSeconds={activeSimuladoSession.initialSeconds || 0}
-          isMinimized={activeSimuladoSession.isMinimized}
-          isNewSession={activeSimuladoSession.isNewSession === true}
-          onStop={handleFinishSimulado}
-          onCancel={handleCancelSimulado}
-          onMaximize={() => setActiveSimuladoSession(prev => ({ ...prev, isMinimized: false }))}
-          onMinimize={() => setActiveSimuladoSession(prev => ({ ...prev, isMinimized: true }))}
-          userUid={user.uid}
-          userName={user.displayName || 'Candidato'}
-          userPhotoURL={user.photoURL || null}
-        />
+        <Suspense fallback={null}>
+          <SimuladoTimer
+            tituloSimulado={activeSimuladoSession.titulo}
+            mode={activeSimuladoSession.mode}
+            initialSeconds={activeSimuladoSession.initialSeconds||0}
+            isMinimized={activeSimuladoSession.isMinimized}
+            isNewSession={activeSimuladoSession.isNewSession===true}
+            onStop={handleFinishSimulado}
+            onCancel={handleCancelSimulado}
+            onMaximize={() => setActiveSimuladoSession(p => ({ ...p, isMinimized:false }))}
+            onMinimize={() => setActiveSimuladoSession(p => ({ ...p, isMinimized:true }))}
+            userUid={user.uid}
+            userName={user.displayName||'Candidato'}
+            userPhotoURL={user.photoURL||null}
+          />
+        </Suspense>
       )}
 
       {pendingReviewData && !finishModalData && (
@@ -828,16 +1254,14 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
           <div onClick={() => setFinishModalData(pendingReviewData)} className="bg-amber-900/90 backdrop-blur-md border border-amber-500/50 shadow-[0_0_20px_rgba(245,158,11,0.2)] rounded-2xl p-3 flex items-center gap-4 w-auto max-w-[320px] overflow-hidden hover:scale-105 transition-transform cursor-pointer">
             <div className="relative flex items-center justify-center w-10 h-10 bg-amber-800 rounded-full shrink-0">
               <div className="absolute inset-0 rounded-full bg-amber-500/20 animate-ping"></div>
-              <AlertTriangle size={20} className="text-amber-200 relative z-10" />
+              <AlertTriangle size={20} className="text-amber-200 relative z-10"/>
             </div>
             <div className="flex flex-col mr-2 min-w-0">
               <span className="text-[10px] text-amber-200 uppercase font-bold tracking-wider truncate">Registro Pendente</span>
               <span className="text-[10px] text-white truncate leading-tight font-bold">{pendingReviewData.disciplinaNome}</span>
               <span className="text-[9px] text-amber-300/80 italic mt-0.5 truncate">{pendingReviewData.reason}</span>
             </div>
-            <div className="p-2 rounded-full bg-amber-800/50 text-amber-100 hover:bg-amber-700/50 transition-colors">
-              <Maximize2 size={16} />
-            </div>
+            <div className="p-2 rounded-full bg-amber-800/50 text-amber-100"><Maximize2 size={16}/></div>
           </div>
         </div>
       )}
@@ -847,38 +1271,43 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
           <div onClick={handleRecoverSimulado} className="bg-red-900/90 backdrop-blur-md border border-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.2)] rounded-2xl p-3 flex items-center gap-4 w-auto max-w-[320px] overflow-hidden hover:scale-105 transition-transform cursor-pointer">
             <div className="relative flex items-center justify-center w-10 h-10 bg-red-800 rounded-full shrink-0">
               <div className="absolute inset-0 rounded-full bg-red-500/20 animate-ping"></div>
-              <ClipboardList size={20} className="text-red-200 relative z-10" />
+              <ClipboardList size={20} className="text-red-200 relative z-10"/>
             </div>
             <div className="flex flex-col mr-2 min-w-0">
-              <span className="text-[10px] text-red-200 uppercase font-bold tracking-wider truncate">Registro de Simulado Pendente</span>
+              <span className="text-[10px] text-red-200 uppercase font-bold tracking-wider truncate">Simulado Pendente</span>
               <span className="text-[10px] text-white truncate leading-tight font-bold">{pendingSimuladoReview.titulo}</span>
-              <span className="text-[9px] text-red-300/80 italic mt-0.5 truncate">Clique para registrar notas</span>
             </div>
-            <div className="p-2 rounded-full bg-red-800/50 text-red-100 hover:bg-red-700/50 transition-colors">
-              <Maximize2 size={16} />
-            </div>
+            <div className="p-2 rounded-full bg-red-800/50 text-red-100"><Maximize2 size={16}/></div>
           </div>
         </div>
       )}
 
       {(finishModalData || (pendingReviewData && finishModalData)) && (
-        <TimerFinishModal
-          timeMinutes={finishModalData.minutes}
-          disciplinaNome={finishModalData.disciplinaNome}
-          initialAssunto={finishModalData.assuntoInicial}
-          disciplinaId={activeStudySession?.disciplina?.id || pendingReviewData?.originalData?.disciplinaId}
-          activeCicloId={activeCicloId}
-          userUid={user.uid}
-          onConfirm={handleConfirmFinishStudy}
-          onCancel={handleRetomarEstudo}
-          onDiscard={handleConfirmCancelStudy}
-          activeCicloData={activeCicloData}
-        />
+        <Suspense fallback={null}>
+          <TimerFinishModal
+            timeMinutes={finishModalData.minutes}
+            disciplinaNome={finishModalData.disciplinaNome}
+            initialAssunto={finishModalData.assuntoInicial}
+            disciplinaId={activeStudySession?.disciplina?.id || pendingReviewData?.originalData?.disciplinaId}
+            activeCicloId={activeCicloId}
+            userUid={user.uid}
+            addRegistroEstudo={addRegistroEstudo}
+            availableContexts={registroContextOptions}
+            defaultContext={finishModalData.defaultContext || pendingReviewData?.defaultContext || defaultRegistroContext}
+            requireExplicitContextSelection={registroContextOptions.length > 1}
+            sessaoGlobalIndex={finishModalData.sessaoGlobalIndex ?? activeStudySession?.sessaoGlobalIndex ?? null}
+            onConfirm={handleConfirmFinishStudy}
+            onCancel={handleRetomarEstudo}
+            onDiscard={handleConfirmCancelStudy}
+            activeCicloData={activeCicloData}
+          />
+        </Suspense>
       )}
 
-      {isMobileOpen && <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden" onClick={() => setIsMobileOpen(false)} />}
+      {isMobileOpen && <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden" onClick={() => setIsMobileOpen(false)}/>}
     </div>
   );
 }
 
 export default Dashboard;
+

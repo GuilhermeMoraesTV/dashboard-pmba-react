@@ -10,10 +10,11 @@ const dateToYMD = (date) => {
   return `${y}-${m}-${d}`;
 };
 
-function Header({ user, activeTab, setActiveTab }) {
+function Header({ user, activeTab, setActiveTab, variant = 'center' }) {
   const firstName = user?.displayName ? user.displayName.split(' ')[0] : 'Guerreiro';
   const showWelcome = activeTab === 'home';
   const [todayQuote, setTodayQuote] = useState(null);
+  const isHomeRow = variant === 'home-row';
 
   // Busca a frase do dia: primeiro verifica destaque manual, depois busca por scheduledDate
   useEffect(() => {
@@ -89,19 +90,19 @@ function Header({ user, activeTab, setActiveTab }) {
   if (!showWelcome) return null;
 
   return (
-    <header className="w-full mb-6 pt-4 md:pt-0 animate-fade-in px-4 md:px-0">
-      <div className="flex flex-col items-center text-center justify-center gap-2">
+    <header className={isHomeRow ? 'w-full animate-fade-in' : 'w-full mb-6 pt-4 md:pt-0 animate-fade-in px-4 md:px-0'}>
+      <div className={`flex flex-col gap-2 ${isHomeRow ? 'items-start text-left justify-start' : 'items-center text-center justify-center'}`}>
 
         {/* BLOCO SUPERIOR: DATA E SAUDAÇÃO */}
         <div
           onClick={() => setActiveTab && setActiveTab('home')}
-          className="flex flex-col items-center gap-0.5 cursor-pointer hover:opacity-70 transition-opacity select-none group/logo"
+          className={`flex flex-col gap-0.5 cursor-pointer hover:opacity-70 transition-opacity select-none group/logo ${isHomeRow ? 'items-start' : 'items-center'}`}
           title="Voltar para o Início"
         >
           <span className="text-[9px] md:text-[10px] font-bold tracking-[0.2em] uppercase text-zinc-400 dark:text-zinc-500 group-hover/logo:text-red-500 transition-colors">
             {headerData.dateFormatted}
           </span>
-          <h1 className="text-xl md:text-2xl font-black text-zinc-900 dark:text-white tracking-tight flex items-center gap-1.5">
+          <h1 className={`${isHomeRow ? 'text-2xl md:text-3xl' : 'text-xl md:text-2xl'} font-black text-zinc-900 dark:text-white tracking-tight flex items-center gap-1.5`}>
             {headerData.greeting}, {firstName}
             <span className="animate-wave origin-bottom-right inline-block text-lg"></span>
           </h1>
@@ -109,18 +110,18 @@ function Header({ user, activeTab, setActiveTab }) {
 
         {/* BLOCO DA FRASE — só renderiza se houver frase cadastrada para hoje */}
         {todayQuote && (
-          <div className="relative group mt-1 max-w-2xl w-full">
+          <div className={`relative group mt-1 w-full ${isHomeRow ? 'max-w-xl' : 'max-w-2xl'}`}>
             <div className="absolute inset-0 bg-gradient-to-b from-zinc-200 to-zinc-100 dark:from-zinc-900 dark:via-zinc-800 dark:to-zinc-900 rounded-xl opacity-60 blur-sm transform scale-95 group-hover:scale-100 transition-all duration-700"></div>
 
             <div className="relative border border-zinc-200 dark:border-zinc-800/50
-                          bg-gradient-to-b from-white to-zinc-50 dark:from-zinc-900/40 dark:to-zinc-900/60
-                          backdrop-blur-md rounded-xl p-3 flex flex-col items-center gap-1.5
+                          bg-gradient-to-b from-white to-zinc-50 dark:from-zinc-900 dark:to-zinc-950
+                          rounded-xl p-3 flex flex-col gap-1.5
                           transition-all duration-300 shadow-sm hover:shadow-md hover:-translate-y-0.5">
 
-              <Quote size={14} className="text-zinc-400 dark:text-zinc-700 fill-current mb-[-2px]" />
+              <Quote size={14} className={`text-zinc-400 dark:text-zinc-700 fill-current mb-[-2px] ${isHomeRow ? 'self-start' : 'self-center'}`} />
 
-              <div className="flex flex-col items-center gap-1 relative z-10 w-full">
-                <p className="text-xs md:text-sm font-bold text-zinc-700 dark:text-zinc-200 italic leading-snug px-2 text-center">
+              <div className={`flex flex-col gap-1 relative z-10 w-full ${isHomeRow ? 'items-start' : 'items-center'}`}>
+                <p className={`text-xs md:text-sm font-bold text-zinc-700 dark:text-zinc-200 italic leading-snug px-2 ${isHomeRow ? 'text-left' : 'text-center'}`}>
                   "{todayQuote.text}"
                 </p>
                 {todayQuote.author && (
@@ -138,7 +139,9 @@ function Header({ user, activeTab, setActiveTab }) {
         )}
 
       </div>
-      <div className="w-full h-px bg-gradient-to-r from-transparent via-zinc-200 dark:via-zinc-800 to-transparent mt-6 opacity-60" />
+      {!isHomeRow && (
+        <div className="w-full h-px bg-gradient-to-r from-transparent via-zinc-200 dark:via-zinc-800 to-transparent mt-6 opacity-60" />
+      )}
     </header>
   );
 }

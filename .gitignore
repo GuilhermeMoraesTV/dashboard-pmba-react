@@ -137,3 +137,11 @@ dist
 
 # Scripts de Admin e Chaves Secretas
 scripts/serviceAccountkey.json
+
+# Assistentes locais e backups
+.claude/
+src/.claude/
+Backup/
+Backup ModoQAP/
+*.rar
+*.zip

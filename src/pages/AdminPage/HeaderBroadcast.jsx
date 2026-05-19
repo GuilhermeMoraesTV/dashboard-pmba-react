@@ -58,7 +58,7 @@ const ExpandedModal = ({ isOpen, onClose, title, children }) => {
 };
 
 // --- COMPONENTE PRINCIPAL ---
-const HeaderBroadcast = ({ isOpen, onClose }) => {
+const HeaderBroadcast = ({ isOpen, onClose, segmentDraft = null }) => {
   const [activeTab, setActiveTab] = useState('create');
   const [message, setMessage] = useState('');
   const [category, setCategory] = useState('comunicado');
@@ -66,6 +66,7 @@ const HeaderBroadcast = ({ isOpen, onClose }) => {
   const [history, setHistory] = useState([]);
   const [previewMode, setPreviewMode] = useState('mobile');
   const [isTestMode, setIsTestMode] = useState(false);
+  const [selectedSegment, setSelectedSegment] = useState(null);
 
   // Estados de Imagem (Carrossel)
   const [images, setImages] = useState([]);
@@ -92,6 +93,13 @@ const HeaderBroadcast = ({ isOpen, onClose }) => {
     return () => unsubscribe();
   }, [isOpen]);
 
+  useEffect(() => {
+    if (segmentDraft) {
+      setSelectedSegment(segmentDraft);
+      setActiveTab('create');
+    }
+  }, [segmentDraft]);
+
   // Handlers de Imagem (Multi-upload)
   const handleImageChange = (e) => {
     if (e.target.files) {
@@ -117,6 +125,9 @@ const HeaderBroadcast = ({ isOpen, onClose }) => {
     setSending(true);
     try {
       const user = auth.currentUser;
+      const targetUserIds = !isTestMode && selectedSegment?.targetUserIds?.length
+        ? selectedSegment.targetUserIds
+        : null;
       let imageUrls = [];
 
       if (images.length > 0) {
@@ -136,13 +147,20 @@ const HeaderBroadcast = ({ isOpen, onClose }) => {
         timestamp: serverTimestamp(),
         active: true,
         type: 'admin_push',
-        targetUid: isTestMode && user ? user.uid : null
+        targetUid: isTestMode && user ? user.uid : null,
+        targetUserIds,
+        audienceMode: isTestMode ? 'test' : targetUserIds?.length ? 'segment' : 'all',
+        audienceCount: isTestMode ? 1 : targetUserIds?.length || null,
+        segmentId: !isTestMode ? selectedSegment?.id || null : null,
+        segmentLabel: !isTestMode ? selectedSegment?.label || null : null,
+        segmentFilters: !isTestMode ? selectedSegment?.filtersSnapshot || null : null,
       });
 
       setMessage('');
       setCategory('comunicado');
       setImages([]);
       setPreviewIndex(0);
+      setSelectedSegment(null);
       if(fileInputRef.current) fileInputRef.current.value = "";
       setActiveTab('history');
       setIsTestMode(false);
@@ -277,6 +295,22 @@ const HeaderBroadcast = ({ isOpen, onClose }) => {
                 </div>
               )}
 
+              {selectedSegment && !isTestMode && (
+                <div className="p-4 rounded-2xl border border-red-100 dark:border-red-900/30 bg-red-50/70 dark:bg-red-950/20 space-y-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-red-500">Audiencia segmentada</p>
+                      <p className="text-sm font-bold text-zinc-900 dark:text-white">{selectedSegment.label}</p>
+                    </div>
+                    <button onClick={() => setSelectedSegment(null)} className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500 hover:text-red-600 transition-colors">
+                      Limpar
+                    </button>
+                  </div>
+                  <p className="text-xs font-medium text-zinc-600 dark:text-zinc-300">{selectedSegment.description || selectedSegment.subtitle}</p>
+                  <p className="text-[11px] font-bold text-red-600 dark:text-red-300">{selectedSegment.audienceCount || 0} usuarios receberao este broadcast.</p>
+                </div>
+              )}
+
               <div onClick={() => setIsTestMode(!isTestMode)} className={`p-3 rounded-xl border flex items-center gap-3 cursor-pointer transition-all ${isTestMode ? 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800' : 'bg-zinc-50 border-zinc-200 dark:bg-zinc-900 dark:border-zinc-800'}`}>
                 <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${isTestMode ? 'bg-red-600 border-red-600 text-white' : 'border-zinc-300 dark:border-zinc-600'}`}>
                   {isTestMode && <Check size={12} strokeWidth={4} />}
@@ -288,7 +322,7 @@ const HeaderBroadcast = ({ isOpen, onClose }) => {
               </div>
 
               <button onClick={handleSend} disabled={(!message.trim() && images.length === 0) || sending} className="w-full py-4 bg-red-600 text-white rounded-xl font-black uppercase tracking-widest hover:bg-red-700 transition-all disabled:opacity-50 flex items-center justify-center gap-3 active:scale-95">
-                {sending ? <Loader2 className="animate-spin" /> : <Megaphone />} Publicar Broadcast
+                {sending ? <Loader2 className="animate-spin" /> : <Megaphone />} {isTestMode ? 'Publicar Teste' : selectedSegment?.audienceCount ? `Publicar para ${selectedSegment.audienceCount}` : 'Publicar Broadcast'}
               </button>
             </div>
 
@@ -367,7 +401,7 @@ const HeaderBroadcast = ({ isOpen, onClose }) => {
                             ${previewTheme.bgClass}
                         `}>
                             <div className="absolute inset-0 flex items-center justify-center opacity-[0.07] pointer-events-none mix-blend-multiply">
-                                <img src="/logo-pmba.png" alt="Watermark" className="w-[140%] h-[140%] object-contain scale-150 grayscale" />
+                                <img src="/logoModoQAP.png" alt="Watermark" className="w-[140%] h-[140%] object-contain scale-150 grayscale" />
                             </div>
                             <div className="relative z-10 w-16 h-16 bg-white/60 backdrop-blur-md rounded-2xl border border-white/40 flex items-center justify-center shadow-lg mb-3">
                                 {React.createElement(previewTheme.icon, { size: 32, className: previewTheme.iconColor })}
@@ -396,7 +430,7 @@ const HeaderBroadcast = ({ isOpen, onClose }) => {
                                     <Check size={12} strokeWidth={3} /> Ciente
                                 </div>
                                 <div className="flex items-center justify-center gap-2 opacity-40">
-                                    <img src="/logo-pmba.png" className="h-3 w-auto object-contain grayscale" alt="Logo" />
+                                    <img src="/logoModoQAP.png" className="h-3 w-auto object-contain grayscale" alt="Logo" />
                                     <div className="h-2 w-px bg-zinc-300"></div>
                                     <h1 className="text-red-600 font-black tracking-widest uppercase text-[8px]">MODOQAP</h1>
                                 </div>
@@ -430,6 +464,7 @@ const HeaderBroadcast = ({ isOpen, onClose }) => {
                         )}
 
                         {msg.targetUid && <span className="text-[9px] font-bold uppercase px-2 py-0.5 rounded border bg-amber-50 text-amber-600 border-amber-200">Teste</span>}
+                        {msg.segmentLabel && <span className="text-[9px] font-bold uppercase px-2 py-0.5 rounded border bg-red-50 text-red-600 border-red-200">{msg.segmentLabel}</span>}
                     </div>
                     <p className="text-sm text-zinc-600 dark:text-zinc-300 line-clamp-1 truncate">{msg.message || "(Conteúdo Visual)"}</p>
                     <p className="text-[10px] text-zinc-400 mt-1">{formatTimeAgo(msg.timestamp)}</p>

@@ -398,7 +398,7 @@ const InterfacePrincipalTimer = ({
                 }}
             >
                 <img
-                    src="/logo-pmba.png"
+                    src="/logoModoQAP.png"
                     alt="Logo"
                     className="drop-shadow-2xl grayscale-[0.2]"
                     style={{

@@ -3,14 +3,16 @@ import CiclosList from '../components/ciclos/CiclosList';
 import CicloDetalhePage from './CicloDetalhePage';
 
 // AQUI: Recebe 'registrosEstudo' do Dashboard
-function CiclosPage({ user, addRegistroEstudo, onCicloAtivado, onStartStudy, activeCicloId, forceOpenVisual, onGoToEdital, registrosEstudo }) {
+function CiclosPage({ user, addRegistroEstudo, deleteCompletionRegistro, onCicloAtivado, onStartStudy, activeCicloId, forceOpenVisual, targetOpenCicloId, onTargetOpenHandled, onGoToEdital, registrosEstudo, isTimerActive }) {
   const [selectedCicloId, setSelectedCicloId] = useState(null);
 
   useEffect(() => {
-    if (forceOpenVisual && activeCicloId) {
-      setSelectedCicloId(activeCicloId);
+    const cicloIdParaAbrir = targetOpenCicloId || activeCicloId;
+    if (forceOpenVisual && cicloIdParaAbrir) {
+      setSelectedCicloId(cicloIdParaAbrir);
+      if (targetOpenCicloId) onTargetOpenHandled?.();
     }
-  }, [forceOpenVisual, activeCicloId]);
+  }, [forceOpenVisual, activeCicloId, targetOpenCicloId, onTargetOpenHandled]);
 
   const handleCicloCreation = (id) => {
     setSelectedCicloId(id);
@@ -24,6 +26,7 @@ function CiclosPage({ user, addRegistroEstudo, onCicloAtivado, onStartStudy, act
         onBack={() => setSelectedCicloId(null)}
         user={user}
         addRegistroEstudo={addRegistroEstudo}
+        deleteCompletionRegistro={deleteCompletionRegistro}
         onStartStudy={onStartStudy}
         onGoToEdital={onGoToEdital}
       />
@@ -34,8 +37,8 @@ function CiclosPage({ user, addRegistroEstudo, onCicloAtivado, onStartStudy, act
         onCicloClick={(id) => setSelectedCicloId(id)}
         user={user}
         onCicloAtivado={handleCicloCreation}
-        // AQUI: Repassa os registros para a lista poder calcular o progresso
         registrosEstudo={registrosEstudo}
+        isTimerActive={isTimerActive}
       />
     );
   }

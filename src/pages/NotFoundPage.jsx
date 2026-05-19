@@ -66,7 +66,7 @@ function NotFoundPage() {
 
           {/* Logo */}
           <div className="flex justify-center mb-8">
-            <img src="/logo-pmba.png" alt="Logo" className="h-16 w-auto drop-shadow-xl opacity-90" />
+            <img src="/logoModoQAP.png" alt="Logo" className="h-16 w-auto drop-shadow-xl opacity-90" />
           </div>
 
           {/* 404 GIGANTE (MUDADO GLITCH DE VERMELHO PARA CINZA) */}

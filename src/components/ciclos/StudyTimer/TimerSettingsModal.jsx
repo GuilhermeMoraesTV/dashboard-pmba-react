@@ -21,8 +21,8 @@ const DEFAULT_SOUNDS = [
 
 const DEFAULT_SETTINGS = {
   mode: 'livre',
-  pomodoroTime: 50,
-  restTime: 10,
+  pomodoroTime: 1,
+  restTime: 1,
   color: '#10B981',
   soundType: 'default',
   selectedSoundId: 'beep',
@@ -100,8 +100,8 @@ const TimeAdjuster = ({ label, valueMinutes, onChange, colorClass, icon: Icon, m
   const minutes = valueMinutes % 60;
 
   const adjust = (amount) => {
-    const newValue = Math.max(5, Math.min(maxVal, valueMinutes + amount));
-    const rounded = Math.round(newValue / 5) * 5;
+    const newValue = Math.max(1, Math.min(maxVal, valueMinutes + amount));
+    const rounded = Math.round(newValue);
     onChange(rounded);
   };
 
@@ -124,7 +124,7 @@ const TimeAdjuster = ({ label, valueMinutes, onChange, colorClass, icon: Icon, m
       <div className="relative h-6 mb-4 flex items-center">
         <input
           type="range"
-          min="5" max={maxVal} step="5"
+          min="1" max={maxVal} step="1"
           value={valueMinutes}
           onChange={(e) => onChange(Number(e.target.value))}
           className="w-full h-2 bg-zinc-200 dark:bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-zinc-900 dark:accent-white z-10"

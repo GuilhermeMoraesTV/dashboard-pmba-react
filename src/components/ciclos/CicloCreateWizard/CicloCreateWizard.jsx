@@ -1,50 +1,63 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { useCiclos } from '../../../hooks/useCiclos';
-import { db } from '../../../firebaseConfig';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { ArrowLeft, ArrowRight, CheckCircle2, RefreshCw, Settings2, Layers, Target, Clock, X } from 'lucide-react';
 import { collection, getDocs } from 'firebase/firestore';
-import {
-  X, CheckCircle2, Target, Clock,
-  ArrowRight, ArrowLeft, Layers, Plus,
-  Grid, Type, Minus, Search,
-  FileText, Star, Edit2, Library, BookOpen,
-  Shield, BadgeAlert, Globe, Lock, Flame, Siren, Briefcase
-} from 'lucide-react';
 
-import ModalSelecaoEdital from './ModalSelecaoEdital';
-import GradeHorarios from './GradeHorarios';
-import RadarCiclo from './RadarCiclo';
-import ItemDisciplina from './ItemDisciplina';
-
+import { calcularDistribuicao, gerarOrdemSessoes, useCiclos } from '../../../hooks/useCiclos';
+import { db } from '../../../firebaseConfig';
 import { CATALOGO_EDITAIS } from '../../../pages/AdminPage/EditaisManager';
+import StepBar from '../../cronograma/steps/StepBar';
+import StepEdital from './steps/StepEdital';
+import StepDisciplinas from './steps/StepDisciplinas';
+import StepHorarios from './steps/StepHorarios';
+import StepRevisao from './steps/StepRevisao';
+import StepConfig from './steps/StepConfig';
+import StepPreview from './steps/StepPreview';
+import { normalizeRevisaoModoCiclo, REVISAO_MODO_FLEXIVEL } from '../../../utils/cicloReviewMode';
 
-// ==================================================================================
-// 🔧 CONFIGURAÇÃO DE LAYOUT DO WIZARD
-// ==================================================================================
-const WIZARD_LAYOUT = {
-    mobile: { width: 'w-[95%]', maxHeight: 'max-h-[85vh]', marginTop: 'mt-20', marginBottom: 'mb-4' },
-    desktop: { maxHeight: 'md:max-h-[85vh]', marginTop: 'md:mt-17', marginBottom: 'md:mb-0', marginLeft: 'md:ml-0', widthStep1: 'md:max-w-md', widthStepWide: 'md:max-w-5xl' },
-    zIndex: 'z-[90]',
+const CICLO_DRAFT_KEY = 'planejamento_ciclo_wizard_draft_v1';
+
+const STEPS = [
+  { id: 0, label: 'Edital', icon: Target, title: 'Selecao de Edital', sub: 'Escolha sua base' },
+  { id: 1, label: 'Materias', icon: Layers, title: 'Disciplinas', sub: 'O que estudar' },
+  { id: 2, label: 'Horarios', icon: Clock, title: 'Sua Rotina', sub: 'Quando estudar' },
+  { id: 3, label: 'Metodologia', icon: RefreshCw, title: 'Revisao', sub: 'Como revisar' },
+  { id: 4, label: 'Ajustes', icon: Settings2, title: 'Preferencias', sub: 'Personalizacao' },
+  { id: 5, label: 'Previa', icon: CheckCircle2, title: 'Resultado', sub: 'Seu plano pronto' },
+];
+
+const NIVEL_TO_PESO = {
+  iniciante: 5,
+  intermediario: 3,
+  avancado: 1,
 };
 
-// ... (CONFIG_PESO, CONFIG_CATEGORIAS e formatarHoras mantidos)
-const CONFIG_PESO = {
-    1: { label: 'Mínima', description: 'Apenas Revisão', color: 'text-emerald-500', fill: 'fill-emerald-500', bg: 'bg-emerald-50' },
-    2: { label: 'Baixa', description: 'Estudo Leve', color: 'text-green-500', fill: 'fill-green-500', bg: 'bg-green-50' },
-    3: { label: 'Média', description: 'Estudo Regular', color: 'text-yellow-500', fill: 'fill-yellow-500', bg: 'bg-yellow-50' },
-    4: { label: 'Alta', description: 'Estudo Focado', color: 'text-orange-500', fill: 'fill-orange-500', bg: 'bg-orange-50' },
-    5: { label: 'Máxima', description: 'Prioridade Total', color: 'text-red-600', fill: 'fill-red-600', bg: 'bg-red-50' },
+const isNivelValido = (nivel) => (
+  nivel === 'iniciante' || nivel === 'intermediario' || nivel === 'avancado'
+);
+
+const normalizarNivel = (nivel, pesoFallback = 3) => {
+  if (isNivelValido(nivel)) return nivel;
+  const peso = Number(pesoFallback) || 3;
+  if (peso >= 4) return 'iniciante';
+  if (peso <= 1) return 'avancado';
+  return 'intermediario';
+};
+
+const obterPesoDisciplina = (disciplina) => {
+  const nivelNormalizado = normalizarNivel(disciplina?.nivelDominio || disciplina?.nivel, disciplina?.peso);
+  return Number(disciplina?.peso) || NIVEL_TO_PESO[nivelNormalizado] || 3;
 };
 
 const CONFIG_CATEGORIAS = {
-    pm: { label: 'Polícia Militar', icon: Shield, color: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-900/20' },
-    pc: { label: 'Polícia Civil', icon: BadgeAlert, color: 'text-zinc-600 dark:text-zinc-400', bg: 'bg-zinc-100 dark:bg-zinc-800' },
-    federal: { label: 'Carreiras Federais', icon: Globe, color: 'text-blue-700', bg: 'bg-blue-50 dark:bg-blue-900/20' },
-    pp: { label: 'Polícia Penal', icon: Lock, color: 'text-slate-600 dark:text-slate-400', bg: 'bg-slate-100 dark:bg-slate-800' },
-    cbm: { label: 'Corpo de Bombeiros', icon: Flame, color: 'text-red-600', bg: 'bg-red-50 dark:bg-red-900/20' },
-    gcm: { label: 'Guarda Municipal', icon: Siren, color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
-    fa: { label: 'Forças Armadas', icon: Target, color: 'text-green-600', bg: 'bg-green-50 dark:bg-green-900/20' },
-    outros: { label: 'Outros Concursos', icon: Briefcase, color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-900/20' }
+  pm: { label: 'Policia Militar', icon: Target, color: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-900/20' },
+  pc: { label: 'Policia Civil', icon: Target, color: 'text-zinc-600 dark:text-zinc-400', bg: 'bg-zinc-100 dark:bg-zinc-800' },
+  federal: { label: 'Carreiras Federais', icon: Target, color: 'text-blue-700', bg: 'bg-blue-50 dark:bg-blue-900/20' },
+  pp: { label: 'Policia Penal', icon: Target, color: 'text-slate-600 dark:text-slate-400', bg: 'bg-slate-100 dark:bg-slate-800' },
+  cbm: { label: 'Corpo de Bombeiros', icon: Target, color: 'text-red-600', bg: 'bg-red-50 dark:bg-red-900/20' },
+  gcm: { label: 'Guarda Municipal', icon: Target, color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
+  fa: { label: 'Forcas Armadas', icon: Target, color: 'text-green-600', bg: 'bg-green-50 dark:bg-green-900/20' },
+  outros: { label: 'Outros Concursos', icon: Target, color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
 };
 
 const formatarHoras = (horasDecimais) => {
@@ -57,380 +70,830 @@ const formatarHoras = (horasDecimais) => {
   return `${m}m`;
 };
 
-function CicloCreateWizard({ onClose, user, onCicloAtivado }) {
-  const [passo, setPasso] = useState(1);
+const getMinimumActiveDayMinutesFromSchedule = (schedule = {}) => {
+  const activeDayMinutes = Object.values(schedule)
+    .map((value) => Math.round((parseFloat(value) || 0) * 60))
+    .filter((value) => value > 0);
+
+  return activeDayMinutes.length > 0 ? Math.min(...activeDayMinutes) : null;
+};
+
+const lerCicloDraft = () => {
+  try {
+    const raw = localStorage.getItem(CICLO_DRAFT_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    localStorage.removeItem(CICLO_DRAFT_KEY);
+    return null;
+  }
+};
+
+const limparCicloDraft = () => {
+  localStorage.removeItem(CICLO_DRAFT_KEY);
+};
+
+const serializarSelecaoDisciplinas = (selecao = {}) =>
+  Object.fromEntries(
+    Object.entries(selecao).map(([id, valor]) => [
+      id,
+      {
+        ...valor,
+        assuntosMarcados: Array.from(valor?.assuntosMarcados || []),
+      },
+    ])
+  );
+
+const desserializarSelecaoDisciplinas = (selecao = {}) =>
+  Object.fromEntries(
+    Object.entries(selecao || {}).map(([id, valor]) => [
+      id,
+      {
+        ...valor,
+        assuntosMarcados: new Set(Array.isArray(valor?.assuntosMarcados) ? valor.assuntosMarcados : []),
+      },
+    ])
+  );
+
+const clampStep = (step) => Math.min(Math.max(Number(step) || 1, 1), STEPS.length);
+const clampWizardStep = (step, isEditMode = false) => {
+  const normalizedStep = clampStep(step);
+  return isEditMode ? Math.max(2, normalizedStep) : normalizedStep;
+};
+
+const scrollToTopInstant = (element = null) => {
+  if (element) element.scrollTop = 0;
+  try {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  } catch {
+    window.scrollTo(0, 0);
+  }
+};
+
+const buildDisciplinaSnapshotCompleto = ({
+  disciplinas = [],
+  extraDisciplinas = [],
+  selecaoDisciplinas = {},
+  horasTotais = 0,
+  tempoSessaoMinutos = 50,
+}) => {
+  const todasDisciplinas = [...disciplinas, ...extraDisciplinas];
+  const disciplinasSelecionadas = todasDisciplinas
+    .map((disciplina) => {
+      const selecao = selecaoDisciplinas[disciplina.id] || {};
+      const ativa = Boolean(selecao.checked || selecao.parcial);
+      if (!ativa) return null;
+
+      const nivelDominio = selecao.nivel || disciplina.nivelDominio || disciplina.nivel || null;
+      const assuntosOriginais = Array.isArray(disciplina.assuntos) ? disciplina.assuntos : [];
+      const assuntosMarcados = selecao.checked
+        ? assuntosOriginais
+        : assuntosOriginais.filter((_, index) => selecao.assuntosMarcados?.has?.(index));
+
+      return {
+        ...disciplina,
+        nivelDominio,
+        peso: NIVEL_TO_PESO[nivelDominio] || Number(disciplina.peso) || 3,
+        assuntos: assuntosMarcados,
+      };
+    })
+    .filter(Boolean);
+
+  const distribuicaoAtiva = disciplinasSelecionadas.length > 0
+    ? calcularDistribuicao(
+        disciplinasSelecionadas.map((disciplina, index) => ({
+          ...disciplina,
+          id: disciplina.id || `snapshot-${index}`,
+        })),
+        Math.round(horasTotais * 60),
+        tempoSessaoMinutos
+      )
+    : [];
+  const mapaDistribuicaoAtiva = new Map(
+    distribuicaoAtiva.map((disciplina) => [disciplina.id, disciplina])
+  );
+
+  return todasDisciplinas.map((disciplina, index) => {
+    const selecao = selecaoDisciplinas[disciplina.id] || {};
+    const ativa = Boolean(selecao.checked || selecao.parcial);
+    const nivelDominio = selecao.nivel || disciplina.nivelDominio || disciplina.nivel || null;
+    const assuntosOriginais = Array.isArray(disciplina.assuntos) ? disciplina.assuntos : [];
+    const assuntosMarcados = selecao.checked
+      ? assuntosOriginais
+      : assuntosOriginais.filter((_, assuntoIndex) => selecao.assuntosMarcados?.has?.(assuntoIndex));
+    const disciplinaAtiva = mapaDistribuicaoAtiva.get(disciplina.id);
+
+    return {
+      id: disciplina.id,
+      nome: disciplina.nome,
+      assuntos: ativa ? assuntosMarcados : assuntosOriginais,
+      peso: NIVEL_TO_PESO[nivelDominio] || Number(disciplina.peso) || 3,
+      nivelDominio,
+      tempoAlocadoSemanalMinutos: ativa ? Number(disciplinaAtiva?.tempoAlocadoMinutos || 0) : 0,
+      inCiclo: ativa,
+      index,
+    };
+  });
+};
+
+function CicloCreateWizard({
+  onClose,
+  user,
+  onCicloAtivado,
+  onBackToSelector,
+  onOpenFeedback,
+  mode = 'create',
+  cicloId = null,
+  initialState = null,
+  initialStep = 1,
+}) {
+  const isEditMode = mode === 'edit';
+  const [passo, setPasso] = useState(() => clampWizardStep(initialStep, isEditMode));
   const [nomeCiclo, setNomeCiclo] = useState('');
   const [idModeloSelecionado, setIdModeloSelecionado] = useState(null);
   const [dadosModeloSelecionado, setDadosModeloSelecionado] = useState(null);
-  const [metodoCargaHoraria, setMetodoCargaHoraria] = useState('grade');
-  const [cargaHorariaManual, setCargaHorariaManual] = useState(0);
   const [gradeDisponibilidade, setGradeDisponibilidade] = useState({});
+  const [tempoSessaoMinutos, setTempoSessaoMinutos] = useState(50);
   const [disciplinas, setDisciplinas] = useState([]);
-  const [nomeNovaDisciplina, setNomeNovaDisciplina] = useState('');
-  const [novoPeso, setNovoPeso] = useState(3);
+  const [extraDisciplinas, setExtraDisciplinas] = useState([]);
+  const [selecaoDisciplinas, setSelecaoDisciplinas] = useState({});
   const [modelos, setModelos] = useState([]);
   const [carregandoModelos, setCarregandoModelos] = useState(false);
-
-  // ESTADO QUE CONTROLA A TROCA DE TELAS
   const [mostrarModalModelo, setMostrarModalModelo] = useState(false);
+  const [revisaoModo, setRevisaoModo] = useState(REVISAO_MODO_FLEXIVEL);
+  const [modoExibirAssuntos, setModoExibirAssuntos] = useState(true);
+  const [mostrandoRascunho, setMostrandoRascunho] = useState(false);
+  const [sessionAutoAdjustedNotice, setSessionAutoAdjustedNotice] = useState(null);
+  const conteudoRef = useRef(null);
 
-  const { criarCiclo, loading } = useCiclos(user);
+  const { criarCiclo, editarCiclo, loading } = useCiclos(user);
+  const visibleSteps = isEditMode ? STEPS.slice(1) : STEPS;
+  const firstVisibleStep = isEditMode ? 2 : 1;
+  const lastVisibleStep = isEditMode ? STEPS.length : STEPS.length;
+  const visibleStepIndex = isEditMode ? Math.max(0, passo - 2) : Math.max(0, passo - 1);
 
-  // Scroll Block global
-  useEffect(() => {
-    document.body.style.overflow = 'hidden';
-    document.documentElement.style.overflow = 'hidden';
-    document.body.style.overscrollBehavior = 'none';
-    return () => {
-        document.body.style.overflow = '';
-        document.documentElement.style.overflow = '';
-        document.body.style.overscrollBehavior = '';
+  const possuiDadosParaRascunho = Boolean(
+    idModeloSelecionado ||
+    nomeCiclo.trim() ||
+    disciplinas.length > 0 ||
+    extraDisciplinas.length > 0 ||
+    Object.keys(gradeDisponibilidade).length > 0 ||
+    passo > 1
+  );
+
+  const aplicarEstadoWizard = (state, stepOverride = null) => {
+    if (!state) return;
+
+    setPasso(clampWizardStep(stepOverride ?? state.passo ?? (isEditMode ? 2 : 1), isEditMode));
+    setNomeCiclo(state.nomeCiclo || '');
+    setIdModeloSelecionado(state.idModeloSelecionado || null);
+    setDadosModeloSelecionado(state.dadosModeloSelecionado || null);
+    setGradeDisponibilidade(state.gradeDisponibilidade || {});
+    setTempoSessaoMinutos(state.tempoSessaoMinutos ?? 50);
+    setDisciplinas(Array.isArray(state.disciplinas) ? state.disciplinas : []);
+    setExtraDisciplinas(Array.isArray(state.extraDisciplinas) ? state.extraDisciplinas : []);
+    setSelecaoDisciplinas(
+      state.selecaoDisciplinasSerializada
+        ? desserializarSelecaoDisciplinas(state.selecaoDisciplinasSerializada)
+        : (state.selecaoDisciplinas || {})
+    );
+    setRevisaoModo(normalizeRevisaoModoCiclo(state.revisaoModo));
+    setModoExibirAssuntos(state.modoExibirAssuntos !== false);
+  };
+
+  const salvarRascunhoAtual = () => {
+    if (isEditMode) return;
+    if (!possuiDadosParaRascunho) return;
+    const payload = {
+      passo,
+      nomeCiclo,
+      idModeloSelecionado,
+      dadosModeloSelecionado,
+      gradeDisponibilidade,
+      tempoSessaoMinutos,
+      disciplinas,
+      extraDisciplinas,
+      selecaoDisciplinas: serializarSelecaoDisciplinas(selecaoDisciplinas),
+      revisaoModo: normalizeRevisaoModoCiclo(revisaoModo),
+      modoExibirAssuntos: modoExibirAssuntos !== false,
     };
+    try {
+      localStorage.setItem(CICLO_DRAFT_KEY, JSON.stringify(payload));
+    } catch {}
+  };
+
+  useEffect(() => {
+    const buscarModelos = async () => {
+      setCarregandoModelos(true);
+      try {
+        const querySnapshot = await getDocs(collection(db, 'editais_templates'));
+        const firestoreTemplates = querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        const firestoreMap = new Map(firestoreTemplates.map((t) => [t.id, t]));
+
+        const localSeedsProcessed = CATALOGO_EDITAIS.filter((seed) => !firestoreMap.get(seed.id)?.deleted).map((seed) => {
+          const fromDb = firestoreMap.get(seed.id);
+          if (fromDb) {
+            firestoreMap.delete(seed.id);
+            return {
+              ...seed,
+              ...fromDb,
+              logo: fromDb.logoUrl || fromDb.logo || seed.logo,
+              isLocal: true,
+              isInstalled: true,
+            };
+          }
+          return { ...seed, isLocal: true, isInstalled: false };
+        });
+
+        const customTemplates = Array.from(firestoreMap.values())
+          .filter((t) => !t.deleted)
+          .map((t) => ({
+            ...t,
+            logo: t.logoUrl || t.logo,
+            type: t.tipo || 'outros',
+            isCustom: true,
+            isInstalled: true,
+            ativo: t.ativo !== undefined ? t.ativo : true,
+          }));
+
+        setModelos([...localSeedsProcessed, ...customTemplates]);
+      } catch (error) {
+        console.error('Erro ao carregar templates:', error);
+      } finally {
+        setCarregandoModelos(false);
+      }
+    };
+
+    buscarModelos();
   }, []);
 
   useEffect(() => {
-      const buscarModelos = async () => {
-          setCarregandoModelos(true);
-          try {
-              const querySnapshot = await getDocs(collection(db, "editais_templates"));
-              const firestoreTemplates = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-              const firestoreMap = new Map(firestoreTemplates.map(t => [t.id, t]));
+    document.body.classList.add('wizard-shell-open');
+    if (!isEditMode) {
+      const draft = lerCicloDraft();
+      if (draft) setMostrandoRascunho(true);
+    }
+    return () => {
+      document.body.classList.remove('wizard-shell-open');
+    };
+  }, [isEditMode]);
 
-              const localSeedsProcessed = CATALOGO_EDITAIS
-                .filter(seed => !firestoreMap.get(seed.id)?.deleted)
-                .map(seed => {
-                    const fromDb = firestoreMap.get(seed.id);
-                    if (fromDb) {
-                        firestoreMap.delete(seed.id);
-                        return { ...seed, ...fromDb, logo: fromDb.logoUrl || fromDb.logo || seed.logo, isLocal: true, isInstalled: true };
-                    }
-                    return { ...seed, isLocal: true, isInstalled: false };
-                });
+  useEffect(() => {
+    scrollToTopInstant(conteudoRef.current);
+  }, [passo]);
 
-              const customTemplates = Array.from(firestoreMap.values())
-                .filter(t => !t.deleted)
-                .map(t => ({ ...t, logo: t.logoUrl || t.logo, type: t.tipo || 'outros', isCustom: true, isInstalled: true, ativo: t.ativo !== undefined ? t.ativo : true }));
+  useEffect(() => {
+    if (!isEditMode || !initialState) return;
+    aplicarEstadoWizard(initialState, initialStep);
+    setMostrandoRascunho(false);
+  }, [isEditMode, initialState, initialStep]);
 
-              setModelos([...localSeedsProcessed, ...customTemplates]);
-          } catch (error) { console.error("❌ Erro ao carregar templates:", error); }
-          finally { setCarregandoModelos(false); }
-      };
-      buscarModelos();
-  }, []);
+  useEffect(() => {
+    if (isEditMode) return;
+    if (!possuiDadosParaRascunho) return;
+    const timer = setTimeout(() => {
+      salvarRascunhoAtual();
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [
+    possuiDadosParaRascunho,
+    passo,
+    nomeCiclo,
+    idModeloSelecionado,
+    dadosModeloSelecionado,
+    gradeDisponibilidade,
+    tempoSessaoMinutos,
+    disciplinas,
+    extraDisciplinas,
+    selecaoDisciplinas,
+    revisaoModo,
+    modoExibirAssuntos,
+    isEditMode,
+  ]);
+
+  useEffect(() => {
+    if (!idModeloSelecionado || idModeloSelecionado === 'manual' || modelos.length === 0) return;
+    const modeloEncontrado = modelos.find((modelo) => modelo.id === idModeloSelecionado);
+    if (!modeloEncontrado) return;
+
+    setDadosModeloSelecionado((current) => {
+      if (current?.id === modeloEncontrado.id && current?.titulo) return current;
+      return modeloEncontrado;
+    });
+  }, [idModeloSelecionado, modelos]);
 
   const horasTotais = useMemo(() => {
-      const manual = parseFloat(cargaHorariaManual) || 0;
-      const grade = Object.keys(gradeDisponibilidade).length;
-      return metodoCargaHoraria === 'manual' ? manual : grade;
-  }, [metodoCargaHoraria, cargaHorariaManual, gradeDisponibilidade]);
+    return Object.values(gradeDisponibilidade).reduce((acc, valor) => acc + (parseFloat(valor) || 0), 0);
+  }, [gradeDisponibilidade]);
+
+  const minimumActiveDayMinutes = useMemo(
+    () => getMinimumActiveDayMinutesFromSchedule(gradeDisponibilidade),
+    [gradeDisponibilidade]
+  );
+
+  useEffect(() => {
+    if (!minimumActiveDayMinutes || !tempoSessaoMinutos) {
+      setSessionAutoAdjustedNotice(null);
+      return;
+    }
+
+    if (tempoSessaoMinutos > minimumActiveDayMinutes) {
+      setTempoSessaoMinutos(minimumActiveDayMinutes);
+      setSessionAutoAdjustedNotice({
+        adjustedTo: minimumActiveDayMinutes,
+        minDayMinutes: minimumActiveDayMinutes,
+      });
+      return;
+    }
+
+    setSessionAutoAdjustedNotice((current) => {
+      if (!current) return null;
+      if (current.adjustedTo !== tempoSessaoMinutos) return null;
+      if (current.minDayMinutes !== minimumActiveDayMinutes) {
+        return {
+          adjustedTo: tempoSessaoMinutos,
+          minDayMinutes: minimumActiveDayMinutes,
+        };
+      }
+      return current;
+    });
+  }, [minimumActiveDayMinutes, tempoSessaoMinutos]);
 
   const disciplinasComCalculo = useMemo(() => {
-      const pesoTotal = disciplinas.reduce((acc, d) => acc + (d.peso || 1), 0);
-      return disciplinas.map(d => {
-          const razao = pesoTotal > 0 ? (d.peso || 1) / pesoTotal : 0;
-          const horas = razao * horasTotais;
-          return { ...d, horasCalculadas: horas };
-      });
-  }, [disciplinas, horasTotais]);
+    const disciplinasAtivas = [...disciplinas, ...extraDisciplinas]
+      .map((d) => {
+        const selecao = selecaoDisciplinas[d.id] || {};
+        const ativo = Boolean(selecao.checked || selecao.parcial);
+        if (!ativo) return null;
+        const nivelDominio = selecao.nivel || null;
+        const assuntos = Array.isArray(d.assuntos) ? d.assuntos : [];
+        const assuntosMarcados = selecao.checked
+          ? assuntos
+          : assuntos.filter((_, index) => selecao.assuntosMarcados?.has?.(index));
+        return {
+          ...d,
+          nivelDominio,
+          peso: NIVEL_TO_PESO[nivelDominio] || Number(d.peso) || 3,
+          assuntos: assuntos.length > 0 ? assuntosMarcados : assuntos,
+        };
+      })
+      .filter(Boolean);
+
+    const pesoTotal = disciplinasAtivas.reduce((acc, d) => acc + obterPesoDisciplina(d), 0);
+    return disciplinasAtivas.map((d) => {
+      const peso = obterPesoDisciplina(d);
+      const razao = pesoTotal > 0 ? peso / pesoTotal : 0;
+      const horas = razao * horasTotais;
+      return { ...d, peso, nivelDominio: isNivelValido(d.nivelDominio) ? d.nivelDominio : null, horasCalculadas: horas };
+    });
+  }, [disciplinas, extraDisciplinas, selecaoDisciplinas, horasTotais]);
+
+  const selecaoValidaDisciplinas = useMemo(
+    () =>
+      disciplinasComCalculo.length > 0 &&
+      disciplinasComCalculo.every((d) => isNivelValido(d.nivelDominio)) &&
+      [...disciplinas, ...extraDisciplinas]
+        .filter((d) => {
+          const selecao = selecaoDisciplinas[d.id] || {};
+          return Boolean(selecao.checked || selecao.parcial);
+        })
+        .every((d) => {
+          const nivel = selecaoDisciplinas[d.id]?.nivel;
+          return isNivelValido(nivel);
+        }),
+    [disciplinasComCalculo, disciplinas, extraDisciplinas, selecaoDisciplinas]
+  );
+
+  const disciplinasPreview = useMemo(() => {
+    if (disciplinasComCalculo.length === 0 || horasTotais <= 0) return [];
+    return calcularDistribuicao(
+      disciplinasComCalculo.map((disciplina, index) => ({
+        ...disciplina,
+        id: disciplina.id || `preview-${index}`,
+      })),
+      Math.round(horasTotais * 60),
+      tempoSessaoMinutos
+    );
+  }, [disciplinasComCalculo, horasTotais, tempoSessaoMinutos]);
+
+  const cicloPreview = useMemo(() => {
+    if (disciplinasPreview.length === 0) return null;
+    const ordemSessoes = gerarOrdemSessoes(disciplinasPreview);
+    return {
+      nome: nomeCiclo || dadosModeloSelecionado?.titulo || 'Preview do Ciclo',
+      tempoSessaoMinutos,
+      modoExibirAssuntos: modoExibirAssuntos !== false,
+      totalSessoesCiclo: ordemSessoes.length,
+      ordemSessoes,
+      sessoesConcluidas: [],
+    };
+  }, [disciplinasPreview, tempoSessaoMinutos, modoExibirAssuntos, nomeCiclo, dadosModeloSelecionado]);
+
+  const modoManualConfirmado = idModeloSelecionado === 'manual';
+  const editalCatalogoConfirmado = Boolean(
+    idModeloSelecionado &&
+    idModeloSelecionado !== 'manual' &&
+    dadosModeloSelecionado?.id === idModeloSelecionado
+  );
+  const editalConfirmado = modoManualConfirmado || editalCatalogoConfirmado;
 
   const selecionarModelo = (modelo) => {
-      setIdModeloSelecionado(modelo.id);
-      setDadosModeloSelecionado(modelo);
-
-      // ✅ AQUI: Ao selecionar, fechamos o modal de seleção e o Wizard "reaparece"
-      setMostrarModalModelo(false);
-
-      setNomeCiclo(modelo.titulo);
-
-      const disciplinasFormatadas = (modelo.disciplinas || []).map((d, index) => {
-          let pesoInicial = d.peso || d.peso_sugerido || 3;
-          const assuntosLimpos = (d.assuntos || []).map(item => (typeof item === 'string' ? item : item?.nome || "")).filter(i => i !== "");
-          return {
-              id: `imported-${Date.now()}-${index}`,
-              nome: d.nome,
-              peso: Math.max(1, Math.min(5, Number(pesoInicial))),
-              assuntos: assuntosLimpos,
-              index: index
-          };
-      });
-      setDisciplinas(disciplinasFormatadas);
+    setIdModeloSelecionado(modelo.id);
+    setDadosModeloSelecionado(modelo);
+    setMostrarModalModelo(false);
+    setNomeCiclo(modelo.titulo || '');
+    const disciplinasFormatadas = (modelo.disciplinas || []).map((d, index) => {
+      const pesoInicial = d.peso || d.peso_sugerido || 3;
+      const nivelDominio = normalizarNivel(d.nivelDominio || d.nivel, pesoInicial);
+      const assuntosLimpos = (d.assuntos || [])
+        .map((item) => (typeof item === 'string' ? item : item?.nome || ''))
+        .filter((i) => i !== '');
+      return {
+        id: `imported-${Date.now()}-${index}`,
+        nome: d.nome,
+        peso: NIVEL_TO_PESO[nivelDominio],
+        nivelDominio,
+        assuntos: assuntosLimpos,
+        index,
+      };
+    });
+    setDisciplinas(disciplinasFormatadas);
+    setExtraDisciplinas([]);
+    setSelecaoDisciplinas(
+      Object.fromEntries(
+        disciplinasFormatadas.map((disc) => [
+          disc.id,
+          {
+            checked: false,
+            parcial: false,
+            assuntosMarcados: new Set(),
+            nivel: null,
+          },
+        ])
+      )
+    );
   };
 
   const selecionarManual = () => {
-      setIdModeloSelecionado('manual');
-      setDadosModeloSelecionado(null);
-      setNomeCiclo('');
-      setDisciplinas([]);
+    setIdModeloSelecionado('manual');
+    setDadosModeloSelecionado(null);
+    setNomeCiclo('');
+    setDisciplinas([]);
+    setExtraDisciplinas([]);
+    setSelecaoDisciplinas({});
   };
 
-  const adicionarDisciplina = (e) => {
-      e.preventDefault();
-      if (!nomeNovaDisciplina.trim()) return;
-      setDisciplinas(prev => [...prev, { id: `new-${Date.now()}`, nome: nomeNovaDisciplina.trim(), peso: novoPeso, assuntos: [], index: prev.length }]);
-      setNomeNovaDisciplina('');
-      setNovoPeso(3);
+  const salvarWizard = async () => {
+    if (horasTotais <= 0) return alert('Por favor, defina uma carga horaria maior que zero.');
+    if (disciplinasComCalculo.length === 0) return alert('Selecione pelo menos uma disciplina para o ciclo.');
+    if (!selecaoValidaDisciplinas) return alert('Escolha o nivel de dominio em todas as disciplinas selecionadas.');
+    if (!nomeCiclo.trim()) return alert('Informe o nome do ciclo.');
+
+    const isManual = idModeloSelecionado === 'manual' || !idModeloSelecionado;
+    const logoFinal = isManual ? null : dadosModeloSelecionado?.logoUrl || dadosModeloSelecionado?.logo || null;
+
+    const dadosCiclo = {
+      nome: nomeCiclo.trim(),
+      cargaHorariaTotal: Number(horasTotais),
+      diasEstudo: gradeDisponibilidade,
+      templateId: isManual ? 'manual' : idModeloSelecionado,
+      editalId: isManual ? 'manual' : idModeloSelecionado,
+      tipo: isManual ? 'manual' : 'padrao',
+      criadoEm: new Date(),
+      logoUrl: logoFinal,
+      tempoSessaoMinutos,
+      modoExibirAssuntos: modoExibirAssuntos !== false,
+      revisaoModo: normalizeRevisaoModoCiclo(revisaoModo),
+      disciplinas: disciplinasComCalculo.map((d, position) => ({
+        id: d.id,
+        nome: d.nome,
+        assuntos: d.assuntos,
+        peso: obterPesoDisciplina(d),
+        nivelDominio: normalizarNivel(d.nivelDominio || d.nivel, d.peso),
+        tempoAlocadoSemanalMinutos: Math.round(d.horasCalculadas * 60),
+        index: position,
+      })),
+      disciplinasEstadoCompleto: buildDisciplinaSnapshotCompleto({
+        disciplinas,
+        extraDisciplinas,
+        selecaoDisciplinas,
+        horasTotais,
+        tempoSessaoMinutos,
+      }),
+    };
+
+    if (isEditMode) {
+      const editou = await editarCiclo(cicloId, dadosCiclo);
+      if (editou) {
+        onClose?.();
+        if (onCicloAtivado) onCicloAtivado(cicloId);
+      }
+      return;
+    }
+
+    const novoId = await criarCiclo(dadosCiclo);
+    if (novoId) {
+      limparCicloDraft();
+      onClose?.();
+      if (onCicloAtivado) onCicloAtivado(novoId);
+    }
   };
 
-  const atualizarDisciplina = (id, novosDados) => setDisciplinas(prev => prev.map(d => d.id === id ? novosDados : d));
-  const removerDisciplina = (id) => { if (window.confirm("Remover esta disciplina?")) setDisciplinas(prev => prev.filter(d => d.id !== id)); };
+  const currentStep = visibleSteps[visibleStepIndex] || visibleSteps[0];
+  const StepIcon = currentStep.icon || Target;
+  const stepBarPasso = currentStep?.id ?? 0;
 
-  const finalizarCriacao = async () => {
-      if (horasTotais <= 0) return alert("Por favor, defina uma carga horária maior que zero.");
-      if (disciplinas.length === 0) return alert("Adicione pelo menos uma disciplina ao ciclo.");
+  const podeAvancar = useMemo(() => {
+    if (passo === 1) return editalConfirmado && !mostrarModalModelo;
+    if (passo === 2) return selecaoValidaDisciplinas;
+    if (passo === 3) return horasTotais > 0;
+    if (passo === 4) return Boolean(revisaoModo);
+    if (passo === 5) return nomeCiclo.trim().length > 0 && Number(tempoSessaoMinutos) >= 10;
+    if (passo === 6) return disciplinasPreview.length > 0 && Boolean(cicloPreview);
+    return false;
+  }, [passo, editalConfirmado, mostrarModalModelo, selecaoValidaDisciplinas, horasTotais, revisaoModo, nomeCiclo, tempoSessaoMinutos, disciplinasPreview, cicloPreview]);
 
-      const isManual = idModeloSelecionado === 'manual' || !idModeloSelecionado;
-      const logoFinal = isManual ? null : (dadosModeloSelecionado?.logoUrl || dadosModeloSelecionado?.logo || null);
+  const handleVoltar = () => {
+    if (isEditMode) {
+      if (passo === firstVisibleStep) {
+        onClose?.();
+        return;
+      }
+      setPasso((s) => s - 1);
+      return;
+    }
 
-      const dadosCiclo = {
-          nome: nomeCiclo,
-          cargaHorariaTotal: Number(horasTotais),
-          templateId: isManual ? 'manual' : idModeloSelecionado,
-          editalId: isManual ? 'manual' : idModeloSelecionado,
-          tipo: isManual ? 'manual' : 'padrao',
-          criadoEm: new Date(),
-          logoUrl: logoFinal,
-          disciplinas: disciplinasComCalculo.map((d, position) => ({
-              nome: d.nome,
-              assuntos: d.assuntos,
-              peso: d.peso,
-              tempoAlocadoSemanalMinutos: Math.round(d.horasCalculadas * 60),
-              index: position
-          }))
-      };
-
-      const novoId = await criarCiclo(dadosCiclo);
-      if (novoId) { onClose(); if (onCicloAtivado) onCicloAtivado(novoId); }
+    if (passo === 1) {
+      if (mostrarModalModelo) {
+        setMostrarModalModelo(false);
+        return;
+      }
+      if (idModeloSelecionado) {
+        setIdModeloSelecionado(null);
+        setDadosModeloSelecionado(null);
+        return;
+      }
+      return;
+    }
+    setPasso((s) => s - 1);
   };
 
-  // ✅ LÓGICA DE RENDERIZAÇÃO EXCLUSIVA
-  // Se o usuário clicar em "Selecionar Edital", retornamos APENAS o Modal de Seleção.
-  // O Wizard "desaparece" momentaneamente.
-  if (mostrarModalModelo) {
+  const onAbrirSuporte = () => onOpenFeedback?.({ initialView: 'new', initialType: 'edital' });
+
+  const restaurarRascunho = () => {
+    const draft = lerCicloDraft();
+    if (!draft) {
+      setMostrandoRascunho(false);
+      return;
+    }
+    aplicarEstadoWizard(
+      {
+        ...draft,
+        selecaoDisciplinasSerializada: draft.selecaoDisciplinas || {},
+      },
+      draft.passo
+    );
+    setMostrandoRascunho(false);
+  };
+
+  const renderStep = () => {
+    if (passo === 1) {
       return (
-          <ModalSelecaoEdital
-              aberto={true} // Sempre aberto quando renderizado aqui
-              aoFechar={() => setMostrarModalModelo(false)} // Ao fechar, volta pro Wizard
-              modelos={modelos}
-              aoSelecionar={selecionarModelo} // Ao selecionar, volta pro Wizard com dados
-              carregando={carregandoModelos}
-              configCategorias={CONFIG_CATEGORIAS}
-          />
+        <StepEdital
+          idModeloSelecionado={idModeloSelecionado}
+          selecionarManual={selecionarManual}
+          selecionarModelo={selecionarModelo}
+          modelos={modelos}
+          carregandoModelos={carregandoModelos}
+          onAbrirSuporte={onAbrirSuporte}
+        />
       );
-  }
+    }
 
-  // ✅ Se não estiver mostrando o modal de seleção, mostra o Wizard normal
-  const isWide = passo >= 2;
-  const maxWidthClass = isWide ? WIZARD_LAYOUT.desktop.widthStepWide : WIZARD_LAYOUT.desktop.widthStep1;
+    if (passo === 2) {
+      return (
+        <StepDisciplinas
+          disciplinas={disciplinas}
+          setDisciplinas={setDisciplinas}
+          extraDisciplinas={extraDisciplinas}
+          setExtraDisciplinas={setExtraDisciplinas}
+          selecaoDisciplinas={selecaoDisciplinas}
+          setSelecaoDisciplinas={setSelecaoDisciplinas}
+          editalSelecionado={dadosModeloSelecionado}
+          modoManual={idModeloSelecionado === 'manual' || !idModeloSelecionado}
+          horarios={gradeDisponibilidade}
+        />
+      );
+    }
+
+    if (passo === 3) {
+      return (
+        <StepHorarios
+          horarios={gradeDisponibilidade}
+          setHorarios={setGradeDisponibilidade}
+          editalSelecionado={dadosModeloSelecionado}
+        />
+      );
+    }
+
+    if (passo === 4) {
+      return <StepRevisao revisaoModo={revisaoModo} setRevisaoModo={setRevisaoModo} />;
+    }
+
+    if (passo === 5) {
+      return (
+        <StepConfig
+          nomeCiclo={nomeCiclo}
+          setNomeCiclo={setNomeCiclo}
+          tempoSessaoMinutos={tempoSessaoMinutos}
+          setTempoSessaoMinutos={setTempoSessaoMinutos}
+          modoExibirAssuntos={modoExibirAssuntos}
+          setModoExibirAssuntos={setModoExibirAssuntos}
+          editalSelecionado={dadosModeloSelecionado}
+          horasTotais={horasTotais}
+          totalDisciplinas={disciplinasComCalculo.length}
+          minimumActiveDayMinutes={minimumActiveDayMinutes}
+          sessionAutoAdjustedNotice={sessionAutoAdjustedNotice}
+        />
+      );
+    }
+
+    return (
+      <StepPreview
+        editalSelecionado={dadosModeloSelecionado}
+        nomeCiclo={nomeCiclo}
+        horasTotais={horasTotais}
+        tempoSessaoMinutos={tempoSessaoMinutos}
+        modoExibirAssuntos={modoExibirAssuntos}
+        disciplinasPreview={disciplinasPreview}
+        cicloPreview={cicloPreview}
+      />
+    );
+  };
 
   return (
-    <div className={`fixed inset-0 bg-black/40 backdrop-blur-sm ${WIZARD_LAYOUT.zIndex} flex items-center justify-center p-4 overflow-hidden touch-none`}>
-      <motion.div
-        layout
-        className={`
-            bg-white dark:bg-zinc-950 rounded-3xl shadow-2xl border border-zinc-200 dark:border-zinc-800 w-full flex flex-col relative transition-all duration-500
-
-            ${maxWidthClass}
-            ${WIZARD_LAYOUT.mobile.width}
-            ${WIZARD_LAYOUT.mobile.marginTop}
-            ${WIZARD_LAYOUT.mobile.marginBottom}
-            ${WIZARD_LAYOUT.mobile.maxHeight}
-
-            ${WIZARD_LAYOUT.desktop.marginTop}
-            ${WIZARD_LAYOUT.desktop.marginBottom}
-            ${WIZARD_LAYOUT.desktop.marginLeft}
-            ${WIZARD_LAYOUT.desktop.maxHeight}
-
-            ${passo === 3 ? 'h-[80vh]' : 'h-auto'}
-        `}
-        initial={{ scale: 0.95, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-      >
-
-        <div className="absolute right-0 top-0 p-4 opacity-[0.03] dark:opacity-[0.05] pointer-events-none z-0">
-            {passo === 1 && <FileText size={250} className="text-red-600" />}
-            {passo === 2 && <Clock size={250} className="text-red-600" />}
-            {passo === 3 && <Layers size={250} className="text-red-600" />}
-        </div>
-
-        {/* HEADER */}
-        <div className="flex-shrink-0 flex justify-between items-center p-4 sm:p-5 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50/90 dark:bg-zinc-900/90 backdrop-blur rounded-t-3xl z-20">
-            <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-red-600 to-red-700 text-white rounded-lg flex items-center justify-center shadow-lg shadow-red-600/20">
-                    {passo === 1 ? <Target size={20}/> : passo === 2 ? <Clock size={20}/> : <Layers size={20}/>}
-                </div>
-                <div>
-                    <h2 className="text-lg font-black text-zinc-900 dark:text-white uppercase leading-none">Novo Ciclo</h2>
-                    <p className="text-[10px] text-zinc-500 font-bold mt-0.5 uppercase tracking-wide">
-                      {passo === 1 ? '1. Escolha o tipo de Ciclo' : passo === 2 ? '2. Carga Horária' : '3. Estrutura do Edital'}
-                    </p>
-                </div>
+    <div className="flex flex-col min-h-screen pb-6">
+      <div className="shrink-0 sticky top-0 z-[50] px-3 pt-3 md:px-6 md:pt-4">
+        <div className="max-w-6xl mx-auto rounded-[28px] border border-zinc-200/80 dark:border-zinc-800 bg-white/88 dark:bg-zinc-900/88 backdrop-blur-xl shadow-[0_12px_40px_rgba(0,0,0,0.05)] px-3 py-3 md:px-5">
+          <div className="flex flex-wrap items-center justify-between gap-3 md:gap-4">
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+            <motion.div
+              key={passo}
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="w-10 h-10 rounded-[1.1rem] flex items-center justify-center shadow-lg shadow-red-500/10 text-white shrink-0 bg-red-600 relative overflow-hidden"
+            >
+              <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent opacity-50" />
+              <StepIcon size={18} strokeWidth={2.5} className="relative z-10" />
+            </motion.div>
+            <div className="min-w-0">
+              <h1 className="text-[12px] md:text-[13px] font-black uppercase tracking-[0.14em] text-zinc-900 dark:text-white leading-none truncate">
+                {currentStep.title}
+              </h1>
+              <p className="text-[10px] text-zinc-400 dark:text-zinc-500 font-bold truncate mt-1">{currentStep.sub}</p>
             </div>
-            <button onClick={onClose} className="p-2 text-zinc-400 hover:text-red-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-all"><X size={20} /></button>
+          </div>
+
+          <button
+            onClick={() => {
+              if (!isEditMode) salvarRascunhoAtual();
+              onClose?.();
+            }}
+            className="p-1.5 rounded-lg text-zinc-400 hover:text-red-500 transition-all border border-zinc-200 dark:border-zinc-700 shrink-0"
+          >
+            <X size={16} />
+          </button>
+
+          <div className="basis-full">
+            <StepBar passo={stepBarPasso} steps={visibleSteps} isExpresso={false} />
+          </div>
         </div>
+      </div>
+      </div>
 
-        {/* BODY */}
-        <div className={`flex-1 relative z-10 flex flex-col min-h-0 ${passo === 3 ? 'overflow-hidden' : 'overflow-y-auto custom-scrollbar'}`}>
+      <div ref={conteudoRef} className="mt-3 pb-36 md:pb-40">
+        <div className={passo === firstVisibleStep || passo === 6 ? 'w-full mx-auto' : 'max-w-5xl mx-auto'}>
           <AnimatePresence mode="wait">
-
-            {/* PASSO 1 */}
-             {passo === 1 && (
-              <motion.div key="step1" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="flex-1 flex flex-col items-center justify-center p-6 sm:p-8 gap-6 min-h-[300px]">
-                  {!idModeloSelecionado ? (
-                    <div className="flex flex-col h-full w-full max-w-2xl">
-                        <div className="mb-6 text-center">
-                            <h3 className="text-xl font-bold text-zinc-800 dark:text-white">Qual é o seu objetivo?</h3>
-                            <p className="text-zinc-500 text-sm">Escolha um concurso base ou crie do zero.</p>
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <button onClick={selecionarManual} className="flex flex-col items-center justify-center p-6 sm:p-8 rounded-3xl bg-zinc-50 dark:bg-zinc-900 border-2 border-dashed border-zinc-300 dark:border-zinc-700 hover:border-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 transition-all group h-40 sm:h-48">
-                                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                                    <Plus size={28} className="text-zinc-500 dark:text-zinc-400 group-hover:text-red-500" />
-                                </div>
-                                <span className="font-black text-lg text-zinc-700 dark:text-zinc-300 group-hover:text-red-500">Ciclo Manual</span>
-                                <span className="text-xs text-zinc-400 mt-1">Começar do zero</span>
-                            </button>
-                            <button onClick={() => setMostrarModalModelo(true)} className="flex flex-col items-center justify-center p-6 sm:p-8 rounded-3xl bg-white dark:bg-zinc-900 border-2 border-zinc-200 dark:border-zinc-800 shadow-lg hover:shadow-xl hover:border-indigo-500 dark:hover:border-indigo-500 transition-all group h-40 sm:h-48 relative overflow-hidden">
-                                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><Library size={80}/></div>
-                                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform relative z-10">
-                                    <Search size={28} className="text-indigo-600 dark:text-indigo-400" />
-                                </div>
-                                <span className="font-black text-lg text-zinc-800 dark:text-white relative z-10">Selecionar Edital</span>
-                                <span className="text-xs text-zinc-500 mt-1 relative z-10">Usar edital pronto</span>
-                            </button>
-                        </div>
-                    </div>
-                ) : (
-                    <div className="w-full max-w-md text-center">
-                        {dadosModeloSelecionado && (dadosModeloSelecionado.logoUrl || dadosModeloSelecionado.logo) && (
-                            <div className="mb-6 flex justify-center">
-                                <motion.img
-                                    initial={{ scale: 0.8, opacity: 0 }}
-                                    animate={{ scale: 1, opacity: 1 }}
-                                    src={dadosModeloSelecionado.logoUrl || dadosModeloSelecionado.logo}
-                                    className="h-24 w-auto object-contain drop-shadow-xl"
-                                    alt="Logo do Edital"
-                                />
-                            </div>
-                        )}
-                        <h3 className="text-xl font-bold text-zinc-800 dark:text-white mb-2">Nome do Ciclo</h3>
-                        <div className="relative group mb-6">
-                            <input type="text" value={nomeCiclo} onChange={(e) => setNomeCiclo(e.target.value)} className="w-full p-4 text-xl text-center font-bold border-2 border-zinc-200 dark:border-zinc-800 rounded-2xl bg-zinc-50 dark:bg-zinc-900 focus:border-red-500 focus:ring-4 focus:ring-red-500/10 outline-none transition-all placeholder:text-zinc-300" placeholder="Ex: CFO PMBA 2025" autoFocus />
-                            <Edit2 size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 opacity-50 group-focus-within:opacity-100 transition-opacity pointer-events-none" />
-                        </div>
-                    </div>
-                )}
-              </motion.div>
-            )}
-
-            {/* PASSO 2 */}
-            {passo === 2 && (
-              <motion.div key="step2" initial={{opacity:0, x:20}} animate={{opacity:1, x:0}} exit={{opacity:0, x:-20}} className="flex-1 flex flex-col p-4 sm:p-6 pb-24">
-                <div className="flex justify-center mb-4 flex-shrink-0">
-                    <div className="flex p-1 bg-zinc-100 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800">
-                        <button onClick={() => setMetodoCargaHoraria('grade')} className={`px-4 py-2 rounded-lg text-xs font-bold uppercase transition-all flex items-center gap-2 ${metodoCargaHoraria === 'grade' ? 'bg-white dark:bg-zinc-800 shadow text-emerald-600 dark:text-white' : 'text-zinc-400'}`}><Grid size={14}/> Interativo</button>
-                        <button onClick={() => setMetodoCargaHoraria('manual')} className={`px-4 py-2 rounded-lg text-xs font-bold uppercase transition-all flex items-center gap-2 ${metodoCargaHoraria === 'manual' ? 'bg-white dark:bg-zinc-800 shadow text-red-600 dark:text-white' : 'text-zinc-400'}`}><Type size={14}/> Manual</button>
-                    </div>
-                </div>
-                {metodoCargaHoraria === 'grade' && (
-                    <p className="text-xs text-zinc-500 text-center mb-4 px-4 font-medium">Selecione ou arraste os horários livres na semana para calcular sua carga horária semanal de estudos.</p>
-                )}
-                <div className="flex-1 flex flex-col">
-                    {metodoCargaHoraria === 'manual' ? (
-                         <div className="flex-1 flex flex-col items-center justify-center gap-6 min-h-[250px]">
-                             <div className="flex items-center gap-4 sm:gap-6">
-                                <button onClick={() => setCargaHorariaManual(p => Math.max(0, Number(p)-1))} className="w-10 h-10 sm:w-14 sm:h-14 rounded-2xl bg-white dark:bg-zinc-900 border-2 border-zinc-200 dark:border-zinc-700 hover:border-red-500 text-zinc-400 hover:text-red-500 transition-all flex items-center justify-center shadow-sm active:scale-95"><Minus size={20}/></button>
-                                <div className="w-20 sm:w-32 text-center">
-                                    <input type="number" value={cargaHorariaManual} onChange={(e) => setCargaHorariaManual(e.target.value)} className="w-full text-center text-4xl sm:text-5xl font-black bg-transparent border-none focus:ring-0 outline-none text-zinc-800 dark:text-white [&::-webkit-inner-spin-button]:appearance-none" />
-                                </div>
-                                <button onClick={() => setCargaHorariaManual(p => Number(p)+1)} className="w-10 h-10 sm:w-14 sm:h-14 rounded-2xl bg-white dark:bg-zinc-900 border-2 border-zinc-200 dark:border-zinc-700 hover:border-red-500 text-zinc-400 hover:text-red-500 transition-all flex items-center justify-center shadow-sm active:scale-95"><Plus size={20}/></button>
-                            </div>
-                            <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Horas Semanais</span>
-                         </div>
-                    ) : (
-                         <div className="flex-1 border border-zinc-200 dark:border-zinc-800 rounded-xl p-2 bg-zinc-50 dark:bg-zinc-900/30">
-                             <GradeHorarios disponibilidade={gradeDisponibilidade} setDisponibilidade={setGradeDisponibilidade} />
-                         </div>
-                    )}
-                </div>
-              </motion.div>
-            )}
-
-            {/* PASSO 3 */}
-            {passo === 3 && (
-              <motion.div key="step3" initial={{opacity:0, x:20}} animate={{opacity:1, x:0}} exit={{opacity:0, x:-20}} className="flex-1 flex flex-col lg:flex-row p-4 gap-6 h-full min-h-0 overflow-hidden">
-                  <div className="flex-1 flex flex-col gap-4 min-w-0 h-full overflow-hidden">
-                      <form onSubmit={adicionarDisciplina} className="bg-white dark:bg-zinc-900 p-3 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm flex-shrink-0 flex gap-3 items-center">
-                         <div className="flex-1">
-                            <div className="relative">
-                                <BookOpen size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400"/>
-                                <input type="text" value={nomeNovaDisciplina} onChange={(e) => setNomeNovaDisciplina(e.target.value)} placeholder="Nova Disciplina..." className="w-full pl-14 pr-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800 text-sm font-bold text-zinc-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 transition-all placeholder:text-zinc-400 border border-transparent" style={{ paddingLeft: '3.5rem' }} />
-                            </div>
-                            <div className="flex items-center gap-2 mt-2 px-1">
-                                <span className="text-[10px] font-bold uppercase text-zinc-400">Prioridade:</span>
-                                <div className="flex items-center gap-1">
-                                    {[1, 2, 3, 4, 5].map((star) => (
-                                        <button key={star} type="button" onClick={() => setNovoPeso(star)} className="focus:outline-none transition-transform hover:scale-110 active:scale-95">
-                                            <Star size={14} className={`${star <= novoPeso ? `${CONFIG_PESO[novoPeso].fill} ${CONFIG_PESO[novoPeso].color}` : 'text-zinc-300 dark:text-zinc-700'}`} />
-                                        </button>
-                                    ))}
-                                </div>
-                                <span className={`text-[10px] font-bold uppercase ml-1 ${CONFIG_PESO[novoPeso].color}`}>{CONFIG_PESO[novoPeso].label}</span>
-                            </div>
-                         </div>
-                         <button type="submit" className="h-14 w-14 bg-zinc-900 dark:bg-zinc-700 text-white rounded-xl flex items-center justify-center hover:bg-red-600 transition-colors shadow-lg"><Plus size={24}/></button>
-                      </form>
-                      <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3 pr-2 pb-24 min-h-0">
-                          {disciplinas.length === 0 && (
-                              <div className="flex flex-col items-center justify-center py-20 opacity-50">
-                                  <Layers size={64} className="text-zinc-300 mb-4"/>
-                                  <p className="text-zinc-500 font-medium">Sua lista está vazia. Adicione disciplinas.</p>
-                              </div>
-                          )}
-                          {disciplinasComCalculo.map(d => (
-                              <ItemDisciplina key={d.id} disciplina={d} aoAtualizar={atualizarDisciplina} aoRemover={removerDisciplina} configPeso={CONFIG_PESO} formatarHoras={formatarHoras} />
-                          ))}
-                      </div>
-                  </div>
-                  <div className="w-full lg:w-80 flex-shrink-0 hidden lg:flex flex-col gap-4 h-full overflow-y-auto custom-scrollbar pb-20">
-                      <div className="bg-white dark:bg-zinc-900 rounded-3xl p-6 border border-zinc-200 dark:border-zinc-800 shadow-sm flex flex-col items-center sticky top-0">
-                         <div className="mb-6 text-center"><span className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.2em]">Raio-X do Ciclo</span></div>
-                         <RadarCiclo disciplinas={disciplinasComCalculo} totalHoras={horasTotais} formatarHoras={formatarHoras} />
-                         <div className="mt-8 text-center w-full">
-                             <div className="flex justify-between items-end border-b border-zinc-100 dark:border-zinc-800 pb-2 mb-2">
-                                <span className="text-xs font-bold text-zinc-500 uppercase">Disciplinas</span>
-                                <span className="text-xl font-black text-zinc-900 dark:text-white">{disciplinas.length}</span>
-                             </div>
-                             <div className="flex justify-between items-end">
-                                <span className="text-xs font-bold text-zinc-500 uppercase">Total Horas</span>
-                                <span className="text-xl font-black text-red-600">{horasTotais}h</span>
-                             </div>
-                         </div>
-                      </div>
-                  </div>
-              </motion.div>
-            )}
+            <motion.div
+              key={passo}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, y: 0, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+            >
+              {renderStep()}
+            </motion.div>
           </AnimatePresence>
         </div>
+      </div>
 
-        {/* FOOTER DE NAVEGAÇÃO */}
-        <div className="flex-shrink-0 p-3 sm:p-4 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 rounded-b-3xl z-20">
-             <div className="flex justify-between items-center gap-2">
-                 {passo > 1 || (passo === 1 && idModeloSelecionado) ? (
-                     <button onClick={() => { if (passo === 1 && idModeloSelecionado) { setIdModeloSelecionado(null); setDadosModeloSelecionado(null); } else { setPasso(s => s - 1); } }} className="px-3 py-2 sm:px-4 sm:py-3 rounded-xl text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors flex items-center gap-2 font-bold text-[10px] sm:text-xs uppercase">
-                        <ArrowLeft size={14} className="sm:w-4 sm:h-4"/> <span className="hidden sm:inline">Voltar</span>
-                     </button>
-                 ) : (
-                     <button onClick={onClose} className="px-3 py-2 sm:px-4 sm:py-3 text-[10px] sm:text-xs font-bold uppercase text-zinc-400 hover:text-zinc-600">Cancelar</button>
-                 )}
-                 {passo >= 2 && <div className="flex flex-col items-center"><span className="text-[8px] sm:text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Total</span><span className="text-lg sm:text-2xl font-black text-emerald-600 dark:text-emerald-500 leading-none">{horasTotais}h</span></div>}
-                 {passo < 3 ? (
-                     <button onClick={() => setPasso(s => s + 1)} disabled={passo === 1 ? (!idModeloSelecionado && !nomeCiclo) : horasTotais <= 0} className="px-4 py-2 sm:px-6 sm:py-3 rounded-xl text-[10px] sm:text-sm font-bold uppercase tracking-wide text-white bg-zinc-900 dark:bg-zinc-100 dark:text-zinc-900 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed hover:translate-x-1 transition-all flex items-center gap-2">Próximo <ArrowRight size={14} className="sm:w-4 sm:h-4"/></button>
-                 ) : (
-                     <button onClick={finalizarCriacao} disabled={disciplinas.length === 0 || loading} className="px-4 py-2 sm:px-6 sm:py-3 rounded-xl text-[10px] sm:text-sm font-bold uppercase tracking-wide text-white bg-red-600 hover:bg-red-700 shadow-lg shadow-red-600/30 hover:-translate-y-0.5 transition-all disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2">{loading ? "Criando..." : <><CheckCircle2 size={16} className="sm:w-[18px] sm:h-[18px]"/> Finalizar</>}</button>
-                 )}
-             </div>
+      <footer className="fixed left-0 right-0 bottom-0 z-[50] bg-white/90 dark:bg-zinc-900/95 backdrop-blur-md border-t border-zinc-200 dark:border-zinc-800 shadow-[0_-8px_30px_rgba(0,0,0,0.08)]">
+        <div className="absolute top-0 left-0 right-0 h-[2px] bg-zinc-100 dark:bg-zinc-800">
+          <motion.div
+            className="h-full bg-red-600"
+            initial={{ width: '0%' }}
+            animate={{ width: `${((visibleStepIndex + 1) / visibleSteps.length) * 100}%` }}
+            transition={{ duration: 0.4, ease: 'circOut' }}
+          />
         </div>
-      </motion.div>
+
+        <div className="max-w-5xl mx-auto px-4 sm:px-8 py-3.5 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            {isEditMode || passo > 1 || (passo === 1 && (idModeloSelecionado || mostrarModalModelo)) ? (
+              <button
+                onClick={handleVoltar}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 font-black text-[10px] uppercase tracking-widest transition-all active:scale-95 border border-transparent hover:border-zinc-200 dark:hover:border-zinc-700"
+              >
+                <ArrowLeft size={14} strokeWidth={3} />
+                <span className="hidden xs:inline">Voltar</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => {
+                  if (!isEditMode) salvarRascunhoAtual();
+                  if (onBackToSelector) onBackToSelector();
+                  else onClose?.();
+                }}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-zinc-400 hover:text-red-500 font-black text-[10px] uppercase tracking-widest transition-all active:scale-95"
+              >
+                {onBackToSelector ? <ArrowLeft size={14} strokeWidth={3} /> : <X size={14} strokeWidth={3} />}
+                <span className="hidden xs:inline">{onBackToSelector ? 'Metodos' : 'Cancelar'}</span>
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-3">
+            {passo >= 3 && (
+              <div className="hidden md:flex flex-col items-end mr-2">
+                <span className="text-[9px] font-black uppercase tracking-tighter text-zinc-400 leading-none">Carga total</span>
+                <span className="text-[11px] font-bold text-zinc-900 dark:text-white leading-tight">{horasTotais}h</span>
+              </div>
+            )}
+
+            {passo < lastVisibleStep ? (
+              <div className="flex flex-col items-end gap-1">
+                {passo === 1 && !podeAvancar && (
+                  <span className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500">
+                    Escolha um edital ou confirme o plano manual para continuar.
+                  </span>
+                )}
+                <button
+                  onClick={() => setPasso((s) => s + 1)}
+                  disabled={!podeAvancar}
+                  className="group flex items-center gap-2 px-8 py-3 rounded-2xl font-black uppercase tracking-widest text-[11px] text-white bg-zinc-900 dark:bg-white dark:text-zinc-900 shadow-xl shadow-zinc-900/20 dark:shadow-white/5 transition-all active:scale-95 disabled:opacity-40 disabled:pointer-events-none hover:bg-red-600 dark:hover:bg-red-600 dark:hover:text-white"
+                >
+                  Próximo <ArrowRight size={14} strokeWidth={3} className="group-hover:translate-x-1 transition-transform" />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={salvarWizard}
+                disabled={disciplinasComCalculo.length === 0 || loading || !podeAvancar}
+                className="group flex items-center gap-2 px-8 py-3 rounded-2xl font-black uppercase tracking-widest text-[11px] text-white bg-red-600 hover:bg-red-700 shadow-xl shadow-red-500/30 transition-all active:scale-95 disabled:opacity-60 disabled:pointer-events-none"
+              >
+                {loading ? (
+                  isEditMode ? 'Salvando...' : 'Criando...'
+                ) : (
+                  <>
+                    <CheckCircle2 size={16} strokeWidth={2.5} className="group-hover:scale-110 transition-transform" /> {isEditMode ? 'Salvar Alteracoes' : 'Finalizar Ciclo'}
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+        </div>
+      </footer>
+
+      <AnimatePresence>
+        {!isEditMode && mostrandoRascunho && (
+          <div className="fixed inset-0 z-[220] flex items-center justify-center p-4 bg-zinc-900/60 backdrop-blur-sm">
+            <motion.div initial={{ opacity: 0, scale: 0.94, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} className="bg-white dark:bg-zinc-900 p-7 rounded-[32px] border-2 border-zinc-100 dark:border-zinc-800 shadow-2xl max-w-md w-full text-center">
+              <div className="w-16 h-16 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center mx-auto mb-5">
+                <RefreshCw size={28} className="text-red-600" />
+              </div>
+              <h3 className="text-xl font-black text-zinc-900 dark:text-white uppercase mb-2">Recuperar Rascunho?</h3>
+              <p className="text-sm text-zinc-500 mb-7">
+                Encontramos um ciclo salvo no meio da criacao. Voce pode retomar de onde parou ou iniciar um novo.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <button
+                  onClick={() => {
+                    limparCicloDraft();
+                    setMostrandoRascunho(false);
+                  }}
+                  className="py-3 rounded-2xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white font-bold text-xs uppercase tracking-widest hover:bg-zinc-200 transition-all"
+                >
+                  Comecar do Zero
+                </button>
+                <button
+                  onClick={restaurarRascunho}
+                  className="py-3 rounded-2xl bg-red-600 text-white font-bold text-xs uppercase tracking-widest hover:bg-red-700 transition-all"
+                >
+                  Recuperar
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-  collection, query, orderBy, onSnapshot, addDoc, deleteDoc, doc, Timestamp, updateDoc
+  collection, query, orderBy, onSnapshot, doc, Timestamp, updateDoc, addDoc, deleteDoc
 } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
 import { ClipboardList } from 'lucide-react';
@@ -18,7 +18,6 @@ import { useLevelSystem } from '../../hooks/useLevelSystem';
 import { useForceUnlock } from '../../hooks/useForceUnlock';
 
 const SimuladosPage = ({ user, activeCycleDisciplines, onStartSimulado, initialData, onClearInitialData }) => {
-  // Hook de Gamificação
   useForceUnlock();
   const { processSimuladoResult, checkAndAwardMilestone } = useLevelSystem(user);
 
@@ -26,17 +25,14 @@ const SimuladosPage = ({ user, activeCycleDisciplines, onStartSimulado, initialD
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Modais de Controle
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isStartModalOpen, setIsStartModalOpen] = useState(false);
   const [editModal, setEditModal] = useState({ open: false, item: null });
 
-  // Comparação
   const [compareMode, setCompareMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
   const [showArena, setShowArena] = useState(false);
 
-  // Estado do Timer Finalizado
   const [finishedSimuladoData, setFinishedSimuladoData] = useState(null);
 
   useEffect(() => {
@@ -59,20 +55,15 @@ const SimuladosPage = ({ user, activeCycleDisciplines, onStartSimulado, initialD
   // --- CRUD OPERATIONS ---
   const handleCreate = async (data) => {
     try {
-      // 1. Salvar no Banco de Dados
+      // 1. Salvar o Simulado no Banco de Dados
       await addDoc(collection(db, 'users', user.uid, 'simulados'), {
         ...data,
         timestamp: Timestamp.now()
       });
 
-      // 2. Processar Gamificação (XP)
-      // O hook já dispara a notificação visual, não precisamos de alert()
+      // 2. Processar Gamificação
       const porcentagem = data.resumo?.porcentagem || 0;
-
-      // Verifica Conquista de "Primeiro Simulado"
       await checkAndAwardMilestone('FIRST_SIMULADO');
-
-      // Processa XP de Desempenho (Base + Bônus)
       await processSimuladoResult(porcentagem);
 
     } catch (e) {
@@ -138,8 +129,6 @@ const SimuladosPage = ({ user, activeCycleDisciplines, onStartSimulado, initialD
 
   return (
     <div className="space-y-6 md:space-y-8 pb-20 animate-fade-in min-h-screen text-zinc-800 dark:text-zinc-200">
-
-      {/* MODAL DE CRIAÇÃO (Manual ou Finalizado via Timer) */}
       <SimuladoCreationModal
         isOpen={isModalOpen}
         onClose={() => {
@@ -153,7 +142,6 @@ const SimuladosPage = ({ user, activeCycleDisciplines, onStartSimulado, initialD
         onClearInitialData={onClearInitialData}
       />
 
-      {/* MODAL DE EDIÇÃO */}
       <SimuladoEditModal
         isOpen={editModal.open}
         onClose={() => setEditModal({ open: false, item: null })}
@@ -162,14 +150,12 @@ const SimuladosPage = ({ user, activeCycleDisciplines, onStartSimulado, initialD
         onSave={(payload) => handleUpdate(editModal.item.id, payload)}
       />
 
-      {/* MODAL DE START TIMER */}
       <StartSimuladoModal
         isOpen={isStartModalOpen}
         onClose={() => setIsStartModalOpen(false)}
         onStart={onStartSimulado}
       />
 
-      {/* ARENA DE COMPARAÇÃO */}
       {showArena && selectedIds.length >= 2 && (
         <SimuladoComparisonModal
           simuladosSelecionados={selectedSimulados}
@@ -177,9 +163,9 @@ const SimuladosPage = ({ user, activeCycleDisciplines, onStartSimulado, initialD
         />
       )}
 
-      {/* CABEÇALHO E KPIS */}
       <HeaderSimulado
         kpis={kpis}
+        simulados={simulados}
         searchTerm={searchTerm}
         setSearchTerm={setSearchTerm}
         compareMode={compareMode}
@@ -197,7 +183,6 @@ const SimuladosPage = ({ user, activeCycleDisciplines, onStartSimulado, initialD
         }}
       />
 
-      {/* TABELA PRINCIPAL */}
       {simulados.length === 0 && !loading ? (
         <div className="bg-zinc-50 dark:bg-zinc-900/50 p-10 rounded-3xl border-2 border-dashed border-zinc-200 dark:border-zinc-800 text-center max-w-2xl mx-auto mt-6">
           <div className="w-16 h-16 bg-zinc-100 dark:bg-zinc-800 rounded-full flex items-center justify-center mx-auto mb-4">

@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { db } from '../firebaseConfig';
 import {
-  collection, getDoc, doc, getDocs, query, where,
+  collection, doc, getDocs, query, where,
   addDoc, serverTimestamp, deleteDoc, onSnapshot, writeBatch, updateDoc
 } from 'firebase/firestore';
 import {
@@ -9,646 +10,1183 @@ import {
   Search, AlertCircle, Play,
   Target, CheckSquare, Clock,
   Flame, AlertTriangle, Trophy, LayoutDashboard,
-  ChevronRight, LayoutGrid, GraduationCap, X, Ban, RefreshCw, ArrowUpCircle
+  ChevronRight, LayoutGrid, GraduationCap, X, Ban, RefreshCw, ArrowUpCircle,
+  GripVertical, Sparkles, Rocket, Plus, Minus, Shield, Star, Undo2, Trash2, ChevronUp,
+  CalendarDays, ArrowLeftRight,
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-
 import { CATALOGO_EDITAIS } from '../pages/AdminPage/EditaisManager';
 import { useForceUnlock } from '../hooks/useForceUnlock';
 
-// --- UTILITÁRIOS ---
-const normalize = (str) => str ? str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase() : "";
+// ----------------------------------------------------------------------
+// Helpers
+// ----------------------------------------------------------------------
+const getTemplateIdDoCiclo = (ciclo) => {
+  if (!ciclo) return null;
+  return ciclo.templateId || ciclo.editalId || 'manual';
+};
+
+const normalize = (str) =>
+  str ? str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase() : '';
 
 const formatDateRelative = (dateString) => {
-    if (!dateString) return '-';
-    let date;
-    try {
-        if (dateString.toDate) date = dateString.toDate();
-        else if (typeof dateString === 'string') date = new Date(dateString);
-        else if (typeof dateString === 'number') date = new Date(dateString);
-        else date = new Date();
-    } catch (e) { return '-'; }
-
-    const today = new Date();
-    const diffTime = Math.abs(today - date);
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-    if (diffDays <= 1) return 'Hoje';
-    if (diffDays === 2) return 'Ontem';
-    return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+  if (!dateString) return '-';
+  let date;
+  try {
+    if (dateString.toDate) date = dateString.toDate();
+    else if (typeof dateString === 'string') date = new Date(dateString);
+    else if (typeof dateString === 'number') date = new Date(dateString);
+    else date = new Date();
+  } catch { return '-'; }
+  const today    = new Date();
+  const diffDays = Math.ceil(Math.abs(today - date) / (1000 * 60 * 60 * 24));
+  if (diffDays <= 1) return 'Hoje';
+  if (diffDays === 2) return 'Ontem';
+  return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
 };
 
 const formatMinutesToTime = (totalMinutes) => {
-    if (!totalMinutes || totalMinutes === 0) return '0m';
-    const h = Math.floor(totalMinutes / 60);
-    const m = totalMinutes % 60;
-    if (h > 0 && m > 0) return `${h}h ${m}m`;
-    if (h > 0) return `${h}h`;
-    return `${m}m`;
+  if (!totalMinutes || totalMinutes === 0) return '0m';
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  if (h > 0 && m > 0) return `${h}h ${m}m`;
+  if (h > 0) return `${h}h`;
+  return `${m}m`;
 };
 
 const getProgressStats = (acertos, total) => {
-    const nTotal = Number(total) || 0;
-    const nAcertos = Number(acertos) || 0;
-    if (nTotal === 0) return { width: 0, colorBg: 'bg-zinc-200 dark:bg-zinc-700', colorText: 'text-zinc-400', perc: 0 };
-    const perc = Math.round((nAcertos / nTotal) * 100);
-    let colorBg = 'bg-red-500';
-    let colorText = 'text-red-600 dark:text-red-400';
-    if (perc >= 50) { colorBg = 'bg-amber-500'; colorText = 'text-amber-600 dark:text-amber-400'; }
-    if (perc >= 80) { colorBg = 'bg-emerald-500'; colorText = 'text-emerald-600 dark:text-emerald-400'; }
-    return { width: perc, colorBg, colorText, perc };
+  const nTotal = Number(total) || 0; const nAcertos = Number(acertos) || 0;
+  if (nTotal === 0) return { colorText: 'text-zinc-400', perc: 0 };
+  const perc = Math.round((nAcertos / nTotal) * 100);
+  if (perc >= 80) return { colorText: 'text-emerald-600 dark:text-emerald-400', perc };
+  if (perc >= 50) return { colorText: 'text-amber-600 dark:text-amber-400', perc };
+  return          { colorText: 'text-red-600 dark:text-red-400', perc };
 };
 
 const getDesempenhoConfig = (perc, questoes) => {
-    if (!questoes || questoes === 0) return { style: 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-500 border border-zinc-200 dark:border-zinc-700', icon: Target, label: '0%' };
-    if (perc >= 85) return { style: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 border border-yellow-200 dark:border-yellow-700/50 shadow-sm shadow-yellow-500/10', icon: Trophy, label: `${perc}%` };
-    if (perc >= 70) return { style: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-700/50', icon: CheckCircle2, label: `${perc}%` };
-    return { style: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-700/50', icon: AlertTriangle, label: `${perc}%` };
+  if (!questoes || questoes === 0) return { style: 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 border border-zinc-200 dark:border-zinc-700', icon: Target, label: '0%' };
+  if (perc >= 85) return { style: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 border border-yellow-200 dark:border-yellow-700/50', icon: Trophy, label: `${perc}%` };
+  if (perc >= 70) return { style: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-700/50', icon: CheckCircle2, label: `${perc}%` };
+  return          { style: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-700/50', icon: AlertTriangle, label: `${perc}%` };
 };
 
 const getLogo = (ciclo) => {
-    if (!ciclo) return null;
-    if (ciclo.logoUrl) return ciclo.logoUrl;
-    if (ciclo.templateId && ciclo.templateId !== 'manual') {
-        const editalTemplate = CATALOGO_EDITAIS.find(e => e.id === ciclo.templateId);
-        if (editalTemplate) return editalTemplate.logoUrl || editalTemplate.logo;
-        const idLimpo = ciclo.templateId.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-        return `/logosEditais/logo-${idLimpo}.png`;
-    }
-    const nomeLower = ciclo.nome?.toLowerCase() || "";
-    if (nomeLower.includes("pmba")) return "/logosEditais/logo-pmba.png";
-    return null;
+  if (!ciclo) return null;
+  if (ciclo.logoUrl) return ciclo.logoUrl;
+  const templateId = getTemplateIdDoCiclo(ciclo);
+  if (templateId && templateId !== 'manual') {
+    const t = CATALOGO_EDITAIS.find(e => e.id === templateId);
+    if (t) return t.logoUrl || t.logo;
+  }
+  const n = ciclo.nome?.toLowerCase() || '';
+  if (n.includes('pmba')) return '/logosEditais/logo-pmba.png';
+  return null;
 };
 
-// ==================================================================================
-// 📚 BOOK STACK BADGE
-// ==================================================================================
+const getCronogramaLogo = (cronograma) => {
+  if (!cronograma) return null;
+  if (cronograma.logoUrl) return cronograma.logoUrl;
+  if (cronograma.editalLogoUrl) return cronograma.editalLogoUrl;
+  const editalId = cronograma.editalId || cronograma.templateId;
+  if (editalId && editalId !== 'manual') {
+    const t = CATALOGO_EDITAIS.find(e => e.id === editalId);
+    if (t) return t.logoUrl || t.logo;
+  }
+  return null;
+};
+
+// Extrai as disciplinas do cronograma a partir do snapshot ou do semanaTemplate
+const getDisciplinasDoCronograma = (cronograma) => {
+  if (!cronograma) return [];
+
+  // Prefere disciplinasSnapshot (lista estruturada com assuntos)
+  if (Array.isArray(cronograma.disciplinasSnapshot) && cronograma.disciplinasSnapshot.length > 0) {
+    return cronograma.disciplinasSnapshot.map((d, idx) => ({
+      id: d.id || `crono-disc-${idx}`,
+      nome: d.nome || d.disciplinaNome || '',
+      peso: Number(d.peso) || 1,
+      assuntos: Array.isArray(d.assuntos) ? d.assuntos : [],
+      index: d.index ?? idx,
+      inCiclo: true,
+    }));
+  }
+
+  // Fallback: agrupa as disciplinas únicas do semanaTemplate
+  if (Array.isArray(cronograma.semanaTemplate) && cronograma.semanaTemplate.length > 0) {
+    const map = new Map();
+    cronograma.semanaTemplate.forEach((slot, idx) => {
+      const nome = slot.disciplinaNome || slot.nome || '';
+      if (!nome) return;
+      const id = slot.disciplinaId || `crono-disc-${normalize(nome)}`;
+      if (!map.has(id)) {
+        map.set(id, { id, nome, peso: 1, assuntos: [], index: idx, inCiclo: true });
+      }
+      // Adiciona assunto se não existir ainda
+      const disc = map.get(id);
+      const assunto = slot.assunto;
+      if (assunto && !disc.assuntos.some(a => {
+        const nomeA = typeof a === 'string' ? a : a.nome;
+        return normalize(nomeA) === normalize(assunto);
+      })) {
+        disc.assuntos.push(assunto);
+      }
+    });
+    return Array.from(map.values());
+  }
+
+  return [];
+};
+
+// ----------------------------------------------------------------------
+// Sub-components
+// ----------------------------------------------------------------------
+const NewBadge = ({ isNew }) => {
+  const [visible, setVisible] = useState(isNew);
+  useEffect(() => {
+    if (!isNew) return;
+    const t = setTimeout(() => setVisible(false), 8000);
+    return () => clearTimeout(t);
+  }, [isNew]);
+  return (
+    <AnimatePresence>
+      {visible && (
+        <motion.span
+          initial={{ opacity: 0, scale: 0.6 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.6 }}
+          transition={{ type: 'spring', duration: 0.4 }}
+          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-[8px] font-black uppercase tracking-widest shadow-sm flex-shrink-0"
+        >
+          <Star size={7} fill="currentColor" /> NOVO
+        </motion.span>
+      )}
+    </AnimatePresence>
+  );
+};
+
+const UPDATE_TYPE_CONFIG = {
+  LANCAMENTO:    { label: 'Novo Lançamento!', color: 'from-emerald-500 to-teal-600',  icon: Rocket,        textColor: 'text-emerald-700 dark:text-emerald-300', bgGradient: 'from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20', borderColor: 'border-emerald-300 dark:border-emerald-700/50' },
+  RETIFICACAO:   { label: 'Retificação',      color: 'from-amber-500 to-orange-600',  icon: AlertTriangle, textColor: 'text-amber-700 dark:text-amber-300',   bgGradient: 'from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20', borderColor: 'border-amber-300 dark:border-amber-700/50' },
+  AJUSTE_INTERNO:{ label: 'Atualizado',       color: 'from-blue-500 to-indigo-600',   icon: RefreshCw,     textColor: 'text-blue-700 dark:text-blue-300',     bgGradient: 'from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20', borderColor: 'border-blue-300 dark:border-blue-700/50' },
+};
+
 const BookStackBadge = ({ count }) => {
-    const visualStackCount = Math.min(count, 5);
-    const isZero = count <= 0;
-
-    let colorClass = 'bg-zinc-300 dark:bg-zinc-700';
-    let textColor = 'text-zinc-400';
-
-    if (count >= 1 && count <= 2) {
-        colorClass = 'bg-emerald-500 shadow-emerald-500/30';
-        textColor = 'text-emerald-600 dark:text-emerald-400';
-    } else if (count >= 3 && count <= 4) {
-        colorClass = 'bg-blue-500 shadow-blue-500/30';
-        textColor = 'text-blue-600 dark:text-blue-400';
-    } else if (count >= 5 && count <= 6) {
-        colorClass = 'bg-amber-500 shadow-amber-500/30';
-        textColor = 'text-amber-600 dark:text-amber-400';
-    } else if (count >= 7) {
-        colorClass = 'bg-red-600 shadow-red-600/40 animate-pulse';
-        textColor = 'text-red-600 dark:text-red-400';
-    }
-
-    return (
-        <div className="flex flex-col items-end w-14 shrink-0">
-            <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider mb-0.5">
-                Revisões
-            </span>
-            <div className="flex items-center gap-1.5">
-                 <span className={`text-xs font-black ${isZero ? 'text-zinc-300 dark:text-zinc-600' : textColor}`}>
-                    {count}x
-                </span>
-                <div className="flex items-end gap-[2px] h-3">
-                    {isZero ? (
-                         <div className="w-1.5 h-1 rounded-[1px] bg-zinc-200 dark:bg-zinc-800" />
-                    ) : (
-                        Array.from({ length: visualStackCount }).map((_, i) => (
-                            <motion.div
-                                key={i}
-                                initial={{ height: 0, opacity: 0 }}
-                                animate={{ height: `${(i + 1) * 3}px`, opacity: 1 }}
-                                transition={{ duration: 0.3, delay: i * 0.1 }}
-                                className={`w-1.5 rounded-[1px] ${colorClass} shadow-sm`}
-                            />
-                        ))
-                    )}
-                </div>
-            </div>
+  const vis = Math.min(count, 5); const isZero = count <= 0;
+  let colorClass = 'bg-zinc-300 dark:bg-zinc-700', textColor = 'text-zinc-400';
+  if (count >= 1 && count <= 2) { colorClass = 'bg-emerald-500'; textColor = 'text-emerald-600 dark:text-emerald-400'; }
+  else if (count >= 3 && count <= 4) { colorClass = 'bg-blue-500'; textColor = 'text-blue-600 dark:text-blue-400'; }
+  else if (count >= 5 && count <= 6) { colorClass = 'bg-amber-500'; textColor = 'text-amber-600 dark:text-amber-400'; }
+  else if (count >= 7) { colorClass = 'bg-red-600 animate-pulse'; textColor = 'text-red-600 dark:text-red-400'; }
+  return (
+    <div className="flex flex-col items-end w-14 shrink-0">
+      <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider mb-0.5">Revisões</span>
+      <div className="flex items-center gap-1.5">
+        <span className={`text-xs font-black ${isZero ? 'text-zinc-300 dark:text-zinc-600' : textColor}`}>{count}x</span>
+        <div className="flex items-end gap-[2px] h-3">
+          {isZero
+            ? <div className="w-1.5 h-1 rounded-[1px] bg-zinc-200 dark:bg-zinc-800" />
+            : Array.from({ length: vis }).map((_, i) => (
+                <motion.div key={i} initial={{ height: 0, opacity: 0 }} animate={{ height: `${(i + 1) * 3}px`, opacity: 1 }} transition={{ duration: 0.3, delay: i * 0.1 }}
+                  className={`w-1.5 rounded-[1px] ${colorClass} shadow-sm`} />
+              ))
+          }
         </div>
-    );
+      </div>
+    </div>
+  );
 };
 
 const StartStudyModal = ({ disciplina, assunto, onClose, onConfirm }) => {
-    if (!disciplina) return null;
-    return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in" onClick={onClose}>
-            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} onClick={(e) => e.stopPropagation()} className="bg-white dark:bg-zinc-900 w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-zinc-200 dark:border-zinc-800 text-center relative">
-                <div className="w-16 h-16 bg-red-100 dark:bg-red-900/20 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-red-500/20"><Clock size={32} /></div>
-                <h3 className="text-xl font-black text-zinc-900 dark:text-white mb-2">Iniciar Sessão?</h3>
-                <div className="text-sm text-zinc-500 mb-6 px-4">Você vai iniciar o cronômetro para estudar:<br/><strong className="text-zinc-800 dark:text-zinc-200 text-base block mt-1">{disciplina.nome}</strong>{assunto && (<span className="block mt-1 text-emerald-600 dark:text-emerald-400 font-bold text-xs bg-emerald-100 dark:bg-emerald-900/30 py-1 px-2 rounded-lg mx-auto w-fit">{assunto}</span>)}</div>
-                <div className="flex gap-3"><button onClick={onClose} className="flex-1 py-3 rounded-xl font-bold text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">Cancelar</button><button onClick={() => onConfirm(disciplina, assunto)} className="flex-1 py-3 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700 shadow-lg shadow-red-600/30 transition-transform active:scale-95 flex items-center justify-center gap-2"><Play size={18} fill="currentColor"/> Iniciar</button></div>
-            </motion.div>
+  if (!disciplina) return null;
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
+      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} onClick={(e) => e.stopPropagation()}
+        className="bg-white dark:bg-zinc-900 w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-zinc-200 dark:border-zinc-800 text-center">
+        <div className="w-16 h-16 bg-red-100 dark:bg-red-900/20 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4"><Clock size={32} /></div>
+        <h3 className="text-xl font-black text-zinc-900 dark:text-white mb-2">Iniciar Sessão?</h3>
+        <div className="text-sm text-zinc-500 mb-6 px-4">
+          Você vai iniciar o cronômetro para estudar:<br/>
+          <strong className="text-zinc-800 dark:text-zinc-200 text-base block mt-1">{disciplina.nome}</strong>
+          {assunto && <span className="block mt-1 text-emerald-600 dark:text-emerald-400 font-bold text-xs bg-emerald-100 dark:bg-emerald-900/30 py-1 px-2 rounded-lg mx-auto w-fit">{assunto}</span>}
         </div>
-    );
+        <div className="flex gap-3">
+          <button onClick={onClose} className="flex-1 py-3 rounded-xl font-bold text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">Cancelar</button>
+          <button onClick={() => onConfirm(disciplina, assunto)} className="flex-1 py-3 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700 shadow-lg shadow-red-600/30 transition-transform active:scale-95 flex items-center justify-center gap-2">
+            <Play size={18} fill="currentColor"/> Iniciar
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
 };
 
-// ============================================================================
-// 🔥 COMPONENTE PRINCIPAL
-// ============================================================================
-function EditalPage({ user, activeCicloId, onStartStudy, onBack }) {
-  useForceUnlock();
-  const [ciclo, setCiclo] = useState(null);
-  const [disciplinas, setDisciplinas] = useState([]);
-  const [registros, setRegistros] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [expandedDisciplinas, setExpandedDisciplinas] = useState({});
-  const [searchTerm, setSearchTerm] = useState('');
-  const [optimisticChecks, setOptimisticChecks] = useState({});
-  const [loadingCheck, setLoadingCheck] = useState({});
-  const [studyModalData, setStudyModalData] = useState(null);
+const UpdateBanner = ({ templateData, cicloLogo, cicloNome, diff, updatingEdital, onUpdate, onIgnore }) => {
+  const updateMetadata = templateData?.updateMetadata || null;
+  const typeKey = updateMetadata?.tipo || 'AJUSTE_INTERNO';
+  const typeCfg = UPDATE_TYPE_CONFIG[typeKey] || UPDATE_TYPE_CONFIG.AJUSTE_INTERNO;
+  const TypeIcon = typeCfg.icon;
 
-  const [updateAvailable, setUpdateAvailable] = useState(false);
-  const [templateData, setTemplateData] = useState(null);
-  const [updatingEdital, setUpdatingEdital] = useState(false);
+  const totalAdd = diff
+    ? (diff.novasDisciplinas?.length || 0) + (diff.disciplinasComNovosAssuntos?.reduce((a, d) => a + d.novosAssuntos.length, 0) || 0)
+    : 0;
 
-  useEffect(() => {
-    let unsubscribeDisciplinas = () => {};
-    let unsubscribeCiclo = () => {};
-    let unsubscribeTemplate = () => {};
-    let unsubscribeRegistros = () => {};
-
-    const fetchData = async () => {
-      if (!user || !activeCicloId) {
-          setLoading(false);
-          return;
-      }
-
-      try {
-        setLoading(true);
-
-        const cicloRef = doc(db, 'users', user.uid, 'ciclos', activeCicloId);
-        unsubscribeCiclo = onSnapshot(cicloRef, (docSnap) => {
-            if (!docSnap.exists()) return;
-
-            const data = docSnap.data();
-            setCiclo({ id: docSnap.id, ...data, computedLogo: getLogo(data) });
-
-            const hasTemplate = data.templateId && data.templateId !== 'manual';
-            if (!hasTemplate) {
-                if (unsubscribeTemplate) unsubscribeTemplate();
-                return;
-            }
-
-            let cicloDate = new Date(0);
-            if (data.lastEditalUpdate?.toDate) {
-                cicloDate = data.lastEditalUpdate.toDate();
-            } else if (data.criadoEm?.toDate) {
-                cicloDate = data.criadoEm.toDate();
-            } else if (data.criadoEm instanceof Date) {
-                cicloDate = data.criadoEm;
-            } else if (data.criadoEm) {
-                cicloDate = new Date(data.criadoEm);
-            }
-
-            const templateRef = doc(db, 'editais_templates', data.templateId);
-            if (unsubscribeTemplate) unsubscribeTemplate();
-
-            unsubscribeTemplate = onSnapshot(templateRef, (tSnap) => {
-                if (!tSnap.exists()) return;
-
-                const tData = tSnap.data();
-                let templateDate = null;
-
-                if (tData.lastUpdate?.toDate) {
-                    templateDate = tData.lastUpdate.toDate();
-                }
-
-                const temUpdate = !!(templateDate && templateDate > cicloDate);
-
-                if (temUpdate) {
-                    setTemplateData(tData);
-                    setUpdateAvailable(true);
-                } else {
-                    setUpdateAvailable(false);
-                }
-            });
-        });
-
-        const disciplinasRef = collection(db, 'users', user.uid, 'ciclos', activeCicloId, 'disciplinas');
-        unsubscribeDisciplinas = onSnapshot(query(disciplinasRef), (snapshot) => {
-             const listaDisciplinas = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-             listaDisciplinas.sort((a, b) => {
-                 const idxA = a.index !== undefined ? Number(a.index) : 9999;
-                 const idxB = b.index !== undefined ? Number(b.index) : 9999;
-                 if (idxA !== idxB) return idxA - idxB;
-                 return (a.nome || '').localeCompare(b.nome || '');
-             });
-             setDisciplinas(listaDisciplinas);
-             setLoading(false);
-        });
-
-        const registrosRef = collection(db, 'users', user.uid, 'registrosEstudo');
-        const qRegistros = query(registrosRef, where('cicloId', '==', activeCicloId));
-
-        unsubscribeRegistros = onSnapshot(qRegistros, (snapshot) => {
-             const listaRegistros = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-             setRegistros(listaRegistros);
-        });
-
-      } catch (error) {
-          console.error("Erro geral no useEffect:", error);
-          setLoading(false);
-      }
-    };
-
-    fetchData();
-
-    return () => {
-        unsubscribeCiclo();
-        unsubscribeDisciplinas();
-        unsubscribeRegistros();
-        if (unsubscribeTemplate) unsubscribeTemplate();
-    };
-  }, [user, activeCicloId]);
-
-  const handleUpdateEdital = async () => {
-      if (!templateData || !user || !activeCicloId) return;
-      setUpdatingEdital(true);
-      try {
-          const batch = writeBatch(db);
-          const userDisciplinasMap = {};
-          disciplinas.forEach(d => { userDisciplinasMap[normalize(d.nome)] = d; });
-          const novasDisciplinas = templateData.disciplinas || [];
-
-          for (let i = 0; i < novasDisciplinas.length; i++) {
-              const novaDiscTemplate = novasDisciplinas[i];
-              const nomeNorm = normalize(novaDiscTemplate.nome);
-              const discExistente = userDisciplinasMap[nomeNorm];
-              const assuntosTemplate = (novaDiscTemplate.assuntos || []).map(a =>
-                  typeof a === 'string' ? { nome: a, relevancia: 1 } : a
-              ).filter(a => a && a.nome);
-
-              if (discExistente) {
-                  const discRef = doc(db, 'users', user.uid, 'ciclos', activeCicloId, 'disciplinas', discExistente.id);
-                  const updatePayload = { index: i, nome: novaDiscTemplate.nome };
-                  const assuntosUsuarioExistentes = new Set(
-                      (discExistente.assuntos || []).map(a =>
-                          typeof a === 'string' ? normalize(a) : normalize(a.nome || '')
-                      )
-                  );
-                  const novosAssuntosParaAdicionar = assuntosTemplate.filter(at =>
-                      !assuntosUsuarioExistentes.has(normalize(at.nome))
-                  );
-                  if (novosAssuntosParaAdicionar.length > 0) {
-                      updatePayload.assuntos = [...(discExistente.assuntos || []), ...novosAssuntosParaAdicionar];
-                  }
-                  batch.update(discRef, updatePayload);
-              } else {
-                  const novaDiscRef = doc(collection(db, 'users', user.uid, 'ciclos', activeCicloId, 'disciplinas'));
-                  batch.set(novaDiscRef, {
-                      nome: novaDiscTemplate.nome, assuntos: assuntosTemplate,
-                      peso: novaDiscTemplate.peso || 3, tempoAlocadoSemanalMinutos: 60,
-                      inCiclo: true, index: i, criadoEm: serverTimestamp()
-                  });
-              }
-          }
-
-          const cicloRef = doc(db, 'users', user.uid, 'ciclos', activeCicloId);
-          batch.update(cicloRef, { lastEditalUpdate: serverTimestamp(), editalVersion: templateData.version || serverTimestamp() });
-          await batch.commit();
-          setUpdateAvailable(false);
-          alert("✅ Ciclo atualizado com sucesso!");
-      } catch (error) {
-          console.error("Erro ao atualizar:", error);
-          alert("❌ Erro ao atualizar o edital. Tente novamente.");
-      } finally {
-          setUpdatingEdital(false);
-      }
-  };
-
-  const { editalProcessado, statsGlobal } = useMemo(() => {
-    if (!disciplinas.length) return { editalProcessado: [], statsGlobal: { total: 0, concluidos: 0, percentual: 0 } };
-    const mapaDetalhado = {};
-    const statsPorDisciplina = {};
-    registros.forEach(reg => {
-        if (!statsPorDisciplina[reg.disciplinaNome]) statsPorDisciplina[reg.disciplinaNome] = { acertos: 0, questoes: 0, lastDate: null, minutes: 0 };
-        const s = statsPorDisciplina[reg.disciplinaNome];
-        s.acertos += Number(reg.acertos || 0);
-        s.questoes += Number(reg.questoesFeitas || 0);
-        s.minutes += Number(reg.tempoEstudadoMinutos || 0);
-        if (!s.lastDate || reg.data > s.lastDate) s.lastDate = reg.data;
-        if (reg.assunto) {
-            const key = `${reg.disciplinaNome}-${reg.assunto}`.toLowerCase().trim();
-            if (!mapaDetalhado[key]) mapaDetalhado[key] = { count: 0, minutes: 0, questions: 0, correct: 0, lastDate: null, hasManualCheck: false };
-
-            // CORREÇÃO 1: SÓ INCREMENTA CONTAGEM SE NÃO FOR APENAS CHECK MANUAL
-            // Isso evita contagem dupla quando o Timer salva estudo + check
-            if (reg.tipoEstudo !== 'check_manual') {
-                mapaDetalhado[key].count += 1;
-            }
-
-            mapaDetalhado[key].minutes += Number(reg.tempoEstudadoMinutos || 0);
-            mapaDetalhado[key].questions += Number(reg.questoesFeitas || 0);
-            mapaDetalhado[key].correct += Number(reg.acertos || 0);
-            if (reg.tipoEstudo === 'check_manual') mapaDetalhado[key].hasManualCheck = true;
-            if (!mapaDetalhado[key].lastDate || reg.data > mapaDetalhado[key].lastDate) mapaDetalhado[key].lastDate = reg.data;
-        }
-    });
-    let totalTopicosGlobal = 0;
-    let totalConcluidosGlobal = 0;
-    const listaProcessada = disciplinas.map(disc => {
-        const listaAssuntos = Array.isArray(disc.assuntos) ? disc.assuntos : [];
-        const statsDisc = statsPorDisciplina[disc.nome] || { acertos: 0, questoes: 0, lastDate: null, minutes: 0 };
-        const desempenhoDisc = statsDisc.questoes > 0 ? Math.round((statsDisc.acertos / statsDisc.questoes) * 100) : 0;
-        const assuntosProcessados = listaAssuntos.map(itemAssunto => {
-            const nomeAssunto = typeof itemAssunto === 'string' ? itemAssunto : itemAssunto.nome;
-            const relevanciaAssunto = typeof itemAssunto === 'object' ? (itemAssunto.relevancia || 1) : 1;
-            const isTopicInCiclo = typeof itemAssunto === 'object' ? (itemAssunto.inCiclo !== false) : true;
-            const key = `${disc.nome}-${nomeAssunto}`.toLowerCase().trim();
-            const dadosDB = mapaDetalhado[key];
-            const isOptimistic = optimisticChecks[key];
-            const estudadoFinal = isOptimistic !== undefined ? isOptimistic : !!dadosDB?.hasManualCheck;
-            return { nome: nomeAssunto, relevancia: relevanciaAssunto, estudado: estudadoFinal, qtdVezes: dadosDB?.count || 0, ultimaVez: dadosDB?.lastDate || null, minutos: dadosDB?.minutes || 0, questoes: dadosDB?.questions || 0, acertos: dadosDB?.correct || 0, inCiclo: isTopicInCiclo };
-        });
-        const totalAssuntos = assuntosProcessados.length;
-        const concluidos = assuntosProcessados.filter(a => a.estudado).length;
-        totalTopicosGlobal += totalAssuntos;
-        totalConcluidosGlobal += concluidos;
-        return { ...disc, assuntos: assuntosProcessados, progresso: totalAssuntos > 0 ? (concluidos / totalAssuntos) * 100 : 0, totalAssuntos, concluidos, inCiclo: disc.inCiclo !== false, stats: { desempenho: desempenhoDisc, questoes: statsDisc.questoes, ultimaData: statsDisc.lastDate, minutos: statsDisc.minutes } };
-    }).filter(d => {
-        const termo = searchTerm.toLowerCase();
-        return d.nome.toLowerCase().includes(termo) || d.assuntos.some(a => a.nome.toLowerCase().includes(termo));
-    });
-    return { editalProcessado: listaProcessada, statsGlobal: { total: totalTopicosGlobal, concluidos: totalConcluidosGlobal, percentual: totalTopicosGlobal > 0 ? (totalConcluidosGlobal / totalTopicosGlobal) * 100 : 0 } };
-  }, [disciplinas, registros, searchTerm, optimisticChecks]);
-
-  const handleToggleCheck = async (disciplinaId, disciplinaNome, assuntoNome, estadoAtual) => {
-      const key = `${disciplinaNome}-${assuntoNome}`.toLowerCase().trim();
-      const novoEstado = !estadoAtual;
-      setOptimisticChecks(prev => ({ ...prev, [key]: novoEstado }));
-      setLoadingCheck(prev => ({ ...prev, [key]: true }));
-      try {
-          if (novoEstado) {
-              await addDoc(collection(db, 'users', user.uid, 'registrosEstudo'), { cicloId: activeCicloId, disciplinaId, disciplinaNome, assunto: assuntoNome, data: new Date().toISOString().split('T')[0], timestamp: serverTimestamp(), tempoEstudadoMinutos: 0, questoesFeitas: 0, acertos: 0, tipoEstudo: 'check_manual', obs: 'Check Manual' });
-          } else {
-              const regRef = collection(db, 'users', user.uid, 'registrosEstudo');
-              const q = query(regRef, where('cicloId', '==', activeCicloId), where('assunto', '==', assuntoNome));
-              const snapshot = await getDocs(q);
-              const docParaDeletar = snapshot.docs.find(d => { const data = d.data(); return normalize(data.disciplinaNome) === normalize(disciplinaNome) && data.tipoEstudo === 'check_manual'; }) || snapshot.docs.find(d => normalize(d.data().disciplinaNome) === normalize(disciplinaNome));
-              if (docParaDeletar) await deleteDoc(docParaDeletar.ref);
-          }
-          setOptimisticChecks(prev => { const s = { ...prev }; delete s[key]; return s; });
-      } catch (error) {
-          setOptimisticChecks(prev => ({ ...prev, [key]: estadoAtual }));
-          alert("Erro de conexão. Tente novamente.");
-      } finally {
-          setLoadingCheck(prev => ({ ...prev, [key]: false }));
-      }
-  };
-
-  const toggleDisciplina = (nome) => setExpandedDisciplinas(prev => ({ ...prev, [nome]: !prev[nome] }));
-  const confirmStartStudy = (disciplina, assunto) => { if (onStartStudy) { onStartStudy(disciplina, assunto); setStudyModalData(null); } };
-  const handleStartTopicStudy = (disciplina, assuntoNome) => setStudyModalData({ disciplina, assunto: assuntoNome });
-
-  if (loading) return (
-      <div className="flex h-96 items-center justify-center">
-          <div className="animate-spin w-8 h-8 border-4 border-red-600 rounded-full border-t-transparent"></div>
-      </div>
-  );
-
-  // ── EMPTY STATE (sem ciclo ativo) — padrão CiclosList ──
-  if (!activeCicloId || !ciclo) {
-      return (
-          <div className="p-0 min-h-[50vh] animate-fade-in pb-12">
-              {/* Título */}
-              <div className="mb-6 md:mb-8 flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-zinc-200 dark:border-zinc-800 pb-4 md:pb-6">
-                  <div>
-                      <div className="flex items-center gap-3 mb-1 md:mb-2">
-                          <div className="p-2 md:p-2.5 bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-500 rounded-xl">
-                              <BookOpen size={24} className="md:w-7 md:h-7" strokeWidth={2} />
-                          </div>
-                          <h1 className="text-2xl md:text-3xl font-black text-zinc-800 dark:text-white tracking-tight uppercase">
-                              Edital
-                          </h1>
-                      </div>
-                  </div>
-              </div>
-
-              {/* Empty state */}
-              <div className="flex flex-col items-center justify-center py-20 text-center bg-zinc-50 dark:bg-zinc-900/50 rounded-3xl border-2 border-dashed border-zinc-200 dark:border-zinc-800">
-                  <LayoutDashboard size={40} className="md:w-12 md:h-12 text-zinc-300 mb-4" />
-                  <h3 className="text-lg md:text-xl font-bold text-zinc-700 dark:text-zinc-300 mb-1">Nenhum Ciclo Ativo</h3>
-                  <p className="text-zinc-500 text-sm mb-6">Parece que você ainda não ativou uma missão.</p>
-                  {onBack && (
-                      <button
-                          onClick={onBack}
-                          className="px-6 py-2 bg-red-600 text-white rounded-lg font-bold text-sm hover:bg-red-700"
-                      >
-                          Ir para Ciclos
-                      </button>
-                  )}
-              </div>
-          </div>
-      );
-  }
+  const totalRem = diff
+    ? (diff.disciplinasRemovidas?.length || 0) + (diff.disciplinasComAssuntosRemovidos?.reduce((a, d) => a + d.assuntosRemovidos.length, 0) || 0)
+    : 0;
 
   return (
+    <motion.div
+      initial={{ height: 0, opacity: 0 }}
+      animate={{ height: 'auto', opacity: 1 }}
+      exit={{ height: 0, opacity: 0 }}
+      transition={{ duration: 0.35, ease: 'easeOut' }}
+      className="overflow-hidden mx-4 md:mx-0"
+    >
+      <div className={`relative bg-gradient-to-br ${typeCfg.bgGradient} border ${typeCfg.borderColor} rounded-2xl overflow-hidden shadow-md`}>
+        <div className={`h-1 w-full bg-gradient-to-r ${typeCfg.color}`} />
+        {typeKey === 'LANCAMENTO' && (
+          <div className="absolute inset-0 overflow-hidden pointer-events-none">
+            {[...Array(5)].map((_, i) => (
+              <motion.div
+                key={i}
+                className="absolute w-1 h-1 rounded-full bg-emerald-400/40"
+                animate={{ y: [-10, -40], x: [(i % 2 === 0 ? 1 : -1) * 10], opacity: [0, 1, 0] }}
+                transition={{ duration: 2.5, delay: i * 0.4, repeat: Infinity, repeatDelay: 1.5 }}
+                style={{ left: `${15 + i * 18}%`, bottom: '10%' }}
+              />
+            ))}
+          </div>
+        )}
+        <div className="p-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              {cicloLogo && (
+                <div className="w-10 h-10 rounded-xl bg-white/70 dark:bg-zinc-900/50 shadow-sm border border-white/50 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                  <img src={cicloLogo} alt="" className="w-8 h-8 object-contain" />
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                  <span className={`inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest ${typeCfg.textColor}`}>
+                    <TypeIcon size={9} /> {typeCfg.label}
+                  </span>
+                  {typeKey === 'LANCAMENTO' && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-500 text-white text-[8px] font-black uppercase tracking-widest rounded-full animate-pulse">
+                      <Sparkles size={7} /> Disponível agora!
+                    </span>
+                  )}
+                </div>
+                <h3 className="text-sm font-black text-zinc-900 dark:text-zinc-100 truncate">{cicloNome}</h3>
+                {updateMetadata?.mensagem ? (
+                  <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-0.5 line-clamp-1">{updateMetadata.mensagem}</p>
+                ) : (
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">O edital base foi atualizado. Sincronize sem perder seu progresso.</p>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {totalAdd > 0 && (
+                <div className="flex items-center gap-1 px-2 py-1 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg border border-emerald-200 dark:border-emerald-800">
+                  <Plus size={9} strokeWidth={3} className="text-emerald-600 dark:text-emerald-400" />
+                  <span className="text-[11px] font-black text-emerald-700 dark:text-emerald-300">{totalAdd}</span>
+                </div>
+              )}
+              {totalRem > 0 && (
+                <div className="flex items-center gap-1 px-2 py-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700">
+                  <Minus size={9} strokeWidth={3} className="text-zinc-500" />
+                  <span className="text-[11px] font-black text-zinc-600 dark:text-zinc-300">{totalRem}</span>
+                </div>
+              )}
+
+              <button onClick={onIgnore} className="px-3 py-2 rounded-xl text-xs font-bold text-zinc-500 hover:bg-white/50 dark:hover:bg-zinc-800/50 transition-colors">
+                Ignorar
+              </button>
+              <button
+                onClick={onUpdate}
+                disabled={updatingEdital}
+                className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wide transition-all active:scale-95 flex items-center gap-1.5 text-white bg-gradient-to-r ${typeCfg.color} hover:opacity-90 shadow-md disabled:opacity-60 disabled:cursor-not-allowed`}
+              >
+                {updatingEdital
+                  ? <><div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> Atualizando...</>
+                  : <><ArrowUpCircle size={13} /> Atualizar Agora</>
+                }
+              </button>
+            </div>
+          </div>
+          <div className="mt-3 flex items-center gap-1.5 text-[10px] text-zinc-500 dark:text-zinc-400">
+            <Shield size={10} className="flex-shrink-0" />
+            Seu progresso está protegido. Itens removidos ficam inativos mas o histórico é preservado. Seu histórico receberá as renomeações automaticamente.
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
+// ----------------------------------------------------------------------
+// Botão de alternância Ciclo ↔ Cronograma
+// Fica posicionado abaixo do círculo da logo no header
+// ----------------------------------------------------------------------
+const SourceToggleButton = ({ viewSource, onToggle, cicloNome, cronogramaNome, cicloLogo, cronogramaLogo }) => {
+  const isCiclo = viewSource === 'ciclo';
+  const destinoLogo  = isCiclo ? cronogramaLogo : cicloLogo;
+  const destinoLabel = isCiclo ? 'Cronograma' : 'Ciclo';
+
+  return (
+    <motion.button
+      onClick={onToggle}
+      whileHover={{ scale: 1.04, y: -1 }}
+      whileTap={{ scale: 0.96 }}
+      className="group relative flex items-center gap-1.5 pl-1.5 pr-3 py-1 rounded-full border border-zinc-200 dark:border-zinc-700 bg-white/90 dark:bg-zinc-800/90 backdrop-blur-sm shadow-md hover:shadow-lg hover:border-red-300 dark:hover:border-red-600 transition-all duration-200"
+      title={`Ver edital do ${destinoLabel}`}
+    >
+      {/* Mini-logo do destino */}
+      <div className="w-5 h-5 rounded-full bg-zinc-100 dark:bg-zinc-700 border border-zinc-200 dark:border-zinc-600 flex items-center justify-center overflow-hidden flex-shrink-0">
+        {destinoLogo
+          ? <img src={destinoLogo} alt="" className="w-4 h-4 object-contain" />
+          : (isCiclo
+              ? <CalendarDays size={10} className="text-zinc-400" />
+              : <BookOpen size={10} className="text-zinc-400" />)
+        }
+      </div>
+
+      <ArrowLeftRight size={9} className="text-zinc-400 group-hover:text-red-500 transition-colors flex-shrink-0" />
+
+      <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500 group-hover:text-red-600 dark:group-hover:text-red-400 transition-colors whitespace-nowrap">
+        Ver {destinoLabel}
+      </span>
+    </motion.button>
+  );
+};
+
+// ----------------------------------------------------------------------
+// COMPONENTE PRINCIPAL
+// ----------------------------------------------------------------------
+function EditalPage({
+  user,
+  activeCicloId,
+  onStartStudy,
+  onBack,              // navega para Painel do Ciclo
+  onGoToCronograma,    // navega para página do Cronograma (novo)
+  editalUpdates,
+  onApplyEditalUpdate,
+  onDismissEditalUpdate,
+  loadingEditalUpdate,
+  // Novos props opcionais para suporte ao cronograma
+  activeCronogramaId,   // ID do cronograma ativo (pode vir do Dashboard)
+}) {
+  useForceUnlock();
+
+  // ── Dados do CICLO ────────────────────────────────────────────────────────
+  const [ciclo,       setCiclo]       = useState(null);
+  const [disciplinas, setDisciplinas] = useState([]);
+  const [registros,   setRegistros]   = useState([]);
+
+  // ── Dados do CRONOGRAMA ───────────────────────────────────────────────────
+  const [cronograma,             setCronograma]             = useState(null);
+  const [registrosCronograma,    setRegistrosCronograma]    = useState([]);
+
+  // ── UI state ──────────────────────────────────────────────────────────────
+  const [loading,               setLoading]               = useState(true);
+  const [expandedDisciplinas,   setExpandedDisciplinas]   = useState({});
+  const [searchTerm,            setSearchTerm]            = useState('');
+  const [optimisticChecks,      setOptimisticChecks]      = useState({});
+  const [loadingCheck,          setLoadingCheck]          = useState({});
+  const [studyModalData,        setStudyModalData]        = useState(null);
+  const [dragId,                setDragId]                = useState(null);
+  const [overId,                setOverId]                = useState(null);
+  const [isSavingOrder,         setIsSavingOrder]         = useState(false);
+  const [showInactive,          setShowInactive]          = useState(false);
+
+  // ── Fonte de visualização: 'ciclo' | 'cronograma' ────────────────────────
+  const [viewSource, setViewSource] = useState('ciclo');
+
+  const dragIdRef = useRef(null);
+
+  // Pending update do edital (apenas para ciclo)
+  const pendingUpdate = useMemo(() => {
+    return (editalUpdates || []).find(u => u.cicloId === activeCicloId && !u.isDismissed);
+  }, [editalUpdates, activeCicloId]);
+
+  // ── Subscription: CICLO ───────────────────────────────────────────────────
+  useEffect(() => {
+    if (!user || !activeCicloId) { setLoading(false); return; }
+
+    let unsubCiclo = () => {};
+    let unsubDisc  = () => {};
+    let unsubReg   = () => {};
+
+    setLoading(true);
+
+    unsubCiclo = onSnapshot(doc(db, 'users', user.uid, 'ciclos', activeCicloId), (docSnap) => {
+      if (!docSnap.exists()) return;
+      const data = docSnap.data();
+      setCiclo({ id: docSnap.id, ...data, computedLogo: getLogo(data) });
+    });
+
+    unsubDisc = onSnapshot(
+      query(collection(db, 'users', user.uid, 'ciclos', activeCicloId, 'disciplinas')),
+      (snapshot) => {
+        const lista = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        lista.sort((a, b) => {
+          const iA = a.index !== undefined ? Number(a.index) : 9999;
+          const iB = b.index !== undefined ? Number(b.index) : 9999;
+          return iA !== iB ? iA - iB : (a.nome || '').localeCompare(b.nome || '');
+        });
+        setDisciplinas(lista);
+        setLoading(false);
+      }
+    );
+
+    unsubReg = onSnapshot(
+      query(collection(db, 'users', user.uid, 'registrosEstudo'), where('cicloId', '==', activeCicloId)),
+      (snapshot) => setRegistros(snapshot.docs.map(d => ({ id: d.id, ...d.data() })))
+    );
+
+    return () => { unsubCiclo(); unsubDisc(); unsubReg(); };
+  }, [user, activeCicloId]);
+
+  // ── Subscription: CRONOGRAMA ──────────────────────────────────────────────
+  useEffect(() => {
+    if (!user) return;
+
+    let unsubCrono = () => {};
+    let unsubRegC  = () => {};
+
+    // Se recebemos um cronogramaId explícito, usamos ele;
+    // caso contrário, ouvimos o cronograma ativo do usuário.
+    if (activeCronogramaId) {
+      unsubCrono = onSnapshot(
+        doc(db, 'users', user.uid, 'cronogramas', activeCronogramaId),
+        (docSnap) => {
+          if (!docSnap.exists()) { setCronograma(null); return; }
+          const data = docSnap.data();
+          setCronograma({ id: docSnap.id, ...data, computedLogo: getCronogramaLogo(data) });
+        }
+      );
+    } else {
+      // Busca o cronograma ativo automaticamente
+      const q = query(
+        collection(db, 'users', user.uid, 'cronogramas'),
+        where('ativo', '==', true)
+      );
+      unsubCrono = onSnapshot(q, (snap) => {
+        if (snap.empty) { setCronograma(null); return; }
+        const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const maisRecente = docs.sort((a, b) => {
+          const tA = a.criadoEm?.seconds || a.dataCriacao?.seconds || 0;
+          const tB = b.criadoEm?.seconds || b.dataCriacao?.seconds || 0;
+          return tB - tA;
+        })[0];
+        setCronograma({ ...maisRecente, computedLogo: getCronogramaLogo(maisRecente) });
+      });
+    }
+
+    // Registros de estudo vinculados ao cronograma (por cronogramaId OU sem cicloId, mas com disciplinaNome)
+    // Para o cronograma usamos registros que têm cronogramaId ou são gerais (sem cicloId)
+    // A estratégia mais robusta: ouvir todos os registros e filtrar no useMemo.
+    unsubRegC = onSnapshot(
+      collection(db, 'users', user.uid, 'registrosEstudo'),
+      (snapshot) => setRegistrosCronograma(snapshot.docs.map(d => ({ id: d.id, ...d.data() })))
+    );
+
+    return () => { unsubCrono(); unsubRegC(); };
+  }, [user, activeCronogramaId]);
+
+  // ── Decide se há dois editais distintos ───────────────────────────────────
+  const cicloEditalId     = ciclo ? getTemplateIdDoCiclo(ciclo) : null;
+  const cronogramaEditalId = cronograma
+    ? (cronograma.editalId || cronograma.templateId || 'cronograma')
+    : null;
+
+  // Mostra o toggle quando ambos existem e têm editais (potencialmente diferentes)
+  const showToggle = !!(ciclo && cronograma);
+
+  // Se só tiver cronograma (sem ciclo ativo), força view = cronograma
+  useEffect(() => {
+    if (!activeCicloId && cronograma) setViewSource('cronograma');
+    else if (activeCicloId && !cronograma) setViewSource('ciclo');
+  }, [activeCicloId, cronograma]);
+
+  // ── Dados derivados do CRONOGRAMA ─────────────────────────────────────────
+  const disciplinasCronograma = useMemo(() => {
+    return getDisciplinasDoCronograma(cronograma);
+  }, [cronograma]);
+
+  // Registros filtrados para o cronograma:
+  // Usa registros com cronogramaId igual OU registros de qualquer ciclo
+  // (para capturar estudos feitos via timer que registram por disciplinaNome)
+  const registrosCronoFiltrados = useMemo(() => {
+    if (!cronograma) return [];
+    const cronoId = cronograma.id;
+    // Prioriza registros marcados explicitamente com o cronogramaId
+    const comCrono = registrosCronograma.filter(r => r.cronogramaId === cronoId);
+    if (comCrono.length > 0) return comCrono;
+    // Fallback: registros sem cicloId específico (estudos avulsos)
+    return registrosCronograma.filter(r => !r.cicloId);
+  }, [registrosCronograma, cronograma]);
+
+  // ── useMemo: processa edital do CICLO ─────────────────────────────────────
+  const { editalProcessado: editalCiclo, inactiveDisciplines: inactiveCiclo, statsGlobal: statsCiclo } = useMemo(() => {
+    if (!disciplinas.length) return { editalProcessado: [], inactiveDisciplines: [], statsGlobal: { total: 0, concluidos: 0, percentual: 0 } };
+
+    const mapaDetalhado = {}; const statsPorDisc = {};
+
+    registros.forEach(reg => {
+      if (!statsPorDisc[reg.disciplinaNome]) statsPorDisc[reg.disciplinaNome] = { acertos: 0, questoes: 0, lastDate: null, minutes: 0 };
+      const s = statsPorDisc[reg.disciplinaNome];
+      s.acertos += Number(reg.acertos || 0); s.questoes += Number(reg.questoesFeitas || 0); s.minutes += Number(reg.tempoEstudadoMinutos || 0);
+      if (!s.lastDate || reg.data > s.lastDate) s.lastDate = reg.data;
+
+      if (reg.assunto) {
+        const key = `${reg.disciplinaNome}-${reg.assunto}`.toLowerCase().trim();
+        if (!mapaDetalhado[key]) mapaDetalhado[key] = { count: 0, minutes: 0, questions: 0, correct: 0, lastDate: null, hasManualCheck: false };
+        if (reg.tipoEstudo !== 'check_manual') mapaDetalhado[key].count += 1;
+        mapaDetalhado[key].minutes += Number(reg.tempoEstudadoMinutos || 0);
+        mapaDetalhado[key].questions += Number(reg.questoesFeitas || 0);
+        mapaDetalhado[key].correct += Number(reg.acertos || 0);
+        if (reg.tipoEstudo === 'check_manual') mapaDetalhado[key].hasManualCheck = true;
+        if (!mapaDetalhado[key].lastDate || reg.data > mapaDetalhado[key].lastDate) mapaDetalhado[key].lastDate = reg.data;
+      }
+    });
+
+    let totalTopicosG = 0, totalConcluidosG = 0;
+
+    const listaCompleta = disciplinas.map(disc => {
+      const listaAssuntos = Array.isArray(disc.assuntos) ? disc.assuntos : [];
+      const sd = statsPorDisc[disc.nome] || { acertos: 0, questoes: 0, lastDate: null, minutes: 0 };
+      const desempenho = sd.questoes > 0 ? Math.round((sd.acertos / sd.questoes) * 100) : 0;
+
+      const assuntosProc = listaAssuntos
+        .filter(item => !(typeof item === 'object' && item.inCiclo === false))
+        .map(item => {
+          const nomeA = typeof item === 'string' ? item : item.nome;
+          const relev = typeof item === 'object' ? (item.relevancia || 1) : 1;
+          const key = `${disc.nome}-${nomeA}`.toLowerCase().trim();
+          const db_data = mapaDetalhado[key]; const optim = optimisticChecks[key];
+          return {
+            nome: nomeA, relevancia: relev,
+            estudado: optim !== undefined ? optim : !!db_data?.hasManualCheck,
+            qtdVezes: db_data?.count || 0, minutos: db_data?.minutes || 0,
+            questoes: db_data?.questions || 0, acertos: db_data?.correct || 0,
+            inCiclo: true,
+            isNew: pendingUpdate?.diff?.novosAssuntoKeys?.has(`${disc.id}-${normalize(nomeA)}`),
+          };
+        });
+
+      const total = assuntosProc.length; const concl = assuntosProc.filter(a => a.estudado).length;
+      totalTopicosG += total; totalConcluidosG += concl;
+
+      return {
+        ...disc, assuntos: assuntosProc,
+        progresso: total > 0 ? (concl / total) * 100 : 0,
+        totalAssuntos: total, concluidos: concl,
+        inCiclo: disc.inCiclo !== false,
+        isNew: pendingUpdate?.diff?.novosDiscIds?.has(disc.id),
+        stats: { desempenho, questoes: sd.questoes, ultimaData: sd.lastDate, minutos: sd.minutes },
+      };
+    }).filter(d => {
+      const t = searchTerm.toLowerCase();
+      return d.nome.toLowerCase().includes(t) || d.assuntos.some(a => a.nome.toLowerCase().includes(t));
+    });
+
+    return {
+      editalProcessado: listaCompleta.filter(d => d.inCiclo),
+      inactiveDisciplines: listaCompleta.filter(d => !d.inCiclo),
+      statsGlobal: { total: totalTopicosG, concluidos: totalConcluidosG, percentual: totalTopicosG > 0 ? (totalConcluidosG / totalTopicosG) * 100 : 0 }
+    };
+  }, [disciplinas, registros, searchTerm, optimisticChecks, pendingUpdate]);
+
+  // ── useMemo: processa edital do CRONOGRAMA ────────────────────────────────
+  const { editalProcessado: editalCrono, statsGlobal: statsCrono } = useMemo(() => {
+    if (!disciplinasCronograma.length) return { editalProcessado: [], statsGlobal: { total: 0, concluidos: 0, percentual: 0 } };
+
+    const mapaDetalhado = {}; const statsPorDisc = {};
+
+    registrosCronoFiltrados.forEach(reg => {
+      const discNome = reg.disciplinaNome || '';
+      if (!statsPorDisc[discNome]) statsPorDisc[discNome] = { acertos: 0, questoes: 0, lastDate: null, minutes: 0 };
+      const s = statsPorDisc[discNome];
+      s.acertos += Number(reg.acertos || 0); s.questoes += Number(reg.questoesFeitas || 0); s.minutes += Number(reg.tempoEstudadoMinutos || 0);
+      if (!s.lastDate || reg.data > s.lastDate) s.lastDate = reg.data;
+
+      if (reg.assunto) {
+        const key = `${discNome}-${reg.assunto}`.toLowerCase().trim();
+        if (!mapaDetalhado[key]) mapaDetalhado[key] = { count: 0, minutes: 0, questions: 0, correct: 0, lastDate: null, hasManualCheck: false };
+        if (reg.tipoEstudo !== 'check_manual') mapaDetalhado[key].count += 1;
+        mapaDetalhado[key].minutes += Number(reg.tempoEstudadoMinutos || 0);
+        mapaDetalhado[key].questions += Number(reg.questoesFeitas || 0);
+        mapaDetalhado[key].correct += Number(reg.acertos || 0);
+        if (reg.tipoEstudo === 'check_manual') mapaDetalhado[key].hasManualCheck = true;
+        if (!mapaDetalhado[key].lastDate || reg.data > mapaDetalhado[key].lastDate) mapaDetalhado[key].lastDate = reg.data;
+      }
+    });
+
+    // Também conta progresso das tarefas concluídas no cronograma (slots concluídos)
+    // para enriquecer os stats de tempo mesmo sem registrosEstudo explícitos
+    const progressoCrono = cronograma?.progresso || {};
+
+    let totalTopicosG = 0, totalConcluidosG = 0;
+
+    const listaCompleta = disciplinasCronograma.map(disc => {
+      const listaAssuntos = Array.isArray(disc.assuntos) ? disc.assuntos : [];
+      const sd = statsPorDisc[disc.nome] || { acertos: 0, questoes: 0, lastDate: null, minutes: 0 };
+      const desempenho = sd.questoes > 0 ? Math.round((sd.acertos / sd.questoes) * 100) : 0;
+
+      const assuntosProc = listaAssuntos
+        .filter(item => !(typeof item === 'object' && item.inCiclo === false))
+        .map(item => {
+          const nomeA = typeof item === 'string' ? item : item.nome;
+          const relev = typeof item === 'object' ? (item.relevancia || 1) : 1;
+          const key = `${disc.nome}-${nomeA}`.toLowerCase().trim();
+          const db_data = mapaDetalhado[key];
+          const optimKey = `crono-${key}`;
+          const optim = optimisticChecks[optimKey];
+
+          // Verifica se o assunto foi estudado via check manual OU via slots concluídos do cronograma
+          const estudadoViaRegistro = optim !== undefined ? optim : !!db_data?.hasManualCheck;
+
+          return {
+            nome: nomeA, relevancia: relev,
+            estudado: estudadoViaRegistro,
+            qtdVezes: db_data?.count || 0, minutos: db_data?.minutes || 0,
+            questoes: db_data?.questions || 0, acertos: db_data?.correct || 0,
+            inCiclo: true, isNew: false,
+          };
+        });
+
+      const total = assuntosProc.length; const concl = assuntosProc.filter(a => a.estudado).length;
+      totalTopicosG += total; totalConcluidosG += concl;
+
+      return {
+        ...disc, assuntos: assuntosProc,
+        progresso: total > 0 ? (concl / total) * 100 : 0,
+        totalAssuntos: total, concluidos: concl,
+        inCiclo: true, isNew: false,
+        stats: { desempenho, questoes: sd.questoes, ultimaData: sd.lastDate, minutos: sd.minutes },
+      };
+    }).filter(d => {
+      const t = searchTerm.toLowerCase();
+      return d.nome.toLowerCase().includes(t) || d.assuntos.some(a => a.nome.toLowerCase().includes(t));
+    });
+
+    return {
+      editalProcessado: listaCompleta,
+      statsGlobal: { total: totalTopicosG, concluidos: totalConcluidosG, percentual: totalTopicosG > 0 ? (totalConcluidosG / totalTopicosG) * 100 : 0 }
+    };
+  }, [disciplinasCronograma, registrosCronoFiltrados, searchTerm, optimisticChecks, cronograma]);
+
+  // ── Seleciona dados da fonte ativa ────────────────────────────────────────
+  const isCronoView   = viewSource === 'cronograma';
+  const editalAtivo   = isCronoView ? editalCrono   : editalCiclo;
+  const statsAtivos   = isCronoView ? statsCrono     : statsCiclo;
+  const inativeAtivos = isCronoView ? []             : inactiveCiclo;
+
+  // ID do contexto de estudo para o toggle check
+  const contextoId = isCronoView ? cronograma?.id : activeCicloId;
+
+  // Logo e nome do header
+  const logoAtivo = isCronoView ? cronograma?.computedLogo : ciclo?.computedLogo;
+  const nomeAtivo = isCronoView ? (cronograma?.nome || 'Cronograma') : (ciclo?.nome || 'Missão Sem Nome');
+  const labelAtivo = isCronoView ? 'Cronograma Ativo' : 'Ciclo Ativo';
+
+  // ── Handlers de drag (só funciona no ciclo) ───────────────────────────────
+  const handleDragStart = (e, id) => { dragIdRef.current = id; setDragId(id); e.dataTransfer.effectAllowed = 'move'; };
+  const handleDragOver  = (e, id) => { e.preventDefault(); if (id !== dragIdRef.current) setOverId(id); };
+  const handleDragLeave = (e)     => { if (!e.currentTarget.contains(e.relatedTarget)) setOverId(null); };
+  const handleDragEnd   = ()      => { dragIdRef.current = null; setDragId(null); setOverId(null); };
+
+  const handleDrop = async (e, targetId) => {
+    if (isCronoView) return; // drag-reorder só no ciclo
+    e.preventDefault();
+    const sourceId = dragIdRef.current;
+    setDragId(null); setOverId(null); dragIdRef.current = null;
+    if (!sourceId || sourceId === targetId) return;
+
+    const list = [...disciplinas];
+    const srcIdx = list.findIndex(d => d.id === sourceId);
+    const tgtIdx = list.findIndex(d => d.id === targetId);
+    if (srcIdx === -1 || tgtIdx === -1) return;
+
+    const [removed] = list.splice(srcIdx, 1);
+    list.splice(tgtIdx, 0, removed);
+    setDisciplinas(list);
+    setIsSavingOrder(true);
+
+    try {
+      const batch = writeBatch(db);
+      list.forEach((disc, idx) => {
+        if (disc.index !== idx)
+          batch.update(doc(db, 'users', user.uid, 'ciclos', activeCicloId, 'disciplinas', disc.id), { index: idx });
+      });
+      await batch.commit();
+    } catch (err) { console.error('Erro ao salvar ordem:', err); }
+    finally { setIsSavingOrder(false); }
+  };
+
+  const handleUpdateEdital = async () => {
+    if (pendingUpdate && onApplyEditalUpdate) await onApplyEditalUpdate(pendingUpdate);
+  };
+
+  const handleIgnorarUpdate = () => {
+    if (pendingUpdate && onDismissEditalUpdate) onDismissEditalUpdate(pendingUpdate.cicloId, pendingUpdate.versionKey);
+  };
+
+  const handleRestoreDisciplina = async (discId) => {
+    if (!user || !activeCicloId) return;
+    try {
+      await updateDoc(doc(db, 'users', user.uid, 'ciclos', activeCicloId, 'disciplinas', discId), { inCiclo: true });
+    } catch (err) { console.error("Erro ao restaurar disciplina", err); }
+  };
+
+  const handleHardDeleteDisciplina = async (disc) => {
+    if (!user || !activeCicloId) return;
+    if (!window.confirm(`Tem certeza que deseja apagar "${disc.nome}" permanentemente do ciclo?`)) return;
+    try {
+      await deleteDoc(doc(db, 'users', user.uid, 'ciclos', activeCicloId, 'disciplinas', disc.id));
+    } catch (err) { console.error("Erro ao excluir disciplina", err); }
+  };
+
+  // ── Toggle check de assunto ───────────────────────────────────────────────
+  const handleToggleCheck = async (disciplinaId, disciplinaNome, assuntoNome, estadoAtual) => {
+    // Para ciclo: chave normal. Para cronograma: prefixo "crono-"
+    const key = isCronoView
+      ? `crono-${disciplinaNome}-${assuntoNome}`.toLowerCase().trim()
+      : `${disciplinaNome}-${assuntoNome}`.toLowerCase().trim();
+
+    setOptimisticChecks(prev => ({ ...prev, [key]: !estadoAtual }));
+    setLoadingCheck(prev => ({ ...prev, [key]: true }));
+
+    try {
+      if (!estadoAtual) {
+        const payload = {
+          disciplinaId,
+          disciplinaNome,
+          assunto: assuntoNome,
+          data: new Date().toISOString().split('T')[0],
+          timestamp: serverTimestamp(),
+          tempoEstudadoMinutos: 0,
+          questoesFeitas: 0,
+          acertos: 0,
+          tipoEstudo: 'check_manual',
+          obs: 'Check Manual',
+        };
+        if (isCronoView) {
+          payload.cronogramaId = cronograma?.id;
+        } else {
+          payload.cicloId = activeCicloId;
+        }
+        await addDoc(collection(db, 'users', user.uid, 'registrosEstudo'), payload);
+      } else {
+        // Remove o check manual correspondente
+        const constraints = [
+          where('assunto', '==', assuntoNome),
+          where('tipoEstudo', '==', 'check_manual'),
+        ];
+        if (isCronoView) {
+          constraints.push(where('cronogramaId', '==', cronograma?.id));
+        } else {
+          constraints.push(where('cicloId', '==', activeCicloId));
+        }
+        const q = query(collection(db, 'users', user.uid, 'registrosEstudo'), ...constraints);
+        const snap = await getDocs(q);
+        const doc_ = snap.docs.find(d => normalize(d.data().disciplinaNome) === normalize(disciplinaNome));
+        if (doc_) await deleteDoc(doc_.ref);
+        else {
+          // Fallback sem filtro de ciclo/cronograma
+          const q2 = query(collection(db, 'users', user.uid, 'registrosEstudo'), where('assunto', '==', assuntoNome));
+          const snap2 = await getDocs(q2);
+          const doc2 = snap2.docs.find(d => normalize(d.data().disciplinaNome) === normalize(disciplinaNome) && d.data().tipoEstudo === 'check_manual');
+          if (doc2) await deleteDoc(doc2.ref);
+        }
+      }
+      setOptimisticChecks(prev => { const s = { ...prev }; delete s[key]; return s; });
+    } catch {
+      setOptimisticChecks(prev => ({ ...prev, [key]: estadoAtual }));
+      alert('Erro de conexão. Tente novamente.');
+    } finally {
+      setLoadingCheck(prev => ({ ...prev, [key]: false }));
+    }
+  };
+
+  const toggleDisciplina      = (nome) => setExpandedDisciplinas(prev => ({ ...prev, [nome]: !prev[nome] }));
+  const confirmStartStudy     = (disc, assunto) => { if (onStartStudy) { onStartStudy(disc, assunto, { defaultContext: 'ciclo' }); setStudyModalData(null); } };
+  const handleStartTopicStudy = (disc, nome) => setStudyModalData({ disciplina: disc, assunto: nome });
+
+  // ── Early returns ─────────────────────────────────────────────────────────
+  if (loading) return (
+    <div className="flex h-96 items-center justify-center">
+      <div className="animate-spin w-8 h-8 border-4 border-red-600 rounded-full border-t-transparent" />
+    </div>
+  );
+
+  const noCiclo     = !activeCicloId || !ciclo;
+  const noCronograma = !cronograma;
+
+  if (noCiclo && noCronograma) return (
+    <div className="p-0 min-h-[50vh] animate-fade-in pb-12">
+      <div className="flex flex-col items-center justify-center py-20 text-center bg-zinc-50 dark:bg-zinc-900/50 rounded-3xl border-2 border-dashed border-zinc-200 dark:border-zinc-800">
+        <LayoutDashboard size={40} className="text-zinc-300 mb-4" />
+        <h3 className="text-lg font-bold text-zinc-700 dark:text-zinc-300 mb-1">Nenhum Ciclo ou Cronograma Ativo</h3>
+        <p className="text-zinc-500 text-sm mb-6">Ative um ciclo ou crie um cronograma para ver o edital.</p>
+        {onBack && <button onClick={onBack} className="px-6 py-2 bg-red-600 text-white rounded-lg font-bold text-sm hover:bg-red-700">Ir para Ciclos</button>}
+      </div>
+    </div>
+  );
+
+  // Se está em view cronograma mas não tem dados relevantes no edital
+  // (cronograma sem disciplinasSnapshot nem semanaTemplate), mostra aviso
+  const semDadosCrono = isCronoView && editalCrono.length === 0 && !searchTerm;
+
+  // ── Render ────────────────────────────────────────────────────────────────
+  return (
     <div className="w-full space-y-6 animate-fade-in pb-24">
-        {studyModalData && (<StartStudyModal disciplina={studyModalData.disciplina} assunto={studyModalData.assunto} onClose={() => setStudyModalData(null)} onConfirm={confirmStartStudy} />)}
+      {studyModalData && (
+        <StartStudyModal
+          disciplina={studyModalData.disciplina}
+          assunto={studyModalData.assunto}
+          onClose={() => setStudyModalData(null)}
+          onConfirm={confirmStartStudy}
+        />
+      )}
 
-        {/* ALERTA DE ATUALIZAÇÃO */}
-        <AnimatePresence>
-            {updateAvailable && (
-                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.3 }} className="overflow-hidden">
-                    <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm mx-4 md:mx-0">
-                        <div className="flex items-center gap-3">
-                            <div className="p-2 bg-blue-100 dark:bg-blue-800/50 rounded-full text-blue-600 dark:text-blue-300 flex-shrink-0">
-                                <RefreshCw size={20} className={updatingEdital ? "animate-spin" : ""} />
-                            </div>
-                            <div>
-                                <h3 className="text-sm font-bold text-blue-800 dark:text-blue-200">Atualização Disponível</h3>
-                                <p className="text-xs text-blue-600 dark:text-blue-300/80">O edital base foi atualizado. Sincronize para receber novos tópicos sem perder seu progresso.</p>
-                            </div>
-                        </div>
-                        <div className="flex items-center gap-2 w-full sm:w-auto flex-shrink-0">
-                            <button onClick={() => setUpdateAvailable(false)} className="px-4 py-2 rounded-xl text-xs font-bold text-blue-600 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-800/30 transition-colors">Ignorar</button>
-                            <button onClick={handleUpdateEdital} disabled={updatingEdital} className="flex-1 sm:flex-none px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/20 transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-60">
-                                {updatingEdital ? "Atualizando..." : <><ArrowUpCircle size={14} /> Atualizar Agora</>}
-                            </button>
-                        </div>
+      {/* Banner de atualização (apenas no modo ciclo) */}
+      <AnimatePresence>
+        {!isCronoView && pendingUpdate && (
+          <UpdateBanner
+            templateData={pendingUpdate.templateData}
+            cicloLogo={ciclo?.computedLogo}
+            cicloNome={ciclo?.nome}
+            diff={pendingUpdate.diff}
+            updatingEdital={loadingEditalUpdate}
+            onUpdate={handleUpdateEdital}
+            onIgnore={handleIgnorarUpdate}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* ── HEADER ── */}
+      <div className="bg-white dark:bg-zinc-900 rounded-3xl p-6 md:p-8 border border-zinc-200 dark:border-zinc-800 shadow-sm relative overflow-hidden flex flex-col md:flex-row items-center md:items-start gap-6 text-center md:text-left">
+
+        {/* Logo + toggle posicionado embaixo */}
+        <div className="flex flex-col items-center gap-2 flex-shrink-0 relative z-10">
+          <div className="w-20 h-20 md:w-28 md:h-28 bg-zinc-50 dark:bg-zinc-950 rounded-full border-4 border-white dark:border-zinc-800 shadow-xl flex items-center justify-center relative">
+            {logoAtivo
+              ? <img src={logoAtivo} alt="Logo" className="w-14 h-14 md:w-16 md:h-16 object-contain" />
+              : <GraduationCap size={40} className="text-zinc-300 dark:text-zinc-600" />
+            }
+            <div className="absolute -bottom-2 px-2 py-0.5 bg-emerald-500 text-white text-[9px] font-bold uppercase tracking-widest rounded-full shadow-md border-2 border-white dark:border-zinc-900">Ativo</div>
+          </div>
+
+          {/* Botão de toggle — aparece só quando ambos existem */}
+          {showToggle && (
+            <div className="mt-2">
+              <SourceToggleButton
+                viewSource={viewSource}
+                onToggle={() => setViewSource(v => v === 'ciclo' ? 'cronograma' : 'ciclo')}
+                cicloNome={ciclo?.nome}
+                cronogramaNome={cronograma?.nome}
+                cicloLogo={ciclo?.computedLogo}
+                cronogramaLogo={cronograma?.computedLogo}
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="flex-1 z-10 w-full">
+          <div className="flex items-start justify-between w-full mb-2">
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-red-50 dark:bg-red-900/20 rounded-full text-[13px] font-bold uppercase tracking-wider border border-red-100 dark:border-red-900/50 text-red-600 dark:text-red-400">
+              <CheckCircle2 size={17} /> Edital Verticalizado
+            </div>
+            {/* Botão de navegação: ciclo → Painel do Ciclo | cronograma → Cronograma */}
+            {isCronoView
+              ? (onGoToCronograma && (
+                  <button onClick={onGoToCronograma} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white hover:bg-red-50 border border-zinc-200 hover:border-red-200 dark:bg-zinc-800 dark:hover:bg-red-900/10 dark:border-zinc-700 text-zinc-600 hover:text-red-700 dark:text-zinc-300 text-[11px] font-bold uppercase tracking-wide transition-all shadow-sm z-20">
+                    <CalendarDays size={14} className="text-red-600 dark:text-red-500" />
+                    <span className="hidden sm:inline">Painel do Cronograma</span>
+                    <ChevronRight size={12} className="opacity-60" />
+                  </button>
+                ))
+              : (onBack && (
+                  <button onClick={onBack} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white hover:bg-red-50 border border-zinc-200 hover:border-red-200 dark:bg-zinc-800 dark:hover:bg-red-900/10 dark:border-zinc-700 text-zinc-600 hover:text-red-700 dark:text-zinc-300 text-[11px] font-bold uppercase tracking-wide transition-all shadow-sm z-20">
+                    <LayoutDashboard size={14} className="text-red-600 dark:text-red-500" />
+                    <span className="hidden sm:inline">Painel do Ciclo</span>
+                    <ChevronRight size={12} className="opacity-60" />
+                  </button>
+                ))
+            }
+          </div>
+
+          <h1 className="text-2xl md:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tight leading-none mb-3">{nomeAtivo}</h1>
+
+          <div className="mt-6 w-full">
+            <div className="flex justify-between items-end mb-2">
+              <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Cobertura Global</span>
+              <div className="flex items-baseline gap-1"><span className="text-2xl font-black text-red-600 dark:text-red-500">{statsAtivos.percentual.toFixed(0)}</span><span className="text-sm font-bold text-zinc-400">%</span></div>
+            </div>
+            <div className="flex gap-1 h-2.5 w-full">
+              {Array.from({ length: 30 }).map((_, i) => (
+                <div key={i} className={`flex-1 rounded-sm transition-all duration-700 ${i < (statsAtivos.percentual / 3.33) ? 'bg-red-600 dark:bg-red-500' : 'bg-zinc-100 dark:bg-zinc-800'}`} />
+              ))}
+            </div>
+            <div className="flex justify-between text-[10px] text-zinc-400 font-bold uppercase mt-2">
+              <span>{statsAtivos.concluidos} Concluídos</span><span>{statsAtivos.total} Total</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="absolute right-0 top-0 p-10 opacity-5 pointer-events-none transform rotate-12"><BookOpen size={200} /></div>
+      </div>
+
+      {/* ── BARRA DE BUSCA ── */}
+      <div className="sticky top-4 z-20 px-1">
+        <div className="relative flex items-center bg-white dark:bg-zinc-950/90 backdrop-blur-md rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-xl">
+          <Search className="ml-4 text-zinc-400" size={20} />
+          <input
+            type="text"
+            placeholder="Filtrar disciplina ou tópico..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full p-4 bg-transparent text-sm font-bold text-zinc-800 dark:text-white outline-none placeholder:text-zinc-500"
+          />
+          {searchTerm && (
+            <button onClick={() => setSearchTerm('')} className="mr-4 text-zinc-400 hover:text-red-500"><X size={16} /></button>
+          )}
+        </div>
+      </div>
+
+      {/* Dica de reordenação (apenas no ciclo) */}
+      {!isCronoView && (
+        <div className="flex items-center justify-between px-4 md:px-0">
+          <p className="text-[11px] text-zinc-400 font-medium flex items-center gap-1.5">
+            <GripVertical size={13} className="text-zinc-300" /> Arraste pelo ⋮ para reordenar
+          </p>
+          <AnimatePresence>
+            {isSavingOrder && (
+              <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-[10px] font-bold text-zinc-400 uppercase tracking-wide flex items-center gap-1.5">
+                <div className="w-3 h-3 border-2 border-zinc-400 border-t-transparent rounded-full animate-spin" /> Salvando...
+              </motion.span>
+            )}
+          </AnimatePresence>
+        </div>
+      )}
+
+      {/* Aviso quando cronograma não tem assuntos mapeados */}
+      {semDadosCrono && (
+        <div className="mx-4 md:mx-0 p-6 rounded-2xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 text-center">
+          <CalendarDays size={32} className="mx-auto text-blue-400 mb-3" />
+          <p className="text-sm font-bold text-blue-700 dark:text-blue-300 mb-1">Detalhamento de assuntos não disponível</p>
+          <p className="text-xs text-blue-500 dark:text-blue-400">
+            O cronograma não possui assuntos detalhados mapeados. O progresso é rastreado pelos slots de estudo concluídos.
+          </p>
+        </div>
+      )}
+
+      {/* ── LISTA DE DISCIPLINAS ── */}
+      <div className="space-y-4 px-4 md:px-0">
+        {editalAtivo.length === 0 && !semDadosCrono && (
+          <div className="text-center py-20 bg-zinc-50 dark:bg-zinc-900/50 rounded-3xl border-2 border-dashed border-zinc-200 dark:border-zinc-800">
+            <AlertCircle size={40} className="mx-auto text-zinc-300 mb-4" />
+            <p className="text-zinc-500 font-bold">Nenhum conteúdo encontrado.</p>
+          </div>
+        )}
+
+        {editalAtivo.map((disc) => {
+          const desempConf = getDesempenhoConfig(disc.stats.desempenho, disc.stats.questoes);
+          const DesempIcon = desempConf.icon;
+          const isDragging = dragId === disc.id;
+          const isOver     = overId === disc.id && !isDragging;
+
+          return (
+            <div key={disc.id}
+              onDragOver={(e) => handleDragOver(e, disc.id)}
+              onDragLeave={handleDragLeave}
+              onDrop={(e) => handleDrop(e, disc.id)}
+              onDragEnd={handleDragEnd}
+              className={['bg-white dark:bg-zinc-900 border rounded-2xl overflow-hidden shadow-sm transition-all duration-150',
+                !isDragging && !isOver ? 'border-zinc-200 dark:border-zinc-800 hover:border-red-200 dark:hover:border-red-900/30' : '',
+                isDragging ? 'opacity-40 scale-[0.99] shadow-none' : '',
+                isOver ? 'border-red-400 ring-2 ring-red-400/30 shadow-xl -translate-y-1' : '',
+                disc.isNew ? 'ring-2 ring-emerald-400/40 border-emerald-300 dark:border-emerald-700' : '',
+              ].join(' ')}>
+
+              <div className="flex flex-col md:flex-row md:items-stretch">
+                {/* Grip de drag (apenas no ciclo) */}
+                {!isCronoView && (
+                  <div
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, disc.id)}
+                    className="hidden md:flex items-center justify-center w-8 shrink-0 cursor-grab active:cursor-grabbing text-zinc-200 dark:text-zinc-700 hover:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors border-r border-zinc-100 dark:border-zinc-800 group/grip"
+                  >
+                    <GripVertical size={16} className="group-hover/grip:text-red-400 transition-colors" />
+                  </div>
+                )}
+
+                <div onClick={() => toggleDisciplina(disc.nome)} className="flex-1 flex items-center gap-5 p-5 text-left cursor-pointer group">
+                  <div className="relative flex-shrink-0">
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center border transition-colors ${disc.progresso === 100 ? 'bg-emerald-100 dark:bg-emerald-900/20 text-emerald-600 border-emerald-200' : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-500 border-zinc-200 dark:border-zinc-800 group-hover:text-red-500'}`}>
+                      {disc.progresso === 100 ? <CheckCircle2 size={22} /> : <LayoutGrid size={22} />}
                     </div>
+                    <svg className="absolute -top-1 -left-1 w-14 h-14 pointer-events-none" viewBox="0 0 100 100">
+                      <circle cx="50" cy="50" r="48" fill="none" stroke="currentColor" className="text-zinc-200 dark:text-zinc-800" strokeWidth="2" />
+                      <circle cx="50" cy="50" r="48" fill="none" stroke={disc.progresso === 100 ? '#10b981' : '#dc2626'} strokeWidth="2" strokeDasharray="301.59" strokeDashoffset={301.59 * (1 - disc.progresso / 100)} transform="rotate(-90 50 50)" className="transition-all duration-1000 ease-out" />
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-bold text-base md:text-lg truncate transition-colors text-zinc-900 dark:text-white group-hover:text-red-600 dark:group-hover:text-red-400">{disc.nome}</h3>
+                      <NewBadge isNew={disc.isNew} />
+                      {Number(disc.peso) >= 3 && (
+                        <div className="hidden sm:flex items-center gap-1 px-2 py-0.5 bg-orange-100 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 rounded-full border border-orange-200 dark:border-orange-900/30 animate-pulse">
+                          <Flame size={10} fill="currentColor" /><span className="text-[9px] font-bold uppercase">Alta Relevância</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 mt-2">
+                      <span className="px-1.5 py-0.5 rounded-md bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 text-[9px] font-bold uppercase flex items-center gap-1"><CheckSquare size={10} /> {disc.concluidos}/{disc.totalAssuntos}</span>
+                      <span className="px-1.5 py-0.5 rounded-md bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 text-[9px] font-bold uppercase flex items-center gap-1"><Clock size={10} /> {formatMinutesToTime(disc.stats.minutos)}</span>
+                      <span className={`px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase flex items-center gap-1 ${desempConf.style}`}><DesempIcon size={10} /> {desempConf.label}</span>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setStudyModalData({ disciplina: disc, assunto: null }); }}
+                        className="md:hidden flex items-center gap-1 px-2.5 py-1 bg-zinc-900 dark:bg-white hover:bg-red-600 text-white dark:text-black hover:text-white dark:hover:text-white rounded-md text-[10px] font-bold uppercase shadow transition-all active:scale-95"
+                      >
+                        <Play size={10} fill="currentColor" /> Estudar
+                      </button>
+                    </div>
+                  </div>
+                  <ChevronDown size={20} className={`text-zinc-400 transition-transform flex-shrink-0 ${expandedDisciplinas[disc.nome] ? 'rotate-180' : ''}`} />
+                </div>
+
+                <div className="hidden md:flex items-center justify-end gap-3 p-5 border-l border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-black/10">
+                  <div className="flex flex-col items-end mr-2">
+                    <span className="text-[10px] font-bold text-zinc-400 uppercase">Último Estudo</span>
+                    <span className="text-xs font-mono text-zinc-700 dark:text-zinc-300">{formatDateRelative(disc.stats.ultimaData)}</span>
+                  </div>
+                  <button
+                    onClick={() => setStudyModalData({ disciplina: disc, assunto: null })}
+                    className="px-5 py-2.5 bg-zinc-900 dark:bg-white hover:bg-red-600 dark:hover:bg-red-600 text-white dark:text-black hover:text-white rounded-lg font-bold text-xs uppercase shadow transition-all active:scale-95 flex items-center gap-2"
+                  >
+                    <Play size={12} fill="currentColor" /> Estudar
+                  </button>
+                </div>
+              </div>
+
+              {/* ── Assuntos expandidos ── */}
+              <AnimatePresence>
+                {expandedDisciplinas[disc.nome] && (
+                  <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50/30 dark:bg-black/20">
+                    <div className="divide-y divide-zinc-100 dark:divide-zinc-800/50">
+                      {disc.assuntos.map((assunto, i) => {
+                        const qStats = getProgressStats(assunto.acertos, assunto.questoes);
+                        const hasAct = assunto.minutos > 0 || assunto.questoes > 0;
+                        const isHot  = assunto.relevancia >= 4 && !assunto.estudado;
+                        // Para cronograma: prefixo "crono-", para ciclo: normal
+                        const ckKey = isCronoView
+                          ? `crono-${disc.nome}-${assunto.nome}`.toLowerCase().trim()
+                          : `${disc.nome}-${assunto.nome}`.toLowerCase().trim();
+
+                        return (
+                          <div key={i} className={`flex flex-col md:flex-row md:items-center p-4 sm:px-6 transition-all gap-4 hover:bg-white dark:hover:bg-zinc-800/50 ${assunto.estudado ? 'bg-emerald-50/40 dark:bg-emerald-900/10' : ''} ${assunto.isNew ? 'bg-emerald-50/60 dark:bg-emerald-900/10 border-l-2 border-emerald-400' : ''}`}>
+                            <div className="flex items-start gap-4 flex-1">
+                              <button
+                                onClick={() => handleToggleCheck(disc.id, disc.nome, assunto.nome, assunto.estudado)}
+                                disabled={loadingCheck[ckKey]}
+                                className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all flex-shrink-0 shadow-sm z-10 ${assunto.estudado ? 'bg-emerald-500 text-white' : 'bg-white dark:bg-zinc-800 border-2 border-zinc-200 dark:border-zinc-700 text-zinc-300 hover:border-red-400 hover:text-red-400'}`}
+                              >
+                                {loadingCheck[ckKey]
+                                  ? <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                                  : <CheckSquare size={18} strokeWidth={3} />
+                                }
+                              </button>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <p className={`text-[15px] leading-snug ${assunto.estudado ? 'text-zinc-500 line-through decoration-2 decoration-emerald-500/50 font-medium' : 'text-zinc-800 dark:text-zinc-100 font-bold'}`}>{assunto.nome}</p>
+                                  <NewBadge isNew={assunto.isNew} />
+                                  {isHot && (
+                                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-sm ml-2">
+                                      <Flame size={14} fill="currentColor" /><span className="text-[10px] font-bold uppercase">Altas Chances</span>
+                                    </div>
+                                  )}
+                                </div>
+                                {!hasAct && !assunto.estudado && (
+                                  <p className="text-xs text-red-500 font-medium mt-1 flex items-center gap-1"><AlertCircle size={10} /> Não iniciado</p>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-center justify-end gap-3 w-full md:w-auto pl-14 md:pl-0">
+                              <div className="mr-1"><BookStackBadge count={assunto.qtdVezes} /></div>
+                              <div className="flex items-center gap-4 mr-2">
+                                <div className="flex flex-col items-end w-14"><span className="text-[9px] font-bold text-zinc-400 uppercase mb-0.5">Tempo</span><span className="text-xs font-black text-zinc-700 dark:text-zinc-300">{formatMinutesToTime(assunto.minutos)}</span></div>
+                                <div className="flex flex-col items-end w-20"><span className="text-[9px] font-bold text-zinc-400 uppercase mb-0.5">Questões</span><div className="flex items-center gap-1.5"><span className={`text-xs font-black ${qStats.colorText}`}>{qStats.perc}%</span><span className="text-[10px] font-medium text-zinc-400">({assunto.acertos}/{assunto.questoes})</span></div></div>
+                              </div>
+                              <button
+                                onClick={() => handleStartTopicStudy(disc, assunto.nome)}
+                                className="p-2.5 rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-red-500 hover:text-white dark:hover:bg-red-600 transition-all text-zinc-400 shadow-sm"
+                              >
+                                <Play size={16} fill="currentColor" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {disc.assuntos.length === 0 && (
+                        <div className="p-6 text-center text-xs text-zinc-400 italic">
+                          {isCronoView ? 'Assuntos não detalhados neste cronograma.' : 'Sem tópicos cadastrados.'}
+                        </div>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          );
+        })}
+
+        {/* DISCIPLINAS INATIVAS (apenas no ciclo) */}
+        {!isCronoView && inativeAtivos.length > 0 && (
+          <div className="mt-8 rounded-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+            <button
+              onClick={() => setShowInactive(!showInactive)}
+              className="w-full flex items-center justify-between p-4 bg-zinc-100 dark:bg-zinc-800/50 hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <Ban size={16} className="text-zinc-500" />
+                <span className="text-sm font-bold text-zinc-600 dark:text-zinc-300 uppercase tracking-wide">
+                  Disciplinas Fora do Ciclo ({inativeAtivos.length})
+                </span>
+              </div>
+              {showInactive ? <ChevronUp size={18} className="text-zinc-500" /> : <ChevronDown size={18} className="text-zinc-500" />}
+            </button>
+            <AnimatePresence>
+              {showInactive && (
+                <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden bg-white dark:bg-zinc-900 divide-y divide-zinc-100 dark:divide-zinc-800">
+                  {inativeAtivos.map(disc => (
+                    <div key={disc.id} className="p-4 flex flex-col md:flex-row items-center justify-between gap-4 opacity-70 hover:opacity-100 transition-opacity">
+                      <div className="flex-1 min-w-0 flex items-center gap-3">
+                        <div className="w-10 h-10 bg-zinc-100 dark:bg-zinc-800 rounded-xl flex items-center justify-center shrink-0">
+                          <BookOpen size={16} className="text-zinc-400" />
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-bold text-zinc-500 dark:text-zinc-400 line-through">{disc.nome}</h4>
+                          <p className="text-[10px] text-zinc-400 mt-0.5">Removida do ciclo atual</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={() => handleRestoreDisciplina(disc.id)} className="px-3 py-2 bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-lg text-xs font-bold uppercase hover:bg-emerald-100 transition-colors flex items-center gap-1.5">
+                          <Undo2 size={14} /> Restaurar
+                        </button>
+                        <button onClick={() => handleHardDeleteDisciplina(disc)} className="px-3 py-2 bg-red-50 text-red-600 border border-red-200 rounded-lg text-xs font-bold uppercase hover:bg-red-100 transition-colors flex items-center gap-1.5">
+                          <Trash2 size={14} /> Excluir
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </motion.div>
-            )}
-        </AnimatePresence>
-
-        {/* HEADER */}
-        <div className="w-full">
-            <div className="bg-white dark:bg-zinc-900 rounded-3xl p-6 md:p-8 border border-zinc-200 dark:border-zinc-800 shadow-sm relative overflow-hidden flex flex-col md:flex-row items-center md:items-start gap-6 text-center md:text-left">
-                <div className="w-20 h-20 md:w-28 md:h-28 bg-zinc-50 dark:bg-zinc-950 rounded-full border-4 border-white dark:border-zinc-800 shadow-xl flex items-center justify-center flex-shrink-0 relative z-10">
-                    {ciclo?.computedLogo ? (<img src={ciclo.computedLogo} alt="Logo" className="w-14 h-14 md:w-16 md:h-16 object-contain" />) : (<GraduationCap size={40} className="text-zinc-300 dark:text-zinc-600" />)}
-                    <div className="absolute -bottom-2 px-2 py-0.5 bg-emerald-500 text-white text-[9px] font-bold uppercase tracking-widest rounded-full shadow-md border-2 border-white dark:border-zinc-900">Ativo</div>
-                </div>
-                <div className="flex-1 z-10 w-full">
-                    <div className="flex items-start justify-between w-full mb-2">
-                        <div className="inline-flex items-center gap-2 px-3 py-1 bg-red-50 dark:bg-red-900/20 rounded-full text-[13px] font-bold uppercase tracking-wider border border-red-100 dark:border-red-900/50 text-red-600 dark:text-red-400">
-                            <CheckCircle2 size={17} /> Edital Verticalizado
-                        </div>
-                        {onBack && (
-                            <button onClick={onBack} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white hover:bg-red-50 border border-zinc-200 hover:border-red-200 dark:bg-zinc-800 dark:hover:bg-red-900/10 dark:border-zinc-700 dark:hover:border-red-900/30 text-zinc-600 hover:text-red-700 dark:text-zinc-300 dark:hover:text-red-400 text-[11px] font-bold uppercase tracking-wide transition-all group w-fit shadow-sm z-20">
-                                <LayoutDashboard size={14} className="text-red-600 dark:text-red-500 group-hover:scale-110 transition-transform" />
-                                <span className="hidden sm:inline">Painel do Ciclo</span>
-                                <ChevronRight size={12} className="opacity-60 group-hover:translate-x-1 transition-transform" />
-                            </button>
-                        )}
-                    </div>
-                    <h1 className="text-2xl md:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tight leading-none mb-3">{ciclo?.nome || 'Missão Sem Nome'}</h1>
-                    <div className="mt-6 w-full">
-                        <div className="flex justify-between items-end mb-2">
-                            <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Cobertura Global</span>
-                            <div className="flex items-baseline gap-1"><span className="text-2xl font-black text-red-600 dark:text-red-500">{statsGlobal.percentual.toFixed(0)}</span><span className="text-sm font-bold text-zinc-400">%</span></div>
-                        </div>
-                        <div className="flex gap-1 h-2.5 w-full">{Array.from({ length: 30 }).map((_, i) => (<div key={i} className={`flex-1 rounded-sm transition-all duration-700 ${i < (statsGlobal.percentual / 3.33) ? 'bg-red-600 dark:bg-red-500' : 'bg-zinc-100 dark:bg-zinc-800'}`} />))}</div>
-                        <div className="flex justify-between text-[10px] text-zinc-400 font-bold uppercase mt-2"><span>{statsGlobal.concluidos} Itens Concluídos</span><span>{statsGlobal.total} Itens Totais</span></div>
-                    </div>
-                </div>
-                <div className="absolute right-0 top-0 p-10 opacity-5 pointer-events-none transform rotate-12"><BookOpen size={200} /></div>
-            </div>
-        </div>
-
-        {/* BARRA DE BUSCA */}
-        <div className="sticky top-4 z-20 px-1">
-            <div className="relative group">
-                <div className="absolute -inset-0.5 bg-gradient-to-r from-red-500 to-orange-500 rounded-2xl opacity-0 group-focus-within:opacity-20 transition duration-500 blur-md"></div>
-                <div className="relative flex items-center bg-white dark:bg-zinc-950/90 backdrop-blur-md rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-xl">
-                    <Search className="ml-4 text-zinc-400" size={20} />
-                    <input type="text" placeholder="Filtrar disciplina ou tópico..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full p-4 bg-transparent text-sm font-bold text-zinc-800 dark:text-white outline-none placeholder:text-zinc-500" />
-                    {searchTerm && <button onClick={() => setSearchTerm('')} className="mr-4 text-zinc-400 hover:text-red-500"><X size={16} /></button>}
-                </div>
-            </div>
-        </div>
-
-        {/* LISTA DE DISCIPLINAS */}
-        <div className="space-y-4 px-4 md:px-0">
-            {editalProcessado.length === 0 && (
-                <div className="text-center py-20 bg-zinc-50 dark:bg-zinc-900/50 rounded-3xl border-2 border-dashed border-zinc-200 dark:border-zinc-800">
-                    <AlertCircle size={40} className="mx-auto text-zinc-300 mb-4"/>
-                    <p className="text-zinc-500 font-bold">Nenhum conteúdo encontrado.</p>
-                </div>
-            )}
-            {editalProcessado.map((disc, idx) => {
-                const desempenhoConfig = getDesempenhoConfig(disc.stats.desempenho, disc.stats.questoes);
-                const DesempenhoIcon = desempenhoConfig.icon;
-                const isInCiclo = disc.inCiclo;
-                return (
-                <div key={idx} className={`bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-hidden shadow-sm transition-all duration-300 ${isInCiclo ? 'hover:border-red-200 dark:hover:border-red-900/30' : 'opacity-70 hover:opacity-100'}`}>
-
-                    <div className="flex flex-col md:flex-row md:items-stretch">
-
-                        <div
-                            onClick={() => toggleDisciplina(disc.nome)}
-                            className="flex-1 flex items-center gap-5 p-5 text-left cursor-pointer group"
-                        >
-                            <div className="relative flex-shrink-0">
-                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center border transition-colors ${!isInCiclo ? 'bg-zinc-50 dark:bg-zinc-900/50 border-dashed border-zinc-300 dark:border-zinc-700 text-zinc-300' : disc.progresso === 100 ? 'bg-emerald-100 dark:bg-emerald-900/20 text-emerald-600 border-emerald-200 dark:border-emerald-800' : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-500 border-zinc-200 dark:border-zinc-800 group-hover:text-red-500'}`}>
-                                    {disc.progresso === 100 ? <CheckCircle2 size={22} /> : <LayoutGrid size={22} />}
-                                </div>
-                                {isInCiclo && (<svg className="absolute -top-1 -left-1 w-14 h-14 pointer-events-none" viewBox="0 0 100 100"><circle cx="50" cy="50" r="48" fill="none" stroke="currentColor" className="text-zinc-200 dark:text-zinc-800" strokeWidth="2" /><circle cx="50" cy="50" r="48" fill="none" stroke={disc.progresso === 100 ? '#10b981' : '#dc2626'} strokeWidth="2" strokeDasharray="301.59" strokeDashoffset={301.59 * (1 - disc.progresso / 100)} transform="rotate(-90 50 50)" className="transition-all duration-1000 ease-out" /></svg>)}
-                            </div>
-
-                            <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
-                                    <h3 className={`font-bold text-base md:text-lg truncate transition-colors ${isInCiclo ? 'text-zinc-900 dark:text-white group-hover:text-red-600 dark:group-hover:text-red-400' : 'text-zinc-500 dark:text-zinc-500 line-through'}`}>{disc.nome}</h3>
-                                    {!isInCiclo && (<div className="flex items-center gap-1 px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 rounded-full border border-zinc-200 dark:border-zinc-700"><Ban size={10} /><span className="text-[9px] font-bold uppercase tracking-wide">Fora do Ciclo</span></div>)}
-                                    {isInCiclo && Number(disc.peso) >= 3 && (<div className="hidden sm:flex items-center gap-1 px-2 py-0.5 bg-orange-100 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 rounded-full border border-orange-200 dark:border-orange-900/30 animate-pulse"><Flame size={10} fill="currentColor" /><span className="text-[9px] font-bold uppercase tracking-wide">Alta Relevância</span></div>)}
-                                </div>
-
-                                <div className="flex flex-wrap items-center gap-2 mt-2">
-                                    <span className="px-1.5 py-0.5 rounded-md bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 text-[9px] font-bold uppercase flex items-center gap-1"><CheckSquare size={10} /> {disc.concluidos}/{disc.totalAssuntos} Tópicos</span>
-                                    {isInCiclo && (
-                                        <>
-                                            <span className="px-1.5 py-0.5 rounded-md bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 text-[9px] font-bold uppercase flex items-center gap-1"><Clock size={10} /> {formatMinutesToTime(disc.stats.minutos)}</span>
-                                            <span className={`px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase flex items-center gap-1 ${desempenhoConfig.style}`}><DesempenhoIcon size={10} /> {desempenhoConfig.label} Precisão</span>
-
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setStudyModalData({ disciplina: disc, assunto: null });
-                                                }}
-                                                className="md:hidden flex items-center gap-1 px-2.5 py-1 bg-zinc-900 dark:bg-white hover:bg-red-600 dark:hover:bg-red-600 text-white dark:text-black hover:text-white dark:hover:text-white rounded-md text-[10px] font-bold uppercase tracking-wide shadow transition-all active:scale-95"
-                                            >
-                                                <Play size={10} fill="currentColor" /> Estudar
-                                            </button>
-                                        </>
-                                    )}
-                                </div>
-                            </div>
-
-                            <ChevronDown size={20} className={`text-zinc-400 transition-transform flex-shrink-0 ${expandedDisciplinas[disc.nome] ? 'rotate-180' : ''}`}/>
-                        </div>
-
-                        {isInCiclo ? (
-                            <div className="hidden md:flex items-center justify-end gap-3 p-5 border-l border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-black/10">
-                                <div className="flex flex-col items-end mr-2">
-                                    <span className="text-[10px] font-bold text-zinc-400 uppercase">Último Estudo</span>
-                                    <span className="text-xs font-mono text-zinc-700 dark:text-zinc-300">{formatDateRelative(disc.stats.ultimaData)}</span>
-                                </div>
-                                <button
-                                    onClick={() => setStudyModalData({ disciplina: disc, assunto: null })}
-                                    className="px-5 py-2.5 bg-zinc-900 dark:bg-white hover:bg-red-600 dark:hover:bg-red-600 text-white dark:text-black hover:text-white dark:hover:text-white rounded-lg font-bold text-xs uppercase tracking-wide shadow transition-all active:scale-95 flex items-center justify-center gap-2"
-                                >
-                                    <Play size={12} fill="currentColor" /> Estudar
-                                </button>
-                            </div>
-                        ) : (
-                            <div className="hidden md:flex items-center justify-end p-5 border-l border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-black/10">
-                                <span className="text-xs font-bold text-zinc-400 uppercase px-4">Disciplina Inativa</span>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* TÓPICOS EXPANDIDOS */}
-                    <AnimatePresence>
-                        {expandedDisciplinas[disc.nome] && (
-                            <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50/30 dark:bg-black/20">
-                                <div className="divide-y divide-zinc-100 dark:divide-zinc-800/50">
-                                    {disc.assuntos.map((assunto, i) => {
-                                        const questStats = getProgressStats(assunto.acertos, assunto.questoes);
-                                        const hasActivity = assunto.minutos > 0 || assunto.questoes > 0;
-                                        const isHot = assunto.relevancia >= 4 && !assunto.estudado;
-                                        const isTopicInCiclo = assunto.inCiclo;
-
-                                        return (
-                                        <div key={i} className={`flex flex-col md:flex-row md:items-center p-4 sm:px-6 transition-all gap-4 hover:bg-white dark:hover:bg-zinc-800/50 ${assunto.estudado ? 'bg-emerald-50/40 dark:bg-emerald-900/10' : ''} ${!isTopicInCiclo ? 'opacity-60 bg-zinc-100/50 dark:bg-zinc-900/50' : ''}`}>
-
-                                            <div className="flex items-start gap-4 flex-1 relative">
-                                                <button onClick={() => handleToggleCheck(disc.id, disc.nome, assunto.nome, assunto.estudado)} disabled={loadingCheck[`${disc.nome}-${assunto.nome}`.toLowerCase().trim()] || !isTopicInCiclo} className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all flex-shrink-0 shadow-sm z-10 ${!isTopicInCiclo ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-300 cursor-not-allowed' : assunto.estudado ? 'bg-emerald-500 text-white shadow-emerald-500/20' : 'bg-white dark:bg-zinc-800 border-2 border-zinc-200 dark:border-zinc-700 text-zinc-300 dark:text-zinc-600 hover:border-red-400 hover:text-red-400'}`}>
-                                                    {loadingCheck[`${disc.nome}-${assunto.nome}`.toLowerCase().trim()] ? <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"/> : <CheckSquare size={18} strokeWidth={3} />}
-                                                </button>
-                                                <div className="flex-1 min-w-0 z-10">
-                                                    <div className="flex items-center gap-2 flex-wrap">
-                                                        <p className={`text-[15px] leading-snug ${assunto.estudado ? 'text-zinc-500 dark:text-zinc-500 line-through decoration-2 decoration-emerald-500/50 font-medium' : isTopicInCiclo ? 'text-zinc-800 dark:text-zinc-100 font-bold' : 'text-zinc-500 dark:text-zinc-500 line-through decoration-zinc-400'}`}>{assunto.nome}</p>
-                                                        {!isTopicInCiclo && (<div className="flex items-center gap-1 px-1.5 py-0.5 bg-zinc-200 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 rounded text-[9px] font-bold uppercase tracking-wide">Fora do Ciclo</div>)}
-                                                        {isHot && isInCiclo && isTopicInCiclo && (<div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-sm ml-2"><Flame size={14} fill="currentColor" className="drop-shadow-sm" /><span className="text-[10px] font-bold uppercase tracking-wider leading-none whitespace-nowrap">Altas Chances</span></div>)}
-                                                    </div>
-                                                    {!hasActivity && !assunto.estudado && isTopicInCiclo && (<p className="text-xs text-red-500 font-medium mt-1 flex items-center gap-1"><AlertCircle size={10}/> Não iniciado</p>)}
-                                                </div>
-                                            </div>
-
-                                            <div className="flex items-center justify-end gap-3 w-full md:w-auto pl-14 md:pl-0 z-10">
-                                                <div className="mr-1">
-                                                    <BookStackBadge count={assunto.qtdVezes} />
-                                                </div>
-                                                <div className="flex items-center gap-4 mr-2">
-                                                    <div className="flex flex-col items-end w-14"><span className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider mb-0.5">Tempo</span><span className="text-xs font-black text-zinc-700 dark:text-zinc-300">{formatMinutesToTime(assunto.minutos)}</span></div>
-                                                    <div className="flex flex-col items-end w-20"><span className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider mb-0.5">Questões</span><div className="flex items-center gap-1.5"><span className={`text-xs font-black ${questStats.colorText}`}>{questStats.perc}%</span><span className="text-[10px] font-medium text-zinc-400">({assunto.acertos}/{assunto.questoes})</span></div></div>
-                                                </div>
-                                                <button onClick={() => handleStartTopicStudy(disc, assunto.nome)} className="p-2.5 rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-red-500 hover:text-white dark:hover:bg-red-600 transition-all text-zinc-400 dark:text-zinc-500 shadow-sm" title="Estudar este tópico"><Play size={16} fill="currentColor" /></button>
-                                            </div>
-                                        </div>
-                                    )})}
-                                    {disc.assuntos.length === 0 && (<div className="p-6 text-center text-xs text-zinc-400 italic">Sem tópicos cadastrados.</div>)}
-                                </div>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-                </div>
-            )})}
-        </div>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

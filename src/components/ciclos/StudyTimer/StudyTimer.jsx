@@ -64,6 +64,8 @@ const isValidElapsedMs = (ms) => {
 function StudyTimer({
   disciplina,
   assunto,
+  contextHint = null,
+  sessaoGlobalIndex = null,
   onStop,
   onCancel,
   isMinimized,
@@ -548,7 +550,7 @@ function StudyTimer({
         title: mainTitle,
         artist: timerLine,
         album: "ModoQAP",
-        artwork: [{ src: '/logo-pmba.png', sizes: '512x512', type: 'image/png' }]
+        artwork: [{ src: '/logoModoQAP.png', sizes: '512x512', type: 'image/png' }]
       });
 
       navigator.mediaSession.playbackState = isRunning ? "playing" : "paused";
@@ -606,6 +608,8 @@ function StudyTimer({
         disciplinaId: disciplina?.id,
         disciplinaNome: disciplina?.nome,
         assunto: assunto ?? null,
+        defaultContext: contextHint || null,
+        sessaoGlobalIndex: Number.isFinite(Number(sessaoGlobalIndex)) ? Number(sessaoGlobalIndex) : null,
         variant,
         mode: resolvedMode,
         pomodoroDuration: Number(settings.pomodoroTime || 0) * 60,
@@ -626,7 +630,7 @@ function StudyTimer({
     } catch {}
   }, [
     STORAGE_KEY,
-    disciplina?.id, disciplina?.nome, assunto,
+    disciplina?.id, disciplina?.nome, assunto, contextHint, sessaoGlobalIndex,
     variant,
     effectiveMode,
     settings.pomodoroTime, settings.restTime,
@@ -700,6 +704,8 @@ function StudyTimer({
       disciplinaId: disciplina?.id || null,
       disciplinaNome: disciplina?.nome || '',
       assunto: assunto ?? null,
+      defaultContext: contextHint || null,
+      sessaoGlobalIndex: Number.isFinite(Number(sessaoGlobalIndex)) ? Number(sessaoGlobalIndex) : null,
 
       timerType: timerTypeLabel,
       mode: resolvedMode,
@@ -740,7 +746,7 @@ function StudyTimer({
     };
   }, [
     userUid, userName, userPhotoURL,
-    disciplina?.id, disciplina?.nome, assunto,
+    disciplina?.id, disciplina?.nome, assunto, contextHint, sessaoGlobalIndex,
     effectiveMode, variant, countdownSeconds,
     settings.pomodoroTime, settings.restTime,
     isCancelModalOpen,
@@ -1265,14 +1271,26 @@ function StudyTimer({
       actionInFlightRef.current = true;
 
       const n = nowMs();
-      const startMs = focusStartMsRef.current;
-      if (typeof startMs === 'number') {
-        const delta = Math.max(0, n - startMs);
-        focusAccumulatedMsRef.current += delta;
-        // ✅ FIX: também acumula no bloco do pomodoro para não resetar o cronômetro ao pausar
-        focusBlockElapsedBaseMsRef.current += delta;
+
+      // ✅ FIX: acumula o tempo correto dependendo da fase (foco ou descanso)
+      if (isRestingRef.current) {
+        // Durante o descanso, acumula em restElapsedBaseMsRef
+        const restStart = restStartMsRef.current;
+        if (typeof restStart === 'number') {
+          const delta = Math.max(0, n - restStart);
+          restElapsedBaseMsRef.current += delta;
+        }
+        restStartMsRef.current = null;
+      } else {
+        // Durante o foco, acumula em focusAccumulatedMs e pomoBase
+        const startMs = focusStartMsRef.current;
+        if (typeof startMs === 'number') {
+          const delta = Math.max(0, n - startMs);
+          focusAccumulatedMsRef.current += delta;
+          focusBlockElapsedBaseMsRef.current += delta;
+        }
+        focusStartMsRef.current = null;
       }
-      focusStartMsRef.current = null;
 
       desiredRunningRef.current = false;
       isPausedRef.current = true;
@@ -1331,7 +1349,14 @@ function StudyTimer({
 
       const n = nowMs();
 
-      focusStartMsRef.current = n;
+      // ✅ FIX: retoma o ponteiro correto dependendo da fase (foco ou descanso)
+      if (isRestingRef.current) {
+        restStartMsRef.current = n;
+        focusStartMsRef.current = null;
+      } else {
+        focusStartMsRef.current = n;
+        restStartMsRef.current = null;
+      }
 
       desiredRunningRef.current = true;
       isPausedRef.current = false;
@@ -1360,6 +1385,8 @@ function StudyTimer({
         updatedBy: tabIdRef.current,
         updatedAt: serverTimestamp(),
         focusBaseMs: Math.floor(focusAccumulatedMsRef.current),
+        pomoBaseMs: Math.floor(focusBlockElapsedBaseMsRef.current),
+        restBaseMs: Math.floor(restElapsedBaseMsRef.current),
         uiOverlay: 'none',
       });
 

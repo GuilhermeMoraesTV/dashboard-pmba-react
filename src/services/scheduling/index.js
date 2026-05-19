@@ -1,0 +1,905 @@
+/**
+ * src/services/scheduling/index.js
+ * ─────────────────────────────────────────────────────────────────────────────
+ * API pública do sistema de geração de cronograma MODOQAP.
+ *
+ * REGRAS ABSOLUTAS deste arquivo:
+ *   • Zero imports de React, Firebase ou fetch.
+ *   • arredondar5() é chamada APENAS no Passo 5 (atribuição de minutosEstudo).
+ *   • O tempo total por dia (teoria + revisão) NUNCA ultrapassa o configurado.
+ *   • PERCENTUAL_REVISAO_DIARIA (25%) é reservado ANTES de distribuir teoria.
+ *   • distribuirSlotsPorPeso e distribuirMinutosPorPeso recebem valores brutos.
+ *   • A validação final de desvio de minutos lança exceção — nunca silencia.
+ *
+ * Pipeline de gerarSchedule():
+ *   Passo 1 → calcularPesos
+ *   Passo 2 → totalMinutos BRUTO e totalSlots; desconta PERCENTUAL_REVISAO_DIARIA
+ *             → totalMinutosTeoria (o que realmente vai para os slots de teoria)
+ *   Passo 3 → distribuirSlotsPorPeso + distribuirMinutosPorPeso (sobre totalMinutosTeoria)
+ *   Passo 4 → seleção de disciplinas por dia (round-robin ponderado)
+ *   Passo 5 → Hamilton intra-disciplina com arredondar5() — único ponto de uso
+ *   Passo 6 → assuntos por índice circular
+ *   Validação → invariante: |somaReal - totalMinutosTeoriaArredondado| ≤ tolerancia
+ *
+ * INVARIANTE DE TEMPO:
+ *   Para cada dia d:
+ *     minutosEstudo(dia d) = horarios[d]*60 × (1 - PERCENTUAL_REVISAO_DIARIA)
+ *     minutosRevisao(dia d) ≤ horarios[d]*60 × PERCENTUAL_REVISAO_DIARIA   ← garantido por review.js
+ *     minutosEstudo + minutosRevisao ≤ horarios[d]*60                        ← GARANTIDO
+ */
+
+import {
+  arredondar5,
+  normalizarNivel,
+  calcularMediaAssuntosPorNivel,
+  calcularPesoComAssuntos,
+  calcularMateriasPorDia,
+  calcularScoreEfetivo,
+  distribuirSlotsPorPeso,
+  distribuirMinutosPorPeso,
+  calcularSemanas,
+  DIA_NOMES,
+  INTERVALOS_REVISAO,
+  BASE_CAP_REVISAO,
+} from './core.js';
+import { calcularDataRevisaoAlocada, parseDateOnlyLocal, startOfLocalDay, formatDateKeyLocal } from './review.js';
+
+// ─── CONSTANTES LOCAIS ────────────────────────────────────────────────────────
+
+const PALETA_CORES = [
+  'red', 'blue', 'emerald', 'amber', 'violet',
+  'pink', 'cyan', 'orange', 'teal', 'lime',
+];
+
+const MIN_MINUTOS_SLOT = 15;
+const MAX_MINUTOS_SLOT = 60;
+
+function criarVerificadorDisponibilidadeSemanal(disponibilidade = {}) {
+  return (date) => {
+    const diaSemana = startOfLocalDay(date).getDay();
+    const horas = Number(disponibilidade[diaSemana] ?? disponibilidade[String(diaSemana)] ?? 0);
+    return horas > 0;
+  };
+}
+
+function dataDoSlotNaSemana(inicioSemana, diaSemanaAbsoluto) {
+  const inicio = startOfLocalDay(inicioSemana);
+  const diaInicio = inicio.getDay();
+  let delta = diaSemanaAbsoluto - diaInicio;
+  if (delta < 0) delta += 7;
+  const data = new Date(inicio);
+  data.setDate(data.getDate() + delta);
+  return data;
+}
+
+function agruparAlocacoesPorDia(alocacoes = []) {
+  return alocacoes.reduce((acc, aloc, idx) => {
+    const dia = Number(aloc?.dia);
+    if (!acc[dia]) acc[dia] = [];
+    acc[dia].push({ idx, aloc });
+    return acc;
+  }, {});
+}
+
+function escolherDiaParaBlocoExtra(alocacoes, disciplinaId, diasOrdenados, horarios) {
+  const grupos = agruparAlocacoesPorDia(alocacoes);
+
+  const candidatos = diasOrdenados.map((dia) => {
+    const itensDia = grupos[dia] || [];
+    const jaTemDisciplina = itensDia.some(({ aloc }) => aloc?.disc?.id === disciplinaId);
+
+    return {
+      dia,
+      jaTemDisciplina,
+      ocupacao: itensDia.length,
+      horas: Number(horarios[dia] || 0),
+    };
+  });
+
+  candidatos.sort((a, b) => {
+    if (a.jaTemDisciplina !== b.jaTemDisciplina) {
+      return Number(a.jaTemDisciplina) - Number(b.jaTemDisciplina);
+    }
+    if (a.ocupacao !== b.ocupacao) return a.ocupacao - b.ocupacao;
+    return b.horas - a.horas;
+  });
+
+  return candidatos[0]?.dia ?? diasOrdenados[0] ?? 0;
+}
+
+function normalizarDisciplinaUnicaPorDia(alocacoes, diasOrdenados) {
+  let houveTroca = true;
+  let guard = 0;
+
+  while (houveTroca && guard < 200) {
+    houveTroca = false;
+    guard += 1;
+
+    const grupos = agruparAlocacoesPorDia(alocacoes);
+
+    for (const dia of diasOrdenados) {
+      const itensDia = (grupos[dia] || []).sort((a, b) => a.aloc.ordemNoDia - b.aloc.ordemNoDia);
+      const disciplinasNoDia = new Set();
+      const duplicados = [];
+
+      itensDia.forEach((item) => {
+        const disciplinaId = item.aloc?.disc?.id;
+        if (!disciplinaId) return;
+        if (disciplinasNoDia.has(disciplinaId)) {
+          duplicados.push(item);
+          return;
+        }
+        disciplinasNoDia.add(disciplinaId);
+      });
+
+      for (const duplicado of duplicados) {
+        const disciplinaDuplicada = duplicado.aloc?.disc?.id;
+        if (!disciplinaDuplicada) continue;
+
+        for (const outroDia of diasOrdenados) {
+          if (outroDia === dia) continue;
+
+          const itensOutroDia = grupos[outroDia] || [];
+          const outroDiaJaTemDuplicada = itensOutroDia.some(
+            ({ aloc }) => aloc?.disc?.id === disciplinaDuplicada
+          );
+          if (outroDiaJaTemDuplicada) continue;
+
+          const disciplinasOutroDia = new Set(
+            itensOutroDia.map(({ aloc }) => aloc?.disc?.id).filter(Boolean)
+          );
+
+          const candidatoTroca = itensOutroDia.find(({ aloc }) => {
+            const disciplinaCandidata = aloc?.disc?.id;
+            return disciplinaCandidata && !disciplinasNoDia.has(disciplinaCandidata);
+          });
+
+          if (!candidatoTroca) continue;
+
+          const disciplinaCandidata = candidatoTroca.aloc.disc;
+          if (!disciplinaCandidata || disciplinasOutroDia.has(disciplinaDuplicada) || !disciplinaDuplicada) {
+            continue;
+          }
+
+          alocacoes[duplicado.idx] = {
+            ...alocacoes[duplicado.idx],
+            disc: candidatoTroca.aloc.disc,
+          };
+          alocacoes[candidatoTroca.idx] = {
+            ...alocacoes[candidatoTroca.idx],
+            disc: duplicado.aloc.disc,
+          };
+
+          houveTroca = true;
+          break;
+        }
+
+        if (houveTroca) break;
+      }
+
+      if (houveTroca) break;
+    }
+  }
+}
+
+function calcularFechamentoReal(slots, disciplinas, dataInicio, disponibilidade, dataLimite = null) {
+  if (!slots?.length || !disciplinas?.length || !dataInicio) {
+    return { dataFim: dataLimite || dataInicio || null, diasAteFechamento: 0, totalSemanas: 1 };
+  }
+
+  const inicio = startOfLocalDay(parseDateOnlyLocal(dataInicio));
+  const isDiaDisponivel = criarVerificadorDisponibilidadeSemanal(disponibilidade);
+  const slotsPorDisciplina = slots.reduce((acc, slot) => {
+    if (!acc[slot.disciplinaId]) acc[slot.disciplinaId] = [];
+    acc[slot.disciplinaId].push(slot);
+    return acc;
+  }, {});
+
+  let ultimaData = new Date(inicio);
+
+  disciplinas.forEach((disciplina) => {
+    const assuntos = disciplina?.assuntos || [];
+    const slotsDisciplina = (slotsPorDisciplina[disciplina.id] || []).sort(
+      (a, b) => (a.slotIndexParaDisc || 0) - (b.slotIndexParaDisc || 0)
+    );
+
+    slotsDisciplina.forEach((slot) => {
+      const totalSlotsParaDisc = slot.totalSlotsParaDisc || 1;
+      const slotIndex = slot.slotIndexParaDisc || 0;
+
+      for (let topicIdx = slotIndex; topicIdx < assuntos.length; topicIdx += totalSlotsParaDisc) {
+        const weekOffset = Math.floor((topicIdx - slotIndex) / totalSlotsParaDisc);
+        const dataEstudo = dataDoSlotNaSemana(
+          new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate() + weekOffset * 7, 12, 0, 0, 0),
+          slot.dia
+        );
+
+        if (dataEstudo > ultimaData) ultimaData = dataEstudo;
+
+        INTERVALOS_REVISAO.forEach((intervaloDias) => {
+          const dataRevisao = calcularDataRevisaoAlocada(dataEstudo, intervaloDias, isDiaDisponivel);
+          if (dataRevisao > ultimaData) ultimaData = dataRevisao;
+        });
+      }
+    });
+  });
+
+  let dataFimReal = formatDateKeyLocal(ultimaData);
+
+  if (dataLimite) {
+    const limite = startOfLocalDay(parseDateOnlyLocal(dataLimite));
+    if (limite < ultimaData) {
+      dataFimReal = formatDateKeyLocal(limite);
+      ultimaData = limite;
+    }
+  }
+
+  const diasAteFechamento = Math.max(0, Math.round((ultimaData - inicio) / 86400000));
+  const totalSemanas = Math.max(1, Math.floor(diasAteFechamento / 7) + 1);
+
+  return {
+    dataFim: dataFimReal,
+    diasAteFechamento,
+    totalSemanas,
+  };
+}
+
+/**
+ * Fração do tempo diário reservada para revisões espaçadas.
+ * Deve ser igual a BASE_CAP_REVISAO de core.js.
+ *
+ * CONTRATO: os slots de teoria gerados aqui usam apenas (1 - PERCENTUAL_REVISAO_DIARIA)
+ * do tempo disponível. O restante fica disponível para review.js encaixar revisões.
+ *
+ * Resultado:
+ *   minutosTeoriaPorDia[d] = horarios[d] * 60 * (1 - PERCENTUAL_REVISAO_DIARIA)
+ *   minutosRevisaoPorDia[d] ≤ horarios[d] * 60 * PERCENTUAL_REVISAO_DIARIA
+ *   SOMA ≤ horarios[d] * 60  ✓
+ */
+const PERCENTUAL_REVISAO_DIARIA = BASE_CAP_REVISAO; // 0.25
+
+// ─── FUNÇÃO PRINCIPAL ─────────────────────────────────────────────────────────
+
+/**
+ * Gera o cronograma semanal completo de forma puramente local, sem IA.
+ *
+ * @param {Array<{
+ *   id: string,
+ *   nome: string,
+ *   nivel: string,
+ *   assuntos?: string[],
+ *   peso?: number
+ * }>} disciplinas
+ *
+ * @param {Object.<number|string, number>} disponibilidade
+ *   Horas de estudo TOTAIS (teoria + revisão) por dia (chave 0–6).
+ *
+ * @param {{
+ *   nomeEstudo?: string,
+ *   dataInicio?: string,
+ *   dataFim?: string,
+ *   tempoRevisaoMinutos?: number
+ * }} [opcoes={}]
+ *
+ * @returns {ScheduleResult}
+ * @throws {Error} se a invariante de minutos for violada
+ */
+export function gerarSchedule(disciplinas, disponibilidade, opcoes = {}) {
+
+  // ── Guarda de entrada ─────────────────────────────────────────────────────
+  if (!disciplinas?.length) return null;
+
+  const disciplinasValidas = disciplinas.filter(d => {
+    if (!d?.id   || typeof d.id   !== 'string') return false;
+    if (!d?.nome || typeof d.nome !== 'string') return false;
+    return true;
+  });
+
+  if (import.meta.env.DEV && disciplinasValidas.length !== disciplinas.length) {
+    console.warn(
+      `[gerarSchedule] ${disciplinas.length - disciplinasValidas.length} disciplina(s) inválidas ignoradas.`,
+      disciplinas.filter(d => !d?.id || !d?.nome),
+    );
+  }
+
+  if (!disciplinasValidas.length) return null;
+  disciplinas = disciplinasValidas;
+
+  const {
+    nomeEstudo          = 'Cronograma',
+    dataFim             = null,
+    tempoRevisaoMinutos = 20,
+    dataProva           = null,
+    retaFinal           = false,
+  } = opcoes;
+
+  // Normaliza disponibilidade
+  const horarios = {};
+  for (let d = 0; d <= 6; d++) {
+    horarios[d] = Math.max(0, Number(disponibilidade[d] ?? disponibilidade[String(d)]) || 0);
+  }
+
+  const diasAtivos = [0,1,2,3,4,5,6].filter(d => horarios[d] > 0);
+  if (!diasAtivos.length) return null;
+
+  // ── dataInicio: avança para o próximo dia de estudo a partir de hoje ─────────
+  // Se hoje NÃO é um dia de estudo (horarios[hoje] === 0), o cronograma deve
+  // começar no próximo dia configurado — nunca num dia de descanso.
+  // Se opcoes.dataInicio foi passado explicitamente, respeita sem alteração.
+  let dataInicio = opcoes.dataInicio ?? null;
+  if (!dataInicio) {
+    const hoje = new Date();
+    hoje.setHours(12, 0, 0, 0);
+    for (let offset = 0; offset < 7; offset++) {
+      const diaIdx = (hoje.getDay() + offset) % 7;
+      if (horarios[diaIdx] > 0) {
+        const candidata = new Date(hoje);
+        candidata.setDate(candidata.getDate() + offset);
+        dataInicio = candidata.toISOString().split('T')[0];
+        break;
+      }
+    }
+    // Fallback improvável (nenhum dia ativo): usa hoje mesmo
+    if (!dataInicio) dataInicio = hoje.toISOString().split('T')[0];
+  }
+
+  const numDisciplinas = disciplinas.length;
+
+  // ── PASSO 1: Calcular pesos ───────────────────────────────────────────────
+  const mediaAssuntosNivel = calcularMediaAssuntosPorNivel(disciplinas);
+
+  const pesoPorId = {};
+  disciplinas.forEach(d => {
+    const nivelNorm = normalizarNivel(d.nivel);
+    const nAssuntos = Math.max(1, d.assuntos?.length || 1);
+    const media     = mediaAssuntosNivel[nivelNorm] || 1;
+    pesoPorId[d.id] = calcularPesoComAssuntos(d.nivel, nAssuntos, media);
+  });
+
+  // ── PASSO 2: totalMinutos BRUTO e totalMinutosTeoria ─────────────────────
+  //
+  // totalMinutosBruto  = soma de horarios[d]*60 (o que o usuário configurou)
+  // totalMinutosTeoria = totalMinutosBruto * (1 - percentual de revisão)
+  // Assim, os blocos de teoria não crescem demais e as revisões já entram
+  // no orçamento semanal desde a geração do plano base.
+
+  let totalMinutosBruto  = 0;
+  let totalMinutosTeoria = 0;
+  let totalSlots         = 0;
+
+  const slotsPorDiaConfig     = {};
+  const minutosBrutoPorDia    = {}; // tempo total configurado pelo usuário (para validação)
+  const minutosTeoriaPorDia   = {}; // tempo real alocado para teoria no plano base
+
+  diasAtivos.forEach(d => {
+    const horasBrutas   = horarios[d];
+    const minBrutos     = horasBrutas * 60;
+    const minTeoria     = Math.floor(minBrutos * (1 - PERCENTUAL_REVISAO_DIARIA));
+    
+    let nBlocos;
+    if (opcoes.limitarMaterias && opcoes.limitesPorDia && (opcoes.limitesPorDia[d] || opcoes.limitesPorDia[String(d)])) {
+      nBlocos = Number(opcoes.limitesPorDia[d] ?? opcoes.limitesPorDia[String(d)]);
+    } else {
+      nBlocos = calcularMateriasPorDia(horasBrutas, numDisciplinas);
+    }
+    const blocosMinPorDuracao = Math.max(1, Math.ceil(minTeoria / MAX_MINUTOS_SLOT));
+    nBlocos = Math.max(nBlocos, blocosMinPorDuracao);
+
+    totalMinutosBruto  += minBrutos;
+    totalMinutosTeoria += minTeoria;
+    totalSlots         += nBlocos;
+
+    slotsPorDiaConfig[d]   = nBlocos;
+    minutosBrutoPorDia[d]  = minBrutos;
+    minutosTeoriaPorDia[d] = minTeoria;
+  });
+
+  if (totalSlots === 0 || totalMinutosTeoria === 0) return null;
+
+  // ── PASSO 3: Distribuição de slots e MINUTOS DE TEORIA por disciplina ─────
+  //
+  // Distribuímos totalMinutosTeoria em todo o tempo configurado do dia.
+
+  const slotsPorDisc   = distribuirSlotsPorPeso(disciplinas, pesoPorId, totalSlots);
+  const minutosPorDisc = distribuirMinutosPorPeso(disciplinas, pesoPorId, totalMinutosTeoria);
+
+  // ── PASSO 4: Seleção de disciplinas por dia — round-robin ponderado ───────
+  const ticketsPorDisc           = {};
+  const minutosAcumuladosPorDisc = {};
+  const assuntoIdxPorDisc        = {};
+
+  disciplinas.forEach(d => {
+    ticketsPorDisc[d.id]           = slotsPorDisc[d.id] ?? 0;
+    minutosAcumuladosPorDisc[d.id] = 0;
+    assuntoIdxPorDisc[d.id]        = 0;
+  });
+
+  const diasOrdenados = [...diasAtivos].sort((a, b) => horarios[b] - horarios[a]);
+
+  const alocacoes = [];
+  const discUsadaNosDias = {};
+
+  diasOrdenados.forEach(dia => {
+    const nBlocos    = slotsPorDiaConfig[dia];
+    const horasDia   = horarios[dia];
+    const minDiscsDistintas = numDisciplinas >= 2 ? Math.min(2, numDisciplinas) : 1;
+
+    const diasAnteriores = discUsadaNosDias[diasOrdenados[diasOrdenados.indexOf(dia) - 1]];
+
+    const candidatas = [...disciplinas].sort((a, b) => {
+      const temTickA = (ticketsPorDisc[a.id] || 0) > 0 ? 1 : 0;
+      const temTickB = (ticketsPorDisc[b.id] || 0) > 0 ? 1 : 0;
+      if (temTickB !== temTickA) return temTickB - temTickA;
+
+      const defA = (minutosPorDisc[a.id] || 0) - (minutosAcumuladosPorDisc[a.id] || 0);
+      const defB = (minutosPorDisc[b.id] || 0) - (minutosAcumuladosPorDisc[b.id] || 0);
+      if (defB !== defA) return defB - defA;
+
+      const altA = diasAnteriores?.has(a.id) ? 1 : 0;
+      const altB = diasAnteriores?.has(b.id) ? 1 : 0;
+      if (altB !== altA) return altA - altB;
+
+      const tA = ticketsPorDisc[a.id] || 0;
+      const tB = ticketsPorDisc[b.id] || 0;
+      if (tB !== tA) return tB - tA;
+
+      return pesoPorId[b.id] - pesoPorId[a.id];
+    });
+
+    const escolhidasUnicas = [];
+    const escolhidasSet    = new Set();
+
+    for (const d of candidatas) {
+      if (escolhidasUnicas.length >= Math.min(nBlocos, numDisciplinas)) break;
+      if (!escolhidasSet.has(d.id)) {
+        escolhidasSet.add(d.id);
+        escolhidasUnicas.push(d);
+      }
+    }
+
+    if (escolhidasUnicas.length < minDiscsDistintas && disciplinas.length >= minDiscsDistintas) {
+      for (const d of disciplinas) {
+        if (escolhidasUnicas.length >= minDiscsDistintas) break;
+        if (!escolhidasSet.has(d.id)) {
+          escolhidasSet.add(d.id);
+          escolhidasUnicas.push(d);
+        }
+      }
+    }
+
+    const escolhidasOrdem = [];
+    let rodada = 0;
+    while (escolhidasOrdem.length < nBlocos) {
+      for (let i = 0; i < escolhidasUnicas.length && escolhidasOrdem.length < nBlocos; i++) {
+        escolhidasOrdem.push(escolhidasUnicas[i]);
+      }
+      rodada++;
+      if (rodada > nBlocos) break;
+    }
+
+    discUsadaNosDias[dia] = new Set(escolhidasOrdem.map(d => d.id));
+
+    escolhidasOrdem.forEach((disc, ordemNoDia) => {
+      ticketsPorDisc[disc.id] = Math.max(0, (ticketsPorDisc[disc.id] || 0) - 1);
+      alocacoes.push({ dia, ordemNoDia, disc, horasDia });
+    });
+  });
+
+  // Rebalanceia alocacoes para evitar disciplinas sem bloco mesmo com minutos-alvo.
+  // Isso evita desvio sistematico na invariante final (esperado x real).
+  const alocacoesPorDiscBalance = {};
+  alocacoes.forEach((aloc, idx) => {
+    const id = aloc.disc.id;
+    if (!alocacoesPorDiscBalance[id]) alocacoesPorDiscBalance[id] = [];
+    alocacoesPorDiscBalance[id].push(idx);
+  });
+
+  const disciplinasSemBloco = disciplinas.filter(d =>
+    (minutosPorDisc[d.id] || 0) > 0 && (alocacoesPorDiscBalance[d.id]?.length || 0) === 0
+  );
+
+  disciplinasSemBloco.forEach(discAlvo => {
+    const idxDoador = disciplinas
+      .map(d => {
+        const qtdAlocada = alocacoesPorDiscBalance[d.id]?.length || 0;
+        const excesso = qtdAlocada - (slotsPorDisc[d.id] || 0);
+        return { id: d.id, qtdAlocada, excesso };
+      })
+      .filter(x => x.qtdAlocada > 1)
+      .sort((a, b) => {
+        if (b.excesso !== a.excesso) return b.excesso - a.excesso;
+        return b.qtdAlocada - a.qtdAlocada;
+      })[0];
+
+    if (!idxDoador) return;
+
+    const idxAloc = (alocacoesPorDiscBalance[idxDoador.id] || [])[0];
+    if (idxAloc == null) return;
+
+    alocacoes[idxAloc] = { ...alocacoes[idxAloc], disc: discAlvo };
+
+    alocacoesPorDiscBalance[idxDoador.id] =
+      (alocacoesPorDiscBalance[idxDoador.id] || []).filter(i => i !== idxAloc);
+    if (!alocacoesPorDiscBalance[discAlvo.id]) alocacoesPorDiscBalance[discAlvo.id] = [];
+    alocacoesPorDiscBalance[discAlvo.id].push(idxAloc);
+  });
+
+  // Garante slots mínimos por disciplina para evitar blocos longos.
+  // Exemplo: alvo de 150min precisa de pelo menos 3 blocos para manter <= 60min/bloco.
+  const slotsMinimosPorDisc = {};
+  disciplinas.forEach(d => {
+    const minutosAlvo = minutosPorDisc[d.id] || 0;
+    slotsMinimosPorDisc[d.id] = Math.max(1, Math.ceil(minutosAlvo / MAX_MINUTOS_SLOT));
+  });
+
+  const excessosPorDisc = (discId) =>
+    (alocacoesPorDiscBalance[discId]?.length || 0) - (slotsMinimosPorDisc[discId] || 1);
+
+  disciplinas.forEach(discAlvo => {
+    const alvoId = discAlvo.id;
+    let faltam = (slotsMinimosPorDisc[alvoId] || 1) - (alocacoesPorDiscBalance[alvoId]?.length || 0);
+
+    while (faltam > 0) {
+      const doador = disciplinas
+        .map(d => ({ id: d.id, excesso: excessosPorDisc(d.id) }))
+        .filter(x => x.id !== alvoId && x.excesso > 0)
+        .sort((a, b) => b.excesso - a.excesso)[0];
+
+      if (!doador) {
+        // Sem doador disponível: cria um bloco extra para a própria disciplina.
+        const diaPreferido = escolherDiaParaBlocoExtra(alocacoes, alvoId, diasOrdenados, horarios);
+        const ordemNoDia = alocacoes.filter(a => a.dia === diaPreferido).length;
+
+        alocacoes.push({
+          dia: diaPreferido,
+          ordemNoDia,
+          disc: discAlvo,
+          horasDia: horarios[diaPreferido],
+        });
+        const novoIdx = alocacoes.length - 1;
+        if (!alocacoesPorDiscBalance[alvoId]) alocacoesPorDiscBalance[alvoId] = [];
+        alocacoesPorDiscBalance[alvoId].push(novoIdx);
+        faltam--;
+        continue;
+      }
+
+      const idxAloc = (alocacoesPorDiscBalance[doador.id] || [])[0];
+      if (idxAloc == null) break;
+
+      alocacoes[idxAloc] = { ...alocacoes[idxAloc], disc: discAlvo };
+
+      alocacoesPorDiscBalance[doador.id] =
+        (alocacoesPorDiscBalance[doador.id] || []).filter(i => i !== idxAloc);
+      if (!alocacoesPorDiscBalance[alvoId]) alocacoesPorDiscBalance[alvoId] = [];
+      alocacoesPorDiscBalance[alvoId].push(idxAloc);
+
+      faltam--;
+    }
+  });
+
+  normalizarDisciplinaUnicaPorDia(alocacoes, diasOrdenados);
+
+  // ── PASSO 5: minutosEstudo — Hamilton intra-disciplina com arredondar5() ──
+  //
+  // ÚNICO ponto onde arredondar5() é chamada neste pipeline.
+  //
+  // Distribuímos minutosPorDisc[id] no total semanal configurado da disciplina
+  // pelos blocos dela, proporcionalmente ao peso do dia.
+  //
+  // GARANTIA: soma(minutosEstudo) ~ totalMinutosTeoria com tolerância de arredondamento.
+
+  const alocacoesPorDisc = {};
+  alocacoes.forEach((aloc, idx) => {
+    const id = aloc.disc.id;
+    if (!alocacoesPorDisc[id]) alocacoesPorDisc[id] = [];
+    alocacoesPorDisc[id].push({ aloc, idx });
+  });
+
+  const minutosEstudoPorIdx = {};
+
+  Object.entries(alocacoesPorDisc).forEach(([discId, blocos]) => {
+    const alvoDisc = arredondar5(minutosPorDisc[discId] || 0);
+
+    if (blocos.length === 0 || alvoDisc === 0) {
+      blocos.forEach(({ idx }) => { minutosEstudoPorIdx[idx] = MIN_MINUTOS_SLOT; });
+      return;
+    }
+
+    if (blocos.length === 1) {
+      minutosEstudoPorIdx[blocos[0].idx] = Math.min(
+        MAX_MINUTOS_SLOT,
+        Math.max(MIN_MINUTOS_SLOT, alvoDisc),
+      );
+      return;
+    }
+
+    const somaHoras = blocos.reduce((acc, { aloc }) => acc + aloc.horasDia, 0);
+
+    const linhas = blocos.map(({ aloc, idx }) => {
+      const frac    = somaHoras > 0 ? aloc.horasDia / somaHoras : 1 / blocos.length;
+      const exato   = frac * alvoDisc;
+      const base5   = Math.floor(exato / 5) * 5;
+      const inteiro = Math.max(MIN_MINUTOS_SLOT, base5);
+      return { idx, exato, inteiro, resto: exato - base5 };
+    });
+
+    let alocados  = linhas.reduce((a, l) => a + l.inteiro, 0);
+    let restantes = alvoDisc - alocados;
+
+    if (restantes > 0) {
+      linhas
+        .slice()
+        .sort((a, b) => b.resto - a.resto)
+        .forEach(l => {
+          if (restantes <= 0) return;
+          l.inteiro += 5;
+          restantes -= 5;
+        });
+    } else if (restantes < 0) {
+      linhas
+        .slice()
+        .sort((a, b) => b.inteiro - a.inteiro)
+        .forEach(l => {
+          if (restantes >= 0) return;
+          if (l.inteiro - 5 >= MIN_MINUTOS_SLOT) {
+            l.inteiro -= 5;
+            restantes += 5;
+          }
+        });
+    }
+
+    // Preferencia: quando possivel, troca 55m por 60m dentro da mesma disciplina.
+    const alvos55 = linhas.filter(l => l.inteiro === 55);
+    alvos55.forEach(alvo => {
+      const doador = linhas
+        .filter(l => l.idx !== alvo.idx && l.inteiro >= MIN_MINUTOS_SLOT + 5)
+        .sort((a, b) => b.inteiro - a.inteiro)[0];
+      if (!doador) return;
+      alvo.inteiro += 5;
+      doador.inteiro -= 5;
+    });
+
+    // Hard cap: nenhum bloco pode passar de MAX_MINUTOS_SLOT.
+    // Move excedente (de 5 em 5) para blocos abaixo do teto.
+    let guard = 0;
+    while (guard < 1000) {
+      guard++;
+      const acima = linhas
+        .filter(l => l.inteiro > MAX_MINUTOS_SLOT)
+        .sort((a, b) => b.inteiro - a.inteiro)[0];
+      if (!acima) break;
+
+      const receptor = linhas
+        .filter(l => l.idx !== acima.idx && l.inteiro + 5 <= MAX_MINUTOS_SLOT)
+        .sort((a, b) => a.inteiro - b.inteiro)[0];
+      if (!receptor) break;
+
+      acima.inteiro -= 5;
+      receptor.inteiro += 5;
+    }
+
+    linhas.forEach(l => { minutosEstudoPorIdx[l.idx] = l.inteiro; });
+  });
+
+  // ── PASSO 6: Assuntos por índice circular ─────────────────────────────────
+  const discById = {};
+  disciplinas.forEach(d => { discById[d.id] = d; });
+
+  const slots = alocacoes.map((aloc, idx) => {
+    const { dia, ordemNoDia, disc } = aloc;
+    const minutosEstudo = minutosEstudoPorIdx[idx] ?? MIN_MINUTOS_SLOT;
+
+    const assuntos        = disc.assuntos || [];
+    // ✅ CORREÇÃO: variável local se chama slotIdxParaDisc (com Idx),
+    //    mas o campo do objeto deve ser slotIndexParaDisc (com Index).
+    //    Usar shorthand causava ReferenceError pois o JS procurava
+    //    uma variável chamada exatamente "slotIndexParaDisc" no escopo.
+    const slotIdxParaDisc = assuntoIdxPorDisc[disc.id] ?? 0;
+    const assunto         = assuntos.length > 0
+      ? assuntos[slotIdxParaDisc % assuntos.length]
+      : 'Conteúdo Base';
+
+    assuntoIdxPorDisc[disc.id]        = slotIdxParaDisc + 1;
+    minutosAcumuladosPorDisc[disc.id] =
+      (minutosAcumuladosPorDisc[disc.id] || 0) + minutosEstudo;
+
+    return {
+      slotId:             `s${dia}-${ordemNoDia}`,
+      dia,
+      hora:               8 + ordemNoDia,
+      ordemNoDia,
+      disciplinaId:       disc.id,
+      disciplinaNome:     disc.nome,
+      nivel:              normalizarNivel(disc.nivel) || 'intermediario',
+      pesoEfetivo:        calcularScoreEfetivo(disc.peso, disc.nivel),
+      assunto,
+      acao_metodologica:  `${minutosEstudo}m Teoria/Questões`,
+      foco_recomendado:   '',
+      minutosEstudo,
+      minutosRevisao:     0,        // revisões são gerenciadas por review.js
+      isRevisao:          false,
+      pinned:             false,
+      // ✅ CORREÇÃO APLICADA AQUI: atribuição explícita em vez de shorthand
+      slotIndexParaDisc:  slotIdxParaDisc,
+      totalSlotsParaDisc: 0,       // preenchido abaixo
+
+      // Metadados para que review.js saiba quanto tempo há disponível no dia
+      // (25% do tempo bruto do dia = slot de revisão máximo)
+      minutosRevisaoReservados: Math.floor(minutosBrutoPorDia[dia] * PERCENTUAL_REVISAO_DIARIA),
+      minutosBrutoDia:          minutosBrutoPorDia[dia],
+    };
+  });
+
+  // Ordena por dia → ordemNoDia
+  slots.sort((a, b) => {
+    if (a.dia !== b.dia) return a.dia - b.dia;
+    return a.ordemNoDia - b.ordemNoDia;
+  });
+
+  // Preenche totalSlotsParaDisc
+  const contadorSlots = {};
+  slots.forEach(s => {
+    contadorSlots[s.disciplinaId] = (contadorSlots[s.disciplinaId] || 0) + 1;
+  });
+  slots.forEach(s => {
+    s.totalSlotsParaDisc = contadorSlots[s.disciplinaId] || 1;
+  });
+
+  // ── VALIDAÇÃO: invariante de minutos ─────────────────────────────────────
+  //
+  // Valida contra totalMinutosTeoria (não o bruto) pois os slots são apenas teoria.
+  // Tolerância = 5 min por disciplina.
+
+  const somaReal = slots.reduce((a, s) => a + s.minutosEstudo, 0);
+  const totalMinutosTeoriaArredondado = disciplinas.reduce(
+    (a, d) => a + arredondar5(minutosPorDisc[d.id] || 0), 0
+  );
+  const tolerancia = Math.max(5, disciplinas.length * 5);
+
+  if (Math.abs(somaReal - totalMinutosTeoriaArredondado) > tolerancia) {
+    throw new Error(
+      `[scheduling/index] Invariante violado: desvio de minutos de teoria. ` +
+      `esperado=${totalMinutosTeoriaArredondado}, real=${somaReal}, ` +
+      `desvio=${Math.abs(somaReal - totalMinutosTeoriaArredondado)}min.`
+    );
+  }
+
+  // ── VALIDAÇÃO EXTRA: nenhum slot de teoria ultrapassa o tempo bruto do dia ─
+  if (import.meta.env.DEV) {
+    const somaPorDia = {};
+    slots.forEach(s => {
+      somaPorDia[s.dia] = (somaPorDia[s.dia] || 0) + s.minutosEstudo;
+    });
+    let ok = true;
+    Object.entries(somaPorDia).forEach(([dia, soma]) => {
+      const bruto = minutosBrutoPorDia[Number(dia)] || 0;
+      if (soma > bruto) {
+        console.error(
+          `[scheduling/index] Dia ${dia}: minutosEstudo(${soma}) > brutoDia(${bruto})!`
+        );
+        ok = false;
+      }
+    });
+    if (ok) {
+      console.info(
+        `[scheduling/index] ✅ Validação passou. ` +
+        `Bruto/semana=${totalMinutosBruto}min | Teoria=${somaReal}min (${Math.round(somaReal/totalMinutosBruto*100)}%) | ` +
+        `Revisão reservada=${totalMinutosBruto - totalMinutosTeoria}min (${Math.round(PERCENTUAL_REVISAO_DIARIA*100)}%)`
+      );
+    }
+  }
+
+  // ── Meta: distribuição e semanas ─────────────────────────────────────────
+  const cotasParaMeta = {};
+  disciplinas.forEach(d => {
+    cotasParaMeta[d.id] = {
+      nome:    d.nome,
+      cotas:   slotsPorDisc[d.id] ?? 0,
+      minutos: minutosPorDisc[d.id] ?? 0,
+    };
+  });
+
+  const infoSemanas = calcularSemanas(
+    disciplinas,
+    cotasParaMeta,
+    dataInicio,
+    dataProva || opcoes.dataFim || null,
+  );
+
+  const colorMap = {};
+  disciplinas.forEach((d, i) => { colorMap[d.id] = PALETA_CORES[i % PALETA_CORES.length]; });
+
+  const distribuicao = disciplinas
+    .filter(d => cotasParaMeta[d.id])
+    .map(d => {
+      const cota = cotasParaMeta[d.id];
+      return {
+        id:         d.id,
+        nome:       cota.nome,
+        minutos:    cota.minutos,
+        blocos:     contadorSlots[d.id] || cota.cotas,
+        color:      colorMap[d.id] || 'zinc',
+        horas:      Math.round((cota.minutos / 60) * 10) / 10,
+        percentual: totalMinutosTeoria > 0
+          ? Math.round((cota.minutos / totalMinutosTeoria) * 1000) / 10
+          : 0,
+      };
+    })
+    .sort((a, b) => b.minutos - a.minutos);
+
+  const dataLimiteExplicita = dataFim || dataProva || null;
+  const fechamentoReal = calcularFechamentoReal(
+    slots,
+    disciplinas,
+    dataInicio,
+    horarios,
+    dataLimiteExplicita
+  );
+  const dtInicio = dataInicio;
+  const dtFim = fechamentoReal.dataFim || dataLimiteExplicita || infoSemanas.dataFechamento || dataInicio;
+
+  // ── Monta ScheduleResult ──────────────────────────────────────────────────
+  const result = {
+    slots,
+    semanaTemplate: slots,
+
+    meta: {
+      distribuicao,
+      totalSemanas:            fechamentoReal.totalSemanas,
+      totalMinutosSemana:      totalMinutosBruto,  // bruto para exibição
+      totalMinutosTeoria,                          // real alocado para teoria
+      totalMinutosRevisao:     totalMinutosBruto - totalMinutosTeoria,
+      percentualRevisao:       PERCENTUAL_REVISAO_DIARIA,
+      ciclosCompletos:         infoSemanas.ciclosCompletos,
+      totalTopicosEdital:      infoSemanas.totalTopicosEdital,
+      semanasEstudoNecessarias: infoSemanas.semanasEstudoNecessarias ?? null,
+      semanasRevisaoFinal:      infoSemanas.semanasRevisaoFinal ?? null,
+      diasAteFechamento:        fechamentoReal.diasAteFechamento ?? infoSemanas.diasAteFechamento ?? null,
+      dataFechamento:           dtFim,
+    },
+
+    totalSemanasNecessarias: fechamentoReal.totalSemanas,
+    ciclosCompletos:         infoSemanas.ciclosCompletos,
+    semanasParaCiclo:        infoSemanas.semanasParaCiclo,
+    totalTopicosEdital:      infoSemanas.totalTopicosEdital,
+    semanasEstudoNecessarias: infoSemanas.semanasEstudoNecessarias ?? null,
+    semanasRevisaoFinal:      infoSemanas.semanasRevisaoFinal ?? null,
+    diasAteFechamento:        fechamentoReal.diasAteFechamento ?? infoSemanas.diasAteFechamento ?? null,
+    dataFechamento:           dtFim,
+    limitadoPorProva:        infoSemanas.limitadoPorProva,
+    limitadoPor6Meses:       infoSemanas.limitadoPor6Meses,
+
+    dataInicio: dtInicio,
+    dataFim:    dtFim,
+
+    distribuicaoTempo:   distribuicao,
+    totalMinutosSemana:  totalMinutosBruto,
+    colorMap,
+    cotasCalculadas:     cotasParaMeta,
+
+    geradoPorIA:       false,
+    usouFallbackLocal: true,
+
+    metodologiasAplicadas: {
+      cronograma:              'ciclo_intercalado',
+      revisao:                 'revisao_espacada',
+      intervalosRevisao:       INTERVALOS_REVISAO,  // [1, 7, 30]
+      estudo:                  [],
+      tempoRevisaoMinutos,
+      percentualRevisao:       PERCENTUAL_REVISAO_DIARIA,
+      retaFinal,
+      dataProva,
+    },
+
+    resumoGeracao: (
+      `${infoSemanas.ciclosCompletos} ciclo(s) do edital em ` +
+      `${fechamentoReal.totalSemanas} semanas. ${slots.length} blocos/semana. ` +
+      `${Math.round(PERCENTUAL_REVISAO_DIARIA * 100)}% do tempo reservado para revisões.`
+    ),
+  };
+
+  return result;
+}
+
+// ─── ALIAS DE COMPATIBILIDADE ─────────────────────────────────────────────────
+export const gerarScheduleFallback = gerarSchedule;

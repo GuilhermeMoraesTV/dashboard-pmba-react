@@ -4,38 +4,39 @@ import {
   Target, BarChart2, Trophy, TrendingUp, TrendingDown
 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import SimuladoGrafico from './SimuladoGrafico';
 
 // --- CONFIGURAÇÃO DE CORES E ESTILOS ---
 const colorMap = {
   blue: {
-    text: 'text-blue-500',
-    bgHover: 'group-hover:text-blue-500/15 dark:group-hover:text-blue-500/10',
-    border: 'hover:border-blue-500',
-    watermark: 'text-blue-500/10 dark:text-blue-500/5'
+    text: 'text-zinc-500',
+    bgHover: 'group-hover:text-red-500/15 dark:group-hover:text-red-500/10',
+    border: 'border-red-500',
+    watermark: 'text-red-500/10 dark:text-red-500/5'
   },
   emerald: {
-    text: 'text-emerald-500',
-    bgHover: 'group-hover:text-emerald-500/15 dark:group-hover:text-emerald-500/10',
-    border: 'hover:border-emerald-500',
-    watermark: 'text-emerald-500/10 dark:text-emerald-500/5'
+    text: 'text-zinc-500',
+    bgHover: 'group-hover:text-red-500/15 dark:group-hover:text-red-500/10',
+    border: 'border-red-500',
+    watermark: 'text-red-500/10 dark:text-red-500/5'
   },
   red: {
-    text: 'text-red-500',
+    text: 'text-zinc-500',
     bgHover: 'group-hover:text-red-500/15 dark:group-hover:text-red-500/10',
     border: 'hover:border-red-500',
     watermark: 'text-red-500/10 dark:text-red-500/5'
   },
   zinc: {
     text: 'text-zinc-500',
-    bgHover: 'group-hover:text-zinc-500/15 dark:group-hover:text-zinc-500/10',
-    border: 'hover:border-zinc-500',
-    watermark: 'text-zinc-500/10 dark:text-zinc-500/5'
+    bgHover: 'group-hover:text-red-500/15 dark:group-hover:text-red-500/10',
+    border: 'border-red-500',
+    watermark: 'text-red-500/10 dark:text-red-500/5'
   },
   violet: {
-    text: 'text-violet-500',
-    bgHover: 'group-hover:text-violet-500/15 dark:group-hover:text-violet-500/10',
-    border: 'hover:border-violet-500',
-    watermark: 'text-violet-500/10 dark:text-violet-500/5'
+    text: 'text-zinc-500',
+    bgHover: 'group-hover:text-red-500/15 dark:group-hover:text-red-500/10',
+    border: 'border-red-500',
+    watermark: 'text-red-500/10 dark:text-red-500/5'
   },
 };
 
@@ -44,22 +45,22 @@ const StatCard = ({ icon: Icon, title, value, subValue, color = 'red', className
   const theme = colorMap[color] || colorMap.red;
 
   return (
-    <div className={`relative overflow-hidden group p-3 md:p-6 h-[110px] md:h-[140px] flex flex-col justify-center items-start transition-all duration-500 hover:shadow-lg border-l-4 border-transparent ${theme.border} bg-white dark:bg-zinc-900 rounded-2xl shadow-sm ${className}`}>
-      <div className="relative z-20 flex flex-col gap-0.5 md:gap-1 w-full">
+    <div className={`relative overflow-hidden group p-3 md:p-4 h-[100px] md:h-[120px] flex flex-col justify-center items-start transition-all duration-500 hover:shadow-lg border-l-4 border-red-500 bg-white dark:bg-zinc-900 rounded-2xl shadow-sm ${className}`}>
+      <div className="relative z-20 flex flex-col gap-0.5 w-full">
         <h3 className="text-[10px] md:text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 truncate w-full">
           {title}
         </h3>
-        <div className="flex flex-col md:flex-row md:items-end gap-0 md:gap-2">
-          <div className="text-2xl md:text-3xl lg:text-4xl font-extrabold text-zinc-900 dark:text-white tracking-tight leading-none">
+        <div className="flex flex-col md:flex-row md:items-end gap-0 md:gap-1.5">
+          <div className="text-xl md:text-2xl lg:text-3xl font-extrabold text-zinc-900 dark:text-white tracking-tight leading-none">
             {value}
           </div>
-          {subValue && <div className="mb-0 md:mb-1 text-xs md:text-sm opacity-90 text-zinc-500 dark:text-zinc-400 font-medium">{subValue}</div>}
+          {subValue && <div className="mb-0 md:mb-0.5 text-[10px] md:text-xs opacity-90 text-zinc-500 dark:text-zinc-400 font-medium">{subValue}</div>}
         </div>
       </div>
 
       {/* Marca D'água */}
-      <div className={`absolute -bottom-4 -right-4 md:-bottom-6 md:-right-6 ${theme.watermark} transition-all duration-700 ease-out group-hover:scale-125 group-hover:rotate-[-10deg] ${theme.bgHover} z-10 pointer-events-none`}>
-        <Icon strokeWidth={1.5} className="w-24 h-24 md:w-36 md:h-36" />
+      <div className={`absolute -bottom-4 -right-4 md:-bottom-5 md:-right-5 ${theme.watermark} transition-all duration-700 ease-out group-hover:scale-125 group-hover:rotate-[-10deg] ${theme.bgHover} z-10 pointer-events-none`}>
+        <Icon strokeWidth={1.5} className="w-20 h-20 md:w-28 md:h-28" />
       </div>
     </div>
   );
@@ -68,6 +69,7 @@ const StatCard = ({ icon: Icon, title, value, subValue, color = 'red', className
 // --- HEADER SIMULADO ---
 const HeaderSimulado = ({
   kpis,
+  simulados,
   searchTerm,
   setSearchTerm,
   compareMode,
@@ -127,28 +129,46 @@ const HeaderSimulado = ({
         </div>
       </div>
 
-      {/* 2. KPI CARDS */}
+      {/* 2. KPI CARDS + GRÁFICO LADO A LADO */}
       {kpis && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-8">
-          <StatCard icon={Target} title="Total Realizado" value={kpis.totalSimulados} subValue="Simulados" color="red" />
-          <StatCard icon={BarChart2} title="Média Geral" value={kpis.mediaPontos.toFixed(1)} subValue="Pontos Líquidos" color="blue" />
-          <StatCard icon={Trophy} title="Recorde Pessoal" value={kpis.melhorNotaPontos.toFixed(1)} subValue="Maior pontuação" color="emerald" />
-          <StatCard
-            icon={kpis.trend > 0 ? TrendingUp : TrendingDown}
-            title="Último Resultado"
-            value={(kpis.ultimo?.resumo?.pontosObtidos || 0).toFixed(1)}
-            color="zinc"
-            subValue={
-              <div className="flex items-center gap-2 mt-1">
-                 <span className="truncate max-w-[80px] md:max-w-[100px] block font-semibold" title={kpis.ultimo?.titulo}>{kpis.ultimo?.titulo || '-'}</span>
-                 {kpis.trend !== 0 && (
-                    <span className={`flex items-center text-[9px] font-black px-1.5 py-0.5 rounded ${kpis.trend > 0 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>
+        <div className="flex flex-col xl:flex-row gap-4 mb-6">
+
+          {/* Cards de KPI — empilhados em grid 2x2 */}
+          <div className="grid grid-cols-2 gap-3 xl:w-[420px] shrink-0">
+            <StatCard icon={Target}    title="Total Realizado"  value={kpis.totalSimulados}               subValue="Simulados"       color="red" />
+            <StatCard icon={BarChart2} title="Média Geral"      value={kpis.mediaPontos.toFixed(1)}       subValue="Pontos Líquidos" color="red" />
+            <StatCard icon={Trophy}    title="Recorde Pessoal"  value={kpis.melhorNotaPontos.toFixed(1)}  subValue="Maior pontuação" color="red" />
+            <StatCard
+              icon={kpis.trend > 0 ? TrendingUp : TrendingDown}
+              title="Último Resultado"
+              value={(kpis.ultimo?.resumo?.pontosObtidos || 0).toFixed(1)}
+              color="red"
+              subValue={
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className="truncate max-w-[70px] md:max-w-[90px] block font-semibold" title={kpis.ultimo?.titulo}>{kpis.ultimo?.titulo || '-'}</span>
+                  {kpis.trend !== 0 && (
+                    <span className={`flex items-center text-[9px] font-black px-1 py-0.5 rounded ${kpis.trend > 0 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>
                       {kpis.trend > 0 ? '+' : ''}{kpis.trend.toFixed(1)}
                     </span>
-                 )}
-              </div>
-            }
-          />
+                  )}
+                </div>
+              }
+            />
+          </div>
+
+          {/* Gráfico compacto — ocupa o espaço restante */}
+          {simulados && simulados.length > 0 && (
+            <div className="flex-1 min-w-0">
+              <SimuladoGrafico simulados={simulados} compact={true} />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Se não há KPIs mas há simulados, mostra só o gráfico */}
+      {!kpis && simulados && simulados.length > 0 && (
+        <div className="mb-6">
+          <SimuladoGrafico simulados={simulados} compact={false} />
         </div>
       )}
 
@@ -183,3 +203,4 @@ const HeaderSimulado = ({
 };
 
 export default HeaderSimulado;
+

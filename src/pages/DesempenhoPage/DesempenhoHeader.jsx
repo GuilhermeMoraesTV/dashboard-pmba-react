@@ -1,69 +1,141 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Clock, Target, TrendingUp, CalendarDays,
-  Filter, List, Calendar, ChevronDown, CheckCircle2, XCircle,
-  SlidersHorizontal
+  ChevronDown, CheckCircle2, XCircle,
+  ArrowLeftRight, BookOpen
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { formatTime } from './DesempenhoPage';
+import { CATALOGO_EDITAIS } from '../AdminPage/EditaisManager';
 
-// Configuração de Ranges de Tempo
+// ============================================================================
+// CORREÇÃO 7: "Estudo Total" mostra TODOS os registros, sem filtro de contexto
+// ============================================================================
 const TIME_RANGES = [
-  { value: '7D', label: '7D' },
-  { value: '15D', label: '15D' },
-  { value: '30D', label: '30D' },
-  { value: 'CYCLE', label: 'Ciclo Total' }
+  { value: '7D',       label: '7D' },
+  { value: '15D',      label: '15D' },
+  { value: '30D',      label: '30D' },
+  { value: 'ALL_TIME', label: 'Estudo Total' },
 ];
+
+const getTemplateId = (item) => item?.templateId || item?.editalId || item?.templateOrigemId || null;
+
+const getContextLogo = (item) => {
+  if (!item) return null;
+  if (item.logoUrl) return item.logoUrl;
+  if (item.editalLogoUrl) return item.editalLogoUrl;
+  const templateId = getTemplateId(item);
+  if (templateId) {
+    const edital = CATALOGO_EDITAIS.find(e => e.id === templateId);
+    if (edital) return edital.logoUrl || edital.logo;
+    if (templateId !== 'manual') return `/logosEditais/${String(templateId).replace(/^edital_/, 'logo-')}.png`;
+  }
+  const nome = (item.nome || '').toLowerCase();
+  if (nome.includes('pmba')) return '/logosEditais/logo-pmba.png';
+  return null;
+};
+
+const getContextName = (item, fallback) => item?.nome || item?.editalNome || item?.titulo || fallback;
+
+const SourceToggleButton = ({ selected, onToggle, cicloLogo, cronogramaLogo }) => {
+  const isCiclo = selected === 'ciclo';
+  const destinoLogo = isCiclo ? cronogramaLogo : cicloLogo;
+  const destinoLabel = isCiclo ? 'Cronograma' : 'Ciclo';
+
+  return (
+    <motion.button
+      type="button"
+      onClick={onToggle}
+      whileHover={{ scale: 1.04, y: -1 }}
+      whileTap={{ scale: 0.96 }}
+      className="group relative flex items-center gap-1.5 pl-1.5 pr-3 py-1 rounded-full border border-zinc-200 dark:border-zinc-700 bg-white/90 dark:bg-zinc-800/90 backdrop-blur-sm shadow-md hover:shadow-lg hover:border-red-300 dark:hover:border-red-600 transition-all duration-200"
+      title={`Ver desempenho do ${destinoLabel}`}
+    >
+      <div className="w-5 h-5 rounded-full bg-zinc-100 dark:bg-zinc-700 border border-zinc-200 dark:border-zinc-600 flex items-center justify-center overflow-hidden flex-shrink-0">
+        {destinoLogo
+          ? <img src={destinoLogo} alt="" className="w-4 h-4 object-contain" />
+          : (isCiclo
+              ? <CalendarDays size={10} className="text-zinc-400" />
+              : <BookOpen size={10} className="text-zinc-400" />)
+        }
+      </div>
+
+      <ArrowLeftRight size={9} className="text-zinc-400 group-hover:text-red-500 transition-colors flex-shrink-0" />
+
+      <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500 group-hover:text-red-600 dark:group-hover:text-red-400 transition-colors whitespace-nowrap">
+        Ver {destinoLabel}
+      </span>
+    </motion.button>
+  );
+};
+
+const ContextSelector = ({ context }) => {
+  if (!context || !context.hasCiclo || !context.hasCronograma) return null;
+  const cicloLogo = getContextLogo(context.activeCicloData);
+  const cronogramaLogo = getContextLogo(context.activeCronogramaData);
+
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="text-[9px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500 px-1">
+        Planejamento
+      </span>
+      <SourceToggleButton
+        selected={context.selected}
+        onToggle={() => context.setSelected?.(context.selected === 'ciclo' ? 'cronograma' : 'ciclo')}
+        cicloLogo={cicloLogo}
+        cronogramaLogo={cronogramaLogo}
+      />
+    </div>
+  );
+};
 
 // --- COMPONENTES VISUAIS INTERNOS ---
 const colorMap = {
-  blue:   { text: 'text-blue-500',   bgHover: 'group-hover:text-blue-500/15 dark:group-hover:text-blue-500/10', border: 'hover:border-blue-500', watermark: 'text-blue-500/10 dark:text-blue-500/5' },
-  violet: { text: 'text-violet-500', bgHover: 'group-hover:text-violet-500/15 dark:group-hover:text-violet-500/10', border: 'hover:border-violet-500', watermark: 'text-violet-500/10 dark:text-violet-500/5' },
-  emerald:{ text: 'text-emerald-500',bgHover: 'group-hover:text-emerald-500/15 dark:group-hover:text-emerald-500/10', border: 'hover:border-emerald-500', watermark: 'text-emerald-500/10 dark:text-emerald-500/5' },
+  blue:   { text: 'text-red-500', bgHover: 'group-hover:text-red-500/15 dark:group-hover:text-red-500/10', border: 'border-red-500', watermark: 'text-red-500/10 dark:text-red-500/5' },
+  violet: { text: 'text-red-500', bgHover: 'group-hover:text-red-500/15 dark:group-hover:text-red-500/10', border: 'border-red-500', watermark: 'text-red-500/10 dark:text-red-500/5' },
+  emerald:{ text: 'text-red-500', bgHover: 'group-hover:text-red-500/15 dark:group-hover:text-red-500/10', border: 'border-red-500', watermark: 'text-red-500/10 dark:text-red-500/5' },
   red:    { text: 'text-red-500',    bgHover: 'group-hover:text-red-500/15 dark:group-hover:text-red-500/10',    border: 'hover:border-red-500',    watermark: 'text-red-500/10 dark:text-red-500/5' },
 };
 
 const StatCard = ({ icon: Icon, title, value, subValue, color = 'red', className = "" }) => {
   const theme = colorMap[color] || colorMap.red;
   return (
-    <div className={`relative overflow-hidden group p-3 sm:p-4 md:p-6 min-h-[90px] sm:min-h-[110px] md:min-h-[140px] flex flex-col justify-center items-start transition-all duration-500 hover:shadow-lg border-l-4 border-transparent ${theme.border} bg-white dark:bg-zinc-900 rounded-xl md:rounded-2xl shadow-sm ${className}`}>
+    <div className={`relative overflow-hidden group px-3 py-2.5 min-h-[75px] md:min-h-[85px] flex flex-col justify-center items-start transition-all duration-300 hover:shadow-glow border-l-4 border-red-500 bg-white dark:bg-zinc-900 rounded-xl shadow-sm ${className}`}>
       <div className="relative z-20 flex flex-col gap-0.5 w-full">
-        <h3 className="text-[9px] sm:text-[10px] md:text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 truncate w-full">
+        <h3 className="text-[9px] md:text-[10px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 truncate w-full leading-none">
           {title}
         </h3>
-        <div className="flex flex-col gap-0.5">
-          <div className="text-lg sm:text-2xl md:text-3xl lg:text-4xl font-extrabold text-zinc-900 dark:text-white tracking-tight leading-none break-all">
+        <div className="flex flex-row items-baseline gap-1.5 mt-0.5">
+          <div className="text-xl md:text-2xl font-extrabold text-zinc-900 dark:text-white tracking-tight leading-none">
             {value}
           </div>
           {subValue && (
-            <div className="text-[10px] sm:text-xs md:text-sm opacity-90 text-zinc-500 dark:text-zinc-400 font-medium">
+            <div className="text-[10px] md:text-xs opacity-90 text-zinc-500 dark:text-zinc-400 font-medium leading-none">
               {subValue}
             </div>
           )}
         </div>
       </div>
-      <div className={`absolute -bottom-3 -right-3 sm:-bottom-4 sm:-right-4 md:-bottom-6 md:-right-6 ${theme.watermark} transition-all duration-700 ease-out group-hover:scale-125 group-hover:rotate-[-10deg] ${theme.bgHover} z-10 pointer-events-none`}>
-        <Icon strokeWidth={1.5} className="w-16 h-16 sm:w-24 sm:h-24 md:w-36 md:h-36" />
+      <div className={`absolute -bottom-4 -right-4 ${theme.watermark} transition-all duration-700 ease-out group-hover:scale-125 group-hover:rotate-[-10deg] ${theme.bgHover} z-10 pointer-events-none`}>
+        <Icon strokeWidth={1.5} className="w-16 h-16 md:w-20 md:h-20" />
       </div>
     </div>
   );
 };
 
-// ── COMPACT INLINE SELECT — auto-posicionamento ────────────────────────────
+// ── COMPACT INLINE SELECT ─────────────────────────────────────────────────
 const InlineSelect = ({ options, value, onChange, placeholder, disabled }) => {
   const [isOpen, setIsOpen]     = useState(false);
   const [openLeft, setOpenLeft] = useState(false);
   const ref    = useRef(null);
   const btnRef = useRef(null);
 
-  // Fecha ao clicar fora
   useEffect(() => {
     const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setIsOpen(false); };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  // Detecta borda antes de abrir — abre para esquerda se sobrar < 200px à direita
   const handleOpen = () => {
     if (disabled) return;
     if (!isOpen && btnRef.current) {
@@ -177,13 +249,8 @@ const PeriodPills = ({ value, onChange }) => (
   </div>
 );
 
-// ── SEPARADOR VERTICAL ──────────────────────────────────────────────────────
-const Sep = () => (
-  <div className="w-px h-4 bg-zinc-200 dark:bg-zinc-700/60 flex-shrink-0" />
-);
-
 // ── MAIN COMPONENT ─────────────────────────────────────────────────────────
-const DesempenhoHeader = ({ analytics, filters, options }) => {
+const DesempenhoHeader = ({ analytics, filters, options, context }) => {
   const disciplineOptions = useMemo(() => [
     { value: 'ALL', label: 'Todas' },
     ...options.disciplines.map(d => ({ value: d, label: d }))
@@ -199,7 +266,7 @@ const DesempenhoHeader = ({ analytics, filters, options }) => {
   return (
     <div className="flex flex-col gap-5">
 
-      {/* ── TÍTULO + FILTROS — MESMA LINHA ───────────────────────────────── */}
+      {/* ── TÍTULO + FILTROS ─────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 pb-4 border-b border-zinc-100 dark:border-zinc-800">
 
         {/* Título */}
@@ -212,8 +279,11 @@ const DesempenhoHeader = ({ analytics, filters, options }) => {
           </h1>
         </div>
 
-        {/* Filtros — agrupados à direita */}
+        {/* Filtros */}
         <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
+          <ContextSelector context={context} />
+
+          <div className="w-px h-7 bg-zinc-200 dark:bg-zinc-700/60 self-end mb-0.5 hidden sm:block" />
 
           {/* Período */}
           <div className="flex flex-col gap-0.5">
@@ -289,7 +359,7 @@ const DesempenhoHeader = ({ analytics, filters, options }) => {
       {/* ── KPI CARDS ─────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
         <StatCard
-          color="blue"
+          color="red"
           icon={Clock}
           title="Tempo Líquido"
           value={formatTime(analytics.kpis.totalTime)}
@@ -297,7 +367,7 @@ const DesempenhoHeader = ({ analytics, filters, options }) => {
         />
 
         <StatCard
-          color="violet"
+          color="red"
           icon={Target}
           title="Questões Totais"
           value={analytics.kpis.totalQuestions}
@@ -315,7 +385,7 @@ const DesempenhoHeader = ({ analytics, filters, options }) => {
         />
 
         <StatCard
-          color="emerald"
+          color="red"
           icon={TrendingUp}
           title="Precisão Global"
           value={`${analytics.kpis.accuracy.toFixed(0)}%`}

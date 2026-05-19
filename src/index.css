@@ -334,11 +334,276 @@
   .no-print { display: none !important; }
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   Estilo Padronizado para Conteúdo de Notícias
+   Garante consistência visual absoluta — tabelas, parágrafos, etc.
+   ═══════════════════════════════════════════════════════════════ */
+.noticia-conteudo {
+  color: #52525b;
+  font-size: 15px;
+  line-height: 1.8;
+}
+body.dark .noticia-conteudo {
+  color: #d4d4d8;
+}
+
+/* Espaçamento entre blocos filho diretos */
+.noticia-conteudo > * {
+  margin-bottom: 0.25rem;
+}
+
+.noticia-conteudo > p,
+.noticia-conteudo > h2,
+.noticia-conteudo > h3,
+.noticia-conteudo > h4,
+.noticia-conteudo > ul,
+.noticia-conteudo > ol,
+.noticia-conteudo > hr,
+.noticia-conteudo > blockquote,
+.noticia-conteudo > img,
+.noticia-conteudo > table,
+.noticia-conteudo > div {
+  margin-bottom: 1rem;
+}
+
+/* ─── Títulos ─── */
+.noticia-conteudo h2 {
+  font-size: 1.25rem;
+  font-weight: 900;
+  color: #18181b;
+  margin-top: 2.5rem;
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.625rem;
+  border-bottom: 2px solid #e4e4e7;
+}
+body.dark .noticia-conteudo h2 {
+  color: #ffffff;
+  border-bottom-color: #3f3f46;
+}
+
+.noticia-conteudo h3 {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #27272a;
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+}
+body.dark .noticia-conteudo h3 {
+  color: #e4e4e7;
+}
+
+.noticia-conteudo h4 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #3f3f46;
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+}
+body.dark .noticia-conteudo h4 {
+  color: #d4d4d8;
+}
+
+/* ─── Parágrafos ─── */
+.noticia-conteudo p {
+  font-size: 15px;
+  color: #3f3f46;
+  line-height: 1.8;
+  margin-top: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+body.dark .noticia-conteudo p {
+  color: #d4d4d8;
+}
+
+/* ─── Links ─── */
+.noticia-conteudo a {
+  color: #2563eb;
+  text-decoration: none;
+  font-weight: 500;
+  transition: text-decoration 150ms;
+}
+body.dark .noticia-conteudo a {
+  color: #60a5fa;
+}
+.noticia-conteudo a:hover {
+  text-decoration: underline;
+}
+
+/* ─── Negrito ─── */
+.noticia-conteudo strong {
+  color: #18181b;
+  font-weight: 700;
+}
+body.dark .noticia-conteudo strong {
+  color: #ffffff;
+}
+
+/* ─── Listas ─── */
+.noticia-conteudo ul:not([class]) {
+  list-style: none;
+  padding-left: 0;
+  margin-top: 1.25rem;
+  margin-bottom: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.noticia-conteudo ul:not([class]) > li::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  background: #10b981;
+  border-radius: 50%;
+  margin-right: 0.5rem;
+  flex-shrink: 0;
+  vertical-align: middle;
+  margin-top: 3px;
+}
+body.dark .noticia-conteudo ul:not([class]) > li::before {
+  background: #34d399;
+}
+
+.noticia-conteudo ol:not([class]) {
+  list-style: decimal;
+  padding-left: 1.5rem;
+  margin-top: 1.25rem;
+  margin-bottom: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.noticia-conteudo li {
+  font-size: 14px;
+  color: #3f3f46;
+  line-height: 1.6;
+}
+body.dark .noticia-conteudo li {
+  color: #d4d4d8;
+}
+
+/* ─── Tabelas ─── */
+.noticia-conteudo table {
+  width: 100%;
+  font-size: 14px;
+  border-collapse: collapse;
+  margin-top: 2rem;
+  margin-bottom: 2rem;
+  border: 1px solid #e4e4e7;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+body.dark .noticia-conteudo table {
+  border-color: #3f3f46;
+}
+
+.noticia-conteudo thead {
+  background: #27272a;
+}
+body.dark .noticia-conteudo thead {
+  background: #3f3f46;
+}
+
+.noticia-conteudo th {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 900;
+  color: #ffffff;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 2px solid #52525b;
+}
+body.dark .noticia-conteudo th {
+  color: #f4f4f5;
+  border-bottom-color: #52525b;
+}
+
+.noticia-conteudo td {
+  padding: 0.75rem 1rem;
+  color: #3f3f46;
+  font-weight: 500;
+  border-bottom: 1px solid #f4f4f5;
+}
+body.dark .noticia-conteudo td {
+  color: #d4d4d8;
+  border-bottom-color: #27272a;
+}
+
+/* Zebrado via CSS */
+.noticia-conteudo tbody tr:nth-child(even) {
+  background: #fafafa;
+}
+body.dark .noticia-conteudo tbody tr:nth-child(even) {
+  background: rgba(39, 39, 42, 0.4);
+}
+
+.noticia-conteudo tbody tr:hover {
+  background: #f4f4f5;
+}
+body.dark .noticia-conteudo tbody tr:hover {
+  background: rgba(63, 63, 70, 0.5);
+}
+
+/* ─── Separador Horizontal ─── */
+.noticia-conteudo hr {
+  border: none;
+  border-top: 2px solid #e4e4e7;
+  margin-top: 2rem;
+  margin-bottom: 2rem;
+}
+body.dark .noticia-conteudo hr {
+  border-top-color: #3f3f46;
+}
+
+/* ─── Blockquotes ─── */
+.noticia-conteudo blockquote {
+  border-left: 4px solid #60a5fa;
+  padding: 0.75rem 1.25rem;
+  margin-top: 1.5rem;
+  margin-bottom: 1.5rem;
+  background: rgba(239, 246, 255, 0.5);
+  border-radius: 0 0.5rem 0.5rem 0;
+}
+body.dark .noticia-conteudo blockquote {
+  border-left-color: #3b82f6;
+  background: rgba(30, 58, 138, 0.15);
+}
+
+/* ─── Imagens ─── */
+.noticia-conteudo img {
+  border-radius: 0.75rem;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  margin-top: 1.5rem;
+  margin-bottom: 1.5rem;
+  width: 100%;
+  object-fit: cover;
+}
+
+/* ─── Tabela wrapper com header (gerado por normalizarHtmlParaPadrao) ─── */
+.noticia-conteudo > div {
+  margin-top: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* Quando um wizard de planejamento está aberto com footer fixo,
+   elevamos o footer global e o FAB de estudo para não disputar espaço. */
+body.wizard-shell-open .app-global-footer {
+  padding-bottom: calc(6.5rem + env(safe-area-inset-bottom, 0px));
+}
+
+body.wizard-shell-open .global-study-register-fab {
+  bottom: calc(7rem + env(safe-area-inset-bottom, 0px));
 }
 

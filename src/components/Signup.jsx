@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import { auth, db, storage } from '../firebaseConfig';
+import { buildInitialAccessProfile, LEGACY_ADMIN_UID } from '../auth/accessControl';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -116,7 +117,8 @@ function Signup() {
         email: email,
         photoURL: photoURL,
         createdAt: serverTimestamp(),
-        studyStats: { totalTime: 0, completedCycles: 0, questionsSolved: 0 }
+        studyStats: { totalTime: 0, completedCycles: 0, questionsSolved: 0 },
+        access: buildInitialAccessProfile({ isLegacyAdmin: user.uid === LEGACY_ADMIN_UID }),
       });
 
       setLoading(false);
@@ -170,7 +172,7 @@ function Signup() {
         <div className="bg-black/60 backdrop-blur-md border border-white/10 rounded-2xl p-5 shadow-2xl">
 
           <div className="flex justify-center mb-4">
-            <img src="/logo-pmba.png" alt="Logo PMBA" className="h-20 w-auto drop-shadow-2xl" />
+            <img src="/logoModoQAP.png" alt="Logo ModoQAP" className="h-20 w-auto drop-shadow-2xl" />
           </div>
 
           <div className="text-center mb-4">

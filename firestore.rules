@@ -1,78 +1,213 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Mantém a mesma identidade administrativa usada hoje no painel admin.
+    function isSignedIn() {
+      return request.auth != null;
+    }
 
-    // --- 1. DEFINIÇÃO DE ADMIN ---
-    function isAdmin() {
-      return request.auth != null
+    // Admin legado por UID fixo, preservado para compatibilidade durante a migração.
+    function isLegacyAdmin() {
+      return isSignedIn()
         && request.auth.uid == "OLoJi457GQNE2eTSOcz9DAD6ppZ2";
     }
 
-    // --- 2. BROADCASTS ---
-    match /system_broadcasts/{document=**} {
-      allow read: if request.auth != null;
-      allow write: if isAdmin();
+    // Caminho do documento do usuário autenticado.
+    function currentUserDocPath() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
     }
 
-    // --- 3. EDITAIS/TEMPLATES ---
-    match /editais_templates/{document=**} {
-      allow read: if request.auth != null;
-      allow write: if isAdmin();
+    // Verifica se o documento do usuário autenticado existe.
+    function currentUserDocExists() {
+      return isSignedIn() && exists(currentUserDocPath());
     }
 
-
-
-    // --- 3.1 ACTIVE SESSIONS / ACTIVE TIMERS (✅ CORREÇÃO DO SEU ERRO) ---
-    // Se o seu hook está lendo "active_sessions", precisa existir regra aqui.
-    // Recomendo padronizar para "active_timers", mas deixei os dois liberados.
-
-    // --- ACTIVE TIMERS (Admin tracking) ---
-    match /active_timers/{uid} {
-      // Admin pode ler todos; usuário pode ler o próprio
-      allow read: if request.auth != null && (request.auth.uid == uid || isAdmin());
-
-      // Usuário só escreve/apaga o próprio doc
-      allow write: if request.auth != null && request.auth.uid == uid;
+    // Retorna os dados do documento do usuário autenticado.
+    function currentUserDoc() {
+      return get(currentUserDocPath()).data;
     }
 
-    match /active_timers/{uid} {
-      allow read: if isAdmin();
-      allow create, update, delete: if request.auth != null && request.auth.uid == uid;
+    // Papel administrativo baseado no documento users/{uid}.
+    function hasAdminRoleDoc() {
+      return currentUserDocExists()
+        && (
+          currentUserDoc().access.permissions.adminPanel == true
+          || currentUserDoc().access.adminRole in ['admin', 'super_admin']
+          || currentUserDoc().access.role == 'admin'
+        );
     }
 
-    // --- 4. LEITURA GERAL PARA ADMIN ---
-    // Registros de estudo em subcoleção: users/{uid}/registrosEstudo/{docId}
-    match /{path=**}/registrosEstudo/{docId} {
-      // Admin lê tudo
-      allow read: if isAdmin();
+    // Admin pode ser o legado por UID ou um usuário com papel administrativo no documento.
+    function isAdmin() {
+      return isLegacyAdmin() || hasAdminRoleDoc();
+    }
 
-      // Usuário lê só o que estiver no caminho dele (regra "users" abaixo já cobre),
-      // mas deixo também uma proteção caso você use outras estruturas.
-      allow read: if request.auth != null;
+    // Verifica se o usuário autenticado é o próprio dono do recurso.
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
 
-      // Se precisar deletar registros de outros usuários pelo painel:
+    // Permite acesso ao dono do recurso ou a um admin.
+    function isOwnerOrAdmin(userId) {
+      return isOwner(userId) || isAdmin();
+    }
+
+    // Campos que o próprio usuário pode alterar com segurança no documento principal.
+    function ownerUserDocTouchedKeysAreSafe() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'createdAt',
+        'displayName',
+        'email',
+        'name',
+        'photoURL',
+        'studyStats',
+        'uid',
+        'updatedAt'
+      ]);
+    }
+
+    // Campos permitidos na criação do documento principal do usuário.
+    function ownerUserDocCreateHasSafeKeys() {
+      return request.resource.data.keys().hasOnly([
+        'access',
+        'createdAt',
+        'displayName',
+        'email',
+        'name',
+        'photoURL',
+        'studyStats',
+        'uid',
+        'updatedAt'
+      ]);
+    }
+
+    // Impede que o próprio usuário se promova via campo access durante a criação.
+    function ownerUserDocHasSafeAccess() {
+      return !request.resource.data.keys().hasAny(['access'])
+        || (
+          request.resource.data.access.role == 'student'
+          && request.resource.data.access.adminRole == null
+          && request.resource.data.access.permissions.adminPanel != true
+          && request.resource.data.access.permissions.manageBroadcasts != true
+          && request.resource.data.access.permissions.manageTemplates != true
+          && request.resource.data.access.permissions.viewAdminAnalytics != true
+        );
+    }
+
+    // Verifica se um chamado de suporte existe.
+    function feedbackExists(feedbackId) {
+      return exists(/databases/$(database)/documents/system_feedback/$(feedbackId));
+    }
+
+    // Verifica se o chamado de suporte pertence ao usuário autenticado.
+    function isFeedbackOwner(feedbackId) {
+      return isSignedIn()
+        && feedbackExists(feedbackId)
+        && get(/databases/$(database)/documents/system_feedback/$(feedbackId)).data.uid == request.auth.uid;
+    }
+
+    // Dados globais do sistema: leitura para autenticados e gestão exclusiva do admin.
+    match /system_broadcasts/{docId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /editais_templates/{docId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /system_quotes/{docId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /system_config/{docId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Cache compartilhado: autenticados podem ler e atualizar.
+    // A exclusão fica apenas com o admin para limpeza manual.
+    match /noticiaCache/{docId} {
+      allow read, create, update: if isSignedIn();
       allow delete: if isAdmin();
     }
 
-    match /{path=**}/ciclos/{docId} {
-      allow read: if request.auth != null && (isAdmin() || true);
-      // (mantive leitura liberada para logado, pois suas regras de users já restringem o resto)
+    // Estado do timer ao vivo: o dono escreve apenas o próprio timer e o admin pode monitorar.
+    match /active_timers/{uid} {
+      allow read: if isOwnerOrAdmin(uid);
+      allow create, update, delete: if isOwner(uid);
     }
 
-    // --- 5. REGRAS PADRÃO DE USUÁRIOS (Mantidas) ---
+    // Documento principal do usuário e todas as subcoleções permanecem restritos ao dono ou admin.
     match /users/{userId} {
-      allow create: if request.auth != null;
-      allow read, update, delete: if request.auth != null && (request.auth.uid == userId || isAdmin());
+      allow create: if isAdmin()
+        || (
+          isOwner(userId)
+          && request.resource.data.uid == request.auth.uid
+          && ownerUserDocCreateHasSafeKeys()
+          && ownerUserDocHasSafeAccess()
+        );
+      allow read: if isOwnerOrAdmin(userId);
+      allow update: if isAdmin()
+        || (
+          isOwner(userId)
+          && ownerUserDocTouchedKeysAreSafe()
+          && request.resource.data.uid == resource.data.uid
+        );
+      allow delete: if isOwnerOrAdmin(userId);
+
+      match /{document=**} {
+        allow read, write, delete: if isOwnerOrAdmin(userId);
+      }
     }
 
-    match /users/{userId}/{document=**} {
-      allow read, write, delete: if request.auth != null && (request.auth.uid == userId || isAdmin());
+    // Chamados de suporte:
+    // o dono pode abrir e ler o próprio chamado;
+    // o admin pode ler e gerenciar toda a fila.
+    match /system_feedback/{feedbackId} {
+      allow create: if isSignedIn()
+        && request.resource.data.uid == request.auth.uid;
+
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.uid == request.auth.uid);
+
+      // Atualizações do dono ficam restritas aos campos usados pelo widget atual.
+      allow update: if isAdmin()
+        || (
+          isSignedIn()
+          && resource.data.uid == request.auth.uid
+          && request.resource.data.uid == resource.data.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'adminTyping',
+            'lastUpdate',
+            'unreadAdmin',
+            'unreadUser',
+            'userTyping'
+          ])
+        );
+
+      allow delete: if isAdmin();
+
+      match /messages/{messageId} {
+        allow read: if isAdmin() || isFeedbackOwner(feedbackId);
+
+        // O dono pode enviar mensagens no próprio chamado.
+        // O sender "system" é mantido por compatibilidade com o fluxo atual de resposta automática no cliente.
+        allow create: if isAdmin()
+          || (
+            isFeedbackOwner(feedbackId)
+            && request.resource.data.sender in ['system', 'user']
+          );
+
+        allow update, delete: if isAdmin();
+      }
     }
 
-    // --- 6. BLOQUEIOS DE SEGURANÇA (LEGADO) ---
-    match /horas/{docId} { allow read, write: if false; }
-    match /metas/{docId} { allow read, write: if false; }
-    match /questoes/{docId} { allow read, write: if false; }
+    // Negação padrão para qualquer caminho não coberto explicitamente acima.
+    match /{document=**} {
+      allow read, write: if false;
+    }
   }
 }

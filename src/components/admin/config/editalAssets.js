@@ -50,7 +50,7 @@ export const resolveLogoUrl = ({ ciclo, editaisMap }) => {
   const nomeLower = (ciclo.nome || "").toLowerCase();
 
   // 4.1 Fallbacks Hardcoded (Histórico)
-  if (nomeLower.includes("pmba")) return "/logosEditais/logo-pmba.png";
+  if (nomeLower.includes("pmba")) return "/logosEditais/logoModoQAP.png";
   if (nomeLower.includes("pmal")) return "/logosEditais/logo-pmal.png";
 
   // 4.2 Limpeza Inteligente para "Qualquer Concurso"

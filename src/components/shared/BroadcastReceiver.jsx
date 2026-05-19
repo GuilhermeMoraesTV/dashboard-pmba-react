@@ -5,14 +5,11 @@ import { collection, query, orderBy, limit, onSnapshot, doc, setDoc, getDoc } fr
 import { motion, AnimatePresence } from 'framer-motion';
 import { Megaphone, Check, Zap, AlertTriangle, Bell, X, ChevronLeft, ChevronRight } from 'lucide-react';
 
-// ID DO ADMIN
-const ADMIN_UID = 'OLoJi457GQNE2eTSOcz9DAD6ppZ2';
-
 // Quantas vezes o broadcast pode aparecer antes de ser silenciado
 // Admin sempre vê sem limite (para preview). Usuários normais respeitam este valor.
 const MAX_VIEWS = 2;
 
-const BroadcastReceiver = ({ canShow = true }) => {
+const BroadcastReceiver = ({ canShow = true, userAccess = null }) => {
     const [notification, setNotification] = useState(null);
     const [isVisible, setIsVisible] = useState(false);
     const [currentIndex, setCurrentIndex] = useState(0);
@@ -25,7 +22,7 @@ const BroadcastReceiver = ({ canShow = true }) => {
 
     const user = auth.currentUser;
     const isHome = location.pathname === '/';
-    const isAdmin = user?.uid === ADMIN_UID;
+    const isAdmin = userAccess?.permissions?.adminPanel === true;
 
     const preloadImages = (urls) => {
         if (!urls?.length) return;
@@ -60,6 +57,12 @@ const BroadcastReceiver = ({ canShow = true }) => {
                 setCurrentIndex(0);
                 if (data.imageUrls?.length) preloadImages(data.imageUrls);
                 return;
+            }
+
+            // --- BROADCAST SEGMENTADO: admin pode validar, usuário só vê se fizer parte do segmento ---
+            if (Array.isArray(data.targetUserIds) && data.targetUserIds.length > 0) {
+                const canReceiveSegment = isAdmin || data.targetUserIds.includes(user.uid);
+                if (!canReceiveSegment) return;
             }
 
             // --- BROADCAST INATIVO: ninguém vê ---
@@ -270,7 +273,7 @@ const BroadcastReceiver = ({ canShow = true }) => {
                         {/* Lado Esquerdo */}
                         <div className={`relative overflow-hidden flex flex-col items-center justify-center shrink-0 w-full md:w-5/12 py-10 md:py-0 md:min-h-[300px] ${theme.bgClass}`}>
                             <div className="absolute inset-0 flex items-center justify-center opacity-[0.07] pointer-events-none mix-blend-multiply">
-                                <img src="/logo-pmba.png" alt="Watermark" className="w-[140%] h-[140%] object-contain scale-150 grayscale" />
+                                <img src="/logoModoQAP.png" alt="Watermark" className="w-[140%] h-[140%] object-contain scale-150 grayscale" />
                             </div>
                             <motion.div initial={{ scale: 0, rotate: -45 }} animate={{ scale: 1, rotate: 0 }} transition={{ delay: 0.2 }} className="relative z-10 w-16 h-16 md:w-20 md:h-20 bg-white/60 backdrop-blur-md rounded-2xl border border-white/40 flex items-center justify-center shadow-lg mb-3 md:mb-4">
                                 <Icon size={32} className={`${theme.iconColor} drop-shadow-sm md:w-10 md:h-10`} />
@@ -300,7 +303,7 @@ const BroadcastReceiver = ({ canShow = true }) => {
                                     <Check size={14} strokeWidth={3} /> Ciente
                                 </button>
                                 <div className="flex items-center justify-center gap-2 opacity-40">
-                                    <img src="/logo-pmba.png" alt="Logo Sistema" className="h-4 w-auto object-contain grayscale" />
+                                    <img src="/logoModoQAP.png" alt="Logo Sistema" className="h-4 w-auto object-contain grayscale" />
                                     <div className="h-3 w-px bg-zinc-300"></div>
                                     <h1 className="text-red-600 font-black tracking-widest uppercase text-[9px]">MODOQAP</h1>
                                 </div>

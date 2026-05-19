@@ -1,301 +1,578 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { db } from '../../firebaseConfig';
 import {
-  collection, query, collectionGroup, deleteDoc, doc, onSnapshot, orderBy, limit,
-  getDocs, setDoc, Timestamp // <--- Imports adicionados para o recálculo
+  collection, deleteDoc, doc, getDocs, query, setDoc, Timestamp,
 } from 'firebase/firestore';
 import {
-  Users, Activity, Server, Loader2, Search, Maximize2, Trash2, X, FileSpreadsheet, Target,
-  Clock, Zap, Trophy, ChevronRight, MoreHorizontal, Radio, LayoutGrid
+  Users, Activity, Server, Loader2, Search, Maximize2, Trash2, X, FileSpreadsheet,
+  Clock, Zap, Trophy, ChevronRight, MoreHorizontal, Radio, UserPlus, CalendarDays,
+  Flame, ShieldAlert, Send, FileText,
 } from 'lucide-react';
 
-// --- IMPORTS DOS COMPONENTES ---
 import HeaderAdmin from './HeaderAdmin';
 import EditaisManagerModal from './EditaisManager';
+import AdminAnalyticsSection from './AdminAnalyticsSection';
 import StudyingNowPanel from './LiveStudyMonitor';
 import UserDetailModal from './UserDetailModal';
 import { useForceUnlock } from '../../hooks/useForceUnlock';
-
-// --- HELPERS ---
-const toDateSafe = (value) => {
-    if (!value) return null;
-    if (value?.toDate) return value.toDate();
-    if (value instanceof Date) return value;
-    const n = Number(value);
-    if (!Number.isNaN(n) && n > 0) return new Date(n);
-    return null;
-};
-
-const toMillisSafe = (value) => toDateSafe(value)?.getTime() || null;
+import { useAdminAnalytics } from '../../hooks/useAdminAnalytics';
+import {
+  buildBroadcastDraftFromSegment,
+  buildExecutivePdfPayload,
+  buildSavedSegments,
+  downloadUsersCsv,
+  openExecutivePdfWindow,
+} from './adminOperations';
 
 const formatTimeAgo = (date) => {
-    if (!date) return '-';
-    const diff = Math.floor((new Date() - date) / 60000);
-    if (diff < 1) return 'Agora';
-    if (diff < 60) return `${diff}m`;
-    const hours = Math.floor(diff / 60);
-    if (hours < 24) return `${hours}h`;
-    return `${Math.floor(hours / 24)}d`;
+  if (!date) return '-';
+  const diff = Math.floor((new Date() - date) / 60000);
+  if (diff < 1) return 'Agora';
+  if (diff < 60) return `${diff}m`;
+  const hours = Math.floor(diff / 60);
+  if (hours < 24) return `${hours}h`;
+  return `${Math.floor(hours / 24)}d`;
 };
 
 const formatHMFromMinutes = (minutes) => {
-    const m = Math.max(0, Number(minutes) || 0);
-    const h = Math.floor(m / 60);
-    const mm = m % 60;
-    if (h > 0) return `${h}h ${mm}m`;
-    return `${mm}m`;
+  const m = Math.max(0, Number(minutes) || 0);
+  const h = Math.floor(m / 60);
+  const mm = m % 60;
+  if (h > 0) return `${h}h ${mm}m`;
+  return `${mm}m`;
 };
 
-const Avatar = ({ user, size = "md", className="" }) => {
-    const sizeClasses = { sm: "w-8 h-8 text-[10px]", md: "w-10 h-10 text-xs", lg: "w-12 h-12 text-sm" };
-    return (
-      <div className={`${sizeClasses[size]} ${className} rounded-2xl flex-shrink-0 bg-gradient-to-br from-zinc-100 to-zinc-200 dark:from-zinc-800 dark:to-zinc-900 border border-white/50 dark:border-zinc-700 shadow-sm overflow-hidden flex items-center justify-center relative`}>
-        {user?.photoURL ? <img src={user.photoURL} className="w-full h-full object-cover" alt="avatar" /> : <Users size={14} className="text-zinc-400" />}
-      </div>
-    );
+const formatDelta = (value, suffix = '%') => {
+  if (value == null || Number.isNaN(Number(value))) return null;
+  const numeric = Math.round(Number(value));
+  if (numeric === 0) return `0${suffix}`;
+  return `${numeric > 0 ? '+' : ''}${numeric}${suffix}`;
 };
 
-// --- COMPONENTES VISUAIS ---
+const FILTER_PERIOD_OPTIONS = [
+  { value: 30, label: '30d' },
+  { value: 60, label: '60d' },
+  { value: 90, label: '90d' },
+];
 
-// Modal Genérico Expandido
-const ExpandedModal = ({ isOpen, onClose, title, children }) => {
-    useEffect(() => { document.body.style.overflow = isOpen ? 'hidden' : 'unset'; }, [isOpen]);
-    if (!isOpen) return null;
-    return (
-      <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-zinc-900/60 backdrop-blur-md animate-fade-in">
-        <motion.div
-            initial={{ scale: 0.95, opacity: 0, y: 20 }}
-            animate={{ scale: 1, opacity: 1, y: 0 }}
-            className="bg-white dark:bg-zinc-950 w-full max-w-6xl max-h-[90vh] rounded-[32px] border border-zinc-200 dark:border-zinc-800 shadow-2xl flex flex-col overflow-hidden"
-        >
-          <div className="p-6 border-b border-zinc-100 dark:border-zinc-800 flex justify-between items-center bg-zinc-50/50 dark:bg-zinc-900/50">
-            <h3 className="text-2xl font-black text-zinc-900 dark:text-white tracking-tight">{title}</h3>
-            <button onClick={onClose} className="p-2 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-full transition-colors"><X size={24} /></button>
-          </div>
-          <div className="flex-1 overflow-y-auto p-6 live-monitor-scroll bg-zinc-50/30 dark:bg-black/20">{children}</div>
-        </motion.div>
-      </div>
-    );
-};
-
-// Card KPI
-const KpiCard = ({ title, value, subValue, icon: Icon, color, trend }) => {
-    const theme = {
-      zinc: "from-zinc-500 to-zinc-600",
-      red: "from-red-500 to-red-600",
-      amber: "from-amber-500 to-amber-600",
-      emerald: "from-emerald-500 to-emerald-600",
-    }[color] || "from-blue-500 to-blue-600";
-
-    return (
-      <motion.div whileHover={{ y: -2 }} className="relative overflow-hidden bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-5 flex flex-col justify-between shadow-sm group min-h-[140px]">
-        <div className="flex justify-between items-start mb-4 relative z-10">
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 mb-1 flex items-center gap-2">
-              {title}
-            </p>
-            <h3 className="text-3xl lg:text-4xl font-black tracking-tighter text-zinc-900 dark:text-white leading-none">{value}</h3>
-          </div>
-          <div className={`p-2.5 rounded-2xl bg-gradient-to-br ${theme} text-white shadow-lg`}>
-            <Icon size={18} />
-          </div>
-        </div>
-        <div className="flex items-center justify-between relative z-10">
-            <p className="text-[10px] sm:text-xs font-semibold text-zinc-500 dark:text-zinc-400">{subValue}</p>
-            {trend && <span className="px-2 py-1 rounded-lg text-[9px] font-bold bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 flex items-center gap-1">+{trend}% <Activity size={10}/></span>}
-        </div>
-        <div className={`absolute top-0 right-0 w-24 h-24 bg-gradient-to-br ${theme} opacity-[0.03] rounded-full blur-2xl -mr-8 -mt-8 group-hover:opacity-[0.07] transition-opacity`} />
-      </motion.div>
-    );
-};
-
-// Card Bento Box
-const BentoCard = ({ title, subtitle, icon: Icon, children, className = "", action, isLive = false, headerColor = "text-zinc-900 dark:text-white" }) => (
-    <div className={`bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-[32px] shadow-sm flex flex-col overflow-hidden relative group ${className}`}>
-      {/* Header Fixo */}
-      <div className="flex-shrink-0 p-5 pb-3 flex items-center justify-between relative z-10 border-b border-zinc-50 dark:border-zinc-900/50 bg-white dark:bg-zinc-950">
-        <div className="flex items-center gap-3">
-          <div className={`p-2 rounded-xl border border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-zinc-500 relative shadow-sm`}>
-            <Icon size={18} />
-            {isLive && (
-                <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500 border-2 border-white dark:border-zinc-950"></span>
-                </span>
-            )}
-          </div>
-          <div>
-            <h3 className={`text-sm font-black uppercase tracking-tight ${headerColor}`}>{title}</h3>
-            {subtitle && <p className="text-[10px] font-medium text-zinc-400">{subtitle}</p>}
-          </div>
-        </div>
-        {action}
-      </div>
-      {/* Área de Conteúdo com Scroll */}
-      <div className="flex-1 min-h-0 overflow-hidden relative">
-        {children}
+const FilterBar = ({ filters, options, onChange, onReset }) => (
+  <div className="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-[28px] p-4 shadow-sm">
+    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-3">
+      <label className="space-y-1">
+        <span className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">Periodo</span>
+        <select value={filters.windowDays} onChange={(e) => onChange('windowDays', Number(e.target.value))} className="w-full rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 px-3 py-2.5 text-sm font-semibold text-zinc-700 dark:text-zinc-200 outline-none">
+          {FILTER_PERIOD_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+        </select>
+      </label>
+      <label className="space-y-1">
+        <span className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">Contexto</span>
+        <select value={filters.contextType} onChange={(e) => onChange('contextType', e.target.value)} className="w-full rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 px-3 py-2.5 text-sm font-semibold text-zinc-700 dark:text-zinc-200 outline-none">
+          <option value="all">Todos</option>
+          <option value="ciclo">Ciclo</option>
+          <option value="cronograma">Cronograma</option>
+        </select>
+      </label>
+      <label className="space-y-1">
+        <span className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">Perfil</span>
+        <select value={filters.userProfile} onChange={(e) => onChange('userProfile', e.target.value)} className="w-full rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 px-3 py-2.5 text-sm font-semibold text-zinc-700 dark:text-zinc-200 outline-none">
+          <option value="all">Todos</option>
+          {(options.userProfiles || []).map((profile) => <option key={profile} value={profile}>{profile}</option>)}
+        </select>
+      </label>
+      <label className="space-y-1">
+        <span className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">Edital/Template</span>
+        <select value={filters.templateId} onChange={(e) => onChange('templateId', e.target.value)} className="w-full rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 px-3 py-2.5 text-sm font-semibold text-zinc-700 dark:text-zinc-200 outline-none">
+          <option value="all">Todos</option>
+          {(options.templateIds || []).map((templateId) => <option key={templateId} value={templateId}>{templateId === 'manual' ? 'Manual' : templateId}</option>)}
+        </select>
+      </label>
+      <label className="space-y-1">
+        <span className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">Precisao</span>
+        <select value={filters.accuracyBand} onChange={(e) => onChange('accuracyBand', e.target.value)} className="w-full rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 px-3 py-2.5 text-sm font-semibold text-zinc-700 dark:text-zinc-200 outline-none">
+          <option value="all">Todas</option>
+          {(options.accuracyBands || []).map((band) => <option key={band} value={band}>{band}</option>)}
+        </select>
+      </label>
+      <div className="flex items-end">
+        <button onClick={onReset} className="w-full rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 px-3 py-2.5 text-sm font-black uppercase tracking-[0.16em] text-zinc-500 hover:text-red-600 transition-colors">
+          Limpar
+        </button>
       </div>
     </div>
+  </div>
 );
 
-// --- PÁGINA ADMIN ---
+const SegmentCard = ({
+  segment,
+  isActive,
+  onOpen,
+  onExport,
+  onBroadcast,
+}) => {
+  const tones = {
+    zinc: 'border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950',
+    emerald: 'border-emerald-200 dark:border-emerald-900/40 bg-emerald-50/60 dark:bg-emerald-950/20',
+    amber: 'border-amber-200 dark:border-amber-900/40 bg-amber-50/60 dark:bg-amber-950/20',
+    red: 'border-red-200 dark:border-red-900/40 bg-red-50/70 dark:bg-red-950/20',
+  };
+
+  const accent = {
+    zinc: 'text-zinc-500',
+    emerald: 'text-emerald-600 dark:text-emerald-400',
+    amber: 'text-amber-600 dark:text-amber-400',
+    red: 'text-red-600 dark:text-red-400',
+  };
+
+  return (
+    <div className={`rounded-[28px] border p-5 shadow-sm transition-all ${tones[segment.tone] || tones.zinc} ${isActive ? 'ring-2 ring-red-500/40' : ''}`}>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className={`text-[10px] font-black uppercase tracking-[0.18em] ${accent[segment.tone] || accent.zinc}`}>Segmento salvo</p>
+          <h3 className="text-lg font-black tracking-tight text-zinc-900 dark:text-white mt-1">{segment.label}</h3>
+          <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mt-2 leading-relaxed">{segment.description}</p>
+        </div>
+        <div className="text-right shrink-0">
+          <p className="text-3xl font-black tracking-tight text-zinc-900 dark:text-white">{segment.count}</p>
+          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">usuarios</p>
+        </div>
+      </div>
+
+      <div className="mt-4 rounded-2xl border border-white/60 dark:border-zinc-900 bg-white/70 dark:bg-black/10 px-3 py-3">
+        <p className="text-[11px] font-semibold text-zinc-600 dark:text-zinc-300">{segment.subtitle}</p>
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button onClick={onOpen} className="px-3 py-2 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 text-[11px] font-black uppercase tracking-[0.14em]">
+          Abrir lista
+        </button>
+        <button onClick={onExport} className="px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 text-[11px] font-black uppercase tracking-[0.14em] text-zinc-600 dark:text-zinc-300 hover:text-red-600 transition-colors">
+          CSV
+        </button>
+        <button onClick={onBroadcast} className="px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 text-[11px] font-black uppercase tracking-[0.14em] text-zinc-600 dark:text-zinc-300 hover:text-red-600 transition-colors">
+          Broadcast
+        </button>
+      </div>
+    </div>
+  );
+};
+
+const Avatar = ({ user, size = 'md', className = '' }) => {
+  const sizeClasses = { sm: 'w-8 h-8 text-[10px]', md: 'w-10 h-10 text-xs', lg: 'w-12 h-12 text-sm' };
+  return (
+    <div className={`${sizeClasses[size]} ${className} rounded-2xl flex-shrink-0 bg-gradient-to-br from-zinc-100 to-zinc-200 dark:from-zinc-800 dark:to-zinc-900 border border-white/50 dark:border-zinc-700 shadow-sm overflow-hidden flex items-center justify-center relative`}>
+      {user?.photoURL ? <img src={user.photoURL} className="w-full h-full object-cover" alt="avatar" /> : <Users size={14} className="text-zinc-400" />}
+    </div>
+  );
+};
+
+const ExpandedModal = ({ isOpen, onClose, title, children }) => {
+  useEffect(() => {
+    document.body.style.overflow = isOpen ? 'hidden' : 'unset';
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-zinc-900/60 backdrop-blur-md animate-fade-in">
+      <motion.div
+        initial={{ scale: 0.95, opacity: 0, y: 20 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        className="bg-white dark:bg-zinc-950 w-full max-w-6xl max-h-[90vh] rounded-[32px] border border-zinc-200 dark:border-zinc-800 shadow-2xl flex flex-col overflow-hidden"
+      >
+        <div className="p-6 border-b border-zinc-100 dark:border-zinc-800 flex justify-between items-center bg-zinc-50/50 dark:bg-zinc-900/50">
+          <h3 className="text-2xl font-black text-zinc-900 dark:text-white tracking-tight">{title}</h3>
+          <button onClick={onClose} className="p-2 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-full transition-colors">
+            <X size={24} />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-6 live-monitor-scroll bg-zinc-50/30 dark:bg-black/20">{children}</div>
+      </motion.div>
+    </div>
+  );
+};
+
+const KpiCard = ({ title, value, subValue, icon: Icon, accent = 'zinc', trend, onClick, drilldownLabel, valueSuffix = '' }) => {
+  const accents = {
+    zinc: {
+      iconWrap: 'bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300',
+      border: 'before:bg-zinc-300/70 dark:before:bg-zinc-700',
+      glow: 'bg-zinc-500/5',
+      trend: 'bg-zinc-100 dark:bg-zinc-900/70 text-zinc-600 dark:text-zinc-300',
+    },
+    red: {
+      iconWrap: 'bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400',
+      border: 'before:bg-red-500',
+      glow: 'bg-red-500/10',
+      trend: 'bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400',
+    },
+    amber: {
+      iconWrap: 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400',
+      border: 'before:bg-amber-500',
+      glow: 'bg-amber-500/10',
+      trend: 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400',
+    },
+    emerald: {
+      iconWrap: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400',
+      border: 'before:bg-emerald-500',
+      glow: 'bg-emerald-500/10',
+      trend: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400',
+    },
+  }[accent] || {};
+
+  const trendLabel = formatDelta(trend);
+
+  return (
+    <motion.button
+      whileHover={{ y: -2 }}
+      whileTap={{ scale: 0.995 }}
+      onClick={onClick}
+      className={`relative overflow-hidden bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-[28px] px-4 py-4 text-left flex flex-col justify-between shadow-sm group min-h-[122px] before:absolute before:left-0 before:top-4 before:bottom-4 before:w-[3px] before:rounded-full ${accents.border}`}
+    >
+      <div className="flex items-start justify-between gap-3 relative z-10">
+        <div className="min-w-0">
+          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-400 mb-1">{title}</p>
+          <div className="flex items-end gap-1">
+            <h3 className="text-2xl lg:text-[28px] font-black tracking-tight text-zinc-900 dark:text-white leading-none">{value}</h3>
+            {valueSuffix ? <span className="text-xs font-black text-zinc-400 pb-0.5">{valueSuffix}</span> : null}
+          </div>
+        </div>
+        <div className={`p-2 rounded-2xl border border-white/60 dark:border-zinc-800 ${accents.iconWrap}`}>
+          <Icon size={16} />
+        </div>
+      </div>
+
+      <div className="relative z-10 mt-4 flex items-end justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400 leading-snug">{subValue}</p>
+          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-300 dark:text-zinc-600 mt-1">{drilldownLabel}</p>
+        </div>
+        {trendLabel ? <span className={`shrink-0 px-2 py-1 rounded-lg text-[10px] font-black ${accents.trend}`}>{trendLabel}</span> : null}
+      </div>
+
+      <div className={`absolute top-0 right-0 w-20 h-20 rounded-full blur-2xl -mr-7 -mt-7 transition-opacity opacity-60 group-hover:opacity-100 ${accents.glow}`} />
+    </motion.button>
+  );
+};
+
+const BentoCard = ({ title, subtitle, icon: Icon, children, className = '', action, isLive = false, headerColor = 'text-zinc-900 dark:text-white' }) => (
+  <div className={`bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-[32px] shadow-sm flex flex-col overflow-hidden relative group ${className}`}>
+    <div className="flex-shrink-0 p-5 pb-3 flex items-center justify-between relative z-10 border-b border-zinc-50 dark:border-zinc-900/50 bg-white dark:bg-zinc-950">
+      <div className="flex items-center gap-3">
+        <div className="p-2 rounded-xl border border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-zinc-500 relative shadow-sm">
+          <Icon size={18} />
+          {isLive && (
+            <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500 border-2 border-white dark:border-zinc-950" />
+            </span>
+          )}
+        </div>
+        <div>
+          <h3 className={`text-sm font-black uppercase tracking-tight ${headerColor}`}>{title}</h3>
+          {subtitle && <p className="text-[10px] font-medium text-zinc-400">{subtitle}</p>}
+        </div>
+      </div>
+      {action}
+    </div>
+    <div className="flex-1 min-h-0 overflow-hidden relative">{children}</div>
+  </div>
+);
+
 function AdminPage() {
   useForceUnlock();
-  const [users, setUsers] = useState([]);
-  const [studyRecords, setStudyRecords] = useState([]);
-  const [activeSessions, setActiveSessions] = useState([]);
-  const [loading, setLoading] = useState(true);
 
-  // Estados UI
   const [expandedView, setExpandedView] = useState(null);
   const [showEditaisModal, setShowEditaisModal] = useState(false);
   const [detailUser, setDetailUser] = useState(null);
-
-  // Filtros
   const [searchTerm, setSearchTerm] = useState('');
   const [rankingMetric, setRankingMetric] = useState('hours');
-  const [rankingLimit, setRankingLimit] = useState(10);
-  const [selectedFeedUid, setSelectedFeedUid] = useState('all');
+  const [rankingLimit] = useState(10);
+  const [selectedFeedUid] = useState('all');
+  const [selectedExecutiveMetric, setSelectedExecutiveMetric] = useState(null);
+  const [segmentDrilldown, setSegmentDrilldown] = useState(null);
+  const [activeSavedSegmentId, setActiveSavedSegmentId] = useState('filtered-base');
+  const [broadcastDraft, setBroadcastDraft] = useState(null);
+  const [globalFilters, setGlobalFilters] = useState({
+    windowDays: 30,
+    contextType: 'all',
+    userProfile: 'all',
+    templateId: 'all',
+    accuracyBand: 'all',
+  });
 
-  // Cache
-  const [cicloNameByKey, setCicloNameByKey] = useState(new Map());
+  const analyticsFilters = useMemo(() => {
+    const now = Date.now();
+    const from = new Date(now - (globalFilters.windowDays * 24 * 60 * 60 * 1000));
+    return {
+      createdFrom: from,
+      recordFrom: from,
+      windowDays: globalFilters.windowDays,
+      contextType: globalFilters.contextType,
+      userProfile: globalFilters.userProfile,
+      templateId: globalFilters.templateId,
+      accuracyBand: globalFilters.accuracyBand,
+    };
+  }, [globalFilters]);
 
-  // --- DATA FETCHING ---
-  useEffect(() => {
-    const q = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
-    return onSnapshot(q, (snap) => {
-      setUsers(snap.docs.map(doc => ({ id: doc.id, ...doc.data(), createdAt: doc.data().createdAt?.toDate ? doc.data().createdAt.toDate() : new Date() })));
-      setLoading(false);
+  const {
+    loading,
+    users,
+    studyRecords,
+    cicloNameByKey,
+    getUser,
+    dashboardData,
+    rankingList,
+    feedList,
+    studyingNowSessions,
+    filterOptions,
+  } = useAdminAnalytics({
+    filters: analyticsFilters,
+    rankingMetric,
+    rankingLimit,
+    selectedFeedUid,
+  });
+
+  const savedSegments = useMemo(
+    () => buildSavedSegments({ dashboardData, filters: globalFilters }),
+    [dashboardData, globalFilters],
+  );
+
+  const activeSavedSegment = useMemo(
+    () => savedSegments.find((segment) => segment.id === activeSavedSegmentId) || savedSegments[0] || null,
+    [activeSavedSegmentId, savedSegments],
+  );
+
+  const visibleExpandedUsers = useMemo(() => {
+    const sourceRows = activeSavedSegment?.rows || dashboardData?.enrichedUsers || [];
+    return sourceRows.filter((user) => user.name?.toLowerCase().includes(searchTerm.toLowerCase()));
+  }, [activeSavedSegment, dashboardData, searchTerm]);
+
+  const updateGlobalFilter = (key, value) => {
+    setGlobalFilters((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const resetGlobalFilters = () => {
+    setGlobalFilters({
+      windowDays: 30,
+      contextType: 'all',
+      userProfile: 'all',
+      templateId: 'all',
+      accuracyBand: 'all',
     });
-  }, []);
+  };
 
-  useEffect(() => {
-    const q = query(collectionGroup(db, 'registrosEstudo'), orderBy('timestamp', 'desc'), limit(1000));
-    return onSnapshot(q, (snap) => setStudyRecords(snap.docs.map(doc => ({ id: doc.id, uid: doc.data().uid || doc.ref.path.split('/')[1], ...doc.data(), timestamp: doc.data().timestamp?.toDate?.() || new Date() }))));
-  }, []);
+  const executiveMetricCards = useMemo(() => {
+    const executive = dashboardData?.executive || {};
 
-  useEffect(() => {
-    const q = query(collection(db, 'active_timers'), orderBy('updatedAt', 'desc'), limit(160));
-    return onSnapshot(q, (snap) => {
-        const nowAt = Date.now();
-        const nowPerf = (typeof performance !== 'undefined' && performance.now) ? performance.now() : null;
-        setActiveSessions(snap.docs.map(d => ({
-            id: d.id, uid: d.data().uid || d.id, ...d.data(),
-            updatedAt: d.data().updatedAt?.toDate?.() || new Date(),
-            displaySecondsSnapshot: Number(d.data().displaySecondsSnapshot ?? d.data().seconds ?? 0),
-            _receivedAt: nowAt, _receivedPerf: typeof nowPerf === 'number' ? nowPerf : undefined
-        })));
-    });
-  }, []);
+    return [
+      {
+        id: 'totalUsers',
+        title: 'Usuarios Totais',
+        value: executive.totalUsers?.value || 0,
+        subValue: executive.totalUsers?.subtext || 'Base total',
+        trend: executive.totalUsers?.delta,
+        accent: 'zinc',
+        icon: Users,
+        drilldownLabel: 'Abrir base completa',
+      },
+      {
+        id: 'newUsers7d',
+        title: 'Novos 7d',
+        value: executive.newUsers7d?.value || 0,
+        subValue: executive.newUsers7d?.subtext || 'Entradas recentes',
+        trend: executive.newUsers7d?.delta,
+        accent: 'emerald',
+        icon: UserPlus,
+        drilldownLabel: 'Abrir cohort recente',
+      },
+      {
+        id: 'dau',
+        title: 'DAU',
+        value: executive.dau?.value || 0,
+        subValue: executive.dau?.subtext || 'Ativos do dia',
+        trend: executive.dau?.delta,
+        accent: 'red',
+        icon: Radio,
+        drilldownLabel: 'Abrir ativos 24h',
+      },
+      {
+        id: 'wau',
+        title: 'WAU',
+        value: executive.wau?.value || 0,
+        subValue: executive.wau?.subtext || 'Ativos da semana',
+        trend: executive.wau?.delta,
+        accent: 'amber',
+        icon: CalendarDays,
+        drilldownLabel: 'Abrir ativos 7d',
+      },
+      {
+        id: 'mau',
+        title: 'MAU',
+        value: executive.mau?.value || 0,
+        subValue: executive.mau?.subtext || 'Ativos do mes',
+        trend: executive.mau?.delta,
+        accent: 'zinc',
+        icon: Activity,
+        drilldownLabel: 'Abrir ativos 30d',
+      },
+      {
+        id: 'stickiness',
+        title: 'Stickiness',
+        value: executive.stickiness?.value || 0,
+        valueSuffix: '%',
+        subValue: executive.stickiness?.subtext || 'DAU / MAU',
+        trend: executive.stickiness?.delta,
+        accent: 'red',
+        icon: Flame,
+        drilldownLabel: 'Abrir composicao',
+      },
+      {
+        id: 'activation24h',
+        title: 'Ativacao 24h',
+        value: executive.activation24h?.value || 0,
+        valueSuffix: '%',
+        subValue: executive.activation24h?.subtext || 'Primeiro valor percebido',
+        trend: executive.activation24h?.delta,
+        accent: 'emerald',
+        icon: Zap,
+        drilldownLabel: 'Abrir cohort ativada',
+      },
+      {
+        id: 'risk7d',
+        title: 'Risco 7d',
+        value: executive.risk7d?.value || 0,
+        subValue: executive.risk7d?.subtext || 'Risco inicial',
+        trend: executive.risk7d?.delta,
+        accent: 'amber',
+        icon: ShieldAlert,
+        drilldownLabel: 'Abrir usuarios em risco',
+      },
+      {
+        id: 'risk14d',
+        title: 'Risco 14d',
+        value: executive.risk14d?.value || 0,
+        subValue: executive.risk14d?.subtext || 'Risco moderado',
+        trend: executive.risk14d?.delta,
+        accent: 'amber',
+        icon: ShieldAlert,
+        drilldownLabel: 'Abrir usuarios em risco',
+      },
+      {
+        id: 'risk30d',
+        title: 'Risco 30d',
+        value: executive.risk30d?.value || 0,
+        subValue: executive.risk30d?.subtext || 'Risco critico',
+        trend: executive.risk30d?.delta,
+        accent: 'red',
+        icon: ShieldAlert,
+        drilldownLabel: 'Abrir usuarios em risco',
+      },
+    ];
+  }, [dashboardData]);
 
-  useEffect(() => {
-    const q = query(collectionGroup(db, 'ciclos'), limit(800));
-    return onSnapshot(q, (snap) => {
-      const next = new Map();
-      snap.docs.forEach(docu => {
-        const parts = docu.ref.path.split('/');
-        if (parts[1] && parts[3] && (docu.data().nome || docu.data().titulo)) next.set(`${parts[1]}_${parts[3]}`, docu.data().nome || docu.data().titulo);
-      });
-      setCicloNameByKey(next);
-    });
-  }, []);
+  const executiveDrilldown = useMemo(() => {
+    if (!selectedExecutiveMetric) return null;
 
-  const getUser = (uid) => users.find(u => u.id === uid) || { id: uid, name: 'Usuário', email: '...', createdAt: new Date() };
+    const executive = dashboardData?.executive || {};
+    const metric = executive[selectedExecutiveMetric];
+    if (!metric) return null;
 
-  // --- DATA PROCESSING ---
-  const dashboardData = useMemo(() => {
-    const now = new Date();
-    const statsByUid = new Map();
-    const active7Days = new Set();
-    const active24Hours = new Set();
+    const usersById = new Map((dashboardData.enrichedUsers || []).map((user) => [user.id, user]));
+    const rows = (metric.userIds || []).map((uid) => usersById.get(uid)).filter(Boolean);
 
-    studyRecords.forEach(reg => {
-      if (!reg.uid) return;
-      const cur = statsByUid.get(reg.uid) || { minutes: 0, questions: 0, correct: 0 };
-      cur.minutes += Number(reg.tempoEstudadoMinutos || reg.duracaoMinutos || 0);
-      cur.questions += Number(reg.questoesFeitas || 0);
-      cur.correct += Number(reg.acertos || 0);
-      statsByUid.set(reg.uid, cur);
-
-      if ((now - reg.timestamp) < 604800000) active7Days.add(reg.uid);
-      if ((now - reg.timestamp) < 86400000) active24Hours.add(reg.uid);
-    });
-
-    const enrichedUsers = users.map(u => {
-      const stats = statsByUid.get(u.id) || { minutes: 0, questions: 0, correct: 0 };
-      const userRecs = studyRecords.filter(r => r.uid === u.id);
-      const lastStudy = userRecs.length > 0 ? userRecs[0].timestamp : null;
-
-      let status = 'inactive';
-      if (lastStudy && (now - lastStudy) < 604800000) status = 'active';
-      else if (lastStudy) status = 'churn_risk';
-
-      return { ...u, totalHours: Math.round(stats.minutes / 60), lastStudy, status, totalQuestions: stats.questions };
-    }).sort((a, b) => (b.lastStudy || 0) - (a.lastStudy || 0));
+    const titles = {
+      totalUsers: 'Base Completa',
+      newUsers7d: 'Novos Usuarios nos Ultimos 7 Dias',
+      dau: 'Usuarios Ativos nas Ultimas 24h',
+      wau: 'Usuarios Ativos nos Ultimos 7 Dias',
+      mau: 'Usuarios Ativos nos Ultimos 30 Dias',
+      stickiness: 'Composicao DAU x MAU',
+      activation24h: 'Usuarios Ativados em Ate 24h',
+      risk7d: 'Usuarios em Risco 7d',
+      risk14d: 'Usuarios em Risco 14d',
+      risk30d: 'Usuarios em Risco 30d',
+    };
 
     return {
-      totalUsers: users.length,
-      newUsers24h: users.filter(u => (new Date() - u.createdAt) < 86400000).length,
-      active7d: active7Days.size,
-      active24h: active24Hours.size,
-      enrichedUsers,
+      title: titles[selectedExecutiveMetric] || 'Drill-down Executivo',
+      metric,
+      rows,
     };
-  }, [users, studyRecords]);
+  }, [dashboardData, selectedExecutiveMetric]);
 
-  const rankingList = useMemo(() => {
-    const arr = [...dashboardData.enrichedUsers];
-    if (rankingMetric === 'hours') arr.sort((a, b) => b.totalHours - a.totalHours);
-    else arr.sort((a, b) => b.totalQuestions - a.totalQuestions);
-    return arr.slice(0, rankingLimit);
-  }, [dashboardData.enrichedUsers, rankingMetric, rankingLimit]);
+  const openDisciplineDrilldown = (segment) => {
+    if (!segment?.disciplina) return;
+    const rows = (studyRecords || []).filter((record) => (record.disciplinaNome || record.disciplina || 'Nao informado') === segment.disciplina);
+    setSegmentDrilldown({
+      title: `Disciplina: ${segment.disciplina}`,
+      subtitle: `${segment.hours || 0}h e ${segment.questions || 0} questoes`,
+      rows,
+      kind: 'records',
+    });
+  };
 
-  const feedList = useMemo(() => {
-    const base = studyRecords;
-    if (selectedFeedUid === 'all') return base.slice(0, 60);
-    return base.filter(r => r.uid === selectedFeedUid).slice(0, 200);
-  }, [studyRecords, selectedFeedUid]);
+  const openAccuracyDrilldown = (segment) => {
+    if (!segment?.range) return;
+    const rows = (studyRecords || []).filter((record) => {
+      const questions = Number(record.questoesFeitas || 0);
+      const correct = Number(record.acertos || 0);
+      if (questions <= 0) return segment.range === 'Sem questoes';
+      const accuracy = Math.round((correct / questions) * 100);
+      if (segment.range === '0-20%') return accuracy <= 20;
+      if (segment.range === '21-40%') return accuracy >= 21 && accuracy <= 40;
+      if (segment.range === '41-60%') return accuracy >= 41 && accuracy <= 60;
+      if (segment.range === '61-80%') return accuracy >= 61 && accuracy <= 80;
+      return accuracy >= 81;
+    });
+    setSegmentDrilldown({
+      title: `Precisao: ${segment.range}`,
+      subtitle: `${segment.count || rows.length} registros`,
+      rows,
+      kind: 'records',
+    });
+  };
 
-  const activeSessionsFresh = useMemo(() => {
-    const TTL = 2 * 60 * 1000;
-    return activeSessions.filter(s => (Date.now() - (toMillisSafe(s.updatedAt) || 0)) <= TTL);
-  }, [activeSessions]);
+  const exportToCSV = (rows = visibleExpandedUsers, fileName = null) => {
+    const segmentSlug = (activeSavedSegment?.label || 'base-filtrada').toLowerCase().replace(/\s+/g, '-');
+    downloadUsersCsv(rows, fileName || `admin-${segmentSlug}.csv`);
+  };
 
-  const studyingNowSessions = useMemo(() => {
-     const rank = (s) => (!s.isPaused && s.phase !== 'rest' ? 0 : !s.isPaused ? 1 : 2);
-     return [...activeSessionsFresh].sort((a, b) => rank(a) - rank(b));
-  }, [activeSessionsFresh]);
+  const openSavedSegment = (segment) => {
+    setActiveSavedSegmentId(segment.id);
+    setExpandedView('users');
+  };
 
-  const exportToCSV = () => {
-      const csv = "Nome,Email,Horas,Questões\n" + dashboardData.enrichedUsers.map(e => `${e.name},${e.email},${e.totalHours},${e.totalQuestions}`).join("\n");
-      const link = document.createElement("a");
-      link.href = encodeURI("data:text/csv;charset=utf-8," + csv);
-      link.download = "alunos.csv";
-      link.click();
+  const prepareSegmentBroadcast = (segment) => {
+    setActiveSavedSegmentId(segment.id);
+    setBroadcastDraft({
+      key: Date.now(),
+      segment: buildBroadcastDraftFromSegment(segment),
+    });
+  };
+
+  const openExecutivePdfExport = () => {
+    const payload = buildExecutivePdfPayload({
+      dashboardData,
+      filters: globalFilters,
+      segment: activeSavedSegment,
+    });
+    openExecutivePdfWindow(payload);
   };
 
   const handleDeleteUser = async (uid) => {
-    if (window.confirm("Apagar usuário e dados?")) await deleteDoc(doc(db, 'users', uid));
+    if (window.confirm('Apagar usuario e dados?')) {
+      await deleteDoc(doc(db, 'users', uid));
+    }
   };
 
-  const handleOpenEditaisManager = () => {
-      setShowEditaisModal(true);
-  };
-
-  // --- FUNÇÃO "BALA DE PRATA" (Recálculo Global) ---
   const handleRecalculateAllUsersStats = async () => {
     try {
-      console.log("Iniciando recálculo global...");
-      // 1. Pegar todos os usuários
       const usersSnapshot = await getDocs(collection(db, 'users'));
-
       let processedCount = 0;
 
-      // 2. Iterar sobre cada usuário
       for (const userDoc of usersSnapshot.docs) {
         const uid = userDoc.id;
-
-        // 3. Pegar todos os registros de estudo desse usuário
         const studyQuery = query(collection(db, 'users', uid, 'registrosEstudo'));
         const studySnapshot = await getDocs(studyQuery);
 
@@ -303,270 +580,425 @@ function AdminPage() {
         let totalQ = 0;
         let totalC = 0;
 
-        studySnapshot.forEach(doc => {
-          const d = doc.data();
-          totalMin += (Number(d.tempoEstudadoMinutos) || 0);
-          totalQ += (Number(d.questoesFeitas) || 0);
-          totalC += (Number(d.acertos) || 0);
+        studySnapshot.forEach((studyDoc) => {
+          const data = studyDoc.data();
+          totalMin += Number(data.tempoEstudadoMinutos) || 0;
+          totalQ += Number(data.questoesFeitas) || 0;
+          totalC += Number(data.acertos) || 0;
         });
 
-        // 4. Salvar no documento stats/geral
-        const statsRef = doc(db, 'users', uid, 'stats', 'geral');
-        await setDoc(statsRef, {
+        await setDoc(doc(db, 'users', uid, 'stats', 'geral'), {
           totalHorasMinutos: totalMin,
           totalQuestoes: totalQ,
           totalAcertos: totalC,
-          lastUpdated: Timestamp.now()
+          lastUpdated: Timestamp.now(),
         });
 
-        processedCount++;
-        console.log(`Usuário ${uid} processado. (${processedCount}/${usersSnapshot.size})`);
+        processedCount += 1;
       }
 
-      alert(`Sucesso! ${processedCount} usuários recalibrados.`);
+      alert(`Sucesso! ${processedCount} usuarios recalibrados.`);
     } catch (error) {
-      console.error("Erro fatal no recálculo:", error);
-      alert("Erro ao recalcular estatísticas. Veja o console.");
+      console.error('Erro fatal no recalculo:', error);
+      alert('Erro ao recalcular estatisticas. Veja o console.');
     }
   };
 
   return (
     <>
-      <style dangerouslySetInnerHTML={{__html: `
+      <style dangerouslySetInnerHTML={{ __html: `
         .live-monitor-scroll::-webkit-scrollbar { width: 8px; }
         .live-monitor-scroll::-webkit-scrollbar-track { background: transparent; }
         .live-monitor-scroll::-webkit-scrollbar-thumb { background: #a1a1aa; border-radius: 4px; }
         .live-monitor-scroll::-webkit-scrollbar-thumb:hover { background: #71717a; }
         .dark .live-monitor-scroll::-webkit-scrollbar-thumb { background: #3f3f46; }
         .dark .live-monitor-scroll::-webkit-scrollbar-thumb:hover { background: #52525b; }
-      `}} />
+      ` }}
+      />
 
       <div className="w-full pb-20 animate-slide-up space-y-8 max-w-[1600px] mx-auto px-4 sm:px-6 pt-10">
-
         <AnimatePresence>
-            {showEditaisModal && (
-                <EditaisManagerModal
-                    isOpen={showEditaisModal}
-                    onClose={() => setShowEditaisModal(false)}
-                />
-            )}
+          {showEditaisModal && (
+            <EditaisManagerModal
+              isOpen={showEditaisModal}
+              onClose={() => setShowEditaisModal(false)}
+            />
+          )}
         </AnimatePresence>
 
-        <UserDetailModal isOpen={!!detailUser} onClose={() => setDetailUser(null)} user={detailUser} records={studyRecords} />
-
-        <ExpandedModal isOpen={!!expandedView} onClose={() => setExpandedView(null)} title={expandedView === 'users' ? "Base de Alunos" : "Feed Completo"}>
-          <div className="space-y-6">
-              <div className="flex justify-between items-center sticky top-0 bg-white dark:bg-zinc-950 z-20 py-2">
-                  <div className="flex items-center gap-3 bg-zinc-100 dark:bg-zinc-900 p-2.5 rounded-2xl w-96 border border-zinc-200 dark:border-zinc-800">
-                      <Search size={18} className="text-zinc-400"/>
-                      <input className="bg-transparent outline-none w-full text-sm font-medium text-zinc-900 dark:text-white placeholder:text-zinc-500" placeholder="Buscar aluno..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}/>
-                  </div>
-                  {expandedView === 'users' && (
-                      <button onClick={exportToCSV} className="flex items-center gap-2 px-5 py-2.5 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-xl font-bold text-xs hover:opacity-90 transition-opacity">
-                          <FileSpreadsheet size={16}/> Exportar CSV
-                      </button>
-                  )}
+        <ExpandedModal
+          isOpen={!!executiveDrilldown}
+          onClose={() => setSelectedExecutiveMetric(null)}
+          title={executiveDrilldown?.title || 'Drill-down Executivo'}
+        >
+          <div className="space-y-5">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="rounded-3xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-5">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-400 mb-2">Valor</p>
+                <p className="text-3xl font-black tracking-tight text-zinc-900 dark:text-white">{executiveDrilldown?.metric?.value ?? 0}</p>
               </div>
-              {expandedView === 'users' ? (
-                  <div className="grid grid-cols-1 gap-2">
-                      <div className="grid grid-cols-12 gap-4 px-4 py-2 bg-zinc-50 dark:bg-zinc-900/50 rounded-lg text-xs font-bold uppercase text-zinc-400 tracking-wider">
-                          <div className="col-span-4">Aluno</div>
-                          <div className="col-span-4">Email</div>
-                          <div className="col-span-2 text-center">Horas</div>
-                          <div className="col-span-2 text-right">Ação</div>
-                      </div>
-                      {dashboardData.enrichedUsers.filter(u => u.name?.toLowerCase().includes(searchTerm.toLowerCase())).map(u => (
-                          <div key={u.id} className="grid grid-cols-12 gap-4 items-center p-3 rounded-2xl hover:bg-zinc-50 dark:hover:bg-zinc-900 border border-transparent hover:border-zinc-200 dark:hover:border-zinc-800 transition-all cursor-pointer group" onClick={() => setDetailUser(u)}>
-                              <div className="col-span-4 flex items-center gap-3">
-                                  <Avatar user={u} size="sm" />
-                                  <span className="font-bold text-zinc-900 dark:text-white">{u.name}</span>
-                              </div>
-                              <div className="col-span-4 text-sm text-zinc-500">{u.email}</div>
-                              <div className="col-span-2 text-center"><span className="px-2 py-1 rounded bg-zinc-100 dark:bg-zinc-800 font-bold text-xs text-zinc-700 dark:text-zinc-300">{u.totalHours}h</span></div>
-                              <div className="col-span-2 text-right">
-                                  <button onClick={(e) => { e.stopPropagation(); handleDeleteUser(u.id); }} className="p-2 text-zinc-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg opacity-0 group-hover:opacity-100 transition-all"><Trash2 size={16}/></button>
-                              </div>
-                          </div>
-                      ))}
-                  </div>
-              ) : (
-                  <div className="space-y-2">
-                      {feedList.map(r => (
-                          <div key={r.id} className="p-4 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 flex justify-between items-center">
-                              <div className="flex items-center gap-3">
-                                  <Avatar user={getUser(r.uid)} size="sm" />
-                                  <div>
-                                      <p className="font-bold text-sm text-zinc-900 dark:text-white">{getUser(r.uid).name}</p>
-                                      <p className="text-xs text-zinc-500">{r.disciplinaNome} • {r.assunto || 'Geral'}</p>
-                                  </div>
-                              </div>
-                              <span className="text-xs font-medium text-zinc-400">{formatTimeAgo(r.timestamp)}</span>
-                          </div>
-                      ))}
-                  </div>
-              )}
+              <div className="rounded-3xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-5">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-400 mb-2">Variacao</p>
+                <p className="text-3xl font-black tracking-tight text-zinc-900 dark:text-white">{formatDelta(executiveDrilldown?.metric?.delta) || '0%'}</p>
+              </div>
+              <div className="rounded-3xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-5">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-400 mb-2">Contexto</p>
+                <p className="text-sm font-semibold text-zinc-600 dark:text-zinc-300 leading-relaxed">
+                  {executiveDrilldown?.metric?.subtext || 'Sem detalhe adicional para esta janela.'}
+                </p>
+              </div>
+            </div>
+
+            {executiveDrilldown?.rows?.length ? (
+              <div className="grid grid-cols-1 gap-2">
+                {executiveDrilldown.rows.map((user) => (
+                  <button
+                    key={user.id}
+                    onClick={() => setDetailUser(user)}
+                    className="w-full flex items-center gap-3 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 hover:border-red-200 dark:hover:border-red-900/30 transition-colors text-left"
+                  >
+                    <Avatar user={user} size="sm" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-zinc-900 dark:text-white truncate">{user.name}</p>
+                      <p className="text-[11px] font-medium text-zinc-500 truncate">{user.email}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">Ultimo estudo</p>
+                      <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">{formatTimeAgo(user.lastStudy)}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-3xl border border-dashed border-zinc-200 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-900/30 p-6">
+                <p className="text-sm font-semibold text-zinc-600 dark:text-zinc-300">
+                  Este KPI ja abre em modo executivo. A estrutura de drill-down esta pronta para aprofundar essa visao sem poluir o topo da pagina.
+                </p>
+              </div>
+            )}
           </div>
         </ExpandedModal>
 
-        {/* --- HEADER DE BOAS VINDAS + BOTÃO SECRETO --- */}
+        <UserDetailModal isOpen={!!detailUser} onClose={() => setDetailUser(null)} user={detailUser} records={studyRecords} />
+
+        <ExpandedModal isOpen={!!segmentDrilldown} onClose={() => setSegmentDrilldown(null)} title={segmentDrilldown?.title || 'Drill-down'}>
+          <div className="space-y-5">
+            <div className="rounded-3xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-5">
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-400 mb-2">Resumo</p>
+              <p className="text-sm font-semibold text-zinc-600 dark:text-zinc-300">{segmentDrilldown?.subtitle || 'Sem resumo adicional.'}</p>
+            </div>
+            <div className="space-y-2">
+              {(segmentDrilldown?.rows || []).map((record) => {
+                const user = getUser(record.uid);
+                return (
+                  <button key={record.id} onClick={() => setDetailUser(user)} className="w-full text-left p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 hover:border-red-200 dark:hover:border-red-900/30 transition-colors">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <Avatar user={user} size="sm" />
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-zinc-900 dark:text-white truncate">{user.name}</p>
+                          <p className="text-[11px] font-medium text-zinc-500 truncate">
+                            {(record.disciplinaNome || record.disciplina || 'Geral')} • {record.assunto || 'Sem assunto'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">{formatTimeAgo(record.timestamp)}</p>
+                        <p className="text-xs font-semibold text-zinc-600 dark:text-zinc-300">
+                          {formatHMFromMinutes(record.tempoEstudadoMinutos || record.duracaoMinutos || 0)}
+                          {Number(record.questoesFeitas || 0) > 0 ? ` • ${record.questoesFeitas}q` : ''}
+                        </p>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </ExpandedModal>
+
+        <ExpandedModal isOpen={!!expandedView} onClose={() => setExpandedView(null)} title={expandedView === 'users' ? 'Base de Alunos' : 'Feed Completo'}>
+          <div className="space-y-6">
+            <div className="flex justify-between items-center sticky top-0 bg-white dark:bg-zinc-950 z-20 py-2">
+              <div className="flex items-center gap-3 bg-zinc-100 dark:bg-zinc-900 p-2.5 rounded-2xl w-96 border border-zinc-200 dark:border-zinc-800">
+                <Search size={18} className="text-zinc-400" />
+                <input className="bg-transparent outline-none w-full text-sm font-medium text-zinc-900 dark:text-white placeholder:text-zinc-500" placeholder="Buscar aluno..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+              </div>
+              {expandedView === 'users' && (
+                <button onClick={exportToCSV} className="flex items-center gap-2 px-5 py-2.5 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-xl font-bold text-xs hover:opacity-90 transition-opacity">
+                  <FileSpreadsheet size={16} /> Exportar CSV
+                </button>
+              )}
+            </div>
+
+            {expandedView === 'users' && activeSavedSegment ? (
+              <div className="rounded-3xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-900/30 p-4">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-400 mb-1">Segmento atual</p>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-bold text-zinc-900 dark:text-white">{activeSavedSegment.label}</p>
+                    <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">{activeSavedSegment.subtitle}</p>
+                  </div>
+                  <button onClick={() => prepareSegmentBroadcast(activeSavedSegment)} className="px-4 py-2 rounded-2xl border border-zinc-200 dark:border-zinc-800 text-[11px] font-black uppercase tracking-[0.16em] text-zinc-600 dark:text-zinc-300 hover:text-red-600 transition-colors">
+                    Enviar para Broadcast
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            {expandedView === 'users' ? (
+              <div className="grid grid-cols-1 gap-2">
+                <div className="grid grid-cols-12 gap-4 px-4 py-2 bg-zinc-50 dark:bg-zinc-900/50 rounded-lg text-xs font-bold uppercase text-zinc-400 tracking-wider">
+                  <div className="col-span-4">Aluno</div>
+                  <div className="col-span-4">Email</div>
+                  <div className="col-span-2 text-center">Horas</div>
+                  <div className="col-span-2 text-right">Acao</div>
+                </div>
+                {visibleExpandedUsers.map((user) => (
+                  <div key={user.id} className="grid grid-cols-12 gap-4 items-center p-3 rounded-2xl hover:bg-zinc-50 dark:hover:bg-zinc-900 border border-transparent hover:border-zinc-200 dark:hover:border-zinc-800 transition-all cursor-pointer group" onClick={() => setDetailUser(user)}>
+                    <div className="col-span-4 flex items-center gap-3">
+                      <Avatar user={user} size="sm" />
+                      <span className="font-bold text-zinc-900 dark:text-white">{user.name}</span>
+                    </div>
+                    <div className="col-span-4 text-sm text-zinc-500">{user.email}</div>
+                    <div className="col-span-2 text-center"><span className="px-2 py-1 rounded bg-zinc-100 dark:bg-zinc-800 font-bold text-xs text-zinc-700 dark:text-zinc-300">{user.totalHours}h</span></div>
+                    <div className="col-span-2 text-right">
+                      <button onClick={(e) => { e.stopPropagation(); handleDeleteUser(user.id); }} className="p-2 text-zinc-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg opacity-0 group-hover:opacity-100 transition-all">
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {feedList.map((record) => (
+                  <div key={record.id} className="p-4 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                      <Avatar user={getUser(record.uid)} size="sm" />
+                      <div>
+                        <p className="font-bold text-sm text-zinc-900 dark:text-white">{getUser(record.uid).name}</p>
+                        <p className="text-xs text-zinc-500">{record.disciplinaNome} • {record.assunto || 'Geral'}</p>
+                      </div>
+                    </div>
+                    <span className="text-xs font-medium text-zinc-400">{formatTimeAgo(record.timestamp)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </ExpandedModal>
+
         <HeaderAdmin
-            newUsersCount={dashboardData.newUsers24h}
-            onRecalculateStats={handleRecalculateAllUsersStats} // <--- Passando a função Bala de Prata
+          newUsersCount={dashboardData.newUsers24h}
+          onRecalculateStats={handleRecalculateAllUsersStats}
+          broadcastDraft={broadcastDraft}
         />
 
         {loading ? (
           <div className="flex flex-col items-center justify-center py-32 space-y-4">
-              <Loader2 size={48} className="animate-spin text-red-600"/>
-              <p className="text-zinc-400 font-medium animate-pulse">Sincronizando QG...</p>
+            <Loader2 size={48} className="animate-spin text-red-600" />
+            <p className="text-zinc-400 font-medium animate-pulse">Sincronizando QG...</p>
           </div>
         ) : (
           <div className="space-y-6">
+            <FilterBar
+              filters={globalFilters}
+              options={filterOptions || {}}
+              onChange={updateGlobalFilter}
+              onReset={resetGlobalFilters}
+            />
 
-            {/* --- [LINHA 1] KPIs e Ações --- */}
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-              <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <KpiCard color="zinc" icon={Users} title="Total Alunos" value={dashboardData.totalUsers} subValue="Cadastrados" trend={Math.round((dashboardData.newUsers24h / dashboardData.totalUsers) * 100)} />
-                  <KpiCard color="emerald" icon={Target} title="Engajados (7d)" value={dashboardData.active7d} subValue="Estudaram essa semana" />
-                  <KpiCard color="amber" icon={Radio} title="Online (24h)" value={dashboardData.active24h} subValue="Plantão Ativo" />
+            <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-6 items-start">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {savedSegments.map((segment) => (
+                  <SegmentCard
+                    key={segment.id}
+                    segment={segment}
+                    isActive={activeSavedSegmentId === segment.id}
+                    onOpen={() => openSavedSegment(segment)}
+                    onExport={() => exportToCSV(segment.rows, `admin-${segment.id}.csv`)}
+                    onBroadcast={() => prepareSegmentBroadcast(segment)}
+                  />
+                ))}
               </div>
 
-              {/* Card de Gerenciar Editais */}
-              <div
-                onClick={handleOpenEditaisManager}
-                className="bg-zinc-900 text-white rounded-3xl p-6 flex flex-col justify-between cursor-pointer group shadow-xl shadow-zinc-900/20 hover:scale-[1.02] transition-all relative overflow-hidden h-full min-h-[140px]"
-              >
-                  <div className="relative z-10">
-                      <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center mb-3 backdrop-blur-sm">
-                          <Server size={20} className="text-red-500" />
-                      </div>
-                      <h3 className="text-xl font-black uppercase leading-tight">Gerenciar<br/>Editais</h3>
-                  </div>
-                  <div className="relative z-10 flex justify-between items-end">
-                      <p className="text-xs text-zinc-400 font-medium">Templates & Seeds</p>
-                      <ChevronRight className="opacity-50 group-hover:translate-x-1 transition-transform" />
-                  </div>
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-red-600/20 blur-3xl rounded-full -mr-10 -mt-10 pointer-events-none"></div>
+              <div className="rounded-[28px] border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-5 shadow-sm">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-400 mb-2">Exportacao executiva</p>
+                <h3 className="text-xl font-black tracking-tight text-zinc-900 dark:text-white">PDF pronto para operacao</h3>
+                <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400 mt-3 leading-relaxed">
+                  Gera uma visao imprimivel do recorte atual com KPIs, filtros aplicados e top usuarios do segmento selecionado.
+                </p>
+                <div className="mt-4 rounded-2xl border border-red-100 dark:border-red-900/30 bg-red-50/70 dark:bg-red-950/20 p-4">
+                  <p className="text-xs font-bold text-red-700 dark:text-red-300">{activeSavedSegment?.label || 'Base filtrada'}</p>
+                  <p className="text-[11px] font-semibold text-red-600/80 dark:text-red-300/80 mt-1">{activeSavedSegment?.count || 0} usuarios na audiencia atual</p>
+                </div>
+                <div className="mt-4 flex flex-col gap-2">
+                  <button onClick={openExecutivePdfExport} className="w-full flex items-center justify-center gap-2 rounded-2xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 px-4 py-3 text-sm font-black uppercase tracking-[0.16em]">
+                    <FileText size={16} /> Abrir PDF Executivo
+                  </button>
+                  <button onClick={() => activeSavedSegment && prepareSegmentBroadcast(activeSavedSegment)} className="w-full flex items-center justify-center gap-2 rounded-2xl border border-zinc-200 dark:border-zinc-800 px-4 py-3 text-sm font-black uppercase tracking-[0.16em] text-zinc-600 dark:text-zinc-300 hover:text-red-600 transition-colors">
+                    <Send size={16} /> Preparar Broadcast
+                  </button>
+                </div>
               </div>
             </div>
 
-            {/* --- [LINHA 2] Live Monitor --- */}
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
+              <div className="lg:col-span-3 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
+                {executiveMetricCards.map((metric) => (
+                  <KpiCard
+                    key={metric.id}
+                    accent={metric.accent}
+                    icon={metric.icon}
+                    title={metric.title}
+                    value={metric.value}
+                    valueSuffix={metric.valueSuffix}
+                    subValue={metric.subValue}
+                    trend={metric.trend}
+                    drilldownLabel={metric.drilldownLabel}
+                    onClick={() => setSelectedExecutiveMetric(metric.id)}
+                  />
+                ))}
+              </div>
+
+              <div onClick={() => setShowEditaisModal(true)} className="bg-zinc-900 text-white rounded-3xl p-6 flex flex-col justify-between cursor-pointer group shadow-xl shadow-zinc-900/20 hover:scale-[1.02] transition-all relative overflow-hidden h-full min-h-[260px]">
+                <div className="relative z-10">
+                  <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center mb-3 backdrop-blur-sm">
+                    <Server size={20} className="text-red-500" />
+                  </div>
+                  <h3 className="text-xl font-black uppercase leading-tight">Gerenciar<br />Editais</h3>
+                </div>
+                <div className="relative z-10 flex justify-between items-end gap-4">
+                  <p className="text-xs text-zinc-400 font-medium">Templates, seeds e operacao administrativa</p>
+                  <ChevronRight className="opacity-50 group-hover:translate-x-1 transition-transform shrink-0" />
+                </div>
+                <div className="absolute top-0 right-0 w-32 h-32 bg-red-600/20 blur-3xl rounded-full -mr-10 -mt-10 pointer-events-none" />
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-auto lg:h-[600px]">
               <div className="h-full min-h-[600px] lg:min-h-0 flex flex-col">
-                  <StudyingNowPanel
-                      sessions={studyingNowSessions}
-                      getUser={getUser}
-                      cicloNameByKey={cicloNameByKey}
-                      onOpenUser={setDetailUser}
-                  />
+                <StudyingNowPanel
+                  sessions={studyingNowSessions}
+                  getUser={getUser}
+                  cicloNameByKey={cicloNameByKey}
+                  onOpenUser={setDetailUser}
+                />
               </div>
 
               <BentoCard
-                  title="Feed de Guerra"
-                  subtitle="Registro de atividades em tempo real"
-                  icon={Activity}
-                  className="h-full min-h-[600px] lg:min-h-0"
-                  isLive={true}
-                  action={
-                      <button onClick={() => setExpandedView('studies')} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg text-zinc-400 transition-colors">
-                          <Maximize2 size={16}/>
-                      </button>
-                  }
+                title="Feed de Guerra"
+                subtitle="Registro de atividades em tempo real"
+                icon={Activity}
+                className="h-full min-h-[600px] lg:min-h-0"
+                isLive={true}
+                action={(
+                  <button onClick={() => setExpandedView('studies')} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg text-zinc-400 transition-colors">
+                    <Maximize2 size={16} />
+                  </button>
+                )}
               >
-                 <div className="h-full overflow-y-auto px-2 sm:px-5 py-4 live-monitor-scroll">
-                     <div className="space-y-4 pb-4 relative">
-                         <div className="absolute left-[19px] top-0 bottom-0 w-px bg-zinc-200 dark:bg-zinc-800 z-0"></div>
-                         {feedList.map((r, i) => {
-                             const u = getUser(r.uid);
-                             return (
-                                 <div key={r.id} onClick={() => setDetailUser(u)} className="flex gap-4 group cursor-pointer pl-1 relative z-10">
-                                     <div className="mt-1 relative flex-shrink-0">
-                                         <div className={`w-9 h-9 rounded-full border-[3px] border-white dark:border-zinc-950 flex items-center justify-center z-10 relative ${i===0 ? 'bg-red-500 shadow-lg shadow-red-500/30' : 'bg-zinc-200 dark:bg-zinc-800'}`}>
-                                              {i===0 ? <Zap size={14} className="text-white fill-white"/> : <Clock size={14} className="text-zinc-500"/>}
-                                         </div>
-                                     </div>
-                                     <div className="flex-1 bg-white dark:bg-zinc-900 p-3 rounded-2xl border border-zinc-100 dark:border-zinc-800 shadow-sm group-hover:border-red-200 dark:group-hover:border-red-900/30 transition-all">
-                                         <div className="flex justify-between items-start mb-1">
-                                             <div className="flex items-center gap-2">
-                                                 <Avatar user={u} size="sm" className="w-5 h-5 rounded-md" />
-                                                 <p className="text-xs font-bold text-zinc-900 dark:text-white truncate max-w-[100px]">{u.name}</p>
-                                             </div>
-                                             <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wide">{formatTimeAgo(r.timestamp)}</span>
-                                         </div>
-                                         <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400 line-clamp-1 mt-1">
-                                             Estudou <span className="text-red-600 dark:text-red-400 font-bold">{r.disciplinaNome}</span>
-                                         </p>
-                                         <div className="flex items-center gap-2 mt-2">
-                                              <span className="text-[9px] font-black bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded text-zinc-500">{formatHMFromMinutes(r.tempoEstudadoMinutos)}</span>
-                                              {r.questoesFeitas > 0 && <span className="text-[9px] font-black bg-emerald-50 dark:bg-emerald-900/20 px-2 py-0.5 rounded text-emerald-600">{r.questoesFeitas}q</span>}
-                                         </div>
-                                     </div>
-                                 </div>
-                             )
-                         })}
-                     </div>
-                 </div>
+                <div className="h-full overflow-y-auto px-2 sm:px-5 py-4 live-monitor-scroll">
+                  <div className="space-y-4 pb-4 relative">
+                    <div className="absolute left-[19px] top-0 bottom-0 w-px bg-zinc-200 dark:bg-zinc-800 z-0" />
+                    {feedList.map((record, index) => {
+                      const user = getUser(record.uid);
+                      return (
+                        <div key={record.id} onClick={() => setDetailUser(user)} className="flex gap-4 group cursor-pointer pl-1 relative z-10">
+                          <div className="mt-1 relative flex-shrink-0">
+                            <div className={`w-9 h-9 rounded-full border-[3px] border-white dark:border-zinc-950 flex items-center justify-center z-10 relative ${index === 0 ? 'bg-red-500 shadow-lg shadow-red-500/30' : 'bg-zinc-200 dark:bg-zinc-800'}`}>
+                              {index === 0 ? <Zap size={14} className="text-white fill-white" /> : <Clock size={14} className="text-zinc-500" />}
+                            </div>
+                          </div>
+                          <div className="flex-1 bg-white dark:bg-zinc-900 p-3 rounded-2xl border border-zinc-100 dark:border-zinc-800 shadow-sm group-hover:border-red-200 dark:group-hover:border-red-900/30 transition-all">
+                            <div className="flex justify-between items-start mb-1">
+                              <div className="flex items-center gap-2">
+                                <Avatar user={user} size="sm" className="w-5 h-5 rounded-md" />
+                                <p className="text-xs font-bold text-zinc-900 dark:text-white truncate max-w-[100px]">{user.name}</p>
+                              </div>
+                              <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wide">{formatTimeAgo(record.timestamp)}</span>
+                            </div>
+                            <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400 line-clamp-1 mt-1">
+                              Estudou <span className="text-red-600 dark:text-red-400 font-bold">{record.disciplinaNome}</span>
+                            </p>
+                            <div className="flex items-center gap-2 mt-2">
+                              <span className="text-[9px] font-black bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded text-zinc-500">{formatHMFromMinutes(record.tempoEstudadoMinutos)}</span>
+                              {record.questoesFeitas > 0 && <span className="text-[9px] font-black bg-emerald-50 dark:bg-emerald-900/20 px-2 py-0.5 rounded text-emerald-600">{record.questoesFeitas}q</span>}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               </BentoCard>
             </div>
 
-            {/* --- [LINHA 3] Novos Alunos e Ranking --- */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <BentoCard
                 title="Novos Alunos"
                 icon={Users}
                 className="h-[500px]"
-                action={<button onClick={() => setExpandedView('users')} className="text-zinc-400 hover:text-red-500"><MoreHorizontal size={20}/></button>}
+                action={<button onClick={() => openSavedSegment(savedSegments[0] || { id: 'filtered-base' })} className="text-zinc-400 hover:text-red-500"><MoreHorizontal size={20} /></button>}
               >
-                  <div className="h-full overflow-y-auto px-2 sm:px-5 py-4 live-monitor-scroll">
-                      <div className="space-y-2 pb-4">
-                          {users.slice(0, 15).map(u => (
-                              <div key={u.id} onClick={() => setDetailUser(u)} className="flex items-center gap-3 p-3 rounded-2xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 hover:border-red-200 cursor-pointer transition-colors group">
-                                  <Avatar user={u} size="md" />
-                                  <div className="flex-1 min-w-0">
-                                      <p className="text-sm font-bold text-zinc-900 dark:text-white truncate group-hover:text-red-600 transition-colors">{u.name}</p>
-                                      <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wide">{formatTimeAgo(u.createdAt)}</p>
-                                  </div>
-                              </div>
-                          ))}
+                <div className="h-full overflow-y-auto px-2 sm:px-5 py-4 live-monitor-scroll">
+                  <div className="space-y-2 pb-4">
+                    {users.slice(0, 15).map((user) => (
+                      <div key={user.id} onClick={() => setDetailUser(user)} className="flex items-center gap-3 p-3 rounded-2xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 hover:border-red-200 cursor-pointer transition-colors group">
+                        <Avatar user={user} size="md" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-zinc-900 dark:text-white truncate group-hover:text-red-600 transition-colors">{user.name}</p>
+                          <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wide">{formatTimeAgo(user.createdAt)}</p>
+                        </div>
                       </div>
+                    ))}
                   </div>
+                </div>
               </BentoCard>
 
               <div className="lg:col-span-2">
-                  <BentoCard
-                      title="Ranking Global"
-                      subtitle="Melhores desempenhos da plataforma"
-                      icon={Trophy}
-                      className="h-[500px]"
-                      action={
-                          <div className="flex gap-2 p-1 bg-zinc-100 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800">
-                              <button onClick={() => setRankingMetric('hours')} className={`px-3 py-1.5 text-[10px] font-black uppercase rounded-lg transition-all ${rankingMetric==='hours'?'bg-white dark:bg-zinc-800 shadow text-red-600':'text-zinc-400 hover:text-zinc-600'}`}>Horas</button>
-                              <button onClick={() => setRankingMetric('questions')} className={`px-3 py-1.5 text-[10px] font-black uppercase rounded-lg transition-all ${rankingMetric==='questions'?'bg-white dark:bg-zinc-800 shadow text-red-600':'text-zinc-400 hover:text-zinc-600'}`}>Questões</button>
+                <BentoCard
+                  title="Ranking Global"
+                  subtitle="Melhores desempenhos da plataforma"
+                  icon={Trophy}
+                  className="h-[500px]"
+                  action={(
+                    <div className="flex gap-2 p-1 bg-zinc-100 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800">
+                      <button onClick={() => setRankingMetric('hours')} className={`px-3 py-1.5 text-[10px] font-black uppercase rounded-lg transition-all ${rankingMetric === 'hours' ? 'bg-white dark:bg-zinc-800 shadow text-red-600' : 'text-zinc-400 hover:text-zinc-600'}`}>Horas</button>
+                      <button onClick={() => setRankingMetric('questions')} className={`px-3 py-1.5 text-[10px] font-black uppercase rounded-lg transition-all ${rankingMetric === 'questions' ? 'bg-white dark:bg-zinc-800 shadow text-red-600' : 'text-zinc-400 hover:text-zinc-600'}`}>Questoes</button>
+                    </div>
+                  )}
+                >
+                  <div className="h-full overflow-y-auto px-2 sm:px-5 py-4 live-monitor-scroll">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-4">
+                      {rankingList.map((user, index) => (
+                        <div key={user.id} onClick={() => setDetailUser(user)} className="flex items-center gap-4 p-4 rounded-3xl bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-100 dark:border-zinc-800 cursor-pointer hover:border-red-200 dark:hover:border-red-900/50 hover:bg-white dark:hover:bg-zinc-900 transition-all group">
+                          <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-black text-sm flex-shrink-0 ${index < 3 ? 'bg-gradient-to-br from-yellow-400 to-orange-500 text-white shadow-lg shadow-orange-500/20' : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-500'}`}>
+                            {index + 1}
                           </div>
-                      }
-                  >
-                      <div className="h-full overflow-y-auto px-2 sm:px-5 py-4 live-monitor-scroll">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-4">
-                              {rankingList.map((u, i) => (
-                                  <div key={u.id} onClick={() => setDetailUser(u)} className="flex items-center gap-4 p-4 rounded-3xl bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-100 dark:border-zinc-800 cursor-pointer hover:border-red-200 dark:hover:border-red-900/50 hover:bg-white dark:hover:bg-zinc-900 transition-all group">
-                                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-black text-sm flex-shrink-0 ${i < 3 ? 'bg-gradient-to-br from-yellow-400 to-orange-500 text-white shadow-lg shadow-orange-500/20' : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-500'}`}>
-                                          {i+1}
-                                      </div>
-                                      <Avatar user={u} />
-                                      <div className="flex-1 min-w-0">
-                                          <p className="font-bold text-sm text-zinc-900 dark:text-white truncate group-hover:text-red-600 transition-colors">{u.name}</p>
-                                          <div className="flex gap-3 text-[10px] font-bold text-zinc-400 mt-0.5 uppercase tracking-wide">
-                                              <span className={rankingMetric === 'hours' ? 'text-zinc-800 dark:text-zinc-200' : ''}>{u.totalHours}h Estudo</span>
-                                              <span className={rankingMetric === 'questions' ? 'text-zinc-800 dark:text-zinc-200' : ''}>{u.totalQuestions} Questões</span>
-                                          </div>
-                                      </div>
-                                      {i < 3 && <Trophy size={16} className="text-yellow-500 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />}
-                                  </div>
-                              ))}
+                          <Avatar user={user} />
+                          <div className="flex-1 min-w-0">
+                            <p className="font-bold text-sm text-zinc-900 dark:text-white truncate group-hover:text-red-600 transition-colors">{user.name}</p>
+                            <div className="flex gap-3 text-[10px] font-bold text-zinc-400 mt-0.5 uppercase tracking-wide">
+                              <span className={rankingMetric === 'hours' ? 'text-zinc-800 dark:text-zinc-200' : ''}>{user.totalHours}h Estudo</span>
+                              <span className={rankingMetric === 'questions' ? 'text-zinc-800 dark:text-zinc-200' : ''}>{user.totalQuestions} Questoes</span>
+                            </div>
                           </div>
-                      </div>
-                  </BentoCard>
+                          {index < 3 && <Trophy size={16} className="text-yellow-500 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </BentoCard>
               </div>
             </div>
+
+            <AdminAnalyticsSection
+              datasets={dashboardData.datasets}
+              onDisciplineSelect={openDisciplineDrilldown}
+              onAccuracySelect={openAccuracyDrilldown}
+            />
           </div>
         )}
       </div>

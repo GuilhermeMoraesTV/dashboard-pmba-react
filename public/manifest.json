@@ -1,7 +1,7 @@
 {
-  "name": "Dashboard PMBA",
-  "short_name": "PMBA",
-  "description": "Dashboard de Estudos - Polícia Militar da Bahia",
+  "name": "MODOQAP",
+  "short_name": "MODOQAP",
+  "description": "Plataforma de organização de estudos!",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
@@ -9,7 +9,7 @@
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "/logo-pmba.png",
+      "src": "/logoModoQAP.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
@@ -23,7 +23,7 @@
   ],
   "screenshots": [
     {
-      "src": "/logo-pmba.png",
+      "src": "/logoModoQAP.png",
       "sizes": "540x720",
       "type": "image/png",
       "form_factor": "narrow"

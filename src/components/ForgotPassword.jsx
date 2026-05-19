@@ -92,7 +92,7 @@ function ForgotPassword() {
 
           {/* Cabeçalho */}
           <div className="flex justify-center mb-4">
-            <img src="/logo-pmba.png" alt="Logo PMBA" className="h-16 w-auto drop-shadow-2xl" />
+            <img src="/logoModoQAP.png" alt="Logo ModoQAP" className="h-16 w-auto drop-shadow-2xl" />
           </div>
 
           <div className="text-center mb-6">

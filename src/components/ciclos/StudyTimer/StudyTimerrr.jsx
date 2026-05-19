@@ -518,7 +518,7 @@ function StudyTimer({
         title: mainTitle,
         artist: timerLine,
         album: "ModoQAP",
-        artwork: [{ src: '/logo-pmba.png', sizes: '512x512', type: 'image/png' }]
+        artwork: [{ src: '/logoModoQAP.png', sizes: '512x512', type: 'image/png' }]
       });
 
       navigator.mediaSession.playbackState = isRunning ? "playing" : "paused";

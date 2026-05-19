@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 
 // ==================================================================================
-// 🔧 CONFIGURAÇÃO DE LAYOUT (MESMO PADRÃO DO WIZARD)
+// 🔧 CONFIGURAÇÃO DE LAYOUT
 // ==================================================================================
 const MODAL_LAYOUT = {
     mobile: { width: 'w-[95%]', maxHeight: 'max-h-[85vh]', marginTop: 'mt-0', marginBottom: 'mb-0' },
@@ -118,15 +118,6 @@ const CardEdital = ({ dados, unico, idSelecionado, aoDestacar, aoConfirmar, aoCl
                     )}
                 </AnimatePresence>
 
-                {variosCargos ? (
-                    <div className="absolute top-2 right-2 z-20 bg-zinc-900/90 dark:bg-white/90 backdrop-blur-sm text-white dark:text-zinc-900 px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wide shadow-lg border border-white/20 flex items-center gap-1">
-                        <Layers size={9} /> {dados.length}
-                    </div>
-                ) : estaSelecionado && (
-                    <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="absolute top-2 right-2 z-20 bg-gradient-to-r from-amber-400 to-yellow-500 text-white p-1 rounded-full shadow-lg border border-amber-300">
-                        <Sparkles size={10} fill="currentColor" />
-                    </motion.div>
-                )}
             </div>
 
             {/* CONTEÚDO */}
@@ -153,12 +144,15 @@ const CardEdital = ({ dados, unico, idSelecionado, aoDestacar, aoConfirmar, aoCl
                 </div>
 
                 <div className="mt-auto flex flex-col gap-2 pt-2 border-t border-zinc-100 dark:border-zinc-800">
-                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-zinc-500 dark:text-zinc-400">
-                        <div className={`p-1 rounded-md ${estaSelecionado ? 'bg-red-100 dark:bg-red-900/30 text-red-600' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500'} transition-colors`}>
-                            <Layers size={11} strokeWidth={2.5} />
+
+                    {(unico || (variosCargos && estaSelecionado)) && (
+                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-zinc-500 dark:text-zinc-400">
+                            <div className={`p-1 rounded-md ${estaSelecionado ? 'bg-red-100 dark:bg-red-900/30 text-red-600' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500'} transition-colors`}>
+                                <Layers size={11} strokeWidth={2.5} />
+                            </div>
+                            <span>{qtdDisciplinas} Disciplinas</span>
                         </div>
-                        <span>{qtdDisciplinas} Disciplinas</span>
-                    </div>
+                    )}
 
                     {variosCargos && estaSelecionado ? (
                         <div className="flex items-center gap-1.5 w-full">
@@ -261,6 +255,7 @@ const SecaoModelo = ({ chaveCategoria, itens, idSelecionado, aoDestacar, aoConfi
     const label = config?.label || defaultConfig.label;
 
     const carrosselRef = useRef();
+    const contentRef = useRef();
     const [largura, setLargura] = useState(0);
     const [arrastando, setArrastando] = useState(false);
 
@@ -280,7 +275,22 @@ const SecaoModelo = ({ chaveCategoria, itens, idSelecionado, aoDestacar, aoConfi
     }, [itens, chaveCategoria]);
 
     useEffect(() => {
-        if (carrosselRef.current) setLargura(carrosselRef.current.scrollWidth - carrosselRef.current.offsetWidth);
+        const calcularLargura = () => {
+            if (carrosselRef.current && contentRef.current) {
+                const scrollW = contentRef.current.scrollWidth;
+                const offsetW = carrosselRef.current.offsetWidth;
+                setLargura(Math.max(0, scrollW - offsetW));
+            }
+        };
+
+        calcularLargura();
+        const timeout = setTimeout(calcularLargura, 300);
+
+        window.addEventListener('resize', calcularLargura);
+        return () => {
+            clearTimeout(timeout);
+            window.removeEventListener('resize', calcularLargura);
+        };
     }, [gruposDeEditais]);
 
     return (
@@ -303,22 +313,28 @@ const SecaoModelo = ({ chaveCategoria, itens, idSelecionado, aoDestacar, aoConfi
                     {itens.length}
                 </motion.div>
             </div>
+
+            {/* CONTAINER DO ARRASTO (Máscara) */}
             <motion.div ref={carrosselRef} className="cursor-grab active:cursor-grabbing overflow-hidden -mx-3 px-3 py-2" whileTap={{ cursor: "grabbing" }}>
+
+                {/* CONTEÚDO ARRASTÁVEL */}
                 <motion.div
+                    ref={contentRef}
                     drag="x"
                     dragConstraints={{ right: 0, left: -largura }}
-                    dragElastic={0.1}
-                    dragMomentum={true}
+                    dragElastic={0.15}
+                    dragTransition={{ bounceStiffness: 400, bounceDamping: 30 }}
                     onDragStart={() => setArrastando(true)}
                     onDragEnd={() => setTimeout(() => setArrastando(false), 150)}
                     className="flex gap-3 sm:gap-4 w-max pb-3"
                 >
                     {gruposDeEditais.map((grupo, index) => (
-                        <div key={index} className="relative transform transition-transform hover:z-10">
+                        <div key={index} className="relative transform transition-transform hover:z-10" onClickCapture={(e) => { if(arrastando) e.stopPropagation() }}>
                             <CardEdital dados={grupo.length === 1 ? grupo[0] : grupo} unico={grupo.length === 1} idSelecionado={idSelecionado} aoDestacar={aoDestacar} aoConfirmar={aoConfirmar} aoClickCard={aoClickCard} />
                         </div>
                     ))}
                 </motion.div>
+
             </motion.div>
         </motion.div>
     );
@@ -328,12 +344,12 @@ const SecaoModelo = ({ chaveCategoria, itens, idSelecionado, aoDestacar, aoConfi
 // MODAL PRINCIPAL
 // ==================================================================================
 
-const ModalSelecaoEdital = ({ aberto, aoFechar, aoSelecionar, modelos, carregando, configCategorias }) => {
+const ModalSelecaoEdital = ({ aberto, aoFechar, aoSelecionar, modelos, carregando, configCategorias, modoPagina = false }) => {
     const [idSelecionadoLocal, setIdSelecionadoLocal] = useState(null);
     const [termoBusca, setTermoBusca] = useState('');
 
     useEffect(() => {
-        if (aberto) {
+        if (!modoPagina && aberto) {
             document.body.style.overflow = 'hidden';
             document.documentElement.style.overflow = 'hidden';
             document.body.style.overscrollBehavior = 'none';
@@ -347,7 +363,7 @@ const ModalSelecaoEdital = ({ aberto, aoFechar, aoSelecionar, modelos, carregand
             document.documentElement.style.overflow = '';
             document.body.style.overscrollBehavior = '';
         };
-    }, [aberto]);
+    }, [aberto, modoPagina]);
 
     const modelosCategorizados = useMemo(() => {
         const grupos = { pm: [], pc: [], pp: [], cbm: [], gcm: [], fa: [], federal: [], adm: [] };
@@ -381,45 +397,43 @@ const ModalSelecaoEdital = ({ aberto, aoFechar, aoSelecionar, modelos, carregand
     const lidarComDestaque = (modelo) => setIdSelecionadoLocal(prev => prev === modelo.id ? null : modelo.id);
     const lidarComClickCard = (modelo) => setIdSelecionadoLocal(prev => prev === modelo.id ? null : modelo.id);
 
-    return (
-        <AnimatePresence>
-            {aberto && (
-                <motion.div
-                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                    className={`fixed inset-0 ${MODAL_LAYOUT.zIndex} flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm overflow-hidden touch-none`}
-                    onClick={aoFechar}
-                >
-                    <style>{`
-                        .custom-scrollbar { scrollbar-width: thin; scrollbar-color: #ef4444 transparent; }
-                        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-                        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-                        .custom-scrollbar::-webkit-scrollbar-thumb { background: linear-gradient(180deg,#ef4444,#991b1b); border-radius:10px; }
-                    `}</style>
+    if (!aberto) return null;
 
-                    <motion.div
-                        initial={{ scale: 0.96, opacity: 0, y: 24 }}
-                        animate={{ scale: 1, opacity: 1, y: 0 }}
-                        exit={{ scale: 0.96, opacity: 0, y: 24 }}
-                        transition={{ type: "spring", duration: 0.4, bounce: 0.2 }}
-                        onClick={(e) => e.stopPropagation()}
-                        // 🌟 CORREÇÃO AQUI: Classes de layout unificadas
-                        className={`
-                            bg-white dark:bg-zinc-950
-                            rounded-3xl border-2 border-zinc-200/50 dark:border-zinc-800/50 shadow-2xl
-                            flex flex-col overflow-hidden relative
+    const conteudo = (
+        <>
+            <style>{`
+                .custom-scrollbar { scrollbar-width: thin; scrollbar-color: #ef4444 transparent; }
+                .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+                .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+                .custom-scrollbar::-webkit-scrollbar-thumb { background: linear-gradient(180deg,#ef4444,#991b1b); border-radius:10px; }
+            `}</style>
 
+            <motion.div
+                initial={{ scale: 0.96, opacity: 0, y: 24 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.96, opacity: 0, y: 24 }}
+                transition={{ type: "spring", duration: 0.4, bounce: 0.2 }}
+                onClick={(e) => !modoPagina && e.stopPropagation()}
+                className={`
+                    bg-white dark:bg-zinc-950
+                    rounded-3xl border-2 border-zinc-200/50 dark:border-zinc-800/50 shadow-2xl
+                    flex flex-col overflow-hidden relative
+                    ${modoPagina
+                        ? 'w-full max-w-5xl min-h-[70vh] max-h-[74vh]'
+                        : `
                             ${MODAL_LAYOUT.mobile.width}
                             ${MODAL_LAYOUT.mobile.maxHeight}
                             ${MODAL_LAYOUT.mobile.marginTop}
                             ${MODAL_LAYOUT.mobile.marginBottom}
-
                             ${MODAL_LAYOUT.desktop.maxWidth}
                             ${MODAL_LAYOUT.desktop.maxHeight}
                             ${MODAL_LAYOUT.desktop.marginTop}
                             ${MODAL_LAYOUT.desktop.marginBottom}
                             ${MODAL_LAYOUT.desktop.marginLeft}
-                        `}
-                    >
+                          `
+                    }
+                `}
+            >
                         <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-red-500 to-transparent opacity-50" />
 
                         {/* HEADER */}
@@ -439,20 +453,20 @@ const ModalSelecaoEdital = ({ aberto, aoFechar, aoSelecionar, modelos, carregand
                             </div>
                             <div className="flex items-center gap-2 shrink-0">
                                 <div className="relative group hidden sm:flex items-center">
-
-                                    <input type="text" placeholder="Buscar edital..." value={termoBusca} onChange={(e) => setTermoBusca(e.target.value)} className="bg-white dark:bg-zinc-900 border-2 border-zinc-200 dark:border-zinc-800 rounded-xl pl-8 pr-7 py-2 text-xs font-bold text-zinc-900 dark:text-white placeholder:text-zinc-400 focus:border-red-500 focus:outline-none transition-colors shadow-inner w-40 md:w-52" />
+                                    <input type="text" placeholder="Buscar edital..." value={termoBusca} onChange={(e) => setTermoBusca(e.target.value)} className="bg-white dark:bg-zinc-900 border-2 border-zinc-200 dark:border-zinc-800 rounded-xl px-5 py-2 text-xs font-bold text-zinc-900 dark:text-white placeholder:text-zinc-400 focus:border-red-500 focus:outline-none transition-colors shadow-inner w-40 md:w-52" />
                                     {termoBusca && <button onClick={() => setTermoBusca('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded-full hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-400 hover:text-red-500 transition-colors"><X size={12} /></button>}
                                 </div>
                                 <div className="hidden sm:flex px-2.5 py-2 rounded-xl bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 font-black text-xs shadow-lg items-center gap-1.5 shrink-0"><Layers size={13} /> {totalModelos}</div>
-                                <button onClick={aoFechar} className="p-2 text-zinc-400 hover:text-red-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-all"><X size={20} /></button>
+                                {!modoPagina && (
+                                    <button onClick={aoFechar} className="p-2 text-zinc-400 hover:text-red-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-all"><X size={20} /></button>
+                                )}
                             </div>
                         </div>
 
                         {/* Busca mobile */}
                         <div className="flex sm:hidden px-4 pt-3 pb-0 shrink-0">
                             <div className="relative w-full group">
-                                <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within:text-red-500 transition-colors pointer-events-none" />
-                                <input type="text" placeholder="Buscar edital, banca, cargo..." value={termoBusca} onChange={(e) => setTermoBusca(e.target.value)} className="w-full bg-white dark:bg-zinc-900 border-2 border-zinc-200 dark:border-zinc-800 rounded-xl pl-9 pr-8 py-2 text-xs font-bold text-zinc-900 dark:text-white placeholder:text-zinc-400 focus:border-red-500 focus:outline-none transition-colors shadow-inner" />
+                                <input type="text" placeholder="Buscar edital, banca, cargo..." value={termoBusca} onChange={(e) => setTermoBusca(e.target.value)} className="w-full bg-white dark:bg-zinc-900 border-2 border-zinc-200 dark:border-zinc-800 rounded-xl px-5 py-2 text-xs font-bold text-zinc-900 dark:text-white placeholder:text-zinc-400 focus:border-red-500 focus:outline-none transition-colors shadow-inner" />
                                 {termoBusca && <button onClick={() => setTermoBusca('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded-full hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-400 hover:text-red-500 transition-colors"><X size={13} /></button>}
                             </div>
                         </div>
@@ -486,9 +500,23 @@ const ModalSelecaoEdital = ({ aberto, aoFechar, aoSelecionar, modelos, carregand
                             )}
                         </div>
                         <div className="absolute bottom-0 inset-x-0 h-12 bg-gradient-to-t from-white dark:from-zinc-950 to-transparent pointer-events-none z-10" />
-                    </motion.div>
-                </motion.div>
-            )}
+            </motion.div>
+        </>
+    );
+
+    if (modoPagina) {
+        return <div className="w-full">{conteudo}</div>;
+    }
+
+    return (
+        <AnimatePresence>
+            <motion.div
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                className={`fixed inset-0 ${MODAL_LAYOUT.zIndex} flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm overflow-hidden touch-none`}
+                onClick={aoFechar}
+            >
+                {conteudo}
+            </motion.div>
         </AnimatePresence>
     );
 };

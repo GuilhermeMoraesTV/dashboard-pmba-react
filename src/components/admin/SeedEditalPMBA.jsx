@@ -6,7 +6,7 @@ import { Download, RefreshCw } from 'lucide-react';
 const EDITAL_PMBA_COMPLETO = {
   titulo: "Soldado PMBA",
   banca: "FCC (Base 2022)",
-  logoUrl: "/logosEditais/logo-pmba.png",
+  logoUrl: "/logosEditais/logoModoQAP.png",
   instituicao: "PMBA",
   disciplinas: [
     {
@@ -237,7 +237,7 @@ export const editalConfig = {
     titulo: "Soldado PMBA",
     banca: "FCC (Base 2022)",
     tipo: "pm",
-    logo: "/logosEditais/logo-pmba.png"
+    logo: "/logosEditais/logoModoQAP.png"
 };
 
 export default SeedEditalPMBA;

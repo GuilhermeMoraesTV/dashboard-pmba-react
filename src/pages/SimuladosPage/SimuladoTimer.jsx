@@ -383,7 +383,7 @@ function SimuladoTimer({
         title: tituloSimulado || 'Simulado',
         artist: `${isRunning ? 'Rodando' : 'Pausado'} • ${label}: ${timeStr}`,
         album: 'ModoQAP • Simulado',
-        artwork: [{ src: '/logo-pmba.png', sizes: '512x512', type: 'image/png' }]
+        artwork: [{ src: '/logoModoQAP.png', sizes: '512x512', type: 'image/png' }]
       });
       navigator.mediaSession.playbackState = isRunning ? 'playing' : 'paused';
       if ('setPositionState' in navigator.mediaSession) {
@@ -1108,7 +1108,7 @@ function SimuladoTimer({
 
       {/* Logo */}
       <div className="absolute flex items-center pointer-events-none z-20" style={{ top: sizes.logoSystem.LOGO_TOP, left: sizes.logoSystem.LOGO_LEFT }}>
-        <img src="/logo-pmba.png" alt="Logo" className="drop-shadow-2xl grayscale-[0.2]" style={{ height: sizes.logoSystem.LOGO_HEIGHT, width: 'auto', opacity: sizes.logoSystem.LOGO_OPACITY }} />
+        <img src="/logoModoQAP.png" alt="Logo" className="drop-shadow-2xl grayscale-[0.2]" style={{ height: sizes.logoSystem.LOGO_HEIGHT, width: 'auto', opacity: sizes.logoSystem.LOGO_OPACITY }} />
         <h1 style={{ fontSize: sizes.logoSystem.NAME_FONT_SIZE, fontWeight: sizes.logoSystem.NAME_FONT_WEIGHT, color: sizes.logoSystem.NAME_COLOR, letterSpacing: sizes.logoSystem.NAME_TRACKING, opacity: sizes.logoSystem.NAME_OPACITY, marginLeft: sizes.logoSystem.NAME_MARGIN_LEFT, textTransform: sizes.logoSystem.NAME_UPPERCASE ? 'uppercase' : 'none' }}>
           {sizes.logoSystem.SYSTEM_NAME}
         </h1>

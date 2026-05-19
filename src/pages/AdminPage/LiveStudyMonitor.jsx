@@ -4,8 +4,9 @@ import {
   Users, ChevronDown, ChevronUp, Zap, Coffee,
   PauseCircle, BookOpen, Clock, Activity, Target,
   MoreHorizontal, Play, ClipboardList, AlertCircle,
-  Filter, TrendingUp, BarChart3, Eye
+  Filter, TrendingUp, BarChart3, Eye, Grid
 } from 'lucide-react';
+import UserProfileModal from '../../components/admin/UserProfileModal';
 
 // --- UTILS ---
 const formatClock = (totalSeconds) => {
@@ -35,81 +36,206 @@ const toMillisSafe = (value) => {
   return d ? d.getTime() : null;
 };
 
-// --- HOOK DE TIMER SINCRONIZADO ESTÁVEL ---
+// Hook para sincronizar o tempo de cada sessão individualmente
 const useSyncedSeconds = (session) => {
   const [live, setLive] = useState(0);
 
-  // Ref para armazenar dados iniciais da sessão - NUNCA muda durante a vida do componente
-  const initialDataRef = useRef(null);
+  // Usar um ref para armazenar informações únicas por sessão
+  const sessionDataRef = useRef({
+    lastUpdateTime: Date.now(), // Última vez que atualizamos o estado
+    lastSnapshotTime: 0, // Timestamp do último snapshot do servidor
+    lastDisplaySeconds: 0, // Valor do último snapshot
+    isCurrentlyPaused: false, // Estado de pausa atual
+    intervalId: null, // Intervalo de atualização
+    sessionUid: null // UID da sessão para garantir consistência
+  });
 
+  // Atualizar o estado quando a sessão mudar
   useEffect(() => {
     if (!session) {
       setLive(0);
-      initialDataRef.current = null;
+      sessionDataRef.current.lastUpdateTime = Date.now();
+      sessionDataRef.current.lastSnapshotTime = 0;
+      sessionDataRef.current.lastDisplaySeconds = 0;
+      sessionDataRef.current.isCurrentlyPaused = false;
+      sessionDataRef.current.sessionUid = null;
       return;
     }
 
-    // Captura dados APENAS na primeira vez que a sessão é criada
-    // UID é a chave - se mudar, é uma nova sessão
-    if (!initialDataRef.current || initialDataRef.current.sessionUid !== session.uid) {
-      const now = Date.now();
-      const perfNow = typeof performance !== 'undefined' ? performance.now() : null;
-
-      initialDataRef.current = {
-        sessionUid: session.uid,
-        baseSeconds: Number(session.displaySecondsSnapshot ?? session.secondsSnapshot ?? session.seconds ?? 0),
-        anchorTime: session._receivedAt || now,
-        anchorPerf: session._receivedPerf || perfNow,
-        isPomodoro: session.timerType === 'pomodoro' || session.mode === 'pomodoro',
-        isCountdown: session.mode === 'countdown',
-        isResting: !!session.isResting
-      };
+    // Verificar se é uma sessão diferente para limpar o intervalo anterior
+    if (sessionDataRef.current.sessionUid && sessionDataRef.current.sessionUid !== session.uid) {
+      if (sessionDataRef.current.intervalId) {
+        clearInterval(sessionDataRef.current.intervalId);
+        sessionDataRef.current.intervalId = null;
+      }
     }
 
-    const tick = () => {
-      if (!initialDataRef.current) return;
+    sessionDataRef.current.sessionUid = session.uid;
 
-      const isPaused = session.isPaused || session.status === 'paused';
+    const isPaused = !!session.isPaused || session.status === 'paused';
+    const displaySeconds = Number(session.displaySecondsSnapshot ?? session.secondsSnapshot ?? session.seconds ?? 0);
 
-      // Se pausado, mostra o valor atual do Firestore
-      if (isPaused) {
-        setLive(Number(session.displaySecondsSnapshot ?? session.secondsSnapshot ?? session.seconds ?? 0));
-        return;
-      }
-
-      // Calcula quanto tempo passou desde o anchor
-      let elapsed = 0;
-      if (initialDataRef.current.anchorPerf && typeof performance !== 'undefined') {
-        elapsed = Math.floor((performance.now() - initialDataRef.current.anchorPerf) / 1000);
+    // Obter o timestamp do snapshot
+    let snapshotTime = 0;
+    if (session.snapshotAt) {
+      // Se for um timestamp do Firebase, converter para milissegundos
+      if (session.snapshotAt?.toDate) {
+        const dateObj = session.snapshotAt.toDate();
+        if (dateObj && !isNaN(dateObj.getTime())) {
+          snapshotTime = dateObj.getTime();
+        } else {
+          snapshotTime = Date.now(); // fallback
+        }
+      } else if (typeof session.snapshotAt === 'number') {
+        const numValue = Number(session.snapshotAt);
+        if (numValue && numValue > 0 && numValue < Date.now() + 86400000) { // não mais que 1 dia no futuro
+          snapshotTime = numValue;
+        } else {
+          snapshotTime = Date.now(); // fallback
+        }
       } else {
-        elapsed = Math.floor((Date.now() - initialDataRef.current.anchorTime) / 1000);
+        snapshotTime = Date.now(); // fallback
       }
+    } else {
+      snapshotTime = Date.now(); // fallback
+    }
 
-      // Garante que elapsed é razoável (max 24h)
-      elapsed = Math.max(0, Math.min(elapsed, 86400));
+    // Validar que o tempo do snapshot é razoável (não muito antigo ou muito no futuro)
+    const currentTime = Date.now();
+    if (snapshotTime > currentTime + 5000 || snapshotTime < currentTime - 7 * 24 * 60 * 60 * 1000) { // não mais que 7 dias atrás
+      snapshotTime = currentTime;
+    }
 
-      // Calcula segundos atuais baseado na direção
-      let currentSeconds;
+    // Atualizar o estado do ref
+    sessionDataRef.current.lastUpdateTime = Date.now();
+    sessionDataRef.current.lastSnapshotTime = snapshotTime;
+    sessionDataRef.current.lastDisplaySeconds = displaySeconds;
+    sessionDataRef.current.isCurrentlyPaused = isPaused;
 
-      if ((initialDataRef.current.isPomodoro && !initialDataRef.current.isResting) || initialDataRef.current.isCountdown) {
-        // Regressivo (decrescente)
-        currentSeconds = Math.max(0, initialDataRef.current.baseSeconds - elapsed);
-      } else {
-        // Progressivo (crescente)
-        currentSeconds = initialDataRef.current.baseSeconds + elapsed;
+    // Definir o tempo inicial baseado no estado
+    if (isPaused) {
+      setLive(displaySeconds);
+    } else {
+      // Calcular tempo decorrido desde o snapshot
+      const timeSinceSnapshot = Math.max(0, (currentTime - snapshotTime) / 1000);
+      const calculatedTime = Math.floor(displaySeconds + timeSinceSnapshot);
+      setLive(calculatedTime);
+    }
+
+  }, [session?.uid, session?.cicloId, session?.createdAt, session?.displaySecondsSnapshot, session?.secondsSnapshot, session?.seconds,
+      session?.snapshotAt, session?.timerType, session?.mode, session?.isResting, session?.phase, session?.isPaused, session?.status]);
+
+  // Atualizar o tempo periodicamente se a sessão estiver ativa
+  useEffect(() => {
+    if (!session) return;
+
+    const isPaused = !!session.isPaused || session.status === 'paused';
+
+    // Limpar intervalo anterior
+    if (sessionDataRef.current.intervalId) {
+      clearInterval(sessionDataRef.current.intervalId);
+      sessionDataRef.current.intervalId = null;
+    }
+
+    // Somente iniciar o intervalo se não estiver pausado
+    if (!isPaused) {
+      // Atualizar o tempo a cada 250ms
+      sessionDataRef.current.intervalId = setInterval(() => {
+        setLive(prevTime => {
+          if (!session) return 0;
+
+          // Verificar se ainda estamos lidando com a mesma sessão
+          if (sessionDataRef.current.sessionUid !== session.uid) {
+            if (sessionDataRef.current.intervalId) {
+              clearInterval(sessionDataRef.current.intervalId);
+              sessionDataRef.current.intervalId = null;
+            }
+            return 0;
+          }
+
+          const isNowPaused = !!session.isPaused || session.status === 'paused';
+          if (isNowPaused) {
+            // Se estiver pausado, usar o tempo do servidor
+            const displaySeconds = Number(session.displaySecondsSnapshot ?? session.secondsSnapshot ?? session.seconds ?? 0);
+            sessionDataRef.current.lastDisplaySeconds = displaySeconds;
+            sessionDataRef.current.isCurrentlyPaused = true;
+            return displaySeconds;
+          }
+
+          // Calcular tempo decorrido desde o snapshot do servidor
+          let snapshotTime = 0;
+          if (session.snapshotAt) {
+            if (session.snapshotAt?.toDate) {
+              const dateObj = session.snapshotAt.toDate();
+              if (dateObj && !isNaN(dateObj.getTime())) {
+                snapshotTime = dateObj.getTime();
+              } else {
+                snapshotTime = Date.now();
+              }
+            } else if (typeof session.snapshotAt === 'number') {
+              const numValue = Number(session.snapshotAt);
+              if (numValue && numValue > 0 && numValue < Date.now() + 86400000) { // não mais que 1 dia no futuro
+                snapshotTime = numValue;
+              } else {
+                snapshotTime = Date.now();
+              }
+            } else {
+              snapshotTime = Date.now();
+            }
+          } else {
+            snapshotTime = Date.now();
+          }
+
+          // Validar que o tempo do snapshot é razoável (não muito antigo ou muito no futuro)
+          const currentTime = Date.now();
+          if (snapshotTime > currentTime + 5000 || snapshotTime < currentTime - 7 * 24 * 60 * 60 * 1000) { // não mais que 7 dias atrás
+            snapshotTime = currentTime;
+          }
+
+          const displaySeconds = Number(session.displaySecondsSnapshot ?? session.secondsSnapshot ?? session.seconds ?? 0);
+
+          // Calcular tempo decorrido desde o snapshot do servidor
+          const timeSinceSnapshot = Math.max(0, (currentTime - snapshotTime) / 1000);
+          const calculatedTime = Math.floor(displaySeconds + timeSinceSnapshot);
+
+          // Atualizar o estado do ref
+          sessionDataRef.current.lastUpdateTime = Date.now();
+          sessionDataRef.current.lastSnapshotTime = snapshotTime;
+          sessionDataRef.current.lastDisplaySeconds = displaySeconds;
+          sessionDataRef.current.isCurrentlyPaused = false;
+
+          return Math.max(0, calculatedTime);
+        });
+      }, 250);
+    } else {
+      // Se estiver pausado, atualizar imediatamente com o valor do snapshot
+      const displaySeconds = Number(session.displaySecondsSnapshot ?? session.secondsSnapshot ?? session.seconds ?? 0);
+      setLive(displaySeconds);
+    }
+
+    // Cleanup
+    return () => {
+      if (sessionDataRef.current.intervalId) {
+        clearInterval(sessionDataRef.current.intervalId);
+        sessionDataRef.current.intervalId = null;
       }
-
-      setLive(currentSeconds);
     };
+  }, [session?.uid, session?.isPaused, session?.status, session?.snapshotAt, session?.displaySecondsSnapshot,
+      session?.secondsSnapshot, session?.seconds]);
 
-    tick();
-    const interval = setInterval(tick, 1000);
-
-    return () => clearInterval(interval);
-  }, [session]); // Dependência apenas de session - simples e direto
+  // Cleanup ao desmontar
+  useEffect(() => {
+    return () => {
+      if (sessionDataRef.current.intervalId) {
+        clearInterval(sessionDataRef.current.intervalId);
+        sessionDataRef.current.intervalId = null;
+      }
+    };
+  }, []);
 
   return live;
 };
+
 
 // --- COMPONENTES DE UI ---
 
@@ -164,8 +290,98 @@ const PulsingAvatar = ({ user, status }) => {
   );
 };
 
+// --- ALUNO CARD (foto, nome, matéria, timer em destaque) ---
+const AlunoCard = ({ s, getUser, onOpenUser: onOpenUserProp }) => {
+  const user = getUser(s.uid);
+
+  const isSimulado = s.isSimulado || (!!s.titulo && !s.disciplinaNome);
+  const isPaused = s.isPaused || s.status === 'paused';
+  const isResting = s.phase === 'rest' || s.isResting;
+
+  let status = 'focus';
+  if (isPaused) status = 'paused';
+  else if (isSimulado) status = 'simulado';
+  else if (isResting) status = 'rest';
+
+  const theme = { focus: 'emerald', rest: 'blue', paused: 'amber', simulado: 'red' };
+  const color = theme[status];
+
+  const titleDisplay = isSimulado ? s.titulo : (s.disciplinaNome || 'Estudo Livre');
+  const subTitleDisplay = isSimulado ? 'Simulado em Andamento' : (s.assunto || '');
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 12, scale: 0.97 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: -8, scale: 0.95 }}
+      className="group relative overflow-hidden rounded-2xl border bg-white dark:bg-zinc-900/80 backdrop-blur-sm transition-all duration-300 hover:shadow-lg"
+      style={{ borderLeft: `4px solid var(--tw-color-${color}-500)` }}
+    >
+      <div className="p-4 flex flex-col gap-3">
+        {/* Topo: Avatar + Nome */}
+        <div className="flex items-center gap-3">
+          <PulsingAvatar user={user} status={status} />
+          <div className="flex-1 min-w-0">
+            <h3 className="text-sm font-bold text-zinc-800 dark:text-zinc-100 truncate">
+              {user.name || 'Usuário'}
+            </h3>
+            <span className={`text-[9px] font-bold uppercase tracking-wider text-${color}-500`}>
+              {status === 'focus' && 'Focando Agora'}
+              {status === 'rest' && 'Descansando'}
+              {status === 'paused' && 'Em Pausa'}
+              {status === 'simulado' && 'Simulado'}
+            </span>
+          </div>
+          <button
+            onClick={(e) => { e.stopPropagation(); onOpenUserProp(user); }}
+            className="p-2 rounded-lg bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+          >
+            <Eye size={14} />
+          </button>
+        </div>
+
+        {/* O que está estudando */}
+        <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-3 border border-zinc-100 dark:border-zinc-700/50">
+          <div className="flex items-start gap-2">
+            {isSimulado ? (
+              <ClipboardList size={13} className="mt-0.5 text-red-500 flex-shrink-0" />
+            ) : (
+              <BookOpen size={13} className="mt-0.5 text-zinc-400 flex-shrink-0" />
+            )}
+            <div className="min-w-0">
+              <p className={`text-xs font-bold leading-snug truncate ${isSimulado ? 'text-red-600 dark:text-red-400' : 'text-zinc-700 dark:text-zinc-200'}`}>
+                {titleDisplay}
+              </p>
+              {subTitleDisplay && (
+                <p className="text-[10px] text-zinc-400 dark:text-zinc-500 truncate mt-0.5">{subTitleDisplay}</p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Timer em destaque */}
+        <div className={`relative rounded-xl overflow-hidden bg-gradient-to-br from-${color}-500 to-${color}-600 text-white`}>
+          <div className="absolute inset-0 bg-black/5" />
+          <div className={`relative px-4 py-3 flex items-center justify-between ${isPaused || !status || status === 'focus' || status === 'simulado' ? '' : ''}`}>
+            <div className="flex items-center gap-2">
+              <Clock size={16} className={`${status === 'focus' || status === 'simulado' ? 'animate-pulse' : ''}`} />
+              <span className="text-[10px] font-black uppercase tracking-wider opacity-80">
+                {(status === 'focus' || status === 'simulado') && !isPaused ? 'Tempo' : 'Tempo'}
+              </span>
+            </div>
+            <span className="text-lg font-mono font-bold tabular-nums tracking-wide">
+              {formatClock(useSyncedSeconds(s))}
+            </span>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
 // --- CARD DA SESSÃO (VISUALIZAÇÃO EXPANDIDA) ---
-const SessionCard = ({ s, getUser, cicloNameByKey, isExpanded, toggleExpand, onOpenUser }) => {
+const SessionCard = ({ s, getUser, cicloNameByKey, isExpanded, toggleExpand, onOpenUser: onOpenUserProp }) => {
   const liveSeconds = useSyncedSeconds(s);
   const user = getUser(s.uid);
 
@@ -304,7 +520,7 @@ const SessionCard = ({ s, getUser, cicloNameByKey, isExpanded, toggleExpand, onO
                    <Target size={12} /> Ações
                  </h4>
                  <button
-                   onClick={(e) => { e.stopPropagation(); onOpenUser(user); }}
+                    onClick={(e) => { e.stopPropagation(); onOpenUserProp(user); }}
                    className="flex items-center justify-center gap-2 w-full py-2.5 rounded-lg bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-bold text-xs hover:opacity-90 transition-opacity shadow-md"
                  >
                    Ver Histórico Completo
@@ -318,8 +534,96 @@ const SessionCard = ({ s, getUser, cicloNameByKey, isExpanded, toggleExpand, onO
   );
 };
 
+// --- VISUALIZAÇÃO EM BLOCO (TILE) ---
+const TileView = ({ s, getUser, onOpenUser: onOpenUserProp }) => {
+  const liveSeconds = useSyncedSeconds(s);
+  const user = getUser(s.uid);
+
+  const isSimulado = s.isSimulado || (!!s.titulo && !s.disciplinaNome);
+  const isPaused = s.isPaused || s.status === 'paused';
+  const isResting = s.phase === 'rest' || s.isResting;
+
+  let status = 'focus';
+  if (isPaused) status = 'paused';
+  else if (isSimulado) status = 'simulado';
+  else if (isResting) status = 'rest';
+
+  const theme = {
+    focus: 'emerald',
+    rest: 'blue',
+    paused: 'amber',
+    simulado: 'red'
+  };
+  const color = theme[status];
+
+  const titleDisplay = isSimulado ? s.titulo : (s.disciplinaNome || 'Estudo Livre');
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      whileHover={{ scale: 1.02 }}
+      className={`rounded-xl border p-4 cursor-pointer transition-all duration-200 hover:shadow-md bg-white dark:bg-zinc-900 border-${color}-200 dark:border-${color}-800 hover:border-${color}-300 dark:hover:border-${color}-700 flex flex-col h-full`}
+      onClick={() => onOpenUserProp(user)}
+    >
+      {/* Avatar e nome */}
+      <div className="flex items-center gap-3 mb-3">
+        <div className="flex-shrink-0">
+          <PulsingAvatar user={user} status={status} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-bold text-zinc-800 dark:text-zinc-100 truncate">
+            {user.name || 'Usuário'}
+          </p>
+        </div>
+      </div>
+
+      {/* Matéria/Atividade */}
+      <div className="mb-3 flex-1">
+        <p className={`text-sm font-semibold ${isSimulado ? 'text-red-600 dark:text-red-400' : 'text-zinc-700 dark:text-zinc-200'} truncate`}>
+          {titleDisplay}
+        </p>
+        {s.assunto && !isSimulado && (
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate mt-1">
+            {s.assunto}
+          </p>
+        )}
+      </div>
+
+      {/* Status e tempo em destaque */}
+      <div className="space-y-2">
+        <div className={`relative rounded-lg overflow-hidden bg-gradient-to-br from-${color}-500 to-${color}-600 text-white shadow-md`}>
+          <div className="absolute inset-0 bg-black/5" />
+          <div className="relative px-3 py-2.5">
+            <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center gap-1">
+                <Clock size={10} className={`${status === 'focus' || status === 'simulado' ? 'animate-pulse' : ''}`} />
+                <span className="text-[7px] font-black uppercase tracking-wider opacity-90">
+                  {status === 'focus' || status === 'simulado' ? 'TEMPO' : 'TEMPO'}
+                </span>
+              </div>
+            </div>
+            <div className="text-center">
+              <span className="text-xl font-mono font-bold tabular-nums tracking-tight">
+                {formatClock(liveSeconds)}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <span className={`w-full text-center py-1 rounded-full text-[9px] font-bold uppercase bg-${color}-100 dark:bg-${color}-900/20 text-${color}-700 dark:text-${color}-400 border border-${color}-200 dark:border-${color}-800`}>
+          {status === 'focus' && 'Estudando'}
+          {status === 'rest' && 'Descansando'}
+          {status === 'paused' && 'Pausado'}
+          {status === 'simulado' && 'Simulado'}
+        </span>
+      </div>
+    </motion.div>
+  );
+};
+
 // --- VISUALIZAÇÃO EM TABELA COMPACTA (Para +5 usuários) ---
-const TableRow = ({ s, getUser, cicloNameByKey, onOpenUser }) => {
+const TableRow = ({ s, getUser, cicloNameByKey, onOpenUser: onOpenUserProp }) => {
   const liveSeconds = useSyncedSeconds(s);
   const user = getUser(s.uid);
 
@@ -381,7 +685,7 @@ const TableRow = ({ s, getUser, cicloNameByKey, onOpenUser }) => {
       {/* Ações */}
       <div className="col-span-2 flex items-center justify-end">
         <button
-          onClick={() => onOpenUser(user)}
+          onClick={() => onOpenUserProp(user)}
           className="p-2 rounded-lg bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors opacity-0 group-hover:opacity-100"
         >
           <Eye size={16} className="text-zinc-600 dark:text-zinc-400" />
@@ -393,6 +697,18 @@ const TableRow = ({ s, getUser, cicloNameByKey, onOpenUser }) => {
 
 // --- COMPONENTE PRINCIPAL ---
 const StudyingNowPanel = ({ sessions = [], getUser, cicloNameByKey, onOpenUser }) => {
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+
+  const handleOpenUser = (user) => {
+    setSelectedUser(user);
+    setIsProfileModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsProfileModalOpen(false);
+    setSelectedUser(null);
+  };
   const [expandedUid, setExpandedUid] = useState(null);
   const [filterStatus, setFilterStatus] = useState('all');
   const [viewMode, setViewMode] = useState('auto');
@@ -442,6 +758,8 @@ const StudyingNowPanel = ({ sessions = [], getUser, cicloNameByKey, onOpenUser }
 
   // Determina modo de visualização
   const shouldUseTable = viewMode === 'table' || (viewMode === 'auto' && filteredSessions.length > 5);
+  const shouldUseAlunoCards = viewMode === 'alunos';
+  const shouldUseTiles = viewMode === 'tiles';
 
   const toggleExpand = (uid) => setExpandedUid(prev => prev === uid ? null : uid);
 
@@ -492,7 +810,18 @@ const StudyingNowPanel = ({ sessions = [], getUser, cicloNameByKey, onOpenUser }
       <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
         <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-indigo-500/10 rounded-full blur-[100px]" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-emerald-500/10 rounded-full blur-[100px]" />
-        <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 brightness-100 contrast-150 mix-blend-overlay"></div>
+        <div
+          className="absolute inset-0 opacity-20 mix-blend-overlay"
+          style={{
+            backgroundImage: [
+              'radial-gradient(circle at 20% 20%, rgba(255,255,255,0.22) 0 1px, transparent 1px)',
+              'radial-gradient(circle at 80% 30%, rgba(255,255,255,0.16) 0 1px, transparent 1px)',
+              'radial-gradient(circle at 40% 70%, rgba(255,255,255,0.14) 0 1px, transparent 1px)',
+            ].join(','),
+            backgroundSize: '18px 18px, 24px 24px, 28px 28px',
+            backgroundPosition: '0 0, 6px 10px, 12px 4px',
+          }}
+        />
       </div>
 
       {/* HEADER FIXO COM STICKY E Z-INDEX ALTO */}
@@ -606,6 +935,17 @@ const StudyingNowPanel = ({ sessions = [], getUser, cicloNameByKey, onOpenUser }
             >
               <BarChart3 size={14} />
             </button>
+            <button
+              onClick={() => setViewMode('tiles')}
+              className={`p-2 rounded-lg transition-all ${
+                viewMode === 'tiles'
+                  ? 'bg-zinc-900 dark:bg-white text-white dark:text-zinc-900'
+                  : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400'
+              }`}
+              title="Visualização em Blocos"
+            >
+              <Grid size={14} />
+            </button>
           </div>
         </div>
       </div>
@@ -647,11 +987,23 @@ const StudyingNowPanel = ({ sessions = [], getUser, cicloNameByKey, onOpenUser }
                 {/* Linhas da Tabela */}
                 {filteredSessions.map((s) => (
                   <TableRow
-                    key={`${s.uid}_${s.updatedAt}`}
+                    key={s.uid}
                     s={s}
                     getUser={getUser}
                     cicloNameByKey={cicloNameByKey}
-                    onOpenUser={onOpenUser}
+                    onOpenUser={handleOpenUser}
+                  />
+                ))}
+              </div>
+            ) : shouldUseTiles ? (
+              // VISUALIZAÇÃO EM BLOCOS (TILES)
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 w-full">
+                {filteredSessions.map((s) => (
+                  <TileView
+                    key={s.uid}
+                    s={s}
+                    getUser={getUser}
+                    onOpenUser={handleOpenUser}
                   />
                 ))}
               </div>
@@ -660,13 +1012,13 @@ const StudyingNowPanel = ({ sessions = [], getUser, cicloNameByKey, onOpenUser }
               <div className="space-y-3 w-full">
                 {filteredSessions.map((s) => (
                   <SessionCard
-                    key={`${s.uid}_${s.updatedAt}`}
+                    key={s.uid}
                     s={s}
                     getUser={getUser}
                     cicloNameByKey={cicloNameByKey}
                     isExpanded={expandedUid === s.uid}
                     toggleExpand={toggleExpand}
-                    onOpenUser={onOpenUser}
+                    onOpenUser={handleOpenUser}
                   />
                 ))}
               </div>
@@ -677,6 +1029,15 @@ const StudyingNowPanel = ({ sessions = [], getUser, cicloNameByKey, onOpenUser }
         {/* FOOTER SOMBRA (Indicador de Scroll) */}
         <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-zinc-50 dark:from-zinc-950 to-transparent pointer-events-none z-20" />
       </div>
+
+      {/* Modal de Perfil do Usuário */}
+      {isProfileModalOpen && selectedUser && (
+        <UserProfileModal
+          user={selectedUser}
+          isOpen={isProfileModalOpen}
+          onClose={handleCloseModal}
+        />
+      )}
     </div>
     </>
   );
