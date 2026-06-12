@@ -20,6 +20,7 @@ const getAccColor = (acc) => {
 };
 
 const customScrollbarClass = "overflow-y-auto pr-2 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-zinc-200 dark:[&::-webkit-scrollbar-thumb]:bg-zinc-700 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-zinc-300 dark:hover:[&::-webkit-scrollbar-thumb]:bg-zinc-600";
+const performanceCardClass = "group relative flex flex-col overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/40 hover:!border-l-red-500 hover:shadow-[0_0_18px_rgba(239,68,68,0.07)] dark:border-white/10 dark:!border-l-red-500/25 dark:bg-zinc-950 dark:hover:border-accent-light/20 dark:hover:!border-l-red-500 dark:hover:shadow-[0_0_22px_rgba(239,68,68,0.08)]";
 
 // ============================================================================
 // MATRIX TOOLTIP
@@ -223,14 +224,20 @@ const PriorityMatrix = ({ tableData }) => {
               onClick={e => e.stopPropagation()}
             >
               <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/70 shrink-0">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-red-500/10 rounded-xl">
-                    <BrainCircuit size={20} className="text-red-500" strokeWidth={2.5} />
+                <div className="flex min-w-0 items-start gap-3">
+                  <div className="relative shrink-0">
+                    <div className="absolute inset-0 animate-ping rounded-full bg-red-500/20 opacity-30 duration-[3s]" />
+                    <div className="relative flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-red-600 to-rose-700 text-white shadow-xl shadow-red-500/20">
+                      <BrainCircuit size={20} strokeWidth={1.8} />
+                    </div>
                   </div>
-                  <div>
-                    <h2 className="text-lg font-black text-zinc-900 dark:text-white uppercase tracking-tight">Matriz Estratégica</h2>
+                  <div className="min-w-0">
+                    <h2 className="text-lg font-black uppercase tracking-tight text-zinc-900 dark:text-white leading-tight">
+                      Matriz <span className="bg-gradient-to-r from-red-600 to-rose-700 bg-clip-text text-transparent">Estrategica</span>
+                    </h2>
+                    <h2 className="hidden">Matriz Estrategica</h2>
                     {/* CORREÇÃO 6 */}
-                    <p className="text-xs text-zinc-500 mt-0.5">Cada bolinha é um assunto: eixo X = quantidade de questões, eixo Y = taxa de acertos</p>
+                    <p className="mt-1 text-[11px] font-semibold leading-relaxed text-zinc-500 dark:text-zinc-400">Cada bolinha e um assunto: eixo X = quantidade de questoes, eixo Y = taxa de acertos.</p>
                   </div>
                 </div>
                 <button onClick={() => setIsExpanded(false)} className="p-2 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-colors">
@@ -329,16 +336,24 @@ const PriorityMatrix = ({ tableData }) => {
       </AnimatePresence>
 
       {/* CARD NORMAL */}
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 h-full min-h-[450px] flex flex-col relative group">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-red-500/10 rounded-xl">
-              <BrainCircuit size={17} className="text-red-500" strokeWidth={2.5} />
+      <div className={`${performanceCardClass} h-full min-h-[450px] p-5`}>
+        <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-red-500/5 blur-[80px] opacity-70 transition-all duration-700 group-hover:opacity-100" />
+        <div className="pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-zinc-500/5 blur-[80px] opacity-60" />
+        <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-start justify-between gap-3 mb-4 shrink-0">
+          <div className="flex min-w-0 items-start gap-3">
+            <div className="relative shrink-0">
+              <div className="absolute inset-0 animate-ping rounded-full bg-red-500/20 opacity-30 duration-[3s]" />
+              <div className="relative flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-red-600 to-rose-700 text-white shadow-xl shadow-red-500/20">
+                <BrainCircuit size={20} strokeWidth={1.8} />
+              </div>
             </div>
-            <div>
-              <h3 className="text-sm font-black text-zinc-900 dark:text-white uppercase tracking-tight">Matriz Estratégica</h3>
+            <div className="min-w-0">
+              <h3 className="text-lg font-black uppercase tracking-tight text-zinc-900 dark:text-white leading-tight">
+                Matriz <span className="bg-gradient-to-r from-red-600 to-rose-700 bg-clip-text text-transparent">Estrategica</span>
+              </h3>
+              <h3 className="hidden">Matriz Estrategica</h3>
               {/* CORREÇÃO 6 */}
-              <p className="text-[10px] text-zinc-500 mt-0.5">Cada bolinha é um assunto: eixo X = volume de questões, eixo Y = % de acertos</p>
+              <p className="mt-1 text-[11px] font-semibold leading-relaxed text-zinc-500 dark:text-zinc-400">Cada bolinha e um assunto: eixo X = volume de questoes, eixo Y = % de acertos.</p>
             </div>
           </div>
           <button onClick={() => setIsExpanded(true)}
@@ -358,7 +373,7 @@ const PriorityMatrix = ({ tableData }) => {
         {/* CORREÇÃO 5: dica mobile no card normal */}
         <p className="text-[9px] text-zinc-400 text-center mb-1 sm:hidden">Toque em uma bolinha para ver os detalhes</p>
 
-        <div className="flex-1 w-full min-h-[300px] relative">
+        <div className="relative z-10 flex-1 w-full min-h-[300px]">
           {scatterData.length > 0 ? (
             <>
               <MatrixChart
@@ -466,16 +481,24 @@ const EnhancedRanking = ({ tableData }) => {
   const sortButtons = [{ key: 'best', label: 'Melhores', icon: Trophy }, { key: 'worst', label: 'Piores', icon: AlertTriangle }];
 
   return (
-    <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-hidden flex flex-col h-full min-h-[450px]">
-      <div className="p-5 border-b border-zinc-100 dark:border-zinc-800 space-y-4 bg-zinc-50/50 dark:bg-zinc-900/30">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-gradient-to-br from-red-500 to-rose-500 rounded-xl shadow-lg shadow-red-500/25">
-            <Award size={18} className="text-white" strokeWidth={2.5} />
+    <div className={`${performanceCardClass} h-full min-h-[450px]`}>
+      <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-red-500/5 blur-[80px] opacity-70 transition-all duration-700 group-hover:opacity-100" />
+      <div className="pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-zinc-500/5 blur-[80px] opacity-60" />
+      <div className="relative z-10 p-5 border-b border-zinc-100 dark:border-zinc-800 space-y-4 bg-zinc-50/50 dark:bg-transparent">
+        <div className="flex min-w-0 items-start gap-3">
+          <div className="relative shrink-0">
+            <div className="absolute inset-0 animate-ping rounded-full bg-red-500/20 opacity-30 duration-[3s]" />
+            <div className="relative flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-red-600 to-rose-700 text-white shadow-xl shadow-red-500/20">
+              <Award size={20} strokeWidth={1.8} />
+            </div>
           </div>
-          <div>
-            <h3 className="text-sm font-black text-zinc-900 dark:text-white uppercase tracking-tight">Ranking</h3>
+          <div className="min-w-0">
+            <h3 className="text-lg font-black uppercase tracking-tight text-zinc-900 dark:text-white leading-tight">
+              Ranking <span className="bg-gradient-to-r from-red-600 to-rose-700 bg-clip-text text-transparent">Detalhado</span>
+            </h3>
+            <h3 className="hidden">Ranking</h3>
             {/* CORREÇÃO 6 */}
-            <p className="text-[10px] text-zinc-500 mt-0.5">Compare seus melhores e piores resultados por assunto ou disciplina</p>
+            <p className="mt-1 text-[11px] font-semibold leading-relaxed text-zinc-500 dark:text-zinc-400">Compare seus melhores e piores resultados por assunto ou disciplina.</p>
           </div>
         </div>
         <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
@@ -505,7 +528,7 @@ const EnhancedRanking = ({ tableData }) => {
         </div>
       </div>
 
-      <div className={`flex-1 ${customScrollbarClass}`}>
+      <div className={`relative z-10 flex-1 ${customScrollbarClass}`}>
         <AnimatePresence mode="wait">
           <motion.div key={`${rankType}-${rankSort}`} initial={{ opacity: 0, y: 3 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -3 }} transition={{ duration: 0.14 }}>
             {items.length === 0 && <div className="py-10 text-center text-zinc-400 dark:text-zinc-600 text-xs font-bold">Sem dados suficientes.</div>}

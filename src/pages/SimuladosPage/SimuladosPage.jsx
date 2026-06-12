@@ -3,7 +3,8 @@ import {
   collection, query, orderBy, onSnapshot, doc, Timestamp, updateDoc, addDoc, deleteDoc
 } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
-import { ClipboardList } from 'lucide-react';
+import { ClipboardList, Zap, ArrowRight } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 // Importação dos Módulos Separados
 import HeaderSimulado from './HeaderSimulado';
@@ -184,15 +185,57 @@ const SimuladosPage = ({ user, activeCycleDisciplines, onStartSimulado, initialD
       />
 
       {simulados.length === 0 && !loading ? (
-        <div className="bg-zinc-50 dark:bg-zinc-900/50 p-10 rounded-3xl border-2 border-dashed border-zinc-200 dark:border-zinc-800 text-center max-w-2xl mx-auto mt-6">
-          <div className="w-16 h-16 bg-zinc-100 dark:bg-zinc-800 rounded-full flex items-center justify-center mx-auto mb-4">
-            <ClipboardList size={32} className="text-zinc-400" />
-          </div>
-          <h3 className="text-2xl font-black text-zinc-800 dark:text-white mb-2">Sem registros ainda</h3>
-          <p className="text-zinc-500 mb-6">Registre seu primeiro simulado para desbloquear análises e ganhar XP!</p>
-          <button onClick={() => setIsStartModalOpen(true)} className="bg-emerald-600 text-white px-8 py-3 rounded-xl font-bold shadow-lg shadow-emerald-600/20 hover:bg-emerald-700 transition-colors">
-            Iniciar Simulado
-          </button>
+        <div className="flex w-full items-center justify-center px-4 py-10">
+          <motion.div
+            initial={{ opacity: 0, y: 30, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            className="group relative w-full max-w-2xl overflow-hidden rounded-[40px] border border-zinc-200 bg-white p-8 text-center shadow-[0_30px_100px_rgba(0,0,0,0.06)] dark:border-white/10 dark:bg-zinc-950 dark:shadow-[0_30px_100px_rgba(0,0,0,0.3)] sm:px-12 sm:pb-9 sm:pt-12"
+          >
+            {/* Decorative background elements */}
+            <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-red-500/5 blur-[80px] transition-all duration-700 group-hover:bg-red-500/10" />
+            <div className="pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-zinc-500/5 blur-[80px] transition-all duration-700 group-hover:bg-zinc-500/10" />
+
+            <div className="relative z-10 flex flex-col items-center">
+              <div className="relative mb-8">
+                <div className="absolute inset-0 animate-ping rounded-full bg-red-500/20 opacity-40 duration-[3s]" />
+                <div className="relative flex h-24 w-24 items-center justify-center rounded-[32px] bg-gradient-to-br from-red-600 to-rose-700 text-white shadow-2xl shadow-red-500/30 sm:h-28 sm:w-28">
+                  <ClipboardList size={48} strokeWidth={1.5} />
+                </div>
+                <div className="absolute -bottom-2 -right-2 flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-red-600 shadow-xl dark:bg-zinc-900 dark:text-red-400">
+                  <Zap size={20} fill="currentColor" />
+                </div>
+              </div>
+
+              <p className="text-[11px] font-black uppercase tracking-[0.4em] text-red-600 dark:text-red-400">
+                Central de Simulados
+              </p>
+              
+              <h2 className="mt-4 text-3xl font-black uppercase tracking-tight text-zinc-900 dark:text-white sm:text-4xl">
+                Sem simulados <span className="bg-gradient-to-r from-red-600 to-rose-600 bg-clip-text text-transparent">ainda</span>
+              </h2>
+              
+              <p className="mt-6 max-w-md text-base font-medium leading-relaxed text-zinc-500 dark:text-zinc-400">
+                Registre seu primeiro simulado para desbloquear análises e comparativos. O caminho para a aprovação passa pela prática constante.
+              </p>
+
+              <div className="mt-10 flex flex-col items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsStartModalOpen(true)}
+                  className="group/btn relative flex h-14 items-center gap-3 overflow-hidden rounded-2xl bg-zinc-950 px-8 text-xs font-black uppercase tracking-[0.2em] text-white shadow-2xl transition-all hover:scale-105 hover:bg-red-600 active:scale-95 dark:bg-white dark:text-zinc-950 dark:hover:bg-red-500 dark:hover:text-white"
+                >
+                  <span className="relative z-10 flex items-center gap-2">
+                    Iniciar simulado <ArrowRight size={16} />
+                  </span>
+                </button>
+                <img
+                  src="/logoModoQAP.png"
+                  alt="Logo Modo QAP"
+                  className="h-8 w-auto object-contain opacity-90 transition-opacity duration-300 group-hover:opacity-100"
+                />
+              </div>
+            </div>
+          </motion.div>
         </div>
       ) : (
         <SimuladosList

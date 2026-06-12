@@ -9,10 +9,25 @@ import { Megaphone, Check, Zap, AlertTriangle, Bell, X, ChevronLeft, ChevronRigh
 // Admin sempre vê sem limite (para preview). Usuários normais respeitam este valor.
 const MAX_VIEWS = 2;
 
+const toMillisSafe = (value) => {
+    if (!value) return null;
+    if (typeof value.toDate === 'function') return value.toDate().getTime();
+    if (value instanceof Date) return value.getTime();
+    const parsed = new Date(value).getTime();
+    return Number.isNaN(parsed) ? null : parsed;
+};
+
+const getAuthCreatedAtMillis = (user) => (
+    toMillisSafe(user?.metadata?.creationTime) ||
+    toMillisSafe(user?.metadata?.createdAt) ||
+    null
+);
+
 const BroadcastReceiver = ({ canShow = true, userAccess = null }) => {
     const [notification, setNotification] = useState(null);
     const [isVisible, setIsVisible] = useState(false);
     const [currentIndex, setCurrentIndex] = useState(0);
+    const [userCreatedAtMillis, setUserCreatedAtMillis] = useState(null);
 
     const location = useLocation();
 
@@ -28,6 +43,37 @@ const BroadcastReceiver = ({ canShow = true, userAccess = null }) => {
         if (!urls?.length) return;
         urls.forEach((src) => { const img = new Image(); img.src = src; });
     };
+
+    useEffect(() => {
+        if (!user) {
+            setUserCreatedAtMillis(null);
+            return;
+        }
+
+        const authMillis = getAuthCreatedAtMillis(user);
+        if (authMillis) {
+            setUserCreatedAtMillis(authMillis);
+            return;
+        }
+
+        let alive = true;
+        getDoc(doc(db, 'users', user.uid))
+            .then((snap) => {
+                if (!alive) return;
+                const data = snap.exists() ? snap.data() : {};
+                setUserCreatedAtMillis(
+                    toMillisSafe(data.createdAt) ||
+                    toMillisSafe(data.dataCriacao) ||
+                    toMillisSafe(data.created_at) ||
+                    null
+                );
+            })
+            .catch(() => {
+                if (alive) setUserCreatedAtMillis(null);
+            });
+
+        return () => { alive = false; };
+    }, [user]);
 
     useEffect(() => {
         if (!isHome || !user) return;
@@ -72,6 +118,8 @@ const BroadcastReceiver = ({ canShow = true, userAccess = null }) => {
             const now = new Date();
             const msgTime = data.timestamp?.toDate?.();
             if (!msgTime || now - msgTime >= 24 * 60 * 60 * 1000) return;
+            const createdAtMillis = userCreatedAtMillis || getAuthCreatedAtMillis(user);
+            if (!isAdmin && createdAtMillis && msgTime.getTime() < createdAtMillis) return;
 
             // Lê o contador no Firestore
             const readRef = doc(db, 'users', user.uid, 'broadcasts_read', msgId);
@@ -109,7 +157,7 @@ const BroadcastReceiver = ({ canShow = true, userAccess = null }) => {
         });
 
         return () => unsub();
-    }, [isHome, user, isAdmin]);
+    }, [isHome, user, isAdmin, userCreatedAtMillis]);
 
     useEffect(() => {
         if (notification && canShow && !isVisible) {

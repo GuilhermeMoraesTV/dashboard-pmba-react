@@ -16,6 +16,7 @@ import { useCronogramaSystem } from '../hooks/useCronogramaSystem';
 import FeedbackWidget from '../components/FeedbackWidget';
 import ModalEditarCronograma from '../components/cronograma/ModalEditarCronograma';
 import { CATALOGO_EDITAIS } from '../pages/AdminPage/EditaisManager';
+import EmptyStateCard from '../components/shared/EmptyStateCard';
 
 // ============================================================================
 // CORREÇÃO 1: getLogo — idêntico ao CiclosList
@@ -435,17 +436,15 @@ function CronogramaListPage({
           {loadingList ? (
             <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-500" /></div>
           ) : sortedCronogramas.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-center bg-zinc-50 dark:bg-zinc-900/50 rounded-3xl border-2 border-dashed border-zinc-200 dark:border-zinc-800">
-              <div className="relative mb-6">
-                <div className="w-24 h-24 bg-zinc-100 dark:bg-zinc-900 rounded-3xl flex items-center justify-center shadow-inner"><CalendarDays size={44} className="text-zinc-300 dark:text-zinc-700" strokeWidth={1.5} /></div>
-                <div className="absolute -top-2 -right-2 w-10 h-10 bg-emerald-600 rounded-2xl flex items-center justify-center shadow-lg"><Plus size={20} className="text-white" /></div>
-              </div>
-              <h3 className="text-xl font-black text-zinc-700 dark:text-zinc-300 uppercase tracking-tight mb-2">Nenhum Cronograma</h3>
-              <p className="text-zinc-500 text-sm mb-8 max-w-xs leading-relaxed">Crie seu primeiro cronograma para distribuir automaticamente seus estudos semana a semana.</p>
-              <button onClick={handleCreateRequest} className="px-8 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black shadow-xl shadow-emerald-600/25 hover:-translate-y-0.5 transition-all flex items-center gap-2 uppercase tracking-wider text-sm">
-                <Plus size={18} /> Criar Cronograma
-              </button>
-            </div>
+            <EmptyStateCard
+              icon={CalendarDays}
+              title="Nenhum cronograma"
+              description="Crie seu primeiro cronograma para distribuir automaticamente seus estudos semana a semana."
+              actionLabel="Criar cronograma"
+              onAction={handleCreateRequest}
+              variant="cta"
+              className="min-h-[320px]"
+            />
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6">
               {sortedCronogramas.map(cronograma => (

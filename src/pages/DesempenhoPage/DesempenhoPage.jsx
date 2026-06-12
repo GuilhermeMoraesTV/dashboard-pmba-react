@@ -1,11 +1,13 @@
 ﻿import React, { useMemo, useState, useEffect } from 'react';
 import { parseISO, startOfToday, subDays, eachDayOfInterval, format } from 'date-fns';
-import { LayoutDashboard, BarChart3 } from 'lucide-react';
+import { LayoutDashboard, BarChart3, Zap, ArrowLeftRight } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 import DesempenhoHeader from './DesempenhoHeader';
 import DesempenhoResumo from './DesempenhoResumo';
 import DesempenhoDetalhado from './DesempenhoDetalhado';
 import { useForceUnlock } from '../../hooks/useForceUnlock';
+import EmptyStateCard from '../../components/shared/EmptyStateCard';
 
 // ============================================================================
 // UTILS
@@ -281,29 +283,59 @@ const DesempenhoPage = ({
   // Permite renderizar se for ALL_TIME (mesmo sem contexto ativo)
   if (!hasContext && timeRange !== 'ALL_TIME') {
     return (
-      <div className="p-0 min-h-[50vh] animate-fade-in pb-12">
-        <div className="mb-6 md:mb-8 flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-zinc-200 dark:border-zinc-800 pb-4 md:pb-6">
-          <div className="flex items-center gap-3 mb-1 md:mb-2">
-            <div className="p-2 md:p-2.5 bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-500 rounded-xl">
-              <BarChart3 size={24} className="md:w-7 md:h-7" strokeWidth={2} />
+      <div className="flex min-h-[calc(100vh-120px)] w-full items-center justify-center px-4 py-10">
+        <motion.div
+          initial={{ opacity: 0, y: 30, scale: 0.95 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          className="group relative w-full max-w-2xl overflow-hidden rounded-[40px] border border-zinc-200 bg-white p-8 text-center shadow-[0_30px_100px_rgba(0,0,0,0.06)] dark:border-white/10 dark:bg-zinc-950 dark:shadow-[0_30px_100px_rgba(0,0,0,0.3)] sm:px-12 sm:pb-9 sm:pt-12"
+        >
+          {/* Decorative background elements */}
+          <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-red-500/5 blur-[80px] transition-all duration-700 group-hover:bg-red-500/10" />
+          <div className="pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-zinc-500/5 blur-[80px] transition-all duration-700 group-hover:bg-zinc-500/10" />
+
+          <div className="relative z-10 flex flex-col items-center">
+            <div className="relative mb-8">
+              <div className="absolute inset-0 animate-ping rounded-full bg-red-500/20 opacity-40 duration-[3s]" />
+              <div className="relative flex h-24 w-24 items-center justify-center rounded-[32px] bg-gradient-to-br from-red-600 to-rose-700 text-white shadow-2xl shadow-red-500/30 sm:h-28 sm:w-28">
+                <BarChart3 size={48} strokeWidth={1.5} />
+              </div>
+              <div className="absolute -bottom-2 -right-2 flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-red-600 shadow-xl dark:bg-zinc-900 dark:text-red-400">
+                <Zap size={20} fill="currentColor" />
+              </div>
             </div>
-            <h1 className="text-2xl md:text-3xl font-black text-zinc-800 dark:text-white tracking-tight uppercase">
-              Desempenho
-            </h1>
+
+            <p className="text-[11px] font-black uppercase tracking-[0.4em] text-red-600 dark:text-red-400">
+              Análise de Desempenho
+            </p>
+            
+            <h2 className="mt-4 text-3xl font-black uppercase tracking-tight text-zinc-900 dark:text-white sm:text-4xl">
+              Nenhuma métrica <span className="bg-gradient-to-r from-red-600 to-rose-600 bg-clip-text text-transparent">disponível</span>
+            </h2>
+            
+            <p className="mt-6 max-w-md text-base font-medium leading-relaxed text-zinc-500 dark:text-zinc-400">
+              Seu histórico de desempenho está aguardando um plano ativo. Ative um cronograma ou ciclo e registre suas sessões para visualizar estatísticas detalhadas.
+            </p>
+
+            <div className="mt-10 flex flex-col items-center gap-3">
+              {onCreateCycle && (
+                <button
+                  type="button"
+                  onClick={onCreateCycle}
+                  className="group/btn relative flex h-14 items-center gap-3 overflow-hidden rounded-2xl bg-zinc-950 px-8 text-xs font-black uppercase tracking-[0.2em] text-white shadow-2xl transition-all hover:scale-105 hover:bg-red-600 active:scale-95 dark:bg-white dark:text-zinc-950 dark:hover:bg-red-500 dark:hover:text-white"
+                >
+                  <span className="relative z-10 flex items-center gap-2">
+                    Ir para Planejamento <ArrowLeftRight size={16} />
+                  </span>
+                </button>
+              )}
+              <img
+                src="/logoModoQAP.png"
+                alt="Logo Modo QAP"
+                className="h-8 w-auto object-contain opacity-90 transition-opacity duration-300 group-hover:opacity-100"
+              />
+            </div>
           </div>
-        </div>
-        <div className="flex flex-col items-center justify-center py-20 text-center bg-zinc-50 dark:bg-zinc-900/50 rounded-3xl border-2 border-dashed border-zinc-200 dark:border-zinc-800">
-          <LayoutDashboard size={40} className="md:w-12 md:h-12 text-zinc-300 mb-4" />
-          <h3 className="text-lg md:text-xl font-bold text-zinc-700 dark:text-zinc-300 mb-1">Sem Dados de Desempenho</h3>
-          <p className="text-zinc-500 text-sm mb-6">
-            Ative um ciclo ou cronograma e registre ao menos uma sessão de estudo para visualizar suas métricas.
-          </p>
-          {onCreateCycle && (
-            <button onClick={onCreateCycle} className="px-6 py-2 bg-red-600 text-white rounded-lg font-bold text-sm hover:bg-red-700">
-              Ativar Novo Ciclo
-            </button>
-          )}
-        </div>
+        </motion.div>
       </div>
     );
   }

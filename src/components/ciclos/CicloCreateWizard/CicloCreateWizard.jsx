@@ -14,6 +14,7 @@ import StepRevisao from './steps/StepRevisao';
 import StepConfig from './steps/StepConfig';
 import StepPreview from './steps/StepPreview';
 import { normalizeRevisaoModoCiclo, REVISAO_MODO_FLEXIVEL } from '../../../utils/cicloReviewMode';
+import { getDisciplineColorForSlot } from '../../../utils/disciplineColors';
 
 const CICLO_DRAFT_KEY = 'planejamento_ciclo_wizard_draft_v1';
 
@@ -205,6 +206,7 @@ function CicloCreateWizard({
   cicloId = null,
   initialState = null,
   initialStep = 1,
+  upgradeMode = false,
 }) {
   const isEditMode = mode === 'edit';
   const [passo, setPasso] = useState(() => clampWizardStep(initialStep, isEditMode));
@@ -465,7 +467,7 @@ function CicloCreateWizard({
 
   const disciplinasPreview = useMemo(() => {
     if (disciplinasComCalculo.length === 0 || horasTotais <= 0) return [];
-    return calcularDistribuicao(
+    const disciplinasComDistribuicao = calcularDistribuicao(
       disciplinasComCalculo.map((disciplina, index) => ({
         ...disciplina,
         id: disciplina.id || `preview-${index}`,
@@ -473,6 +475,20 @@ function CicloCreateWizard({
       Math.round(horasTotais * 60),
       tempoSessaoMinutos
     );
+
+    return disciplinasComDistribuicao.map((disciplina) => {
+      const color = getDisciplineColorForSlot({
+        disciplinaId: disciplina.id,
+        disciplinaNome: disciplina.nome,
+        disciplina: disciplina.nome,
+        cor: disciplina.cor,
+      });
+
+      return {
+        ...disciplina,
+        cor: color?.hex || disciplina.cor || null,
+      };
+    });
   }, [disciplinasComCalculo, horasTotais, tempoSessaoMinutos]);
 
   const cicloPreview = useMemo(() => {
@@ -563,26 +579,35 @@ function CicloCreateWizard({
       tempoSessaoMinutos,
       modoExibirAssuntos: modoExibirAssuntos !== false,
       revisaoModo: normalizeRevisaoModoCiclo(revisaoModo),
-      disciplinas: disciplinasComCalculo.map((d, position) => ({
-        id: d.id,
-        nome: d.nome,
-        assuntos: d.assuntos,
-        peso: obterPesoDisciplina(d),
-        nivelDominio: normalizarNivel(d.nivelDominio || d.nivel, d.peso),
-        tempoAlocadoSemanalMinutos: Math.round(d.horasCalculadas * 60),
-        index: position,
-      })),
+      disciplinas: disciplinasComCalculo.map((d, position) => {
+        const previewDisciplina = disciplinasPreview.find((item) => item.id === d.id || item.nome === d.nome);
+        return {
+          id: d.id,
+          nome: d.nome,
+          assuntos: d.assuntos,
+          peso: obterPesoDisciplina(d),
+          nivelDominio: normalizarNivel(d.nivelDominio || d.nivel, d.peso),
+          tempoAlocadoSemanalMinutos: Math.round(d.horasCalculadas * 60),
+          index: position,
+          ...(previewDisciplina?.cor ? { cor: previewDisciplina.cor } : {}),
+        };
+      }),
       disciplinasEstadoCompleto: buildDisciplinaSnapshotCompleto({
         disciplinas,
         extraDisciplinas,
         selecaoDisciplinas,
         horasTotais,
         tempoSessaoMinutos,
+      }).map((disciplina) => {
+        const previewDisciplina = disciplinasPreview.find((item) => item.id === disciplina.id || item.nome === disciplina.nome);
+        return previewDisciplina?.cor
+          ? { ...disciplina, cor: previewDisciplina.cor }
+          : disciplina;
       }),
     };
 
     if (isEditMode) {
-      const editou = await editarCiclo(cicloId, dadosCiclo);
+      const editou = await editarCiclo(cicloId, dadosCiclo, { guideUpgrade: upgradeMode });
       if (editou) {
         onClose?.();
         if (onCicloAtivado) onCicloAtivado(cicloId);
@@ -732,7 +757,7 @@ function CicloCreateWizard({
 
   return (
     <div className="flex flex-col min-h-screen pb-6">
-      <div className="shrink-0 sticky top-0 z-[50] px-3 pt-3 md:px-6 md:pt-4">
+      <div className="wizard-progress-header shrink-0 sticky top-0 z-[60] px-3 pt-3 md:px-6 md:pt-4">
         <div className="max-w-6xl mx-auto rounded-[28px] border border-zinc-200/80 dark:border-zinc-800 bg-white/88 dark:bg-zinc-900/88 backdrop-blur-xl shadow-[0_12px_40px_rgba(0,0,0,0.05)] px-3 py-3 md:px-5">
           <div className="flex flex-wrap items-center justify-between gap-3 md:gap-4">
             <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -770,7 +795,7 @@ function CicloCreateWizard({
       </div>
       </div>
 
-      <div ref={conteudoRef} className="mt-3 pb-36 md:pb-40">
+      <div ref={conteudoRef} className="mt-3 pb-32 md:pb-36">
         <div className={passo === firstVisibleStep || passo === 6 ? 'w-full mx-auto' : 'max-w-5xl mx-auto'}>
           <AnimatePresence mode="wait">
             <motion.div
@@ -785,7 +810,7 @@ function CicloCreateWizard({
         </div>
       </div>
 
-      <footer className="fixed left-0 right-0 bottom-0 z-[50] bg-white/90 dark:bg-zinc-900/95 backdrop-blur-md border-t border-zinc-200 dark:border-zinc-800 shadow-[0_-8px_30px_rgba(0,0,0,0.08)]">
+      <div className="wizard-navigation-bar fixed inset-x-3 bottom-4 z-[100050] mx-auto max-w-5xl rounded-2xl border border-zinc-200/80 bg-white/92 shadow-2xl shadow-zinc-950/12 backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-900/94">
         <div className="absolute top-0 left-0 right-0 h-[2px] bg-zinc-100 dark:bg-zinc-800">
           <motion.div
             className="h-full bg-red-600"
@@ -853,14 +878,14 @@ function CicloCreateWizard({
                   isEditMode ? 'Salvando...' : 'Criando...'
                 ) : (
                   <>
-                    <CheckCircle2 size={16} strokeWidth={2.5} className="group-hover:scale-110 transition-transform" /> {isEditMode ? 'Salvar Alteracoes' : 'Finalizar Ciclo'}
+                    <CheckCircle2 size={16} strokeWidth={2.5} className="group-hover:scale-110 transition-transform" /> {upgradeMode ? 'Atualizar Ciclo' : isEditMode ? 'Salvar Alteracoes' : 'Finalizar Ciclo'}
                   </>
                 )}
               </button>
             )}
           </div>
         </div>
-      </footer>
+      </div>
 
       <AnimatePresence>
         {!isEditMode && mostrandoRascunho && (

@@ -15,6 +15,7 @@ import CicloEditModal from './CicloEditModal';
 import { useCiclos } from '../../hooks/useCiclos';
 import { CATALOGO_EDITAIS } from '../../pages/AdminPage/EditaisManager';
 import { useForceUnlock } from '../../hooks/useForceUnlock';
+import EmptyStateCard from '../shared/EmptyStateCard';
 
 import {
   MoreVertical,
@@ -526,12 +527,15 @@ function CiclosList({
       {loadingList ? (
         <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-10 w-10 md:h-12 md:w-12 border-b-2 border-red-500" /></div>
       ) : ciclos.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center bg-zinc-50 dark:bg-zinc-900/50 rounded-3xl border-2 border-dashed border-zinc-200 dark:border-zinc-800">
-          <BookOpen size={40} className="md:w-12 md:h-12 text-zinc-300 mb-4" />
-          <h3 className="text-lg md:text-xl font-bold text-zinc-700 dark:text-zinc-300 mb-1">Nenhum ciclo encontrado</h3>
-          <p className="text-zinc-500 text-sm mb-6">Crie seu primeiro plano de estudos agora.</p>
-          <button onClick={handleCreateRequest} className="px-6 py-2 bg-red-600 text-white rounded-lg font-bold text-sm hover:bg-red-700">Criar Ciclo</button>
-        </div>
+        <EmptyStateCard
+          icon={BookOpen}
+          title="Nenhum ciclo encontrado"
+          description="Crie seu primeiro plano de estudos para organizar a rotacao das disciplinas."
+          actionLabel="Criar ciclo"
+          onAction={handleCreateRequest}
+          variant="cta"
+          className="min-h-[320px]"
+        />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6">
           {sortedCiclos.map((ciclo) => (

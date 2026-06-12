@@ -23,7 +23,6 @@ import {
   Play,
   RefreshCw,
   ShieldCheck,
-  Target,
   Trophy,
   Zap,
 } from "lucide-react";
@@ -33,7 +32,6 @@ import { useCronogramaSystem } from "../hooks/useCronogramaSystem";
 import { formatDateKeyLocal, getCronogramaReviewBuckets } from "../services/scheduling/review.js";
 import { useCicloRevisoes } from "../hooks/useCicloRevisoes";
 import { buildCompletionRegistro } from "../utils/completionRegistro";
-
 const cx = (...classes) => classes.filter(Boolean).join(" ");
 
 const getContextLogo = (item) => {
@@ -407,7 +405,7 @@ const RevisaoListaTimeline = ({
       exit={{ opacity: 0 }}
       className="mx-auto w-full max-w-4xl px-1 sm:px-4"
     >
-      <div className="relative mb-5 overflow-hidden rounded-2xl border border-zinc-200/80 bg-white/70 p-4 shadow-lg shadow-zinc-200/30 backdrop-blur-md dark:border-zinc-800 dark:bg-zinc-950/40 sm:mb-8 sm:rounded-[32px] sm:p-6 sm:shadow-xl sm:shadow-zinc-200/40">
+      <div className="relative mb-5 overflow-hidden rounded-2xl border border-zinc-200/80 bg-white/70 p-4 shadow-[0_18px_55px_rgba(37,99,235,0.18)] backdrop-blur-md dark:border-zinc-800 dark:bg-zinc-950/40 dark:shadow-[0_22px_65px_rgba(59,130,246,0.24)] sm:mb-8 sm:rounded-[32px] sm:p-6">
         <div className="pointer-events-none absolute right-0 top-0 h-24 w-24 rounded-full bg-blue-500/10 blur-[50px] sm:h-32 sm:w-32 sm:blur-[60px]" />
         <div className="relative z-10 flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
@@ -531,7 +529,7 @@ const RevisaoListaTimeline = ({
   );
 };
 
-export function RevisaoPage({ user, onStartStudy, addRegistroEstudo, deleteCompletionRegistro }) {
+export function RevisaoPage({ user, onStartStudy, addRegistroEstudo, deleteCompletionRegistro, onChoosePlan }) {
   const [aba, setAba] = useState("hoje");
   const [filtroFonte, setFiltroFonte] = useState("todas");
   const [cronograma, setCronograma] = useState(null);
@@ -735,8 +733,8 @@ export function RevisaoPage({ user, onStartStudy, addRegistroEstudo, deleteCompl
 
   if (loading || loadingRevisoesCiclo) {
     return (
-      <div className="flex min-h-screen w-full items-center justify-center bg-[linear-gradient(135deg,#fff7ed_0%,#fff1f2_44%,#f8fafc_100%)] dark:bg-[linear-gradient(135deg,#09090b_0%,#18181b_52%,#020617_100%)]">
-        <div className="flex items-center gap-3 rounded-2xl border border-white/70 bg-white/80 px-6 py-5 shadow-2xl shadow-red-950/10 backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.06] dark:shadow-black/30">
+      <div className="flex min-h-screen w-full items-center justify-center bg-transparent">
+        <div className="flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white px-6 py-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
           <RefreshCw className="animate-spin text-red-600 dark:text-red-300" size={22} />
           <span className="text-xs font-black uppercase tracking-[0.22em] text-zinc-600 dark:text-zinc-200">Carregando revisoes</span>
         </div>
@@ -748,17 +746,57 @@ export function RevisaoPage({ user, onStartStudy, addRegistroEstudo, deleteCompl
 
   if (nenhuma) {
     return (
-      <div className="flex min-h-screen w-full items-center justify-center bg-[linear-gradient(135deg,#fff7ed_0%,#fff1f2_44%,#f8fafc_100%)] px-4 py-10 dark:bg-[linear-gradient(135deg,#09090b_0%,#18181b_52%,#020617_100%)]">
-        <div className="relative w-full max-w-lg overflow-hidden rounded-3xl border border-white/70 bg-white/[0.85] p-8 text-center shadow-2xl shadow-red-950/[0.08] backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.06] dark:shadow-black/30">
-          <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-red-600 via-amber-400 to-violet-500" />
-          <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-red-50 text-red-600 ring-1 ring-red-100 dark:bg-red-400/10 dark:text-red-200 dark:ring-red-300/20">
-            <Target size={30} />
+      <div className="flex min-h-[calc(100vh-120px)] w-full items-center justify-center px-4 py-10">
+        <motion.div
+          initial={{ opacity: 0, y: 30, scale: 0.95 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          className="group relative w-full max-w-2xl overflow-hidden rounded-[40px] border border-zinc-200 bg-white p-8 text-center shadow-[0_30px_100px_rgba(0,0,0,0.06)] dark:border-white/10 dark:bg-zinc-950 dark:shadow-[0_30px_100px_rgba(0,0,0,0.3)] sm:px-12 sm:pb-9 sm:pt-12"
+        >
+          {/* Decorative background elements */}
+          <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-blue-500/5 blur-[80px] transition-all duration-700 group-hover:bg-blue-500/10" />
+          <div className="pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-red-500/5 blur-[80px] transition-all duration-700 group-hover:bg-red-500/10" />
+
+          <div className="relative z-10 flex flex-col items-center">
+            <div className="relative mb-8">
+              <div className="absolute inset-0 animate-ping rounded-full bg-blue-500/20 opacity-40 duration-[3s]" />
+              <div className="relative flex h-24 w-24 items-center justify-center rounded-[32px] bg-gradient-to-br from-blue-600 to-indigo-700 text-white shadow-2xl shadow-blue-500/30 sm:h-28 sm:w-28">
+                <BookOpen size={48} strokeWidth={1.5} />
+              </div>
+              <div className="absolute -bottom-2 -right-2 flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-blue-600 shadow-xl dark:bg-zinc-900 dark:text-blue-400">
+                <Zap size={20} fill="currentColor" />
+              </div>
+            </div>
+
+            <p className="text-[11px] font-black uppercase tracking-[0.4em] text-blue-600 dark:text-blue-400">
+              Central de Revisão
+            </p>
+            
+            <h2 className="mt-4 text-3xl font-black uppercase tracking-tight text-zinc-900 dark:text-white sm:text-4xl">
+              Nenhum planejamento <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">ativo</span>
+            </h2>
+            
+            <p className="mt-6 max-w-md text-base font-medium leading-relaxed text-zinc-500 dark:text-zinc-400">
+              Sua central de revisões está aguardando um plano ativo. Ative um cronograma ou ciclo de estudos para começar a dominar o conteúdo.
+            </p>
+
+            <div className="mt-10 flex flex-col items-center gap-3">
+              <button
+                type="button"
+                onClick={onChoosePlan}
+                className="group/btn relative flex h-14 items-center gap-3 overflow-hidden rounded-2xl bg-zinc-950 px-8 text-xs font-black uppercase tracking-[0.2em] text-white shadow-2xl transition-all hover:scale-105 hover:bg-blue-600 active:scale-95 dark:bg-white dark:text-zinc-950 dark:hover:bg-blue-500 dark:hover:text-white"
+              >
+                <span className="relative z-10 flex items-center gap-2">
+                  Ir para Planejamento <ArrowLeftRight size={16} />
+                </span>
+              </button>
+              <img
+                src="/logoModoQAP.png"
+                alt="Logo Modo QAP"
+                className="h-8 w-auto object-contain opacity-90 transition-opacity duration-300 group-hover:opacity-100"
+              />
+            </div>
           </div>
-          <h3 className="text-xl font-black tracking-tight text-zinc-950 dark:text-white">Nenhum plano ativo</h3>
-          <p className="mt-2 text-sm font-medium leading-relaxed text-zinc-500 dark:text-zinc-400">
-            Ative um cronograma ou ciclo para montar sua central de revisoes.
-          </p>
-        </div>
+        </motion.div>
       </div>
     );
   }
@@ -782,7 +820,7 @@ export function RevisaoPage({ user, onStartStudy, addRegistroEstudo, deleteCompl
   const showSourceToggle = Boolean(cronograma && cicloAtivo);
 
   return (
-    <div className="relative flex min-h-screen w-full flex-col overflow-hidden bg-zinc-100 text-zinc-950 dark:bg-zinc-950 dark:text-white">
+    <div className="relative flex min-h-screen w-full flex-col bg-transparent text-zinc-950 dark:text-white">
       <AnimatePresence>
         {toast && (
           <motion.div

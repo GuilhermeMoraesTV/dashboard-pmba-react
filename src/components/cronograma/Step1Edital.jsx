@@ -2,7 +2,7 @@
  * Step1Edital.jsx — REDESIGN CINEMATOGRÁFICO v2
  */
 
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, X, Library, CheckCircle2, Check, Layers, ArrowRight, ChevronDown,
@@ -166,58 +166,100 @@ const SecaoCategoria = ({ chave, itens, idConfirmado, onConfirmar }) => {
   }, [itens]);
 
   const scrollRef = useRef(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const [startX, setStartX] = useState(0);
-  const [scrollLeft, setScrollLeft] = useState(0);
+  const contentRef = useRef(null);
+  const [largura, setLargura] = useState(0);
+  const [arrastando, setArrastando] = useState(false);
 
-  const onMouseDown = (e) => {
-    setIsDragging(true);
-    setStartX(e.pageX - scrollRef.current.offsetLeft);
-    setScrollLeft(scrollRef.current.scrollLeft);
-  };
+  useEffect(() => {
+    const calcularLargura = () => {
+      if (!scrollRef.current || !contentRef.current) return;
+      setLargura(Math.max(0, contentRef.current.scrollWidth - scrollRef.current.offsetWidth));
+    };
 
-  const onMouseLeave = () => setIsDragging(false);
-  const onMouseUp = () => setIsDragging(false);
+    calcularLargura();
+    const timeout = setTimeout(calcularLargura, 300);
+    window.addEventListener('resize', calcularLargura);
+    return () => {
+      clearTimeout(timeout);
+      window.removeEventListener('resize', calcularLargura);
+    };
+  }, [grupos]);
 
-  const onMouseMove = (e) => {
-    if (!isDragging) return;
-    e.preventDefault();
-    const x = e.pageX - scrollRef.current.offsetLeft;
-    const walk = (x - startX) * 2;
-    scrollRef.current.scrollLeft = scrollLeft - walk;
+  const scrollByCards = (direction) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTo({
+      left: Math.min(Math.max(0, el.scrollLeft + direction * Math.min(el.clientWidth * 0.82, 520)), largura),
+      behavior: 'smooth'
+    });
   };
 
   return (
     <div className="mb-10 last:mb-0">
-      <div className="flex items-center gap-4 mb-4 px-1">
-        <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${cfg.bg} ${cfg.color} border-2 border-white dark:border-white/5 shadow-sm`}>
-          <Icone size={18} strokeWidth={2.5} />
+      <div className="flex items-center justify-between gap-3 mb-3 px-1 sticky left-0 z-10">
+        <div className="flex items-center gap-4 min-w-0">
+          <motion.div whileHover={{ scale: 1.05 }} className={`relative p-2 rounded-xl ${cfg.bg} ${cfg.color} shadow-md shadow-black/5 border-2 border-white/50 dark:border-white/5 shrink-0`}>
+            <Icone size={17} strokeWidth={2} />
+          </motion.div>
+          <div className="min-w-0 flex-1">
+            <h4 className="text-sm sm:text-base font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-none mb-1 truncate">{cfg.label}</h4>
+            <div className="flex items-center gap-1.5">
+              <div className="h-1 w-12 bg-gradient-to-r from-red-600 to-red-400 rounded-full"></div>
+              <div className="h-1 w-2 bg-red-400 rounded-full opacity-60"></div>
+              <div className="h-1 w-1 bg-red-300 rounded-full opacity-40"></div>
+            </div>
+          </div>
         </div>
-        <div>
-          <h4 className="text-[13px] font-black uppercase tracking-[0.1em] text-zinc-900 dark:text-white leading-none">{cfg.label}</h4>
-          <div className="text-[10px] text-zinc-400 font-bold mt-1.5 uppercase tracking-tighter">{itens.length} editais carregados</div>
+        <div className="flex items-center gap-2 shrink-0">
+          <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="hidden sm:flex px-2.5 py-1 rounded-lg bg-gradient-to-br from-zinc-900 to-zinc-800 dark:from-zinc-800 dark:to-zinc-900 text-white font-black text-[11px] shadow-lg border border-zinc-700/50">
+            {itens.length}
+          </motion.div>
+          <button
+            type="button"
+            onClick={() => scrollByCards(-1)}
+            className="w-8 h-8 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white/90 dark:bg-zinc-900/90 text-zinc-500 hover:text-red-600 hover:border-red-200 dark:hover:border-red-900 shadow-sm transition-all active:scale-95"
+            aria-label={`Ver editais anteriores de ${cfg.label}`}
+          >
+            <ChevronLeft size={15} strokeWidth={3} className="mx-auto" />
+          </button>
+          <button
+            type="button"
+            onClick={() => scrollByCards(1)}
+            className="w-8 h-8 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white/90 dark:bg-zinc-900/90 text-zinc-500 hover:text-red-600 hover:border-red-200 dark:hover:border-red-900 shadow-sm transition-all active:scale-95"
+            aria-label={`Ver próximos editais de ${cfg.label}`}
+          >
+            <ChevronRight size={15} strokeWidth={3} className="mx-auto" />
+          </button>
         </div>
       </div>
 
-      <div 
+      <motion.div
         ref={scrollRef}
-        onMouseDown={onMouseDown}
-        onMouseLeave={onMouseLeave}
-        onMouseUp={onMouseUp}
-        onMouseMove={onMouseMove}
-        className={`overflow-x-auto overflow-y-visible -mx-4 px-4 no-scrollbar select-none ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+        className="cursor-grab active:cursor-grabbing overflow-hidden -mx-3 px-3 py-2"
+        whileTap={{ cursor: 'grabbing' }}
       >
-        <div className="flex gap-4 w-max">
+        <motion.div
+          ref={contentRef}
+          drag="x"
+          dragConstraints={{ right: 0, left: -largura }}
+          dragElastic={0.15}
+          dragTransition={{ bounceStiffness: 400, bounceDamping: 30 }}
+          onDragStart={() => setArrastando(true)}
+          onDragEnd={() => setTimeout(() => setArrastando(false), 150)}
+          className="flex gap-3 sm:gap-4 w-max pb-3"
+        >
           {grupos.map((grupo, i) => (
-            <CardEdital key={i}
-              dados={grupo.length === 1 ? grupo[0] : grupo}
-              unico={grupo.length === 1}
-              idConfirmado={idConfirmado}
-              aoConfirmar={onConfirmar}
-            />
+            <div key={i} className="relative transform transition-transform hover:z-10" onClickCapture={(e) => { if (arrastando) e.stopPropagation(); }}>
+              <CardEdital
+                dados={grupo.length === 1 ? grupo[0] : grupo}
+                unico={grupo.length === 1}
+                idConfirmado={idConfirmado}
+                aoConfirmar={onConfirmar}
+              />
+            </div>
           ))}
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
     </div>
   );
 };

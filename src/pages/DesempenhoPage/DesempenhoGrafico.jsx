@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Sector } from 'recharts';
 import {
@@ -226,10 +227,11 @@ const DesempenhoGrafico = ({ filteredRecords = [] }) => {
   return (
     <>
       {/* ── MODAL EXPANDIDO — Layout elegante e proporcional ── */}
+      {createPortal(
       <AnimatePresence>
         {isExpanded && (
           <div
-            className="fixed inset-0 z-[100] bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6"
+            className="fixed inset-0 z-[10000] bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6"
             onClick={() => setIsExpanded(false)}
           >
             <motion.div
@@ -363,10 +365,12 @@ const DesempenhoGrafico = ({ filteredRecords = [] }) => {
             </motion.div>
           </div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>,
+      document.body
+      )}
 
       {/* ── CARD NORMAL ── */}
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm p-5 h-full flex flex-col min-h-[360px]">
+      <div className="h-full min-h-[360px] flex flex-col p-3">
 
         {/* ── CONTROLES ── */}
         <div className="flex items-center justify-between gap-3 mb-4 shrink-0">

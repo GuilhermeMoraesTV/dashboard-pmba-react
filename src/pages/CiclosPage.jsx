@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import CiclosList from '../components/ciclos/CiclosList';
-import CicloDetalhePage from './CicloDetalhePage';
+import { CicloDetalhePage } from './CicloDetalhePage';
 
 // AQUI: Recebe 'registrosEstudo' do Dashboard
-function CiclosPage({ user, addRegistroEstudo, deleteCompletionRegistro, onCicloAtivado, onStartStudy, activeCicloId, forceOpenVisual, targetOpenCicloId, onTargetOpenHandled, onGoToEdital, registrosEstudo, isTimerActive }) {
+function CiclosPage({ user, addRegistroEstudo, deleteCompletionRegistro, onDeleteRegistro, onCicloAtivado, onStartStudy, activeCicloId, forceOpenVisual, targetOpenCicloId, onTargetOpenHandled, onGoToEdital, onCreateNewCycle, registrosEstudo, isTimerActive }) {
   const [selectedCicloId, setSelectedCicloId] = useState(null);
 
   useEffect(() => {
@@ -27,8 +27,10 @@ function CiclosPage({ user, addRegistroEstudo, deleteCompletionRegistro, onCiclo
         user={user}
         addRegistroEstudo={addRegistroEstudo}
         deleteCompletionRegistro={deleteCompletionRegistro}
+        onDeleteRegistro={onDeleteRegistro}
         onStartStudy={onStartStudy}
         onGoToEdital={onGoToEdital}
+        onCreateNewCycle={onCreateNewCycle}
       />
     );
   } else {

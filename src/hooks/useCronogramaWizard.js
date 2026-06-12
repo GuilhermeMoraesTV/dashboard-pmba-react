@@ -41,6 +41,7 @@ import { CATALOGO_EDITAIS } from '../pages/AdminPage/EditaisManager';
 import { gerarSchedule } from '../services/scheduling/index.js';
 import { gerarCronogramaIA, gerarCronogramaExpressoIA, limparCacheIA } from '../services/cronogramaIA';
 import { useCronogramaSystem } from './useCronogramaSystem';
+import { buildDisciplineColorMap, getDisciplineColorForSlot, getDisciplineKey } from '../utils/disciplineColors';
 import confetti from 'canvas-confetti';
 
 // ─── CONSTANTES ───────────────────────────────────────────────────────────────
@@ -195,23 +196,63 @@ const _montarDisciplinasSnapshotCompleto = ({ edital, disciplinas, extraDiscipli
       ...disciplina,
       index,
       nivel: sel?.nivel || disciplina.nivel || 'intermediario',
-      assuntos: ativa ? assuntosFiltrados : assuntosOriginais,
+      assuntos: _normalizarAssuntos(ativa ? assuntosFiltrados : assuntosOriginais),
       inCiclo: ativa,
     };
   });
+};
+
+const _aplicarCoresUnicasCronograma = (semanaTemplate = [], disciplinas = []) => {
+  const colorMap = buildDisciplineColorMap(disciplinas);
+  const getCorDisciplina = (disciplina) => (
+    colorMap[getDisciplineKey(disciplina?.id)]
+    || colorMap[getDisciplineKey(disciplina?.nome)]
+    || colorMap[getDisciplineKey(disciplina)]
+  );
+
+  return {
+    semanaTemplate: (semanaTemplate || []).map((slot) => (
+      slot?.isRevisao || slot?.isRevisaoAuto || slot?.isConsolidada
+        ? slot
+        : { ...slot, cor: getDisciplineColorForSlot(slot, colorMap) }
+    )),
+    disciplinas: (disciplinas || []).map((disciplina) => ({
+      ...disciplina,
+      cor: getCorDisciplina(disciplina) || disciplina?.cor || null,
+    })),
+  };
 };
 
 const _isNivelValido = (nivel) => (
   nivel === 'iniciante' || nivel === 'intermediario' || nivel === 'avancado'
 );
 
+const _normalizarTextoAssunto = (valor) => String(valor || '')
+  .replace(/\s+/g, ' ')
+  .replace(/^[\-•–—]\s*/, '')
+  .trim();
+
+const _normalizarAssuntos = (assuntos = []) => {
+  const vistos = new Set();
+  const normalizados = [];
+
+  (Array.isArray(assuntos) ? assuntos : []).forEach((assunto) => {
+    const nome = _normalizarTextoAssunto(typeof assunto === 'string' ? assunto : assunto?.nome || assunto?.titulo || assunto?.label || '');
+    if (!nome) return;
+    const chave = nome.toLocaleLowerCase('pt-BR');
+    if (vistos.has(chave)) return;
+    vistos.add(chave);
+    normalizados.push(nome);
+  });
+
+  return normalizados;
+};
+
 const _normalizarDisciplinasEdital = (editalObj = {}) => (
   (editalObj.disciplinas || []).map((d, idx) => ({
     id:       `d-${idx}`,
     nome:     d.nome || d,
-    assuntos: Array.isArray(d.assuntos)
-      ? d.assuntos.map(a => (typeof a === 'string' ? a : a?.nome || '')).filter(Boolean)
-      : [],
+    assuntos: _normalizarAssuntos(d.assuntos),
     peso: Number(d.peso || d.peso_sugerido) || 3,
     nivel: _isNivelValido(d.nivel || d.nivelDominio) ? (d.nivel || d.nivelDominio) : null,
   }))
@@ -791,7 +832,8 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
       inCiclo: true,
     }));
 
-    const novoId = await salvarCronogramaUnificado(dados, template.semanaTemplate, disciplinasSnapshotCompleto);
+    const cronogramaComCores = _aplicarCoresUnicasCronograma(template.semanaTemplate, disciplinasSnapshotCompleto);
+    const novoId = await salvarCronogramaUnificado(dados, cronogramaComCores.semanaTemplate, cronogramaComCores.disciplinas);
 
     setPercentIA(100);
     setStatusIA('Cronograma criado com sucesso!');
@@ -914,11 +956,12 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
       extraDisciplinas,
       selecao,
     });
+    const cronogramaComCores = _aplicarCoresUnicasCronograma(result.semanaTemplate, disciplinasSnapshotCompleto);
 
     setPercentIA(98);
     const novoId = isEditMode
-      ? await atualizarCronogramaUnificado(cronogramaId, dados, result.semanaTemplate, disciplinasSnapshotCompleto)
-      : await salvarCronogramaUnificado(dados, result.semanaTemplate, disciplinasSnapshotCompleto);
+      ? await atualizarCronogramaUnificado(cronogramaId, dados, cronogramaComCores.semanaTemplate, cronogramaComCores.disciplinas)
+      : await salvarCronogramaUnificado(dados, cronogramaComCores.semanaTemplate, cronogramaComCores.disciplinas);
 
     setPercentIA(100);
     setStatusIA(isEditMode ? 'Cronograma atualizado com sucesso!' : 'Cronograma criado com sucesso!');
@@ -1053,7 +1096,7 @@ function _normalizarDiscsParaGeracao(discsFinais, selecao) {
       : d.assuntos;
     return {
       ...d,
-      assuntos:    assuntosFiltrados,
+      assuntos:    _normalizarAssuntos(assuntosFiltrados),
       diasFixados: [],
       nivel:       _isNivelValido(sel?.nivel) ? sel.nivel : d.nivel || 'intermediario',
     };

@@ -2,9 +2,9 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom';
 import {
   Home, Target, Calendar, LogOut, RefreshCw, Menu, ShieldAlert,
-  LayoutList, BarChart2, ClipboardList, Sun, Moon, User, Radio, X, ChevronRight,
+  LayoutList, BarChart3, ClipboardList, Sun, Moon, User, Radio, X, ChevronRight,
   CalendarClock, Layers, ChevronDown, Newspaper, RotateCw, CalendarDays, BookOpen,
-  Clock, AlertTriangle, ArrowRight, Bell, Flame,
+  Clock, AlertTriangle, ArrowRight, Bell, Flame, Settings,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
@@ -15,6 +15,7 @@ import { contarRevisoesPendentes } from '../../pages/RevisaoPage';
 import { calcularStatusEstudoHoje, contarRevisoesPendentesHoje } from '../../hooks/useCronogramaSystem';
 import { buildStudyDaysMap, calculateCurrentStudyStreak } from '../../utils/studyDayStatus';
 import { getAgendaSemana } from '../../services/scheduling/review';
+import TimerSettingsModal, { useTimerSettings } from '../ciclos/StudyTimer/TimerSettingsModal';
 
 const NAV_ICON_SIZE  = 20;
 const NAV_LABEL_SIZE = 'text-xs';
@@ -22,6 +23,7 @@ const NAV_BTN_PAD    = 'p-2.5';
 const NAV_BTN_RADIUS = 'rounded-xl';
 const NAV_GAP        = 'space-y-1';
 const NAV_BADGE_SIZE = 'text-[8px]';
+const ENABLE_FLOATING_STUDY_REMINDER = false;
 
 // ─────────────────────────────────────────────────────────────────────
 // Pill de lembrete — aparece abaixo do sino quando o usuário entra na Home.
@@ -404,10 +406,12 @@ function NavSideBar({
   activeCronogramaData,
   onGoToCicloAtivo,
   cicloFinalizacaoAlert,
+  cicloLegacyUpgradeAlert,
   notificationProps,
 }) {
   const [hasUnreadSupport, setHasUnreadSupport]     = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen]   = useState(false);
+  const [isTimerSettingsOpen, setIsTimerSettingsOpen] = useState(false);
   const [isPlanejamentoOpen, setIsPlanejamentoOpen] = useState(false);
   const [homeContextPreferred, setHomeContextPreferred] = useState(() => {
     try { return localStorage.getItem('homeContextPreferred') || 'cronograma'; } catch { return 'cronograma'; }
@@ -420,8 +424,11 @@ function NavSideBar({
   const reminderDismissedRef = useRef(false);
   const reminderShownKeyRef = useRef(null);
   const bellContainerRef = useRef(null);
+  const { updateSettings } = useTimerSettings(user?.uid);
 
   useEffect(() => {
+    if (!ENABLE_FLOATING_STUDY_REMINDER) return;
+
     if (activeTab === 'home' && prevTabRef.current !== 'home') {
       setShowReminderPill(true);
       const timer = setTimeout(() => setShowReminderPill(false), 8000);
@@ -543,6 +550,7 @@ function NavSideBar({
   const systemAlerts = useMemo(() => {
     const alerts = [];
     if (cicloFinalizacaoAlert) alerts.push(cicloFinalizacaoAlert);
+    if (cicloLegacyUpgradeAlert) alerts.push(cicloLegacyUpgradeAlert);
     if (!cronogramaParaAlertas) return alerts;
 
     const statusEstudo = calcularStatusEstudoHoje(cronogramaParaAlertas);
@@ -574,14 +582,23 @@ function NavSideBar({
     }
 
     return alerts;
-  }, [cronogramaParaAlertas, cicloFinalizacaoAlert]);
+  }, [cronogramaParaAlertas, cicloFinalizacaoAlert, cicloLegacyUpgradeAlert]);
 
   const handleSystemAlertAction = useCallback((alert) => {
+    if (alert.type === 'ciclo_legacy_upgrade') {
+      try {
+        if (alert.cicloId) sessionStorage.setItem('modoqap_open_cycle_upgrade', alert.cicloId);
+      } catch {}
+      window.dispatchEvent(new CustomEvent('modoqap:open-cycle-upgrade', { detail: { cicloId: alert.cicloId || null } }));
+      onGoToCicloAtivo?.();
+      setMobileOpen(false);
+      return;
+    }
     if (alert.navigateTo) {
       setActiveTab(alert.navigateTo);
       setMobileOpen(false);
     }
-  }, [setActiveTab, setMobileOpen]);
+  }, [onGoToCicloAtivo, setActiveTab, setMobileOpen]);
 
   // ── Dados para o pill de lembrete (abaixo do sino) ────────────────────
   const reminderStatusEstudo = useMemo(() => {
@@ -599,6 +616,8 @@ function NavSideBar({
   ), [systemAlerts]);
 
   useEffect(() => {
+    if (!ENABLE_FLOATING_STUDY_REMINDER) return;
+
     if (activeTab !== 'home' || systemAlerts.length === 0 || reminderDismissedRef.current) return;
     if (reminderShownKeyRef.current === reminderKey) return;
 
@@ -641,9 +660,8 @@ function NavSideBar({
       { id: 'planejamento', label: 'Planejamento', icon: <Layers size={NAV_ICON_SIZE}/> },
       { id: 'revisoes',  label: 'Revisões',    icon: <BookOpen size={NAV_ICON_SIZE}/> },
       { id: 'edital',    label: 'Edital',      icon: <LayoutList size={NAV_ICON_SIZE}/> },
-      { id: 'stats',     label: 'Desempenho',  icon: <BarChart2 size={NAV_ICON_SIZE}/> },
+      { id: 'stats',     label: 'Desempenho',  icon: <BarChart3 size={NAV_ICON_SIZE}/> },
       { id: 'simulados', label: 'Simulados',   icon: <ClipboardList size={NAV_ICON_SIZE}/> },
-      { id: 'goals',     label: 'Metas',       icon: <Target size={NAV_ICON_SIZE}/> },
       { id: 'calendar',  label: 'Calendário',  icon: <Calendar size={NAV_ICON_SIZE}/> },
     ];
 
@@ -794,7 +812,7 @@ function NavSideBar({
         </h1>
       </div>
 
-      <div className="flex items-center gap-2 sm:gap-3 z-10">
+      <div className="flex items-center gap-2 z-10">
         <StreakHeaderPill streak={headerStreak} />
         {notificationProps && (
           <NotificationBell
@@ -813,19 +831,21 @@ function NavSideBar({
             bellRef={bellContainerRef}
           />
         )}
-        <StudyReminderPill
-          statusEstudo={reminderStatusEstudo}
-          revisoesInfo={reminderRevisoesInfo}
-          onNavigate={handleReminderNavigate}
-          isVisible={showReminderPill}
-          onDismiss={handleReminderDismiss}
-          bellContainerRef={bellContainerRef}
-        />
+        {ENABLE_FLOATING_STUDY_REMINDER && (
+          <StudyReminderPill
+            statusEstudo={reminderStatusEstudo}
+            revisoesInfo={reminderRevisoesInfo}
+            onNavigate={handleReminderNavigate}
+            isVisible={showReminderPill}
+            onDismiss={handleReminderDismiss}
+            bellContainerRef={bellContainerRef}
+          />
+        )}
         <button
           onClick={toggleTheme}
-          className="w-11 h-11 rounded-2xl bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 hover:text-red-600 border border-zinc-200 dark:border-zinc-800 shadow-sm flex items-center justify-center transition-all active:scale-95"
+          className="w-10 h-10 rounded-xl bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 hover:text-red-600 border border-zinc-200 dark:border-zinc-800 shadow-sm flex items-center justify-center transition-all active:scale-95"
         >
-          {isDarkMode ? <Sun size={22} strokeWidth={2.2}/> : <Moon size={22} strokeWidth={2.2}/>}
+          {isDarkMode ? <Sun size={19} strokeWidth={2.2}/> : <Moon size={19} strokeWidth={2.2}/>}
         </button>
 
         <div className="relative" ref={menuRef}>
@@ -867,6 +887,19 @@ function NavSideBar({
                         <User size={18}/>
                       </div>
                       <span>Meu Perfil</span>
+                    </div>
+                    <ChevronRight size={16} className="text-zinc-300 group-hover:text-zinc-500"/>
+                  </button>
+
+                  <button
+                    onClick={() => { setIsTimerSettingsOpen(true); setIsProfileMenuOpen(false); }}
+                    className="w-full flex items-center justify-between px-4 py-3.5 rounded-2xl text-sm font-bold text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-900 hover:text-zinc-900 dark:hover:text-white transition-all group border border-transparent hover:border-zinc-200 dark:hover:border-zinc-800"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="p-2 rounded-xl bg-zinc-100 dark:bg-zinc-900 text-zinc-500 group-hover:text-red-500 group-hover:bg-red-50 dark:group-hover:bg-red-900/20 transition-all">
+                        <Settings size={18}/>
+                      </div>
+                      <span>Configurações</span>
                     </div>
                     <ChevronRight size={16} className="text-zinc-300 group-hover:text-zinc-500"/>
                   </button>
@@ -918,8 +951,8 @@ function NavSideBar({
       />
       <nav
         className={`
-          fixed top-0 z-[80] flex flex-col h-screen
-          bg-white/78 dark:bg-zinc-950/72 backdrop-blur-xl border-r border-white/70 dark:border-white/10
+          fixed top-0 bottom-0 z-[80] flex h-screen min-h-dvh flex-col
+          bg-white dark:bg-zinc-950 border-r border-zinc-200 dark:border-white/10
           transition-all duration-300 shadow-2xl lg:shadow-none
           ${isMobileOpen ? 'translate-x-0 w-[260px]' : '-translate-x-full lg:translate-x-0'}
           lg:left-0 ${isExpanded ? 'lg:w-[240px]' : 'lg:w-[72px]'}
@@ -1105,6 +1138,15 @@ function NavSideBar({
           })}
         </div>
       </nav>
+      <AnimatePresence>
+        {isTimerSettingsOpen && (
+          <TimerSettingsModal
+            isOpen={isTimerSettingsOpen}
+            onClose={() => setIsTimerSettingsOpen(false)}
+            onSave={updateSettings}
+          />
+        )}
+      </AnimatePresence>
     </>
   );
 }

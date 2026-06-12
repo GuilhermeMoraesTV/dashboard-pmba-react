@@ -15,6 +15,7 @@ import {
 } from 'firebase/firestore';
 import { upsertCicloRevisao } from '../services/cicloRevisoes';
 import { normalizeRevisaoModoCiclo } from '../utils/cicloReviewMode';
+import { CICLO_GUIDE_VERSION } from '../utils/cicloLegacyUpgrade';
 
 const dateToYMDLocal = (date = new Date()) => {
   const d = date instanceof Date ? date : new Date(date);
@@ -119,6 +120,38 @@ export const gerarOrdemSessoes = (disciplinas, embaralharOffset = 0) => {
   return ordem;
 };
 
+const buildLegacyProgressFromRecords = ({ ordemSessoes, disciplinas, registros, tempoSessaoMinutos }) => {
+  const minutosPorDisciplina = new Map();
+  registros.forEach((registro) => {
+    if (registro.conclusaoId != null || !registro.disciplinaId) return;
+    const atual = minutosPorDisciplina.get(registro.disciplinaId) || 0;
+    minutosPorDisciplina.set(registro.disciplinaId, atual + Number(registro.tempoEstudadoMinutos || 0));
+  });
+
+  const progressoSessoes = {};
+  const sessoesConcluidas = [];
+  const detalhes = {};
+  const remainingByDisciplina = new Map(minutosPorDisciplina);
+  const disciplinaIds = new Set(disciplinas.map((disciplina) => disciplina.id));
+
+  ordemSessoes.forEach((sessao, index) => {
+    if (!disciplinaIds.has(sessao.disciplinaId)) return;
+    const restante = Number(remainingByDisciplina.get(sessao.disciplinaId) || 0);
+    if (restante <= 0) return;
+
+    const progresso = Math.min(restante, tempoSessaoMinutos);
+    progressoSessoes[index] = progresso;
+    remainingByDisciplina.set(sessao.disciplinaId, Math.max(0, restante - progresso));
+
+    if (progresso >= tempoSessaoMinutos) {
+      sessoesConcluidas.push(index);
+      detalhes[index] = { concluidaEm: dateToYMDLocal(new Date()), origem: 'upgrade_legado' };
+    }
+  });
+
+  return { progressoSessoes, sessoesConcluidas, sessoesConcluidasDetalhes: detalhes };
+};
+
 export const useCiclos = (user) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -205,12 +238,15 @@ export const useCiclos = (user) => {
         logoUrl: cicloData.logoUrl || null,
         editalId: cicloData.editalId || cicloData.templateId || null,
         templateOrigem: cicloData.templateId || null,
-        tipo: cicloData.tipo || 'padrao'
+        tipo: cicloData.tipo || 'padrao',
+        versaoCiclo: CICLO_GUIDE_VERSION,
+        guiaAtualizadoEm: serverTimestamp()
       });
 
       // 3. Cria Subcolecao de Disciplinas e salva index para preservar ordem
       disciplinasParaSalvar.forEach((disciplina) => {
         const disciplinaAtiva = disciplina._disciplinaAtiva || disciplina;
+        const corDisciplina = disciplina.cor || disciplinaAtiva.cor || null;
         batch.set(disciplina._ref, {
           nome: disciplina.nome,
           peso: obterPesoDisciplina(disciplina),
@@ -220,6 +256,7 @@ export const useCiclos = (user) => {
           assuntos: Array.isArray(disciplina.assuntos) ? disciplina.assuntos : [],
           index: disciplina._position,
           inCiclo: disciplina.inCiclo !== false,
+          ...(corDisciplina ? { cor: corDisciplina } : {}),
         });
       });
 
@@ -273,7 +310,7 @@ export const useCiclos = (user) => {
     } catch (err) { console.error('Erro ao arquivar ciclo:', err); setError(err.message); setLoading(false); return false; }
   };
 
-  const editarCiclo = async (cicloId, cicloData) => {
+  const editarCiclo = async (cicloId, cicloData, options = {}) => {
     if (!user) { setError('Usuario nao autenticado'); return false; }
     setLoading(true); setError(null);
     try {
@@ -325,6 +362,7 @@ export const useCiclos = (user) => {
         const disciplinaEstaAtiva = disciplina.inCiclo !== false;
         const tempoAlocadoNumerico = disciplinaEstaAtiva ? Number(disciplinaAtiva?.tempoAlocadoMinutos || 0) : 0;
         const sessoesPorCiclo = disciplinaEstaAtiva ? (Number(disciplinaAtiva?.sessoesPorCiclo) || 1) : 0;
+        const corDisciplina = disciplina.cor || disciplinaAtiva?.cor || null;
 
         if (disciplina.id && !String(disciplina.id).startsWith('temp-') && !String(disciplina.id).startsWith('manual-')) {
           disciplinaRef = doc(db, 'users', user.uid, 'ciclos', cicloId, 'disciplinas', disciplina.id);
@@ -336,6 +374,7 @@ export const useCiclos = (user) => {
             sessoesPorCiclo,
             index: position,
             inCiclo: disciplinaEstaAtiva,
+            ...(corDisciplina ? { cor: corDisciplina } : {}),
           };
           if (disciplina.assuntos) discUpdate.assuntos = disciplina.assuntos;
           batch.update(disciplinaRef, discUpdate);
@@ -352,6 +391,7 @@ export const useCiclos = (user) => {
             assuntos: disciplina.assuntos || [],
             index: position,
             inCiclo: disciplinaEstaAtiva,
+            ...(corDisciplina ? { cor: corDisciplina } : {}),
           });
           disciplina.id = disciplinaRef.id;
           if (disciplinaEstaAtiva) disciplinasParaOrdem.push({ id: disciplina.id, sessoesPorCiclo });
@@ -369,19 +409,129 @@ export const useCiclos = (user) => {
         }
       }
 
+      const novaOrdemSessoes = gerarOrdemSessoes(disciplinasParaOrdem, 0);
       updateData.totalSessoesCiclo = disciplinasParaOrdem.reduce(
         (acc, d) => acc + (Number(d.sessoesPorCiclo) || 1),
         0
       );
-      updateData.ordemSessoes = gerarOrdemSessoes(disciplinasParaOrdem, 0);
-      updateData.sessoesConcluidas = [];
-      updateData.progressoSessoes = {};
+      updateData.ordemSessoes = novaOrdemSessoes;
+
+      if (options.guideUpgrade) {
+        updateData.versaoCiclo = CICLO_GUIDE_VERSION;
+        updateData.guiaAtualizadoEm = serverTimestamp();
+
+        const cicloAtualSnap = await getDoc(cicloRef);
+        const cicloAtualData = cicloAtualSnap.data() || {};
+        const hasExistingSessionProgress = Array.isArray(cicloAtualData.sessoesConcluidas)
+          || (cicloAtualData.progressoSessoes && Object.keys(cicloAtualData.progressoSessoes).length > 0);
+
+        if (!hasExistingSessionProgress) {
+          const registrosSnapshot = await getDocs(query(collection(db, 'users', user.uid, 'registrosEstudo'), where('cicloId', '==', cicloId)));
+          const registros = registrosSnapshot.docs.map((registroDoc) => registroDoc.data() || {});
+          Object.assign(updateData, buildLegacyProgressFromRecords({
+            ordemSessoes: novaOrdemSessoes,
+            disciplinas: disciplinasParaOrdem.map((d) => ({ id: d.id })),
+            registros,
+            tempoSessaoMinutos,
+          }));
+        }
+      } else {
+        updateData.sessoesConcluidas = [];
+        updateData.progressoSessoes = {};
+      }
 
       batch.update(cicloRef, updateData);
 
       await batch.commit();
       setLoading(false); return true;
     } catch (err) { console.error('Erro ao editar ciclo:', err); setError(err.message); setLoading(false); return false; }
+  };
+
+  const atualizarCicloLegadoParaGuia = async (cicloId, config = {}) => {
+    if (!user) { setError('Usuario nao autenticado'); return false; }
+    if (!cicloId) return false;
+    setLoading(true); setError(null);
+
+    try {
+      const cicloRef = doc(db, 'users', user.uid, 'ciclos', cicloId);
+      const cicloDoc = await getDoc(cicloRef);
+      if (!cicloDoc.exists()) throw new Error('Ciclo nao encontrado');
+
+      const cicloData = cicloDoc.data() || {};
+      const tempoSessaoMinutos = normalizeTempoSessaoMinutos(
+        config.tempoSessaoMinutos ?? cicloData.tempoSessaoMinutos ?? 50,
+        config.diasEstudo ?? cicloData.diasEstudo
+      );
+      const diasEstudo = config.diasEstudo || cicloData.diasEstudo || null;
+
+      const disciplinasRef = collection(db, 'users', user.uid, 'ciclos', cicloId, 'disciplinas');
+      const disciplinasSnapshot = await getDocs(disciplinasRef);
+      const disciplinas = disciplinasSnapshot.docs
+        .map((discDoc) => {
+          const discData = discDoc.data() || {};
+          const tempoAlocado = Number(discData.tempoAlocadoSemanalMinutos || 0);
+          const rawSessoesPorCiclo = Number(discData.sessoesPorCiclo || 0);
+          const sessoesPorCiclo = rawSessoesPorCiclo || Math.max(1, Math.round(tempoAlocado / tempoSessaoMinutos));
+          return {
+            id: discDoc.id,
+            ref: discDoc.ref,
+            ...discData,
+            tempoAlocadoSemanalMinutos: tempoAlocado,
+            rawSessoesPorCiclo,
+            sessoesPorCiclo: discData.inCiclo === false ? 0 : sessoesPorCiclo,
+            inCiclo: discData.inCiclo !== false,
+          };
+        })
+        .filter((disciplina) => disciplina.inCiclo);
+
+      const ordemExistente = Array.isArray(cicloData.ordemSessoes) ? cicloData.ordemSessoes : [];
+      const ordemSessoes = ordemExistente.length > 0
+        ? ordemExistente
+        : gerarOrdemSessoes(disciplinas.map((d) => ({ id: d.id, sessoesPorCiclo: d.sessoesPorCiclo })), Number(cicloData.embaralharOffset || 0));
+
+      const hasExistingSessionProgress = Array.isArray(cicloData.sessoesConcluidas)
+        || (cicloData.progressoSessoes && Object.keys(cicloData.progressoSessoes).length > 0);
+
+      let progressUpdate = {};
+      if (!hasExistingSessionProgress) {
+        const registrosSnapshot = await getDocs(query(collection(db, 'users', user.uid, 'registrosEstudo'), where('cicloId', '==', cicloId)));
+        const registros = registrosSnapshot.docs.map((registroDoc) => registroDoc.data() || {});
+        progressUpdate = buildLegacyProgressFromRecords({
+          ordemSessoes,
+          disciplinas,
+          registros,
+          tempoSessaoMinutos,
+        });
+      }
+
+      const batch = writeBatch(db);
+      disciplinas.forEach((disciplina) => {
+        if (Number(disciplina.rawSessoesPorCiclo || 0) > 0) return;
+        const sessoesPorCiclo = Math.max(1, Math.round(Number(disciplina.tempoAlocadoSemanalMinutos || 0) / tempoSessaoMinutos));
+        batch.update(disciplina.ref, { sessoesPorCiclo });
+      });
+
+      batch.update(cicloRef, {
+        diasEstudo,
+        tempoSessaoMinutos,
+        modoExibirAssuntos: config.modoExibirAssuntos !== false,
+        revisaoModo: normalizeRevisaoModoCiclo(config.revisaoModo),
+        versaoCiclo: CICLO_GUIDE_VERSION,
+        guiaAtualizadoEm: serverTimestamp(),
+        ordemSessoes,
+        totalSessoesCiclo: ordemSessoes.length,
+        ...(hasExistingSessionProgress ? {} : progressUpdate),
+      });
+
+      await batch.commit();
+      setLoading(false);
+      return true;
+    } catch (err) {
+      console.error('Erro ao atualizar ciclo legado para guia:', err);
+      setError(err.message);
+      setLoading(false);
+      return false;
+    }
   };
 
   const concluirVoltaCiclo = async (cicloId, options = {}) => {
@@ -590,6 +740,7 @@ export const useCiclos = (user) => {
     desativarCiclo,
     arquivarCiclo,
     editarCiclo,
+    atualizarCicloLegadoParaGuia,
     concluirVoltaCiclo,
     concluirCicloSemanal,
     marcarSessaoConcluida,

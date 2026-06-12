@@ -6,7 +6,6 @@ import {
 } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { getStorage } from "firebase/storage";
-import { getAI, getGenerativeModel, GoogleAIBackend } from 'firebase/ai';
 
 const firebaseConfig = {
   apiKey:            import.meta.env.VITE_FIREBASE_API_KEY,
@@ -34,14 +33,4 @@ if (window.location.hostname === "localhost" || window.location.hostname === "12
   // connectFirestoreEmulator(db, '127.0.0.1', 8085);
 }
 
-const ai = getAI(app, { backend: new GoogleAIBackend() });
-
-export const geminiModel = getGenerativeModel(ai, {
-  model: 'gemini-2.5-flash-lite',
-  generationConfig: {
-    temperature: 0.3,
-    maxOutputTokens: 2048,
-  },
-});
-
-export { db, auth, storage };
+export { app, db, auth, storage };

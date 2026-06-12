@@ -37,6 +37,159 @@ const toMillisSafe = (value) => {
 };
 
 // Hook para sincronizar o tempo de cada sessão individualmente
+const MAX_TIMER_MS = 7 * 24 * 60 * 60 * 1000;
+
+const isReasonableElapsedMs = (value) => {
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 && n < MAX_TIMER_MS;
+};
+
+const getSessionPhase = (session) => session?.phase || (session?.isResting ? 'rest' : 'focus');
+
+const getDisplaySnapshotSeconds = (session) => (
+  Math.max(0, Number(session?.displaySecondsSnapshot ?? session?.secondsSnapshot ?? session?.seconds ?? 0) || 0)
+);
+
+const getRemoteRunStartedMs = (session, nowMs = Date.now()) => {
+  const numericMs = Number(session?.runStartedAtMs);
+  if (
+    Number.isFinite(numericMs)
+    && numericMs > 0
+    && numericMs < nowMs + 5 * 60 * 1000
+    && numericMs > nowMs - MAX_TIMER_MS
+  ) {
+    return numericMs;
+  }
+
+  return (
+    toMillisSafe(session?.runStartedAt)
+    || toMillisSafe(session?.actionAt)
+    || toMillisSafe(session?.snapshotAt)
+    || toMillisSafe(session?.updatedAt)
+    || null
+  );
+};
+
+const getElapsedBaseMsForDisplay = (session, phase) => {
+  const mode = session?.mode;
+  const isStudyTimer = session?.variant !== 'simulado' && !session?.isSimulado;
+  const baseCandidates = phase === 'rest'
+    ? [session?.restBaseMs, session?.restElapsedMsSnapshot]
+    : (isStudyTimer && mode === 'pomodoro')
+      ? [session?.pomoBaseMs, session?.pomodoroElapsedMsSnapshot, session?.focusBaseMs, session?.focusElapsedMsSnapshot]
+      : [session?.focusBaseMs, session?.focusElapsedMsSnapshot];
+
+  const firstValid = baseCandidates.find(isReasonableElapsedMs);
+  if (firstValid != null) return Math.max(0, Number(firstValid));
+
+  return getDisplaySnapshotSeconds(session) * 1000;
+};
+
+const getCountdownTotalSeconds = (session, phase) => {
+  if (phase === 'rest') return Math.max(0, Number(session?.restSeconds || 0));
+  if (session?.mode === 'pomodoro' && session?.variant !== 'simulado' && !session?.isSimulado) {
+    return Math.max(0, Number(session?.pomodoroSeconds || 0));
+  }
+  if (session?.mode === 'countdown') return Math.max(0, Number(session?.countdownSeconds || session?.initialSeconds || 0));
+  return 0;
+};
+
+const isCountdownDisplay = (session, phase) => (
+  phase === 'rest'
+  || (session?.mode === 'pomodoro' && session?.variant !== 'simulado' && !session?.isSimulado)
+  || session?.mode === 'countdown'
+);
+
+const calculateSyncedSessionSeconds = (session, nowMs = Date.now()) => {
+  if (!session) return 0;
+
+  const phase = getSessionPhase(session);
+  const isPaused = !!session.isPaused || session.status === 'paused';
+  const isFinishedPhase = phase === 'pomodoro_finished' || phase === 'rest_finished';
+  const shouldRun = !isPaused && !isFinishedPhase && session.status !== 'finished' && session.status !== 'finishing';
+  const baseMs = getElapsedBaseMsForDisplay(session, phase);
+  const startedMs = shouldRun ? getRemoteRunStartedMs(session, nowMs) : null;
+  const elapsedMs = Math.max(0, baseMs + (startedMs ? Math.max(0, nowMs - startedMs) : 0));
+
+  if (isFinishedPhase) return 0;
+
+  if (isCountdownDisplay(session, phase)) {
+    const totalSeconds = getCountdownTotalSeconds(session, phase);
+    if (totalSeconds <= 0) return getDisplaySnapshotSeconds(session);
+    return Math.floor(Math.max(0, (totalSeconds * 1000) - elapsedMs) / 1000);
+  }
+
+  return Math.floor(elapsedMs / 1000);
+};
+
+const getSessionSyncKey = (session) => [
+  session?.uid || '',
+  session?.id || '',
+  session?.mode || '',
+  getSessionPhase(session),
+  session?.status || '',
+  session?.isPaused ? 'paused' : 'running',
+  Number(session?.actionSeq || 0),
+  Number(session?.runStartedAtMs || 0),
+].join('|');
+
+const useAdminSyncedSeconds = (session) => {
+  const [live, setLive] = useState(() => calculateSyncedSessionSeconds(session));
+  const stateRef = useRef({ key: null, value: 0 });
+
+  useEffect(() => {
+    const key = getSessionSyncKey(session);
+    const countdownLike = isCountdownDisplay(session, getSessionPhase(session));
+
+    const update = () => {
+      const next = calculateSyncedSessionSeconds(session);
+      const sameRun = stateRef.current.key === key;
+      const isPaused = !!session?.isPaused || session?.status === 'paused';
+      let stableNext = next;
+
+      if (sameRun && !isPaused) {
+        stableNext = countdownLike
+          ? Math.min(stateRef.current.value, next)
+          : Math.max(stateRef.current.value || 0, next);
+      }
+
+      stateRef.current = { key, value: stableNext };
+      setLive(stableNext);
+    };
+
+    update();
+    if (!session || session.isPaused || session.status === 'paused') return undefined;
+    const intervalId = setInterval(update, 250);
+    return () => clearInterval(intervalId);
+  }, [
+    session?.uid,
+    session?.id,
+    session?.mode,
+    session?.phase,
+    session?.status,
+    session?.isPaused,
+    session?.isResting,
+    session?.actionSeq,
+    session?.runStartedAtMs,
+    session?.runStartedAt,
+    session?.focusBaseMs,
+    session?.pomoBaseMs,
+    session?.restBaseMs,
+    session?.focusElapsedMsSnapshot,
+    session?.pomodoroElapsedMsSnapshot,
+    session?.restElapsedMsSnapshot,
+    session?.displaySecondsSnapshot,
+    session?.countdownSeconds,
+    session?.initialSeconds,
+    session?.pomodoroSeconds,
+    session?.restSeconds,
+    session?.variant,
+    session?.isSimulado,
+  ]);
+
+  return live;
+};
+
 const useSyncedSeconds = (session) => {
   const [live, setLive] = useState(0);
 
@@ -236,7 +389,6 @@ const useSyncedSeconds = (session) => {
   return live;
 };
 
-
 // --- COMPONENTES DE UI ---
 
 const PulsingAvatar = ({ user, status }) => {
@@ -292,6 +444,7 @@ const PulsingAvatar = ({ user, status }) => {
 
 // --- ALUNO CARD (foto, nome, matéria, timer em destaque) ---
 const AlunoCard = ({ s, getUser, onOpenUser: onOpenUserProp }) => {
+  const liveSeconds = useAdminSyncedSeconds(s);
   const user = getUser(s.uid);
 
   const isSimulado = s.isSimulado || (!!s.titulo && !s.disciplinaNome);
@@ -371,7 +524,7 @@ const AlunoCard = ({ s, getUser, onOpenUser: onOpenUserProp }) => {
               </span>
             </div>
             <span className="text-lg font-mono font-bold tabular-nums tracking-wide">
-              {formatClock(useSyncedSeconds(s))}
+              {formatClock(liveSeconds)}
             </span>
           </div>
         </div>
@@ -382,7 +535,7 @@ const AlunoCard = ({ s, getUser, onOpenUser: onOpenUserProp }) => {
 
 // --- CARD DA SESSÃO (VISUALIZAÇÃO EXPANDIDA) ---
 const SessionCard = ({ s, getUser, cicloNameByKey, isExpanded, toggleExpand, onOpenUser: onOpenUserProp }) => {
-  const liveSeconds = useSyncedSeconds(s);
+  const liveSeconds = useAdminSyncedSeconds(s);
   const user = getUser(s.uid);
 
   const isSimulado = s.isSimulado || (!!s.titulo && !s.disciplinaNome);
@@ -536,7 +689,7 @@ const SessionCard = ({ s, getUser, cicloNameByKey, isExpanded, toggleExpand, onO
 
 // --- VISUALIZAÇÃO EM BLOCO (TILE) ---
 const TileView = ({ s, getUser, onOpenUser: onOpenUserProp }) => {
-  const liveSeconds = useSyncedSeconds(s);
+  const liveSeconds = useAdminSyncedSeconds(s);
   const user = getUser(s.uid);
 
   const isSimulado = s.isSimulado || (!!s.titulo && !s.disciplinaNome);
@@ -624,7 +777,7 @@ const TileView = ({ s, getUser, onOpenUser: onOpenUserProp }) => {
 
 // --- VISUALIZAÇÃO EM TABELA COMPACTA (Para +5 usuários) ---
 const TableRow = ({ s, getUser, cicloNameByKey, onOpenUser: onOpenUserProp }) => {
-  const liveSeconds = useSyncedSeconds(s);
+  const liveSeconds = useAdminSyncedSeconds(s);
   const user = getUser(s.uid);
 
   const isSimulado = s.isSimulado || (!!s.titulo && !s.disciplinaNome);

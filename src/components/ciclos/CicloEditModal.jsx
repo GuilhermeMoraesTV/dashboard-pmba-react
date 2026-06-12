@@ -89,7 +89,7 @@ const montarInitialState = ({ ciclo, disciplinas }) => {
   };
 };
 
-function CicloEditModal({ onClose, user, ciclo, onCicloAtivado }) {
+function CicloEditModal({ onClose, user, ciclo, onCicloAtivado, upgradeMode = false }) {
   const [loadingData, setLoadingData] = useState(true);
   const [initialState, setInitialState] = useState(null);
 
@@ -146,7 +146,7 @@ function CicloEditModal({ onClose, user, ciclo, onCicloAtivado }) {
             <Loader2 size={28} className="text-red-600 animate-spin" />
           </div>
           <div>
-            <h2 className="text-lg font-black uppercase text-zinc-900 dark:text-white">Preparando edicao</h2>
+            <h2 className="text-lg font-black uppercase text-zinc-900 dark:text-white">{upgradeMode ? 'Preparando atualizacao' : 'Preparando edicao'}</h2>
             <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-2">
               Carregando o ciclo completo para abrir no mesmo wizard da criacao.
             </p>
@@ -162,6 +162,7 @@ function CicloEditModal({ onClose, user, ciclo, onCicloAtivado }) {
           onBackToSelector={onClose}
           user={user}
           onCicloAtivado={onCicloAtivado}
+          upgradeMode={upgradeMode}
         />
       )}
     </motion.div>

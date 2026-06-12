@@ -53,6 +53,11 @@ export default function StepPreview({
     sessoesConcluidas: [],
   }), [cicloPreview]);
 
+  const totalSessoesPreview = useMemo(
+    () => disciplinasPreview.reduce((total, disciplina) => total + (disciplina.sessoesPorCiclo || 0), 0),
+    [disciplinasPreview]
+  );
+
   return (
     <div className="flex flex-col h-full overflow-hidden w-full">
       <div className="text-center mb-6 md:mb-8 px-3 sm:px-6 lg:px-8">
@@ -66,35 +71,7 @@ export default function StepPreview({
       </div>
 
       <div className="w-full px-2 sm:px-4 lg:px-8 overflow-y-auto custom-scrollbar pb-10">
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 xl:grid-cols-[320px_minmax(0,1fr)] gap-4 md:gap-5 items-start">
-            <div>
-              <EditalSidebarCard editalSelecionado={editalSelecionado} nomeCiclo={nomeCiclo} />
-            </div>
-
-            <div className="rounded-3xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 sm:p-5 shadow-sm">
-              <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-4">Distribuicao prevista</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-                {disciplinasPreview.map((disciplina) => (
-                  <div key={disciplina.id} className="rounded-2xl bg-zinc-50 dark:bg-zinc-800/60 px-3 py-3 border border-zinc-100 dark:border-zinc-800">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="text-sm font-black text-zinc-900 dark:text-white line-clamp-1">{disciplina.nome}</p>
-                        <p className="text-[11px] text-zinc-500 mt-1 capitalize">{disciplina.nivelDominio || 'nivel nao definido'}</p>
-                      </div>
-                      <span className="text-[10px] font-black uppercase tracking-wide text-red-600 whitespace-nowrap">
-                        {disciplina.sessoesPorCiclo} sessoes
-                      </span>
-                    </div>
-                    <div className="mt-2 text-[11px] text-zinc-500">
-                      {formatarHoras((disciplina.tempoAlocadoMinutos || 0) / 60)} por volta
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
+        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_340px] gap-4 md:gap-5 items-start">
           <div className="rounded-[28px] border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/70 shadow-sm p-2 sm:p-4 lg:p-6 min-h-[520px] sm:min-h-[640px]">
             <CicloVisual
               selectedDisciplinaId={selectedDisciplinaId}
@@ -111,7 +88,44 @@ export default function StepPreview({
               onConcluirCiclo={() => {}}
               cicloActionLoading={false}
               showAssuntos={modoExibirAssuntos !== false}
+              hideActionButtons
             />
+          </div>
+
+          <div className="space-y-4">
+            <EditalSidebarCard editalSelecionado={editalSelecionado} nomeCiclo={nomeCiclo} />
+
+            <div className="rounded-3xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 shadow-sm xl:max-h-[476px]">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between mb-3">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Distribuicao prevista</p>
+                  <p className="text-[11px] font-bold text-zinc-500 dark:text-zinc-400 mt-1">
+                    {disciplinasPreview.length} disciplinas em {totalSessoesPreview} sessoes por volta
+                  </p>
+                </div>
+                <span className="w-fit rounded-full bg-red-50 dark:bg-red-950/30 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-red-600 dark:text-red-400">
+                  apoio visual
+                </span>
+              </div>
+              <div className="grid max-h-[292px] grid-cols-1 gap-2 overflow-y-auto pr-1 custom-scrollbar sm:grid-cols-2 xl:max-h-[390px] xl:grid-cols-1">
+                {disciplinasPreview.map((disciplina) => (
+                  <div key={disciplina.id} className="rounded-xl bg-zinc-50 dark:bg-zinc-800/60 px-3 py-2 border border-zinc-100 dark:border-zinc-800">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-[13px] font-black text-zinc-900 dark:text-white leading-tight line-clamp-1">{disciplina.nome}</p>
+                        <p className="text-[10px] text-zinc-500 mt-0.5 capitalize line-clamp-1">{disciplina.nivelDominio || 'nivel nao definido'}</p>
+                      </div>
+                      <span className="rounded-full bg-white dark:bg-zinc-900 px-2 py-1 text-[10px] font-black uppercase tracking-wide text-red-600 whitespace-nowrap border border-zinc-100 dark:border-zinc-800">
+                        {disciplina.sessoesPorCiclo}x
+                      </span>
+                    </div>
+                    <div className="mt-1.5 text-[10px] font-semibold text-zinc-500">
+                      {formatarHoras((disciplina.tempoAlocadoMinutos || 0) / 60)} por volta
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </div>

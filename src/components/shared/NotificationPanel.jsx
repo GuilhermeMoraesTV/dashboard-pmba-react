@@ -137,6 +137,14 @@ const SYSTEM_ALERT_CONFIG = {
     borderColor: 'border-l-emerald-500',
     actionColor: 'bg-gradient-to-r from-emerald-600 to-emerald-700 text-white hover:brightness-110',
   },
+  ciclo_legacy_upgrade: {
+    icon: Sparkles,
+    label: 'Novo Guia',
+    iconColor: 'text-red-600 dark:text-red-400',
+    iconBg: 'bg-red-50 dark:bg-red-950/40',
+    borderColor: 'border-l-red-500',
+    actionColor: 'bg-gradient-to-r from-red-600 to-red-700 text-white hover:brightness-110',
+  },
 };
 
 export const SystemAlertCard = ({ alert, onAction }) => {
@@ -507,6 +515,15 @@ export const EditalUpdateModal = ({ notif, onClose, onApply, onDismiss, loading,
 
 const NotifItem = ({ notif, isRead, onRead, onOpenBroadcast, onOpenEditalModal, onDismissUpdate, onDeleteBroadcast, onDeleteHistory, isDismissedItem = false }) => {
   const resolvedType = notif._type || (notif.cicloId ? 'edital_update' : 'broadcast');
+  const historyId = notif.id || (notif.cicloId && notif.versionKey ? `edital_${notif.cicloId}_${notif.versionKey}` : null);
+  const handleDelete = (event) => {
+    event.stopPropagation();
+    if (isDismissedItem && historyId && onDeleteHistory) {
+      onDeleteHistory(historyId);
+      return;
+    }
+    if (notif.id && onDeleteBroadcast) onDeleteBroadcast(notif.id);
+  };
 
   if (resolvedType === 'broadcast') {
     const cfg = BROADCAST_CONFIG[notif.category] || BROADCAST_CONFIG.comunicado;
@@ -552,7 +569,7 @@ const NotifItem = ({ notif, isRead, onRead, onOpenBroadcast, onOpenEditalModal, 
             <button onClick={(e) => { e.stopPropagation(); onRead(notif.id); }} className="p-1.5 rounded-lg text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-all active:scale-90 border border-emerald-100 dark:border-emerald-900/30 shadow-sm"><Check size={14} strokeWidth={3} /></button>
           )}
           {isRead && <div className="flex items-center gap-1 p-1.5 text-zinc-400"><CheckCheck size={14} strokeWidth={2.5} /></div>}
-          <button onClick={(e) => { e.stopPropagation(); if (onDeleteBroadcast) onDeleteBroadcast(notif.id); }} className="p-1.5 rounded-lg text-zinc-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 transition-all opacity-0 group-hover:opacity-100 active:scale-90"><Trash2 size={14} strokeWidth={2.5} /></button>
+          <button onClick={handleDelete} className="p-1.5 rounded-lg text-zinc-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 transition-all opacity-0 group-hover:opacity-100 active:scale-90"><Trash2 size={14} strokeWidth={2.5} /></button>
         </div>
       </motion.div>
     );
@@ -605,7 +622,13 @@ const NotifItem = ({ notif, isRead, onRead, onOpenBroadcast, onOpenEditalModal, 
             </div>
           </div>
         </div>
-        {!isDismissedItem && (
+        {isDismissedItem ? (
+          <div className="px-3 pb-3 flex justify-end border-t border-zinc-50 dark:border-zinc-800/60 pt-2.5" onClick={(e) => e.stopPropagation()}>
+            <button onClick={handleDelete} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest text-zinc-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 transition-all">
+              <Trash2 size={12} strokeWidth={2.5} /> Excluir
+            </button>
+          </div>
+        ) : (
           <div className="px-3 pb-3 flex gap-2 border-t border-zinc-50 dark:border-zinc-800/60 pt-2.5" onClick={(e) => e.stopPropagation()}>
             <button onClick={(e) => { e.stopPropagation(); if (onDismissUpdate) onDismissUpdate(notif.cicloId, notif.versionKey); }} className="px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest text-zinc-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 transition-all border border-transparent hover:border-red-100 dark:hover:border-red-900/30">IGNORAR</button>
             <button onClick={(e) => { e.stopPropagation(); onOpenEditalModal(notif); }} className={`flex-1 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 text-white bg-gradient-to-r ${typeCfg.color} hover:brightness-110 active:scale-[0.97] shadow-lg shadow-red-600/15`}><Rocket size={12} strokeWidth={2.5} /> ATUALIZAR</button>
@@ -762,12 +785,17 @@ const NotificationPanel = ({
 export const NotificationBell = ({ unreadCount, notifications, dismissedHistory, readBroadcasts, onMarkBroadcastRead, onMarkAllRead, onApplyEditalUpdate, onDismissEditalUpdate, loadingUpdate, onNavigateToEdital, deleteBroadcast, deleteHistoryItem, systemAlerts = [], onSystemAlertAction, bellRef }) => {
   const [panelOpen, setPanelOpen] = useState(false);
   const hasEditalUpdate = (notifications || []).some(n => n._type === 'edital_update');
+  const totalBadgeCount = Number(unreadCount || 0) + (systemAlerts || []).length;
   return (
     <div className="relative">
-      <motion.button ref={bellRef} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => setPanelOpen(!panelOpen)} className={`relative w-11 h-11 rounded-2xl flex items-center justify-center transition-all border shadow-sm ${panelOpen ? 'bg-gradient-to-br from-red-600 to-red-700 text-white border-transparent shadow-xl scale-105' : 'bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800'}`} aria-label="Notificações">
-        <motion.div animate={unreadCount > 0 && !panelOpen ? { rotate: [0, -12, 12, -8, 8, -4, 4, 0] } : { rotate: 0 }} transition={{ duration: 0.6, repeat: unreadCount > 0 && !panelOpen ? Infinity : 0, repeatDelay: 5 }} style={{ transformOrigin: 'top center' }}><Bell size={22} strokeWidth={2.2} /></motion.div>
-        <AnimatePresence>{unreadCount > 0 && <motion.span key="badge" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} className="absolute -top-1.5 -right-1.5 min-w-[20px] h-[20px] bg-red-500 text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-white dark:border-zinc-950 shadow-lg">{unreadCount > 9 ? '9+' : unreadCount}</motion.span>}</AnimatePresence>
-        {hasEditalUpdate && unreadCount === 0 && <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-60" /><span className="relative inline-flex h-3.5 w-3.5 rounded-full bg-red-500 border-2 border-white dark:border-zinc-950" /></span>}
+      <motion.button ref={bellRef} whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.95 }} onClick={() => setPanelOpen(!panelOpen)} className={`relative w-10 h-10 rounded-xl flex items-center justify-center transition-all border shadow-sm ${panelOpen ? 'bg-gradient-to-br from-red-600 to-red-700 text-white border-transparent shadow-xl scale-105' : 'bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800'}`} aria-label="Notificações">
+        <Bell size={19} strokeWidth={2.2} />
+        {totalBadgeCount > 0 && (
+          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center border-2 border-white dark:border-zinc-950 shadow-lg">
+            {totalBadgeCount > 9 ? '9+' : totalBadgeCount}
+          </span>
+        )}
+        {hasEditalUpdate && totalBadgeCount === 0 && <span className="absolute -top-1 -right-1 h-3.5 w-3.5 rounded-full bg-red-500 border-2 border-white dark:border-zinc-950" />}
       </motion.button>
       <NotificationPanel isOpen={panelOpen} onClose={() => setPanelOpen(false)} notifications={notifications || []} dismissedHistory={dismissedHistory || []} unreadCount={unreadCount} readBroadcasts={readBroadcasts} onMarkBroadcastRead={onMarkBroadcastRead} onMarkAllRead={onMarkAllRead} onApplyEditalUpdate={onApplyEditalUpdate} onDismissEditalUpdate={onDismissEditalUpdate} loadingUpdate={loadingUpdate} onNavigateToEdital={onNavigateToEdital} deleteBroadcast={deleteBroadcast} deleteHistoryItem={deleteHistoryItem} systemAlerts={systemAlerts} onSystemAlertAction={onSystemAlertAction} bellRef={bellRef} />
     </div>

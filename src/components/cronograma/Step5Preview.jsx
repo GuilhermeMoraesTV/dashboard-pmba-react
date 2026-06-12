@@ -29,6 +29,12 @@ import {
 } from 'lucide-react';
 
 import { getAgendaSemana } from '../../hooks/useCronogramaSystem';
+import {
+  REVIEW_COLOR,
+  buildDisciplineColorMap,
+  getDisciplineCardVars,
+  getDisciplineColorForSlot,
+} from '../../utils/disciplineColors';
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 const fmtMin = (min) => {
@@ -68,18 +74,6 @@ const getCalendarDays = (year, month) => {
 
 const DIAS_CURTO  = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 const MESES_FULL  = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-
-const CORES = [
-  { id:'red',     bg:'bg-red-500',     text:'text-red-600',    border:'border-red-100',    light:'bg-red-50/50'    },
-  { id:'blue',    bg:'bg-blue-500',    text:'text-blue-600',   border:'border-blue-100',   light:'bg-blue-50/50'   },
-  { id:'emerald', bg:'bg-emerald-500', text:'text-emerald-600', border:'border-emerald-100', light:'bg-emerald-50/50'},
-  { id:'amber',   bg:'bg-amber-500',   text:'text-amber-600',  border:'border-amber-200',  light:'bg-amber-50/50'  },
-  { id:'violet',  bg:'bg-violet-500',  text:'text-violet-600', border:'border-violet-100', light:'bg-violet-50/50' },
-  { id:'pink',    bg:'bg-pink-500',    text:'text-pink-600',   border:'border-pink-100',   light:'bg-pink-50/50'   },
-  { id:'cyan',    bg:'bg-cyan-500',    text:'text-cyan-600',   border:'border-cyan-100',   light:'bg-cyan-50/50'   },
-];
-
-const COR_REVISAO = { id:'rev', bg:'bg-violet-600', text:'text-violet-600', border:'border-violet-100', light:'bg-violet-50/50' };
 
 // ─── [FIX-A] Helpers de exibição para revisões ────────────────────────────────
 
@@ -130,9 +124,21 @@ function getLabelTipo(item) {
 
 // ─── COMPONENTES ──────────────────────────────────────────────────────────────
 
-const SlotCard = ({ item, onDragStart, onClick, compact = false, config = {} }) => {
+const SlotCard = ({ item, onDragStart, onClick, compact = false, config = {}, colorMap = null, isToday = false }) => {
   const isRev = item.isRevisao || item.isRevisaoAuto;
   const modoTempo = config.modoExibirTempo || 'detalhado';
+  const isDone = Boolean(item.concluido);
+  const disciplinaColor = getDisciplineColorForSlot(item, colorMap);
+  const cardStyle = isToday
+    ? { '--discipline-rgb': '239, 68, 68' }
+    : getDisciplineCardVars(disciplinaColor);
+  const tempoPlanejadoMinutos = Number(item.tempoPlanejadoMinutos ?? item.tempoMinutos ?? item.minutosEstudo ?? 0);
+  const progressoAtualMinutos = Number(item.progressoMinutos || 0);
+  const progressoLimitado = Math.min(progressoAtualMinutos, tempoPlanejadoMinutos || progressoAtualMinutos);
+  const progressoPercentual = tempoPlanejadoMinutos > 0
+    ? Math.min(100, Math.round((progressoLimitado / tempoPlanejadoMinutos) * 100))
+    : (isDone ? 100 : 0);
+  const emAndamento = !isDone && progressoLimitado > 0 && progressoPercentual < 100;
 
   // [FIX-A] Usa helpers para nome e assunto — funciona para teoria E revisão
   const nomeDisc   = getNomeDisc(item);
@@ -142,7 +148,8 @@ const SlotCard = ({ item, onDragStart, onClick, compact = false, config = {} }) 
     return (
       <div
         onClick={(e) => { e.stopPropagation(); onClick(item); }}
-        className={`px-1.5 py-0.5 rounded-md text-[7px] font-black uppercase truncate border border-white/10 shadow-sm transition-transform active:scale-95 ${isRev ? 'bg-violet-600 text-white' : (item.cor?.bg || 'bg-zinc-400') + ' text-white'}`}
+        style={cardStyle}
+        className={`discipline-tinted-card ${isDone ? 'discipline-completed-card' : ''} relative px-1.5 py-0.5 rounded-md text-[7px] font-black uppercase truncate border shadow-sm transition-transform active:scale-95 ${isRev ? 'text-blue-700 dark:text-blue-300' : disciplinaColor.text}`}
       >
         {nomeDisc}
       </div>
@@ -155,27 +162,55 @@ const SlotCard = ({ item, onDragStart, onClick, compact = false, config = {} }) 
       onDragStart={(e) => onDragStart?.(e, item)}
       onClick={() => onClick(item)}
       whileHover={{ y: -1, scale: 1.01 }}
-      className={`group relative cursor-grab active:cursor-grabbing select-none flex flex-col gap-1.5 p-3 rounded-xl border transition-all duration-200 hover:border-zinc-300 dark:hover:border-zinc-600 shadow-sm hover:shadow-md ${isRev ? 'bg-violet-50/30 dark:bg-violet-900/10 border-violet-100/50 dark:border-violet-800/30' : 'bg-white dark:bg-zinc-900 border-zinc-100 dark:border-zinc-800'}`}
+      style={cardStyle}
+      className={`discipline-tinted-card ${isDone ? 'discipline-completed-card' : ''} group relative min-h-[116px] cursor-grab active:cursor-grabbing select-none overflow-hidden rounded-2xl border transition-all duration-200 shadow-sm ${isToday ? 'ring-1 ring-red-500/45' : ''}`}
     >
+      <div className={`absolute bottom-0 left-0 top-0 w-1.5 transition-colors duration-300 ${
+        isToday ? 'bg-red-600' : isDone ? disciplinaColor.bg : emAndamento ? 'bg-orange-500' : isRev ? 'bg-blue-500' : disciplinaColor.bg
+      }`} />
+
+      <div className="flex h-full flex-col gap-2 px-3.5 py-3">
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-0.5">
-            <div className={`w-2 h-2 rounded-full shrink-0 shadow-sm ${isRev ? 'bg-violet-500' : (item.cor?.bg || 'bg-zinc-400')}`} />
+            <div className={`w-2.5 h-2.5 rounded-full shrink-0 shadow-sm ${isToday ? 'bg-red-600' : disciplinaColor.bg || 'bg-zinc-400'}`} />
             {/* [FIX-A] Nome da disciplina — funciona para revisões individuais e consolidadas */}
-            <h4 className="text-[10px] font-black uppercase tracking-tight text-zinc-900 dark:text-zinc-100 truncate">
+            <h4 className={`text-[12px] font-black uppercase tracking-wide truncate ${isDone ? `${isToday ? 'text-red-800' : disciplinaColor.text} line-through opacity-75` : isToday ? 'text-red-800 dark:text-red-200' : disciplinaColor.text}`}>
               {nomeDisc}
             </h4>
+            {isDone && <CheckCircle2 size={11} className="shrink-0 text-emerald-500" strokeWidth={3} />}
           </div>
           {/* [FIX-B] Assunto — para revisões exibe o assunto revisado */}
-          <p className="text-[9px] font-bold text-zinc-500 dark:text-zinc-400 line-clamp-1 leading-tight">
+          <p className={`line-clamp-2 text-[11px] font-semibold leading-snug ${isToday ? 'text-zinc-700 dark:text-red-50/90' : 'text-zinc-600 dark:text-zinc-300'}`}>
             {assuntoTxt}
           </p>
         </div>
         {(modoTempo === 'detalhado' || !modoTempo) && (
-          <span className="text-[9px] font-black tabular-nums text-zinc-900 dark:text-white pt-0.5">
-            {fmtMin(item.tempoMinutos)}
+          <span className={`pt-0.5 text-[10px] font-black tabular-nums ${isToday ? 'text-red-950 dark:text-white' : 'text-zinc-900 dark:text-white'}`}>
+            {fmtMin(tempoPlanejadoMinutos)}
           </span>
         )}
+      </div>
+      {tempoPlanejadoMinutos > 0 && (
+        <div className="mt-auto">
+          <div className={`mb-1.5 flex items-center justify-between gap-2 text-[10px] font-black ${isToday ? 'text-red-900 dark:text-red-50/90' : 'text-zinc-600 dark:text-zinc-300'}`}>
+            <span className="tabular-nums">
+              {fmtMin(isDone ? tempoPlanejadoMinutos : progressoLimitado)} / {fmtMin(tempoPlanejadoMinutos)}
+            </span>
+            <span className="font-black tabular-nums">
+              {isDone ? 100 : progressoPercentual}%
+            </span>
+          </div>
+          <div className="h-1.5 overflow-hidden rounded-full bg-white/65 dark:bg-black/25">
+            <motion.div
+              initial={false}
+              animate={{ width: `${isDone ? 100 : progressoPercentual}%` }}
+              transition={{ duration: 0.25 }}
+              className={`h-full rounded-full ${isToday ? 'bg-red-700' : isDone ? disciplinaColor.progress : emAndamento ? 'bg-orange-500' : disciplinaColor.progress}`}
+            />
+          </div>
+        </div>
+      )}
       </div>
     </motion.div>
   );
@@ -229,11 +264,7 @@ const Step5_Preview = ({
   };
 
   // ── Lógica de Agenda ───────────────────────────────────────────────────────
-  const colorMap = useMemo(() => {
-    const map = {};
-    (disciplinas || []).forEach((d, i) => { map[d.id] = CORES[i % CORES.length]; });
-    return map;
-  }, [disciplinas]);
+  const colorMap = useMemo(() => buildDisciplineColorMap(disciplinas || []), [disciplinas]);
 
   // CORREÇÃO: startDate é o primeiro dia com horas > 0 a partir de hoje.
   const startDate = useMemo(() => {
@@ -300,7 +331,7 @@ const Step5_Preview = ({
             ...slot,
             idUnique:     `${key}-${currentOffset}-${idx}`,
             disc,
-            cor:          (slot.isRevisao || slot.isRevisaoAuto) ? COR_REVISAO : (colorMap[slot.disciplinaId] || CORES[0]),
+            cor:          getDisciplineColorForSlot(slot, colorMap),
             isRevisao:    slot.isRevisao || slot.isRevisaoAuto || false,
             tempoMinutos: slot.tempoMinutos ?? slot.minutosEstudo ?? 0
           });
@@ -376,18 +407,18 @@ const Step5_Preview = ({
       </motion.div>
 
       {/* ── HEADER TOOLBAR ── */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60 px-4 py-3">
-          <p className="mb-1 text-[10px] font-black uppercase tracking-[0.22em] text-zinc-400 dark:text-zinc-500">Início</p>
-          <p className="text-sm font-black text-zinc-900 dark:text-white">{fmtDate(resultado?.dataInicio || isoKey(startDate))}</p>
+      <div className="mx-auto grid w-full max-w-3xl grid-cols-1 gap-2.5 px-1 sm:grid-cols-3">
+        <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60 px-3 py-2.5">
+          <p className="mb-0.5 text-[9px] font-black uppercase tracking-[0.18em] text-zinc-400 dark:text-zinc-500">Início</p>
+          <p className="text-[13px] font-black text-zinc-900 dark:text-white">{fmtDate(resultado?.dataInicio || isoKey(startDate))}</p>
         </div>
-        <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60 px-4 py-3">
-          <p className="mb-1 text-[10px] font-black uppercase tracking-[0.22em] text-zinc-400 dark:text-zinc-500">Data Final</p>
-          <p className="text-sm font-black text-zinc-900 dark:text-white">{fmtDate(dataFinalCronograma)}</p>
+        <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60 px-3 py-2.5">
+          <p className="mb-0.5 text-[9px] font-black uppercase tracking-[0.18em] text-zinc-400 dark:text-zinc-500">Data Final</p>
+          <p className="text-[13px] font-black text-zinc-900 dark:text-white">{fmtDate(dataFinalCronograma)}</p>
         </div>
-        <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60 px-4 py-3">
-          <p className="mb-1 text-[10px] font-black uppercase tracking-[0.22em] text-zinc-400 dark:text-zinc-500">Duração</p>
-          <p className="text-sm font-black text-zinc-900 dark:text-white">{totalSemanas} semana(s) · {totalHorasSemanais}h/sem</p>
+        <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60 px-3 py-2.5">
+          <p className="mb-0.5 text-[9px] font-black uppercase tracking-[0.18em] text-zinc-400 dark:text-zinc-500">Duração</p>
+          <p className="text-[13px] font-black text-zinc-900 dark:text-white">{totalSemanas} sem. · {totalHorasSemanais}h/sem</p>
         </div>
       </div>
 
@@ -411,7 +442,7 @@ const Step5_Preview = ({
       </div>
 
       {/* ── TOOLBAR ── */}
-      <div className="flex items-center justify-between gap-4 px-1 bg-white dark:bg-zinc-900/50 py-3 rounded-3xl border border-zinc-100 dark:border-zinc-800/50">
+      <div className="relative flex flex-col items-center justify-center gap-3 px-1 bg-white dark:bg-zinc-900/50 py-3 rounded-3xl border border-zinc-100 dark:border-zinc-800/50 sm:flex-row">
         <div className="flex items-center gap-3">
           <button
             onClick={() => {
@@ -448,11 +479,11 @@ const Step5_Preview = ({
         </div>
 
         {agendaOverride ? (
-          <button onClick={() => setAgendaOverride(null)} className="flex items-center gap-2 px-4 py-2 rounded-xl text-amber-600 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 text-[10px] font-black uppercase animate-pulse">
+          <button onClick={() => setAgendaOverride(null)} className="flex items-center gap-2 px-4 py-2 rounded-xl text-amber-600 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 text-[10px] font-black uppercase animate-pulse sm:absolute sm:right-3">
             <RefreshCw size={14} /> Resetar Alterações
           </button>
         ) : (
-          <div className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800 text-zinc-400 text-[9px] font-black uppercase tracking-widest border border-zinc-200 dark:border-zinc-700">
+          <div className="hidden sm:absolute sm:right-3 sm:flex items-center gap-2 px-4 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800 text-zinc-400 text-[9px] font-black uppercase tracking-widest border border-zinc-200 dark:border-zinc-700">
             <Info size={12} /> Design Interativo
           </div>
         )}
@@ -479,45 +510,42 @@ const Step5_Preview = ({
 
                 return (
                   <div key={diaOffset} onDragOver={(e) => e.preventDefault()} onDrop={(e) => onDrop(e, key)}
-                    className={`flex flex-col gap-4 min-w-[260px] max-w-[260px] min-h-[420px] rounded-[28px] border overflow-hidden transition-all duration-300 relative ${hoje ? 'border-red-200 dark:border-red-900/50 bg-white dark:bg-zinc-900 shadow-2xl shadow-red-500/10' : 'border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm hover:shadow-md'}`}
+                    className={`relative flex min-h-[420px] min-w-[292px] max-w-[292px] flex-col rounded-[22px] border p-2 transition-all duration-300 sm:min-w-[320px] sm:max-w-[320px] ${hoje ? 'border-red-500/60 bg-white/70 shadow-md ring-1 ring-red-500/30 dark:bg-zinc-950/40' : 'border-zinc-200 bg-zinc-50/70 shadow-sm hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-950/30 dark:hover:border-zinc-700'}`}
                   >
-                    <div className="p-5 pb-4">
+                    <div className={`mb-3 shrink-0 rounded-2xl border px-4 py-3 shadow-sm transition-all duration-300 ${hoje ? 'border-red-500/60 bg-zinc-950 text-white dark:border-red-500/40 dark:bg-zinc-900' : 'border-zinc-800 bg-zinc-900 text-white dark:border-zinc-800 dark:bg-zinc-900'}`}>
                       {hoje && (
                         <>
                           <div className="absolute -left-1 top-0 bottom-0 w-1.5 bg-red-600" />
-                          <div className="absolute top-0 right-0 rounded-bl-2xl bg-red-600 px-4 py-1.5 text-[9px] font-black uppercase tracking-[0.2em] text-white">
-                            Foco do Dia
-                          </div>
                         </>
                       )}
-                      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-red-500 dark:text-red-400">
+                          <p className={`text-[10px] font-black uppercase tracking-widest ${hoje ? 'text-red-200 dark:text-red-600' : 'text-zinc-400 dark:text-zinc-500'}`}>
                             {MESES_FULL[data.getMonth()]}
                           </p>
-                          <h3 className="mt-1 text-lg font-black text-zinc-900 dark:text-white">
+                          <h3 className="mt-0.5 text-lg font-black uppercase leading-none tracking-tight text-white">
                             {data.toLocaleDateString('pt-BR', { weekday: 'long' })}
                           </h3>
-                          <div className="mt-1 text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-400 dark:text-zinc-300/80">
+                          <div className={`mt-1 text-[11px] font-bold uppercase tracking-widest ${hoje ? 'text-red-100 dark:text-red-600' : 'text-zinc-300 dark:text-zinc-500'}`}>
                             {data.getDate()} {data.toLocaleDateString('pt-BR', { month: 'short' })}
                           </div>
                         </div>
                         <div className="flex flex-col items-end gap-2">
-                          <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-2.5 py-1.5 shadow-sm dark:border-zinc-700 dark:bg-zinc-800/90">
+                          <div className="rounded-lg border border-white/10 bg-white/10 px-2 py-1.5 text-white">
                             <div className="flex items-center gap-1.5">
-                              <Clock size={11} className="text-red-500 dark:text-red-400" />
+                              <Clock size={12} className={hoje ? 'text-white' : 'text-zinc-300'} />
                               <div className="flex flex-col items-end leading-none">
-                                <span className="text-[7px] font-black uppercase tracking-[0.18em] text-zinc-400 dark:text-zinc-300/80">Tempo Total</span>
-                                <span className="mt-1 text-[11px] font-black tabular-nums text-zinc-800 dark:text-zinc-100">{fmtMin(totalDia)}</span>
+                                <span className={`text-[8px] font-black uppercase tracking-widest ${hoje ? 'text-red-100' : 'text-zinc-300'}`}>Tempo</span>
+                                <span className="mt-0.5 text-[11px] font-black tabular-nums text-white">{fmtMin(totalDia)}</span>
                               </div>
                             </div>
                           </div>
                           {hoje ? (
-                            <span className="rounded-full bg-red-600 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-white">
+                            <span className="rounded bg-white px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-red-600 shadow-sm">
                               Hoje
                             </span>
                           ) : items.length > 0 ? (
-                            <div className="text-[9px] font-black px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700">
+                            <div className="rounded bg-white/10 px-2 py-0.5 text-[10px] font-black text-white">
                               {items.length} blocos
                             </div>
                           ) : null}
@@ -547,7 +575,7 @@ const Step5_Preview = ({
                     </div>
                     <div className="flex flex-col gap-3">
                       {items.length > 0 ? items.map((item) => (
-                        <SlotCard key={item.idUnique} item={item} onDragStart={onDragStart} onClick={setModalSlot} config={config} />
+                        <SlotCard key={item.idUnique} item={item} onDragStart={onDragStart} onClick={setModalSlot} config={config} colorMap={colorMap} isToday={hoje} />
                       )) : (
                         <div className="flex flex-col items-center justify-center py-16 opacity-30 border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-3xl">
                           <Moon size={24} className="text-zinc-400 mb-2" />
@@ -575,7 +603,7 @@ const Step5_Preview = ({
                 items.forEach((item) => {
                   const nome = getNomeDisc(item);
                   const chave = `${item.disciplinaId || nome}::${item.isRevisao || item.isRevisaoAuto ? 'rev' : 'std'}`;
-                  const cor = (item.isRevisao || item.isRevisaoAuto) ? COR_REVISAO : (colorMap[item.disciplinaId] || CORES[0]);
+                  const cor = getDisciplineColorForSlot(item, colorMap);
                   if (!resumoPorDiscMap[chave]) {
                     resumoPorDiscMap[chave] = {
                       chave,
@@ -688,20 +716,20 @@ const Step5_Preview = ({
 
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             {items.map((item, i) => {
-                              const isRev = item.isRevisao || item.isRevisaoAuto;
+                              const isDone = Boolean(item.concluido);
                               // [FIX-A] Usa helpers para todos os tipos de slot
                               const nomeDisc   = getNomeDisc(item);
                               const assuntoTxt = getTextoAssunto(item, config);
 
                               return (
                                 <div key={i} onClick={() => setModalSlot(item)}
-                                  className="flex items-center justify-between p-3 rounded-2xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-100 dark:border-zinc-700/50 hover:border-red-300 dark:hover:border-red-900 transition-all cursor-pointer group/item"
+                                  className={`relative flex items-center justify-between p-3 rounded-2xl border transition-all cursor-pointer group/item bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/80 ${isDone ? 'opacity-75' : ''}`}
                                 >
                                   <div className="flex items-center gap-3 min-w-0">
-                                    <div className={`w-2 h-2 rounded-full shrink-0 ${isRev ? 'bg-violet-500' : (item.cor?.bg || 'bg-zinc-400')}`} />
+                                    <div className="w-2 h-2 rounded-full shrink-0 bg-zinc-300 dark:bg-zinc-600" />
                                     <div className="min-w-0">
                                       {/* [FIX-A] Nome da disciplina — sempre correto para revisões */}
-                                      <p className="text-[11px] font-black uppercase text-zinc-900 dark:text-zinc-100 truncate leading-none mb-1">
+                                      <p className={`text-[11px] font-black uppercase truncate leading-none mb-1 ${isDone ? 'text-zinc-500 line-through opacity-75' : 'text-zinc-900 dark:text-zinc-100'}`}>
                                         {nomeDisc}
                                       </p>
                                       {/* [FIX-B] Assunto — para revisões mostra o assunto revisado */}

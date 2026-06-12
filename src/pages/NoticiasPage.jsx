@@ -16,6 +16,7 @@ import { listaCache } from '../services/noticiaIA';
 import { sanitizarValorCampo } from '../hooks/useNoticias';
 import { useNoticias } from '../hooks/useNoticias';
 import { CATEGORIAS, CATS_RSS, REGIOES, getSvgPattern, BASE } from '../config/noticiasConfig';
+import EmptyStateCard from '../components/shared/EmptyStateCard';
 
 // ─── LOGO ESTRATÉGIA ─────────────────────────────────────────────────────────
 function LogoComFallback({ size = 'sm' }) {
@@ -60,6 +61,23 @@ function Skeleton() {
       <div className="space-y-2 pt-2 border-t border-zinc-50 dark:border-zinc-800">
         <div className="h-3 bg-zinc-100 dark:bg-zinc-800 rounded-full w-3/5" />
         <div className="h-3 bg-zinc-100 dark:bg-zinc-800 rounded-full w-2/5" />
+      </div>
+    </div>
+  );
+}
+
+function NoticiasLoadingState({ title = 'Carregando oportunidades...', description = 'Buscando noticias, editais e atualizacoes para deixar sua central pronta.' }) {
+  return (
+    <div className="space-y-5">
+      <EmptyStateCard
+        icon={RefreshCw}
+        title={title}
+        description={description}
+        variant="loading"
+        className="min-h-[210px]"
+      />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} />)}
       </div>
     </div>
   );
@@ -720,9 +738,10 @@ export default function NoticiasPage() {
       {estadoFiltro && (
         <>
           {loadingEstado && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} />)}
-            </div>
+            <NoticiasLoadingState
+              title={`Carregando concursos de ${estadoFiltro.nome}...`}
+              description="Estamos consultando as oportunidades e organizando os cards por relevancia."
+            />
           )}
           {!loadingEstado && noticiasEstado.length === 0 && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
@@ -783,9 +802,10 @@ export default function NoticiasPage() {
       {regiaoAtiva && !estadoFiltro && (
         <>
           {loadingRegiao && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {Array.from({ length: 9 }).map((_, i) => <Skeleton key={i} />)}
-            </div>
+            <NoticiasLoadingState
+              title={`Carregando regiao ${regiaoAtiva.label}...`}
+              description="Aguarde enquanto reunimos concursos e noticias dessa regiao."
+            />
           )}
           {!loadingRegiao && noticiasRegiao.length === 0 && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center py-20 text-center">
@@ -855,11 +875,7 @@ export default function NoticiasPage() {
       {!regiaoAtiva && !estadoFiltro && (
         <>
           {erro && !loading && <ErroState onRetry={() => { listaCache.delete(catAtiva.id); carregar(catAtiva); }} />}
-          {!erro && loading && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {Array.from({ length: 9 }).map((_, i) => <Skeleton key={i} />)}
-            </div>
-          )}
+          {!erro && loading && <NoticiasLoadingState />}
           {!erro && !loading && noticias.length === 0 && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center py-20 text-center">
               <BookOpen size={48} className="text-zinc-300 dark:text-zinc-600 mb-4" />

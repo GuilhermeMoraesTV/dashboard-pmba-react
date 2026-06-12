@@ -10,11 +10,14 @@ const MiniWidgetTimer = ({
     isResting,
     disciplina,
     seconds,
+    isPreparing = false,
+    countdown = 0,
     formatClock,
     onTogglePause,
     onMaximize
 }) => {
     const activeColor = isPaused ? '#fbbf24' : themeColor;
+    const displaySeconds = isPreparing ? Math.max(1, Number(countdown) || 1) : seconds;
 
     return (
         <motion.div
@@ -74,10 +77,10 @@ const MiniWidgetTimer = ({
                 {/* Textos e Tempo */}
                 <div className="flex flex-col min-w-0 flex-1">
                     <span className="text-[8px] text-zinc-500 dark:text-zinc-400 uppercase font-black tracking-wider truncate mb-0.5">
-                        {assunto ? assunto : (variant !== 'simulado' && isResting ? 'Descanso' : (disciplina?.nome || 'Estudo'))}
+                        {isPreparing ? 'Preparando' : (assunto ? assunto : (variant !== 'simulado' && isResting ? 'Descanso' : (disciplina?.nome || 'Estudo')))}
                     </span>
                     <span className="text-lg font-mono font-black text-zinc-900 dark:text-white leading-none">
-                        {formatClock(seconds)}
+                        {formatClock(displaySeconds)}
                     </span>
                 </div>
 

@@ -5,9 +5,10 @@ import {
   TrendingUp, Target, SkipForward, Trash2, AlertTriangle, X,
   BookOpen, Clock, Star, Flame, BarChart2, Sun, LayoutList,
   GripVertical, Calendar, LayoutGrid, Check, MoreHorizontal,
-  BadgeCheck, Settings, FilePenLine, Loader2, Trophy,
+  BadgeCheck, FilePenLine, Loader2, Trophy, History,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { createPortal } from 'react-dom';
 import {
   DndContext, DragOverlay, PointerSensor, closestCorners, pointerWithin, rectIntersection,
   useDroppable, useSensor, useSensors,
@@ -19,22 +20,21 @@ import { CSS } from '@dnd-kit/utilities';
 import {
   collection, query, where, onSnapshot,
   writeBatch, doc, updateDoc, getDoc,
+  deleteDoc,
 } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import CronogramaCreateWizard from '../components/cronograma/WizardShell';
 import ModalEditarCronograma from '../components/cronograma/ModalEditarCronograma';
+import HistoricoModal from '../components/dashboard/HistoricoModal';
 import { useCronogramaSystem, getAgendaSemana, chaveAssuntoDominado } from '../hooks/useCronogramaSystem';
 import { buildCompletionRegistro } from '../utils/completionRegistro';
+import { getDisciplineCardVars, getDisciplineColor, getDisciplineColorForSlot } from '../utils/disciplineColors';
 
 // ─── CONSTANTES ───────────────────────────────────────────────────────────────
 const MESES_PT   = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const MESES_FULL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 const DIAS_CURTO = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 const DIAS_LONGO = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
-const PALETA_CORES_HEX = [
-  '#ef4444','#3b82f6','#10b981','#f59e0b','#8b5cf6',
-  '#ec4899','#06b6d4','#f97316','#14b8a6','#84cc16',
-];
 const INTERVALOS_REVISAO = [1, 7, 30];
 
 // ─── UTILITÁRIOS ──────────────────────────────────────────────────────────────
@@ -68,11 +68,82 @@ const formatarDuracao = (minutos = 0) => {
   return m > 0 ? `${h}h${String(m).padStart(2, '0')}` : `${h}h`;
 };
 
+const dateToYMDLocal = (date) => {
+  const d = new Date(date);
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().split('T')[0];
+};
+
+const formatarDataHeader = (data) => {
+  if (!data) return '...';
+  const d = typeof data === 'string' ? new Date(`${data}T12:00:00`) : new Date(data);
+  if (Number.isNaN(d.getTime())) return '...';
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+};
+
+const getDateForWeekSlot = (weekStart, diaSemanaAbsoluto) => {
+  const inicio = new Date(weekStart);
+  const diaInicio = inicio.getDay();
+  let delta = Number(diaSemanaAbsoluto) - diaInicio;
+  if (delta < 0) delta += 7;
+  const data = new Date(inicio);
+  data.setDate(data.getDate() + delta);
+  return data;
+};
+
+const calcularDataFimConteudoCronograma = (cronograma) => {
+  if (!cronograma?.dataInicio || !Array.isArray(cronograma?.semanaTemplate)) return null;
+
+  const inicio = new Date(`${cronograma.dataInicio}T12:00:00`);
+  if (Number.isNaN(inicio.getTime())) return null;
+
+  const disciplinas = Array.isArray(cronograma.disciplinasSnapshot) ? cronograma.disciplinasSnapshot : [];
+  const disciplinasPorId = new Map(disciplinas.map((disciplina) => [String(disciplina.id), disciplina]));
+  const slotsTeoria = cronograma.semanaTemplate.filter((slot) => (
+    slot &&
+    !slot.isRevisao &&
+    !slot.isRevisaoAuto &&
+    !slot.isConsolidada &&
+    slot.disciplinaId
+  ));
+
+  if (!slotsTeoria.length) return null;
+
+  const slotsPorDisciplina = slotsTeoria.reduce((acc, slot) => {
+    const key = String(slot.disciplinaId);
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+
+  let ultimaData = null;
+
+  slotsTeoria.forEach((slot) => {
+    const disciplina = disciplinasPorId.get(String(slot.disciplinaId));
+    const totalAssuntos = Array.isArray(disciplina?.assuntos) && disciplina.assuntos.length > 0
+      ? disciplina.assuntos.length
+      : 1;
+    const totalSlotsParaDisc = Number(slot.totalSlotsParaDisc || slotsPorDisciplina[String(slot.disciplinaId)] || 1);
+    const slotIndexParaDisc = Number(slot.slotIndexParaDisc || 0);
+    const ultimoTopicIndexDoSlot = totalAssuntos - 1 - slotIndexParaDisc;
+
+    if (ultimoTopicIndexDoSlot < 0 || totalSlotsParaDisc <= 0) return;
+
+    const weekOffset = Math.floor(ultimoTopicIndexDoSlot / totalSlotsParaDisc);
+    const inicioSemana = new Date(inicio);
+    inicioSemana.setDate(inicioSemana.getDate() + weekOffset * 7);
+    const dataEstudo = getDateForWeekSlot(inicioSemana, slot.dia);
+
+    if (!ultimaData || dataEstudo > ultimaData) ultimaData = dataEstudo;
+  });
+
+  return ultimaData ? dateToYMDLocal(ultimaData) : null;
+};
+
 const CronogramaDiaConcluidoCard = ({ className = '', title = 'Cronograma do dia finalizado' }) => (
   <motion.div
     initial={{ opacity: 0, y: -8 }}
     animate={{ opacity: 1, y: 0 }}
-    className={`relative overflow-hidden rounded-[28px] border border-emerald-300/70 bg-gradient-to-br from-emerald-500 via-green-500 to-teal-500 p-5 text-center text-white shadow-2xl shadow-emerald-500/25 sm:p-6 ${className}`}
+    className={`relative overflow-hidden rounded-2xl border border-emerald-300/70 bg-gradient-to-br from-emerald-500 via-green-500 to-teal-500 p-4 text-center text-white shadow-xl shadow-emerald-500/20 sm:p-5 ${className}`}
   >
     <motion.div
       className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.35),transparent_36%)]"
@@ -80,16 +151,16 @@ const CronogramaDiaConcluidoCard = ({ className = '', title = 'Cronograma do dia
       transition={{ duration: 2.4, repeat: Infinity }}
     />
     <motion.div
-      className="relative mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-white text-emerald-600 shadow-xl"
+      className="relative mx-auto mb-2.5 flex h-11 w-11 items-center justify-center rounded-full bg-white text-emerald-600 shadow-lg"
       animate={{ scale: [1, 1.08, 1], rotate: [0, -3, 3, 0] }}
       transition={{ duration: 1.9, repeat: Infinity }}
     >
-      <Trophy size={28} />
+      <Trophy size={22} />
     </motion.div>
-    <p className="relative text-[10px] font-black uppercase tracking-[0.28em] text-white/80">Meta do dia completa</p>
-    <h3 className="relative mt-1 text-lg font-black uppercase tracking-tight">{title}</h3>
-    <p className="relative mt-2 text-xs font-semibold uppercase tracking-wider text-white/75">
-      Estudo e revisao do dia estao fechados.
+    <p className="relative text-[9px] font-black uppercase tracking-[0.24em] text-white/80">Meta do dia completa</p>
+    <h3 className="relative mt-1 text-base font-black uppercase tracking-tight">{title}</h3>
+    <p className="relative mt-1.5 text-[11px] font-semibold uppercase tracking-wider text-white/75">
+      Estudo e revisao foram finalizados.
     </p>
   </motion.div>
 );
@@ -121,6 +192,16 @@ const isMovableTask = (tarefa) => !tarefa?.isRevisao && !tarefa?.isRevisaoAuto &
 const getTemplateSlotId = (slot) => slot?.id || slot?.slotId;
 const getDragTaskId = (tarefa) => `task-${tarefa?.slotIdNoProgresso || tarefa?.slotId}`;
 const getTaskTemplateSlotId = (tarefa) => tarefa?.slotIdNoProgresso || tarefa?.slotIdBase || tarefa?.slotId;
+const getCompletionKey = (slot) => String(slot?.slotIdNoProgresso || slot?.slotIdBase || slot?.slotId || '');
+
+const applyCompletionOverride = (slot, done) => {
+  const tempo = Number(slot?.tempoPlanejadoMinutos ?? slot?.tempoMinutos ?? slot?.minutosEstudo ?? 0);
+  return {
+    ...slot,
+    concluido: done,
+    progressoMinutos: done ? Math.max(Number(slot?.progressoMinutos || 0), tempo) : 0,
+  };
+};
 
 const isWeekPanIgnoredTarget = (target) => {
   if (!target?.closest) return false;
@@ -207,66 +288,143 @@ const EstadoVazio = ({ onNovo }) => (
 );
 
 // ─── MODAL DE REVISÃO CONSOLIDADA ─────────────────────────────────────────────
-const ModalRevisaoConsolidada = ({ slot, onClose, onDominar, dominiosLocal }) => {
+const ModalRevisaoConsolidada = ({ slot, onClose, onDominar, onStart, onToggle, dominiosLocal, toggleLoadingId, optimisticDone = {} }) => {
   if (!slot?.isConsolidada) return null;
+
+  const buildReviewTask = (topico, idx) => ({
+    ...topico,
+    disciplinaId: topico.disciplinaId,
+    disciplinaNome: topico.disciplinaNome || 'Revisao',
+    assunto: topico.assunto || 'Revisao agendada',
+    isRevisaoAuto: true,
+    slotId: topico.slotId || topico.slotIdBase || `${slot.slotId || 'review'}-${idx}`,
+    slotIdBase: topico.slotIdBase || topico.slotId,
+    slotIdNoProgresso: topico.slotIdNoProgresso || topico.slotIdBase || topico.slotId,
+    weekOffset: topico.weekOffset ?? slot.weekOffset,
+    concluido: Boolean(topico.concluido),
+    tempoMinutos: topico.tempoMinutos ?? topico.tempoPlanejadoMinutos ?? slot.tempoMinutos,
+    tempoPlanejadoMinutos: topico.tempoPlanejadoMinutos ?? topico.tempoMinutos ?? slot.tempoPlanejadoMinutos,
+  });
+
   return (
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-zinc-950/70 backdrop-blur-sm z-[250] flex items-end sm:items-center justify-center p-0 sm:p-4"
+      className="fixed inset-0 z-[250] flex items-end justify-center bg-zinc-950/70 p-0 backdrop-blur-sm sm:items-center sm:p-4"
       onClick={onClose}
     >
       <motion.div
         initial={{ y: 60, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 60, opacity: 0 }}
         transition={{ type: 'spring', stiffness: 350, damping: 30 }}
-        className="bg-white dark:bg-zinc-900 rounded-t-3xl sm:rounded-2xl w-full sm:max-w-md shadow-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden"
+        className="w-full overflow-hidden rounded-t-3xl border border-blue-200 bg-white shadow-2xl shadow-blue-950/20 dark:border-blue-900/40 dark:bg-zinc-900 sm:max-w-xl sm:rounded-2xl"
         onClick={e => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900">
+        <div className="flex items-center justify-between border-b border-blue-100 bg-blue-50/75 px-5 pb-4 pt-5 dark:border-blue-900/35 dark:bg-blue-950/20">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-500/10 flex items-center justify-center">
-              <BarChart2 size={20} className="text-blue-600 dark:text-blue-500"/>
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-blue-200 bg-white text-blue-600 shadow-sm shadow-blue-500/10 dark:border-blue-900/40 dark:bg-blue-900/20 dark:text-blue-300">
+              <BarChart2 size={20}/>
             </div>
             <div>
-              <p className="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-500 leading-none mb-1">{slot.titulo || 'Revisão Consolidada'}</p>
+              <p className="mb-1 text-[10px] font-black uppercase leading-none tracking-widest text-blue-600 dark:text-blue-300">{slot.titulo || 'Revisoes do Dia'}</p>
               <p className="text-sm font-bold text-zinc-900 dark:text-zinc-100">{slot.topicosRevisao?.length || 0} tópicos agendados</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 rounded-xl hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-500 transition-colors">
+          <button onClick={onClose} className="rounded-xl p-2 text-zinc-500 transition-colors hover:bg-blue-100 hover:text-blue-700 dark:hover:bg-blue-900/35 dark:hover:text-blue-200">
             <X size={18}/>
           </button>
         </div>
 
-        <div className="overflow-y-auto max-h-[60vh] divide-y divide-zinc-100 dark:divide-zinc-800/50">
+        <div className="max-h-[60vh] overflow-y-auto divide-y divide-blue-100/70 dark:divide-blue-900/25">
           {(slot.topicosRevisao || []).map((t, idx) => {
             const chave    = chaveAssuntoDominado(t.disciplinaId, t.assunto);
             const dominado = !!(dominiosLocal[chave]);
+            const revisaoTaskBase = buildReviewTask(t, idx);
+            const optimisticKey = getCompletionKey(revisaoTaskBase);
+            const revisaoTask = optimisticKey && Object.prototype.hasOwnProperty.call(optimisticDone, optimisticKey)
+              ? applyCompletionOverride(revisaoTaskBase, optimisticDone[optimisticKey])
+              : revisaoTaskBase;
+            const isDone = Boolean(revisaoTask.concluido);
+            const isLoading = toggleLoadingId === (revisaoTask.slotIdBase || revisaoTask.slotId);
+            const tempoRevisao = Number(revisaoTask.tempoPlanejadoMinutos ?? revisaoTask.tempoMinutos ?? 0);
             return (
-              <div key={idx} className={`flex items-center gap-3 px-5 py-4 transition-colors ${dominado ? 'bg-amber-50/50 dark:bg-amber-900/10' : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/50'}`}>
-                <div className={`shrink-0 w-2 h-2 rounded-full ${dominado ? 'bg-amber-400' : 'bg-blue-500'}`}/>
-                <div className="flex-1 min-w-0">
-                  <p className={`text-xs font-black uppercase tracking-tight truncate ${dominado ? 'text-zinc-400 line-through' : 'text-zinc-900 dark:text-zinc-100'}`}>{t.disciplinaNome}</p>
-                  <p className={`text-[11px] font-medium leading-snug truncate ${dominado ? 'text-zinc-400' : 'text-zinc-500 dark:text-zinc-400'}`}>{t.assunto}</p>
-                  <p className="text-[10px] text-blue-500 font-bold mt-1">Revisão +{t.intervaloDias}d</p>
+              <div key={`${revisaoTask.slotId || idx}-${idx}`} className="px-4 py-3">
+                <div className={`group rounded-2xl border p-3 transition-all ${isDone ? 'border-blue-200 bg-blue-50/80 dark:border-blue-900/40 dark:bg-blue-950/20' : 'border-blue-100 bg-white hover:border-blue-200 hover:bg-blue-50/60 dark:border-blue-900/30 dark:bg-zinc-900/70 dark:hover:bg-blue-950/20'}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex min-w-0 flex-1 items-start gap-2">
+                      <motion.button
+                        whileHover={{ scale: 1.05, y: -1 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => onToggle?.(revisaoTask)}
+                        disabled={isLoading}
+                        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border shadow-sm transition-all disabled:opacity-60 ${
+                          isDone
+                            ? 'border-emerald-500 bg-emerald-500 text-white shadow-emerald-500/20'
+                            : 'border-emerald-200 bg-white text-emerald-600 shadow-emerald-500/10 hover:border-emerald-300 hover:bg-emerald-50 dark:border-emerald-900/40 dark:bg-white/10 dark:text-emerald-300 dark:hover:bg-emerald-900/35'
+                        }`}
+                        title={isDone ? 'Revisao concluida' : 'Marcar revisao como concluida'}
+                      >
+                        {isLoading ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} strokeWidth={3.5} />}
+                      </motion.button>
+                      <div className="min-w-0 flex-1">
+                        <p className={`truncate text-xs font-black uppercase tracking-tight ${isDone ? 'text-blue-700 line-through decoration-emerald-500/60 dark:text-blue-200' : 'text-zinc-900 dark:text-zinc-100'}`}>{revisaoTask.disciplinaNome}</p>
+                        <p className={`mt-0.5 truncate text-[11px] font-semibold leading-snug ${isDone ? 'text-zinc-400 line-through decoration-emerald-500/60' : 'text-zinc-600 dark:text-zinc-300'}`}>{revisaoTask.assunto}</p>
+                      </div>
+                    </div>
+                    <span className="shrink-0 rounded-lg border border-blue-200 bg-blue-50 px-2 py-1 text-[9px] font-black uppercase tracking-wide text-blue-700 dark:border-blue-900/40 dark:bg-blue-900/20 dark:text-blue-300">
+                      +{revisaoTask.intervaloDias ?? '?'}d
+                    </span>
+                  </div>
+
+                  <div className="mt-2.5 flex items-end gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="mb-1 flex items-center justify-between gap-2 text-[8px] font-black uppercase tracking-wide text-blue-500 dark:text-blue-300">
+                        <span>{isDone ? 'Revisao concluida' : 'Revisao agendada'}</span>
+                        {tempoRevisao > 0 && <span>{formatarDuracao(tempoRevisao)}</span>}
+                      </div>
+                      <div className="h-1 overflow-hidden rounded-full bg-blue-100 dark:bg-blue-950/50">
+                        <motion.div
+                          initial={false}
+                          animate={{ width: isDone ? '100%' : '0%' }}
+                          transition={{ duration: 0.25 }}
+                          className="h-full rounded-full bg-gradient-to-r from-blue-500 to-blue-700"
+                        />
+                      </div>
+                    </div>
+                    {!isDone && (
+                      <motion.button
+                        whileHover={{ scale: 1.05, y: -1 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => onStart?.(revisaoTask)}
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-blue-200 bg-white text-blue-600 shadow-sm transition-all hover:bg-blue-600 hover:text-white dark:border-blue-900/40 dark:bg-blue-900/20 dark:text-blue-300 dark:hover:bg-blue-600 dark:hover:text-white"
+                        title="Iniciar cronometro desta revisao"
+                      >
+                        <Play size={14} fill="currentColor" />
+                      </motion.button>
+                    )}
+                  </div>
+
+                  <div className="flex h-0 items-center overflow-hidden opacity-0 transition-all duration-200 group-hover:mt-2 group-hover:h-8 group-hover:opacity-100 group-focus-within:mt-2 group-focus-within:h-8 group-focus-within:opacity-100">
+                    <button
+                      onClick={() => onDominar(t.disciplinaId, t.assunto, dominado)}
+                      title={dominado ? 'Assunto ja dominado' : 'Marcar assunto como ja dominado'}
+                      className={`flex h-8 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg border px-3 text-[9px] font-black uppercase tracking-wide transition-colors active:scale-95
+                        ${dominado
+                          ? 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-300 dark:hover:bg-amber-950/30'
+                          : 'border-dashed border-zinc-300 bg-transparent text-zinc-500 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-600 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-amber-950/20 dark:hover:text-amber-300'
+                        }`}
+                    >
+                      <BadgeCheck size={14} className={dominado ? 'fill-amber-400 text-amber-500' : ''} strokeWidth={dominado ? 0 : 2}/>
+                      {dominado ? 'Dominado' : 'Marcar dominio'}
+                    </button>
+                  </div>
                 </div>
-                <button
-                  onClick={() => onDominar(t.disciplinaId, t.assunto, dominado)}
-                  className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[10px] font-black uppercase tracking-wide transition-all duration-200 active:scale-95
-                    ${dominado
-                      ? 'bg-amber-100 dark:bg-amber-500/20 border-amber-300 dark:border-amber-500/30 text-amber-700 dark:text-amber-400'
-                      : 'bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-500 hover:border-amber-300 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20'
-                    }`}
-                >
-                  <BadgeCheck size={14} className={dominado ? 'fill-amber-400 text-amber-500' : ''} strokeWidth={dominado ? 0 : 2}/>
-                  {dominado ? 'Dominado' : 'Dominei'}
-                </button>
               </div>
             );
           })}
         </div>
 
-        <div className="px-5 py-4 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/50">
-          <p className="text-[10px] text-zinc-500 dark:text-zinc-400 text-center leading-relaxed">
-            Tópicos <span className="text-amber-500 font-bold">Dominados</span> não gerarão revisões futuras.
+        <div className="border-t border-blue-100 bg-blue-50/70 px-5 py-4 dark:border-blue-900/35 dark:bg-blue-950/20">
+          <p className="text-center text-[10px] leading-relaxed text-zinc-500 dark:text-zinc-400">
+            Use <span className="font-bold text-blue-600 dark:text-blue-300">play</span> para iniciar o cronometro ou <span className="font-bold text-emerald-600">check</span> para concluir a revisão.
           </p>
         </div>
       </motion.div>
@@ -292,8 +450,6 @@ const TarefaCardDraggable = ({
   isDragging = false,
   isSortable = false,
 }) => {
-  const [showHint, setShowHint] = useState(false);
-
   const isDominado    = tarefa.dominado === true;
   const isConsolidada = tarefa.isConsolidada === true;
   const canMarkPendencia = Boolean(
@@ -317,12 +473,17 @@ const TarefaCardDraggable = ({
     ? Math.min(100, Math.round((progressoLimitado / tempoPlanejadoMinutos) * 100))
     : (tarefa.concluido ? 100 : 0);
   const emAndamento = !tarefa.concluido && !tarefa.isRevisaoAuto && progressoLimitado > 0 && progressoPercentual < 100;
+  const disciplinaColor = getDisciplineColorForSlot(tarefa);
+  const useDisciplineColor = !isDominado && !emAndamento && !tarefa.isRevisao && !tarefa.isRevisaoAuto;
+  const cardStyle = useDisciplineColor
+    ? { ...dragStyle, ...getDisciplineCardVars(disciplinaColor) }
+    : dragStyle;
 
   return (
     <motion.div
       data-cronograma-task-card
       ref={dragRef}
-      style={dragStyle}
+      style={cardStyle}
       {...dragAttributes}
       {...dragListeners}
       layout
@@ -331,219 +492,175 @@ const TarefaCardDraggable = ({
       exit={{ opacity: 0, scale: 0.95, y: -4 }}
       whileHover={!isDragging ? { y: -2, scale: 1.01 } : {}}
       onClick={!isDragging ? () => onOpenDetails?.(tarefa) : undefined}
-      className={`relative min-h-[112px] rounded-2xl border overflow-hidden transition-all duration-200 group mb-2.5 select-none
+      className={`relative min-h-[104px] rounded-2xl border overflow-hidden transition-all duration-200 group mb-2.5 select-none
         ${isSortable ? 'cursor-grab active:cursor-grabbing' : onOpenDetails ? 'cursor-pointer' : 'cursor-default'}
         ${isDragging ? 'opacity-80 scale-100 rotate-1 shadow-2xl z-20' : ''}
+        ${useDisciplineColor ? 'discipline-tinted-card' : ''}
         ${tarefa.concluido
-          ? 'bg-zinc-50 dark:bg-zinc-900/50 border-zinc-200 dark:border-zinc-800 opacity-70'
+          ? 'discipline-completed-card'
           : isDominado
           ? 'bg-amber-50/80 dark:bg-amber-500/5 border-amber-200 dark:border-amber-500/20'
           : emAndamento
           ? 'bg-orange-50/80 dark:bg-orange-500/5 border-orange-200 dark:border-orange-500/20'
-          : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700/50 shadow-sm hover:shadow-lg hover:border-red-200 dark:hover:border-red-900/60'
+          : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700/50 shadow-sm hover:shadow-lg'
         }`}
     >
       {/* Linha lateral tática */}
       <div className={`absolute left-0 top-0 bottom-0 w-1.5 transition-colors duration-300 ${
-        tarefa.concluido   ? 'bg-emerald-500'
+        tarefa.concluido   ? disciplinaColor.bg
         : isDominado       ? 'bg-amber-500'
         : tarefa.isRevisao ? 'bg-blue-500'
         : emAndamento      ? 'bg-orange-500'
-        : 'bg-red-600'
+        : disciplinaColor.bg
       }`}/>
 
-      <div className="flex h-full flex-col pl-4 pr-3 py-2.5 gap-2.5">
-        <div className="flex items-start gap-3">
-        <div
-          {...dragListeners}
-          onClick={(e) => e.stopPropagation()}
-          className={`shrink-0 -ml-1 rounded-lg p-1 transition-all ${
-            isSortable
-              ? 'text-zinc-300 dark:text-zinc-600 opacity-0 group-hover:opacity-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-grab active:cursor-grabbing'
-              : 'text-zinc-200 dark:text-zinc-800 opacity-50'
-          }`}
-        >
-          <GripVertical size={14}/>
-        </div>
-
-        <div className="flex-1 min-w-0">
-          <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
-            <h4 className={`min-w-0 flex-1 text-[11px] font-black uppercase tracking-wide leading-tight ${
-              tarefa.concluido ? 'text-zinc-400 line-through'
+      <div className="flex h-full flex-col gap-2 px-3.5 py-3">
+        <div className="flex min-w-0 items-start justify-between gap-2 pr-1">
+          <div className="flex min-w-0 flex-1 items-start gap-2">
+            <motion.button
+              whileHover={{ scale: 1.05, y: -1 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={(e) => { e.stopPropagation(); onToggle(tarefa); }}
+              disabled={isToggling}
+              title={tarefa.concluido ? 'Marcar como pendente' : 'Marcar como concluido'}
+              className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border shadow-sm transition-all disabled:opacity-60 ${
+                tarefa.concluido
+                  ? 'border-emerald-500 bg-emerald-500 text-white shadow-emerald-500/20'
+                  : 'border-emerald-200 bg-white text-emerald-600 shadow-emerald-500/10 hover:border-emerald-300 hover:bg-emerald-50 dark:border-emerald-900/40 dark:bg-white/10 dark:text-emerald-300 dark:hover:bg-emerald-900/35'
+              }`}
+            >
+              {isToggling
+                ? <Loader2 size={15} className="animate-spin" />
+                : <Check size={15} strokeWidth={3.5} />
+              }
+            </motion.button>
+            <h4 className={`min-w-0 flex-1 truncate text-[11px] font-black uppercase tracking-wide leading-tight ${
+              tarefa.concluido ? `${disciplinaColor.text} line-through opacity-75`
               : isDominado     ? 'text-amber-700 dark:text-amber-400'
               : emAndamento    ? 'text-orange-700 dark:text-orange-400'
-              : 'text-zinc-900 dark:text-zinc-100'
+              : disciplinaColor.text
             }`}>
               {tarefa.disciplinaNome}
             </h4>
-            {tarefa.concluido && <CheckCircle2 size={12} className="text-emerald-500 shrink-0" strokeWidth={3}/>}
-            {isDominado && !tarefa.concluido && <BadgeCheck size={12} className="text-amber-500 shrink-0 fill-amber-400" strokeWidth={0}/>}
-            {emAndamento && (
-              <span className="text-[9px] bg-orange-500 text-white px-1.5 py-0.5 rounded-sm font-bold shrink-0 leading-none">
-                EM ANDAMENTO
-              </span>
-            )}
-            {tarefa.isRevisao && !tarefa.concluido && !isDominado && (
-              <span className="text-[9px] bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 px-1.5 py-0.5 rounded-sm font-bold shrink-0 leading-none">
-                {isConsolidada ? 'CONSOL.' : 'REV'}
-              </span>
-            )}
-            {tarefa.isPendenciaTeoria && !tarefa.concluido && (
-              <span className="text-[9px] bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded-sm font-bold shrink-0 leading-none">
-                PENDENTE
-              </span>
-            )}
-          </div>
-          <div className="flex items-start gap-2">
-            <Bookmark size={11} className={`mt-0.5 shrink-0 ${tarefa.concluido ? 'text-zinc-300 dark:text-zinc-600' : isDominado ? 'text-amber-400' : 'text-red-500'}`} fill="currentColor"/>
-            <span className={`text-xs font-semibold leading-snug line-clamp-2 ${
-              tarefa.concluido ? 'text-zinc-400 dark:text-zinc-500' : isDominado ? 'text-amber-600 dark:text-amber-500/80' : 'text-zinc-500 dark:text-zinc-400'
-            }`}>
-              {assuntoTexto}
-            </span>
-          </div>
-          {tarefa.isPendenciaTeoria && tarefa.assuntoOriginal && tarefa.assuntoOriginal !== tarefa.assunto && (
-            <div className="mt-1 text-[9px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
-              Assunto original: {tarefa.assuntoOriginal}
-            </div>
-          )}
-
-        </div>
-        </div>
-
-        <div className="flex items-center justify-between gap-3 border-t border-zinc-100 pt-2 dark:border-zinc-800/80">
-          <div className="min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide ${
-              tarefa.isRevisao
-                ? 'bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400'
-                : emAndamento
-                ? 'bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400'
-                : isDominado
-                ? 'bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400'
-                : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300'
-            }`}>
-              {tarefa.isRevisao ? 'Revisão' : 'Foco'}
-            </span>
-            {isSortable && !tarefa.concluido && (
-              <span className="text-[9px] font-bold uppercase tracking-wide text-zinc-400 dark:text-zinc-600">
-                Arraste p/ mover
-              </span>
-            )}
           </div>
           {modoExibirTempo !== 'oculto' && tempoPlanejadoMinutos > 0 && (
-            <div className="mt-1.5">
-              <div className="flex items-center justify-between gap-2">
-                <span className="flex min-w-0 items-center gap-1.5 text-[10px] font-semibold text-zinc-500 dark:text-zinc-400 tabular-nums">
-                  <Clock size={10} className="text-zinc-400 shrink-0"/>
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-white/70 bg-white/75 px-2 py-0.5 text-[9px] font-black tabular-nums text-zinc-700 shadow-sm dark:border-white/10 dark:bg-white/10 dark:text-zinc-100">
+              <Clock size={10} className="text-zinc-500 dark:text-zinc-300"/>
+              {formatarDuracao(tempoPlanejadoMinutos)}
+            </span>
+          )}
+        </div>
+
+        <p className={`line-clamp-3 w-full pr-1 text-xs font-semibold leading-snug ${
+          tarefa.concluido ? 'text-zinc-500 dark:text-zinc-400 line-through decoration-emerald-500/60' : isDominado ? 'text-amber-700/80 dark:text-amber-300/80' : 'text-zinc-600 dark:text-zinc-300'
+        }`}>
+          {assuntoTexto}
+        </p>
+        {tarefa.isPendenciaTeoria && tarefa.assuntoOriginal && tarefa.assuntoOriginal !== tarefa.assunto && (
+          <div className="text-[9px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
+            Original: {tarefa.assuntoOriginal}
+          </div>
+        )}
+
+        {modoExibirTempo !== 'oculto' && tempoPlanejadoMinutos > 0 && (
+          <div className="flex items-end gap-2">
+            <div className="min-w-0 flex-1">
+              <div className="mb-1 flex items-center justify-between gap-2 text-[8px] font-bold text-zinc-500 dark:text-zinc-400">
+                <span className="tabular-nums">
                   {formatarDuracao(tarefa.concluido ? tempoPlanejadoMinutos : progressoLimitado)} / {formatarDuracao(tempoPlanejadoMinutos)}
                 </span>
-                <span className="text-[9px] font-black uppercase tracking-wide text-zinc-400">
+                <span className="font-black tabular-nums">
                   {tarefa.concluido ? 100 : progressoPercentual}%
                 </span>
               </div>
-              <div className="mt-1 h-1.5 rounded-full bg-zinc-200 dark:bg-zinc-800 overflow-hidden">
+              <div className="h-1 overflow-hidden rounded-full bg-white/55 dark:bg-black/25">
                 <motion.div
                   initial={false}
                   animate={{ width: `${tarefa.concluido ? 100 : progressoPercentual}%` }}
                   transition={{ duration: 0.25 }}
-                  className={`h-full rounded-full ${tarefa.concluido ? 'bg-emerald-500' : emAndamento ? 'bg-orange-500' : 'bg-red-500'}`}
+                  className={`h-full rounded-full ${tarefa.concluido ? disciplinaColor.progress : emAndamento ? 'bg-orange-500' : disciplinaColor.progress}`}
                 />
               </div>
             </div>
-          )}
-        </div>
+            {!tarefa.isRevisaoAuto && !tarefa.concluido && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onStart(tarefa); }}
+                title="Iniciar estudo"
+                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-red-600 text-white shadow-sm shadow-red-600/20 transition-all hover:bg-red-700 active:scale-95"
+              >
+                <Play size={13} fill="currentColor"/>
+              </button>
+            )}
+          </div>
+        )}
 
-        {/* Ações */}
-        <div className="shrink-0 flex items-center gap-0.5">
+        <div className="flex h-0 w-full items-center overflow-hidden border-t border-transparent pt-0 opacity-0 transition-all duration-200 group-hover:h-11 group-hover:border-white/50 group-hover:pt-2 group-hover:pb-1 group-hover:opacity-100 group-focus-within:h-11 group-focus-within:border-white/50 group-focus-within:pt-2 group-focus-within:pb-1 group-focus-within:opacity-100 dark:group-hover:border-white/10 dark:group-focus-within:border-white/10">
+      <div className="pointer-events-none flex w-full items-center gap-1.5 transition-all duration-200 group-hover:pointer-events-auto group-focus-within:pointer-events-auto">
           {tarefa.isConsolidada && !tarefa.concluido && (
             <button
               onClick={(e) => { e.stopPropagation(); onOpenConsolidada(tarefa); }}
-              className="p-1.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-500/10 text-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+              title="Ver revisao consolidada"
+              className="inline-flex h-8 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg bg-white/65 px-2 text-[9px] font-black uppercase tracking-wide text-blue-700 transition-colors hover:bg-blue-50 active:scale-95 dark:bg-white/10 dark:text-blue-300 dark:hover:bg-blue-950/30"
             >
               <BarChart2 size={14}/>
-            </button>
-          )}
-
-          {!tarefa.isRevisaoAuto && !tarefa.concluido && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onStart(tarefa); }}
-              className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10 text-zinc-400 hover:text-red-600 dark:hover:text-red-500 transition-colors"
-            >
-              <Play size={14} fill="currentColor"/>
-            </button>
-          )}
-
-          <button
-            onClick={(e) => { e.stopPropagation(); onToggle(tarefa); }}
-            disabled={isToggling}
-            className={`p-1.5 rounded-lg transition-all active:scale-95 ${
-              tarefa.concluido
-                ? 'text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10'
-                : 'text-zinc-300 dark:text-zinc-600 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10'
-            }`}
-          >
-            {isToggling
-              ? <div className="w-4 h-4 border-2 border-current/30 border-t-current rounded-full animate-spin"/>
-              : <CheckCircle2 size={16} strokeWidth={tarefa.concluido ? 2.5 : 2}/>
-            }
-          </button>
-
-          {canMarkPendencia && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onMarkPendencia(tarefa); }}
-              disabled={isToggling}
-              title="Ainda nao concluida"
-              className="p-1.5 rounded-lg transition-all active:scale-95 text-zinc-300 dark:text-zinc-600 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-500/10 disabled:opacity-50"
-            >
-              <SkipForward size={15}/>
+              Revisao
             </button>
           )}
 
           {!tarefa.isRevisaoAuto && (
             <button
-              onMouseEnter={() => setShowHint(true)}
-              onMouseLeave={() => setShowHint(false)}
-              onClick={(e) => { e.stopPropagation(); setShowHint(false); onDominar(tarefa); }}
-              className={`p-1.5 rounded-lg transition-all active:scale-95 ${
+              onClick={(e) => { e.stopPropagation(); onDominar(tarefa); }}
+                title={isDominado ? 'Assunto ja dominado: nao priorizar novas revisoes desse topico.' : 'Ja dominei: marque quando voce domina o assunto e quer reduzir revisoes futuras.'}
+                className={`inline-flex h-8 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg border px-2 text-[9px] font-black uppercase tracking-wide transition-colors active:scale-95 ${
                 isDominado
-                  ? 'text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-500/10'
-                  : 'text-zinc-300 dark:text-zinc-600 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-500/10'
+                  ? 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-300 dark:hover:bg-amber-950/30'
+                  : 'border-dashed border-zinc-300 bg-transparent text-zinc-500 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-600 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-amber-950/20 dark:hover:text-amber-300'
               }`}
             >
               <BadgeCheck size={14} className={isDominado ? 'fill-amber-400' : ''} strokeWidth={isDominado ? 0 : 2}/>
+              {isDominado ? 'Dominado' : 'Marcar dominio'}
             </button>
           )}
-        </div>
+
+          {canMarkPendencia && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onMarkPendencia(tarefa); }}
+              disabled={isToggling}
+              title="Pendente: mova este assunto para retomar depois sem marcar como concluido."
+                className="inline-flex h-8 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg bg-white/65 px-2 text-[9px] font-black uppercase tracking-wide text-amber-700 transition-colors hover:bg-amber-100 active:scale-95 disabled:opacity-60 dark:bg-white/10 dark:text-amber-300 dark:hover:bg-amber-950/30"
+            >
+              <SkipForward size={15}/>
+              Pendente
+            </button>
+          )}
+      </div>
         </div>
       </div>
-
-      <AnimatePresence>
-        {showHint && !isDominado && (
-          <motion.div
-            initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 4 }}
-            className="absolute right-10 bottom-2 z-50 bg-zinc-800 dark:bg-zinc-100 text-white dark:text-zinc-900 text-[9px] font-bold px-2 py-1 rounded shadow-lg pointer-events-none whitespace-nowrap"
-          >
-            Dominei o assunto
-          </motion.div>
-        )}
-      </AnimatePresence>
     </motion.div>
   );
 };
 
-const ModalDetalhesCronograma = ({ slot, cronograma, onClose, onStart }) => {
+const ModalDetalhesCronograma = ({ slot, cronograma, onClose, onStart, onToggle, toggleLoadingId, optimisticDone = {} }) => {
   if (!slot) return null;
 
+  const optimisticKey = getCompletionKey(slot);
+  const isConclusaoOverride = optimisticKey && Object.prototype.hasOwnProperty.call(optimisticDone, optimisticKey);
+  const slotAtual = isConclusaoOverride ? applyCompletionOverride(slot, optimisticDone[optimisticKey]) : slot;
   const isRevisao = slot.isRevisaoAuto || slot.isRevisao;
   const isConsolidada = slot.isConsolidada === true;
+  const disciplinaColor = getDisciplineColorForSlot(slot);
+  const useDisciplineTheme = !isRevisao && !isConsolidada;
+  const accentBgClass = useDisciplineTheme ? disciplinaColor.bg : 'bg-blue-600';
+  const accentTextClass = useDisciplineTheme ? disciplinaColor.text : 'text-blue-600 dark:text-blue-500';
+  const accentProgressClass = useDisciplineTheme ? disciplinaColor.progress : 'bg-blue-500';
+  const isToggleLoading = toggleLoadingId === (slot.slotIdBase || slot.slotId);
   const tempoPlanejado = Number(slot.tempoPlanejadoMinutos ?? slot.tempoMinutos ?? slot.minutosEstudo ?? 0);
-  const progressoMinutos = slot.concluido
+  const progressoMinutos = slotAtual.concluido
     ? tempoPlanejado
     : Math.min(Number(slot.progressoMinutos || 0), tempoPlanejado || Number(slot.progressoMinutos || 0));
   const progressoPercentual = tempoPlanejado > 0
     ? Math.min(100, Math.round((progressoMinutos / tempoPlanejado) * 100))
-    : (slot.concluido ? 100 : 0);
+    : (slotAtual.concluido ? 100 : 0);
   const dataSlot = slot.dataSlot || null;
   const dataBaseRevisao = isRevisao && slot.intervaloDias ? somarDias(dataSlot, -Number(slot.intervaloDias)) : null;
   const proximasRevisoes = !isRevisao && dataSlot
@@ -555,201 +672,238 @@ const ModalDetalhesCronograma = ({ slot, cronograma, onClose, onStart }) => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[260] flex items-center justify-center px-4"
+      onClick={onClose}
+      className="fixed inset-0 z-[260] flex items-start justify-center overflow-hidden bg-zinc-950/80 px-3 pb-3 pt-16 backdrop-blur-sm sm:px-4 sm:pt-20"
     >
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={onClose}
-        className="absolute inset-0 bg-zinc-950/80 backdrop-blur-sm"
-      />
-
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className="relative w-full max-w-2xl overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-900"
+        transition={{ type: 'spring', stiffness: 350, damping: 30 }}
+        onClick={e => e.stopPropagation()}
+        className="w-full max-w-2xl overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-900"
       >
-        <div className={`h-2 w-full ${isRevisao ? 'bg-blue-600' : 'bg-red-600'}`} />
+        <div className={`h-2 w-full ${accentBgClass}`} />
 
-        <div className="p-6 sm:p-8">
-          <div className="flex items-start justify-between gap-4">
+        <div className="p-3 sm:p-5">
+          <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
-              <div className="mb-4 flex flex-wrap gap-2">
-                <span className={`rounded-md px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-white ${isRevisao ? 'bg-blue-600' : 'bg-red-600'}`}>
+              <div className="mb-2 flex flex-wrap gap-1.5">
+                <span className={`rounded-md px-2 py-0.5 text-[8px] font-black uppercase tracking-widest text-white sm:text-[10px] ${accentBgClass}`}>
                   {getLabelTipo(slot)}
                 </span>
-                {slot.concluido && (
-                  <span className="rounded-md bg-emerald-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400">
+                {slotAtual.concluido && (
+                  <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-[8px] font-black uppercase tracking-widest text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400 sm:text-[10px]">
                     Concluído
                   </span>
                 )}
                 {slot.dominado && (
-                  <span className="rounded-md bg-amber-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-amber-700 dark:bg-amber-500/20 dark:text-amber-400">
+                  <span className="rounded-md bg-amber-100 px-2 py-0.5 text-[8px] font-black uppercase tracking-widest text-amber-700 dark:bg-amber-500/20 dark:text-amber-400 sm:text-[10px]">
                     Dominado
                   </span>
                 )}
               </div>
 
-              <h3 className="text-2xl font-black uppercase tracking-tight text-zinc-900 dark:text-white">
+              <h3 className="text-lg font-black uppercase tracking-tight text-zinc-900 dark:text-white sm:text-2xl">
                 {getNomeDisc(slot)}
               </h3>
-              <p className="mt-2 text-sm font-medium leading-relaxed text-zinc-600 dark:text-zinc-400">
+              <p className="mt-1 line-clamp-1 text-xs font-medium leading-relaxed text-zinc-600 dark:text-zinc-400 sm:line-clamp-2 sm:text-sm">
                 {getTextoAssunto(slot, cronograma)}
               </p>
             </div>
 
             <button
               onClick={onClose}
-              className="rounded-xl bg-zinc-100 p-2 text-zinc-500 transition-all hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700"
+              className="rounded-lg bg-zinc-100 p-1.5 text-zinc-500 transition-all hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700 sm:rounded-xl sm:p-2"
             >
-              <X size={20} />
+              <X size={18} />
             </button>
           </div>
 
-          <div className="mt-6 grid gap-4 md:grid-cols-3">
-            <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-950/50">
-              <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400">Tempo planejado</p>
-              <p className="mt-2 text-2xl font-black text-zinc-900 dark:text-white">{formatarDuracao(tempoPlanejado)}</p>
-              {tempoPlanejado > 0 && (
-                <div className="mt-3">
-                  <div className="flex items-center justify-between gap-2 text-[10px] font-black uppercase tracking-wide">
-                    <span className={slot.concluido ? 'text-emerald-600 dark:text-emerald-400' : progressoMinutos > 0 ? 'text-orange-500' : 'text-zinc-400'}>
-                      {formatarDuracao(progressoMinutos)} / {formatarDuracao(tempoPlanejado)}
-                    </span>
-                    <span className="text-zinc-400">{progressoPercentual}%</span>
-                  </div>
-                  <div className="mt-1.5 h-2 rounded-full bg-zinc-200 dark:bg-zinc-800 overflow-hidden">
-                    <motion.div
-                      initial={false}
-                      animate={{ width: `${progressoPercentual}%` }}
-                      transition={{ duration: 0.25 }}
-                      className={`h-full rounded-full ${slot.concluido ? 'bg-emerald-500' : progressoMinutos > 0 ? 'bg-orange-500' : 'bg-red-500'}`}
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-950/50">
-              <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400">Dia agendado</p>
-              <p className="mt-2 text-base font-black uppercase tracking-wide text-zinc-900 dark:text-white">
-                {formatarDataLonga(dataSlot)}
-              </p>
-              <p className="mt-1 text-[11px] font-bold uppercase tracking-wide text-zinc-500">
-                Semana {Number(slot.weekOffset ?? 0) + 1}
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-950/50">
-              <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400">
-                {isRevisao ? 'Origem da revisão' : 'Status da missão'}
-              </p>
-              <p className="mt-2 text-base font-black uppercase tracking-wide text-zinc-900 dark:text-white">
-                {isRevisao
-                  ? formatarDataLonga(dataBaseRevisao)
-                  : slot.concluido
-                  ? 'Finalizada'
-                  : progressoMinutos > 0
-                  ? 'Em andamento'
-                  : 'Planejada'}
-              </p>
-              <p className="mt-1 text-[11px] font-bold uppercase tracking-wide text-zinc-500">
-                {isRevisao
-                  ? `Intervalo de ${slot.intervaloDias ?? 0} dia(s)`
-                  : `${proximasRevisoes.length} revisão(ões) previstas`}
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-6 grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
-            <div className="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
-              <p className="text-[10px] font-black uppercase tracking-widest text-red-600 dark:text-red-500">
-                {isConsolidada ? 'Tópicos consolidados' : 'Foco desta sessão'}
-              </p>
-
-              {isConsolidada && slot.topicosRevisao?.length > 0 ? (
-                <div className="mt-4 space-y-3">
-                  {slot.topicosRevisao.map((topico, index) => (
-                    <div key={`${topico.disciplinaId || topico.disciplinaNome}-${index}`} className="flex items-start gap-3 rounded-xl bg-zinc-50 px-3 py-3 dark:bg-zinc-800/50">
-                      <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-blue-500" />
-                      <div className="min-w-0">
-                        <p className="text-xs font-black uppercase tracking-wide text-zinc-900 dark:text-zinc-100">
-                          {topico.disciplinaNome}
-                        </p>
-                        <p className="mt-1 text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">
-                          {topico.assunto}
-                        </p>
+          <div className="mt-3 grid gap-2 sm:mt-4 sm:gap-3">
+            <div className="min-w-0 space-y-2 sm:space-y-3">
+              <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-2 dark:border-zinc-800 dark:bg-zinc-950/50 sm:rounded-xl sm:p-3">
+                  <p className="text-[7px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400 sm:text-[9px]">Tempo</p>
+                  <p className="mt-1 text-base font-black text-zinc-900 dark:text-white sm:text-xl">{formatarDuracao(tempoPlanejado)}</p>
+                  {tempoPlanejado > 0 && (
+                    <div className="mt-1 sm:mt-2">
+                      <div className="flex items-center justify-between gap-1 text-[7px] font-black uppercase tracking-wide sm:text-[9px]">
+                        <span className={slotAtual.concluido ? 'text-emerald-600 dark:text-emerald-400' : progressoMinutos > 0 ? 'text-orange-500' : 'text-zinc-400'}>
+                          {formatarDuracao(progressoMinutos)} / {formatarDuracao(tempoPlanejado)}
+                        </span>
+                        <span className="text-zinc-400">{progressoPercentual}%</span>
+                      </div>
+                      <div className="mt-1 h-1 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800 sm:h-1.5">
+                        <motion.div
+                          initial={false}
+                          animate={{ width: `${progressoPercentual}%` }}
+                          transition={{ duration: 0.25 }}
+                          className={`h-full rounded-full ${slotAtual.concluido ? 'bg-emerald-500' : progressoMinutos > 0 ? 'bg-orange-500' : accentProgressClass}`}
+                        />
                       </div>
                     </div>
-                  ))}
+                  )}
                 </div>
-              ) : (
-                <p className="mt-4 text-sm font-medium leading-relaxed text-zinc-700 dark:text-zinc-300">
-                  {isRevisao
-                    ? slot.assunto || slot.assuntoOriginal || 'Revisão espaçada agendada para reforço do conteúdo.'
-                    : slot.assunto || 'Sessão planejada para avançar no conteúdo principal da disciplina.'}
+
+                <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-2 dark:border-zinc-800 dark:bg-zinc-950/50 sm:rounded-xl sm:p-3">
+                  <p className="text-[7px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400 sm:text-[9px]">Dia</p>
+                  <p className="mt-1 line-clamp-2 text-[10px] font-black uppercase tracking-wide text-zinc-900 dark:text-white sm:text-sm">
+                    {formatarDataLonga(dataSlot)}
+                  </p>
+                  <p className="mt-0.5 text-[8px] font-bold uppercase tracking-wide text-zinc-500 sm:mt-1 sm:text-[10px]">
+                    Semana {Number(slot.weekOffset ?? 0) + 1}
+                  </p>
+                </div>
+
+                <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-2 dark:border-zinc-800 dark:bg-zinc-950/50 sm:rounded-xl sm:p-3">
+                  <p className="text-[7px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400 sm:text-[9px]">
+                    {isRevisao ? 'Origem' : 'Status'}
+                  </p>
+                  <p className="mt-1 line-clamp-2 text-[10px] font-black uppercase tracking-wide text-zinc-900 dark:text-white sm:text-sm">
+                    {isRevisao
+                      ? formatarDataLonga(dataBaseRevisao)
+                      : slotAtual.concluido
+                      ? 'Finalizada'
+                      : progressoMinutos > 0
+                      ? 'Em andamento'
+                      : 'Planejada'}
+                  </p>
+                  <p className="mt-0.5 text-[8px] font-bold uppercase tracking-wide text-zinc-500 sm:mt-1 sm:text-[10px]">
+                    {isRevisao
+                      ? `Intervalo de ${slot.intervaloDias ?? 0} dia(s)`
+                      : `${proximasRevisoes.length} revisão(ões) previstas`}
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900 sm:rounded-xl sm:p-4">
+                <p className={`text-[9px] font-black uppercase tracking-widest sm:text-[10px] ${accentTextClass}`}>
+                  {isConsolidada ? 'Tópicos consolidados' : 'Foco desta sessão'}
                 </p>
-              )}
+
+                {isConsolidada && slot.topicosRevisao?.length > 0 ? (
+                  <div className="mt-2 grid gap-2 sm:mt-3 sm:grid-cols-2">
+                    {slot.topicosRevisao.slice(0, 2).map((topico, index) => (
+                      <div key={`${topico.disciplinaId || topico.disciplinaNome}-${index}`} className="flex items-start gap-2 rounded-lg bg-zinc-50 px-3 py-2 dark:bg-zinc-800/50">
+                        <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-blue-500" />
+                        <div className="min-w-0">
+                          <p className="truncate text-[11px] font-black uppercase tracking-wide text-zinc-900 dark:text-zinc-100">
+                            {topico.disciplinaNome}
+                          </p>
+                          <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-zinc-600 dark:text-zinc-400">
+                            {topico.assunto}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-2 line-clamp-2 text-xs font-medium leading-relaxed text-zinc-700 dark:text-zinc-300 sm:mt-3 sm:text-sm">
+                    {isRevisao
+                      ? slot.assunto || slot.assuntoOriginal || 'Revisão espaçada agendada para reforço do conteúdo.'
+                      : slot.assunto || 'Sessão planejada para avançar no conteúdo principal da disciplina.'}
+                  </p>
+                )}
+              </div>
             </div>
 
-            <div className="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
-              <p className="text-[10px] font-black uppercase tracking-widest text-red-600 dark:text-red-500">
-                {isRevisao ? 'Leitura estratégica' : 'Próximas revisões'}
-              </p>
+            <div className="flex min-w-0 flex-col gap-2 sm:gap-3">
+              <div className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900 sm:rounded-xl sm:p-4">
+                <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400 sm:text-[10px]">
+                  {isRevisao ? 'Leitura estratégica' : 'Próximas revisões'}
+                </p>
 
-              {isRevisao ? (
-                <div className="mt-4 space-y-3">
-                  <div className="rounded-xl bg-zinc-50 px-4 py-3 dark:bg-zinc-800/50">
-                    <p className="text-[11px] font-black uppercase tracking-wide text-zinc-900 dark:text-zinc-100">Próximo marco</p>
-                    <p className="mt-1 text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">
-                      Esta revisão reforça o estudo iniciado em {formatarDataCurta(dataBaseRevisao)} e mantém o ciclo ativo.
-                    </p>
-                  </div>
-                  <div className="rounded-xl bg-blue-50 px-4 py-3 dark:bg-blue-500/10">
-                    <p className="text-[11px] font-black uppercase tracking-wide text-blue-700 dark:text-blue-400">Janela atual</p>
-                    <p className="mt-1 text-xs leading-relaxed text-blue-800/70 dark:text-blue-300/70">
-                      Revisão programada para {formatarDataCurta(dataSlot)} com intervalo de {slot.intervaloDias ?? 0} dia(s).
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <div className="mt-4 space-y-3">
-                  {proximasRevisoes.map((revisao) => (
-                    <div key={revisao.dias} className="flex items-center justify-between rounded-xl bg-zinc-50 px-4 py-3 dark:bg-zinc-800/50">
-                      <div>
-                        <p className="text-[11px] font-black uppercase tracking-wide text-zinc-900 dark:text-zinc-100">Revisão +{revisao.dias}d</p>
-                        <p className="mt-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-500">
-                          {formatarDataLonga(revisao.data)}
-                        </p>
-                      </div>
-                      <div className="rounded px-2 py-1 text-[9px] font-black uppercase tracking-wide text-red-600 bg-red-100 dark:bg-red-500/20 dark:text-red-400">
-                        Prevista
-                      </div>
+                {isRevisao ? (
+                  <div className="mt-2 grid grid-cols-2 gap-2 sm:mt-3">
+                    <div className="rounded-lg bg-zinc-50 px-2 py-2 dark:bg-zinc-800/50 sm:px-3">
+                      <p className="text-[11px] font-black uppercase tracking-wide text-zinc-900 dark:text-zinc-100">Próximo marco</p>
+                      <p className="mt-1 line-clamp-2 text-[10px] leading-snug text-zinc-600 dark:text-zinc-400 sm:text-xs">
+                        Revisão do estudo iniciado em {formatarDataCurta(dataBaseRevisao)}.
+                      </p>
                     </div>
-                  ))}
-                </div>
-              )}
+                    <div className="rounded-lg bg-blue-50 px-2 py-2 dark:bg-blue-500/10 sm:px-3">
+                      <p className="text-[11px] font-black uppercase tracking-wide text-blue-700 dark:text-blue-400">Janela atual</p>
+                      <p className="mt-1 line-clamp-2 text-[10px] leading-snug text-blue-800/70 dark:text-blue-300/70 sm:text-xs">
+                        {formatarDataCurta(dataSlot)} · intervalo de {slot.intervaloDias ?? 0} dia(s).
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-2 grid grid-cols-3 gap-2 sm:mt-3">
+                    {proximasRevisoes.map((revisao) => (
+                      <div key={revisao.dias} className="min-w-0 rounded-lg bg-zinc-50 px-2 py-2 dark:bg-zinc-800/50 sm:px-3">
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-black uppercase tracking-wide text-zinc-900 dark:text-zinc-100 sm:text-[11px]">+{revisao.dias}d</p>
+                          <p className="mt-0.5 truncate text-[9px] font-medium uppercase tracking-wide text-zinc-500 sm:text-[10px]">
+                            {formatarDataCurta(revisao.data)}
+                          </p>
+                        </div>
+                        <div className="mt-1 w-fit rounded px-1.5 py-0.5 text-[7px] font-black uppercase tracking-wide text-red-600 bg-red-100 dark:bg-red-500/20 dark:text-red-400 sm:text-[9px]">
+                          Prevista
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="hidden grid-cols-3 gap-2 sm:grid">
+                {!isRevisao && onStart && !slotAtual.concluido && (
+                  <button
+                    onClick={() => onStart(slot)}
+                    className={`inline-flex h-10 items-center justify-center gap-2 rounded-xl px-3 text-[10px] font-black uppercase tracking-widest text-white transition-all ${accentBgClass}`}
+                  >
+                    <Play size={14} fill="currentColor" />
+                    Iniciar Estudo
+                  </button>
+                )}
+                {onToggle && (
+                  <button
+                    onClick={() => onToggle(slot)}
+                    disabled={isToggleLoading}
+                    className={`inline-flex h-10 items-center justify-center gap-2 rounded-xl px-3 text-[10px] font-black uppercase tracking-widest text-white transition-all disabled:opacity-70 ${
+                      slotAtual.concluido ? 'bg-zinc-700 hover:bg-zinc-800 dark:bg-zinc-700 dark:hover:bg-zinc-600' : 'bg-emerald-600 hover:bg-emerald-700'
+                    }`}
+                  >
+                    {isToggleLoading ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={15} />}
+                    {slotAtual.concluido ? 'Marcar como pendente' : 'Marcar como concluido'}
+                  </button>
+                )}
+                <button
+                  onClick={onClose}
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 text-[10px] font-black uppercase tracking-widest text-zinc-700 transition-all hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
+                >
+                  Fechar
+                </button>
+              </div>
             </div>
           </div>
-
-          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-            {!isRevisao && onStart && (
+          <div className="mt-2 grid grid-cols-2 gap-2 sm:hidden">
+            <button
+              onClick={() => onToggle?.(slot)}
+              disabled={!onToggle || isToggleLoading}
+              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-3 text-[10px] font-black uppercase tracking-widest text-white disabled:opacity-70"
+            >
+              {isToggleLoading ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={14} />}
+              Concluir
+            </button>
+            {!isRevisao && onStart && !slotAtual.concluido ? (
               <button
                 onClick={() => onStart(slot)}
-                className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-3.5 text-xs font-black uppercase tracking-widest text-white transition-all hover:bg-red-700"
+                className={`inline-flex h-9 items-center justify-center gap-1.5 rounded-xl px-3 text-[10px] font-black uppercase tracking-widest text-white ${accentBgClass}`}
               >
-                <Play size={14} fill="currentColor" />
-                Iniciar Estudo
+                <Play size={13} fill="currentColor" />
+                Iniciar
+              </button>
+            ) : (
+              <button
+                onClick={onClose}
+                className="inline-flex h-9 items-center justify-center rounded-xl border border-zinc-200 bg-white px-3 text-[10px] font-black uppercase tracking-widest text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
+              >
+                Fechar
               </button>
             )}
-            <button
-              onClick={onClose}
-              className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-3.5 text-xs font-black uppercase tracking-widest text-zinc-700 transition-all hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
-            >
-              Fechar
-            </button>
           </div>
         </div>
       </motion.div>
@@ -794,10 +948,24 @@ const RevisoesAgrupadasCard = ({ revisoes = [], onOpenConsolidada }) => {
     acc + Number(tarefa.tempoMinutos ?? tarefa.tempoPlanejadoMinutos ?? tarefa.minutosEstudo ?? 0)
   ), 0);
   const topicosRevisao = revisoes.flatMap((tarefa) => {
+    const dadosSlot = {
+      slotId: tarefa.slotId,
+      slotIdBase: tarefa.slotIdBase,
+      slotIdNoProgresso: tarefa.slotIdNoProgresso,
+      weekOffset: tarefa.weekOffset,
+      concluido: tarefa.concluido,
+      tempoMinutos: tarefa.tempoMinutos,
+      tempoPlanejadoMinutos: tarefa.tempoPlanejadoMinutos,
+      isRevisaoAuto: true,
+    };
     if (Array.isArray(tarefa.topicosRevisao) && tarefa.topicosRevisao.length > 0) {
-      return tarefa.topicosRevisao;
+      return tarefa.topicosRevisao.map((topico) => ({
+        ...topico,
+        ...dadosSlot,
+      }));
     }
     return [{
+      ...dadosSlot,
       disciplinaId: tarefa.disciplinaId,
       disciplinaNome: tarefa.disciplinaNome || 'Revisão',
       assunto: tarefa.assunto || tarefa.assuntoOriginal || 'Revisão agendada',
@@ -892,31 +1060,40 @@ const DayDropZone = ({
       className={`flex flex-col rounded-[22px] border transition-all duration-300 relative
         ${isOver
           ? 'border-dashed border-red-500 bg-red-50/50 p-2 dark:bg-red-500/10 scale-[1.01] ring-2 ring-red-500/20'
-          : isHoje
-          ? 'border-red-500/60 ring-1 ring-red-500/30 shadow-md bg-white/70 p-2 dark:bg-zinc-950/40'
           : todoConcluido
-          ? 'border-emerald-200 bg-zinc-50/70 p-2 dark:border-emerald-800/40 dark:bg-zinc-950/30'
+          ? isHoje
+            ? 'border-emerald-400 bg-emerald-50/60 p-2 shadow-[0_22px_60px_rgba(16,185,129,0.22)] ring-2 ring-emerald-400/35 dark:border-emerald-700 dark:bg-emerald-950/20 dark:shadow-emerald-950/30 dark:ring-emerald-500/25'
+            : 'border-emerald-300/70 bg-emerald-50/45 p-2 shadow-2xl shadow-emerald-500/10 dark:border-emerald-800/45 dark:bg-emerald-950/10 dark:shadow-emerald-950/20'
+          : isHoje
+          ? 'border-red-500 bg-white/85 p-2 shadow-[0_24px_70px_rgba(239,68,68,0.2)] ring-2 ring-red-500/35 dark:bg-zinc-950/60 dark:ring-red-500/30'
           : 'border-zinc-200 bg-zinc-50/70 p-2 shadow-sm hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-950/30 dark:hover:border-zinc-700'
         }`}
     >
+      {isHoje && (
+        <div className={`pointer-events-none absolute inset-x-4 -top-px h-1 rounded-b-full ${
+          todoConcluido ? 'bg-emerald-500 shadow-[0_0_18px_rgba(16,185,129,0.55)]' : 'bg-red-600 shadow-[0_0_18px_rgba(239,68,68,0.55)]'
+        }`} />
+      )}
       {/* Header do dia */}
       <div className={`mb-3 shrink-0 rounded-2xl px-4 py-3 transition-all duration-300 border shadow-sm
-        ${isHoje
-          ? 'bg-zinc-950 text-white border-red-500/60 dark:bg-zinc-900 dark:text-white dark:border-red-500/40'
-          : todoConcluido
-          ? 'bg-zinc-900 text-white border-emerald-500/30 dark:bg-zinc-900 dark:text-white dark:border-emerald-500/30'
+        ${todoConcluido
+          ? isHoje
+            ? 'bg-emerald-700 text-white border-emerald-400/50 dark:bg-emerald-900 dark:text-white dark:border-emerald-500/40'
+            : 'bg-zinc-900 text-white border-emerald-500/30 dark:bg-zinc-900 dark:text-white dark:border-emerald-500/30'
+          : isHoje
+          ? 'bg-red-700 text-white border-red-400/60 shadow-lg shadow-red-600/20 dark:bg-red-950 dark:text-white dark:border-red-500/40'
           : 'bg-zinc-900 text-white border-zinc-800 dark:bg-zinc-900 dark:text-white dark:border-zinc-800'
         }`}
       >
           <div className="flex justify-between items-start gap-3">
             <div>
-              <p className={`text-[10px] font-black uppercase tracking-widest ${isHoje ? 'text-red-200 dark:text-red-600' : todoConcluido ? 'text-emerald-300 dark:text-emerald-600' : 'text-zinc-400 dark:text-zinc-500'}`}>
+              <p className={`text-[10px] font-black uppercase tracking-widest ${todoConcluido ? 'text-emerald-300 dark:text-emerald-600' : isHoje ? 'text-red-200 dark:text-red-600' : 'text-zinc-400 dark:text-zinc-500'}`}>
                 {MESES_FULL[date.getMonth()]}
               </p>
               <h3 className="mt-0.5 text-lg font-black leading-none uppercase tracking-tight text-white">
                 {DIAS_LONGO[diaSemanaIdx]}
               </h3>
-              <div className={`mt-1 text-[11px] font-bold uppercase tracking-widest ${isHoje ? 'text-red-100 dark:text-red-600' : todoConcluido ? 'text-emerald-200 dark:text-emerald-600/80' : 'text-zinc-300 dark:text-zinc-500'}`}>
+              <div className={`mt-1 text-[11px] font-bold uppercase tracking-widest ${todoConcluido ? 'text-emerald-200 dark:text-emerald-600/80' : isHoje ? 'text-red-100 dark:text-red-600' : 'text-zinc-300 dark:text-zinc-500'}`}>
                 {date.getDate()} {MESES_PT[date.getMonth()]}
               </div>
             </div>
@@ -930,10 +1107,10 @@ const DayDropZone = ({
                 : 'border-white/10 bg-white/10 text-white dark:border-white/10 dark:bg-white/10 dark:text-white'
             }`}>
               <div className="flex items-center gap-1.5">
-                <Clock size={12} className={isHoje ? 'text-white' : todoConcluido ? 'text-emerald-300' : 'text-zinc-300'} />
+                <Clock size={12} className={todoConcluido ? 'text-emerald-300' : isHoje ? 'text-white' : 'text-zinc-300'} />
                 <div className="flex flex-col items-end leading-none">
                   <span className={`text-[8px] font-black uppercase tracking-widest ${
-                    isHoje ? 'text-red-100' : 'text-zinc-300'
+                    todoConcluido ? 'text-emerald-200' : isHoje ? 'text-red-100' : 'text-zinc-300'
                   }`}>
                     Tempo
                   </span>
@@ -943,7 +1120,7 @@ const DayDropZone = ({
                 </div>
               </div>
             </div>
-            {isHoje && (
+            {isHoje && !todoConcluido && (
               <span className="text-[9px] font-black bg-white text-red-600 px-2 py-0.5 rounded shadow-sm uppercase flex items-center gap-1">
                 <Flame size={10}/> Hoje
               </span>
@@ -966,12 +1143,12 @@ const DayDropZone = ({
 
         {/* Progress bar no header */}
         {total > 0 && (
-          <div className={`mt-3 h-1.5 rounded-full overflow-hidden ${isHoje ? 'bg-white/20' : 'bg-white/15'}`}>
+          <div className={`mt-3 h-1.5 rounded-full overflow-hidden ${isHoje && !todoConcluido ? 'bg-white/20' : 'bg-white/15'}`}>
             <motion.div
               initial={{ width: 0 }}
               animate={{ width: `${progresso}%` }}
               transition={{ duration: 0.7, ease: 'easeOut', delay: 0.1 }}
-              className={`h-full rounded-full ${isHoje ? 'bg-red-400 dark:bg-red-600' : todoConcluido ? 'bg-emerald-500' : 'bg-red-500'}`}
+              className={`h-full rounded-full ${todoConcluido ? 'bg-emerald-500' : isHoje ? 'bg-red-400 dark:bg-red-600' : 'bg-red-500'}`}
             />
           </div>
         )}
@@ -984,11 +1161,18 @@ const DayDropZone = ({
             <div className="w-10 h-10 rounded-xl border-2 border-dashed border-zinc-300 dark:border-zinc-700 flex items-center justify-center">
               <Layers size={18} className="text-zinc-400"/>
             </div>
-            <span className="text-[10px] font-bold uppercase text-zinc-400 tracking-widest">Área Livre</span>
+            <span className="text-[10px] font-bold uppercase text-zinc-400 tracking-widest">Dia Livre</span>
           </div>
         ) : (
           <SortableContext items={draggablesNoDia} strategy={verticalListSortingStrategy}>
             <AnimatePresence>
+              {todoConcluido && (
+                <CronogramaDiaConcluidoCard
+                  key={`completed-${diaSemanaIdx}`}
+                  className="mb-3"
+                  title="cronograma finalizado"
+                />
+              )}
               {revisoesAgrupadas.length > 0 && (
                 <RevisoesAgrupadasCard
                   key={`reviews-${diaSemanaIdx}`}
@@ -1061,11 +1245,9 @@ const VisualizacaoMensal = ({ cronograma, dataInicio, onStart }) => {
 
   const corPorDisciplina = useMemo(() => {
     const mapa = {};
-    let idx = 0;
     (cronograma?.semanaTemplate || []).forEach((slot) => {
       if (slot.disciplinaId && !(slot.disciplinaId in mapa)) {
-        mapa[slot.disciplinaId] = PALETA_CORES_HEX[idx % PALETA_CORES_HEX.length];
-        idx++;
+        mapa[slot.disciplinaId] = getDisciplineColorForSlot(slot).hex;
       }
     });
     return mapa;
@@ -1115,7 +1297,7 @@ const VisualizacaoMensal = ({ cronograma, dataInicio, onStart }) => {
 
   const getSlotsEstudo = useCallback((item) => {
     if (item.type !== 'current') return [];
-    const dataKey = item.date.toISOString().split('T')[0];
+    const dataKey = dateToYMDLocal(item.date);
     return agendaMes.slotsPorData[dataKey] || [];
   }, [agendaMes]);
 
@@ -1189,16 +1371,27 @@ const VisualizacaoMensal = ({ cronograma, dataInicio, onStart }) => {
           <motion.div
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="grid grid-cols-7 gap-2 sm:gap-3 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
+            className="grid grid-cols-7 gap-2 sm:gap-3 rounded-2xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white p-3 shadow-soft dark:border-white/10 dark:!border-l-red-500/25 dark:bg-zinc-950 sm:p-4"
           >
+            {DIAS_CURTO.map((dia) => (
+              <div
+                key={dia}
+                className="rounded-lg border border-zinc-200 bg-zinc-50 px-1 py-2 text-center text-[9px] font-black uppercase tracking-widest text-zinc-500 dark:border-white/10 dark:bg-zinc-900 dark:text-zinc-400 sm:text-[10px]"
+              >
+                {dia}
+              </div>
+            ))}
+
             {days.map((item, i) => {
               const slots = getSlotsEstudo(item);
               const isHoje = item.date.toDateString() === hoje;
               const isSelected = diaSelecionado?.date.toDateString() === item.date.toDateString();
               const isMesAtual = item.type === 'current';
-              const dataKey = item.date.toISOString().split('T')[0];
+              const dataKey = dateToYMDLocal(item.date);
               const totalMinutosDia = slots.reduce((acc, slot) => acc + Number(slot.tempoMinutos ?? slot.minutosEstudo ?? 0), 0);
               const temRevisao = agendaMes.revisoesPorData.has(dataKey) && isMesAtual;
+              const concluidos = slots.filter((slot) => slot.concluido).length;
+              const diaCompleto = slots.length > 0 && concluidos === slots.length;
               const resumoPorDiscMap = {};
 
               slots.forEach((slot) => {
@@ -1210,7 +1403,7 @@ const VisualizacaoMensal = ({ cronograma, dataInicio, onStart }) => {
                     nome,
                     minutos: 0,
                     isRevisao: Boolean(slot.isRevisao || slot.isRevisaoAuto),
-                    cor: slot.isRevisao || slot.isRevisaoAuto ? '#3b82f6' : (corPorDisciplina[slot.disciplinaId] || '#94a3b8'),
+                    cor: getDisciplineColorForSlot(slot).hex || (slot.isRevisao || slot.isRevisaoAuto ? '#3b82f6' : (corPorDisciplina[slot.disciplinaId] || '#94a3b8')),
                   };
                 }
                 resumoPorDiscMap[chave].minutos += Number(slot.tempoMinutos ?? slot.minutosEstudo ?? 0);
@@ -1225,39 +1418,63 @@ const VisualizacaoMensal = ({ cronograma, dataInicio, onStart }) => {
                   whileHover={isMesAtual ? { y: -2, scale: 1.02 } : {}}
                   whileTap={isMesAtual ? { scale: 0.98 } : {}}
                   onClick={() => isMesAtual && slots.length > 0 && setDiaSelecionado(isSelected ? null : item)}
-                  className={`relative min-h-[110px] overflow-hidden rounded-xl border p-2 text-left transition-all ${
-                    isHoje
-                      ? 'border-red-500 bg-red-50 ring-1 ring-red-500/30 dark:bg-red-500/10'
+                  className={`group relative min-h-[132px] overflow-hidden rounded-xl border p-2 text-left transition-all sm:min-h-[150px] ${
+                    diaCompleto
+                      ? 'border-emerald-300 bg-emerald-50/70 shadow-sm dark:border-emerald-900/45 dark:bg-emerald-950/15'
+                      : isHoje
+                      ? 'border-red-500 bg-red-50 shadow-sm ring-1 ring-red-500/30 dark:bg-red-500/10'
                       : isMesAtual
-                      ? 'border-zinc-200 bg-white hover:border-zinc-300 dark:border-zinc-700/50 dark:bg-zinc-800/30 dark:hover:border-zinc-500'
-                      : 'border-transparent bg-zinc-50 opacity-40 dark:bg-zinc-950'
-                  } ${isSelected ? 'ring-2 ring-red-500 dark:ring-red-500' : ''}`}
+                      ? 'border-zinc-200 bg-white shadow-sm hover:border-zinc-300 hover:shadow-md dark:border-white/10 dark:bg-zinc-900 dark:hover:border-zinc-600'
+                      : 'border-transparent bg-zinc-50 opacity-35 dark:bg-zinc-950'
+                  } ${isSelected ? 'ring-2 ring-red-500 ring-offset-2 ring-offset-zinc-50 dark:ring-red-500 dark:ring-offset-zinc-950' : ''}`}
                 >
-                  <div className="relative z-10 mb-2 flex items-start justify-between">
-                    <span className={`text-[10px] font-black uppercase tracking-widest ${isHoje ? 'text-red-600 dark:text-red-500' : 'text-zinc-500 dark:text-zinc-500'}`}>
-                      {DIAS_CURTO[item.date.getDay()]}
-                    </span>
-                    <span className={`text-sm font-black ${isHoje ? 'text-red-600 dark:text-red-500' : 'text-zinc-700 dark:text-zinc-400'}`}>
+                  {(isHoje || diaCompleto) && (
+                    <div className={`pointer-events-none absolute inset-x-2 top-0 h-1 rounded-b-full ${diaCompleto ? 'bg-emerald-500' : 'bg-red-600'}`} />
+                  )}
+
+                  <div className="relative z-10 mb-2 flex items-start justify-between gap-2">
+                    <span className={`flex h-7 w-7 items-center justify-center rounded-lg text-sm font-black ${
+                      diaCompleto
+                        ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-600/20'
+                        : isHoje
+                        ? 'bg-red-600 text-white shadow-sm shadow-red-600/20'
+                        : isMesAtual
+                        ? 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300'
+                        : 'bg-transparent text-zinc-400'
+                    }`}>
                       {item.day}
                     </span>
+                    <div className="flex min-w-0 flex-col items-end gap-1">
+                      {slots.length > 0 ? (
+                        <>
+                          <span className="inline-flex items-center gap-1 rounded-md border border-zinc-200 bg-white/80 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide text-zinc-600 dark:border-white/10 dark:bg-white/10 dark:text-zinc-300">
+                            <Clock size={9} />
+                            {formatarDuracao(totalMinutosDia)}
+                          </span>
+                          <span className={`rounded-md px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide ${
+                            diaCompleto ? 'bg-emerald-600 text-white' : 'bg-zinc-900 text-white dark:bg-zinc-700'
+                          }`}>
+                            {concluidos}/{slots.length}
+                          </span>
+                        </>
+                      ) : isMesAtual ? (
+                        <span className="rounded-md bg-zinc-100 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide text-zinc-400 dark:bg-zinc-800/60 dark:text-zinc-500">
+                          Livre
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
 
-                  <div className="relative z-10 flex flex-col gap-1">
-                    {slots.length > 0 && (
-                      <div className="w-fit rounded border border-zinc-200 bg-zinc-100 px-1.5 py-0.5 text-[9px] font-bold tabular-nums text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 mb-1">
-                        Total: {formatarDuracao(totalMinutosDia)}
-                      </div>
-                    )}
-
+                  <div className="relative z-10 flex flex-col gap-1.5">
                     {resumoPorDisc.slice(0, 3).map((disc) => (
-                      <div key={disc.chave} className="flex items-center justify-between gap-1 rounded bg-zinc-50 px-1.5 py-1 dark:bg-zinc-800/80">
+                      <div key={disc.chave} className="flex items-center justify-between gap-1.5 rounded-lg border border-zinc-100 bg-zinc-50/90 px-1.5 py-1.5 dark:border-white/5 dark:bg-zinc-800/70">
                         <div className="flex min-w-0 items-center gap-1.5">
-                          <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: disc.cor }} />
-                          <span className={`truncate text-[9px] font-bold uppercase ${disc.isRevisao ? 'text-blue-600 dark:text-blue-400' : 'text-zinc-700 dark:text-zinc-300'}`}>
+                          <span className="h-2 w-2 shrink-0 rounded-full shadow-sm" style={{ backgroundColor: disc.cor }} />
+                          <span className={`truncate text-[9px] font-black uppercase leading-none ${disc.isRevisao ? 'text-blue-600 dark:text-blue-400' : 'text-zinc-700 dark:text-zinc-300'}`}>
                             {disc.nome}
                           </span>
                         </div>
-                        <span className="text-[9px] font-black tabular-nums text-zinc-500 dark:text-zinc-400">
+                        <span className="shrink-0 text-[9px] font-black tabular-nums text-zinc-500 dark:text-zinc-400">
                           {formatarDuracao(disc.minutos)}
                         </span>
                       </div>
@@ -1270,8 +1487,8 @@ const VisualizacaoMensal = ({ cronograma, dataInicio, onStart }) => {
                     )}
 
                     {slots.length === 0 && isMesAtual && (
-                      <div className="pt-2 text-[9px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-600">
-                        {temRevisao ? 'Revisão' : 'Livre'}
+                      <div className="flex min-h-[76px] items-center justify-center rounded-lg border border-dashed border-zinc-200 bg-zinc-50/60 text-[9px] font-black uppercase tracking-widest text-zinc-400 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-600">
+                        {temRevisao ? 'Revisao' : 'Sem blocos'}
                       </div>
                     )}
                   </div>
@@ -1282,20 +1499,21 @@ const VisualizacaoMensal = ({ cronograma, dataInicio, onStart }) => {
         </div>
       </div>
 
-      <AnimatePresence>
-        {diaSelecionado && (
+      {typeof document !== 'undefined' && createPortal((
+        <AnimatePresence>
+          {diaSelecionado && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[220] flex items-center justify-center p-4"
+            className="fixed inset-0 z-[9999] flex items-start justify-center overflow-y-auto p-3 sm:p-6"
           >
-            <div className="absolute inset-0 bg-zinc-950/70 backdrop-blur-sm" onClick={() => setDiaSelecionado(null)} />
+            <div className="fixed inset-0 bg-zinc-950/75 backdrop-blur-md" onClick={() => setDiaSelecionado(null)} />
             <motion.div
               initial={{ opacity: 0, y: 24, scale: 0.98 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 24, scale: 0.98 }}
-              className="relative w-full max-w-2xl rounded-2xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-900"
+              className="relative my-auto w-full max-w-2xl overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-900"
             >
               <div className="h-1.5 w-full bg-red-600 rounded-t-2xl" />
               <div className="border-b border-zinc-100 dark:border-zinc-800 px-5 py-4 bg-zinc-50 dark:bg-zinc-950/50">
@@ -1387,21 +1605,34 @@ const VisualizacaoMensal = ({ cronograma, dataInicio, onStart }) => {
               </div>
             </motion.div>
           </motion.div>
-        )}
-      </AnimatePresence>
+          )}
+        </AnimatePresence>
+      ), document.body)}
     </div>
   );
 };
 
 const VisualizacaoLista = ({ cronograma, weekDates, tarefasPorDia, onStart, onOpenConsolidada, onToggle, onMarkPendencia, onDominar, toggleLoadingId }) => {
-  const hojeStr = new Date().toDateString();
+  const hojeDate = new Date();
+  hojeDate.setHours(0, 0, 0, 0);
+  const hojeStr = hojeDate.toDateString();
+  const semanaExibidaContemHoje = weekDates.some((date) => date.toDateString() === hojeStr);
   const diasComItens = weekDates
     .map((date) => {
       const dia = date.getDay();
       const tarefas = tarefasPorDia[dia] || [];
       return { date, dia, tarefas };
     })
-    .filter(({ tarefas }) => tarefas.length > 0)
+    .filter(({ date, tarefas }) => {
+      const isHoje = date.toDateString() === hojeStr;
+      if (isHoje) return true;
+      if (tarefas.length === 0) return false;
+      if (!semanaExibidaContemHoje) return true;
+
+      const dataDia = new Date(date);
+      dataDia.setHours(0, 0, 0, 0);
+      return dataDia.getTime() > hojeDate.getTime();
+    })
     .sort((a, b) => {
       const aHoje = a.date.toDateString() === hojeStr;
       const bHoje = b.date.toDateString() === hojeStr;
@@ -1428,9 +1659,9 @@ const VisualizacaoLista = ({ cronograma, weekDates, tarefasPorDia, onStart, onOp
   const diasComIndice = diasComItens.map((diaItem) => {
     const inicio = indiceInicial;
     indiceInicial += diaItem.tarefas.length;
-    const totalMinutos = diaItem.tarefas.reduce((acc, tarefa) => (
-      acc + Number(tarefa.tempoPlanejadoMinutos ?? tarefa.tempoMinutos ?? tarefa.minutosEstudo ?? 0)
-    ), 0);
+      const totalMinutos = diaItem.tarefas.reduce((acc, tarefa) => (
+        acc + Number(tarefa.tempoPlanejadoMinutos ?? tarefa.tempoMinutos ?? tarefa.minutosEstudo ?? 0)
+      ), 0);
     return {
       ...diaItem,
       inicio,
@@ -1446,7 +1677,7 @@ const VisualizacaoLista = ({ cronograma, weekDates, tarefasPorDia, onStart, onOp
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 16 }}
-      className="mx-auto w-full max-w-4xl px-1 sm:px-4"
+      className="mx-auto w-full max-w-5xl px-1 sm:px-4"
     >
       <div className="relative mb-5 overflow-hidden rounded-2xl border border-zinc-200/80 bg-white/70 p-4 shadow-lg shadow-red-500/10 backdrop-blur-md dark:border-zinc-800 dark:bg-zinc-950/40 dark:shadow-red-950/20 sm:mb-8 sm:rounded-[32px] sm:p-6 sm:shadow-xl sm:shadow-red-500/15">
         <div className="pointer-events-none absolute right-0 top-0 h-24 w-24 rounded-full bg-red-500/10 blur-[50px] sm:h-32 sm:w-32 sm:blur-[60px]" />
@@ -1557,13 +1788,19 @@ const VisualizacaoLista = ({ cronograma, weekDates, tarefasPorDia, onStart, onOp
                         {revisoes} rev.
                       </span>
                     )}
-                    <span className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ${
-                      diaCompleto
-                        ? 'bg-emerald-600 text-white'
-                        : 'bg-zinc-900 text-white dark:bg-zinc-800'
-                    }`}>
-                      {concluidos}/{tarefas.length}
-                    </span>
+                    {tarefas.length > 0 ? (
+                      <span className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ${
+                        diaCompleto
+                          ? 'bg-emerald-600 text-white'
+                          : 'bg-zinc-900 text-white dark:bg-zinc-800'
+                      }`}>
+                        {concluidos}/{tarefas.length}
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 rounded-lg bg-zinc-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+                        Dia livre
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -1574,8 +1811,13 @@ const VisualizacaoLista = ({ cronograma, weekDates, tarefasPorDia, onStart, onOp
                     {diaCompleto && (
                       <CronogramaDiaConcluidoCard
                         className="mb-4 ml-0 sm:ml-16"
-                        title="Dia do cronograma finalizado"
+                        title="Cronograma finalizado"
                       />
+                    )}
+                    {tarefas.length === 0 && (
+                      <div className="ml-0 rounded-2xl border border-dashed border-zinc-200 bg-white/70 px-4 py-4 text-sm font-semibold text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-400 sm:ml-16">
+                        Hoje está livre no seu cronograma. Os próximos blocos aparecem abaixo.
+                      </div>
                     )}
                     {tarefas.map((tarefa, tarefaIdx) => {
                       const idx = inicio + tarefaIdx;
@@ -1624,47 +1866,40 @@ const VisualizacaoLista = ({ cronograma, weekDates, tarefasPorDia, onStart, onOp
                       isActive
                         ? isRevisao
                           ? 'border-blue-500/35 bg-blue-50/70 shadow-2xl shadow-blue-500/10 dark:border-blue-900/50 dark:bg-blue-950/10'
-                          : 'border-red-500/30 bg-white shadow-2xl shadow-red-500/10 dark:bg-zinc-900'
+                          : 'border-red-200 bg-red-50/70 shadow-2xl shadow-red-500/10 dark:border-red-900/50 dark:bg-red-950/10'
                         : isCompleted
-                          ? 'border-emerald-200 bg-emerald-50/80 shadow-lg shadow-emerald-500/10 dark:border-emerald-900/40 dark:bg-emerald-950/20'
+                          ? 'border-emerald-200 bg-emerald-50/60 shadow-lg dark:border-emerald-900/40 dark:bg-emerald-950/10'
                           : isDominado
                             ? 'border-amber-200 bg-amber-50/70 shadow-lg shadow-amber-500/10 dark:border-amber-900/30 dark:bg-amber-950/10'
                             : isRevisao
                               ? 'border-blue-100 bg-blue-50/30 shadow-lg shadow-blue-500/5 dark:border-blue-900/30 dark:bg-blue-950/10'
-                              : 'border-zinc-100 bg-transparent dark:border-zinc-800'
+                              : 'border-zinc-200 bg-white shadow-sm hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700'
                     }`}
                   >
                     <div className="p-3 sm:p-4">
                       <div className="flex items-start justify-between gap-2 sm:gap-3">
-                        <div className="min-w-0">
-                          <div className="mb-1 flex flex-wrap items-center gap-1.5">
-                            <span className={`rounded-md px-2 py-0.5 text-[9px] font-black uppercase tracking-widest ${
+                        <div className="flex min-w-0 items-start gap-2">
+                          <motion.button
+                            whileHover={{ scale: 1.05, y: -1 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => onToggle(tarefa)}
+                            disabled={isLoading}
+                            title={isCompleted ? 'Marcar como pendente' : 'Marcar como concluido'}
+                            className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border shadow-sm transition-all disabled:opacity-60 ${
                               isCompleted
-                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
-                                : isActive
-                                  ? isRevisao
-                                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
-                                    : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                                  : isDominado
-                                    ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
-                                    : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400'
-                            }`}>
-                              {isCompleted ? 'Concluida' : isActive ? 'Agora' : isDominado ? 'Dominado' : 'Proxima'}
-                            </span>
-                            <span className="text-[10px] font-medium text-zinc-400">
-                              {DIAS_CURTO[dia]}, {date.getDate()} {MESES_PT[date.getMonth()]}
-                            </span>
-                            {hoje && (
-                              <span className={`rounded-md px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-white ${isRevisao ? 'bg-blue-600' : 'bg-red-600'}`}>
-                                Hoje
-                              </span>
-                            )}
-                          </div>
+                                ? 'border-emerald-500 bg-emerald-500 text-white shadow-emerald-500/20'
+                                : 'border-emerald-200 bg-white text-emerald-600 shadow-emerald-500/10 hover:border-emerald-300 hover:bg-emerald-50 dark:border-emerald-900/40 dark:bg-white/10 dark:text-emerald-300 dark:hover:bg-emerald-900/35'
+                            }`}
+                          >
+                            {isLoading ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} strokeWidth={3.5} />}
+                          </motion.button>
+                          <div className="min-w-0">
                           <h3 className={`text-sm font-black uppercase leading-tight tracking-tight sm:text-base ${
                             isCompleted ? 'text-emerald-800 dark:text-emerald-200' : 'text-zinc-900 dark:text-white'
                           }`}>
                             {getNomeDisc(tarefa)}
                           </h3>
+                          </div>
                         </div>
 
                         {tempo > 0 && (
@@ -1698,89 +1933,89 @@ const VisualizacaoLista = ({ cronograma, weekDates, tarefasPorDia, onStart, onOp
                       </div>
 
                       {tempo > 0 && (
-                        <div className="mt-2.5 sm:mt-3">
-                          <div className="mb-1.5 flex items-center justify-between gap-2 text-[9px] font-black uppercase tracking-wide">
-                            <span className={isCompleted ? 'text-emerald-600 dark:text-emerald-400' : emAndamento ? 'text-orange-600 dark:text-orange-400' : 'text-zinc-400'}>
-                              {formatarDuracao(progressoMinutos)} / {formatarDuracao(tempo)}
-                            </span>
-                            <span className="text-zinc-400">{progressoPercentual}%</span>
+                        <div className="mt-2.5 flex items-end gap-2 sm:mt-3">
+                          <div className="min-w-0 flex-1">
+                            <div className="mb-1 flex items-center justify-between gap-2 text-[8px] font-black uppercase tracking-wide">
+                              <span className={isCompleted ? 'text-emerald-600 dark:text-emerald-400' : emAndamento ? 'text-orange-600 dark:text-orange-400' : 'text-zinc-400'}>
+                                {formatarDuracao(progressoMinutos)} / {formatarDuracao(tempo)}
+                              </span>
+                              <span className="text-zinc-400">{progressoPercentual}%</span>
+                            </div>
+                            <div className="h-1 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
+                              <motion.div
+                                initial={false}
+                                animate={{ width: `${progressoPercentual}%` }}
+                                transition={{ duration: 0.25 }}
+                                className={`h-full rounded-full ${isCompleted ? 'bg-emerald-500' : emAndamento ? 'bg-orange-500' : isRevisao ? 'bg-blue-500' : 'bg-red-500'}`}
+                              />
+                            </div>
                           </div>
-                          <div className="h-1.5 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
-                            <motion.div
-                              initial={false}
-                              animate={{ width: `${progressoPercentual}%` }}
-                              transition={{ duration: 0.25 }}
-                              className={`h-full rounded-full ${isCompleted ? 'bg-emerald-500' : emAndamento ? 'bg-orange-500' : isRevisao ? 'bg-blue-500' : 'bg-red-500'}`}
-                            />
-                          </div>
-                        </div>
-                      )}
-
-                      {isActive && (
-                        <div className="mt-3 flex flex-wrap items-center gap-2">
                           {canStart && (
                             <button
                               onClick={() => onStart(tarefa)}
-                              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-xl bg-red-600 px-3 text-[9px] font-black uppercase tracking-wider text-white shadow-md shadow-red-600/15 transition-all hover:bg-red-700 hover:shadow-red-700/20 active:scale-95 sm:h-9 sm:px-4"
+                              title="Iniciar estudo"
+                              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-600 text-white shadow-sm shadow-red-600/20 transition-all hover:bg-red-700 active:scale-95"
                             >
                               <Play size={14} fill="currentColor" />
-                              Iniciar Estudo
                             </button>
                           )}
+                        </div>
+                      )}
+
+                      {isActive && tarefa.isConsolidada && !isCompleted && (
+                        <div className="mt-3 flex w-full items-center gap-2">
                           {tarefa.isConsolidada && !isCompleted && (
                             <button
                               onClick={() => onOpenConsolidada(tarefa)}
-                              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-xl bg-blue-600 px-3 text-[9px] font-black uppercase tracking-wider text-white shadow-md shadow-blue-600/15 transition-all hover:bg-blue-700 active:scale-95 sm:h-9 sm:px-4"
+                              className="inline-flex h-8 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-3 text-[9px] font-black uppercase tracking-wide text-white shadow-md shadow-blue-600/15 transition-all hover:bg-blue-700 active:scale-95 sm:h-9 sm:px-4"
                             >
                               <BarChart2 size={14} />
                               Ver Revisao
                             </button>
                           )}
-                          <button
-                            onClick={() => onToggle(tarefa)}
-                            disabled={isLoading}
-                            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-3 text-[9px] font-black uppercase tracking-wider text-white shadow-md shadow-emerald-600/20 transition-all hover:bg-emerald-700 active:scale-95 disabled:opacity-60 sm:h-9 sm:px-4"
-                          >
-                            {isLoading ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} strokeWidth={3} />}
-                            Concluir
-                          </button>
                         </div>
                       )}
 
                       {!isCompleted && (
-                        <div className="mt-2.5 flex flex-wrap items-center gap-2 sm:mt-3">
+                        <div className="mt-0 flex h-0 w-full items-center gap-2 overflow-hidden opacity-0 transition-all duration-200 group-hover:mt-2.5 group-hover:h-9 group-hover:opacity-100 group-focus-within:mt-2.5 group-focus-within:h-9 group-focus-within:opacity-100 sm:group-hover:mt-3 sm:group-focus-within:mt-3">
+                          {!tarefa.isRevisaoAuto && (
+                            <button
+                              onClick={() => onDominar(tarefa)}
+                              title={isDominado ? 'Assunto ja dominado: nao priorizar novas revisoes desse topico.' : 'Ja dominei: marque quando voce domina o assunto e quer reduzir revisoes futuras.'}
+                              className={`flex h-8 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg border px-3 text-[9px] font-black uppercase tracking-wide transition-colors ${
+                                isDominado
+                                  ? 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-300 dark:hover:bg-amber-950/30'
+                                  : 'border-dashed border-zinc-300 bg-transparent text-zinc-500 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-600 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-amber-950/20 dark:hover:text-amber-300'
+                              }`}
+                            >
+                              <BadgeCheck size={14} className={isDominado ? 'fill-amber-400 text-amber-500' : ''} strokeWidth={isDominado ? 0 : 2} />
+                              {isDominado ? 'Dominado' : 'Marcar dominio'}
+                            </button>
+                          )}
                           {!isRevisao && (
                             <button
                               onClick={() => onMarkPendencia(tarefa)}
                               disabled={isLoading}
-                              className="flex h-8 items-center gap-1.5 rounded-xl bg-amber-50 px-3 text-[9px] font-black uppercase tracking-wider text-amber-700 transition-colors hover:bg-amber-100 disabled:opacity-60 dark:bg-amber-950/20 dark:text-amber-300 dark:hover:bg-amber-950/30"
+                              title="Pendente: mova este assunto para retomar depois sem marcar como concluido."
+                              className="flex h-8 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg bg-amber-50 px-3 text-[9px] font-black uppercase tracking-wide text-amber-700 transition-colors hover:bg-amber-100 disabled:opacity-60 dark:bg-amber-950/20 dark:text-amber-300 dark:hover:bg-amber-950/30"
                             >
                               <SkipForward size={14} />
-                              Ainda nao conclui
-                            </button>
-                          )}
-                          {!tarefa.isRevisaoAuto && (
-                            <button
-                              onClick={() => onDominar(tarefa)}
-                              className="flex h-8 items-center gap-1.5 rounded-xl bg-white/70 px-3 text-[9px] font-black uppercase tracking-wider text-zinc-500 transition-colors hover:text-amber-600 dark:bg-zinc-900/50 dark:hover:text-amber-300"
-                            >
-                              <BadgeCheck size={14} className={isDominado ? 'fill-amber-400 text-amber-500' : ''} strokeWidth={isDominado ? 0 : 2} />
-                              {isDominado ? 'Dominado' : 'Dominei'}
+                              Pendente
                             </button>
                           )}
                         </div>
                       )}
 
                       {isCompleted && (
-                        <div className="mt-3 flex flex-wrap items-center gap-2">
-                          <div className="flex h-8 items-center gap-1.5 rounded-xl border border-emerald-200 bg-white/70 px-3 text-[9px] font-black uppercase tracking-wider text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-300">
+                        <div className="mt-3 flex w-full items-center gap-2">
+                          <div className="flex h-8 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-white/70 px-3 text-[9px] font-black uppercase tracking-wider text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-300">
                             <CheckCircle2 size={14} />
                             Estudo concluido
                           </div>
                           <button
                             onClick={() => onToggle(tarefa)}
                             disabled={isLoading}
-                            className="flex h-8 items-center gap-1.5 rounded-xl bg-white/70 px-3 text-[9px] font-black uppercase tracking-wider text-zinc-500 transition-colors hover:text-zinc-800 disabled:opacity-60 dark:bg-zinc-900/50 dark:hover:text-white"
+                            className="flex h-8 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl bg-white/70 px-3 text-[9px] font-black uppercase tracking-wider text-zinc-500 transition-colors hover:text-zinc-800 disabled:opacity-60 dark:bg-zinc-900/50 dark:hover:text-white"
                           >
                             {isLoading ? <Loader2 size={14} className="animate-spin" /> : <MoreHorizontal size={14} />}
                             Alterar
@@ -1867,7 +2102,7 @@ const SemanaHojeHero = ({ date, tarefas }) => {
         </div>
 
         {diaConcluido ? (
-          <CronogramaDiaConcluidoCard className="min-h-[180px] flex flex-col items-center justify-center" />
+          <CronogramaDiaConcluidoCard className="min-h-[136px] flex flex-col items-center justify-center" />
         ) : (
           <div className="relative flex min-h-[180px] items-center justify-center overflow-hidden rounded-3xl bg-zinc-950 p-5 text-white dark:bg-zinc-950">
             <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(127,29,29,0.92),rgba(24,24,27,0.98)_48%,rgba(9,9,11,1))]" />
@@ -1907,27 +2142,27 @@ const SemanaHojeHero = ({ date, tarefas }) => {
 };
 
 // ─── PÁGINA PRINCIPAL ──────────────────────────────────────────────────────────
-const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletionRegistro, onGoToEdital }) => {
+const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletionRegistro, registrosEstudo = [], onDeleteRegistro, onGoToEdital }) => {
   const [cronograma,        setCronograma]        = useState(null);
   const [loadingPage,       setLoadingPage]       = useState(true);
   const [showWizard,        setShowWizard]        = useState(false);
-  const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const [weekOffset,        setWeekOffset]        = useState(0);
   const [toast,             setToast]             = useState(null);
   const [loadingAction,     setLoadingAction]     = useState(false);
   const [toggleLoadingId,   setToggleLoadingId]   = useState(null);
-  const [viewMode,          setViewMode]          = useState('list');
+  const [viewMode,          setViewMode]          = useState('week');
   const [slotConsolidado,   setSlotConsolidado]   = useState(null);
   const [mostrandoEditar,   setMostrandoEditar]   = useState(false);
-  const [settingsOpen,      setSettingsOpen]      = useState(false);
-  const [settingsPos,       setSettingsPos]       = useState(null);
   const [dominiosLocal,     setDominiosLocal]     = useState({});
   const [activeDragTask,    setActiveDragTask]    = useState(null);
   const [slotDetalhes,      setSlotDetalhes]      = useState(null);
+  const [showHistoryModal,  setShowHistoryModal]  = useState(false);
+  const [recordToDelete,    setRecordToDelete]    = useState(null);
+  const [optimisticDone,    setOptimisticDone]    = useState({});
 
-  const settingsBtnRef = useRef(null);
   const weekScrollRef = useRef(null);
   const weekPanRef = useRef({ active: false, startX: 0, scrollLeft: 0, pointerId: null });
+  const didInitWeekOffsetRef = useRef(false);
   const dragSensors = useSensors(useSensor(PointerSensor, {
     activationConstraint: {
       distance: 8,
@@ -1940,7 +2175,6 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
     toggleSlotConcluido,
     marcarTeoriaAindaNaoConcluida,
     toggleAssuntoDominado,
-    excluirCronograma,
   } = useCronogramaSystem(user);
 
   const showToast = useCallback((msg) => {
@@ -1976,7 +2210,10 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
         } catch (e) { console.error(e); }
       }
       setCronograma(maisRecente);
-      setWeekOffset(getCurrentWeekOffset(maisRecente.dataInicio));
+      if (!didInitWeekOffsetRef.current) {
+        setWeekOffset(getCurrentWeekOffset(maisRecente.dataInicio));
+        didInitWeekOffsetRef.current = true;
+      }
       setLoadingPage(false);
       setDominiosLocal(maisRecente.progresso?.dominios || {});
     });
@@ -2016,22 +2253,42 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
         : (progressoW[slotIdNoProgresso] === true || progressoW[slot.slotId] === true || slot.concluido === true);
       const progressoCru = Number(progressoMinutosW[slotIdNoProgresso] || slot.progressoMinutos || 0);
       const progressoMinutos = concluido ? Math.max(progressoCru, tempoPlanejadoMinutos) : progressoCru;
-      mapa[slot.dia]?.push({
+      const tarefaMontada = {
         ...slot,
         slotIdNoProgresso,
         tempoPlanejadoMinutos,
         progressoMinutos,
         dominado: !!(dominiosLocal[chave]),
         concluido,
-      });
+      };
+      const optimisticKey = getCompletionKey(tarefaMontada);
+      mapa[slot.dia]?.push(
+        optimisticKey && Object.prototype.hasOwnProperty.call(optimisticDone, optimisticKey)
+          ? applyCompletionOverride(tarefaMontada, optimisticDone[optimisticKey])
+          : tarefaMontada
+      );
     });
     return mapa;
-  }, [agendaSemana, dominiosLocal, cronograma, weekOffset]);
+  }, [agendaSemana, dominiosLocal, cronograma, optimisticDone, weekOffset]);
 
   const progressoGeral = useMemo(() => {
     const todos = Object.values(tarefasPorDia).flat();
     if (!todos.length) return 0;
     return Math.round((todos.filter(t => t.concluido).length / todos.length) * 100);
+  }, [tarefasPorDia]);
+
+  const progressoMinutosHeader = useMemo(() => {
+    const todos = Object.values(tarefasPorDia).flat();
+    return todos.reduce((acc, tarefa) => {
+      const tempo = Number(tarefa.tempoPlanejadoMinutos ?? tarefa.tempoMinutos ?? tarefa.minutosEstudo ?? 0);
+      const progresso = tarefa.concluido
+        ? tempo
+        : Math.min(Number(tarefa.progressoMinutos || 0), tempo || Number(tarefa.progressoMinutos || 0));
+      return {
+        totalMeta: acc.totalMeta + tempo,
+        totalFeito: acc.totalFeito + progresso,
+      };
+    }, { totalMeta: 0, totalFeito: 0 });
   }, [tarefasPorDia]);
 
   const hojeNaSemana = useMemo(() => {
@@ -2059,20 +2316,35 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
     return count;
   }, [cronograma]);
 
+  const registrosHistoricoCronograma = useMemo(() => {
+    if (!cronograma?.id) return [];
+    return (registrosEstudo || []).filter((registro) => registro.cronogramaId === cronograma.id);
+  }, [cronograma?.id, registrosEstudo]);
+
+  const dataFimConteudoCronograma = useMemo(
+    () => calcularDataFimConteudoCronograma(cronograma),
+    [cronograma],
+  );
+
   let formattedStartDate = '...';
   if (cronograma?.dataInicio) {
-    formattedStartDate = new Date(cronograma.dataInicio).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+    formattedStartDate = formatarDataHeader(cronograma.dataInicio);
   }
   let formattedEndDate = '...';
-  const dataFinalCronograma = cronograma?.dataFim || cronograma?.dataFechamento || null;
+  const dataFinalCronograma = dataFimConteudoCronograma || cronograma?.dataFim || cronograma?.dataFechamento || null;
   if (dataFinalCronograma) {
-    formattedEndDate = new Date(dataFinalCronograma).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+    formattedEndDate = formatarDataHeader(dataFinalCronograma);
   }
 
   // Handlers
   const handleToggle = async (tarefa) => {
-    if (!cronograma || toggleLoadingId) return;
+    if (!cronograma) return;
     const toggleId = tarefa.slotIdBase || tarefa.slotId;
+    if (toggleLoadingId === toggleId) return;
+    const optimisticKey = getCompletionKey(tarefa);
+    const previousDone = Boolean(tarefa.concluido);
+    const nextDone = !previousDone;
+    if (optimisticKey) setOptimisticDone(prev => ({ ...prev, [optimisticKey]: nextDone }));
     setToggleLoadingId(toggleId);
     const semanaDoSlot = Number.isFinite(Number(tarefa.weekOffset)) ? Number(tarefa.weekOffset) : weekOffset;
     const ok = await toggleSlotConcluido(cronograma.id, tarefa, semanaDoSlot);
@@ -2082,16 +2354,34 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
       cronograma,
       isReview: !!tarefa.isRevisaoAuto,
     });
-    if (ok && !tarefa.concluido && addRegistroEstudo) {
-      await addRegistroEstudo(completionRegistro);
-    } else if (ok && tarefa.concluido && deleteCompletionRegistro) {
-      await deleteCompletionRegistro(completionRegistro);
+    if (!ok) {
+      if (optimisticKey) setOptimisticDone(prev => ({ ...prev, [optimisticKey]: previousDone }));
+    } else if (!previousDone && addRegistroEstudo) {
+      addRegistroEstudo(completionRegistro).catch(console.error);
+    } else if (previousDone && deleteCompletionRegistro) {
+      deleteCompletionRegistro(completionRegistro).catch(console.error);
     }
     setToggleLoadingId(null);
     showToast(ok
-      ? (tarefa.concluido ? 'Marcado como pendente' : 'Concluído com sucesso')
+      ? (previousDone ? 'Marcado como pendente' : 'Concluído com sucesso')
       : 'Erro ao salvar. Tente novamente.'
     );
+  };
+
+  const handleConfirmDeleteRegistro = async () => {
+    if (!recordToDelete) return;
+    setLoadingAction(true);
+    try {
+      if (onDeleteRegistro) await onDeleteRegistro(recordToDelete.id);
+      else await deleteDoc(doc(db, 'users', user.uid, 'registrosEstudo', recordToDelete.id));
+      setRecordToDelete(null);
+    } finally {
+      setLoadingAction(false);
+    }
+  };
+
+  const handleUpdateRegistro = async (id, data) => {
+    await updateDoc(doc(db, 'users', user.uid, 'registrosEstudo', id), data);
   };
 
   const handleMarkPendencia = async (tarefa) => {
@@ -2246,6 +2536,20 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
     weekPanRef.current = { active: false, startX: 0, scrollLeft: 0, pointerId: null };
   }, []);
 
+  useEffect(() => {
+    if (viewMode !== 'week') return;
+    const node = weekScrollRef.current;
+    if (!node) return;
+
+    const todayCard = node.querySelector('[data-week-today="true"]');
+    if (!todayCard) return;
+
+    requestAnimationFrame(() => {
+      const targetLeft = Math.max(0, todayCard.offsetLeft - 16);
+      node.scrollTo({ left: targetLeft, behavior: 'smooth' });
+    });
+  }, [viewMode, weekOffset]);
+
   const handleDominar = useCallback(async (tarefa) => {
     if (!cronograma) return;
     const chave = chaveAssuntoDominado(tarefa.disciplinaId, tarefa.assunto);
@@ -2270,24 +2574,6 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
       showToast('❌ Erro ao salvar. Tente novamente.');
     }
   }, [cronograma, dominiosLocal, toggleAssuntoDominado, showToast]);
-
-  const handleToggleSettings = () => {
-    setSettingsOpen(prev => {
-      if (!prev) {
-        const rect = settingsBtnRef.current?.getBoundingClientRect?.();
-        if (rect) setSettingsPos({ top: rect.bottom + 6, right: window.innerWidth - rect.right });
-      }
-      return !prev;
-    });
-  };
-
-  useEffect(() => {
-    const handler = (e) => {
-      if (settingsBtnRef.current && !settingsBtnRef.current.contains(e.target)) setSettingsOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
 
   // Early returns
   if (loadingPage) return (
@@ -2322,25 +2608,26 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
 
   // ─── RENDER PRINCIPAL ──────────────────────────────────────────────────────
   return (
-    <div className="relative flex flex-col bg-transparent">
-      {/* Background simplificado e tático */}
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute bottom-0 left-0 h-[400px] w-[400px] translate-y-1/3 -translate-x-1/3 rounded-full bg-red-500/5 dark:bg-red-900/10 blur-[80px]" />
-      </div>
-
+    <div className="relative flex min-h-[calc(100vh-120px)] min-w-0 flex-col animate-fade-in">
       {/* ── MODAIS ── */}
       <AnimatePresence>
-        {showConfirmDelete && (
+        {recordToDelete && (
           <ModalConfirm
-            msg="Deseja encerrar esta operação? Todo o progresso será perdido."
-            onConfirm={async () => {
-              setLoadingAction(true);
-              await excluirCronograma(cronograma.id, cronograma.cicloVinculadoId);
-              setLoadingAction(false);
-              setShowConfirmDelete(false);
-            }}
-            onCancel={() => setShowConfirmDelete(false)}
+            msg="Deseja excluir este registro de estudo? As estatísticas serão atualizadas automaticamente."
+            onConfirm={handleConfirmDeleteRegistro}
+            onCancel={() => setRecordToDelete(null)}
             loading={loadingAction}
+          />
+        )}
+
+        {showHistoryModal && (
+          <HistoricoModal
+            isOpen={showHistoryModal}
+            onClose={() => setShowHistoryModal(false)}
+            registros={registrosHistoricoCronograma}
+            onDeleteRequest={(registro) => setRecordToDelete(registro)}
+            onUpdateRecord={handleUpdateRegistro}
+            title="Histórico do Cronograma"
           />
         )}
 
@@ -2349,7 +2636,11 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
             slot={slotConsolidado}
             onClose={() => setSlotConsolidado(null)}
             onDominar={handleDominarDoModal}
+            onStart={handleStart}
+            onToggle={handleToggle}
             dominiosLocal={dominiosLocal}
+            toggleLoadingId={toggleLoadingId}
+            optimisticDone={optimisticDone}
           />
         )}
 
@@ -2359,6 +2650,9 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
             cronograma={cronograma}
             onClose={() => setSlotDetalhes(null)}
             onStart={handleStart}
+            onToggle={handleToggle}
+            toggleLoadingId={toggleLoadingId}
+            optimisticDone={optimisticDone}
           />
         )}
 
@@ -2372,11 +2666,11 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
         )}
       </AnimatePresence>
 
-      {/* ── HEADER (ESTILO CICLO DETALHE) ── */}
-      <div className="shrink-0 px-4 sm:px-6 pt-4 pb-3 z-10">
+      {/* ── HEADER (MESMO ENVELOPE DO CICLO) ── */}
+      <div className="mb-3">
 
         {/* Card principal do cronograma */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-zinc-50 dark:bg-zinc-900 px-6 py-4 rounded-2xl border border-zinc-300 dark:border-zinc-800 shadow-sm relative overflow-hidden mb-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-zinc-50 dark:bg-zinc-900 px-6 py-4 rounded-2xl border border-zinc-300 dark:border-zinc-800 shadow-sm relative overflow-hidden">
 
           {/* Logo de fundo */}
           {dynamicLogo ? (
@@ -2475,21 +2769,34 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
             </div>
           </div>
 
-          {/* Lado direito — progresso circular + stats */}
-          <div className="flex items-center gap-6 z-10">
-            <div className="text-center hidden sm:block">
-              <p className="text-[10px] font-black text-zinc-500 dark:text-zinc-400 uppercase tracking-widest mb-1">Semana</p>
-              <p className="text-2xl font-black text-zinc-900 dark:text-white">
-                {weekOffset + 1}<span className="text-sm text-zinc-400 font-bold">/{totalSemanas}</span>
-              </p>
+          {/* Lado direito — mesmo padrão de progresso do Ciclo */}
+          <div className="z-10 flex w-full items-center justify-between gap-4 rounded-2xl border border-zinc-200 bg-white/75 p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/55 md:w-auto md:min-w-[360px]">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between gap-5">
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-[0.22em] text-zinc-400">Meta</p>
+                  <p className="mt-0.5 font-mono text-lg font-black text-zinc-900 dark:text-white">{formatarDuracao(progressoMinutosHeader.totalMeta)}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[9px] font-black uppercase tracking-[0.22em] text-zinc-400">Feito</p>
+                  <p className="mt-0.5 font-mono text-lg font-black text-zinc-900 dark:text-white">{formatarDuracao(progressoMinutosHeader.totalFeito)}</p>
+                </div>
+              </div>
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-zinc-100 ring-1 ring-zinc-200/70 dark:bg-zinc-800 dark:ring-zinc-700/70">
+                <motion.div
+                  initial={false}
+                  animate={{ width: `${Math.min(progressoGeral, 100)}%` }}
+                  transition={{ duration: 0.45, ease: 'easeOut' }}
+                  className={`h-full rounded-full ${progressoGeral >= 100 ? 'bg-gradient-to-r from-emerald-500 to-teal-400' : 'bg-gradient-to-r from-red-600 via-rose-500 to-orange-400'}`}
+                />
+              </div>
             </div>
-            <div className="w-px h-12 bg-zinc-200 dark:bg-zinc-800 hidden sm:block"/>
-            <div className="relative">
-              <svg className="w-20 h-20 -rotate-90" viewBox="0 0 80 80">
+            <div className="relative shrink-0">
+              <svg className="h-20 w-20 -rotate-90" viewBox="0 0 80 80">
                 <circle cx="40" cy="40" r="34" fill="none" stroke="currentColor" className="text-zinc-200 dark:text-zinc-800" strokeWidth="6"/>
                 <motion.circle
                   cx="40" cy="40" r="34" fill="none" stroke="currentColor"
-                  className={progressoGeral >= 100 ? 'text-emerald-500' : progressoGeral > 0 ? 'text-blue-600 dark:text-blue-500' : 'text-zinc-300 dark:text-zinc-700'}
+                  className={progressoGeral >= 100 ? 'text-emerald-500' : progressoGeral > 0 ? 'text-yellow-500' : 'text-zinc-400'}
                   strokeWidth="6" strokeLinecap="round"
                   strokeDasharray={2 * Math.PI * 34}
                   initial={{ strokeDashoffset: 2 * Math.PI * 34 }}
@@ -2498,7 +2805,7 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
                 />
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className={`text-lg font-black ${progressoGeral >= 100 ? 'text-emerald-500' : progressoGeral > 0 ? 'text-blue-600 dark:text-blue-500' : 'text-zinc-400'}`}>
+                <span className={`text-xl font-black ${progressoGeral >= 100 ? 'text-emerald-500' : progressoGeral > 0 ? 'text-yellow-500' : 'text-zinc-400'}`}>
                   {progressoGeral}%
                 </span>
               </div>
@@ -2507,36 +2814,64 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
         </div>
 
         {/* ── BARRA DE FERRAMENTAS ── */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mt-8 mb-4 px-2 gap-4">
-          <div className="flex items-center gap-4">
+        <div className="mt-4 mb-2 px-1 sm:px-2">
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-wrap items-center gap-3">
             <h3 className="text-sm font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2">
               <LayoutList size={16} /> Painel Tático
             </h3>
 
-            {/* View Toggles (Desktop) */}
-            <div className="hidden sm:flex items-center gap-1 rounded-lg bg-zinc-200/50 p-1 dark:bg-zinc-800">
+            {/* View Toggles */}
+            <div className="flex min-w-0 items-center gap-1 rounded-lg bg-zinc-200/50 p-1 dark:bg-zinc-800">
               <button
                 onClick={() => setViewMode('list')}
-                className={`flex items-center justify-center gap-1.5 rounded px-3 py-1.5 text-[10px] font-black uppercase tracking-widest transition-colors ${viewMode === 'list' ? 'bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
+                className={`flex items-center justify-center gap-1.5 rounded px-2.5 py-1.5 text-[10px] font-black uppercase tracking-widest transition-colors sm:px-3 ${viewMode === 'list' ? 'bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
               >
                 <LayoutList size={12}/> Lista
               </button>
               <button
                 onClick={() => setViewMode('week')}
-                className={`flex items-center justify-center gap-1.5 rounded px-3 py-1.5 text-[10px] font-black uppercase tracking-widest transition-colors ${viewMode === 'week' ? 'bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
+                className={`flex items-center justify-center gap-1.5 rounded px-2.5 py-1.5 text-[10px] font-black uppercase tracking-widest transition-colors sm:px-3 ${viewMode === 'week' ? 'bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
               >
                 <LayoutGrid size={12}/> Semanal
               </button>
               <button
                 onClick={() => setViewMode('month')}
-                className={`flex items-center justify-center gap-1.5 rounded px-3 py-1.5 text-[10px] font-black uppercase tracking-widest transition-colors ${viewMode === 'month' ? 'bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
+                className={`flex items-center justify-center gap-1.5 rounded px-2.5 py-1.5 text-[10px] font-black uppercase tracking-widest transition-colors sm:px-3 ${viewMode === 'month' ? 'bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
               >
                 <Calendar size={12}/> Mensal
               </button>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          {(viewMode === 'week' || viewMode === 'list') && (
+            <div className="flex w-full items-center justify-between gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 py-1.5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:w-[258px] lg:mx-3">
+              <button
+                onClick={() => setWeekOffset(w => Math.max(0, w - 1))}
+                disabled={weekOffset === 0}
+                className="p-1.5 rounded text-zinc-500 hover:text-zinc-900 hover:bg-zinc-200 dark:text-zinc-400 dark:hover:text-white dark:hover:bg-zinc-800 disabled:opacity-30 transition-colors"
+              >
+                <ChevronLeft size={16}/>
+              </button>
+              <div className="flex min-w-0 flex-1 flex-col items-center justify-center text-center">
+                <div className="text-[10px] font-black uppercase tracking-widest text-zinc-900 dark:text-white leading-none mb-1">
+                  Semana {weekOffset + 1} de {totalSemanas}
+                </div>
+                <div className="text-[9px] font-medium text-zinc-500 dark:text-zinc-400">
+                  {weekDates.length > 0 ? `${weekDates[0].getDate()} ${MESES_PT[weekDates[0].getMonth()]} – ${weekDates[6].getDate()} ${MESES_PT[weekDates[6].getMonth()]}` : ''}
+                </div>
+              </div>
+              <button
+                onClick={() => setWeekOffset(w => Math.min(totalSemanas - 1, w + 1))}
+                disabled={weekOffset >= totalSemanas - 1}
+                className="p-1.5 rounded text-zinc-500 hover:text-zinc-900 hover:bg-zinc-200 dark:text-zinc-400 dark:hover:text-white dark:hover:bg-zinc-800 disabled:opacity-30 transition-colors"
+              >
+                <ChevronRight size={16}/>
+              </button>
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center justify-start gap-2 lg:justify-end">
             <button
               onClick={() => { setLoadingAction(true); adiarCronograma(cronograma.id, cronograma).finally(() => setLoadingAction(false)); }}
               disabled={loadingAction}
@@ -2547,152 +2882,106 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
             </button>
 
             <button
-              ref={settingsBtnRef}
-              onClick={handleToggleSettings}
+              onClick={() => setShowHistoryModal(true)}
               className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white hover:bg-red-50 border border-zinc-200 hover:border-red-200 dark:bg-zinc-800 dark:hover:bg-red-900/10 dark:border-zinc-700 dark:hover:border-red-900/30 text-zinc-600 hover:text-red-700 dark:text-zinc-300 dark:hover:text-red-400 text-[10px] font-bold uppercase tracking-wide transition-all group shadow-sm"
+              title="Ver Histórico Completo"
             >
-              <Settings size={14} className="text-red-600 dark:text-red-500 group-hover:scale-110 transition-transform"/>
-              <span className="hidden sm:inline">Ajustes</span>
+              <History size={14} className="text-red-600 dark:text-red-500 group-hover:scale-110 transition-transform"/>
+              <span className="hidden sm:inline">Histórico de Estudos</span>
             </button>
 
-            <button
-              onClick={() => setShowConfirmDelete(true)}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white hover:bg-red-50 border border-zinc-200 hover:border-red-200 dark:bg-zinc-800 dark:hover:bg-red-900/10 dark:border-zinc-700 dark:hover:border-red-900/30 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 text-[10px] font-bold uppercase tracking-wide transition-all group shadow-sm"
-            >
-              <Trash2 size={14} className="group-hover:scale-110 transition-transform"/>
-              <span className="hidden sm:inline">Encerrar</span>
-            </button>
           </div>
         </div>
-
-        {/* View Toggles (Mobile) */}
-        <div className="flex sm:hidden items-center gap-1 rounded-lg bg-zinc-200/50 p-1 dark:bg-zinc-800 mb-4 mx-2">
-            <button
-              onClick={() => setViewMode('list')}
-              className={`flex-1 flex items-center justify-center gap-1.5 rounded px-3 py-1.5 text-[10px] font-black uppercase tracking-widest transition-colors ${viewMode === 'list' ? 'bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
-            >
-              <LayoutList size={12}/> Lista
-            </button>
-            <button
-              onClick={() => setViewMode('week')}
-              className={`flex-1 flex items-center justify-center gap-1.5 rounded px-3 py-1.5 text-[10px] font-black uppercase tracking-widest transition-colors ${viewMode === 'week' ? 'bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
-            >
-              <LayoutGrid size={12}/> Semanal
-            </button>
-            <button
-              onClick={() => setViewMode('month')}
-              className={`flex-1 flex items-center justify-center gap-1.5 rounded px-3 py-1.5 text-[10px] font-black uppercase tracking-widest transition-colors ${viewMode === 'month' ? 'bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
-            >
-              <Calendar size={12}/> Mensal
-            </button>
-        </div>
-
-        {/* Navegação de semana (só no modo semanal e lista) */}
-        {(viewMode === 'week' || viewMode === 'list') && (
-          <div className="flex items-center gap-3 mt-3 w-full sm:w-auto bg-zinc-50 dark:bg-zinc-900 px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
-            <button
-              onClick={() => setWeekOffset(w => Math.max(0, w - 1))}
-              disabled={weekOffset === 0}
-              className="p-1.5 rounded text-zinc-500 hover:text-zinc-900 hover:bg-zinc-200 dark:text-zinc-400 dark:hover:text-white dark:hover:bg-zinc-800 disabled:opacity-30 transition-colors"
-            >
-              <ChevronLeft size={16}/>
-            </button>
-            <div className="flex flex-col flex-1 items-center justify-center text-center">
-              <div className="text-[10px] font-black uppercase tracking-widest text-zinc-900 dark:text-white leading-none mb-1">
-                Semana {weekOffset + 1} de {totalSemanas}
-              </div>
-              <div className="text-[9px] font-medium text-zinc-500 dark:text-zinc-400">
-                {weekDates.length > 0 ? `${weekDates[0].getDate()} ${MESES_PT[weekDates[0].getMonth()]} – ${weekDates[6].getDate()} ${MESES_PT[weekDates[6].getMonth()]}` : ''}
-              </div>
-            </div>
-            <button
-              onClick={() => setWeekOffset(w => Math.min(totalSemanas - 1, w + 1))}
-              disabled={weekOffset >= totalSemanas - 1}
-              className="p-1.5 rounded text-zinc-500 hover:text-zinc-900 hover:bg-zinc-200 dark:text-zinc-400 dark:hover:text-white dark:hover:bg-zinc-800 disabled:opacity-30 transition-colors"
-            >
-              <ChevronRight size={16}/>
-            </button>
           </div>
-        )}
-      </div>
+        </div>
 
       {/* ── ÁREA PRINCIPAL ── */}
-      <div className="flex-1 overflow-y-auto px-4 sm:px-6 pb-8 pt-1">
+      <div className="-mx-2 min-h-0 flex-grow pb-8 pt-0 sm:-mx-4 md:-mx-6 lg:-mx-8">
         {viewMode === 'week' ? (
-          <DndContext sensors={dragSensors} collisionDetection={cronogramaCollisionDetection} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={() => setActiveDragTask(null)}>
-            <motion.div
-              ref={weekScrollRef}
-              key="week"
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 10 }}
-              onPointerDown={handleWeekPanStart}
-              onPointerMove={handleWeekPanMove}
-              onPointerUp={handleWeekPanEnd}
-              onPointerCancel={handleWeekPanEnd}
-              onPointerLeave={handleWeekPanEnd}
-              className="flex cursor-grab gap-4 overflow-x-auto overflow-y-hidden pb-5 pr-2 active:cursor-grabbing [scrollbar-width:thin] [scrollbar-color:rgb(220_38_38)_transparent]"
-            >
-              {weekDates.map((date) => {
-                const diaReal = date.getDay();
-                return (
-                  <div key={date.getTime()} className="w-[292px] min-w-[292px] self-start sm:w-[320px] sm:min-w-[320px] xl:w-[340px] xl:min-w-[340px]">
-                    <DayDropZone
-                      diaSemanaIdx={diaReal}
-                      date={date}
-                      tarefas={tarefasPorDia[diaReal] || []}
-                      isHoje={new Date().toDateString() === date.toDateString()}
-                      onToggle={handleToggle}
-                      onMarkPendencia={handleMarkPendencia}
-                      onStart={handleStart}
-                      onDominar={handleDominar}
-                      onOpenConsolidada={slot => setSlotConsolidado(slot)}
-                      onOpenDetails={setSlotDetalhes}
+          <div className="px-2 sm:px-4 md:px-6 lg:px-8">
+            <DndContext sensors={dragSensors} collisionDetection={cronogramaCollisionDetection} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={() => setActiveDragTask(null)}>
+              <motion.div
+                ref={weekScrollRef}
+                key="week"
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 10 }}
+                onPointerDown={handleWeekPanStart}
+                onPointerMove={handleWeekPanMove}
+                onPointerUp={handleWeekPanEnd}
+                onPointerCancel={handleWeekPanEnd}
+                onPointerLeave={handleWeekPanEnd}
+                className="flex cursor-grab gap-4 overflow-x-auto overflow-y-hidden pb-5 active:cursor-grabbing [scrollbar-width:thin] [scrollbar-color:rgb(220_38_38)_transparent]"
+              >
+                {weekDates.map((date) => {
+                  const diaReal = date.getDay();
+                  const isHoje = new Date().toDateString() === date.toDateString();
+                  return (
+                    <div
+                      key={date.getTime()}
+                      data-week-today={isHoje ? 'true' : undefined}
+                      className={`w-[252px] min-w-[252px] self-start scroll-mx-4 sm:w-[276px] sm:min-w-[276px] xl:w-[292px] xl:min-w-[292px] ${isHoje ? 'relative z-10' : ''}`}
+                    >
+                      <DayDropZone
+                        diaSemanaIdx={diaReal}
+                        date={date}
+                        tarefas={tarefasPorDia[diaReal] || []}
+                        isHoje={isHoje}
+                        onToggle={handleToggle}
+                        onMarkPendencia={handleMarkPendencia}
+                        onStart={handleStart}
+                        onDominar={handleDominar}
+                        onOpenConsolidada={slot => setSlotConsolidado(slot)}
+                        onOpenDetails={setSlotDetalhes}
+                        cronograma={cronograma}
+                        toggleLoadingId={toggleLoadingId}
+                      />
+                    </div>
+                  );
+                })}
+                <div aria-hidden="true" className="w-2 shrink-0 sm:w-4 md:w-6 lg:w-8" />
+              </motion.div>
+
+              <DragOverlay dropAnimation={{ duration: 220, easing: 'ease' }}>
+                {activeDragTask ? (
+                  <div className="w-[280px] xl:w-[310px]">
+                    <TarefaCardDraggable
+                      tarefa={activeDragTask}
+                      onToggle={() => {}}
+                      onMarkPendencia={() => {}}
+                      onStart={() => {}}
+                      onDominar={() => {}}
+                      onOpenConsolidada={() => {}}
                       cronograma={cronograma}
-                      toggleLoadingId={toggleLoadingId}
+                      isDragging
+                      isSortable
                     />
                   </div>
-                );
-              })}
-            </motion.div>
-
-            <DragOverlay dropAnimation={{ duration: 220, easing: 'ease' }}>
-              {activeDragTask ? (
-                <div className="w-[280px] xl:w-[310px]">
-                  <TarefaCardDraggable
-                    tarefa={activeDragTask}
-                    onToggle={() => {}}
-                    onMarkPendencia={() => {}}
-                    onStart={() => {}}
-                    onDominar={() => {}}
-                    onOpenConsolidada={() => {}}
-                    cronograma={cronograma}
-                    isDragging
-                    isSortable
-                  />
-                </div>
-              ) : null}
-            </DragOverlay>
-          </DndContext>
+                ) : null}
+              </DragOverlay>
+            </DndContext>
+          </div>
         ) : viewMode === 'list' ? (
-          <VisualizacaoLista
-            cronograma={cronograma}
-            weekDates={weekDates}
-            tarefasPorDia={tarefasPorDia}
-            onStart={handleStart}
-            onOpenConsolidada={(slot) => setSlotConsolidado(slot)}
-            onToggle={handleToggle}
-            onMarkPendencia={handleMarkPendencia}
-            onDominar={handleDominar}
-            toggleLoadingId={toggleLoadingId}
-          />
+          <div className="px-2 sm:px-4 md:px-6 lg:px-8">
+            <VisualizacaoLista
+              cronograma={cronograma}
+              weekDates={weekDates}
+              tarefasPorDia={tarefasPorDia}
+              onStart={handleStart}
+              onOpenConsolidada={(slot) => setSlotConsolidado(slot)}
+              onToggle={handleToggle}
+              onMarkPendencia={handleMarkPendencia}
+              onDominar={handleDominar}
+              toggleLoadingId={toggleLoadingId}
+            />
+          </div>
         ) : (
           <motion.div
             key="month"
             initial={{ opacity: 0, x: 10 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -10 }}
-            className="flex-1 min-h-0"
+            className="min-h-0 flex-1 px-2 sm:px-4 md:px-6 lg:px-8"
           >
             <VisualizacaoMensal
               cronograma={cronograma}

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, BookOpen } from 'lucide-react';
 
@@ -23,8 +24,8 @@ export default function GlobalStudyRegisterFab({
 
   if (hidden) return null;
 
-  return (
-    <div className="global-study-register-fab fixed bottom-6 right-6 z-[11050] pointer-events-none">
+  const fabContent = (
+    <div className="global-study-register-fab fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom,0px))] right-6 z-[100060] pointer-events-none">
       <motion.button
         type="button"
         onClick={(event) => {
@@ -121,4 +122,8 @@ export default function GlobalStudyRegisterFab({
       </AnimatePresence>
     </div>
   );
+
+  if (typeof document === 'undefined') return fabContent;
+
+  return createPortal(fabContent, document.body);
 }

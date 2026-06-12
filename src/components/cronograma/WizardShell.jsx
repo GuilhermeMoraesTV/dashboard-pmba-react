@@ -225,7 +225,7 @@ const WizardShell = ({
     <div className="flex flex-col min-h-screen bg-transparent">
       
       {/* ── Header Sticky ── */}
-      <header className="sticky top-0 z-[50] px-3 pt-3 md:px-6 md:pt-4">
+      <header className="wizard-progress-header sticky top-0 z-[60] shrink-0 px-3 pt-3 md:px-6 md:pt-4">
         <div className="max-w-6xl mx-auto rounded-[28px] border border-zinc-200/80 dark:border-zinc-800 bg-white/88 dark:bg-zinc-900/88 backdrop-blur-xl shadow-[0_12px_40px_rgba(0,0,0,0.05)] px-3 py-3 md:px-5">
           <div className="flex flex-wrap items-center justify-between gap-3 md:gap-4">
             <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -259,8 +259,8 @@ const WizardShell = ({
       </header>
 
       {/* ── Main Content ── */}
-      <main ref={conteudoRef} className="flex-1 overflow-y-auto px-4 py-6 md:px-6 md:py-8 pb-36 md:pb-40 custom-scrollbar">
-        <div className="w-full mx-auto">
+      <main ref={conteudoRef} className="flex-1 overflow-y-auto px-4 py-6 pb-32 md:px-6 md:py-8 md:pb-36 custom-scrollbar">
+        <div className={isPassoEdital || isUltimoStep ? 'w-full mx-auto' : 'max-w-5xl mx-auto'}>
           <AnimatePresence mode="wait">
             <motion.div
               key={passo}
@@ -276,8 +276,8 @@ const WizardShell = ({
       </main>
 
       {/* ── Footer Navigation ── */}
-      <footer className="fixed left-0 right-0 bottom-0 z-[50] bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md border-t border-zinc-200 dark:border-zinc-800 p-4 shadow-[0_-8px_30px_rgba(0,0,0,0.04)]">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
+      <div className="wizard-navigation-bar fixed inset-x-3 bottom-4 z-[100050] mx-auto max-w-5xl rounded-2xl border border-zinc-200/80 bg-white/92 p-3 shadow-2xl shadow-zinc-950/12 backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-900/94">
+        <div className="flex items-center justify-between gap-3">
           
           <div className="flex items-center gap-2">
             {isPassoEdital || (isEditMode && isPrimeiroStep) ? (
@@ -334,7 +334,7 @@ const WizardShell = ({
           </div>
 
         </div>
-      </footer>
+      </div>
 
       {/* ── Modais de Confirmação ── */}
       <AnimatePresence>

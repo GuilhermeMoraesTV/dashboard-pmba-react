@@ -1,7 +1,7 @@
 // src/services/editalIA.js
 // Serviço para gerar resumos de atualização de editais via IA (Gemini Flash)
 
-import { geminiModel } from '../firebaseConfig';
+import { chamarGeminiREST } from './scheduling/aiAdapter';
 
 /**
  * Converte o título bruto do edital em forma legível e natural.
@@ -174,8 +174,7 @@ ${cfg.restricoes.length + 4}. Retorne APENAS o texto final, sem aspas, sem prefi
 TEXTO:`;
 
   try {
-    const result = await geminiModel.generateContent(prompt);
-    let texto = result.response.text().trim();
+    let texto = (await chamarGeminiREST(prompt, 512)).trim();
 
     // Remove aspas e prefixos que o modelo ocasionalmente inclui
     texto = texto

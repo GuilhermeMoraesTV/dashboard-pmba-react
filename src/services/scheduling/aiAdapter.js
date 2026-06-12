@@ -23,9 +23,10 @@
 // que mantém a API key no servidor (Firebase Secret Manager).
 
 import { getFunctions, httpsCallable } from 'firebase/functions';
+import { app } from '../../firebaseConfig';
 
 
-const _functions         = getFunctions();
+const _functions         = getFunctions(app);
 const _chamarGeminiProxy = httpsCallable(_functions, 'chamarGemini');
 
 // ─── SYSTEM PROMPT ────────────────────────────────────────────────────────────

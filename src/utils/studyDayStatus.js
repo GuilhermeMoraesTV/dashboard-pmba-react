@@ -587,7 +587,7 @@ export const getDailyStudyStatus = ({
   }
 
   return {
-    status: hasStudyData ? 'goal-met-both' : 'goal-not-met',
+    status: hasStudyData ? 'goal-met-both' : 'no-data',
     goalMet: hasStudyData,
     hasData: hasStudyData,
     isRestDay: false,

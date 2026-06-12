@@ -53,7 +53,7 @@ export async function gerarCronogramaIA(
 
   // Critério de conclusão: loga desvio para validação durante integração
   const somaReal = resultado.slots.reduce((a, s) => a + s.minutosEstudo, 0);
-  if (import.meta.env.DEV) console.info(
+  if (import.meta.env?.DEV) console.info(
     `[cronogramaIA] ✅ somaReal=${somaReal}min | ` +
     `alvoTeoria=${resultado.meta?.totalMinutosTeoria ?? resultado.totalMinutosTeoria}min | ` +
     `bruto=${resultado.totalMinutosSemana}min | ` +

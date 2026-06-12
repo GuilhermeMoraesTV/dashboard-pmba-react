@@ -182,6 +182,62 @@ function normalizarDisciplinaUnicaPorDia(alocacoes, diasOrdenados) {
   }
 }
 
+function rebalancearMinutosTeoriaPorDia(alocacoes, minutosEstudoPorIdx, minutosTeoriaPorDia) {
+  const getSomaDia = (dia) => alocacoes.reduce((acc, aloc, idx) => (
+    Number(aloc.dia) === Number(dia) ? acc + (minutosEstudoPorIdx[idx] || 0) : acc
+  ), 0);
+
+  const dias = Object.keys(minutosTeoriaPorDia).map(Number);
+  let guard = 0;
+
+  while (guard < 2000) {
+    guard += 1;
+
+    const diaExcedente = dias
+      .map(dia => ({
+        dia,
+        excesso: getSomaDia(dia) - (minutosTeoriaPorDia[dia] || 0),
+      }))
+      .filter(item => item.excesso >= 5)
+      .sort((a, b) => b.excesso - a.excesso)[0];
+
+    if (!diaExcedente) break;
+
+    const idxDoador = alocacoes
+      .map((aloc, idx) => ({ aloc, idx, minutos: minutosEstudoPorIdx[idx] || 0 }))
+      .filter(item => Number(item.aloc.dia) === diaExcedente.dia && item.minutos - 5 >= MIN_MINUTOS_SLOT)
+      .sort((a, b) => b.minutos - a.minutos)[0]?.idx;
+
+    if (idxDoador == null) break;
+
+    const diaReceptor = dias
+      .map(dia => ({
+        dia,
+        folga: (minutosTeoriaPorDia[dia] || 0) - getSomaDia(dia),
+      }))
+      .filter(item => item.dia !== diaExcedente.dia && item.folga >= 5)
+      .sort((a, b) => b.folga - a.folga)[0];
+
+    if (!diaReceptor) {
+      minutosEstudoPorIdx[idxDoador] -= 5;
+      continue;
+    }
+
+    const idxReceptor = alocacoes
+      .map((aloc, idx) => ({ aloc, idx, minutos: minutosEstudoPorIdx[idx] || 0 }))
+      .filter(item => Number(item.aloc.dia) === diaReceptor.dia && item.minutos + 5 <= MAX_MINUTOS_SLOT)
+      .sort((a, b) => a.minutos - b.minutos)[0]?.idx;
+
+    if (idxReceptor == null) {
+      minutosEstudoPorIdx[idxDoador] -= 5;
+      continue;
+    }
+
+    minutosEstudoPorIdx[idxDoador] -= 5;
+    minutosEstudoPorIdx[idxReceptor] += 5;
+  }
+}
+
 function calcularFechamentoReal(slots, disciplinas, dataInicio, disponibilidade, dataLimite = null) {
   if (!slots?.length || !disciplinas?.length || !dataInicio) {
     return { dataFim: dataLimite || dataInicio || null, diasAteFechamento: 0, totalSemanas: 1 };
@@ -295,7 +351,7 @@ export function gerarSchedule(disciplinas, disponibilidade, opcoes = {}) {
     return true;
   });
 
-  if (import.meta.env.DEV && disciplinasValidas.length !== disciplinas.length) {
+  if (import.meta.env?.DEV && disciplinasValidas.length !== disciplinas.length) {
     console.warn(
       `[gerarSchedule] ${disciplinas.length - disciplinasValidas.length} disciplina(s) inválidas ignoradas.`,
       disciplinas.filter(d => !d?.id || !d?.nome),
@@ -681,6 +737,8 @@ export function gerarSchedule(disciplinas, disponibilidade, opcoes = {}) {
     linhas.forEach(l => { minutosEstudoPorIdx[l.idx] = l.inteiro; });
   });
 
+  rebalancearMinutosTeoriaPorDia(alocacoes, minutosEstudoPorIdx, minutosTeoriaPorDia);
+
   // ── PASSO 6: Assuntos por índice circular ─────────────────────────────────
   const discById = {};
   disciplinas.forEach(d => { discById[d.id] = d; });
@@ -765,7 +823,21 @@ export function gerarSchedule(disciplinas, disponibilidade, opcoes = {}) {
   }
 
   // ── VALIDAÇÃO EXTRA: nenhum slot de teoria ultrapassa o tempo bruto do dia ─
-  if (import.meta.env.DEV) {
+  const somaTeoriaPorDia = {};
+  slots.forEach(s => {
+    somaTeoriaPorDia[s.dia] = (somaTeoriaPorDia[s.dia] || 0) + s.minutosEstudo;
+  });
+  Object.entries(somaTeoriaPorDia).forEach(([dia, soma]) => {
+    const tetoTeoria = minutosTeoriaPorDia[Number(dia)] || 0;
+    if (soma > tetoTeoria) {
+      throw new Error(
+        `[scheduling/index] Invariante diario violado: teoria(${soma}) > ` +
+        `tetoTeoria(${tetoTeoria}) no dia ${dia}.`
+      );
+    }
+  });
+
+  if (import.meta.env?.DEV) {
     const somaPorDia = {};
     slots.forEach(s => {
       somaPorDia[s.dia] = (somaPorDia[s.dia] || 0) + s.minutosEstudo;

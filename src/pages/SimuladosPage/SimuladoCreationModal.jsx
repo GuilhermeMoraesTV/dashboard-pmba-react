@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import {
   RotateCcw, Plus, X, Clock, Lightbulb, Trash2, Save, AlertTriangle,
   ClipboardList, Pencil, ListChecks, AlertCircle
@@ -14,8 +15,8 @@ const normName = (s) => (s || '').trim().toLowerCase();
 const CloseConfirmationModal = ({ isOpen, onCancel, onConfirm }) => {
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-fade-in font-sans">
+  return createPortal(
+    <div className="fixed inset-0 z-[10010] flex items-center justify-center p-4 bg-zinc-950/75 backdrop-blur-md animate-fade-in font-sans">
       <motion.div
         initial={{ scale: 0.92, opacity: 0, y: 10 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
@@ -50,7 +51,8 @@ const CloseConfirmationModal = ({ isOpen, onCancel, onConfirm }) => {
           </button>
         </div>
       </motion.div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
@@ -396,9 +398,12 @@ const SimuladoCreationModal = ({ isOpen, onClose, onSave, disciplinasSugestivas,
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     // ✅ CORREÇÃO: Mesma estrutura do ModalSelecaoEdital
-    <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm font-sans overflow-hidden">
+    <div
+      className="fixed inset-0 z-[10000] flex items-center justify-center p-3 md:p-4 bg-zinc-950/75 backdrop-blur-md font-sans overflow-hidden"
+      onClick={requestClose}
+    >
 
       <CloseConfirmationModal
         isOpen={confirmCloseOpen}
@@ -406,7 +411,13 @@ const SimuladoCreationModal = ({ isOpen, onClose, onSave, disciplinasSugestivas,
         onConfirm={discardAndClose}
       />
 
-      <div className={`
+      <motion.div
+        initial={{ opacity: 0, scale: 0.96, y: 16 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.96, y: 8 }}
+        transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+        onClick={(e) => e.stopPropagation()}
+        className={`
           bg-white dark:bg-zinc-950 rounded-3xl shadow-2xl border border-zinc-200 dark:border-zinc-800
           w-full max-w-[95%] sm:max-w-2xl md:max-w-4xl lg:max-w-5xl
           h-auto max-h-[85vh]
@@ -890,8 +901,9 @@ const SimuladoCreationModal = ({ isOpen, onClose, onSave, disciplinasSugestivas,
             </button>
           </div>
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </div>,
+    document.body
   );
 };
 

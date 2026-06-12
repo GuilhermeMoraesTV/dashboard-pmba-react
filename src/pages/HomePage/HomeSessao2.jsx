@@ -1,7 +1,7 @@
-import React, { useState, useMemo } from 'react';
+﻿import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Clock, BookOpen, ChevronDown, ChevronUp, Target, CheckCircle2, XCircle,
+  Clock, BookOpen, Target,
 } from 'lucide-react';
 
 const customScrollbarClass = "overflow-y-auto pr-1 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-zinc-200 dark:[&::-webkit-scrollbar-thumb]:bg-zinc-700 [&::-webkit-scrollbar-thumb]:rounded-full";
@@ -41,12 +41,24 @@ const formatTime = (minutes) => {
   return `${m}m`;
 };
 
-const getDonutValueClass = (value) => {
+const getDonutValueClass = (value, size = 220) => {
   const length = String(value || '').replace(/\s/g, '').length;
-  if (length >= 7) return 'text-[22px]';
-  if (length >= 6) return 'text-[24px]';
-  if (length >= 5) return 'text-[27px]';
-  return 'text-3xl';
+  if (size <= 140) {
+    if (length >= 7) return 'text-[15px]';
+    if (length >= 6) return 'text-[16px]';
+    if (length >= 5) return 'text-[18px]';
+    return 'text-xl';
+  }
+  if (size <= 180) {
+    if (length >= 7) return 'text-[18px]';
+    if (length >= 6) return 'text-[20px]';
+    if (length >= 5) return 'text-[22px]';
+    return 'text-2xl';
+  }
+  if (length >= 7) return 'text-[18px]';
+  if (length >= 6) return 'text-[20px]';
+  if (length >= 5) return 'text-[22px]';
+  return 'text-2xl';
 };
 
 const getAccuracyTone = (accuracy) => {
@@ -70,7 +82,7 @@ const InteractiveDonutBig = ({ segments, total, hoveredIndex, onHover, centerLab
     return { ...s, dash, offset, pct, idx: i };
   });
   const hovered = hoveredIndex !== null ? segs[hoveredIndex] ?? null : null;
-  const centerValueClass = getDonutValueClass(hovered?.displayValue || centerLabel);
+  const centerValueClass = getDonutValueClass(hovered?.displayValue || centerLabel, SIZE);
 
   return (
     <div className="relative shrink-0" style={{ width: SIZE, height: SIZE }}>
@@ -96,13 +108,13 @@ const InteractiveDonutBig = ({ segments, total, hoveredIndex, onHover, centerLab
         <AnimatePresence mode="wait">
           {hovered ? (
             <motion.div key={`h${hovered.idx}`} initial={{ opacity: 0, scale: 0.75 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.75 }} transition={{ duration: 0.15 }}
-              className="flex max-w-[52%] flex-col items-center gap-0.5 px-1 text-center">
+              className="flex max-w-[58%] flex-col items-center gap-0.5 px-1 text-center">
               <span className={`${centerValueClass} max-w-full whitespace-nowrap font-black leading-none tracking-tighter`} style={{ color: hovered.color }}>{hovered.displayValue}</span>
               <span className="text-xs font-bold leading-tight max-w-[120px] text-center truncate px-2" style={{ color: hovered.color, opacity: 0.8 }}>{hovered.name}</span>
               <span className="text-xs font-black text-zinc-400 mt-1">{(hovered.pct * 100).toFixed(0)}%</span>
             </motion.div>
           ) : (
-            <motion.div key="tot" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="flex max-w-[52%] flex-col items-center gap-0.5">
+            <motion.div key="tot" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="flex max-w-[58%] flex-col items-center gap-0.5">
               <span className={`${centerValueClass} max-w-full whitespace-nowrap font-black leading-none tracking-tighter text-zinc-900 dark:text-white`}>{centerLabel}</span>
               <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">{centerSub}</span>
             </motion.div>
@@ -116,17 +128,10 @@ const InteractiveDonutBig = ({ segments, total, hoveredIndex, onHover, centerLab
 // ============================================================================
 // CARD ESTUDO DE HOJE
 // ============================================================================
-const TodayChart = ({ registrosEstudo, wide = false, compact = false }) => {
+const TodayChart = ({ registrosEstudo, wide = false, compact = false, expandedView = false, onClose = null }) => {
   const [hoveredHour, setHoveredHour] = useState(null);
-  const [expandedIndex, setExpandedIndex] = useState(null);
 
   const todayStr = useMemo(() => dateToYMD_local(new Date()), []);
-
-  const dateFormatted = useMemo(() => {
-    const date = new Date();
-    const s = date.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
-    return s.charAt(0).toUpperCase() + s.slice(1);
-  }, []);
 
   const data = useMemo(() => {
     const todayRegs = (registrosEstudo || []).filter(r => getRegistroDate(r) === todayStr);
@@ -200,173 +205,132 @@ const TodayChart = ({ registrosEstudo, wide = false, compact = false }) => {
     displayValue: formatTime(item.minutes),
   }));
 
+  const metricConfig = {
+    gradient: 'from-red-600 to-rose-700',
+    shadow: 'shadow-red-500/10',
+  };
+
+  const chartSize = expandedView
+    ? (data.totalQuestions > 0 ? 190 : 240)
+    : (data.totalQuestions > 0 ? (compact ? 116 : 136) : (compact ? 170 : 204));
+  const cardHeightClass = expandedView ? 'min-h-0' : 'h-full';
+
   return (
-    <div className={`dashboard-card h-full min-h-0 overflow-hidden flex flex-col border-l-4 border-transparent hover:border-red-500 transition-all duration-300 ${compact ? 'p-4 gap-3' : 'p-4 md:p-5 gap-4'}`}>
-      <div className="flex items-center gap-3 shrink-0">
-        <div className="p-2 bg-gradient-to-br from-zinc-800 to-zinc-900 dark:from-zinc-100 dark:to-zinc-200 rounded-xl shadow-lg">
-          <Clock size={20} className="text-white dark:text-zinc-900" strokeWidth={2.5} />
-        </div>
-        <div>
-          <h3 className="text-[12px] font-black uppercase tracking-[0.18em] text-zinc-900 dark:text-zinc-100">
-            Estudo de Hoje
-          </h3>
-          <p className="text-[11px] text-zinc-400 font-medium mt-0.5">{dateFormatted}</p>
+    <>
+    <div className={`group relative flex flex-col overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white transition-all duration-300 hover:border-accent-light/40 hover:!border-l-red-500 hover:shadow-[0_0_18px_rgba(239,68,68,0.07)] dark:border-white/10 dark:!border-l-red-500/25 dark:hover:border-accent-light/20 dark:hover:!border-l-red-500 dark:bg-zinc-950 dark:hover:shadow-[0_0_22px_rgba(239,68,68,0.08)] ${expandedView ? 'w-full shadow-2xl shadow-red-950/15' : 'hover:-translate-y-0.5'} ${cardHeightClass} z-20`}>
+      {/* Decorative Orbs */}
+      <div className={`pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full blur-[80px] opacity-10 transition-all duration-700 group-hover:opacity-16 bg-gradient-to-br ${metricConfig.gradient}`} />
+      <div className="pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-zinc-500/5 blur-[80px] opacity-40 transition-all duration-700" />
+
+      {/* Header */}
+      <div className={`relative z-10 flex items-center justify-between border-b border-zinc-100 dark:border-white/5 bg-zinc-50/30 dark:bg-transparent ${expandedView ? 'px-6 py-5' : compact ? 'px-4 py-3' : 'px-5 py-3.5'}`}>
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <div className={`absolute inset-0 animate-ping rounded-full opacity-20 duration-[3s] bg-gradient-to-br ${metricConfig.gradient}`} />
+            <div className={`relative flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br ${metricConfig.gradient} text-white shadow-xl ${metricConfig.shadow}`}>
+              <Clock size={18} strokeWidth={2.2} />
+            </div>
+          </div>
+          <div>
+            <h3 className="text-lg font-black uppercase tracking-tight text-zinc-900 dark:text-white leading-tight">
+              Estudo <span className={`bg-gradient-to-r ${metricConfig.gradient} bg-clip-text text-transparent`}>de Hoje</span>
+            </h3>
+            {expandedView && (
+              <p className="mt-1 text-[10px] font-black uppercase tracking-[0.22em] text-zinc-400">
+                Resumo para compartilhar
+              </p>
+            )}
+          </div>
         </div>
       </div>
 
-      {data.totalMinutes === 0 && data.totalQuestions === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center opacity-30 gap-2 py-8">
-          <BookOpen size={36} strokeWidth={1.5} />
-          <p className="text-xs font-bold uppercase tracking-widest text-center">Nenhum estudo registrado hoje</p>
-        </div>
-      ) : (
-        <div className={`${wide ? 'flex flex-col md:flex-row md:items-center' : 'flex flex-col items-center'} ${compact ? 'gap-3' : 'gap-4'} flex-1 min-h-0`}>
-          <div className={`${wide ? 'md:w-[190px]' : 'w-full'} flex shrink-0 flex-col items-center gap-2`}>
-            <div className="flex justify-center">
-              <InteractiveDonutBig
-                segments={donutSegments}
-                total={data.totalMinutes}
-                hoveredIndex={hoveredHour}
-                onHover={setHoveredHour}
-                centerLabel={formatTime(data.totalMinutes)}
-                centerSub="hoje"
-                size={wide ? 180 : compact ? 165 : 220}
-              />
+      <div className={`relative z-10 flex-1 flex flex-col min-h-0 ${expandedView ? '' : 'overflow-hidden'}`}>
+        {data.totalMinutes === 0 && data.totalQuestions === 0 ? (
+          <div className="flex-1 flex flex-col items-center justify-center opacity-40 gap-4 py-12">
+            <div className="p-6 bg-zinc-100 dark:bg-zinc-800/50 rounded-full">
+              <BookOpen size={48} strokeWidth={1.2} className="text-zinc-400" />
             </div>
-            {data.totalQuestions > 0 && (
-              <div className="grid w-full grid-cols-3 gap-1.5">
-                <div className="rounded-xl border border-zinc-100 bg-zinc-50 px-2 py-1.5 text-center dark:border-zinc-800 dark:bg-zinc-900/50">
-                  <div className="mx-auto mb-0.5 flex h-5 w-5 items-center justify-center rounded-lg bg-blue-100 text-blue-600 dark:bg-blue-500/15 dark:text-blue-300">
-                    <Target size={11} strokeWidth={2.5} />
-                  </div>
-                  <p className="text-[12px] font-black leading-none text-zinc-900 dark:text-white">{data.totalQuestions}</p>
-                  <p className="mt-0.5 text-[8px] font-black uppercase tracking-wider text-zinc-400">Questões</p>
-                </div>
-                <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-2 py-1.5 text-center dark:border-emerald-900/30 dark:bg-emerald-500/10">
-                  <div className="mx-auto mb-0.5 flex h-5 w-5 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300">
-                    <CheckCircle2 size={11} strokeWidth={2.5} />
-                  </div>
-                  <p className="text-[12px] font-black leading-none text-emerald-700 dark:text-emerald-300">{data.totalCorrect}</p>
-                  <p className="mt-0.5 text-[8px] font-black uppercase tracking-wider text-emerald-600/70 dark:text-emerald-300/70">Acertos</p>
-                </div>
-                <div className="rounded-xl border border-red-100 bg-red-50 px-2 py-1.5 text-center dark:border-red-900/30 dark:bg-red-500/10">
-                  <div className="mx-auto mb-0.5 flex h-5 w-5 items-center justify-center rounded-lg bg-red-100 text-red-600 dark:bg-red-500/15 dark:text-red-300">
-                    <XCircle size={11} strokeWidth={2.5} />
-                  </div>
-                  <p className="text-[12px] font-black leading-none text-red-700 dark:text-red-300">{data.totalWrong}</p>
-                  <p className="mt-0.5 text-[8px] font-black uppercase tracking-wider text-red-600/70 dark:text-red-300/70">Erros</p>
-                </div>
-              </div>
-            )}
-            {data.totalQuestions > 0 && (
-              <div className="flex w-full items-center justify-between rounded-xl bg-zinc-100/70 px-3 py-1.5 dark:bg-zinc-900/70">
-                <span className="text-[9px] font-black uppercase tracking-widest text-zinc-400">Precisão</span>
-                <span className={`text-xs font-black ${getAccuracyTone(data.accuracy)}`}>{data.accuracy}%</span>
-              </div>
-            )}
+            <p className="text-sm font-bold uppercase tracking-[0.15em] text-center text-zinc-500 px-6">
+              Nenhum estudo registrado hoje
+            </p>
           </div>
-          <div className={`${wide ? 'flex-1 max-h-[210px]' : compact ? 'w-full flex-1 min-h-0' : 'w-full max-h-[260px]'} space-y-1.5 ${customScrollbarClass}`}>
-            {data.items.map((item, i) => {
-              const pct = data.totalMinutes > 0 ? (item.minutes / data.totalMinutes) * 100 : 0;
-              const accuracy = item.questions > 0 ? Math.round((item.correct / item.questions) * 100) : 0;
-              const wrong = Math.max(0, item.questions - item.correct);
-              const isExpanded = expandedIndex === i;
-              const hasTopics = item.topics && item.topics.length > 1;
-              const primaryTopic = !item.isSimulado && item.topics?.length === 1 ? item.topics[0] : null;
-              return (
-                <div key={item.name}>
-                  <div
-                    className={`flex items-center gap-2.5 p-2 rounded-xl transition-all duration-200 group/row ${hasTopics ? 'cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50' : ''} ${hoveredHour === i ? 'bg-zinc-100 dark:bg-zinc-800' : ''}`}
-                    onMouseEnter={() => setHoveredHour(i)}
-                    onMouseLeave={() => setHoveredHour(null)}
-                    onClick={() => hasTopics && setExpandedIndex(isExpanded ? null : i)}
-                  >
-                    <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-1">
-                        <div className="min-w-0 flex items-center gap-1.5">
-                          {item.hasReview && item.topics.length === 1 && (
-                            <span className="shrink-0 rounded-md bg-violet-100 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider text-violet-700 dark:bg-violet-500/15 dark:text-violet-300">
-                              Revisão
-                            </span>
-                          )}
-                          <p className="text-[11px] font-bold text-zinc-800 dark:text-zinc-200 truncate">{item.name}</p>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className="text-[10px] font-black text-zinc-500">{formatTime(item.minutes)}</span>
-                          {item.questions > 0 && (
-                            <span className="hidden">
-                              {item.questions}q · {item.questions > 0 ? Math.round((item.correct / item.questions) * 100) : 0}%
-                            </span>
-                          )}
-                          {hasTopics && (
-                            <span className="text-zinc-400 group-hover/row:text-zinc-600 dark:group-hover/row:text-zinc-300 transition-colors">
-                              {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      {primaryTopic && (
-                        <p className="mt-0.5 truncate text-[10px] font-medium text-zinc-400">
-                          {primaryTopic.name}
-                        </p>
-                      )}
-                      {item.questions > 0 && (
-                        <div className="mt-1.5 flex flex-wrap items-center gap-1">
-                          <span className="rounded-md bg-zinc-100 px-1.5 py-0.5 text-[8.5px] font-black text-zinc-500 dark:bg-zinc-800 dark:text-zinc-300">{item.questions}q</span>
-                          <span className="rounded-md bg-emerald-50 px-1.5 py-0.5 text-[8.5px] font-black text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300">{item.correct} acertos</span>
-                          <span className="rounded-md bg-red-50 px-1.5 py-0.5 text-[8.5px] font-black text-red-500 dark:bg-red-500/10 dark:text-red-300">{wrong} erros</span>
-                          <span className={`rounded-md bg-zinc-100 px-1.5 py-0.5 text-[8.5px] font-black dark:bg-zinc-800 ${getAccuracyTone(accuracy)}`}>{accuracy}%</span>
-                        </div>
-                      )}
-                      <div className="mt-1 h-1 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
-                        <motion.div
-                          className="h-full rounded-full"
-                          style={{ backgroundColor: item.color }}
-                          initial={{ width: 0 }}
-                          animate={{ width: `${pct}%` }}
-                          transition={{ duration: 0.6, ease: 'easeOut', delay: i * 0.05 }}
-                        />
-                      </div>
+        ) : (
+          <div className={`flex-1 flex flex-col ${expandedView ? 'px-6 pb-6 pt-4 gap-3' : 'px-4 pb-4 pt-2 gap-2 overflow-hidden'}`}>
+            {/* Top Section: Donut & Stats Side-by-Side */}
+            <div className={`flex items-center ${
+              data.totalQuestions > 0
+                ? expandedView ? 'gap-6 justify-center' : 'gap-3 justify-start'
+                : expandedView ? 'justify-center gap-6' : 'justify-center gap-3'
+            }`}>
+              <div className="relative shrink-0">
+                <InteractiveDonutBig
+                  segments={donutSegments}
+                  total={data.totalMinutes}
+                  hoveredIndex={hoveredHour}
+                  onHover={setHoveredHour}
+                  centerLabel={formatTime(data.totalMinutes)}
+                  centerSub="total"
+                  size={chartSize}
+                />
+              </div>
+
+              {data.totalQuestions > 0 ? (
+                <div className={`grid grid-cols-2 ${expandedView ? 'w-full max-w-[280px] gap-2.5' : 'flex-1 gap-1.5'}`}>
+                  <div className={`flex flex-col rounded-lg border border-zinc-100 bg-white/70 shadow-sm dark:border-white/5 dark:bg-zinc-900/50 ${expandedView ? 'p-3' : 'p-1.5'}`}>
+                    <span className={`${expandedView ? 'text-[9px]' : 'text-[8px]'} font-black uppercase tracking-wider text-zinc-400`}>Questões</span>
+                    <span className={`${expandedView ? 'mt-1 text-2xl' : 'mt-0.5 text-sm'} font-black leading-none text-zinc-900 dark:text-white`}>{data.totalQuestions}</span>
+                  </div>
+                  <div className={`flex flex-col rounded-lg border border-zinc-100 bg-white/70 shadow-sm dark:border-white/5 dark:bg-zinc-900/50 ${expandedView ? 'p-3' : 'p-1.5'}`}>
+                    <span className={`${expandedView ? 'text-[9px]' : 'text-[8px]'} font-black uppercase tracking-wider text-emerald-500`}>Acertos</span>
+                    <span className={`${expandedView ? 'mt-1 text-2xl' : 'mt-0.5 text-sm'} font-black leading-none text-emerald-600 dark:text-emerald-400`}>{data.totalCorrect}</span>
+                  </div>
+                  <div className={`col-span-2 flex items-center justify-between rounded-lg border border-zinc-100 bg-white/70 shadow-sm dark:border-white/5 dark:bg-zinc-900/50 ${expandedView ? 'p-3' : 'p-1.5'}`}>
+                    <div className="flex flex-col">
+                      <span className={`${expandedView ? 'text-[9px]' : 'text-[8px]'} font-black uppercase tracking-widest text-zinc-400`}>Precisão</span>
+                      <span className={`${expandedView ? 'mt-1 text-xl' : 'mt-0.5 text-xs'} font-black leading-none ${getAccuracyTone(data.accuracy)}`}>{data.accuracy}%</span>
+                    </div>
+                    <div className={`${expandedView ? 'h-2 w-24' : 'h-1.5 w-14'} overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800`}>
+                      <div 
+                        className="h-full bg-emerald-500 transition-all duration-700"
+                        style={{ width: `${data.accuracy}%` }}
+                      />
                     </div>
                   </div>
-                  <AnimatePresence>
-                    {isExpanded && hasTopics && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        transition={{ duration: 0.2 }}
-                        className="ml-5 space-y-1 overflow-hidden"
-                      >
-                        {item.topics.map(topic => (
-                          <div key={topic.name} className="flex items-center justify-between gap-2 px-2 py-1 rounded-lg bg-zinc-50 dark:bg-zinc-800/40">
-                            <div className="min-w-0 flex-1 flex items-center gap-1.5">
-                              {topic.isReview && (
-                                <span className="shrink-0 rounded-md bg-violet-100 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider text-violet-700 dark:bg-violet-500/15 dark:text-violet-300">
-                                  Revisão
-                                </span>
-                              )}
-                              <p className="text-[10px] text-zinc-600 dark:text-zinc-400 truncate">{topic.name}</p>
-                            </div>
-                            <div className="flex items-center gap-2 shrink-0">
-                              <span className="text-[9px] font-bold text-zinc-500">{formatTime(topic.minutes)}</span>
-                              {topic.questions > 0 && (
-                                <span className="text-[9px] text-zinc-400">{topic.correct}/{topic.questions}q</span>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
                 </div>
-              );
-            })}
+              ) : null}
+            </div>
+
+            {/* Bottom Section: Disciplines List */}
+            <div className={`${expandedView ? 'min-h-0' : `flex-1 min-h-0 ${customScrollbarClass}`}`}>
+              <div className={`${expandedView ? 'space-y-1.5' : 'space-y-1 pr-1'}`}>
+                {data.items.map((item, i) => (
+                  <div key={item.name} className="group/item">
+                    <div
+                      className={`relative flex items-center gap-2.5 rounded-xl border border-transparent transition-all duration-200 hover:border-zinc-200 hover:bg-zinc-50 dark:hover:border-zinc-800 dark:hover:bg-zinc-800/40 ${expandedView ? 'px-3 py-2.5' : 'px-2.5 py-2'} ${hoveredHour === i ? 'bg-zinc-50 dark:bg-zinc-800/40 border-zinc-200 dark:border-zinc-800' : ''}`}
+                      onMouseEnter={() => setHoveredHour(i)}
+                      onMouseLeave={() => setHoveredHour(null)}
+                    >
+                      <span
+                        className="h-3 w-3 shrink-0 rounded-[3px] shadow-sm ring-1 ring-black/5 dark:ring-white/10"
+                        style={{ backgroundColor: item.color }}
+                        aria-hidden="true"
+                      />
+                      <h4 className={`${expandedView ? 'text-sm' : 'text-xs'} min-w-0 flex-1 truncate font-black text-zinc-900 transition-colors group-hover/item:text-red-600 dark:text-zinc-100 dark:group-hover/item:text-red-400`}>
+                        {item.name}
+                      </h4>
+                      <span className={`${expandedView ? 'text-sm' : 'text-[11px]'} shrink-0 font-black tabular-nums text-zinc-900 dark:text-zinc-100`}>
+                        {formatTime(item.minutes)}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
+    </>
   );
 };
 

@@ -145,6 +145,9 @@ function StudyTimer({
   useEffect(() => { totalFocusSecondsRef.current = totalFocusSeconds; }, [totalFocusSeconds]);
 
   const intervalRef = useRef(null);
+  const externalTickerWorkerRef = useRef(null);
+  const externalTickerWorkerUrlRef = useRef(null);
+  const externalTickerIntervalRef = useRef(null);
 
   const focusAccumulatedMsRef = useRef(0);
   const focusBlockElapsedBaseMsRef = useRef(0);
@@ -155,6 +158,7 @@ function StudyTimer({
   const restStartMsRef = useRef(null);
 
   const lastPersistDisplaySecondRef = useRef(-1);
+  const liveSnapshotUntilMsRef = useRef(0);
   const actionInFlightRef = useRef(false);
 
   const audioRef = useRef(null);
@@ -539,6 +543,86 @@ function StudyTimer({
     } catch {}
   }, [assunto, disciplina?.nome, settings.mode, variant, computeMediaPositionState]);
 
+  const stopExternalTicker = useCallback(() => {
+    try {
+      if (externalTickerWorkerRef.current) externalTickerWorkerRef.current.terminate();
+    } catch {}
+    externalTickerWorkerRef.current = null;
+
+    try {
+      if (externalTickerWorkerUrlRef.current) URL.revokeObjectURL(externalTickerWorkerUrlRef.current);
+    } catch {}
+    externalTickerWorkerUrlRef.current = null;
+
+    try {
+      if (externalTickerIntervalRef.current) clearInterval(externalTickerIntervalRef.current);
+    } catch {}
+    externalTickerIntervalRef.current = null;
+  }, []);
+
+  const refreshExternalClock = useCallback((isRunning = !isPausedRef.current) => {
+    const display = getDisplaySecondsFromCurrentState();
+    updateExternalStatus(isRunning, display);
+    updateMediaSession(isRunning, display);
+
+    if (document.visibilityState === 'visible') {
+      setSecondsIfChanged(display);
+      const focusElapsedSec = Math.floor(getCurrentFocusElapsedMs() / 1000);
+      setTotalFocusIfChanged(focusElapsedSec);
+    } else {
+      secondsRef.current = display;
+    }
+
+    return display;
+  }, [
+    getDisplaySecondsFromCurrentState,
+    updateExternalStatus,
+    updateMediaSession,
+    setSecondsIfChanged,
+    getCurrentFocusElapsedMs,
+    setTotalFocusIfChanged,
+  ]);
+
+  const startExternalTicker = useCallback(() => {
+    stopExternalTicker();
+
+    const tick = () => {
+      if (isPausedRef.current) return;
+      refreshExternalClock(true);
+    };
+
+    tick();
+
+    try {
+      const workerSource = `
+        let timer = null;
+        self.onmessage = (event) => {
+          if (event.data === 'start') {
+            if (timer) clearInterval(timer);
+            timer = setInterval(() => self.postMessage('tick'), 1000);
+            self.postMessage('tick');
+          }
+          if (event.data === 'stop') {
+            if (timer) clearInterval(timer);
+            timer = null;
+          }
+        };
+      `;
+      externalTickerWorkerUrlRef.current = URL.createObjectURL(new Blob([workerSource], { type: 'text/javascript' }));
+      const worker = new Worker(externalTickerWorkerUrlRef.current);
+      worker.onmessage = tick;
+      worker.onerror = () => {
+        stopExternalTicker();
+        externalTickerIntervalRef.current = setInterval(tick, 1000);
+      };
+      externalTickerWorkerRef.current = worker;
+      worker.postMessage('start');
+      return;
+    } catch {}
+
+    externalTickerIntervalRef.current = setInterval(tick, 1000);
+  }, [refreshExternalClock, stopExternalTicker]);
+
   // ========= Broadcast Channel =========
   const postBC = useCallback((payload) => {
     try {
@@ -722,12 +806,13 @@ function StudyTimer({
       touchUpdatedAt = true,
       touchHeartbeat = true,
     } = opts;
+    const displaySnapshot = Number(extra.displaySecondsSnapshot ?? getDisplaySecondsFromCurrentState() ?? secondsRef.current ?? 0);
 
     const patch = {
       ...extra,
       updatedBy: tabIdRef.current,
       ...(includeSnapshot ? {
-        displaySecondsSnapshot: Number(secondsRef.current || 0),
+        displaySecondsSnapshot: Math.max(0, Math.floor(displaySnapshot)),
         snapshotAt: serverTimestamp(),
         focusElapsedMsSnapshot: Number(getCurrentFocusElapsedMs() || 0),
         restElapsedMsSnapshot: Number(getCurrentRestElapsedMs() || 0),
@@ -745,6 +830,7 @@ function StudyTimer({
   }, [
     activeTimerDocRef,
     upsertActiveTimer,
+    getDisplaySecondsFromCurrentState,
     getCurrentFocusElapsedMs,
     getCurrentRestElapsedMs,
     getCurrentPomodoroBlockElapsedMs
@@ -863,6 +949,7 @@ function StudyTimer({
     const { skipFirestoreDelete = false } = opts;
 
     clearTick();
+    stopExternalTicker();
 
     joinedExistingRef.current = false;
     hasSessionStartedRef.current = false;
@@ -888,6 +975,7 @@ function StudyTimer({
   }, [
     STORAGE_KEY,
     clearTick,
+    stopExternalTicker,
     removeActiveTimer,
     postBC,
     onCancel,
@@ -909,13 +997,16 @@ function StudyTimer({
       desiredRunningRef.current = false;
       isPausedRef.current = true;
       setIsPaused(true);
+      liveSnapshotUntilMsRef.current = 0;
 
       clearTick();
+      stopExternalTicker();
       void releaseWakeLock();
 
       const display = getDisplaySecondsFromCurrentState();
       setSecondsIfChanged(display);
       updateExternalStatus(false, display);
+      updateMediaSession(false, display);
 
       persistLocalState({ isPaused: true });
 
@@ -936,7 +1027,7 @@ function StudyTimer({
       } catch {}
 
       if (source === 'user') {
-        postBC({ action: 'STOP', reason, at: Date.now() });
+        postBC({ type: 'TIMER_ACTION', action: 'STOP', reason, at: Date.now() });
 
         if (onStop) {
           const finalSeconds = Math.floor(focusAccumulatedMsRef.current / 1000);
@@ -950,7 +1041,9 @@ function StudyTimer({
       getDisplaySecondsFromCurrentState,
       setSecondsIfChanged,
       updateExternalStatus,
+      updateMediaSession,
       clearTick,
+      stopExternalTicker,
       releaseWakeLock,
       persistLocalState,
       patchActiveTimer,
@@ -966,6 +1059,7 @@ function StudyTimer({
   // ========= COMPLETES =========
   const handlePomodoroComplete = useCallback(() => {
     clearTick();
+    stopExternalTicker();
     const now = nowMs();
 
     if (focusStartMsRef.current != null) {
@@ -1029,6 +1123,7 @@ function StudyTimer({
     releaseWakeLock();
   }, [
     clearTick,
+    stopExternalTicker,
     nowMs,
     getSoundUrl,
     settings.pomodoroTime,
@@ -1044,6 +1139,7 @@ function StudyTimer({
 
   const handleRestComplete = useCallback(() => {
     clearTick();
+    stopExternalTicker();
     const now = nowMs();
 
     if (restStartMsRef.current != null) {
@@ -1106,6 +1202,7 @@ function StudyTimer({
     releaseWakeLock();
   }, [
     clearTick,
+    stopExternalTicker,
     nowMs,
     getSoundUrl,
     settings.restTime,
@@ -1122,6 +1219,7 @@ function StudyTimer({
   // ========= tick (leve) =========
   const startTickLoop = useCallback(() => {
     clearTick();
+    startExternalTicker();
 
     const tick = () => {
       if (isPausedRef.current) return;
@@ -1149,6 +1247,14 @@ function StudyTimer({
         updateExternalStatus(true, display);
         updateMediaSession(true, display);
 
+        if (Date.now() <= liveSnapshotUntilMsRef.current) {
+          void patchActiveTimer({ liveSnapshotAtMs: Date.now() }, {
+            includeSnapshot: true,
+            touchUpdatedAt: true,
+            touchHeartbeat: true,
+          });
+        }
+
         if (effectiveMode === 'countdown') {
           if (display <= 0) handleStopInternal('timeup', 'countdown_complete');
         } else if (variant !== 'simulado' && isRestingRef.current) {
@@ -1163,6 +1269,7 @@ function StudyTimer({
     intervalRef.current = setInterval(tick, 250);
   }, [
     clearTick,
+    startExternalTicker,
     effectiveMode,
     variant,
     getDisplaySecondsFromCurrentState,
@@ -1174,6 +1281,7 @@ function StudyTimer({
     saveToStorage,
     updateExternalStatus,
     updateMediaSession,
+    patchActiveTimer,
     handleStopInternal,
     handleRestComplete,
     handlePomodoroComplete
@@ -1196,11 +1304,15 @@ function StudyTimer({
       desiredRunningRef.current = false;
       isPausedRef.current = true;
       setIsPaused(true);
+      liveSnapshotUntilMsRef.current = 0;
 
       const display = getDisplaySecondsFromCurrentState();
       setSecondsIfChanged(display);
 
       updateExternalStatus(false, display);
+      updateMediaSession(false, display);
+      refreshExternalClock(false);
+      stopExternalTicker();
 
       clearTick();
       void releaseWakeLock();
@@ -1221,10 +1333,10 @@ function StudyTimer({
 
       setTimeout(() => {
         actionInFlightRef.current = false;
-      }, 300);
+      }, 80);
 
       if (source === 'user') {
-        postBC({ action: 'PAUSE', at: Date.now() });
+        postBC({ type: 'PAUSE_COMMAND', action: 'PAUSE', at: Date.now() });
       }
     },
     [
@@ -1232,6 +1344,9 @@ function StudyTimer({
       getDisplaySecondsFromCurrentState,
       setSecondsIfChanged,
       updateExternalStatus,
+      updateMediaSession,
+      refreshExternalClock,
+      stopExternalTicker,
       clearTick,
       releaseWakeLock,
       persistLocalState,
@@ -1249,6 +1364,7 @@ function StudyTimer({
       const n = nowMs();
 
       focusStartMsRef.current = n;
+      liveSnapshotUntilMsRef.current = Date.now() + 12000;
 
       desiredRunningRef.current = true;
       isPausedRef.current = false;
@@ -1260,6 +1376,7 @@ function StudyTimer({
       setSecondsIfChanged(display);
 
       updateExternalStatus(true, display);
+      updateMediaSession(true, display);
 
       startTickLoop();
       void requestWakeLock();
@@ -1282,10 +1399,10 @@ function StudyTimer({
 
       setTimeout(() => {
         actionInFlightRef.current = false;
-      }, 300);
+      }, 80);
 
       if (source === 'user') {
-        postBC({ action: 'RESUME', at: Date.now() });
+        postBC({ type: 'RESUME_COMMAND', action: 'RESUME', at: Date.now() });
       }
     },
     [
@@ -1294,6 +1411,7 @@ function StudyTimer({
       getDisplaySecondsFromCurrentState,
       setSecondsIfChanged,
       updateExternalStatus,
+      updateMediaSession,
       startTickLoop,
       requestWakeLock,
       persistLocalState,
@@ -1311,12 +1429,8 @@ function StudyTimer({
   useEffect(() => {
     const onVis = () => {
       try {
-        const display = getDisplaySecondsFromCurrentState();
-        setSecondsIfChanged(display);
-        if (!isPausedRef.current) {
-          updateExternalStatus(true, display);
-          updateMediaSession(true, display);
-        }
+        refreshExternalClock(!isPausedRef.current);
+        if (!isPausedRef.current) startExternalTicker();
       } catch {}
       if (document.visibilityState === 'visible') {
         if (wakeLockWantedRef.current) requestWakeLock();
@@ -1324,7 +1438,7 @@ function StudyTimer({
     };
     document.addEventListener('visibilitychange', onVis);
     return () => document.removeEventListener('visibilitychange', onVis);
-  }, [getDisplaySecondsFromCurrentState, setSecondsIfChanged, updateExternalStatus, updateMediaSession, requestWakeLock]);
+  }, [refreshExternalClock, startExternalTicker, requestWakeLock]);
 
   // ========= estado remoto =========
   const makeRemoteStateKey = useCallback((data) => {
@@ -1479,6 +1593,7 @@ function StudyTimer({
       desiredRunningRef.current = false;
 
       wakeLockWantedRef.current = false;
+      stopExternalTicker();
       releaseWakeLock();
 
       try { audioRef.current?.pause?.(); } catch {}
@@ -1514,6 +1629,7 @@ function StudyTimer({
     makeRemoteStateKey,
     variant,
     clearTick,
+    stopExternalTicker,
     startTickLoop,
     requestWakeLock,
     releaseWakeLock,
@@ -1540,8 +1656,8 @@ function StudyTimer({
       if (!msg) return;
       if (msg.from === tabIdRef.current) return;
 
-      if (msg.type === 'PAUSE_COMMAND') pauseTimer('bc');
-      if (msg.type === 'RESUME_COMMAND') resumeTimer('bc');
+      if (msg.type === 'PAUSE_COMMAND' || msg.action === 'PAUSE') pauseTimer('bc');
+      if (msg.type === 'RESUME_COMMAND' || msg.action === 'RESUME') resumeTimer('bc');
       if (msg.type === 'TIMER_ACTION' && msg.action === 'CLOSE_OVERLAYS') closeAllOverlaysLocal();
       if (msg.type === 'TIMER_ACTION' && msg.action === 'CANCEL') cleanupAndCancel('bc', { skipFirestoreDelete: true });
       if (msg.type === 'TIMER_ACTION' && msg.action === 'STOP') handleStopInternal('bc', 'remote');
@@ -1649,12 +1765,14 @@ function StudyTimer({
   // ========= countdown init =========
   useEffect(() => {
     if (!isPreparing) return;
+    void ensureTimeSync();
 
     const t = setInterval(() => {
       setCountdown(prev => {
+        if (prev <= 0) return 0;
         const next = prev - 1;
         if (next <= 0) {
-          setIsPreparing(false);
+          ensureTimeSync().finally(() => setIsPreparing(false));
           return 0;
         }
         return next;
@@ -1662,7 +1780,7 @@ function StudyTimer({
     }, 1000);
 
     return () => clearInterval(t);
-  }, [isPreparing]);
+  }, [ensureTimeSync, isPreparing]);
 
   // ========= 🚀 countdown end + START LOCAL IMEDIATO + ACK RAPIDO =========
   useEffect(() => {
@@ -1675,6 +1793,7 @@ function StudyTimer({
     hasSessionStartedRef.current = true;
 
     const start = nowMs();
+    liveSnapshotUntilMsRef.current = Date.now() + 12000;
 
     // ✅ 1) LOCAL primeiro (UI instantânea)
     desiredRunningRef.current = true;
@@ -1721,10 +1840,6 @@ function StudyTimer({
       } catch (e) {
         console.warn('[StudyTimer] falha no ensureRemoteStartAck:', e);
       }
-
-      try {
-        await performTimeSync();
-      } catch {}
     })();
   }, [
     userUid,
@@ -1744,7 +1859,6 @@ function StudyTimer({
     startTickLoop,
     requestWakeLock,
     ensureRemoteStartAck,
-    performTimeSync,
   ]);
 
   // ========= init audio =========
@@ -1759,6 +1873,7 @@ function StudyTimer({
 
     return () => {
       clearTick();
+      stopExternalTicker();
       try { audioRef.current?.pause?.(); } catch {}
       try { alarmRef.current?.pause?.(); } catch {}
       releaseWakeLock();
@@ -1768,7 +1883,7 @@ function StudyTimer({
         try { document.exitFullscreen(); } catch {}
       }
     };
-  }, [clearTick, releaseWakeLock, restoreDocumentTitle, clearMediaSession]);
+  }, [clearTick, stopExternalTicker, releaseWakeLock, restoreDocumentTitle, clearMediaSession]);
 
   // ========= handlers overlay =========
   const handleRepeatCycle = useCallback(async () => {

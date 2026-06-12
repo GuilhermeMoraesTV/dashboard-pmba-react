@@ -101,6 +101,73 @@ function getPendenciaTeoriaAtiva(cronograma, disciplinaId) {
   return cronograma?.pendenciasTeoria?.[key] || null;
 }
 
+function normalizarTextoAssunto(valor) {
+  return String(valor || '')
+    .replace(/\s+/g, ' ')
+    .replace(/^[\-•–—]\s*/, '')
+    .trim();
+}
+
+function normalizarAssuntosAgenda(assuntos = []) {
+  const vistos = new Set();
+  const normalizados = [];
+
+  (Array.isArray(assuntos) ? assuntos : []).forEach((assunto) => {
+    const nome = normalizarTextoAssunto(typeof assunto === 'string' ? assunto : assunto?.nome || assunto?.titulo || assunto?.label || '');
+    if (!nome) return;
+    const chave = nome.toLocaleLowerCase('pt-BR');
+    if (vistos.has(chave)) return;
+    vistos.add(chave);
+    normalizados.push(nome);
+  });
+
+  return normalizados;
+}
+
+function expandirSlotsTeoriaAteOrcamento(slots, tetoDia) {
+  const teto = Math.floor(Math.max(0, Number(tetoDia) || 0) / 5) * 5;
+  if (teto <= 0 || !slots?.length) return slots;
+
+  const normalizados = slots.map((slot) => ({
+    ...slot,
+    tempoMinutos: Number(slot.minutosEstudo || slot.tempoMinutos || 0),
+    minutosEstudo: Number(slot.minutosEstudo || slot.tempoMinutos || 0),
+  }));
+
+  const somaAtual = normalizados.reduce((acc, slot) => acc + (slot.minutosEstudo || 0), 0);
+  if (somaAtual >= teto || somaAtual <= 0) return normalizados;
+
+  const linhas = normalizados.map((slot, index) => {
+    const exato = ((slot.minutosEstudo || 0) / somaAtual) * teto;
+    const inteiro = Math.max(5, Math.floor(exato / 5) * 5);
+    return { index, inteiro, resto: exato % 5 };
+  });
+
+  let restante = teto - linhas.reduce((acc, linha) => acc + linha.inteiro, 0);
+  linhas
+    .slice()
+    .sort((a, b) => b.resto - a.resto)
+    .forEach((linha) => {
+      if (restante < 5) return;
+      linha.inteiro += 5;
+      restante -= 5;
+    });
+
+  if (restante >= 5 && linhas.length > 0) {
+    linhas[linhas.length - 1].inteiro += restante;
+  }
+
+  const minutosPorIndex = new Map(linhas.map((linha) => [linha.index, linha.inteiro]));
+  return normalizados.map((slot, index) => {
+    const minutos = minutosPorIndex.get(index) || slot.minutosEstudo || slot.tempoMinutos || 0;
+    return {
+      ...slot,
+      tempoMinutos: minutos,
+      minutosEstudo: minutos,
+    };
+  });
+}
+
 function getPendenciaSkipDateKey(pendencia) {
   if (!pendencia?.ultimaMarcacaoEm) return null;
   return formatDateKeyLocal(parseDateOnlyLocal(pendencia.ultimaMarcacaoEm));
@@ -250,16 +317,53 @@ export function getAgendaDia(
   revisoesDoDia,
   weekOffset = 0,
   tempoRevisaoMinutos = 20,
-  minutosRevisaoDisponivel = null
+  minutosRevisaoDisponivel = null,
+  opcoes = {}
 ) {
   // minutosRevisaoDisponivel = limite desejado para revisao no dia.
-  const minutosTeoriaOriginal = slotsEstudoDia.reduce(
+  let minutosTeoriaOriginal = slotsEstudoDia.reduce(
     (acc, s) => acc + (s.minutosEstudo || 50), 0
   );
   const minutosBrutoDia = Number(slotsEstudoDia?.[0]?.minutosBrutoDia || 0) ||
     (minutosTeoriaOriginal > 0
       ? Math.max(minutosTeoriaOriginal, Math.round(minutosTeoriaOriginal / (1 - BASE_CAP_REVISAO)))
       : Math.round((minutosRevisaoDisponivel || 0) / BASE_CAP_REVISAO));
+
+  const ajustarSlotsTeoriaAoOrcamento = (slots, tetoDia) => {
+    const teto = Math.max(0, Number(tetoDia) || 0);
+    if (teto <= 0) return [];
+
+    const ajustados = slots.map((slot) => ({
+      ...slot,
+      tempoMinutos: Number(slot.minutosEstudo || slot.tempoMinutos || 0),
+      minutosEstudo: Number(slot.minutosEstudo || slot.tempoMinutos || 0),
+    }));
+
+    let soma = ajustados.reduce((acc, slot) => acc + (slot.minutosEstudo || 0), 0);
+    let guard = 0;
+
+    while (soma > teto && guard < 2000) {
+      guard += 1;
+      const maior = ajustados
+        .filter((slot) => (slot.minutosEstudo || 0) > 5)
+        .sort((a, b) => (b.minutosEstudo || 0) - (a.minutosEstudo || 0))[0];
+      if (!maior) break;
+      maior.minutosEstudo -= 5;
+      maior.tempoMinutos = maior.minutosEstudo;
+      soma -= 5;
+    }
+
+    return ajustados.filter((slot) => (slot.minutosEstudo || 0) > 0);
+  };
+
+  const slotsTeoriaAjustados = ajustarSlotsTeoriaAoOrcamento(slotsEstudoDia, minutosBrutoDia);
+  const slotsTeoriaBase = opcoes.expandirTeoriaAteBruto && revisoesDoDia.length === 0
+    ? expandirSlotsTeoriaAteOrcamento(slotsTeoriaAjustados, minutosBrutoDia)
+    : slotsTeoriaAjustados;
+
+  minutosTeoriaOriginal = slotsTeoriaBase.reduce(
+    (acc, s) => acc + (s.minutosEstudo || s.tempoMinutos || 0), 0
+  );
 
   let orcamentoRevisao;
   if (minutosRevisaoDisponivel !== null && minutosRevisaoDisponivel > 0) {
@@ -270,15 +374,19 @@ export function getAgendaDia(
 
   const arredondarRevisaoParaBaixo = (minutos) => Math.floor(Math.max(0, minutos) / 5) * 5;
 
-  // Tempo necessario para revisoes respeitando limite e total do dia.
+  const tetoLivreNoDia = Math.max(0, minutosBrutoDia - minutosTeoriaOriginal);
+  const tetoRevisaoPorTeoria = Math.max(0, minutosTeoriaOriginal);
+
+  // Tempo necessario para revisoes respeitando limite, total do dia e teoria.
   const tempoNecessarioRevisao = revisoesDoDia.length * tempoRevisaoMinutos;
   const tetoRevisaoFinal = revisoesDoDia.length > 0 ? Math.min(
     tempoNecessarioRevisao,
     orcamentoRevisao,
-    minutosBrutoDia
+    tetoLivreNoDia,
+    tetoRevisaoPorTeoria
   ) : 0;
 
-  const slotsTeoriaImutaveis = slotsEstudoDia.map((slot) => {
+  const slotsTeoriaImutaveis = slotsTeoriaBase.map((slot) => {
     const minutosOriginais = Number(slot.minutosEstudo || slot.tempoMinutos || 0);
     return {
       ...slot,
@@ -412,7 +520,7 @@ export function getAgendaSemana(
   // ── 1. Montar slots de ESTUDO com assunto e progresso ─────────────────────
   const agendaEstudo = semanaTemplate.map((slot) => {
     const disc     = disciplinasSnapshot.find((d) => d.id === slot.disciplinaId);
-    const assuntos = disc?.assuntos || [];
+    const assuntos = normalizarAssuntosAgenda(disc?.assuntos || []);
 
     const topicIdx  = weekOffset * (slot.totalSlotsParaDisc || 1) + (slot.slotIndexParaDisc || 0);
     if (topicIdx >= assuntos.length) return null;
@@ -604,7 +712,8 @@ export function getAgendaSemana(
       revisoesEfetivas,
       weekOffset,
       tempoRevisaoMinutos,
-      minutosRevisaoReservados  // ← [FIX-7] orçamento CORRETO de revisão (25% do bruto)
+      minutosRevisaoReservados,  // ← [FIX-7] orçamento CORRETO de revisão (25% do bruto)
+      { expandirTeoriaAteBruto: isDiaZero }
     ).map((s) => {
       const progressoRevisao = s.isRevisaoAuto ? Number(progressoRevisoesMinutos?.[s.slotId] || s.progressoMinutos || 0) : 0;
       const tempoPlanejado = Number(s.tempoMinutos || s.minutosEstudo || 0);
@@ -734,7 +843,7 @@ function _reconstruirHistorico(
 
     for (const slot of semanaTemplate) {
       const disc      = disciplinasSnapshot.find((d) => d.id === slot.disciplinaId);
-      const assuntos  = disc?.assuntos || [];
+      const assuntos  = normalizarAssuntosAgenda(disc?.assuntos || []);
       const topicIdx  = semAnt * (slot.totalSlotsParaDisc || 1) + (slot.slotIndexParaDisc || 0);
 
       const isPostEsgotamento = topicIdx >= assuntos.length;
@@ -769,7 +878,7 @@ function _reconstruirHistorico(
 
   for (const slot of semanaTemplate) {
     const disc      = disciplinasSnapshot.find((d) => d.id === slot.disciplinaId);
-    const assuntos  = disc?.assuntos || [];
+    const assuntos  = normalizarAssuntosAgenda(disc?.assuntos || []);
     const topicIdx  = weekOffsetAtual * (slot.totalSlotsParaDisc || 1) + (slot.slotIndexParaDisc || 0);
 
     const isPostEsgotamento = topicIdx >= assuntos.length;
@@ -824,6 +933,7 @@ export function getRevisoesAtrasadas(cronograma, dataHoje = null) {
     dataInicio,
   } = cronograma;
   const revisoesReagendadas = cronograma?.revisoesReagendadas || {};
+  const historicoRevisoesMap = cronograma?.historicoRevisoes || {};
 
   const dominados = new Set(Object.keys(progresso?.dominios || {}));
   const isDiaDisponivelRevisao = criarVerificadorDisponibilidade(semanaTemplate);
@@ -873,19 +983,19 @@ export function getRevisoesAtrasadas(cronograma, dataHoje = null) {
 
     for (const rev of revisoesDoDia) {
       if (rev.isConsolidada) continue;
-      if (concluidosGlobal.has(rev.slotId)) continue;
 
       const dataEstudoOrig = _estimarDataEstudo(rev, historico, isDiaDisponivelRevisao);
       if (dataEstudoOrig && dataEstudoOrig > diaAlvo) continue;
 
       const diasAtraso = Math.round((hoje.getTime() - diaAlvo.getTime()) / 86400000);
+      const concluido = concluidosGlobal.has(rev.slotId) || Boolean(historicoRevisoesMap?.[rev.slotId]?.dataConclusao);
 
       atrasadasRaw.push({
         ...rev,
         dataSlot:     formatDateKeyLocal(diaAlvo),
         dataOriginal: formatDateKeyLocal(diaAlvo),
         diasAtraso,
-        concluido: false,
+        concluido,
       });
     }
   }
@@ -893,7 +1003,12 @@ export function getRevisoesAtrasadas(cronograma, dataHoje = null) {
   const seen = new Map();
   for (const rev of atrasadasRaw) {
     const key = `${rev.disciplinaId}::${rev.assunto}`;
-    if (!seen.has(key) || rev.diasAtraso > seen.get(key).diasAtraso) {
+    const atual = seen.get(key);
+    if (
+      !atual ||
+      (atual.concluido && !rev.concluido) ||
+      (Boolean(atual.concluido) === Boolean(rev.concluido) && rev.diasAtraso > atual.diasAtraso)
+    ) {
       seen.set(key, rev);
     }
   }

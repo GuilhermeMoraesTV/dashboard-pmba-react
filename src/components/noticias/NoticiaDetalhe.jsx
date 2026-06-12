@@ -242,7 +242,7 @@ function QuadroResumo({ dados }) {
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
-      className="rounded-2xl border border-zinc-200 dark:border-zinc-700 overflow-hidden bg-white dark:bg-zinc-900 shadow-sm mb-4"
+      className="rounded-2xl border border-zinc-200 dark:border-zinc-700 overflow-hidden bg-white dark:bg-zinc-900 shadow-lg shadow-zinc-200/60 dark:shadow-black/30 mb-4"
     >
       <div className="bg-gradient-to-r from-red-600 to-red-800 px-5 py-3 flex items-center gap-3">
         <BadgeCheck size={14} className="text-white/70" />
@@ -349,7 +349,7 @@ export default function NoticiaDetalhe({ noticia, onVoltar }) {
 
   return (
     <motion.div initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -16 }} transition={{ duration: 0.3 }}
-      className="min-h-screen bg-zinc-50 dark:bg-zinc-950 pb-16"
+      className="min-h-screen bg-transparent pb-16"
     >
       <div className="max-w-2xl mx-auto px-4 sm:px-6">
 
@@ -367,7 +367,7 @@ export default function NoticiaDetalhe({ noticia, onVoltar }) {
 
         {/* ── CABEÇALHO ── */}
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-          className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-700 p-5 sm:p-7 mb-4 shadow-sm"
+          className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-700 p-5 sm:p-7 mb-4 shadow-lg shadow-zinc-200/60 dark:shadow-black/30"
         >
           <div className="flex items-center gap-2 flex-wrap mb-3">
             {status && <StatusBadge status={status} size="lg" />}
@@ -402,7 +402,7 @@ export default function NoticiaDetalhe({ noticia, onVoltar }) {
 
         {/* ── CONTEÚDO ── */}
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
-          className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-700 shadow-sm overflow-hidden mb-4"
+          className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-700 shadow-lg shadow-zinc-200/60 dark:shadow-black/30 overflow-hidden mb-4"
         >
           <div className="flex items-center gap-2 px-5 py-3 border-b border-zinc-100 dark:border-zinc-800">
             <FileText size={13} className="text-red-500" />
@@ -449,7 +449,7 @@ export default function NoticiaDetalhe({ noticia, onVoltar }) {
 
         {/* ── FOOTER ── */}
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
-          className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-700 shadow-sm overflow-hidden"
+          className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-700 shadow-lg shadow-zinc-200/60 dark:shadow-black/30 overflow-hidden"
         >
           <div className="h-1 bg-gradient-to-r from-red-500 via-red-600 to-red-700" />
           <div className="p-4 flex items-center gap-3">

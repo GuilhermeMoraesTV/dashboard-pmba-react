@@ -15,6 +15,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { getCycleDailyGuide } from '../../utils/studyDayStatus';
+import { getDisciplineCardVars, getDisciplineColorForSlot } from '../../utils/disciplineColors';
 
 const fmtMin = (min) => {
   if (!min || min <= 0) return '0m';
@@ -107,6 +108,13 @@ function CardSessoesCicloHoje({
             const disc = disciplinas.find((d) => d.id === s.disciplinaId);
             const isCompleted = s.concluida;
             const isActive = idx === activeSessaoIndex;
+            const disciplinaColor = getDisciplineColorForSlot({
+              disciplinaId: disc?.id || s.disciplinaId,
+              disciplinaNome: disc?.nome || s.disciplinaNome,
+              disciplina: disc?.nome || s.disciplina,
+              cor: disc?.cor || s.cor,
+            });
+            const disciplinaStyle = getDisciplineCardVars(disciplinaColor);
 
             return (
               <motion.div
@@ -114,34 +122,41 @@ function CardSessoesCicloHoje({
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 whileHover={{ x: 4 }}
+                style={disciplinaStyle}
                 className={`group relative flex items-center gap-4 p-4 rounded-2xl border transition-all duration-300 ${
                   isCompleted
                     ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200/60 dark:border-emerald-900/40'
-                    : isActive
-                    ? 'bg-white dark:bg-zinc-900 border-red-200 dark:border-red-900/40 shadow-lg shadow-red-500/5'
-                    : 'bg-zinc-50/50 dark:bg-zinc-950/30 border-zinc-100 dark:border-zinc-800 opacity-80'
+                  : isActive
+                    ? 'bg-white dark:bg-zinc-900 border-[rgba(var(--discipline-rgb),0.32)] shadow-lg shadow-[rgba(var(--discipline-rgb),0.12)]'
+                    : 'bg-zinc-50/50 dark:bg-zinc-950/30 border-[rgba(var(--discipline-rgb),0.18)] opacity-90'
                 }`}
               >
+                {!isCompleted && (
+                  <div className="pointer-events-none absolute inset-y-0 left-0 w-1.5 bg-[rgb(var(--discipline-rgb))]" />
+                )}
+                {!isCompleted && (
+                  <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_10%_0%,rgba(var(--discipline-rgb),0.13),transparent_34%)] opacity-90" />
+                )}
                 {/* Indicador de Status */}
-                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full shadow-sm transition-all duration-500 ${
+                <div className={`relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full shadow-sm transition-all duration-500 ${
                   isCompleted 
                     ? 'bg-emerald-500 text-white' 
                     : isActive 
-                    ? 'bg-red-600 text-white shadow-red-500/20' 
+                    ? 'bg-[rgb(var(--discipline-rgb))] text-white shadow-[0_12px_24px_rgba(var(--discipline-rgb),0.22)]' 
                     : 'bg-white dark:bg-zinc-800 text-zinc-400 border border-zinc-200 dark:border-zinc-700'
                 }`}>
                   {isCompleted ? <Check size={18} strokeWidth={4} /> : isActive ? <Play size={16} fill="currentColor" /> : <span className="text-xs font-black">{idx + 1}</span>}
                 </div>
 
-                <div className="flex-1 min-w-0">
+                <div className="relative z-10 flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-0.5">
                     <h4 className={`text-[12px] font-black uppercase tracking-tight truncate ${
-                      isCompleted ? 'text-emerald-700 dark:text-emerald-400 line-through opacity-70' : 'text-zinc-900 dark:text-white'
+                      isCompleted ? 'text-emerald-700 dark:text-emerald-400 line-through opacity-70' : disciplinaColor.text
                     }`}>
                       {disc?.nome || 'Disciplina'}
                     </h4>
                     {isActive && (
-                      <span className="flex h-1.5 w-1.5 rounded-full bg-red-600 animate-pulse" />
+                      <span className="flex h-1.5 w-1.5 rounded-full bg-[rgb(var(--discipline-rgb))] animate-pulse" />
                     )}
                   </div>
                   
@@ -149,26 +164,26 @@ function CardSessoesCicloHoje({
                     <p className="text-[10px] font-bold text-zinc-400 truncate uppercase tracking-tighter">
                       Sessao {s.sessaoIndex + 1}
                     </p>
-                    <span className="inline-flex items-center gap-1 rounded-full border border-zinc-200 bg-zinc-100 px-2 py-0.5 text-[9px] font-black tabular-nums text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                    <span className="inline-flex items-center gap-1 rounded-full border border-[rgba(var(--discipline-rgb),0.18)] bg-[rgba(var(--discipline-rgb),0.08)] px-2 py-0.5 text-[9px] font-black tabular-nums text-zinc-600 dark:text-zinc-200">
                       <Clock3 size={10} />
                       {fmtMin(ciclo?.tempoSessaoMinutos || 50)}
                     </span>
                   </div>
 
                   {isActive && s.assuntoSugerido?.nome && (
-                    <p className="mt-1 truncate rounded-md bg-red-50 px-2 py-1 text-[9px] font-black uppercase tracking-wide text-red-600 dark:bg-red-950/25 dark:text-red-400">
+                    <p className="mt-1 truncate rounded-md bg-[rgba(var(--discipline-rgb),0.1)] px-2 py-1 text-[9px] font-black uppercase tracking-wide text-[rgb(var(--discipline-rgb))]">
                       Foco: {s.assuntoSugerido.nome}
                     </p>
                   )}
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="relative z-10 flex items-center gap-2">
                   {!isCompleted && (
                     <motion.button
                       whileHover={{ scale: 1.1 }}
                       whileTap={{ scale: 0.9 }}
                       onClick={() => onIniciarSessao?.(disc, s.globalIndex, s)}
-                      className="w-9 h-9 rounded-xl flex items-center justify-center bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 hover:bg-red-600 dark:hover:bg-red-600 hover:text-white dark:hover:text-white transition-all shadow-md"
+                      className="w-9 h-9 rounded-xl flex items-center justify-center bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 hover:bg-[rgb(var(--discipline-rgb))] dark:hover:bg-[rgb(var(--discipline-rgb))] hover:text-white dark:hover:text-white transition-all shadow-md"
                     >
                       <Play size={14} fill="currentColor" />
                     </motion.button>
@@ -197,41 +212,41 @@ function CardSessoesCicloHoje({
   }
 
   return (
-    <div className="relative flex h-full flex-col">
-      <div className={`sticky top-0 z-30 mb-5 overflow-hidden rounded-2xl border p-4 shadow-lg backdrop-blur-xl transition-all duration-500 sm:mb-8 sm:rounded-[32px] sm:p-6 sm:shadow-xl ${
+    <div className="relative flex flex-col">
+      <div className={`relative z-30 mb-3 shrink-0 overflow-hidden rounded-2xl border p-3 shadow-md backdrop-blur-xl transition-all duration-500 sm:mb-4 sm:p-4 ${
         allSessionsDone
           ? 'border-emerald-300/70 bg-emerald-50/90 shadow-emerald-500/20 dark:border-emerald-900/40 dark:bg-emerald-950/40'
-          : 'border-zinc-200/80 bg-white/90 shadow-zinc-200/30 dark:border-zinc-800 dark:bg-zinc-950/85 sm:shadow-zinc-200/40'
+          : 'border-zinc-200/80 bg-white/90 shadow-red-500/10 dark:border-zinc-800 dark:bg-zinc-950/85 dark:shadow-red-950/20 sm:shadow-red-500/15'
       }`}>
-        <div className={`pointer-events-none absolute right-0 top-0 h-24 w-24 rounded-full blur-[50px] sm:h-32 sm:w-32 sm:blur-[60px] ${
+        <div className={`pointer-events-none absolute right-0 top-0 h-20 w-20 rounded-full blur-[44px] sm:h-24 sm:w-24 sm:blur-[52px] ${
           allSessionsDone ? 'bg-emerald-500/20' : 'bg-red-500/10'
         }`} />
 
-        <div className="relative z-10 flex items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-3 sm:gap-4">
-            <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white shadow-lg sm:h-14 sm:w-14 ${
+        <div className="relative z-10 flex items-start justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white shadow-lg sm:h-12 sm:w-12 ${
               allSessionsDone ? 'bg-emerald-600 shadow-emerald-600/25' : 'bg-red-600 shadow-red-600/25'
             }`}>
-              {allSessionsDone ? <Trophy size={22} className="sm:h-7 sm:w-7" /> : <Zap size={22} className="sm:h-7 sm:w-7" fill="currentColor" />}
+              {allSessionsDone ? <Trophy size={20} className="sm:h-6 sm:w-6" /> : <Zap size={20} className="sm:h-6 sm:w-6" fill="currentColor" />}
             </div>
             <div className="min-w-0">
-              <p className={`text-[9px] font-black uppercase tracking-[0.24em] sm:text-[10px] sm:tracking-[0.3em] ${
+              <p className={`text-[8px] font-black uppercase tracking-[0.24em] sm:text-[9px] ${
                 allSessionsDone ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
               }`}>Guia de estudo</p>
-              <h2 className="truncate text-lg font-black uppercase leading-none tracking-tight text-zinc-900 dark:text-white sm:text-2xl">
+              <h2 className="mt-0.5 text-base font-black uppercase leading-none tracking-tight text-zinc-900 dark:text-white sm:text-xl">
                 {allSessionsDone ? 'Estudo do dia concluido' : 'Sessoes de hoje'}
               </h2>
             </div>
           </div>
 
-          <div className="flex shrink-0 items-center gap-3 text-right">
-            <div>
-              <p className="text-[8px] font-black uppercase tracking-widest text-zinc-400 sm:text-[10px]">Meta de hoje</p>
+          <div className="shrink-0 text-right">
+            <div className="min-w-0">
+              <p className="text-[8px] font-black uppercase tracking-widest text-zinc-400">Meta de hoje</p>
               <div className="mt-1 flex items-center justify-end gap-1.5">
-                <Clock3 size={14} className={allSessionsDone ? 'text-emerald-500 sm:h-4 sm:w-4' : 'text-red-500 sm:h-4 sm:w-4'} />
-                <span className="text-sm font-black tabular-nums text-zinc-900 dark:text-white sm:text-xl">
+                <Clock3 size={13} className={allSessionsDone ? 'text-emerald-500' : 'text-red-500'} />
+                <span className="text-base font-black tabular-nums text-zinc-900 dark:text-white sm:text-xl">
                   {fmtMin(totalProgressoHoje)}
-                  <span className="mx-1 text-xs font-medium text-zinc-400 sm:text-sm">/</span>
+                  <span className="mx-1 text-xs font-medium text-zinc-400">/</span>
                   {fmtMin(totalPlanejadoHoje)}
                 </span>
               </div>
@@ -242,12 +257,12 @@ function CardSessoesCicloHoje({
           </div>
         </div>
 
-        <div className="mt-4 sm:mt-6">
-          <div className="mb-2 flex items-center justify-between">
-            <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500 sm:text-[10px]">Progresso de Hoje</span>
-            <span className={`text-sm font-black ${allSessionsDone ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>{progressoHojeLimitado}%</span>
+        <div className="mt-3">
+          <div className="mb-1.5 flex items-center justify-between">
+            <span className="text-[8px] font-black uppercase tracking-widest text-zinc-500">Progresso de Hoje</span>
+            <span className={`text-xs font-black ${allSessionsDone ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>{progressoHojeLimitado}%</span>
           </div>
-          <div className="h-2.5 w-full overflow-hidden rounded-full border border-zinc-200/50 bg-zinc-100 p-0.5 dark:border-zinc-700/50 dark:bg-zinc-800 sm:h-3">
+          <div className="h-2 w-full overflow-hidden rounded-full border border-zinc-200/50 bg-zinc-100 p-0.5 dark:border-zinc-700/50 dark:bg-zinc-800">
             <motion.div
               initial={{ width: 0 }}
               animate={{ width: `${Math.min(progressoHoje, 100)}%` }}
@@ -278,10 +293,10 @@ function CardSessoesCicloHoje({
         </motion.div>
       )}
 
-      <div className="relative flex-grow px-1 sm:px-4">
+      <div className="relative px-1 pr-3 sm:px-4 sm:pr-5">
         <div className="absolute bottom-0 left-[21px] top-0 w-0.5 bg-zinc-200 dark:bg-zinc-800 sm:left-[39px]" />
 
-        <div className="relative z-10 space-y-4 pb-6 sm:space-y-8 sm:pb-10">
+        <div className="relative z-10 space-y-4 pb-6 sm:space-y-5 sm:pb-8">
           {isRestDayToday ? (
             <div className="ml-9 py-6 sm:ml-16 sm:py-10">
               <div className="flex flex-col items-center justify-center rounded-2xl border border-emerald-200/50 bg-emerald-50/30 p-5 text-center backdrop-blur-sm dark:border-emerald-900/30 dark:bg-emerald-950/20 sm:rounded-[32px] sm:p-8">
@@ -300,6 +315,13 @@ function CardSessoesCicloHoje({
               const isCompleted = sessao.concluida;
               const isActive = idx === activeSessaoIndex;
               const assuntoNome = sessao.assuntoSugerido?.nome || sessao.assuntoSugerido || '';
+              const disciplinaColor = getDisciplineColorForSlot({
+                disciplinaId: disc.id,
+                disciplinaNome: disc.nome,
+                disciplina: disc.nome,
+                cor: disc.cor,
+              });
+              const disciplinaStyle = getDisciplineCardVars(disciplinaColor);
               const progressoSessao = isCompleted
                 ? tempoSessaoMinutos
                 : Math.min(Number(sessao.progressoMinutos || 0), tempoSessaoMinutos);
@@ -310,18 +332,18 @@ function CardSessoesCicloHoje({
 
               return (
                 <div key={sessao.globalIndex} className="group flex items-start gap-3 sm:gap-8">
-                  <div className="relative mt-2 flex shrink-0 items-center justify-center">
+                  <div className="relative mt-2 flex shrink-0 items-center justify-center" style={disciplinaStyle}>
                     {isCompleted ? (
                       <div className="z-10 flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500 text-white shadow-lg shadow-emerald-500/40 ring-4 ring-white dark:ring-zinc-950 sm:h-10 sm:w-10">
                         <Check size={16} className="sm:h-5 sm:w-5" strokeWidth={4} />
                       </div>
                     ) : isActive ? (
-                      <div className="relative z-10 flex h-8 w-8 items-center justify-center rounded-full bg-red-600 text-white shadow-[0_0_15px_rgba(220,38,38,0.5)] ring-4 ring-white dark:ring-zinc-950 sm:h-10 sm:w-10">
-                        <span className="absolute inset-0 animate-ping rounded-full bg-red-500 opacity-40" />
+                      <div className="relative z-10 flex h-8 w-8 items-center justify-center rounded-full bg-[rgb(var(--discipline-rgb))] text-white shadow-[0_0_18px_rgba(var(--discipline-rgb),0.45)] ring-4 ring-white dark:ring-zinc-950 sm:h-10 sm:w-10">
+                        <span className="absolute inset-0 animate-ping rounded-full bg-[rgb(var(--discipline-rgb))] opacity-40" />
                         <Play size={14} className="sm:h-[18px] sm:w-[18px]" fill="currentColor" />
                       </div>
                     ) : (
-                      <div className="z-10 flex h-8 w-8 items-center justify-center rounded-full border-2 border-zinc-200 bg-zinc-100 text-zinc-400 ring-4 ring-white dark:border-zinc-700 dark:bg-zinc-800 dark:ring-zinc-950 sm:h-10 sm:w-10">
+                      <div className="z-10 flex h-8 w-8 items-center justify-center rounded-full border-2 border-[rgba(var(--discipline-rgb),0.42)] bg-[rgba(var(--discipline-rgb),0.2)] text-[rgb(var(--discipline-rgb))] ring-4 ring-white dark:bg-[rgba(var(--discipline-rgb),0.26)] dark:ring-zinc-950 sm:h-10 sm:w-10">
                         <span className="text-[10px] font-black sm:text-xs">{idx + 1}</span>
                       </div>
                     )}
@@ -329,12 +351,13 @@ function CardSessoesCicloHoje({
 
                   <motion.div
                     whileHover={{ x: 4 }}
+                    style={disciplinaStyle}
                     className={`flex-1 overflow-hidden rounded-2xl border transition-all sm:rounded-[28px] ${
                       isActive
-                        ? 'border-red-500/30 bg-white shadow-2xl shadow-red-500/10 dark:bg-zinc-900'
+                        ? 'border-[rgba(var(--discipline-rgb),0.34)] bg-white shadow-2xl shadow-[rgba(var(--discipline-rgb),0.1)] dark:bg-zinc-900'
                         : isCompleted
                           ? 'border-emerald-200 bg-emerald-50/80 shadow-lg shadow-emerald-500/10 dark:border-emerald-900/40 dark:bg-emerald-950/20'
-                          : 'border-zinc-100 bg-transparent dark:border-zinc-800'
+                          : 'border-[rgba(var(--discipline-rgb),0.5)] bg-[rgba(var(--discipline-rgb),0.24)] shadow-md shadow-[rgba(var(--discipline-rgb),0.08)] dark:border-[rgba(var(--discipline-rgb),0.55)] dark:bg-[rgba(var(--discipline-rgb),0.3)]'
                     }`}
                   >
                     <div className="p-3 sm:p-5">
@@ -345,15 +368,15 @@ function CardSessoesCicloHoje({
                               isCompleted
                                 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
                                 : isActive
-                                  ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                                  : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400'
+                                  ? 'bg-[rgba(var(--discipline-rgb),0.14)] text-[rgb(var(--discipline-rgb))]'
+                                  : 'bg-white/70 text-[rgb(var(--discipline-rgb))] dark:bg-white/10'
                             }`}>
                               {isCompleted ? 'Concluida' : isActive ? 'Agora' : 'Proxima'}
                             </span>
                             <span className="text-[10px] font-medium text-zinc-400">Sessao {sessao.sessaoIndex + 1}</span>
                           </div>
                           <h3 className={`text-sm font-black uppercase tracking-tight sm:text-lg ${
-                            isCompleted ? 'text-emerald-800 dark:text-emerald-200' : 'text-zinc-900 dark:text-white'
+                            isCompleted ? 'text-emerald-800 dark:text-emerald-200' : disciplinaColor.text
                           }`}>
                             {disc.nome}
                           </h3>
@@ -361,7 +384,7 @@ function CardSessoesCicloHoje({
 
                         <div className="flex shrink-0 items-center gap-1.5 rounded-lg border border-zinc-200/50 bg-zinc-100 px-2 py-1 dark:border-zinc-700/50 dark:bg-zinc-800 sm:rounded-xl sm:px-2.5 sm:py-1.5">
                           <Clock3 size={12} className="text-zinc-400" />
-                          <span className="text-xs font-black tabular-nums text-zinc-600 dark:text-zinc-300">
+                          <span className="text-sm font-black tabular-nums text-zinc-700 dark:text-zinc-200 sm:text-base">
                             {fmtMin(ciclo?.tempoSessaoMinutos || 50)}
                           </span>
                         </div>
@@ -388,7 +411,7 @@ function CardSessoesCicloHoje({
                       )}
 
                       <div className="mt-2.5 sm:mt-3">
-                        <div className="mb-1.5 flex items-center justify-between gap-2 text-[9px] font-black uppercase tracking-wide">
+                        <div className="mb-1.5 flex items-center justify-between gap-2 text-[11px] font-black uppercase tracking-wide sm:text-xs">
                           <span className={isCompleted ? 'text-emerald-600 dark:text-emerald-400' : progressoSessao > 0 ? 'text-orange-600 dark:text-orange-400' : 'text-zinc-400'}>
                             {fmtMin(progressoSessao)} / {fmtMin(tempoSessaoMinutos)}
                           </span>
@@ -399,7 +422,7 @@ function CardSessoesCicloHoje({
                             initial={false}
                             animate={{ width: `${progressoSessaoPercentual}%` }}
                             transition={{ duration: 0.25 }}
-                            className={`h-full rounded-full ${isCompleted ? 'bg-emerald-500' : progressoSessao > 0 ? 'bg-orange-500' : 'bg-red-500'}`}
+                            className={`h-full rounded-full ${isCompleted ? 'bg-emerald-500' : progressoSessao > 0 ? 'bg-orange-500' : disciplinaColor.progress}`}
                           />
                         </div>
                       </div>
@@ -455,7 +478,7 @@ function CardSessoesCicloHoje({
             <Clock3 size={14} />
           </div>
           <p className="text-[11px] font-medium text-zinc-500">
-            Voce ainda tem <span className="font-black text-zinc-800 dark:text-zinc-200">{fmtMin(remainingMinutes)}</span> livres na sua meta de hoje.
+            Sobraram <span className="font-black text-zinc-800 dark:text-zinc-200">{fmtMin(remainingMinutes)}</span> fora dos blocos de {fmtMin(ciclo?.tempoSessaoMinutos || 50)} configurados.
           </p>
         </div>
       )}

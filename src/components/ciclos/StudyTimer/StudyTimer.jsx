@@ -858,7 +858,7 @@ function StudyTimer({
 
     const fast = setInterval(() => {
       if (!remoteAckRef.current && remoteStartMsAckedRef.current != null) {
-        patchActiveTimer({}, { includeSnapshot: false, touchUpdatedAt: true, touchHeartbeat: true });
+        patchActiveTimer({}, { includeSnapshot: true, touchUpdatedAt: true, touchHeartbeat: true });
       }
     }, 2000);
 
@@ -869,7 +869,7 @@ function StudyTimer({
     if (!activeTimerDocRef) return;
     if (isPreparing) return;
     const t = setInterval(() => {
-      patchActiveTimer({}, { includeSnapshot: false, touchUpdatedAt: true, touchHeartbeat: true });
+      patchActiveTimer({}, { includeSnapshot: true, touchUpdatedAt: true, touchHeartbeat: true });
     }, 30000);
     return () => clearInterval(t);
   }, [activeTimerDocRef, isPreparing, patchActiveTimer]);
@@ -2176,6 +2176,8 @@ function StudyTimer({
         isResting={isResting}
         disciplina={disciplina}
         seconds={seconds}
+        isPreparing={isPreparing}
+        countdown={countdown}
         formatClock={formatClock}
         onTogglePause={() => handleTogglePause('user')}
         onMaximize={onWidgetMode}

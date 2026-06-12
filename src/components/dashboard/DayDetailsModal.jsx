@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Clock, CheckCircle2, List, Target, Calendar,
@@ -413,11 +414,11 @@ function DayDetailsModal({ date, dayData, goals = { questions: 0, hours: 0 }, on
   const hasContent = disciplinasComuns.length > 0 || simulados.length > 0;
 
   if (isRestDay) {
-    return (
-      <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 overflow-hidden">
+    return createPortal((
+      <div className="fixed inset-0 z-[100070] flex items-center justify-center p-2 sm:p-4 overflow-hidden">
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="absolute inset-0 bg-zinc-950/70 backdrop-blur-sm" />
         <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className="relative w-full max-w-3xl bg-zinc-50 dark:bg-zinc-950 rounded-[2rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] border border-white/50 dark:border-zinc-800">
+          className="relative w-full max-w-6xl bg-zinc-50 dark:bg-zinc-950 rounded-[2rem] shadow-2xl overflow-hidden flex flex-col h-[calc(100dvh-1.5rem)] sm:h-[calc(100dvh-2rem)] lg:h-[90dvh] max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-2rem)] border border-white/50 dark:border-zinc-800">
           <div className="bg-emerald-50 dark:bg-emerald-900/10 border-b border-emerald-100 dark:border-emerald-900/30 p-3 sm:px-6 shrink-0 relative overflow-hidden">
             <div className="absolute top-[-20px] right-[-20px] opacity-[0.08] dark:opacity-[0.1] rotate-12 pointer-events-none">
               <Coffee size={120} className="text-emerald-600" />
@@ -443,7 +444,7 @@ function DayDetailsModal({ date, dayData, goals = { questions: 0, hours: 0 }, on
             </div>
           </div>
 
-          <div className="overflow-y-auto flex-1 p-4 sm:p-6 custom-scrollbar bg-zinc-50/50 dark:bg-black/20">
+          <div className="overflow-y-auto flex-1 p-4 md:p-8 custom-scrollbar bg-zinc-50/50 dark:bg-black/20">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
               <div className="lg:col-span-8 bg-white dark:bg-zinc-900 rounded-2xl p-4 border border-zinc-200/50 dark:border-zinc-800 shadow-sm flex flex-col items-center justify-center relative min-h-[280px] overflow-hidden">
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(16,185,129,0.12),transparent_60%)] pointer-events-none" />
@@ -481,14 +482,14 @@ function DayDetailsModal({ date, dayData, goals = { questions: 0, hours: 0 }, on
           </div>
         </motion.div>
       </div>
-    );
+    ), document.body);
   }
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 overflow-hidden">
+  return createPortal((
+    <div className="fixed inset-0 z-[100070] flex items-center justify-center p-2 sm:p-4 overflow-hidden">
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="absolute inset-0 bg-zinc-950/70 backdrop-blur-sm" />
       <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className="relative w-full max-w-4xl bg-zinc-50 dark:bg-zinc-950 rounded-[2rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] border border-white/50 dark:border-zinc-800">
+        className="relative w-full max-w-6xl bg-zinc-50 dark:bg-zinc-950 rounded-[2rem] shadow-2xl overflow-hidden flex flex-col h-[calc(100dvh-1.5rem)] sm:h-[calc(100dvh-2rem)] lg:h-[90dvh] max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-2rem)] border border-white/50 dark:border-zinc-800">
 
         {/* HEADER */}
         <div className="bg-red-50 dark:bg-red-900/10 border-b border-red-100 dark:border-red-900/30 p-3 sm:px-6 shrink-0 relative overflow-hidden">
@@ -521,11 +522,12 @@ function DayDetailsModal({ date, dayData, goals = { questions: 0, hours: 0 }, on
         </div>
 
         {/* BODY */}
-        <div className="overflow-y-auto flex-1 p-4 sm:p-5 custom-scrollbar bg-zinc-50/50 dark:bg-black/20">
+        <div className="overflow-y-auto flex-1 p-4 md:p-8 custom-scrollbar bg-zinc-50/50 dark:bg-black/20">
 
           {/* SEÇÃO 1: HERO */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
-            <div className="lg:col-span-8 bg-white dark:bg-zinc-900 rounded-2xl p-4 border border-zinc-200/50 dark:border-zinc-800 shadow-sm flex flex-col items-center justify-center relative min-h-[220px]">
+            <div className="lg:col-span-8 dashboard-card border-l-4 border-l-red-500 rounded-2xl p-4 flex flex-col items-center justify-center relative min-h-[240px] overflow-hidden">
+              <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-red-500/0 via-red-500/50 to-red-500/0" />
               {stats.totalMinutos > 0 ? (
                 <AdvancedChart data={chartData} totalMinutes={stats.totalMinutos} />
               ) : (
@@ -535,13 +537,13 @@ function DayDetailsModal({ date, dayData, goals = { questions: 0, hours: 0 }, on
                 </div>
               )}
             </div>
-            <div className="lg:col-span-4 flex flex-col gap-3 h-full justify-center">
+            <div className="lg:col-span-4 flex flex-col gap-3 h-full justify-center min-w-0">
               <MiniStatBox label="Tempo Total" value={formatTime(stats.totalMinutos)} icon={Clock} colorClass="text-blue-500" />
               <QuestionsDualCard total={stats.totalQst} correct={stats.totalAcertos} />
               <div className={`flex items-center justify-between p-3 border rounded-xl shadow-sm ${
                 stats.accuracy >= 80 ? 'bg-emerald-50 dark:bg-emerald-900/10 border-emerald-200 dark:border-emerald-800'
                 : stats.accuracy >= 50 ? 'bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800'
-                : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800'
+                : 'dashboard-card border-zinc-200 dark:border-zinc-800'
               }`}>
                 <div className="flex flex-col">
                   <span className={`text-[10px] font-bold uppercase tracking-wider mb-0.5 flex items-center gap-1.5 ${
@@ -577,7 +579,7 @@ function DayDetailsModal({ date, dayData, goals = { questions: 0, hours: 0 }, on
         </div>
       </motion.div>
     </div>
-  );
+  ), document.body);
 }
 
 export default DayDetailsModal;

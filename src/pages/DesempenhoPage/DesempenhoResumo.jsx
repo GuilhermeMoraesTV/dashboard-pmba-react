@@ -21,6 +21,8 @@ const formatHM = (minutes) => {
   return `${h}h ${m}m`;
 };
 
+const performanceCardClass = 'group relative flex flex-col overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/40 hover:!border-l-red-500 hover:shadow-[0_0_18px_rgba(239,68,68,0.07)] dark:border-white/10 dark:!border-l-red-500/25 dark:bg-zinc-950 dark:hover:border-accent-light/20 dark:hover:!border-l-red-500 dark:hover:shadow-[0_0_22px_rgba(239,68,68,0.08)]';
+
 // ============================================================================
 // TOOLTIP — EVOLUÇÃO
 // ============================================================================
@@ -286,15 +288,21 @@ const DesempenhoResumo = ({
         {/* CARD 1: Distribuição de Tempo/Questões */}
         {/* CORREÇÃO 2: Filtro de volta + modo expandido — gerenciado dentro do DesempenhoGrafico */}
         {/* CORREÇÃO 6: Subtítulo explica o que o gráfico faz */}
-        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-hidden flex flex-col min-h-[420px]">
-          <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 flex items-center gap-2.5 bg-zinc-50/50 dark:bg-transparent">
-            <div className="p-1.5 bg-red-500/10 rounded-lg">
-              <BookOpen size={15} className="text-red-500" strokeWidth={2.5} />
+        <div className={`${performanceCardClass} min-h-[420px]`}>
+          <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 flex items-start gap-3 bg-zinc-50/50 dark:bg-transparent">
+            <div className="relative shrink-0">
+              <div className="absolute inset-0 animate-ping rounded-full bg-red-500/20 opacity-30 duration-[3s]" />
+              <div className="relative flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-red-600 to-rose-700 text-white shadow-xl shadow-red-500/20">
+                <BookOpen size={20} strokeWidth={1.8} />
+              </div>
             </div>
-            <div>
-              <span className="text-xs font-black text-zinc-900 dark:text-zinc-100 uppercase tracking-tight">Distribuição</span>
+            <div className="min-w-0">
+              <h3 className="text-lg font-black uppercase tracking-tight text-zinc-900 dark:text-white leading-tight">
+                Distribuicao <span className="bg-gradient-to-r from-red-600 to-rose-700 bg-clip-text text-transparent">Tatica</span>
+              </h3>
+              <span className="hidden">Distribuição</span>
               {/* CORREÇÃO 6 */}
-              <p className="text-[10px] text-zinc-500 mt-0.5">Quanto tempo e quantas questões você dedicou a cada disciplina</p>
+              <p className="mt-1 text-[11px] font-semibold leading-relaxed text-zinc-500 dark:text-zinc-400">Quanto tempo e quantas questoes voce dedicou a cada disciplina.</p>
             </div>
           </div>
           <div className="flex-1 p-2">
@@ -303,16 +311,22 @@ const DesempenhoResumo = ({
         </div>
 
         {/* CARD 2: Radar de Competências */}
-        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-hidden flex flex-col min-h-[420px]">
-          <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between bg-zinc-50/50 dark:bg-transparent">
-            <div className="flex items-center gap-2.5">
-              <div className="p-1.5 bg-indigo-500/10 rounded-lg">
-                <Crosshair size={15} className="text-indigo-500" strokeWidth={2.5} />
+        <div className={`${performanceCardClass} min-h-[420px]`}>
+          <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 flex items-start justify-between gap-3 bg-zinc-50/50 dark:bg-transparent">
+            <div className="flex min-w-0 items-start gap-3">
+              <div className="relative shrink-0">
+                <div className="absolute inset-0 animate-ping rounded-full bg-red-500/20 opacity-30 duration-[3s]" />
+                <div className="relative flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-red-600 to-rose-700 text-white shadow-xl shadow-red-500/20">
+                  <Crosshair size={20} strokeWidth={1.8} />
+                </div>
               </div>
-              <div>
-                <span className="text-xs font-black text-zinc-900 dark:text-zinc-100 uppercase tracking-tight">Equilíbrio Tático</span>
+              <div className="min-w-0">
+                <h3 className="text-lg font-black uppercase tracking-tight text-zinc-900 dark:text-white leading-tight">
+                  Equilibrio <span className="bg-gradient-to-r from-red-600 to-rose-700 bg-clip-text text-transparent">Tatico</span>
+                </h3>
+                <span className="hidden">Equilibrio Tatico</span>
                 {/* CORREÇÃO 6 */}
-                <p className="text-[10px] text-zinc-500 mt-0.5">Sua taxa de acertos por matéria comparada à meta de 80%</p>
+                <p className="mt-1 text-[11px] font-semibold leading-relaxed text-zinc-500 dark:text-zinc-400">Sua taxa de acertos por materia comparada a meta de 80%.</p>
               </div>
             </div>
             {radarData.length >= 3 && (
@@ -336,16 +350,22 @@ const DesempenhoResumo = ({
       </div>
 
       {/* ── LINHA INFERIOR: EVOLUÇÃO (FULL WIDTH) ── */}
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-hidden min-h-[300px] flex flex-col w-full">
-        <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between bg-zinc-50/50 dark:bg-transparent">
-          <div className="flex items-center gap-2.5">
-            <div className="p-1.5 bg-red-500/10 rounded-lg">
-              <TrendingUp size={15} className="text-red-500" strokeWidth={2.5} />
+      <div className={`${performanceCardClass} min-h-[300px] w-full`}>
+        <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 flex items-start justify-between gap-3 bg-zinc-50/50 dark:bg-transparent">
+          <div className="flex min-w-0 items-start gap-3">
+            <div className="relative shrink-0">
+              <div className="absolute inset-0 animate-ping rounded-full bg-red-500/20 opacity-30 duration-[3s]" />
+              <div className="relative flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-red-600 to-rose-700 text-white shadow-xl shadow-red-500/20">
+                <TrendingUp size={20} strokeWidth={1.8} />
+              </div>
             </div>
-            <div>
-              <span className="text-xs font-black text-zinc-900 dark:text-zinc-100 uppercase tracking-tight">Evolução de Desempenho</span>
+            <div className="min-w-0">
+              <h3 className="text-lg font-black uppercase tracking-tight text-zinc-900 dark:text-white leading-tight">
+                Evolucao <span className="bg-gradient-to-r from-red-600 to-rose-700 bg-clip-text text-transparent">De Desempenho</span>
+              </h3>
+              <span className="hidden">Evolucao de Desempenho</span>
               {/* CORREÇÃO 6 */}
-              <p className="text-[10px] text-zinc-500 mt-0.5">Acompanhe como suas horas de estudo se correlacionam com sua taxa de acertos ao longo do tempo</p>
+              <p className="mt-1 text-[11px] font-semibold leading-relaxed text-zinc-500 dark:text-zinc-400">Acompanhe como suas horas de estudo se correlacionam com sua taxa de acertos ao longo do tempo.</p>
             </div>
           </div>
 

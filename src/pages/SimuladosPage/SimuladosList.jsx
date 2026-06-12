@@ -6,6 +6,8 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 
 // --- HELPERS LOCAIS ---
+const systemInfoCardClass = 'group/card relative flex min-h-[94px] flex-col justify-between overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white p-4 shadow-soft transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/40 hover:!border-l-red-500 hover:shadow-[0_0_18px_rgba(239,68,68,0.07)] dark:border-white/10 dark:!border-l-red-500/25 dark:bg-zinc-950 dark:hover:border-accent-light/20 dark:hover:!border-l-red-500 dark:hover:shadow-[0_0_22px_rgba(239,68,68,0.08)]';
+
 const formatDuration = (minutes) => {
   if (minutes === null || minutes === undefined) return '-';
   const totalSeconds = Math.round(minutes * 60);
@@ -101,7 +103,7 @@ const SimuladoTableRow = ({ item, onDeleteRequest, onEditRequest, compareMode, i
   };
 
   return (
-    <div className={`group transition-all duration-200 border-b border-zinc-100 dark:border-zinc-800 ${isSelected ? 'bg-blue-50 dark:bg-blue-900/10' : expanded ? 'bg-zinc-50 dark:bg-zinc-900/30' : 'bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-900/50'}`}>
+    <div className={`group mx-2 my-2 overflow-hidden rounded-xl border transition-all duration-200 md:mx-3 ${isSelected ? 'border-blue-300 bg-blue-50 shadow-[0_0_18px_rgba(37,99,235,0.10)] dark:border-blue-500/40 dark:bg-blue-950/20' : expanded ? 'border-red-200 bg-zinc-50 shadow-sm dark:border-red-500/25 dark:bg-zinc-900/35' : 'border-zinc-200 bg-white shadow-sm hover:-translate-y-0.5 hover:border-red-200 hover:shadow-[0_0_18px_rgba(239,68,68,0.06)] dark:border-white/10 dark:bg-zinc-950 dark:hover:border-red-500/25'}`}>
 
       {/* MOBILE - ROW PRINCIPAL */}
       <div className="md:hidden px-4 py-3 cursor-pointer select-none" onClick={onRowClick}>
@@ -143,11 +145,11 @@ const SimuladoTableRow = ({ item, onDeleteRequest, onEditRequest, compareMode, i
 
       {/* DESKTOP - ROW PRINCIPAL */}
       <div className="hidden md:grid grid-cols-12 gap-4 p-4 items-center cursor-pointer select-none" onClick={onRowClick}>
-        <div className="col-span-1 text-center"><div className="bg-zinc-100 dark:bg-zinc-800 rounded-lg p-1"><span className="block text-xs font-bold text-zinc-500">{item.data.split('-')[2]}</span><span className="block text-[9px] font-bold text-zinc-400 uppercase">{new Date(item.data).toLocaleString('default', { month: 'short' })}</span></div></div>
+        <div className="col-span-1 text-center"><div className="rounded-lg bg-zinc-100 p-1.5 ring-1 ring-zinc-200/70 dark:bg-zinc-900 dark:ring-white/10"><span className="block text-xs font-black text-zinc-700 dark:text-zinc-200">{item.data.split('-')[2]}</span><span className="block text-[9px] font-bold text-zinc-400 uppercase">{new Date(item.data).toLocaleString('default', { month: 'short' })}</span></div></div>
 
         <div className="col-span-3 flex items-center gap-3 overflow-hidden">
             {compareMode && <div className={`w-5 h-5 min-w-[20px] rounded-full border-2 flex items-center justify-center transition-all ${isSelected ? 'bg-blue-600 border-blue-600 text-white' : 'border-zinc-300 dark:border-zinc-600'}`}>{isSelected && <CheckCircle2 size={12} />}</div>}
-            <div className="truncate"><span className="block font-bold text-sm text-zinc-800 dark:text-zinc-200 truncate">{item.titulo}</span><span className="flex items-center gap-2 text-[10px] text-zinc-400 font-bold uppercase tracking-wider">{item.banca || 'Sem Banca'} {item.resumo.totalQuestoes > 0 && <span className="w-1 h-1 rounded-full bg-zinc-300"></span>} {item.resumo.totalQuestoes} Questões</span></div>
+            <div className="truncate"><span className="block truncate text-sm font-black text-zinc-900 dark:text-white">{item.titulo}</span><span className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-zinc-400">{item.banca || 'Sem Banca'} {item.resumo.totalQuestoes > 0 && <span className="h-1 w-1 rounded-full bg-red-300"></span>} {item.resumo.totalQuestoes} Questões</span></div>
         </div>
 
         <div className="col-span-1 text-center flex flex-col items-center">
@@ -158,26 +160,26 @@ const SimuladoTableRow = ({ item, onDeleteRequest, onEditRequest, compareMode, i
         <div className="col-span-2 text-center flex flex-col items-center"><span className="text-xs font-bold text-emerald-600">{item.resumo.totalAcertos}</span><span className="text-[9px] text-zinc-400 uppercase">Acertos</span></div>
         <div className="col-span-2 text-center flex flex-col items-center"><span className={`text-xs font-bold ${points >= 0 ? 'text-zinc-700 dark:text-zinc-300' : 'text-red-500'}`}>{points.toFixed(1)}</span><span className="text-[9px] text-zinc-400 uppercase">Pontos</span></div>
         <div className="col-span-2 text-center flex justify-center"><div className={`px-3 py-1 rounded-full text-xs font-black ${badgeColor}`}>{item.resumo.porcentagem.toFixed(0)}%</div></div>
-        <div className="col-span-1 flex justify-center text-zinc-400">{expanded ? <Minus size={18} /> : <ChevronDown size={18} />}</div>
+        <div className="col-span-1 flex justify-center text-zinc-400"><div className="rounded-lg bg-zinc-100 p-1.5 transition-colors group-hover:bg-red-50 group-hover:text-red-600 dark:bg-zinc-900 dark:group-hover:bg-red-500/10">{expanded ? <Minus size={18} /> : <ChevronDown size={18} />}</div></div>
       </div>
 
       {/* EXPANDED */}
       <AnimatePresence>
         {expanded && !compareMode && (
-          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-950/50">
+          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden border-t border-zinc-200 bg-zinc-50/80 dark:border-white/10 dark:bg-zinc-950/70">
             <div className="p-4 md:p-6">
                 {stats && (
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4 mb-5 md:mb-6">
-                        <div className="bg-white dark:bg-zinc-900 p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm flex flex-col justify-between"><div className="flex items-center gap-2 mb-2 text-emerald-500"><Trophy size={16} /><span className="text-[10px] font-bold text-zinc-400 uppercase">Destaque</span></div><div><p className="font-bold text-zinc-800 dark:text-white text-xs truncate" title={stats.best.nome}>{stats.best.nome}</p><p className="text-[10px] text-zinc-500">{(stats.best.acertos * stats.best.peso).toFixed(1)} pontos</p></div></div>
-                        <div className="bg-white dark:bg-zinc-900 p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm flex flex-col justify-between"><div className="flex items-center gap-2 mb-2 text-red-500"><AlertTriangle size={16} /><span className="text-[10px] font-bold text-zinc-400 uppercase">Atenção</span></div><div><p className="font-bold text-zinc-800 dark:text-white text-xs truncate" title={stats.worst.nome}>{stats.worst.nome}</p><p className="text-[10px] text-zinc-500">{(stats.worst.acertos * stats.worst.peso).toFixed(1)} pontos</p></div></div>
-                        <div className="bg-white dark:bg-zinc-900 p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm flex flex-col justify-between"><div className="flex items-center gap-2 mb-2 text-blue-500"><Target size={16} /><span className="text-[10px] font-bold text-zinc-400 uppercase">Precisão</span></div><div><p className="font-bold text-zinc-800 dark:text-white text-xl">{stats.precisao.toFixed(0)}%</p><p className="text-[10px] text-zinc-500">Nas respondidas</p></div></div>
+                        <div className={systemInfoCardClass}><div className="relative z-20 flex items-center gap-2 text-emerald-500"><Trophy size={17} /><span className="text-[11px] font-black uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Destaque</span></div><div className="relative z-20"><p className="truncate text-sm font-black text-zinc-900 dark:text-white" title={stats.best.nome}>{stats.best.nome}</p><p className="mt-0.5 text-[11px] font-semibold text-zinc-500 dark:text-zinc-400">{(stats.best.acertos * stats.best.peso).toFixed(1)} pontos</p></div></div>
+                        <div className={systemInfoCardClass}><div className="relative z-20 flex items-center gap-2 text-red-500"><AlertTriangle size={17} /><span className="text-[11px] font-black uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Atenção</span></div><div className="relative z-20"><p className="truncate text-sm font-black text-zinc-900 dark:text-white" title={stats.worst.nome}>{stats.worst.nome}</p><p className="mt-0.5 text-[11px] font-semibold text-zinc-500 dark:text-zinc-400">{(stats.worst.acertos * stats.worst.peso).toFixed(1)} pontos</p></div></div>
+                        <div className={systemInfoCardClass}><div className="relative z-20 flex items-center gap-2 text-blue-500"><Target size={17} /><span className="text-[11px] font-black uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Precisão</span></div><div className="relative z-20"><p className="text-2xl font-black leading-none text-zinc-900 dark:text-white">{stats.precisao.toFixed(0)}%</p><p className="mt-1 text-[11px] font-semibold text-zinc-500 dark:text-zinc-400">Nas respondidas</p></div></div>
 
                         {/* CORREÇÃO AQUI: CARD AÇÕES AGORA É COL-SPAN-2 NO MOBILE */}
-                        <div className="col-span-2 md:col-span-1 bg-white dark:bg-zinc-900 p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
-                            <div className="text-[10px] font-bold text-zinc-400 uppercase mb-2">Ações</div>
+                        <div className={`col-span-2 md:col-span-1 ${systemInfoCardClass}`}>
+                            <div className="text-[11px] font-black uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Ações</div>
                             <div className="flex gap-2">
-                                <button onClick={(e)=>{e.stopPropagation(); onEditRequest(item)}} className="flex-1 px-3 py-2 rounded-lg text-xs font-black bg-blue-600 hover:bg-blue-700 text-white shadow-sm flex items-center justify-center gap-2 whitespace-nowrap"><Pencil size={14}/> Editar</button>
-                                <button onClick={(e)=>{e.stopPropagation(); onDeleteRequest(item)}} className="flex-1 px-3 py-2 rounded-lg text-xs font-black bg-red-600 hover:bg-red-700 text-white shadow-sm flex items-center justify-center gap-2 whitespace-nowrap"><Trash2 size={14}/> Excluir</button>
+                                <button onClick={(e)=>{e.stopPropagation(); onEditRequest(item)}} className="flex-1 px-3 py-2.5 rounded-lg text-xs font-black bg-blue-600 hover:bg-blue-700 text-white shadow-sm flex items-center justify-center gap-2 whitespace-nowrap"><Pencil size={14}/> Editar</button>
+                                <button onClick={(e)=>{e.stopPropagation(); onDeleteRequest(item)}} className="flex-1 px-3 py-2.5 rounded-lg text-xs font-black bg-red-600 hover:bg-red-700 text-white shadow-sm flex items-center justify-center gap-2 whitespace-nowrap"><Trash2 size={14}/> Excluir</button>
                             </div>
                         </div>
                     </div>
@@ -264,7 +266,7 @@ const SimuladosList = ({
   };
 
   return (
-    <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-b-3xl overflow-hidden shadow-sm">
+    <div className="group relative overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white shadow-soft transition-all duration-300 hover:border-accent-light/40 hover:!border-l-red-500 hover:shadow-[0_0_18px_rgba(239,68,68,0.07)] dark:border-white/10 dark:!border-l-red-500/25 dark:bg-zinc-950 dark:hover:border-accent-light/20 dark:hover:!border-l-red-500 dark:hover:shadow-[0_0_22px_rgba(239,68,68,0.08)]">
       <DeleteConfirmationModal
         isOpen={deleteModalOpen}
         onClose={() => setDeleteModalOpen(false)}
@@ -273,7 +275,7 @@ const SimuladosList = ({
       />
 
       {/* Header colunas (desktop apenas) */}
-      <div className="hidden md:grid grid-cols-12 gap-4 p-4 text-xs font-bold text-zinc-400 uppercase tracking-wider border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950">
+      <div className="hidden md:grid grid-cols-12 gap-4 border-b border-zinc-200 bg-zinc-50/90 p-4 text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500 dark:border-white/10 dark:bg-zinc-900/70 dark:text-zinc-400">
         <div className="col-span-1 text-center">Data</div>
         <div className="col-span-3">Simulado</div>
         <div className="col-span-1 text-center">Tempo</div>
@@ -283,7 +285,7 @@ const SimuladosList = ({
         <div className="col-span-1 text-center">Detalhes</div>
       </div>
 
-      <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
+      <div className="bg-zinc-50/50 py-1 dark:bg-zinc-950/40">
         {loading ? (
             <div className="py-16 text-center text-zinc-400 font-medium animate-pulse flex flex-col items-center gap-4">
             <div className="w-8 h-8 border-4 border-red-500 border-t-transparent rounded-full animate-spin" />
@@ -291,7 +293,7 @@ const SimuladosList = ({
             </div>
         ) : filteredSimulados.length === 0 ? (
             <div className="p-8 text-center text-zinc-400 text-sm">
-            Nenhum simulado encontrado para a busca.
+            Nenhum simulado registrado ainda.
             </div>
         ) : (
             filteredSimulados.map((sim) => (

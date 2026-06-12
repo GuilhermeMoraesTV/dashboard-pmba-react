@@ -12,14 +12,18 @@ import {
   Flame, AlertTriangle, Trophy, LayoutDashboard,
   ChevronRight, LayoutGrid, GraduationCap, X, Ban, RefreshCw, ArrowUpCircle,
   GripVertical, Sparkles, Rocket, Plus, Minus, Shield, Star, Undo2, Trash2, ChevronUp,
-  CalendarDays, ArrowLeftRight,
+  CalendarDays, ArrowLeftRight, Zap, LayoutList,
 } from 'lucide-react';
 import { CATALOGO_EDITAIS } from '../pages/AdminPage/EditaisManager';
 import { useForceUnlock } from '../hooks/useForceUnlock';
+import EmptyStateCard from '../components/shared/EmptyStateCard';
 
 // ----------------------------------------------------------------------
 // Helpers
 // ----------------------------------------------------------------------
+const systemCardClass = 'group relative overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white shadow-soft transition-all duration-300 hover:border-accent-light/40 hover:!border-l-red-500 hover:shadow-[0_0_18px_rgba(239,68,68,0.07)] dark:border-white/10 dark:!border-l-red-500/25 dark:bg-zinc-950 dark:hover:border-accent-light/20 dark:hover:!border-l-red-500 dark:hover:shadow-[0_0_22px_rgba(239,68,68,0.08)]';
+const systemPanelClass = 'rounded-xl border border-zinc-200 bg-zinc-50/80 dark:border-white/10 dark:bg-zinc-900/65';
+
 const getTemplateIdDoCiclo = (ciclo) => {
   if (!ciclo) return null;
   return ciclo.templateId || ciclo.editalId || 'manual';
@@ -61,6 +65,12 @@ const getProgressStats = (acertos, total) => {
   if (perc >= 50) return { colorText: 'text-amber-600 dark:text-amber-400', perc };
   return          { colorText: 'text-red-600 dark:text-red-400', perc };
 };
+
+const isRegistroRevisao = (registro) => (
+  registro?.isRevisao === true ||
+  registro?.revisao === true ||
+  registro?.tipoEstudo === 'revisao'
+);
 
 const getDesempenhoConfig = (perc, questoes) => {
   if (!questoes || questoes === 0) return { style: 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 border border-zinc-200 dark:border-zinc-700', icon: Target, label: '0%' };
@@ -541,7 +551,7 @@ function EditalPage({
       if (reg.assunto) {
         const key = `${reg.disciplinaNome}-${reg.assunto}`.toLowerCase().trim();
         if (!mapaDetalhado[key]) mapaDetalhado[key] = { count: 0, minutes: 0, questions: 0, correct: 0, lastDate: null, hasManualCheck: false };
-        if (reg.tipoEstudo !== 'check_manual') mapaDetalhado[key].count += 1;
+        if (isRegistroRevisao(reg)) mapaDetalhado[key].count += 1;
         mapaDetalhado[key].minutes += Number(reg.tempoEstudadoMinutos || 0);
         mapaDetalhado[key].questions += Number(reg.questoesFeitas || 0);
         mapaDetalhado[key].correct += Number(reg.acertos || 0);
@@ -613,7 +623,7 @@ function EditalPage({
       if (reg.assunto) {
         const key = `${discNome}-${reg.assunto}`.toLowerCase().trim();
         if (!mapaDetalhado[key]) mapaDetalhado[key] = { count: 0, minutes: 0, questions: 0, correct: 0, lastDate: null, hasManualCheck: false };
-        if (reg.tipoEstudo !== 'check_manual') mapaDetalhado[key].count += 1;
+        if (isRegistroRevisao(reg)) mapaDetalhado[key].count += 1;
         mapaDetalhado[key].minutes += Number(reg.tempoEstudadoMinutos || 0);
         mapaDetalhado[key].questions += Number(reg.questoesFeitas || 0);
         mapaDetalhado[key].correct += Number(reg.acertos || 0);
@@ -824,13 +834,57 @@ function EditalPage({
   const noCronograma = !cronograma;
 
   if (noCiclo && noCronograma) return (
-    <div className="p-0 min-h-[50vh] animate-fade-in pb-12">
-      <div className="flex flex-col items-center justify-center py-20 text-center bg-zinc-50 dark:bg-zinc-900/50 rounded-3xl border-2 border-dashed border-zinc-200 dark:border-zinc-800">
-        <LayoutDashboard size={40} className="text-zinc-300 mb-4" />
-        <h3 className="text-lg font-bold text-zinc-700 dark:text-zinc-300 mb-1">Nenhum Ciclo ou Cronograma Ativo</h3>
-        <p className="text-zinc-500 text-sm mb-6">Ative um ciclo ou crie um cronograma para ver o edital.</p>
-        {onBack && <button onClick={onBack} className="px-6 py-2 bg-red-600 text-white rounded-lg font-bold text-sm hover:bg-red-700">Ir para Ciclos</button>}
-      </div>
+    <div className="flex min-h-[calc(100vh-120px)] w-full items-center justify-center px-4 py-10">
+      <motion.div
+        initial={{ opacity: 0, y: 30, scale: 0.95 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        className="group relative w-full max-w-2xl overflow-hidden rounded-[40px] border border-zinc-200 bg-white p-8 text-center shadow-[0_30px_100px_rgba(0,0,0,0.06)] dark:border-white/10 dark:bg-zinc-950 dark:shadow-[0_30px_100px_rgba(0,0,0,0.3)] sm:px-12 sm:pb-9 sm:pt-12"
+      >
+        {/* Decorative background elements */}
+        <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-red-500/5 blur-[80px] transition-all duration-700 group-hover:bg-red-500/10" />
+        <div className="pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-zinc-500/5 blur-[80px] transition-all duration-700 group-hover:bg-zinc-500/10" />
+
+        <div className="relative z-10 flex flex-col items-center">
+          <div className="relative mb-8">
+            <div className="absolute inset-0 animate-ping rounded-full bg-red-500/20 opacity-40 duration-[3s]" />
+            <div className="relative flex h-24 w-24 items-center justify-center rounded-[32px] bg-gradient-to-br from-red-600 to-rose-700 text-white shadow-2xl shadow-red-500/30 sm:h-28 sm:w-28">
+              <LayoutList size={48} strokeWidth={1.5} />
+            </div>
+            <div className="absolute -bottom-2 -right-2 flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-red-600 shadow-xl dark:bg-zinc-900 dark:text-red-400">
+              <Zap size={20} fill="currentColor" />
+            </div>
+          </div>
+
+          <p className="text-[11px] font-black uppercase tracking-[0.4em] text-red-600 dark:text-red-400">
+            Edital Verticalizado
+          </p>
+          
+          <h2 className="mt-4 text-3xl font-black uppercase tracking-tight text-zinc-900 dark:text-white sm:text-4xl">
+            Nenhum planejamento <span className="bg-gradient-to-r from-red-600 to-rose-600 bg-clip-text text-transparent">ativo</span>
+          </h2>
+          
+          <p className="mt-6 max-w-md text-base font-medium leading-relaxed text-zinc-500 dark:text-zinc-400">
+            Seu edital está aguardando um plano ativo. Ative um cronograma ou ciclo de estudos para visualizar o conteúdo detalhado e acompanhar seu progresso.
+          </p>
+
+          <div className="mt-10 flex flex-col items-center gap-3">
+            <button
+              type="button"
+              onClick={onBack}
+              className="group/btn relative flex h-14 items-center gap-3 overflow-hidden rounded-2xl bg-zinc-950 px-8 text-xs font-black uppercase tracking-[0.2em] text-white shadow-2xl transition-all hover:scale-105 hover:bg-red-600 active:scale-95 dark:bg-white dark:text-zinc-950 dark:hover:bg-red-500 dark:hover:text-white"
+            >
+              <span className="relative z-10 flex items-center gap-2">
+                Ir para Planejamento <ArrowLeftRight size={16} />
+              </span>
+            </button>
+            <img
+              src="/logoModoQAP.png"
+              alt="Logo Modo QAP"
+              className="h-8 w-auto object-contain opacity-90 transition-opacity duration-300 group-hover:opacity-100"
+            />
+          </div>
+        </div>
+      </motion.div>
     </div>
   );
 
@@ -866,16 +920,16 @@ function EditalPage({
       </AnimatePresence>
 
       {/* ── HEADER ── */}
-      <div className="bg-white dark:bg-zinc-900 rounded-3xl p-6 md:p-8 border border-zinc-200 dark:border-zinc-800 shadow-sm relative overflow-hidden flex flex-col md:flex-row items-center md:items-start gap-6 text-center md:text-left">
+      <div className={`${systemCardClass} p-5 md:p-7 flex flex-col md:flex-row items-center md:items-start gap-6 text-center md:text-left`}>
 
         {/* Logo + toggle posicionado embaixo */}
         <div className="flex flex-col items-center gap-2 flex-shrink-0 relative z-10">
-          <div className="w-20 h-20 md:w-28 md:h-28 bg-zinc-50 dark:bg-zinc-950 rounded-full border-4 border-white dark:border-zinc-800 shadow-xl flex items-center justify-center relative">
+          <div className="w-20 h-20 md:w-28 md:h-28 bg-zinc-50 dark:bg-zinc-900 rounded-full border-4 border-white dark:border-white/10 shadow-xl flex items-center justify-center relative">
             {logoAtivo
               ? <img src={logoAtivo} alt="Logo" className="w-14 h-14 md:w-16 md:h-16 object-contain" />
               : <GraduationCap size={40} className="text-zinc-300 dark:text-zinc-600" />
             }
-            <div className="absolute -bottom-2 px-2 py-0.5 bg-emerald-500 text-white text-[9px] font-bold uppercase tracking-widest rounded-full shadow-md border-2 border-white dark:border-zinc-900">Ativo</div>
+            <div className="absolute -bottom-2 px-2 py-0.5 bg-emerald-500 text-white text-[9px] font-bold uppercase tracking-widest rounded-full shadow-md border-2 border-white dark:border-zinc-950">Ativo</div>
           </div>
 
           {/* Botão de toggle — aparece só quando ambos existem */}
@@ -895,20 +949,20 @@ function EditalPage({
 
         <div className="flex-1 z-10 w-full">
           <div className="flex items-start justify-between w-full mb-2">
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-red-50 dark:bg-red-900/20 rounded-full text-[13px] font-bold uppercase tracking-wider border border-red-100 dark:border-red-900/50 text-red-600 dark:text-red-400">
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-red-50 dark:bg-red-500/10 rounded-full text-[13px] font-bold uppercase tracking-wider border border-red-100 dark:border-red-500/20 text-red-600 dark:text-red-400">
               <CheckCircle2 size={17} /> Edital Verticalizado
             </div>
             {/* Botão de navegação: ciclo → Painel do Ciclo | cronograma → Cronograma */}
             {isCronoView
               ? (onGoToCronograma && (
-                  <button onClick={onGoToCronograma} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white hover:bg-red-50 border border-zinc-200 hover:border-red-200 dark:bg-zinc-800 dark:hover:bg-red-900/10 dark:border-zinc-700 text-zinc-600 hover:text-red-700 dark:text-zinc-300 text-[11px] font-bold uppercase tracking-wide transition-all shadow-sm z-20">
+                  <button onClick={onGoToCronograma} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-50 hover:bg-red-50 border border-zinc-200 hover:border-red-200 dark:bg-zinc-900 dark:hover:bg-red-500/10 dark:border-white/10 text-zinc-600 hover:text-red-700 dark:text-zinc-300 text-[11px] font-bold uppercase tracking-wide transition-all shadow-sm z-20">
                     <CalendarDays size={14} className="text-red-600 dark:text-red-500" />
                     <span className="hidden sm:inline">Painel do Cronograma</span>
                     <ChevronRight size={12} className="opacity-60" />
                   </button>
                 ))
               : (onBack && (
-                  <button onClick={onBack} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white hover:bg-red-50 border border-zinc-200 hover:border-red-200 dark:bg-zinc-800 dark:hover:bg-red-900/10 dark:border-zinc-700 text-zinc-600 hover:text-red-700 dark:text-zinc-300 text-[11px] font-bold uppercase tracking-wide transition-all shadow-sm z-20">
+                  <button onClick={onBack} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-50 hover:bg-red-50 border border-zinc-200 hover:border-red-200 dark:bg-zinc-900 dark:hover:bg-red-500/10 dark:border-white/10 text-zinc-600 hover:text-red-700 dark:text-zinc-300 text-[11px] font-bold uppercase tracking-wide transition-all shadow-sm z-20">
                     <LayoutDashboard size={14} className="text-red-600 dark:text-red-500" />
                     <span className="hidden sm:inline">Painel do Ciclo</span>
                     <ChevronRight size={12} className="opacity-60" />
@@ -926,7 +980,7 @@ function EditalPage({
             </div>
             <div className="flex gap-1 h-2.5 w-full">
               {Array.from({ length: 30 }).map((_, i) => (
-                <div key={i} className={`flex-1 rounded-sm transition-all duration-700 ${i < (statsAtivos.percentual / 3.33) ? 'bg-red-600 dark:bg-red-500' : 'bg-zinc-100 dark:bg-zinc-800'}`} />
+                <div key={i} className={`flex-1 rounded-sm transition-all duration-700 ${i < (statsAtivos.percentual / 3.33) ? 'bg-red-600 dark:bg-red-500' : 'bg-zinc-100 dark:bg-zinc-900'}`} />
               ))}
             </div>
             <div className="flex justify-between text-[10px] text-zinc-400 font-bold uppercase mt-2">
@@ -940,7 +994,7 @@ function EditalPage({
 
       {/* ── BARRA DE BUSCA ── */}
       <div className="sticky top-4 z-20 px-1">
-        <div className="relative flex items-center bg-white dark:bg-zinc-950/90 backdrop-blur-md rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-xl">
+        <div className={`relative flex items-center backdrop-blur-md shadow-xl ${systemPanelClass}`}>
           <Search className="ml-4 text-zinc-400" size={20} />
           <input
             type="text"
@@ -973,10 +1027,10 @@ function EditalPage({
 
       {/* Aviso quando cronograma não tem assuntos mapeados */}
       {semDadosCrono && (
-        <div className="mx-4 md:mx-0 p-6 rounded-2xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 text-center">
-          <CalendarDays size={32} className="mx-auto text-blue-400 mb-3" />
-          <p className="text-sm font-bold text-blue-700 dark:text-blue-300 mb-1">Detalhamento de assuntos não disponível</p>
-          <p className="text-xs text-blue-500 dark:text-blue-400">
+        <div className={`${systemCardClass} mx-4 md:mx-0 p-6 text-center`}>
+          <CalendarDays size={34} className="mx-auto text-blue-500 dark:text-blue-400 mb-3" />
+          <p className="text-base font-black text-zinc-900 dark:text-white mb-1">Detalhamento de assuntos não disponível</p>
+          <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
             O cronograma não possui assuntos detalhados mapeados. O progresso é rastreado pelos slots de estudo concluídos.
           </p>
         </div>
@@ -985,10 +1039,15 @@ function EditalPage({
       {/* ── LISTA DE DISCIPLINAS ── */}
       <div className="space-y-4 px-4 md:px-0">
         {editalAtivo.length === 0 && !semDadosCrono && (
-          <div className="text-center py-20 bg-zinc-50 dark:bg-zinc-900/50 rounded-3xl border-2 border-dashed border-zinc-200 dark:border-zinc-800">
-            <AlertCircle size={40} className="mx-auto text-zinc-300 mb-4" />
-            <p className="text-zinc-500 font-bold">Nenhum conteúdo encontrado.</p>
-          </div>
+          <EmptyStateCard
+            icon={Search}
+            title={searchTerm ? "Nenhum resultado" : "Edital Vazio"}
+            description={searchTerm ? `Não encontramos nada para "${searchTerm}". Tente outros termos.` : "Não há disciplinas ou tópicos mapeados neste plano."}
+            actionLabel={searchTerm ? "Limpar Busca" : undefined}
+            onAction={searchTerm ? () => setSearchTerm('') : undefined}
+            variant="cta"
+            className="py-12"
+          />
         )}
 
         {editalAtivo.map((disc) => {
@@ -1003,8 +1062,8 @@ function EditalPage({
               onDragLeave={handleDragLeave}
               onDrop={(e) => handleDrop(e, disc.id)}
               onDragEnd={handleDragEnd}
-              className={['bg-white dark:bg-zinc-900 border rounded-2xl overflow-hidden shadow-sm transition-all duration-150',
-                !isDragging && !isOver ? 'border-zinc-200 dark:border-zinc-800 hover:border-red-200 dark:hover:border-red-900/30' : '',
+              className={[systemCardClass,
+                !isDragging && !isOver ? '' : '',
                 isDragging ? 'opacity-40 scale-[0.99] shadow-none' : '',
                 isOver ? 'border-red-400 ring-2 ring-red-400/30 shadow-xl -translate-y-1' : '',
                 disc.isNew ? 'ring-2 ring-emerald-400/40 border-emerald-300 dark:border-emerald-700' : '',
@@ -1016,7 +1075,7 @@ function EditalPage({
                   <div
                     draggable
                     onDragStart={(e) => handleDragStart(e, disc.id)}
-                    className="hidden md:flex items-center justify-center w-8 shrink-0 cursor-grab active:cursor-grabbing text-zinc-200 dark:text-zinc-700 hover:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors border-r border-zinc-100 dark:border-zinc-800 group/grip"
+                    className="hidden md:flex items-center justify-center w-8 shrink-0 cursor-grab active:cursor-grabbing text-zinc-300 dark:text-zinc-700 hover:text-red-400 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors border-r border-zinc-100 dark:border-white/10 group/grip"
                   >
                     <GripVertical size={16} className="group-hover/grip:text-red-400 transition-colors" />
                   </div>
@@ -1024,7 +1083,7 @@ function EditalPage({
 
                 <div onClick={() => toggleDisciplina(disc.nome)} className="flex-1 flex items-center gap-5 p-5 text-left cursor-pointer group">
                   <div className="relative flex-shrink-0">
-                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center border transition-colors ${disc.progresso === 100 ? 'bg-emerald-100 dark:bg-emerald-900/20 text-emerald-600 border-emerald-200' : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-500 border-zinc-200 dark:border-zinc-800 group-hover:text-red-500'}`}>
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center border transition-colors ${disc.progresso === 100 ? 'bg-emerald-100 dark:bg-emerald-900/20 text-emerald-600 border-emerald-200 dark:border-emerald-500/30' : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-500 border-zinc-200 dark:border-white/10 group-hover:text-red-500'}`}>
                       {disc.progresso === 100 ? <CheckCircle2 size={22} /> : <LayoutGrid size={22} />}
                     </div>
                     <svg className="absolute -top-1 -left-1 w-14 h-14 pointer-events-none" viewBox="0 0 100 100">
@@ -1043,9 +1102,9 @@ function EditalPage({
                       )}
                     </div>
                     <div className="flex flex-wrap items-center gap-2 mt-2">
-                      <span className="px-1.5 py-0.5 rounded-md bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 text-[9px] font-bold uppercase flex items-center gap-1"><CheckSquare size={10} /> {disc.concluidos}/{disc.totalAssuntos}</span>
-                      <span className="px-1.5 py-0.5 rounded-md bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 text-[9px] font-bold uppercase flex items-center gap-1"><Clock size={10} /> {formatMinutesToTime(disc.stats.minutos)}</span>
-                      <span className={`px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase flex items-center gap-1 ${desempConf.style}`}><DesempIcon size={10} /> {desempConf.label}</span>
+                      <span className="px-2 py-1 rounded-md bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300 text-[10px] font-black uppercase flex items-center gap-1 border border-blue-100 dark:border-blue-500/20"><CheckSquare size={11} /> {disc.concluidos}/{disc.totalAssuntos}</span>
+                      <span className="px-2 py-1 rounded-md bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 text-[10px] font-black uppercase flex items-center gap-1 border border-amber-100 dark:border-amber-500/20"><Clock size={11} /> {formatMinutesToTime(disc.stats.minutos)}</span>
+                      <span className={`px-2 py-1 rounded-md text-[10px] font-black uppercase flex items-center gap-1 ${desempConf.style}`}><DesempIcon size={11} /> {desempConf.label}</span>
                       <button
                         onClick={(e) => { e.stopPropagation(); setStudyModalData({ disciplina: disc, assunto: null }); }}
                         className="md:hidden flex items-center gap-1 px-2.5 py-1 bg-zinc-900 dark:bg-white hover:bg-red-600 text-white dark:text-black hover:text-white dark:hover:text-white rounded-md text-[10px] font-bold uppercase shadow transition-all active:scale-95"
@@ -1057,7 +1116,7 @@ function EditalPage({
                   <ChevronDown size={20} className={`text-zinc-400 transition-transform flex-shrink-0 ${expandedDisciplinas[disc.nome] ? 'rotate-180' : ''}`} />
                 </div>
 
-                <div className="hidden md:flex items-center justify-end gap-3 p-5 border-l border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-black/10">
+                <div className="hidden md:flex items-center justify-end gap-3 p-5 border-l border-zinc-100 dark:border-white/10 bg-zinc-50/70 dark:bg-zinc-900/55">
                   <div className="flex flex-col items-end mr-2">
                     <span className="text-[10px] font-bold text-zinc-400 uppercase">Último Estudo</span>
                     <span className="text-xs font-mono text-zinc-700 dark:text-zinc-300">{formatDateRelative(disc.stats.ultimaData)}</span>
@@ -1074,7 +1133,7 @@ function EditalPage({
               {/* ── Assuntos expandidos ── */}
               <AnimatePresence>
                 {expandedDisciplinas[disc.nome] && (
-                  <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50/30 dark:bg-black/20">
+                  <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="border-t border-zinc-100 dark:border-white/10 bg-zinc-50/40 dark:bg-zinc-900/35">
                     <div className="divide-y divide-zinc-100 dark:divide-zinc-800/50">
                       {disc.assuntos.map((assunto, i) => {
                         const qStats = getProgressStats(assunto.acertos, assunto.questoes);
@@ -1086,12 +1145,12 @@ function EditalPage({
                           : `${disc.nome}-${assunto.nome}`.toLowerCase().trim();
 
                         return (
-                          <div key={i} className={`flex flex-col md:flex-row md:items-center p-4 sm:px-6 transition-all gap-4 hover:bg-white dark:hover:bg-zinc-800/50 ${assunto.estudado ? 'bg-emerald-50/40 dark:bg-emerald-900/10' : ''} ${assunto.isNew ? 'bg-emerald-50/60 dark:bg-emerald-900/10 border-l-2 border-emerald-400' : ''}`}>
+                          <div key={i} className={`flex flex-col md:flex-row md:items-center p-4 sm:px-6 transition-all gap-4 hover:bg-white/80 dark:hover:bg-zinc-900 ${assunto.estudado ? 'bg-emerald-50/40 dark:bg-emerald-500/10' : ''} ${assunto.isNew ? 'bg-emerald-50/60 dark:bg-emerald-500/10 border-l-2 border-emerald-400' : ''}`}>
                             <div className="flex items-start gap-4 flex-1">
                               <button
                                 onClick={() => handleToggleCheck(disc.id, disc.nome, assunto.nome, assunto.estudado)}
                                 disabled={loadingCheck[ckKey]}
-                                className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all flex-shrink-0 shadow-sm z-10 ${assunto.estudado ? 'bg-emerald-500 text-white' : 'bg-white dark:bg-zinc-800 border-2 border-zinc-200 dark:border-zinc-700 text-zinc-300 hover:border-red-400 hover:text-red-400'}`}
+                                className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all flex-shrink-0 shadow-sm z-10 ${assunto.estudado ? 'bg-emerald-500 text-white' : 'bg-white dark:bg-zinc-900 border-2 border-zinc-200 dark:border-white/10 text-zinc-300 hover:border-red-400 hover:text-red-400'}`}
                               >
                                 {loadingCheck[ckKey]
                                   ? <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
@@ -1121,7 +1180,7 @@ function EditalPage({
                               </div>
                               <button
                                 onClick={() => handleStartTopicStudy(disc, assunto.nome)}
-                                className="p-2.5 rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-red-500 hover:text-white dark:hover:bg-red-600 transition-all text-zinc-400 shadow-sm"
+                                className="p-2.5 rounded-xl bg-zinc-100 dark:bg-zinc-900 hover:bg-red-500 hover:text-white dark:hover:bg-red-600 transition-all text-zinc-400 shadow-sm border border-zinc-200 dark:border-white/10"
                               >
                                 <Play size={16} fill="currentColor" />
                               </button>
@@ -1144,10 +1203,10 @@ function EditalPage({
 
         {/* DISCIPLINAS INATIVAS (apenas no ciclo) */}
         {!isCronoView && inativeAtivos.length > 0 && (
-          <div className="mt-8 rounded-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+          <div className={`${systemCardClass} mt-8`}>
             <button
               onClick={() => setShowInactive(!showInactive)}
-              className="w-full flex items-center justify-between p-4 bg-zinc-100 dark:bg-zinc-800/50 hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
+              className="w-full flex items-center justify-between p-4 bg-zinc-50/80 dark:bg-zinc-900/60 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors"
             >
               <div className="flex items-center gap-2">
                 <Ban size={16} className="text-zinc-500" />
@@ -1159,11 +1218,11 @@ function EditalPage({
             </button>
             <AnimatePresence>
               {showInactive && (
-                <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden bg-white dark:bg-zinc-900 divide-y divide-zinc-100 dark:divide-zinc-800">
+                <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden bg-white dark:bg-zinc-950 divide-y divide-zinc-100 dark:divide-white/10">
                   {inativeAtivos.map(disc => (
-                    <div key={disc.id} className="p-4 flex flex-col md:flex-row items-center justify-between gap-4 opacity-70 hover:opacity-100 transition-opacity">
+                    <div key={disc.id} className="p-4 flex flex-col md:flex-row items-center justify-between gap-4 opacity-75 hover:opacity-100 transition-opacity">
                       <div className="flex-1 min-w-0 flex items-center gap-3">
-                        <div className="w-10 h-10 bg-zinc-100 dark:bg-zinc-800 rounded-xl flex items-center justify-center shrink-0">
+                        <div className="w-10 h-10 bg-zinc-100 dark:bg-zinc-900 rounded-xl flex items-center justify-center shrink-0 border border-zinc-200 dark:border-white/10">
                           <BookOpen size={16} className="text-zinc-400" />
                         </div>
                         <div>

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Clock, Target, TrendingUp, CalendarDays,
   ChevronDown, CheckCircle2, XCircle,
-  ArrowLeftRight, BookOpen
+  ArrowLeftRight, BookOpen, BarChart3
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { formatTime } from './DesempenhoPage';
@@ -90,38 +90,24 @@ const ContextSelector = ({ context }) => {
 };
 
 // --- COMPONENTES VISUAIS INTERNOS ---
-const colorMap = {
-  blue:   { text: 'text-red-500', bgHover: 'group-hover:text-red-500/15 dark:group-hover:text-red-500/10', border: 'border-red-500', watermark: 'text-red-500/10 dark:text-red-500/5' },
-  violet: { text: 'text-red-500', bgHover: 'group-hover:text-red-500/15 dark:group-hover:text-red-500/10', border: 'border-red-500', watermark: 'text-red-500/10 dark:text-red-500/5' },
-  emerald:{ text: 'text-red-500', bgHover: 'group-hover:text-red-500/15 dark:group-hover:text-red-500/10', border: 'border-red-500', watermark: 'text-red-500/10 dark:text-red-500/5' },
-  red:    { text: 'text-red-500',    bgHover: 'group-hover:text-red-500/15 dark:group-hover:text-red-500/10',    border: 'hover:border-red-500',    watermark: 'text-red-500/10 dark:text-red-500/5' },
-};
-
-const StatCard = ({ icon: Icon, title, value, subValue, color = 'red', className = "" }) => {
-  const theme = colorMap[color] || colorMap.red;
-  return (
-    <div className={`relative overflow-hidden group px-3 py-2.5 min-h-[75px] md:min-h-[85px] flex flex-col justify-center items-start transition-all duration-300 hover:shadow-glow border-l-4 border-red-500 bg-white dark:bg-zinc-900 rounded-xl shadow-sm ${className}`}>
-      <div className="relative z-20 flex flex-col gap-0.5 w-full">
-        <h3 className="text-[9px] md:text-[10px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 truncate w-full leading-none">
-          {title}
-        </h3>
-        <div className="flex flex-row items-baseline gap-1.5 mt-0.5">
-          <div className="text-xl md:text-2xl font-extrabold text-zinc-900 dark:text-white tracking-tight leading-none">
-            {value}
-          </div>
-          {subValue && (
-            <div className="text-[10px] md:text-xs opacity-90 text-zinc-500 dark:text-zinc-400 font-medium leading-none">
-              {subValue}
-            </div>
-          )}
-        </div>
-      </div>
-      <div className={`absolute -bottom-4 -right-4 ${theme.watermark} transition-all duration-700 ease-out group-hover:scale-125 group-hover:rotate-[-10deg] ${theme.bgHover} z-10 pointer-events-none`}>
-        <Icon strokeWidth={1.5} className="w-16 h-16 md:w-20 md:h-20" />
+const StatCard = ({ icon: Icon, title, value, subValue, className = "" }) => (
+  <div className={`group relative flex min-h-[86px] flex-col justify-center overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white px-3 py-2.5 shadow-soft transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/40 hover:!border-l-red-500 hover:shadow-[0_0_18px_rgba(239,68,68,0.07)] dark:border-white/10 dark:!border-l-red-500/25 dark:bg-zinc-950 dark:hover:border-accent-light/20 dark:hover:!border-l-red-500 dark:hover:shadow-[0_0_22px_rgba(239,68,68,0.08)] ${className}`}>
+    <div className="relative z-20 flex w-full flex-col gap-0.5">
+      <h3 className="w-full truncate text-[10px] font-bold uppercase leading-none tracking-wider text-text-secondary dark:text-text-dark-secondary">
+        {title}
+      </h3>
+      <div className="mt-1 flex flex-row items-baseline gap-1">
+        <p className="text-xl font-extrabold leading-none tracking-tight text-text-primary dark:text-text-dark-primary md:text-2xl">
+          {value}
+        </p>
+        {subValue && <div className="text-[9px] leading-none opacity-90">{subValue}</div>}
       </div>
     </div>
-  );
-};
+    <div className="pointer-events-none absolute -bottom-4 -right-4 z-10 text-red-500/10 transition-all duration-700 ease-out group-hover:scale-125 group-hover:rotate-[-10deg] dark:text-red-500/5">
+      <Icon strokeWidth={1.5} className="h-16 w-16 md:h-20 md:w-20" />
+    </div>
+  </div>
+);
 
 // ── COMPACT INLINE SELECT ─────────────────────────────────────────────────
 const InlineSelect = ({ options, value, onChange, placeholder, disabled }) => {
@@ -267,16 +253,27 @@ const DesempenhoHeader = ({ analytics, filters, options, context }) => {
     <div className="flex flex-col gap-5">
 
       {/* ── TÍTULO + FILTROS ─────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 pb-4 border-b border-zinc-100 dark:border-zinc-800">
+      <div className="group relative overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white p-4 shadow-soft transition-all duration-300 hover:border-accent-light/40 hover:!border-l-red-500 hover:shadow-[0_0_18px_rgba(239,68,68,0.07)] dark:border-white/10 dark:!border-l-red-500/25 dark:bg-zinc-950 dark:hover:border-accent-light/20 dark:hover:!border-l-red-500 dark:hover:shadow-[0_0_22px_rgba(239,68,68,0.08)]">
+        <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-red-500/5 blur-[80px] transition-all duration-700 group-hover:bg-red-500/10" />
+        <div className="pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-zinc-500/5 blur-[80px]" />
+        <div className="relative z-10 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
 
         {/* Título */}
-        <div className="flex items-center gap-3 flex-shrink-0">
-          <div className="p-2 sm:p-2.5 bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-500 rounded-xl">
-            <TrendingUp size={20} strokeWidth={2} />
+        <div className="flex min-w-0 items-start gap-3">
+          <div className="relative">
+            <div className="absolute inset-0 animate-ping rounded-full bg-red-500/20 opacity-30 duration-[3s]" />
+            <div className="relative flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-red-600 to-rose-700 text-white shadow-xl shadow-red-500/20">
+              <BarChart3 size={22} strokeWidth={2.1} />
+            </div>
           </div>
-          <h1 className="text-xl sm:text-2xl font-black text-zinc-800 dark:text-white tracking-tight uppercase">
-            Desempenho
-          </h1>
+          <div className="min-w-0">
+            <h1 className="text-2xl font-black uppercase leading-none tracking-tight text-zinc-900 dark:text-white sm:text-3xl">
+              Desempenho <span className="bg-gradient-to-r from-red-600 to-rose-700 bg-clip-text text-transparent">Completo</span>
+            </h1>
+            <p className="mt-2 max-w-2xl text-xs font-semibold leading-relaxed text-zinc-500 dark:text-zinc-400 sm:text-sm">
+              Acompanhe tempo, precisao, consistencia e prioridades de estudo com base nos seus registros.
+            </p>
+          </div>
         </div>
 
         {/* Filtros */}
@@ -354,6 +351,7 @@ const DesempenhoHeader = ({ analytics, filters, options, context }) => {
           </AnimatePresence>
 
         </div>
+      </div>
       </div>
 
       {/* ── KPI CARDS ─────────────────────────────────────────────────── */}

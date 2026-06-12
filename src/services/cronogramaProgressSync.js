@@ -80,7 +80,8 @@ export async function syncRegistroEstudoWithCronograma({
   if (!db || !userUid || !cronogramaId || !registro) return { synced: false };
 
   const minutosRegistrados = Number(registro.tempoEstudadoMinutos || 0);
-  if (minutosRegistrados <= 0) return { synced: false, reason: 'no-time' };
+  const shouldForceComplete = Boolean(registro.markAsFinished || registro.assuntoFinalizado);
+  if (minutosRegistrados <= 0 && !shouldForceComplete) return { synced: false, reason: 'no-time' };
 
   const dataRegistro = toYMD(registro.data);
   if (!dataRegistro) return { synced: false, reason: 'invalid-date' };
@@ -135,13 +136,13 @@ export async function syncRegistroEstudoWithCronograma({
       return aIdx - bIdx;
     });
 
-  let minutosRestantes = minutosRegistrados;
+  let minutosRestantes = shouldForceComplete ? Number.POSITIVE_INFINITY : minutosRegistrados;
   let minutosAbatidos = 0;
   const updates = {};
   const pendenciasTeoria = cronograma?.pendenciasTeoria || {};
 
   for (const slot of slotsOrdenados) {
-    if (minutosRestantes <= 0) break;
+    if (!shouldForceComplete && minutosRestantes <= 0) break;
 
     const slotKey = getSlotProgressKey(slot);
     if (!slotKey) continue;
@@ -155,7 +156,7 @@ export async function syncRegistroEstudoWithCronograma({
     const faltantes = Math.max(0, minutosPlanejados - progressoBase);
     if (faltantes <= 0) continue;
 
-    const incremento = Math.min(faltantes, minutosRestantes);
+    const incremento = shouldForceComplete ? faltantes : Math.min(faltantes, minutosRestantes);
     const novoProgresso = progressoBase + incremento;
     const concluiu = novoProgresso >= minutosPlanejados;
 
@@ -173,7 +174,7 @@ export async function syncRegistroEstudoWithCronograma({
       }
     }
 
-    minutosRestantes -= incremento;
+    if (!shouldForceComplete) minutosRestantes -= incremento;
     minutosAbatidos += incremento;
   }
 
@@ -185,7 +186,7 @@ export async function syncRegistroEstudoWithCronograma({
     synced: true,
     minutesLogged: minutosRegistrados,
     minutesAppliedToPlan: minutosAbatidos,
-    minutesRemainingUnplanned: Math.max(0, minutosRestantes),
+    minutesRemainingUnplanned: shouldForceComplete ? 0 : Math.max(0, minutosRestantes),
   };
 }
 

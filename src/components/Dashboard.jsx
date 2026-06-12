@@ -10,9 +10,9 @@ import { X, CheckCircle2, Download, AlertTriangle, Maximize2, ClipboardList, Ale
 import NavSideBar from '../components/dashboard/NavSideBar';
 import Header from '../components/dashboard/Header';
 import GlobalStudyRegisterFab from '../components/ciclos/GlobalStudyRegisterFab';
+import AppBackgroundEffects from '../components/shared/AppBackgroundEffects';
 const ShareCard = lazy(() => import('../components/shared/ShareCard'));
 const Home = lazy(() => import('../pages/HomePage/HomePage'));
-const GoalsTab = lazy(() => import('../components/dashboard/GoalsTab'));
 const CalendarTab = lazy(() => import('../components/dashboard/CalendarTab'));
 const CiclosPage = lazy(() => import('../pages/CiclosPage'));
 const CronogramaPage = lazy(() => import('../pages/CronogramaPage'));
@@ -32,6 +32,8 @@ const SimuladoTimer = lazy(() => import('../pages/SimuladosPage/SimuladoTimer'))
 const NoticiasPage = lazy(() => import('../pages/NoticiasPage'));
 const RevisaoPage = lazy(() => import('../pages/RevisaoPage'));
 
+const ENABLE_ONBOARDING_TOUR = false;
+
 import { useNotifications } from '../hooks/useNotifications';
 import { useUserAccess } from '../hooks/useUserAccess';
 import {
@@ -40,6 +42,8 @@ import {
   syncRegistroRevisaoWithCronograma,
 } from '../services/cronogramaProgressSync';
 import { upsertCicloRevisao } from '../services/cicloRevisoes';
+import { resolveLogoUrl } from './admin/config/editalAssets';
+import { isCicloLegacyForGuide } from '../utils/cicloLegacyUpgrade';
 
 const dateToYMD = (date) => {
   const d = date.getDate();
@@ -74,6 +78,27 @@ const normalizeRegistroEstudo = (docSnap) => {
     acertos: Number(data.acertos || 0),
   };
 };
+
+const normalizeRegistroPayload = (id, data = {}) => {
+  let dataStr = data.data;
+  if (data.data?.toDate) dataStr = dateToYMD(data.data.toDate());
+  if (!dataStr && data.timestamp?.toDate) dataStr = dateToYMD(data.timestamp.toDate());
+  return {
+    id,
+    ...data,
+    data: dataStr,
+    tempoEstudadoMinutos: Number(data.tempoEstudadoMinutos || 0),
+    questoesFeitas: Number(data.questoesFeitas || 0),
+    acertos: Number(data.acertos || 0),
+  };
+};
+
+const sortRegistrosEstudo = (items = []) => [...items].sort((a, b) => {
+  const tA = a.timestamp?.seconds || (a.timestamp instanceof Date ? a.timestamp.getTime() / 1000 : 0);
+  const tB = b.timestamp?.seconds || (b.timestamp instanceof Date ? b.timestamp.getTime() / 1000 : 0);
+  if (a.data === b.data) return tB - tA;
+  return a.data < b.data ? 1 : -1;
+});
 
 const getCompletionDocId = (origemConclusaoId) => {
   if (!origemConclusaoId) return null;
@@ -216,7 +241,9 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   const [isDownloadAlertVisible, setIsDownloadAlertVisible] = useState(false);
   const [tourState, setTourState]               = useState({ isActive:false, type:'main' });
   const [isFeedbackOpen, setIsFeedbackOpen]     = useState(false);
+  const [feedbackInitialState, setFeedbackInitialState] = useState({ initialView: 'home', initialType: 'ideia' });
   const [warningAlert, setWarningAlert]         = useState({ isOpen:false, title:'', message:'' });
+  const [forcePlanejamentoSelector, setForcePlanejamentoSelector] = useState(false);
 
   const [activeStudySession, setActiveStudySession]   = useState(null);
   const [finishModalData, setFinishModalData]         = useState(null);
@@ -234,8 +261,19 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   const [targetOpenCicloId, setTargetOpenCicloId] = useState(null);
   const [allRegistrosEstudo, setAllRegistrosEstudo] = useState([]);
   const [allSimulados, setAllSimulados]           = useState([]);
+  const [registrosLoaded, setRegistrosLoaded]     = useState(false);
+  const [simuladosLoaded, setSimuladosLoaded]     = useState(false);
   const [activeCycleDisciplines, setActiveCycleDisciplines] = useState([]);
   const mainContentRef = useRef(null);
+
+  const handleOpenFeedback = (options = {}) => {
+    setFeedbackInitialState({
+      initialView: options.initialView || 'home',
+      initialType: options.initialType || 'ideia',
+    });
+    setIsFeedbackOpen(true);
+  };
+  const statsSyncKeyRef = useRef('');
 
   const todayStr = dateToYMD(new Date());
   const hasActiveStudyContext = !!(activeCicloId || activeCronogramaData?.id);
@@ -255,19 +293,34 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       navigateTo: 'ciclos',
     };
   }, [activeCicloData?.id, activeCicloData?.nome, activeCicloId, cicloPendenteFinalizacao]);
+  const cicloLegacyUpgradeAlert = useMemo(() => {
+    if (!isCicloLegacyForGuide(activeCicloData)) return null;
+    return {
+      id: `alerta_atualizar_guia_ciclo_${activeCicloId || activeCicloData?.id || 'ativo'}`,
+      type: 'ciclo_legacy_upgrade',
+      cicloId: activeCicloId || activeCicloData?.id || null,
+      title: 'Atualize seu ciclo',
+      message: 'Ative o novo guia de estudos por assunto mantendo seu edital e progresso atual.',
+      actionLabel: 'Atualizar ciclo',
+      navigateTo: 'ciclos',
+    };
+  }, [activeCicloData, activeCicloId]);
   const registroContextOptions = useMemo(() => {
     const options = [];
 
     if (activeCicloId) {
+      const cicloLogo = activeCicloData?.logoUrl || activeCicloData?.logo || resolveLogoUrl({ ciclo: activeCicloData });
       options.push({
         type: 'ciclo',
         id: activeCicloId,
         label: activeCicloData?.nome || 'Ciclo',
+        logoUrl: cicloLogo,
         disciplinas: Array.isArray(activeCycleDisciplines) ? activeCycleDisciplines : [],
       });
     }
 
     if (activeCronogramaData?.id) {
+      const cronogramaLogo = activeCronogramaData.logoUrl || activeCronogramaData.logo || activeCronogramaData.editalLogoUrl || resolveLogoUrl({ ciclo: activeCronogramaData });
       const snapshot = Array.isArray(activeCronogramaData.disciplinasSnapshot)
         ? activeCronogramaData.disciplinasSnapshot
         : [];
@@ -284,12 +337,17 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         type: 'cronograma',
         id: activeCronogramaData.id,
         label: activeCronogramaData.nome || 'Cronograma',
+        logoUrl: cronogramaLogo,
         disciplinas: disciplinasCronograma,
       });
     }
 
     return options;
   }, [activeCicloId, activeCicloData?.nome, activeCycleDisciplines, activeCronogramaData]);
+
+  useEffect(() => {
+    statsSyncKeyRef.current = '';
+  }, [user?.uid]);
 
   const defaultRegistroContext = useMemo(() => {
     const contextTypes = registroContextOptions.map((item) => item.type);
@@ -307,7 +365,14 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   useEffect(() => {
     if (!user) return;
     const q = query(collection(db,'users',user.uid,'simulados'), orderBy('data','desc'));
-    return onSnapshot(q, (snap) => setAllSimulados(snap.docs.map(d => ({ id:d.id, ...d.data() }))));
+    setSimuladosLoaded(false);
+    return onSnapshot(q, (snap) => {
+      setAllSimulados(snap.docs.map(d => ({ id:d.id, ...d.data() })));
+      setSimuladosLoaded(true);
+    }, (error) => {
+      console.error('[Dashboard] Erro ao sincronizar simulados:', error);
+      setSimuladosLoaded(true);
+    });
   }, [user]);
 
   const mergedAllRegistrosEstudo = useMemo(() => {
@@ -343,25 +408,38 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       }
     });
 
-    return [...allRegistrosEstudo, ...virtual].sort((a,b) => {
-      const tA = a.timestamp?.seconds||0, tB = b.timestamp?.seconds||0;
-      if (a.data === b.data) return tB - tA;
-      return a.data < b.data ? 1 : -1;
-    });
+    return sortRegistrosEstudo([...allRegistrosEstudo, ...virtual]);
   }, [allRegistrosEstudo, allSimulados, activeCycleDisciplines]);
 
   const mergedActiveRegistrosEstudo = useMemo(() => {
-    if (!activeCicloId) return mergedAllRegistrosEstudo.filter(r => r.tipoEstudo === 'Simulado');
-    return mergedAllRegistrosEstudo.filter(r => r.cicloId === activeCicloId || r.tipoEstudo === 'Simulado');
-  }, [mergedAllRegistrosEstudo, activeCicloId]);
+    const preferred = getPreferredHomeContext();
+    const activeCronogramaId = activeCronogramaData?.id;
+
+    if (preferred === 'cronograma' && activeCronogramaId) {
+      return mergedAllRegistrosEstudo.filter(r => r.cronogramaId === activeCronogramaId || r.tipoEstudo === 'Simulado');
+    }
+
+    if (preferred === 'ciclo' && activeCicloId) {
+      return mergedAllRegistrosEstudo.filter(r => r.cicloId === activeCicloId || r.tipoEstudo === 'Simulado');
+    }
+
+    if (activeCronogramaId && !activeCicloId) {
+      return mergedAllRegistrosEstudo.filter(r => r.cronogramaId === activeCronogramaId || r.tipoEstudo === 'Simulado');
+    }
+
+    if (activeCicloId) {
+      return mergedAllRegistrosEstudo.filter(r => r.cicloId === activeCicloId || r.tipoEstudo === 'Simulado');
+    }
+
+    return mergedAllRegistrosEstudo;
+  }, [mergedAllRegistrosEstudo, activeCicloId, activeCronogramaData?.id]);
 
   const isNovoUsuarioPlanejamento = useMemo(() => {
     const semCicloAtivo = !activeCicloId;
     const semCronogramaAtivo = !activeCronogramaData?.id;
     const semRegistros = mergedAllRegistrosEstudo.length === 0;
-    const semMetas = goalsHistory.length === 0;
-    return semCicloAtivo && semCronogramaAtivo && semRegistros && semMetas;
-  }, [activeCicloId, activeCronogramaData?.id, mergedAllRegistrosEstudo.length, goalsHistory.length]);
+    return semCicloAtivo && semCronogramaAtivo && semRegistros;
+  }, [activeCicloId, activeCronogramaData?.id, mergedAllRegistrosEstudo.length]);
 
   const dayToShareData = useMemo(() => {
     const recs = mergedAllRegistrosEstudo.filter(r => r.data === todayStr);
@@ -392,8 +470,16 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         const data = docSnap.data();
         if (data.isSimulado || data.status === 'finishing' || data.status === 'finished') return;
         setActiveStudySession(prev => {
-          if (prev?.disciplina?.id === data.disciplinaId && prev?.assunto === data.assunto) return prev;
-          return { disciplina:{ id:data.disciplinaId, nome:data.disciplinaNome }, assunto:data.assunto, isMinimized:true, sessaoGlobalIndex: Number.isFinite(Number(data.sessaoGlobalIndex)) ? Number(data.sessaoGlobalIndex) : null };
+          const prevAssunto = prev?.assunto ?? null;
+          const nextAssunto = data.assunto ?? null;
+          if (prev?.disciplina?.id === data.disciplinaId && prevAssunto === nextAssunto) return prev;
+          return {
+            disciplina:{ id:data.disciplinaId, nome:data.disciplinaNome },
+            assunto: nextAssunto,
+            isMinimized: prev ? prev.isMinimized : true,
+            defaultContext: data.defaultContext || prev?.defaultContext || null,
+            sessaoGlobalIndex: Number.isFinite(Number(data.sessaoGlobalIndex)) ? Number(data.sessaoGlobalIndex) : null
+          };
         });
       } else {
         if (!finishModalData && !pendingReviewData) setActiveStudySession(null);
@@ -452,15 +538,51 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   useEffect(() => {
     if (!user) return;
     setLoading(true);
+    setRegistrosLoaded(false);
     const q = query(collection(db,'users',user.uid,'registrosEstudo'), orderBy('data','desc'), orderBy('timestamp','desc'));
     return onSnapshot(q, (snap) => {
       setAllRegistrosEstudo(snap.docs.map(normalizeRegistroEstudo));
+      setRegistrosLoaded(true);
       setLoading(false);
     }, (error) => {
       console.error('[Dashboard] Erro ao sincronizar registrosEstudo:', error);
+      setRegistrosLoaded(true);
       setLoading(false);
     });
   }, [user]);
+
+  useEffect(() => {
+    if (!user || !registrosLoaded || !simuladosLoaded) return;
+
+    const totalRegistros = allRegistrosEstudo.reduce((acc, item) => ({
+      minutos: acc.minutos + Number(item.tempoEstudadoMinutos || 0),
+      questoes: acc.questoes + Number(item.questoesFeitas || 0),
+      acertos: acc.acertos + Number(item.acertos || 0),
+    }), { minutos: 0, questoes: 0, acertos: 0 });
+
+    const totalSimulados = allSimulados.reduce((acc, item) => ({
+      minutos: acc.minutos + Number(item.durationMinutes || 0),
+      questoes: acc.questoes + Number(item.resumo?.totalQuestoes || 0),
+      acertos: acc.acertos + Number(item.resumo?.totalAcertos || 0),
+    }), { minutos: 0, questoes: 0, acertos: 0 });
+
+    const totals = {
+      totalHorasMinutos: totalRegistros.minutos + totalSimulados.minutos,
+      totalQuestoes: totalRegistros.questoes + totalSimulados.questoes,
+      totalAcertos: totalRegistros.acertos + totalSimulados.acertos,
+    };
+    const syncKey = `${totals.totalHorasMinutos}|${totals.totalQuestoes}|${totals.totalAcertos}`;
+    if (statsSyncKeyRef.current === syncKey) return;
+    statsSyncKeyRef.current = syncKey;
+
+    setDoc(doc(db,'users',user.uid,'stats','geral'), {
+      ...totals,
+      lastUpdated: Timestamp.now(),
+    }, { merge: true }).catch((error) => {
+      console.error('[Dashboard] Erro ao sincronizar stats/geral:', error);
+      statsSyncKeyRef.current = '';
+    });
+  }, [allRegistrosEstudo, allSimulados, registrosLoaded, simuladosLoaded, user]);
 
   const recalculateAllStats = async () => {
     if (!user) return;
@@ -641,8 +763,17 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         const existingRegistro = await getDoc(registroRef);
         registroJaExistia = existingRegistro.exists();
         await setDoc(registroRef, payload);
+        setAllRegistrosEstudo((prev) => {
+          const normalized = normalizeRegistroPayload(completionDocId, payload);
+          const withoutCurrent = prev.filter((item) => item.id !== completionDocId);
+          return sortRegistrosEstudo([normalized, ...withoutCurrent]);
+        });
       } else {
-        await addDoc(collection(db,'users',user.uid,'registrosEstudo'), payload);
+        const registroRef = await addDoc(collection(db,'users',user.uid,'registrosEstudo'), payload);
+        setAllRegistrosEstudo((prev) => sortRegistrosEstudo([
+          normalizeRegistroPayload(registroRef.id, payload),
+          ...prev.filter((item) => item.id !== registroRef.id),
+        ]));
       }
 
       if (registroJaExistia) return;
@@ -765,6 +896,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       if (snap.exists()) {
         const data = snap.data();
         await deleteDoc(ref);
+        setAllRegistrosEstudo((prev) => prev.filter((item) => item.id !== id));
         const statsRef = doc(db,'users',user.uid,'stats','geral');
         try { await updateDoc(statsRef, { totalHorasMinutos:increment(-(data.tempoEstudadoMinutos||0)), totalQuestoes:increment(-(data.questoesFeitas||0)), totalAcertos:increment(-(data.acertos||0)) }); } catch {}
       }
@@ -918,7 +1050,8 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         timestamp:Timestamp.now(),
         ...(Number.isFinite(Number(dataRef.sessaoGlobalIndex)) && !teoriaNaoFinalizadaCiclo ? { sessaoGlobalIndex: Number(dataRef.sessaoGlobalIndex) } : {}),
         ...(isRegistroContext(contextoRegistro) ? { contextoRegistro } : {}),
-        ...(contextoRegistro === 'ciclo' && markAsFinished ? { assuntoFinalizadoCiclo: true, markAsFinished: true } : {}),
+        ...(markAsFinished ? { markAsFinished: true, assuntoFinalizado: true } : {}),
+        ...(contextoRegistro === 'ciclo' && markAsFinished ? { assuntoFinalizadoCiclo: true } : {}),
         ...(contextoRegistro === 'ciclo' && teoriaNaoFinalizadaCiclo ? { teoriaNaoFinalizadaCiclo: true } : {}),
         ...(contextoRegistro === 'cronograma' && naoConcluidoCronograma ? { naoConcluidoCronograma: true } : {}),
       });
@@ -967,7 +1100,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     setPreferredHomeContext('ciclo');
     if (cicloId) setTargetOpenCicloId(cicloId);
     setActiveTab('ciclos'); setForceOpenVisual(true); setTimeout(() => setForceOpenVisual(false), 1000);
-    if (user) { const seen = localStorage.getItem(`onboarding_seen_${user.uid}_cycle_visual`); if (!seen) setTourState({ isActive:true, type:'cycle_visual' }); }
+    if (ENABLE_ONBOARDING_TOUR && user) { const seen = localStorage.getItem(`onboarding_seen_${user.uid}_cycle_visual`); if (!seen) setTourState({ isActive:true, type:'cycle_visual' }); }
   };
 
   const handleCronogramaCreation = () => {
@@ -976,14 +1109,28 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   };
 
   const handleGoToActiveCycle = () => { if (activeCicloId) handleCicloCreationOrActivation(activeCicloId); else setActiveTab('planejamento'); };
+  const handleCreateNewCycleFromLegacy = useCallback(() => {
+    setForcePlanejamentoSelector(true);
+    setActiveTab('planejamento');
+  }, []);
 
   const handleTabChange = (tab) => {
     const resolvedTab = tab === 'cronogramas' ? 'planejamento' : tab;
+    if (resolvedTab !== 'planejamento') setForcePlanejamentoSelector(false);
     if (resolvedTab === 'cronograma') setPreferredHomeContext('cronograma');
     if (resolvedTab === 'ciclos') setPreferredHomeContext('ciclo');
     setActiveTab(resolvedTab);
     if (resolvedTab !== 'ciclos') { setForceOpenVisual(false); setIsTimerRaised(false); }
   };
+
+  const handleChoosePlanFromRevisao = useCallback(() => {
+    setForcePlanejamentoSelector(true);
+    setActiveTab('planejamento');
+  }, []);
+
+  const handleSeletorDiretoAberto = useCallback(() => {
+    setForcePlanejamentoSelector(false);
+  }, []);
 
   const handleLogout     = async () => { clearActiveTimerDoc(); clearActiveSimuladoDoc(); signOut(auth).catch(console.error); };
 
@@ -1014,6 +1161,8 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   };
 
   useEffect(() => {
+    if (!ENABLE_ONBOARDING_TOUR) return;
+
     if (!user || loading) return;
     const type    = 'main';
     const hasSeen = localStorage.getItem(`onboarding_seen_${user.uid}_${type}`);
@@ -1074,18 +1223,16 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     switch (activeTab) {
       case 'home':
         return <Home registrosEstudo={mergedActiveRegistrosEstudo} allRegistrosEstudo={mergedAllRegistrosEstudo} goalsHistory={goalsHistory} setActiveTab={handleGoToActiveCycle} activeCicloData={activeCicloData} activeCronogramaData={activeCronogramaData} onGoToCronograma={() => handleCronogramaCreation(activeCronogramaData?.id)} onGoToRevisao={() => setActiveTab('revisoes')} onStartStudy={handleStartStudy} addRegistroEstudo={addRegistroEstudo} deleteCompletionRegistro={deleteCompletionRegistro} user={user} />;
-      case 'goals':
-        return <GoalsTab goalsHistory={goalsHistory} onSetGoal={addGoal} onDeleteGoal={(id)=>deleteData('metas',id)}/>;
       case 'calendar':
         return <CalendarTab registrosEstudo={mergedAllRegistrosEstudo} goalsHistory={goalsHistory} onDeleteRegistro={deleteRegistro} activeCicloData={activeCicloData} activeCronogramaData={activeCronogramaData}/>;
       case 'ciclos':
-        return <CiclosPage user={user} onStartStudy={handleStartStudy} onCicloAtivado={handleCicloCreationOrActivation} addRegistroEstudo={addRegistroEstudo} deleteCompletionRegistro={deleteCompletionRegistro} activeCicloId={activeCicloId} forceOpenVisual={forceOpenVisual} targetOpenCicloId={targetOpenCicloId} onTargetOpenHandled={() => setTargetOpenCicloId(null)} onGoToEdital={() => setActiveTab('edital')} registrosEstudo={mergedAllRegistrosEstudo} isTimerActive={!!(activeStudySession||activeSimuladoSession)}/>;
+        return <CiclosPage user={user} onStartStudy={handleStartStudy} onCicloAtivado={handleCicloCreationOrActivation} addRegistroEstudo={addRegistroEstudo} deleteCompletionRegistro={deleteCompletionRegistro} onDeleteRegistro={deleteRegistro} activeCicloId={activeCicloId} forceOpenVisual={forceOpenVisual} targetOpenCicloId={targetOpenCicloId} onTargetOpenHandled={() => setTargetOpenCicloId(null)} onGoToEdital={() => setActiveTab('edital')} onCreateNewCycle={handleCreateNewCycleFromLegacy} registrosEstudo={mergedAllRegistrosEstudo} isTimerActive={!!(activeStudySession||activeSimuladoSession)}/>;
       case 'planejamento':
-        return <PlanejamentoPage user={user} addRegistroEstudo={addRegistroEstudo} onStartStudy={handleStartStudy} onGoToEdital={() => setActiveTab('edital')} registrosEstudo={mergedAllRegistrosEstudo} isTimerActive={!!(activeStudySession||activeSimuladoSession)} onGoToCronograma={handleCronogramaCreation} onCicloAtivado={handleCicloCreationOrActivation} abrirDiretoSeletor={isNovoUsuarioPlanejamento} onOpenFeedback={() => setIsFeedbackOpen(true)} />;
+        return <PlanejamentoPage user={user} addRegistroEstudo={addRegistroEstudo} onStartStudy={handleStartStudy} onGoToEdital={() => setActiveTab('edital')} registrosEstudo={mergedAllRegistrosEstudo} isTimerActive={!!(activeStudySession||activeSimuladoSession)} onGoToCronograma={handleCronogramaCreation} onCicloAtivado={handleCicloCreationOrActivation} abrirDiretoSeletor={isNovoUsuarioPlanejamento || forcePlanejamentoSelector} onSeletorDiretoAberto={handleSeletorDiretoAberto} onOpenFeedback={handleOpenFeedback} />;
       case 'cronograma':
-        return <CronogramaPage user={user} onStartStudy={handleStartStudy} addRegistroEstudo={addRegistroEstudo} deleteCompletionRegistro={deleteCompletionRegistro} onGoToEdital={() => setActiveTab('edital')} onGoToRevisao={() => setActiveTab('revisoes')}/>;
+        return <CronogramaPage user={user} onStartStudy={handleStartStudy} addRegistroEstudo={addRegistroEstudo} deleteCompletionRegistro={deleteCompletionRegistro} registrosEstudo={mergedAllRegistrosEstudo} onDeleteRegistro={deleteRegistro} onGoToEdital={() => setActiveTab('edital')} onGoToRevisao={() => setActiveTab('revisoes')}/>;
       case 'cronogramas':
-        return <PlanejamentoPage user={user} addRegistroEstudo={addRegistroEstudo} onStartStudy={handleStartStudy} onGoToEdital={() => setActiveTab('edital')} registrosEstudo={mergedAllRegistrosEstudo} isTimerActive={!!(activeStudySession||activeSimuladoSession)} onGoToCronograma={handleCronogramaCreation} onCicloAtivado={handleCicloCreationOrActivation} abrirDiretoSeletor={isNovoUsuarioPlanejamento} onOpenFeedback={() => setIsFeedbackOpen(true)} />;
+        return <PlanejamentoPage user={user} addRegistroEstudo={addRegistroEstudo} onStartStudy={handleStartStudy} onGoToEdital={() => setActiveTab('edital')} registrosEstudo={mergedAllRegistrosEstudo} isTimerActive={!!(activeStudySession||activeSimuladoSession)} onGoToCronograma={handleCronogramaCreation} onCicloAtivado={handleCicloCreationOrActivation} abrirDiretoSeletor={isNovoUsuarioPlanejamento || forcePlanejamentoSelector} onSeletorDiretoAberto={handleSeletorDiretoAberto} onOpenFeedback={handleOpenFeedback} />;
       case 'edital':
         return (
           <EditalPage
@@ -1101,7 +1248,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
           />
         );
       case 'revisoes':
-        return <RevisaoPage user={user} onStartStudy={handleStartStudy} addRegistroEstudo={addRegistroEstudo} deleteCompletionRegistro={deleteCompletionRegistro} />;
+        return <RevisaoPage user={user} onStartStudy={handleStartStudy} addRegistroEstudo={addRegistroEstudo} deleteCompletionRegistro={deleteCompletionRegistro} onChoosePlan={handleChoosePlanFromRevisao} />;
       case 'stats':
         return <Desempenho registrosEstudo={mergedAllRegistrosEstudo} disciplinasDoCiclo={activeCycleDisciplines} activeCicloId={activeCicloId} activeCronogramaId={activeCronogramaData?.id||null} activeCicloData={activeCicloData} activeCronogramaData={activeCronogramaData} metas={goalsHistory} onCreateCycle={() => setActiveTab('planejamento')}/>;
       case 'simulados':
@@ -1120,7 +1267,8 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   };
 
   return (
-    <div className="flex min-h-screen bg-background-light dark:bg-background-dark text-text-primary dark:text-text-dark-primary transition-colors duration-300 overflow-x-hidden">
+    <div className="relative isolate flex min-h-screen bg-background-light dark:bg-background-dark text-text-primary dark:text-text-dark-primary transition-colors duration-300 overflow-x-hidden">
+      <AppBackgroundEffects />
       <WarningModal isOpen={warningAlert.isOpen} title={warningAlert.title} message={warningAlert.message} onClose={() => setWarningAlert(p => ({ ...p, isOpen:false }))}/>
       {activeTab === 'home' && (
         <Suspense fallback={null}>
@@ -1155,11 +1303,12 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         goalsHistory={goalsHistory}
         activeCicloId={activeCicloId}
         onShareGoal={handleShareGoal}
-        onOpenFeedback={() => setIsFeedbackOpen(true)}
+        onOpenFeedback={handleOpenFeedback}
         activeCicloData={activeCicloData}
         activeCronogramaData={activeCronogramaData}
         onGoToCicloAtivo={handleGoToActiveCycle}
         cicloFinalizacaoAlert={cicloFinalizacaoAlert}
+        cicloLegacyUpgradeAlert={cicloLegacyUpgradeAlert}
         notificationProps={{
           notifications,
           unreadCount,
@@ -1176,9 +1325,9 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         }}
       />
 
-      <div ref={mainContentRef} className={`flex-grow w-full transition-all duration-300 pt-[80px] px-4 md:px-8 lg:pt-[90px] pb-10 ${isSidebarExpanded ? 'lg:ml-[260px]' : 'lg:ml-[80px]'}`}>
+      <div ref={mainContentRef} className={`dashboard-main-content relative z-10 min-w-0 flex-1 transition-all duration-300 pt-[80px] px-4 md:px-8 lg:pt-[90px] pb-10 ${isSidebarExpanded ? 'lg:ml-[260px]' : 'lg:ml-[80px]'}`}>
         <Header user={user} activeTab={activeTab}/>
-        <main className={`mt-2 animate-fade-in ${activeTab === 'home' ? 'w-full' : 'max-w-7xl mx-auto'}`}>
+        <main className={`mt-2 min-w-0 animate-fade-in ${['home', 'ciclos', 'cronograma', 'planejamento'].includes(activeTab) ? 'w-full' : 'max-w-7xl mx-auto'}`}>
           <Suspense fallback={<SectionLoader />}>
             {renderTabContent()}
           </Suspense>
@@ -1186,8 +1335,17 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       </div>
 
       <Suspense fallback={null}>
-        <OnboardingTour isActive={tourState.isActive} tourType={tourState.type} activeTab={activeTab} setActiveTab={handleTabChange} onClose={() => handleTourCloseOrFinish(tourState.type)} onFinish={() => handleTourCloseOrFinish(tourState.type)}/>
-        <FeedbackWidget user={user} isOpen={isFeedbackOpen} onClose={() => setIsFeedbackOpen(false)} isSidebarOpen={isMobileOpen}/>
+        {ENABLE_ONBOARDING_TOUR && (
+          <OnboardingTour isActive={tourState.isActive} tourType={tourState.type} activeTab={activeTab} setActiveTab={handleTabChange} onClose={() => handleTourCloseOrFinish(tourState.type)} onFinish={() => handleTourCloseOrFinish(tourState.type)}/>
+        )}
+        <FeedbackWidget
+          user={user}
+          isOpen={isFeedbackOpen}
+          onClose={() => setIsFeedbackOpen(false)}
+          isSidebarOpen={isMobileOpen}
+          initialView={feedbackInitialState.initialView}
+          initialType={feedbackInitialState.initialType}
+        />
       </Suspense>
       <GlobalStudyRegisterFab
         onClick={handleOpenGlobalRegistro}

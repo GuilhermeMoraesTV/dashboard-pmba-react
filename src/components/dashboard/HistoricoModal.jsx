@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, History, Clock, Target, ChevronLeft, ChevronRight,
@@ -54,9 +55,34 @@ const formatTime = (min) => {
     return `${m}m`;
 };
 
+const toDateSafe = (value) => {
+    if (!value) return null;
+    if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+    if (typeof value.toDate === 'function') {
+        const date = value.toDate();
+        return Number.isNaN(date.getTime()) ? null : date;
+    }
+    if (typeof value === 'number') {
+        const date = new Date(value);
+        return Number.isNaN(date.getTime()) ? null : date;
+    }
+    if (typeof value === 'string') {
+        const date = new Date(value);
+        return Number.isNaN(date.getTime()) ? null : date;
+    }
+    if (typeof value.seconds === 'number') {
+        const date = new Date(value.seconds * 1000);
+        return Number.isNaN(date.getTime()) ? null : date;
+    }
+    return null;
+};
+
+const toDateMillisSafe = (value) => toDateSafe(value)?.getTime() || 0;
+
 const formatTimeOfDay = (dateObj) => {
-    if(!dateObj) return '--:--';
-    return dateObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    const date = toDateSafe(dateObj);
+    if(!date) return '--:--';
+    return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
 
 // --- COMPONENTE DATE PICKER CUSTOMIZADO ---
@@ -614,7 +640,7 @@ const HistoricoModal = ({ isOpen, onClose, registros, onDeleteRequest, onUpdateR
     const [activeMobileTab, setActiveMobileTab] = useState('timeline');
 
     const { groupedRecords, stats } = useMemo(() => {
-        let filtered = [...registros].sort((a,b) => b.timestamp - a.timestamp);
+        let filtered = [...registros].sort((a,b) => toDateMillisSafe(b.timestamp) - toDateMillisSafe(a.timestamp));
 
         if (selectedDate) {
             filtered = filtered.filter(r => r.data === selectedDate);
@@ -644,15 +670,15 @@ const HistoricoModal = ({ isOpen, onClose, registros, onDeleteRequest, onUpdateR
 
     if (!isOpen) return null;
 
-    return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-zinc-900/60 backdrop-blur-sm">
+    return createPortal(
+        <div className="fixed inset-0 z-[100070] flex items-center justify-center p-3 sm:p-4 bg-zinc-900/60 backdrop-blur-sm">
             <style>{globalStyles}</style>
 
             <motion.div
                 initial={{ opacity: 0, scale: 0.95, y: 20 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                className="bg-zinc-50 dark:bg-zinc-950 rounded-[32px] shadow-2xl w-full max-w-6xl border border-white/20 dark:border-zinc-800 flex flex-col h-[90vh] overflow-hidden relative"
+                className="bg-zinc-50 dark:bg-zinc-950 rounded-[32px] shadow-2xl w-full max-w-6xl border border-white/20 dark:border-zinc-800 flex flex-col h-[calc(100dvh-1.5rem)] sm:h-[calc(100dvh-2rem)] lg:h-[90dvh] max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-2rem)] overflow-hidden relative"
             >
                 {/* Header do Modal */}
                 <div className="px-6 py-5 border-b border-zinc-200 dark:border-zinc-800 flex flex-col md:flex-row justify-between items-center bg-white dark:bg-zinc-900 sticky top-0 z-50 gap-4 md:gap-0">
@@ -786,7 +812,8 @@ const HistoricoModal = ({ isOpen, onClose, registros, onDeleteRequest, onUpdateR
                     />
                 )}
             </AnimatePresence>
-        </div>
+        </div>,
+        document.body
     );
 };
 

@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  ClipboardList, ArrowLeftRight, Play, Plus, Search,
+  ClipboardList, ArrowLeftRight, Play, Plus,
   Target, BarChart2, Trophy, TrendingUp, TrendingDown
 } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -45,22 +45,22 @@ const StatCard = ({ icon: Icon, title, value, subValue, color = 'red', className
   const theme = colorMap[color] || colorMap.red;
 
   return (
-    <div className={`relative overflow-hidden group p-3 md:p-4 h-[100px] md:h-[120px] flex flex-col justify-center items-start transition-all duration-500 hover:shadow-lg border-l-4 border-red-500 bg-white dark:bg-zinc-900 rounded-2xl shadow-sm ${className}`}>
-      <div className="relative z-20 flex flex-col gap-0.5 w-full">
-        <h3 className="text-[10px] md:text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 truncate w-full">
+    <div className={`group relative flex min-h-[104px] flex-col justify-center overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white px-4 py-3 shadow-soft transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/40 hover:!border-l-red-500 hover:shadow-[0_0_18px_rgba(239,68,68,0.07)] dark:border-white/10 dark:!border-l-red-500/25 dark:bg-zinc-950 dark:hover:border-accent-light/20 dark:hover:!border-l-red-500 dark:hover:shadow-[0_0_22px_rgba(239,68,68,0.08)] ${className}`}>
+      <div className="relative z-20 flex w-full flex-col gap-1">
+        <h3 className="w-full truncate text-[11px] font-black uppercase leading-none tracking-wider text-zinc-500 dark:text-zinc-400">
           {title}
         </h3>
-        <div className="flex flex-col md:flex-row md:items-end gap-0 md:gap-1.5">
-          <div className="text-xl md:text-2xl lg:text-3xl font-extrabold text-zinc-900 dark:text-white tracking-tight leading-none">
+        <div className="mt-1.5 flex flex-row items-baseline gap-1.5">
+          <div className="text-2xl font-black leading-none tracking-tight text-zinc-900 dark:text-white md:text-3xl">
             {value}
           </div>
-          {subValue && <div className="mb-0 md:mb-0.5 text-[10px] md:text-xs opacity-90 text-zinc-500 dark:text-zinc-400 font-medium">{subValue}</div>}
+          {subValue && <div className="min-w-0 text-[10px] font-semibold leading-none text-zinc-500 opacity-95 dark:text-zinc-400">{subValue}</div>}
         </div>
       </div>
 
       {/* Marca D'água */}
-      <div className={`absolute -bottom-4 -right-4 md:-bottom-5 md:-right-5 ${theme.watermark} transition-all duration-700 ease-out group-hover:scale-125 group-hover:rotate-[-10deg] ${theme.bgHover} z-10 pointer-events-none`}>
-        <Icon strokeWidth={1.5} className="w-20 h-20 md:w-28 md:h-28" />
+      <div className={`pointer-events-none absolute -bottom-4 -right-4 z-10 ${theme.watermark} transition-all duration-700 ease-out group-hover:scale-125 group-hover:rotate-[-10deg] ${theme.bgHover}`}>
+        <Icon strokeWidth={1.5} className="h-16 w-16 md:h-20 md:w-20" />
       </div>
     </div>
   );
@@ -83,20 +83,28 @@ const HeaderSimulado = ({
   return (
     <>
       {/* 1. CABEÇALHO SUPERIOR */}
-      <div className="border-b border-zinc-200 dark:border-zinc-800 pb-4 mb-6">
-        <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
-            <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-500 rounded-xl">
-                    <ClipboardList size={28} strokeWidth={2} />
+      <div className="group relative mb-6 overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white p-4 shadow-soft transition-all duration-300 hover:border-accent-light/40 hover:!border-l-red-500 hover:shadow-[0_0_18px_rgba(239,68,68,0.07)] dark:border-white/10 dark:!border-l-red-500/25 dark:bg-zinc-950 dark:hover:border-accent-light/20 dark:hover:!border-l-red-500 dark:hover:shadow-[0_0_22px_rgba(239,68,68,0.08)]">
+        <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-red-500/5 blur-[80px] transition-all duration-700 group-hover:bg-red-500/10" />
+        <div className="pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-zinc-500/5 blur-[80px]" />
+        <div className="relative z-10 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+            <div className="flex min-w-0 items-start gap-3">
+                <div className="relative">
+                  <div className="absolute inset-0 animate-ping rounded-full bg-red-500/20 opacity-30 duration-[3s]" />
+                  <div className="relative flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-red-600 to-rose-700 text-white shadow-xl shadow-red-500/20">
+                      <ClipboardList size={22} strokeWidth={2.1} />
+                  </div>
                 </div>
-                <div>
-                  <h1 className="text-3xl font-black text-zinc-800 dark:text-white tracking-tight uppercase leading-none">
-                      Simulados
+                <div className="min-w-0">
+                  <h1 className="text-2xl font-black uppercase leading-none tracking-tight text-zinc-900 dark:text-white sm:text-3xl">
+                      Simulados <span className="bg-gradient-to-r from-red-600 to-rose-700 bg-clip-text text-transparent">Estrategicos</span>
                   </h1>
+                  <p className="mt-2 max-w-2xl text-xs font-semibold leading-relaxed text-zinc-500 dark:text-zinc-400 sm:text-sm">
+                    Analise pontuacao, evolucao, comparativos e historico para medir sua preparacao em provas.
+                  </p>
                 </div>
             </div>
 
-            <div className="flex items-center gap-2 w-full xl:w-auto flex-wrap md:flex-nowrap">
+            <div className="flex w-full flex-wrap items-center gap-2 md:flex-nowrap xl:w-auto">
                 <button
                   onClick={compareMode ? onCancelCompare : () => setCompareMode(true)}
                   className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wide transition-all border ${
@@ -174,19 +182,8 @@ const HeaderSimulado = ({
 
       {/* 3. BARRA DE BUSCA (Sticky) */}
       {/* ⚠️ CORREÇÃO CRÍTICA: Removido 'overflow-hidden' que travava o scroll */}
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-t-3xl shadow-sm border-b-0">
+      {compareMode && <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm">
         <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 flex flex-col md:flex-row md:justify-between md:items-center gap-3 bg-zinc-50/50 dark:bg-zinc-900/50 backdrop-blur-sm sticky top-0 z-10 rounded-t-3xl">
-          <div className="relative w-full md:w-80">
-            <Search className="absolute left-3 top-3 text-zinc-400" size={16} />
-            <input
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Buscar simulado ou banca..."
-              className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-sm font-medium outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all shadow-sm"
-            />
-          </div>
-
-          {compareMode && (
             <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="flex items-center justify-between md:justify-end gap-3 w-full md:w-auto">
               <span className="text-xs font-bold text-zinc-600 dark:text-zinc-300 bg-white dark:bg-zinc-800 px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-700 uppercase tracking-wide">
                 {selectedIds.length} selecionados
@@ -195,9 +192,8 @@ const HeaderSimulado = ({
                 <TrendingUp size={16} /> Analisar Evolução
               </button>
             </motion.div>
-          )}
         </div>
-      </div>
+      </div>}
     </>
   );
 };

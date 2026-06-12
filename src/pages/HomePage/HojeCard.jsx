@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import {
   Target, BookOpen, Check, Play, ChevronRight,
   Sword, Flame, ShieldAlert, Trophy,
-  ListTodo, Clock, CheckCircle2, Loader2, CalendarPlus
+  ListTodo, Clock, Loader2, CalendarPlus
 } from 'lucide-react';
 import { formatDateKeyLocal, getAgendaSemana, getCronogramaReviewBuckets, getWeekOffsetFromDate } from '../../services/scheduling/review';
 import { collection, onSnapshot } from 'firebase/firestore';
@@ -13,6 +13,7 @@ import { useCiclos } from '../../hooks/useCiclos';
 import { useCronogramaSystem } from '../../hooks/useCronogramaSystem';
 import { buildCompletionRegistro } from '../../utils/completionRegistro';
 import { getCycleDailyGuide } from '../../utils/studyDayStatus';
+import { getDisciplineCardVars, getDisciplineColorForSlot } from '../../utils/disciplineColors';
 
 // --- Helpers ---
 const fmtMin = (min) => {
@@ -21,6 +22,28 @@ const fmtMin = (min) => {
   const h = Math.floor(min / 60), m = min % 60;
   return m > 0 ? `${h}h${String(m).padStart(2, '0')}` : `${h}h`;
 };
+
+const XRayScanline = ({ colorClass = 'via-red-500' }) => (
+  <div className="absolute inset-0 z-10 pointer-events-none overflow-hidden">
+    <motion.div
+      className={`absolute inset-x-0 h-[3px] opacity-40 ${colorClass} bg-gradient-to-r from-transparent via-current to-transparent`}
+      animate={{ top: ['-5%', '105%'] }}
+      transition={{ duration: 4, repeat: Infinity, ease: 'linear' }}
+    >
+      <div className={`absolute inset-0 blur-[6px] opacity-60 ${colorClass.replace('via-', 'bg-')}`} />
+    </motion.div>
+  </div>
+);
+
+const TechBackground = ({ activePanel, diaTodoConcluido }) => (
+  <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
+    <div className={`absolute inset-0 opacity-[0.04] transition-colors duration-1000 ${
+      diaTodoConcluido ? 'bg-emerald-500' : activePanel === 'estudo' ? 'bg-red-500' : 'bg-blue-500'
+    }`} />
+    <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] rounded-full blur-[100px] bg-current opacity-[0.03]" />
+    <div className="absolute -bottom-[10%] -right-[10%] w-[40%] h-[40%] rounded-full blur-[100px] bg-current opacity-[0.03]" />
+  </div>
+);
 
 const intervaloLabel = (dias) => {
   if (dias === 1) return 'Amanha';
@@ -58,97 +81,125 @@ function MissionSlot({ slot, isDone, onToggle, onMarkPending, onPlay, variant, s
     ? Math.min(100, Math.round((progressoLimitado / tempoPlanejado) * 100))
     : (isDone ? 100 : 0);
   const emAndamento = !isDone && progressoLimitado > 0 && progressoPercentual < 100;
-  const canMarkPending = isEstudo && !slot.isRevisaoAuto && !isDone && typeof onMarkPending === 'function';
+  const disciplinaColor = getDisciplineColorForSlot(slot);
+  const useDisciplineColor = isEstudo && !emAndamento;
+  const progressoExibido = isDone ? 100 : progressoPercentual;
+  const progressoMinutosExibido = isDone ? tempoPlanejado : progressoLimitado;
+
 return (
     <motion.div
       layout
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      whileHover={{ y: -1 }}
-      className={`group relative flex items-center gap-3 border transition-all duration-300 ${
-        isCycle ? 'rounded-[22px] p-3.5' : 'rounded-2xl p-3'
+      whileHover={{ y: -2, scale: 1.01 }}
+      className={`group relative min-h-[104px] overflow-hidden border transition-all duration-200 ${
+        isCycle ? 'rounded-[22px]' : 'rounded-2xl'
+      } ${
+        useDisciplineColor ? 'discipline-tinted-card' : ''
       } ${
         isDone
-          ? isCycle
-            ? 'bg-emerald-50/70 dark:bg-emerald-950/25 border-emerald-300/70 dark:border-emerald-900/50 shadow-sm'
-            : 'bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200/60 dark:border-emerald-900/40 shadow-sm'
-          : emAndamento
-          ? isCycle
-            ? 'bg-amber-50/60 dark:bg-amber-950/15 border-amber-300/70 dark:border-amber-900/50 shadow-md shadow-amber-500/5'
-            : 'bg-white dark:bg-zinc-900 border-amber-200/80 dark:border-amber-900/40 shadow-md shadow-amber-500/5'
-          : isEstudo
-            ? isCycle
-              ? 'bg-gradient-to-br from-red-50/70 via-white to-zinc-50 dark:from-red-950/15 dark:via-zinc-900 dark:to-zinc-950 border-red-200/70 dark:border-red-900/35 hover:border-red-300 hover:shadow-xl hover:shadow-red-500/10'
-              : 'bg-white dark:bg-zinc-900 border-zinc-100 dark:border-zinc-800 hover:border-red-200 dark:hover:border-red-900/40 hover:shadow-xl hover:shadow-red-500/10'
-            : 'bg-white dark:bg-zinc-900 border-zinc-100 dark:border-zinc-800 hover:border-blue-200 dark:hover:border-blue-900/40 hover:shadow-xl hover:shadow-blue-500/10'
+          ? 'discipline-completed-card'
+        : emAndamento
+          ? 'bg-orange-50/80 dark:bg-orange-500/5 border-orange-200 dark:border-orange-500/20'
+        : isEstudo
+            ? 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700/50 shadow-sm hover:shadow-lg'
+            : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700/50 shadow-sm hover:border-blue-200 dark:hover:border-blue-900/40 hover:shadow-lg hover:shadow-blue-500/10'
       }`}
+      style={useDisciplineColor ? getDisciplineCardVars(disciplinaColor) : undefined}
     >
-      {/* Indicador Lateral */}
-      <div className={`${isCycle ? 'w-10 self-auto rounded-2xl h-10 items-center justify-center' : 'w-1.5 self-stretch rounded-full'} flex shrink-0 transition-all duration-500 ${
-        isDone 
-          ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]' 
-          : emAndamento 
-          ? 'bg-amber-500' 
-          : isEstudo 
-          ? 'bg-red-600 shadow-[0_0_8px_rgba(220,38,38,0.2)]'
-          : 'bg-blue-600 shadow-[0_0_8px_rgba(37,99,235,0.2)]'
-      }`}>
-        {isCycle && (isDone ? <Check size={16} className="text-white" strokeWidth={4} /> : <BookOpen size={16} className="text-white" />)}
-      </div>
+      <div className={`absolute bottom-0 left-0 top-0 w-1.5 transition-colors duration-300 ${
+        isDone ? disciplinaColor.bg
+        : emAndamento ? 'bg-orange-500'
+        : isEstudo ? disciplinaColor.bg
+        : 'bg-blue-500'
+      }`} />
 
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-1">
-          <h4 className={`text-[12px] font-black uppercase tracking-tight truncate ${
-            isDone
-              ? 'text-emerald-700 dark:text-emerald-400 line-through opacity-70'
+      <div className="flex h-full flex-col gap-2.5 px-3.5 py-3">
+        <div className="flex min-w-0 items-start justify-between gap-2 pr-1">
+          <div className="flex min-w-0 flex-1 items-start gap-2">
+            <motion.button
+              whileHover={{ scale: 1.05, y: -1 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => onToggle(slot)}
+              disabled={isLoading}
+              className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border shadow-sm transition-all disabled:opacity-60 ${
+                isDone
+                  ? 'border-emerald-500 bg-emerald-500 text-white shadow-emerald-500/20'
+                  : 'border-emerald-200 bg-white text-emerald-600 shadow-emerald-500/10 hover:border-emerald-300 hover:bg-emerald-50 dark:border-emerald-900/40 dark:bg-white/10 dark:text-emerald-300 dark:hover:bg-emerald-900/35'
+              }`}
+              title={isDone ? 'Marcar como pendente' : 'Marcar como concluido'}
+            >
+              {isLoading ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} strokeWidth={3.5} />}
+            </motion.button>
+            <h4 className={`min-w-0 flex-1 truncate text-[13px] font-black uppercase tracking-wide leading-tight ${
+              isDone ? `${disciplinaColor.text} line-through opacity-75`
+              : emAndamento ? 'text-orange-700 dark:text-orange-400'
+              : useDisciplineColor ? disciplinaColor.text
               : 'text-zinc-900 dark:text-zinc-100'
-          }`}>
-            {slot.disciplinaNome || slot.disciplina}
-          </h4>
-          {!isDone && tempoPlanejado > 0 && (
-            <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 text-[8px] font-bold border border-zinc-200/50 dark:border-zinc-700/50">
-              <Clock size={8} className={isEstudo ? "text-red-500" : "text-blue-500"} />
+            }`}>
+              {slot.disciplinaNome || slot.disciplina}
+            </h4>
+          </div>
+          {tempoPlanejado > 0 && (
+            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-white/70 bg-white/85 px-2.5 py-1 text-[11px] font-black tabular-nums text-zinc-800 shadow-sm dark:border-white/15 dark:bg-white/15 dark:text-white">
+              <Clock size={12} className="text-zinc-600 dark:text-zinc-200" />
               {fmtMin(tempoPlanejado)}
-            </div>
+            </span>
           )}
-          {isDone && <CheckCircle2 size={12} className="text-emerald-500 ml-auto" />}
         </div>
 
         <div className="flex items-center gap-2">
-          <p className="text-[10px] font-bold text-zinc-400 truncate uppercase tracking-tighter">
+          <p className={`truncate text-[12px] font-bold uppercase leading-snug tracking-tight text-zinc-500 dark:text-zinc-300 ${isDone ? 'line-through decoration-emerald-500/60' : ''}`}>
             {slot.assunto || (isEstudo ? 'Teoria e Base' : 'Revisão de Elite')}
           </p>
         </div>
 
-        {tempoPlanejado > 0 && !isDone && (
-          <div className="mt-2">
-            <div className="flex items-center justify-between gap-2 text-[8px] font-bold mb-1">
-              <span className={`px-1 rounded-md ${emAndamento ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30' : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800'}`}>
-                {fmtMin(progressoLimitado)} / {fmtMin(tempoPlanejado)}
+        {tempoPlanejado > 0 && (
+          <div className="flex items-end gap-2">
+            <div className="min-w-0 flex-1">
+              <div className="mb-1 flex items-center justify-between gap-2 text-[10px] font-black text-zinc-700 dark:text-zinc-100">
+              <span className="tabular-nums">
+                {fmtMin(progressoMinutosExibido)} / {fmtMin(tempoPlanejado)}
               </span>
-              <span className="text-zinc-400">
-                {progressoPercentual}%
+              <span className="font-black tabular-nums">
+                {progressoExibido}%
               </span>
             </div>
-            <div className="h-1.5 rounded-full bg-zinc-100 dark:bg-zinc-800/50 overflow-hidden">
+            <div className="h-1 overflow-hidden rounded-full bg-white/55 dark:bg-black/25">
               <motion.div
-                initial={{ width: 0 }}
-                animate={{ width: `${progressoPercentual}%` }}
-                transition={{ duration: 0.8, ease: "circOut" }}
+                initial={false}
+                animate={{ width: `${progressoExibido}%` }}
+                transition={{ duration: 0.25 }}
                 className={`h-full rounded-full ${
-                  emAndamento 
-                    ? 'bg-gradient-to-r from-amber-400 to-amber-600' 
+                  isDone
+                    ? disciplinaColor.progress
+                    : emAndamento
+                    ? 'bg-orange-500'
                     : isEstudo 
-                    ? 'bg-gradient-to-r from-red-500 to-red-700'
+                    ? disciplinaColor.progress
                     : 'bg-gradient-to-r from-blue-500 to-blue-700'
                 }`}
               />
             </div>
+            </div>
+            {!isDone && (
+              <button
+                onClick={() => onPlay?.(slot)}
+                title="Iniciar estudo"
+                className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-white shadow-sm transition-all active:scale-95 ${
+                  isEstudo
+                    ? 'bg-red-600 shadow-red-600/20 hover:bg-red-700'
+                    : 'bg-blue-600 shadow-blue-600/20 hover:bg-blue-700'
+                }`}
+              >
+                <Play size={13} fill="currentColor" />
+              </button>
+            )}
           </div>
         )}
       </div>
 
-      <div className="flex items-center gap-1.5 shrink-0">
+      <div className="hidden">
         {!isDone && (
           <motion.button
             whileHover={{ scale: 1.05, y: -1 }}
@@ -156,8 +207,8 @@ return (
             onClick={() => onPlay?.(slot)}
             className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all shadow-sm border ${
               isEstudo 
-                ? 'bg-red-50 dark:bg-red-900/20 text-red-600 border-red-100 dark:border-red-900/30 hover:bg-red-600 hover:text-white' 
-                : 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 border-blue-100 dark:border-blue-900/30 hover:bg-blue-600 hover:text-white'
+                ? 'bg-white dark:bg-red-900/20 text-red-600 border-red-200 dark:border-red-900/30 hover:bg-red-600 hover:text-white' 
+                : 'bg-white dark:bg-blue-900/20 text-blue-600 border-blue-200 dark:border-blue-900/30 hover:bg-blue-600 hover:text-white'
             }`}
             title="Iniciar Estudo"
           >
@@ -169,19 +220,17 @@ return (
           whileHover={{ scale: 1.05, y: -1 }}
           whileTap={{ scale: 0.95 }}
           onClick={() => onToggle(slot)}
-          className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all shadow-md ${
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border shadow-sm transition-all ${
             isDone
-              ? 'bg-emerald-500 text-white shadow-emerald-500/20'
-              : isEstudo
-                ? 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 hover:bg-red-600 dark:hover:bg-red-600 hover:text-white dark:hover:text-white'
-                : 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 hover:bg-blue-600 dark:hover:bg-blue-600 hover:text-white dark:hover:text-white'
+              ? 'border-emerald-500 bg-emerald-500 text-white shadow-emerald-500/20'
+              : 'border-emerald-200 bg-white text-emerald-600 shadow-emerald-500/10 hover:border-emerald-300 hover:bg-emerald-50 dark:border-emerald-900/40 dark:bg-white/10 dark:text-emerald-300 dark:hover:bg-emerald-900/35'
           }`}
-          title={isDone ? 'Concluído' : 'Marcar como Feito'}
+          title={isDone ? 'Concluido' : 'Marcar como concluido'}
         >
-          {isDone ? <Check size={16} strokeWidth={4} /> : isLoading ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} strokeWidth={3} />}
+          {isLoading ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} strokeWidth={3.5} />}
         </motion.button>
 
-        {canMarkPending && (
+        {false && (
           <motion.button
             whileHover={{ scale: 1.05, y: -1 }}
             whileTap={{ scale: 0.95 }}
@@ -356,6 +405,7 @@ function HojeCard({
         disciplinaNome: disc?.nome || 'Disciplina',
         disciplina: disc?.nome || 'Disciplina',
         disciplinaObj: disc,
+        cor: disc?.cor,
         assunto: sessao.assuntoSugerido?.nome || sessao.assuntoSugerido || '',
         tempoPlanejadoMinutos: tempoSessao,
         progressoMinutos,
@@ -407,17 +457,18 @@ function HojeCard({
       if (item.concluido) return acc + tempo;
       return acc + Math.min(Number(item.progressoMinutos || 0), tempo || Number(item.progressoMinutos || 0));
     }, 0);
-    const pct = total > 0 ? Math.min(100, Math.round((feito / total) * 100)) : (itens.length === 0 ? 100 : 0);
+    const pct = total > 0 ? Math.min(100, Math.round((feito / total) * 100)) : 0;
     return { total, feito, pct, itens: itens.length, concluidos: itens.filter((item) => item.concluido).length };
   }, [activePanel, estudosVisiveis, revisoesVisiveis]);
 
   const totalItensDia = estudosVisiveis.length + revisoesVisiveis.length;
   const totalConcluidosDia = estudosVisiveis.filter((s) => s.concluido).length + revisoesVisiveis.filter((s) => s.concluido).length;
   const diaTodoConcluido = totalItensDia > 0 && totalConcluidosDia === totalItensDia;
+  const completionGlowActive = diaTodoConcluido && totalItensDia > 0;
 
   const handleToggle = useCallback(async (slot) => {
-    if (!cronogramaId || !user || loadingRef.current) return;
     const loadingId = slot.slotIdBase || slot.slotId;
+    if (!cronogramaId || !user || loadingRef.current === loadingId) return;
     const optimisticKey = getOptimisticKey('cronograma', slot);
     const previousDone = Boolean(slot.concluido);
     const nextDone = !previousDone;
@@ -444,13 +495,9 @@ function HojeCard({
         isReview: !!slot.isRevisaoAuto,
       });
       if (ok && !slot.concluido && addRegistroEstudo) {
-        try {
-          await addRegistroEstudo(completionRegistro);
-        } catch (error) {
-          console.error(error);
-        }
+        addRegistroEstudo(completionRegistro).catch(console.error);
       } else if (ok && slot.concluido && deleteCompletionRegistro) {
-        await deleteCompletionRegistro(completionRegistro);
+        deleteCompletionRegistro(completionRegistro).catch(console.error);
       }
     } catch (error) {
       if (optimisticKey) {
@@ -461,8 +508,8 @@ function HojeCard({
   }, [activeCronogramaData, addRegistroEstudo, concluirRevisaoCronograma, cronogramaId, deleteCompletionRegistro, toggleSlotConcluido, user]);
 
   const handleMarkPending = useCallback(async (slot) => {
-    if (!cronogramaId || !user || loadingRef.current) return;
     const loadingId = slot.slotIdBase || slot.slotId;
+    if (!cronogramaId || !user || loadingRef.current === loadingId) return;
     loadingRef.current = loadingId;
     setLoading(loadingId);
     try {
@@ -499,7 +546,7 @@ function HojeCard({
   };
 
   const handleToggleSessaoCiclo = useCallback(async (sessao) => {
-    if (!activeCicloData?.id || loadingCicloSessao !== null) return;
+    if (!activeCicloData?.id || loadingCicloSessao === sessao.globalIndex) return;
     const optimisticKey = getOptimisticKey('ciclo', sessao);
     const previousDone = Boolean(sessao.concluido || sessao.concluida);
     const nextDone = !previousDone;
@@ -521,13 +568,9 @@ function HojeCard({
         fallbackMinutes: activeCicloData?.tempoSessaoMinutos || 50,
       });
       if (ok && !previousDone && addRegistroEstudo) {
-        try {
-          await addRegistroEstudo(completionRegistro);
-        } catch (error) {
-          console.error(error);
-        }
+        addRegistroEstudo(completionRegistro).catch(console.error);
       } else if (ok && previousDone && deleteCompletionRegistro) {
-        await deleteCompletionRegistro(completionRegistro);
+        deleteCompletionRegistro(completionRegistro).catch(console.error);
       }
     } catch (error) {
       if (optimisticKey) {
@@ -580,6 +623,11 @@ function HojeCard({
 
   const handleConcluirRevisaoCiclo = useCallback(async (rev) => {
     if (!rev?.id || acaoRevisaoCiclo) return;
+    const optimisticKey = getOptimisticKey('ciclo', rev);
+    const wasDone = Boolean(rev.concluida || rev.concluido);
+    if (optimisticKey) {
+      setOptimisticDone((prev) => ({ ...prev, [optimisticKey]: !wasDone }));
+    }
     setAcaoRevisaoCiclo({ id: rev.id, tipo: 'concluir' });
     try {
       await concluirRevisao(rev.id);
@@ -590,14 +638,16 @@ function HojeCard({
           isReview: true,
           fallbackMinutes: 20,
         });
-      const wasDone = Boolean(rev.concluida || rev.concluido);
       if (!wasDone && addRegistroEstudo) {
-        await addRegistroEstudo(completionRegistro);
+        addRegistroEstudo(completionRegistro).catch(console.error);
       } else if (wasDone && deleteCompletionRegistro) {
-        await deleteCompletionRegistro(completionRegistro);
+        deleteCompletionRegistro(completionRegistro).catch(console.error);
       }
       marcarSucessoRevisaoCiclo(rev.id, 'concluir');
     } catch (error) {
+      if (optimisticKey) {
+        setOptimisticDone((prev) => ({ ...prev, [optimisticKey]: wasDone }));
+      }
       console.error(error);
     } finally {
       setAcaoRevisaoCiclo(null);
@@ -622,70 +672,273 @@ function HojeCard({
     []
   );
 
-  if (!hasCronograma && !hasCiclo) return null;
+  if (!hasCronograma && !hasCiclo) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        className={`group relative z-20 flex min-h-[400px] flex-col overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white p-6 transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/50 hover:!border-l-red-500 hover:shadow-glow dark:border-white/10 dark:!border-l-red-500/25 dark:bg-[#09090b] dark:shadow-[0_0_24px_rgba(239,68,68,0.1)] dark:hover:border-accent-light/30 dark:hover:!border-l-red-500 dark:hover:shadow-[0_0_36px_rgba(239,68,68,0.16)] ${className}`}
+      >
+        <div className="pointer-events-none absolute inset-0 z-0 bg-white dark:bg-[#09090b]" />
+        <XRayScanline colorClass="via-red-500" />
 
-  return (
-    <motion.div
-      animate={diaTodoConcluido ? { boxShadow: ['0 24px 70px rgba(16,185,129,0.16)', '0 28px 90px rgba(16,185,129,0.28)', '0 24px 70px rgba(16,185,129,0.16)'] } : {}}
-      transition={diaTodoConcluido ? { duration: 2.4, repeat: Infinity, ease: 'easeInOut' } : {}}
-      className={`dashboard-card group relative flex min-h-[300px] flex-col overflow-visible border-l-[6px] transition-all duration-500 hover:shadow-xl md:p-6 ${className} ${
-      diaTodoConcluido
-        ? 'border-emerald-500 bg-emerald-50/70 shadow-2xl shadow-emerald-500/15 hover:shadow-emerald-500/20 dark:bg-emerald-950/20'
-        : activePanel === 'estudo'
-          ? 'border-red-600 hover:shadow-red-500/10 dark:bg-zinc-900'
-          : 'border-blue-600 hover:shadow-blue-500/10 dark:bg-zinc-900'
-    }`}>
-      <div className={`absolute -right-16 -top-16 h-48 w-48 rounded-full blur-3xl transition-all group-hover:opacity-20 ${
-        diaTodoConcluido ? 'bg-emerald-500/20 opacity-70' : activePanel === 'estudo' ? 'bg-red-600/5' : 'bg-blue-600/5'
-      }`} />
+        <div className="pointer-events-none absolute -right-24 -top-24 h-56 w-56 rounded-full bg-gradient-to-br from-red-600 to-rose-700 opacity-10 blur-[90px] transition-all duration-700 group-hover:opacity-20" />
+        <div className="pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-zinc-500/5 opacity-40 blur-[80px] transition-all duration-700" />
 
-      <div className="relative z-20 flex h-full w-full min-h-0 flex-col gap-5">
-        <div className="sticky top-0 z-30 overflow-visible rounded-2xl border-b border-zinc-200/70 bg-white/95 px-5 pt-5 pb-5 backdrop-blur-xl dark:border-zinc-800/80 dark:bg-zinc-900/95">
-          <div className="flex items-start justify-between gap-3">
+        <div className="relative z-20 flex h-full min-h-0 flex-col">
+          <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <h3 className={`truncate text-[13px] font-black uppercase tracking-[0.18em] ${
-                diaTodoConcluido ? 'text-emerald-600 dark:text-emerald-400' : activePanel === 'estudo' ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'
-              }`}>
-                Guia de estudo
-              </h3>
-              <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-zinc-400">
-                {activePanel === 'estudo' ? 'Missoes do dia' : 'Revisoes estrategicas'} · {modoCicloAtivo ? 'Ciclo' : 'Cronograma'}
-              </p>
+              <div className="flex items-center gap-2">
+                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-red-600 dark:text-red-400">
+                  Guia de estudo
+                </p>
+                <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500" />
+              </div>
+              <h2 className="mt-1 text-2xl font-black uppercase tracking-tight text-zinc-900 dark:text-white">
+                Comece seu <span className="bg-gradient-to-r from-red-600 to-rose-600 bg-clip-text text-transparent">plano</span>
+              </h2>
+              <div className="mt-2 flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-zinc-400">
+                <span>0 de 0 concluidos</span>
+              </div>
             </div>
-            <div className="shrink-0 text-right">
-              <p className="text-[8px] font-black uppercase tracking-widest text-zinc-400">Meta de hoje</p>
-              <p className="mt-1 text-sm font-black tabular-nums text-zinc-900 dark:text-white">
-                {fmtMin(progressoCard.feito)} / {fmtMin(progressoCard.total)}
+            <div className="flex flex-col items-end">
+              <p className="text-[8px] font-black uppercase tracking-widest text-zinc-400">Progresso Geral</p>
+              <p className="mt-1 text-xl font-black tabular-nums text-zinc-900 dark:text-white">0%</p>
+            </div>
+          </div>
+
+          <div className="mt-6 rounded-2xl border border-zinc-100 bg-zinc-50 p-1.5 dark:border-white/5 dark:bg-white/5">
+            <div className="flex items-center justify-center gap-2 rounded-xl bg-white py-3 text-[10px] font-black uppercase tracking-widest text-zinc-950 shadow-sm dark:bg-zinc-800 dark:text-white">
+              <BookOpen size={14} className="text-red-500" />
+              Estudo
+            </div>
+          </div>
+
+          <div className="flex min-h-0 flex-1 items-center justify-center py-8">
+            <div className="w-full rounded-xl border-2 border-dashed border-red-100 bg-white/70 p-6 text-center shadow-sm dark:border-red-900/25 dark:bg-white/5">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-red-50 text-red-500 shadow-lg shadow-red-500/10 dark:bg-red-950/25">
+                <ListTodo size={32} />
+              </div>
+              <p className="text-[11px] font-black uppercase tracking-[0.2em] text-red-600 dark:text-red-400">
+                Seu guia ainda nao foi criado
+              </p>
+              <p className="mx-auto mt-2 max-w-xs text-xs font-bold uppercase tracking-wider text-zinc-400">
+                Crie um ciclo ou cronograma para a Home mostrar as missoes de estudo do dia.
               </p>
             </div>
           </div>
 
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex max-w-full shrink-0 items-center gap-1 rounded-lg bg-zinc-100 p-0.5 dark:bg-zinc-800/80">
+          <div className="border-t border-zinc-100 pt-6 dark:border-white/5">
+            <button
+              type="button"
+              onClick={() => setActiveTab?.('planejamento')}
+              className="group/btn relative flex w-full items-center justify-center gap-3 overflow-hidden rounded-2xl bg-zinc-950 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-white shadow-xl transition-all hover:bg-red-600 dark:bg-white dark:text-zinc-950 dark:hover:bg-red-600 dark:hover:text-white"
+            >
+              <span className="relative z-10 flex items-center gap-2">
+                Criar guia de estudo
+                <ChevronRight size={14} className="transition-transform duration-300 group-hover/btn:translate-x-1" />
+              </span>
+            </button>
+          </div>
+        </div>
+
+        <div className="pointer-events-none absolute bottom-3 right-3 z-0 text-red-600/5 transition-all duration-1000 group-hover:scale-105 group-hover:rotate-[-8deg] dark:text-red-500/5">
+          <ShieldAlert strokeWidth={0.5} className="h-48 w-48" />
+        </div>
+      </motion.div>
+    );
+  }
+
+  return (
+    <motion.div
+      animate={completionGlowActive ? { boxShadow: ['0 24px 70px rgba(16,185,129,0.16)', '0 28px 90px rgba(16,185,129,0.28)', '0 24px 70px rgba(16,185,129,0.16)'] } : undefined}
+      transition={completionGlowActive ? { duration: 2.4, repeat: Infinity, ease: 'easeInOut' } : undefined}
+      className={`group relative z-20 flex min-h-[400px] flex-col overflow-hidden rounded-xl border-2 border-l-4 !border-l-red-500/20 bg-white p-6 transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/50 hover:!border-l-red-500 hover:shadow-glow dark:!border-l-red-500/25 dark:bg-[#09090b] dark:shadow-[0_0_24px_rgba(239,68,68,0.1)] dark:hover:border-accent-light/30 dark:hover:!border-l-red-500 dark:hover:shadow-[0_0_36px_rgba(239,68,68,0.16)] ${className} ${
+        completionGlowActive ? 'border-emerald-500/30' : 'border-zinc-200 dark:border-white/10'
+      }`}
+    >
+      <div className="pointer-events-none absolute inset-0 z-0 bg-white dark:bg-[#09090b]" />
+
+      {!completionGlowActive && (
+        <XRayScanline colorClass={activePanel === 'estudo' ? 'via-red-500' : 'via-blue-500'} />
+      )}
+
+      <div className={`pointer-events-none absolute -right-24 -top-24 h-56 w-56 rounded-full opacity-10 blur-[90px] transition-all duration-700 group-hover:opacity-20 ${
+        completionGlowActive ? 'bg-emerald-500/10' : activePanel === 'estudo' ? 'bg-gradient-to-br from-red-600 to-rose-700' : 'bg-gradient-to-br from-blue-600 to-indigo-700'
+      }`} />
+      <div className={`pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full opacity-40 blur-[80px] transition-all duration-700 ${
+        completionGlowActive ? 'bg-teal-500/5' : 'bg-zinc-500/5'
+      }`} />
+
+      <div className="relative z-20 flex h-full w-full min-h-0 flex-col">
+        <div className={`mb-4 shrink-0 overflow-hidden rounded-2xl border p-3 shadow-md backdrop-blur-xl transition-all duration-500 dark:border-zinc-800 dark:bg-zinc-950/85 ${
+          completionGlowActive
+            ? 'border-emerald-300/70 bg-emerald-50/90 shadow-emerald-500/20'
+            : activePanel === 'estudo'
+              ? 'border-zinc-200/80 bg-white/90 shadow-red-500/10 dark:shadow-red-950/20'
+              : 'border-zinc-200/80 bg-white/90 shadow-blue-500/10 dark:shadow-blue-950/20'
+        }`}>
+          <div className="relative z-10 flex items-start justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white shadow-lg sm:h-12 sm:w-12 ${
+                completionGlowActive
+                  ? 'bg-emerald-600 shadow-emerald-600/25'
+                  : activePanel === 'estudo'
+                    ? 'bg-red-600 shadow-red-600/25'
+                    : 'bg-blue-600 shadow-blue-600/25'
+              }`}>
+                {activePanel === 'estudo' ? <BookOpen size={20} className="sm:h-6 sm:w-6" /> : <Target size={20} className="sm:h-6 sm:w-6" />}
+              </div>
+              <div className="min-w-0">
+                <p className={`text-[8px] font-black uppercase tracking-[0.24em] sm:text-[9px] ${
+                  completionGlowActive ? 'text-emerald-600 dark:text-emerald-400' : activePanel === 'estudo' ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'
+                }`}>
+                  Missao do dia
+                </p>
+                <h2 className="mt-0.5 text-base font-black uppercase leading-none tracking-tight text-zinc-900 dark:text-white sm:text-xl">
+                  {activePanel === 'estudo' ? 'Sessoes' : 'Revisoes'} <span className={activePanel === 'estudo' ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}>ativas</span>
+                </h2>
+              </div>
+            </div>
+
+            <div className="shrink-0 text-right">
+              <p className="text-[8px] font-black uppercase tracking-widest text-zinc-400">Meta de hoje</p>
+              <div className="mt-1 flex items-center justify-end gap-1.5">
+                <Clock size={13} className={completionGlowActive ? 'text-emerald-500' : activePanel === 'estudo' ? 'text-red-500' : 'text-blue-500'} />
+                <span className="text-base font-black tabular-nums text-zinc-900 dark:text-white sm:text-xl">
+                  {fmtMin(progressoCard.feito)}
+                  <span className="mx-1 text-xs font-medium text-zinc-400">/</span>
+                  {fmtMin(progressoCard.total)}
+                </span>
+              </div>
+              <p className={`mt-1 text-[9px] font-black uppercase tracking-widest ${completionGlowActive ? 'text-emerald-600 dark:text-emerald-400' : activePanel === 'estudo' ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}`}>
+                {progressoCard.pct}% concluido
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-3">
+            <div className="mb-1.5 flex items-center justify-between gap-3">
+              <span className="min-w-0 truncate text-[8px] font-black uppercase tracking-widest text-zinc-500">
+                {modoCicloAtivo ? 'Modo ciclo' : 'Cronograma'} - {progressoCard.concluidos} de {progressoCard.itens} concluidos
+              </span>
+              <div className="flex shrink-0 items-center rounded-xl border border-zinc-100 bg-zinc-50 p-0.5 dark:border-white/5 dark:bg-white/5">
+                <button
+                  type="button"
+                  onClick={() => setActivePanel('estudo')}
+                  className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[8px] font-black uppercase tracking-wider transition-all duration-300 ${
+                    activePanel === 'estudo'
+                      ? 'bg-white text-zinc-950 shadow-sm dark:bg-zinc-800 dark:text-white'
+                      : 'text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300'
+                  }`}
+                >
+                  <BookOpen size={10} className={activePanel === 'estudo' ? 'text-red-500' : ''} /> Estudo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActivePanel('revisao')}
+                  className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[8px] font-black uppercase tracking-wider transition-all duration-300 ${
+                    activePanel === 'revisao'
+                      ? 'bg-white text-zinc-950 shadow-sm dark:bg-zinc-800 dark:text-white'
+                      : 'text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300'
+                  }`}
+                >
+                  <Target size={10} className={activePanel === 'revisao' ? 'text-blue-500' : ''} /> Revisao
+                </button>
+              </div>
+            </div>
+            <div className="h-2 w-full overflow-hidden rounded-full border border-zinc-200/50 bg-zinc-100 p-0.5 dark:border-zinc-700/50 dark:bg-zinc-800">
+              <motion.div
+                initial={false}
+                animate={{ width: `${progressoCard.pct}%` }}
+                transition={{ duration: 0.35, ease: 'easeOut' }}
+                className={`h-full rounded-full ${
+                  completionGlowActive ? 'bg-gradient-to-r from-emerald-500 via-green-500 to-teal-500' : activePanel === 'estudo' ? 'bg-gradient-to-r from-red-600 via-rose-500 to-orange-500' : 'bg-gradient-to-r from-blue-600 via-sky-500 to-cyan-500'
+                }`}
+              />
+            </div>
+          </div>
+
+          <div className="hidden">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <p className={`text-[9px] font-black uppercase tracking-[0.22em] ${
+                  completionGlowActive ? 'text-emerald-500' : activePanel === 'estudo' ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'
+                }`}>
+                  Missão do Dia
+                </p>
+                <div className={`h-1.5 w-1.5 rounded-full animate-pulse ${
+                  completionGlowActive ? 'bg-emerald-500' : activePanel === 'estudo' ? 'bg-red-500' : 'bg-blue-500'
+                }`} />
+              </div>
+              <h2 className="mt-0.5 text-xl font-black uppercase leading-none tracking-tight text-zinc-900 dark:text-white">
+                {activePanel === 'estudo' ? 'Sessões' : 'Revisões'} <span className={`bg-gradient-to-r ${activePanel === 'estudo' ? 'from-red-600 to-rose-600' : 'from-blue-600 to-indigo-600'} bg-clip-text text-transparent`}>Ativas</span>
+              </h2>              <div className="mt-1.5 flex items-center gap-2 text-[8px] font-black uppercase tracking-widest text-zinc-400">
+                <span className="flex items-center gap-1 rounded bg-zinc-100 px-1.5 py-0.5 text-zinc-600 dark:bg-white/5 dark:text-zinc-400">
+                  {modoCicloAtivo ? 'Modo Ciclo' : 'Cronograma'}
+                </span>
+                <span className="opacity-30">|</span>
+                <span className={completionGlowActive ? 'text-emerald-500' : ''}>{progressoCard.concluidos} de {progressoCard.itens} concluidos</span>
+              </div>
+            </div>
+            <div className="flex flex-col items-end">
+              <p className="text-[8px] font-black uppercase tracking-widest text-zinc-400">Progresso Geral</p>
+              <p className="mt-0.5 text-lg font-black tabular-nums leading-none text-zinc-900 dark:text-white">
+                {progressoCard.pct}%
+              </p>
+              <div className="mt-1.5 flex items-center rounded-xl border border-zinc-100 bg-zinc-50 p-0.5 dark:border-white/5 dark:bg-white/5">
+                <button
+                  type="button"
+                  onClick={() => setActivePanel('estudo')}
+                  className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[8px] font-black uppercase tracking-wider transition-all duration-300 ${
+                    activePanel === 'estudo'
+                      ? 'bg-white text-zinc-950 shadow-sm dark:bg-zinc-800 dark:text-white'
+                      : 'text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300'
+                  }`}
+                >
+                  <BookOpen size={10} className={activePanel === 'estudo' ? 'text-red-500' : ''} /> Estudo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActivePanel('revisao')}
+                  className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[8px] font-black uppercase tracking-wider transition-all duration-300 ${
+                    activePanel === 'revisao'
+                      ? 'bg-white text-zinc-950 shadow-sm dark:bg-zinc-800 dark:text-white'
+                      : 'text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300'
+                  }`}
+                >
+                  <Target size={10} className={activePanel === 'revisao' ? 'text-blue-500' : ''} /> Revisao
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="hidden">
+            <div className="flex flex-1 items-center">
               <button
                 type="button"
                 onClick={() => setActivePanel('estudo')}
-                className={`flex min-w-0 items-center gap-1 rounded-md px-2 py-1 text-[8px] font-black uppercase tracking-wide transition-all duration-300 ${
+                className={`flex flex-1 items-center justify-center gap-2 rounded-xl py-3 text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${
                   activePanel === 'estudo'
-                    ? 'bg-red-600 text-white shadow-sm shadow-red-500/20 dark:bg-red-500 dark:text-white'
-                    : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
+                    ? 'bg-white text-zinc-950 shadow-sm dark:bg-zinc-800 dark:text-white'
+                    : 'text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300'
                 }`}
               >
-                <Sword size={10} /> Estudo
+                <BookOpen size={14} className={activePanel === 'estudo' ? 'text-red-500' : ''} /> Estudo
               </button>
               <button
                 type="button"
                 onClick={() => setActivePanel('revisao')}
-                className={`flex min-w-0 items-center gap-1 rounded-md px-2 py-1 text-[8px] font-black uppercase tracking-wide transition-all duration-300 ${
+                className={`flex flex-1 items-center justify-center gap-2 rounded-xl py-3 text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${
                   activePanel === 'revisao'
-                    ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/20 dark:bg-blue-500 dark:text-white'
-                    : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
+                    ? 'bg-white text-zinc-950 shadow-sm dark:bg-zinc-800 dark:text-white'
+                    : 'text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300'
                 }`}
               >
-                <Target size={10} /> Revisao
+                <Target size={14} className={activePanel === 'revisao' ? 'text-blue-500' : ''} /> Revisão
               </button>
             </div>
-            <span className={`rounded-lg px-2.5 py-1.5 text-[9px] font-black uppercase tracking-widest ${
+            <span className={`hidden rounded-lg px-2.5 py-1.5 text-[9px] font-black uppercase tracking-widest ${
               diaTodoConcluido
                 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
                 : modoCicloAtivo
@@ -696,10 +949,10 @@ function HojeCard({
             </span>
           </div>
         </div>
-        {diaTodoConcluido ? (
+        {completionGlowActive ? (
           <CompletedTodayCelebration label={modoCicloAtivo ? 'Ciclo do dia finalizado' : 'Cronograma do dia finalizado'} />
         ) : activePanel === 'estudo' ? (
-          <div className="custom-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+          <div className="study-guide-scroll custom-scrollbar min-h-0 flex-1 space-y-4 overflow-y-auto pr-2">
             {estudosVisiveis.length > 0 ? estudosVisiveis.map((s) => {
               const key = s.slotIdBase || s.slotId || s.globalIndex;
               const isCycleSlot = modoCicloAtivo;
@@ -719,9 +972,9 @@ function HojeCard({
                 />
               );
             }) : (
-              <div className="flex min-h-[160px] flex-col items-center justify-center rounded-3xl border-2 border-dashed border-zinc-100 dark:border-zinc-800/50">
-                <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-red-50 text-red-600 dark:bg-red-950/20">
-                  <Flame size={28} />
+              <div className="flex min-h-[200px] flex-col items-center justify-center rounded-xl border-2 border-dashed border-zinc-100 dark:border-zinc-800/50">
+                <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-zinc-50 text-zinc-300 dark:bg-white/5">
+                  <Flame size={32} />
                 </div>
                 <p className="text-[11px] font-black uppercase tracking-[0.2em] text-zinc-400">Fim de missao</p>
                 <p className="mt-1 text-[9px] font-bold text-zinc-300 uppercase tracking-widest">Aproveite o descanso</p>
@@ -729,7 +982,7 @@ function HojeCard({
             )}
           </div>
         ) : (
-          <div className="custom-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+          <div className="study-guide-scroll custom-scrollbar min-h-0 flex-1 space-y-4 overflow-y-auto pr-2">
             {revisoesVisiveis.length > 0 ? revisoesVisiveis.map((s) => {
               const isCycleReview = modoCicloAtivo;
               const actionId = isCycleReview ? s.id : (s.slotIdBase || s.slotId);
@@ -746,9 +999,9 @@ function HojeCard({
                 />
               );
             }) : (
-              <div className="flex min-h-[160px] flex-col items-center justify-center rounded-3xl border-2 border-dashed border-zinc-100 dark:border-zinc-800/50">
-                <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-blue-50 text-blue-500 dark:bg-blue-950/20">
-                  <Trophy size={28} />
+              <div className="flex min-h-[200px] flex-col items-center justify-center rounded-xl border-2 border-dashed border-zinc-100 dark:border-zinc-800/50">
+                <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-zinc-50 text-zinc-300 dark:bg-white/5">
+                  <Trophy size={32} />
                 </div>
                 <p className="text-[11px] font-black uppercase tracking-[0.2em] text-zinc-400">Revisoes ok</p>
                 <p className="mt-1 text-[9px] font-bold text-zinc-300 uppercase tracking-widest">Memoria de longo prazo</p>
@@ -756,7 +1009,7 @@ function HojeCard({
             )}
           </div>
         )}
-        <div className="pt-4 border-t border-zinc-100 dark:border-zinc-800/50">
+        <div className="mt-4 shrink-0 border-t border-zinc-100 pt-4 dark:border-white/5">
           <button
             onClick={() => {
               if (activePanel === 'estudo') {
@@ -768,12 +1021,12 @@ function HojeCard({
               } else if (onGoToRevisao) onGoToRevisao();
               else setActiveTab?.('revisoes');
             }}
-            className={`group/btn relative flex w-full items-center justify-center gap-3 overflow-hidden rounded-[20px] py-3.5 text-[10px] font-black uppercase tracking-[0.25em] text-white shadow-xl transition-all dark:hover:text-white ${
-              diaTodoConcluido
-                ? 'bg-emerald-600 shadow-emerald-600/20 hover:bg-emerald-700 dark:bg-emerald-600 dark:text-white'
+            className={`group/btn relative flex w-full items-center justify-center gap-3 overflow-hidden rounded-2xl py-4 text-[10px] font-black uppercase tracking-[0.2em] text-white shadow-xl transition-all ${
+              completionGlowActive
+                ? 'bg-emerald-600 hover:bg-emerald-700'
                 : activePanel === 'estudo'
-                  ? 'bg-zinc-900 hover:bg-red-600 dark:bg-white dark:text-zinc-900 dark:hover:bg-red-600'
-                  : 'bg-zinc-900 hover:bg-blue-600 dark:bg-white dark:text-zinc-900 dark:hover:bg-blue-600'
+                  ? 'bg-zinc-950 hover:bg-red-600 dark:bg-white dark:text-zinc-950 dark:hover:bg-red-600 dark:hover:text-white'
+                  : 'bg-zinc-950 hover:bg-blue-600 dark:bg-white dark:text-zinc-950 dark:hover:bg-blue-600 dark:hover:text-white'
             }`}
           >
             <span className="relative z-10 flex items-center gap-2">
@@ -784,11 +1037,6 @@ function HojeCard({
         </div>
       </div>
 
-      <div className={`pointer-events-none absolute bottom-3 right-3 z-0 transition-all duration-1000 group-hover:scale-105 group-hover:rotate-[-8deg] ${
-        diaTodoConcluido ? 'text-emerald-600/10 dark:text-emerald-500/10' : activePanel === 'estudo' ? 'text-red-600/5 dark:text-red-500/5' : 'text-blue-600/5 dark:text-blue-500/5'
-      }`}>
-        {diaTodoConcluido ? <Trophy strokeWidth={0.5} className="h-36 w-36" /> : activePanel === 'estudo' ? <ShieldAlert strokeWidth={0.5} className="h-36 w-36" /> : <BookOpen strokeWidth={0.5} className="h-36 w-36" />}
-      </div>
     </motion.div>
   );
 }

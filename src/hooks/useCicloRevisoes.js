@@ -8,7 +8,8 @@ export const useCicloRevisoes = (user, cicloId) => {
   const [revisoes, setRevisoes] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // Sem cicloId, carrega a central inteira de revisoes pendentes do ciclo.
+  // Sem cicloId, carrega a central inteira de revisoes do ciclo.
+  // Itens concluidos continuam na lista para que Home/Revisao exibam o estado final.
   useEffect(() => {
     if (!user) {
       setRevisoes([]);
@@ -24,8 +25,7 @@ export const useCicloRevisoes = (user, cicloId) => {
 
     const unsub = onSnapshot(q, (snap) => {
       const revisoesLidas = snap.docs
-        .map((d) => ({ id: d.id, ...d.data() }))
-        .filter((revisao) => revisao.concluida !== true);
+        .map((d) => ({ id: d.id, ...d.data() }));
       setRevisoes(dedupeCicloRevisoesInMemory(revisoesLidas));
       setLoading(false);
     }, () => {
@@ -41,7 +41,7 @@ export const useCicloRevisoes = (user, cicloId) => {
     return revisoes.filter((r) => r.dataAgendada <= hoje);
   }, [revisoes]);
 
-  const totalPendentes = revisoesHoje.length;
+  const totalPendentes = revisoesHoje.filter((r) => r.concluida !== true).length;
 
   // Conclui a revisao exibida e qualquer duplicata legada da mesma chave funcional.
   const concluirRevisao = useCallback(async (revisaoId) => {

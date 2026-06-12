@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { db } from '../../firebaseConfig';
+import { app, db } from '../../firebaseConfig';
 import {
   collection, query, orderBy, onSnapshot, addDoc, updateDoc, deleteDoc,
   doc, serverTimestamp, setDoc, writeBatch, getDocs, where
 } from 'firebase/firestore';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import {
   X, Loader2, Calendar, Star, Edit2, Trash2, Check, Plus, Upload,
   Search, Sparkles, ChevronRight, CheckCircle2, Quote, Clock
@@ -160,6 +161,9 @@ const HeaderFrases = ({ isOpen, onClose }) => {
   const [bulkParsed, setBulkParsed] = useState([]);
   const [bulkSaving, setBulkSaving] = useState(false);
   const [bulkSaved, setBulkSaved] = useState(false);
+  const [automationConfig, setAutomationConfig] = useState(null);
+  const [automationRunning, setAutomationRunning] = useState(false);
+  const [automationResult, setAutomationResult] = useState(null);
 
   const [schedulingQuote, setSchedulingQuote] = useState(null);
   const [scheduleDate, setScheduleDate] = useState(dateToYMD(new Date()));
@@ -181,6 +185,14 @@ const HeaderFrases = ({ isOpen, onClose }) => {
     if (!isOpen) return;
     const unsub = onSnapshot(doc(db, 'system_config', 'quotes_settings'), (snap) => {
       setFeaturedConfig(snap.exists() ? snap.data() : null);
+    });
+    return () => unsub();
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const unsub = onSnapshot(doc(db, 'system_config', 'quotes_automation'), (snap) => {
+      setAutomationConfig(snap.exists() ? snap.data() : null);
     });
     return () => unsub();
   }, [isOpen]);
@@ -253,6 +265,24 @@ const HeaderFrases = ({ isOpen, onClose }) => {
       setTimeout(() => setBulkSaved(false), 3000);
       setActiveTab('all');
     } catch (e) { console.error(e); alert('Erro ao importar frases.'); } finally { setBulkSaving(false); }
+  };
+
+  const handleAutoReplenish = async () => {
+    if (automationRunning) return;
+    setAutomationRunning(true);
+    setAutomationResult(null);
+    try {
+      const functions = getFunctions(app, 'us-central1');
+      const abastecerFrases = httpsCallable(functions, 'abastecerFrasesMotivacionais');
+      const result = await abastecerFrases({});
+      setAutomationResult(result?.data || null);
+      setActiveTab('all');
+    } catch (e) {
+      console.error(e);
+      alert('Erro ao abastecer frases com IA.');
+    } finally {
+      setAutomationRunning(false);
+    }
   };
 
   const handleDeleteQuote = async (q) => {
@@ -332,6 +362,7 @@ const HeaderFrases = ({ isOpen, onClose }) => {
 
   const tabs = [
     { key: 'all', label: 'Calendário', icon: Calendar },
+    { key: 'auto', label: 'Automacao IA', icon: Sparkles },
     { key: 'add', label: 'Nova Frase', icon: Plus },
     { key: 'bulk', label: 'Importar em Massa', icon: Upload },
   ];
@@ -487,6 +518,69 @@ const HeaderFrases = ({ isOpen, onClose }) => {
               {pastQuotes.length > 0 && <details className="group"><summary className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-3 flex items-center gap-1.5 cursor-pointer mt-2 select-none"><Clock size={11} /> Exibidas Anteriormente ({pastQuotes.length}) <ChevronRight size={11} className="ml-auto transition-transform group-open:rotate-90" /></summary><div className="grid gap-3 md:grid-cols-2 mt-3">{pastQuotes.map((q, i) => <QuoteCard key={q.id} q={q} idx={i} />)}</div></details>}
               {filteredQuotes.length === 0 && <div className="flex flex-col items-center justify-center py-16 text-zinc-400"><Quote size={40} className="mb-4" /><p className="font-bold">Nenhuma frase cadastrada</p></div>}
             </>
+          )}
+
+          {activeTab === 'auto' && (
+            <div className="max-w-3xl mx-auto w-full space-y-6">
+              <div className="p-5 bg-violet-50 dark:bg-violet-900/10 border border-violet-100 dark:border-violet-900/40 rounded-2xl flex items-start gap-3">
+                <Sparkles size={17} className="text-violet-600 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="text-xs font-black text-violet-700 dark:text-violet-300 uppercase tracking-widest">Abastecimento automatico</p>
+                  <p className="text-xs font-medium text-violet-700/80 dark:text-violet-200/80 leading-relaxed">
+                    O sistema roda sozinho todos os dias as 05:20, mantem ate 21 frases futuras, aprende o padrao das frases ja usadas, usa frases online com autor ou Autor Desconhecido e reaproveita antigas ocasionalmente.
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-white dark:bg-zinc-900/60 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 space-y-5">
+                <div className="grid sm:grid-cols-3 gap-3">
+                  <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/40 p-4">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-1">Estoque atual</p>
+                    <p className="text-2xl font-black text-zinc-900 dark:text-white">{futureQuotes.length}</p>
+                    <p className="text-[11px] text-zinc-500">frases futuras</p>
+                  </div>
+                  <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/40 p-4">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-1">Meta</p>
+                    <p className="text-2xl font-black text-zinc-900 dark:text-white">21</p>
+                    <p className="text-[11px] text-zinc-500">dias abastecidos</p>
+                  </div>
+                  <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/40 p-4">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-1">Ultimo status</p>
+                    <p className={`text-sm font-black uppercase ${automationConfig?.status === 'error' ? 'text-red-600' : 'text-emerald-600'}`}>
+                      {automationConfig?.status || 'Aguardando'}
+                    </p>
+                    <p className="text-[11px] text-zinc-500 truncate">{automationConfig?.message || 'Sem execucao registrada'}</p>
+                  </div>
+                </div>
+
+                {automationConfig?.status === 'error' && automationConfig?.error && (
+                  <div className="p-3 rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-900/10 text-xs font-medium text-red-700 dark:text-red-300">
+                    {automationConfig.error}
+                  </div>
+                )}
+
+                {automationResult && (
+                  <div className="p-3 rounded-xl border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-900/10 text-xs font-bold text-emerald-700 dark:text-emerald-300">
+                    {automationResult.message} Novas: {automationResult.created || 0}. Reaproveitadas: {automationResult.reused || 0}. Duplicatas removidas: {automationResult.prunedDuplicates || 0}. Fontes online lidas: {automationResult.onlineSourcesRead || 0}.
+                  </div>
+                )}
+
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+                  <div>
+                    <p className="text-sm font-black text-zinc-900 dark:text-white">Rodar reposicao agora</p>
+                    <p className="text-xs text-zinc-500">Use quando quiser completar o calendario imediatamente.</p>
+                  </div>
+                  <button
+                    onClick={handleAutoReplenish}
+                    disabled={automationRunning}
+                    className="flex items-center justify-center gap-2 px-5 py-3 bg-violet-600 hover:bg-violet-700 text-white rounded-xl font-bold text-sm transition-all shadow-lg disabled:opacity-60 disabled:cursor-wait"
+                  >
+                    {automationRunning ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                    {automationRunning ? 'Gerando...' : 'Abastecer com IA'}
+                  </button>
+                </div>
+              </div>
+            </div>
           )}
 
           {activeTab === 'add' && (

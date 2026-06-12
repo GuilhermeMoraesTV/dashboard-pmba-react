@@ -12,6 +12,20 @@ import { CATALOGO_EDITAIS } from '../pages/AdminPage/EditaisManager';
 const normStr = (s) =>
   s ? String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase() : '';
 
+const toMillisSafe = (value) => {
+  if (!value) return null;
+  if (typeof value.toDate === 'function') return value.toDate().getTime();
+  if (value instanceof Date) return value.getTime();
+  const parsed = new Date(value).getTime();
+  return Number.isNaN(parsed) ? null : parsed;
+};
+
+const getAuthCreatedAtMillis = (user) => (
+  toMillisSafe(user?.metadata?.creationTime) ||
+  toMillisSafe(user?.metadata?.createdAt) ||
+  null
+);
+
 const levenshtein = (a, b) => {
   const m = a.length, n = b.length;
   const dp = Array.from({ length: m + 1 }, (_, i) =>
@@ -311,6 +325,7 @@ export const useNotifications = (user) => {
   const [readBroadcasts, setReadBroadcasts] = useState(new Set());
   const [deletedNotifs, setDeletedNotifs] = useState(new Set());
   const [loading, setLoading] = useState(false);
+  const [userCreatedAtMillis, setUserCreatedAtMillis] = useState(null);
 
   const ciclosRef = useRef([]);
   const templateUnsubsRef = useRef({});
@@ -319,6 +334,37 @@ export const useNotifications = (user) => {
   const pendingCheckRef = useRef({});
   const debounceTimersRef = useRef({});
   const debounceOrigemRef = useRef({});
+
+  useEffect(() => {
+    if (!user) {
+      setUserCreatedAtMillis(null);
+      return;
+    }
+
+    const authMillis = getAuthCreatedAtMillis(user);
+    if (authMillis) {
+      setUserCreatedAtMillis(authMillis);
+      return;
+    }
+
+    let alive = true;
+    getDoc(doc(db, 'users', user.uid))
+      .then((snap) => {
+        if (!alive) return;
+        const data = snap.exists() ? snap.data() : {};
+        setUserCreatedAtMillis(
+          toMillisSafe(data.createdAt) ||
+          toMillisSafe(data.dataCriacao) ||
+          toMillisSafe(data.created_at) ||
+          null
+        );
+      })
+      .catch(() => {
+        if (alive) setUserCreatedAtMillis(null);
+      });
+
+    return () => { alive = false; };
+  }, [user]);
 
   // 1. Sync Cross-Tab e Load inicial do LocalStorage
   useEffect(() => {
@@ -356,16 +402,23 @@ export const useNotifications = (user) => {
     if (!user) return;
     const q = query(collection(db, 'system_broadcasts'), where('active', '==', true), orderBy('timestamp', 'desc'), limit(20));
     const unsub = onSnapshot(q, (snap) => {
+      const createdAtMillis = userCreatedAtMillis || getAuthCreatedAtMillis(user);
       setBroadcasts(
         snap.docs.map((d) => ({
             id: d.id, ...d.data(),
             timestamp: d.data().timestamp?.toDate?.() || new Date(d.data().createdAt || Date.now()),
             _type: 'broadcast',
-          })).filter((b) => !b.targetUid || b.targetUid === user.uid)
+          })).filter((b) => {
+            if (b.targetUid) return b.targetUid === user.uid;
+            if (Array.isArray(b.targetUserIds) && b.targetUserIds.length > 0 && !b.targetUserIds.includes(user.uid)) return false;
+            const broadcastMillis = toMillisSafe(b.timestamp);
+            if (createdAtMillis && broadcastMillis && broadcastMillis < createdAtMillis) return false;
+            return true;
+          })
       );
     });
     return () => unsub();
-  }, [user]);
+  }, [user, userCreatedAtMillis]);
 
   // 3. Checagem de Editais
   useEffect(() => {
@@ -523,7 +576,10 @@ export const useNotifications = (user) => {
   const activeHistory = dismissedHistory.filter(h => {
       const hId = h.id || `edital_${h.cicloId}_${h.versionKey}`;
       return !deletedNotifs.has(hId);
-  });
+  }).map((h) => ({
+      ...h,
+      id: h.id || `edital_${h.cicloId}_${h.versionKey}`,
+  }));
 
   const notifications = [...activeBroadcasts, ...activeEditalUpdates].sort(
     (a, b) => (b.timestamp?.getTime?.() || 0) - (a.timestamp?.getTime?.() || 0)
