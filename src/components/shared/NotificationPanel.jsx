@@ -711,10 +711,14 @@ const NotificationPanel = ({
     return () => window.removeEventListener('resize', update);
   }, [bellRef, isOpen]);
 
-  const panelWidth = 390;
+  const isMobileViewport = window.innerWidth < 640;
+  const panelWidth = isMobileViewport ? Math.min(350, window.innerWidth - 24) : 390;
   const bellRight = bellRectState ? Math.max(window.innerWidth - bellRectState.right, 10) : 10;
   const bellBottom = bellRectState ? bellRectState.bottom : 74;
-  const panelMaxHeight = Math.min(580, Math.max(300, window.innerHeight - bellBottom - 32));
+  const panelMaxHeight = Math.min(isMobileViewport ? 520 : 580, Math.max(280, window.innerHeight - bellBottom - 24));
+  const panelPosition = isMobileViewport
+    ? { left: 12, right: 12, width: 'auto' }
+    : { right: bellRight, width: panelWidth };
 
   return createPortal(
     <AnimatePresence>
@@ -726,8 +730,8 @@ const NotificationPanel = ({
           <motion.div
             ref={panelRef}
             initial={{ opacity: 0, scale: 0.95, y: -20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: -20 }}
-            style={{ top: bellBottom + 8, right: bellRight, width: Math.min(panelWidth, window.innerWidth - 20), maxHeight: panelMaxHeight }}
-            className="fixed z-[100] flex flex-col overflow-hidden glass-panel-fire rounded-[24px] shadow-2xl"
+            style={{ top: bellBottom + 8, ...panelPosition, maxHeight: panelMaxHeight }}
+            className="fixed z-[100] flex flex-col overflow-hidden glass-panel-fire rounded-[20px] sm:rounded-[24px] shadow-2xl"
           >
             <style>{notifGlobalStyles}</style>
             <div className="h-1 bg-gradient-to-r from-red-700 via-red-500 to-red-700 animate-pulse flex-shrink-0 shadow-lg" />
@@ -788,8 +792,8 @@ export const NotificationBell = ({ unreadCount, notifications, dismissedHistory,
   const totalBadgeCount = Number(unreadCount || 0) + (systemAlerts || []).length;
   return (
     <div className="relative">
-      <motion.button ref={bellRef} whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.95 }} onClick={() => setPanelOpen(!panelOpen)} className={`relative w-10 h-10 rounded-xl flex items-center justify-center transition-all border shadow-sm ${panelOpen ? 'bg-gradient-to-br from-red-600 to-red-700 text-white border-transparent shadow-xl scale-105' : 'bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800'}`} aria-label="Notificações">
-        <Bell size={19} strokeWidth={2.2} />
+      <motion.button ref={bellRef} whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.95 }} onClick={() => setPanelOpen(!panelOpen)} className={`relative w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl flex items-center justify-center transition-all border shadow-sm ${panelOpen ? 'bg-gradient-to-br from-red-600 to-red-700 text-white border-transparent shadow-xl scale-105' : 'bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800'}`} aria-label="Notificações">
+        <Bell size={17} strokeWidth={2.2} />
         {totalBadgeCount > 0 && (
           <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center border-2 border-white dark:border-zinc-950 shadow-lg">
             {totalBadgeCount > 9 ? '9+' : totalBadgeCount}

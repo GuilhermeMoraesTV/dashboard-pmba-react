@@ -703,6 +703,12 @@ function RegistroEstudoModal({
     if (a > q) return 0;
     return q > 0 ? Math.min(Math.round((a / q) * 100), 100) : 0;
   }, [formData.questoesFeitas, formData.acertos]);
+  const hasQuestionPerformance = Number(formData.questoesFeitas) > 0 && !hasAcertosError;
+  const percentageTone = percentage >= 80
+    ? 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/25'
+    : percentage >= 60
+      ? 'bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/25'
+      : 'bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-300 border-red-200 dark:border-red-500/25';
 
   const isTimeFromTimer = useMemo(
     () => initialData?.tempoEstudadoMinutos !== undefined && initialData.tempoEstudadoMinutos > 0,
@@ -1146,7 +1152,7 @@ function RegistroEstudoModal({
   );
 
   const targetHeight = expanded ? MODAL_EXPANDED_MAX_H_PX : MODAL_COLLAPSED_MAX_H_PX;
-  const safeMaxHeight = viewportHeight - (viewportHeight >= 760 ? 24 : 12);
+  const safeMaxHeight = viewportHeight - (viewportHeight >= 760 ? 40 : 32);
   const finalHeight = Math.min(targetHeight, safeMaxHeight);
   const modalMaxWidth = queue.length > 0 ? MODAL_WITH_QUEUE_MAX_W_PX : MODAL_MAX_W_PX;
 
@@ -1160,7 +1166,7 @@ function RegistroEstudoModal({
 
   return (
     <div
-      className="fixed inset-0 z-[200] flex items-center justify-center p-2 md:p-3 bg-zinc-950/78 backdrop-blur-xl registro-ambient-grid"
+      className="fixed inset-0 z-[200] flex items-center justify-center p-4 md:p-5 bg-zinc-950/78 backdrop-blur-xl registro-ambient-grid"
       onClick={handleCloseRequest}
     >
       <style>{globalStyles}</style>
@@ -1227,7 +1233,7 @@ function RegistroEstudoModal({
                 <p className="registro-section-kicker mb-2.5">
                   Planejamento
                 </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
                   {contextOptions.map((context) => {
                     const active = selectedContext === context.type;
                     const isCiclo = context.type === 'ciclo';
@@ -1238,7 +1244,7 @@ function RegistroEstudoModal({
                         key={context.type}
                         type="button"
                         onClick={() => setSelectedContext(context.type)}
-                        className={`group relative flex items-center gap-3 rounded-2xl p-2.5 text-left border transition-all duration-300 overflow-hidden hover:-translate-y-0.5 ${
+                        className={`group relative flex items-center gap-2 sm:gap-3 rounded-xl sm:rounded-2xl p-2 sm:p-2.5 text-left border transition-all duration-300 overflow-hidden hover:-translate-y-0.5 ${
                           active
                             ? isCiclo
                               ? 'border-red-500 bg-white/80 dark:bg-[#1f1f1f] shadow-lg shadow-red-500/10'
@@ -1557,9 +1563,9 @@ function RegistroEstudoModal({
                   <span className={`registro-section-kicker ${hasAcertosError ? '!text-red-500' : ''}`}>
                     Questões
                   </span>
-                  {percentage > 0 && !hasAcertosError && (
-                    <span className="text-[8px] font-black bg-zinc-200 dark:bg-[#333] text-zinc-800 dark:text-zinc-200 px-1.5 py-0.5 rounded-md uppercase tracking-widest">
-                      {percentage}% Taxa
+                  {hasQuestionPerformance && (
+                    <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-md uppercase tracking-widest border ${percentageTone}`}>
+                      {percentage}% Precisão
                     </span>
                   )}
                 </div>
