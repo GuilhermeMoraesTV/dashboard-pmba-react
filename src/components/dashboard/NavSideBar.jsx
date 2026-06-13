@@ -862,28 +862,39 @@ function NavSideBar({
                 initial={{ opacity:0, y:10, scale:0.95 }}
                 animate={{ opacity:1, y:0, scale:1 }}
                 exit={{ opacity:0, y:10, scale:0.95 }}
-                className="absolute right-0 top-full mt-2 sm:mt-3 w-64 sm:w-80 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl sm:rounded-3xl shadow-2xl z-[100] overflow-hidden ring-1 ring-black/5 dark:ring-white/5"
+                className="absolute right-0 top-full mt-2 sm:mt-3 w-64 sm:w-80 overflow-hidden rounded-2xl sm:rounded-3xl border border-red-100 bg-white shadow-2xl shadow-red-950/10 ring-1 ring-red-500/10 dark:border-red-950/50 dark:bg-zinc-950 dark:ring-red-500/20 z-[100]"
               >
-                <div className="relative flex flex-col items-center pt-5 pb-4 px-4 sm:pt-10 sm:pb-8 sm:px-6 overflow-hidden bg-gradient-to-b from-zinc-50 to-white dark:from-zinc-900 dark:to-zinc-950 border-b border-zinc-100 dark:border-zinc-800">
-                  <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-red-500/5 to-transparent dark:from-red-500/10 pointer-events-none"/>
+                <div className="relative flex flex-col items-center overflow-hidden border-b border-red-100 bg-gradient-to-b from-red-50 via-white to-white px-4 pb-4 pt-5 dark:border-red-950/50 dark:from-red-950/35 dark:via-zinc-950 dark:to-zinc-950 sm:px-6 sm:pb-6 sm:pt-7">
+                  <div className="pointer-events-none absolute -top-16 left-1/2 h-40 w-40 -translate-x-1/2 rounded-full bg-red-500/20 blur-3xl dark:bg-red-500/15"/>
+                  <div className="pointer-events-none absolute left-0 right-0 top-0 h-1 bg-gradient-to-r from-red-700 via-red-500 to-orange-500"/>
+                  <motion.div
+                    animate={{ scale: [1, 1.12, 1], opacity: [0.35, 0.55, 0.35] }}
+                    transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+                    className="pointer-events-none absolute top-10 h-24 w-24 rounded-full bg-red-500/15 blur-2xl"
+                  />
                   <div
-                    className="relative z-10 mb-3 drop-shadow-xl transform hover:scale-105 transition-transform duration-500 cursor-pointer"
+                    className="relative z-10 mb-3 cursor-pointer drop-shadow-xl transition-transform duration-500 hover:scale-105"
                     onClick={() => { setActiveTab('profile'); setIsProfileMenuOpen(false); }}
                   >
-                    <ProfileLevelRing userPhotoURL={user?.photoURL} size={76} strokeWidth={3.5}/>
+                    <div className="rounded-full bg-white/80 p-1.5 shadow-xl shadow-red-900/10 ring-4 ring-red-100/80 dark:bg-zinc-950/70 dark:ring-red-950/70">
+                      <ProfileLevelRing userPhotoURL={user?.photoURL} size={70} strokeWidth={3.5}/>
+                    </div>
                   </div>
-                  <h3 className="relative z-10 font-black text-zinc-900 dark:text-white text-base sm:text-xl text-center leading-tight truncate w-full tracking-tight mb-1">
+                  <h3 className="relative z-10 mb-1 w-full truncate text-center text-base font-black leading-tight tracking-tight text-zinc-950 dark:text-white sm:text-lg">
                     {user?.displayName || 'Guerreiro'}
                   </h3>
+                  <div className="relative z-10 rounded-full border border-red-200 bg-white/75 px-3 py-1 text-[9px] font-black uppercase tracking-[0.18em] text-red-600 shadow-sm dark:border-red-900/70 dark:bg-red-950/20 dark:text-red-300">
+                    Central do aluno
+                  </div>
                 </div>
 
-                <div className="p-2 sm:p-3 space-y-1 sm:space-y-2 bg-white dark:bg-zinc-950">
+                <div className="space-y-1 bg-white p-2 dark:bg-zinc-950 sm:space-y-2 sm:p-3">
                   <button
                     onClick={() => { setActiveTab('profile'); setIsProfileMenuOpen(false); }}
-                    className="w-full flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 rounded-xl sm:rounded-2xl text-sm font-bold text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-900 hover:text-zinc-900 dark:hover:text-white transition-all group border border-transparent hover:border-zinc-200 dark:hover:border-zinc-800"
+                    className="group flex w-full items-center justify-between rounded-xl border border-transparent px-3 py-2.5 text-sm font-bold text-zinc-700 transition-all hover:border-red-100 hover:bg-red-50/70 hover:text-zinc-950 dark:text-zinc-300 dark:hover:border-red-950/60 dark:hover:bg-red-950/20 dark:hover:text-white sm:rounded-2xl sm:px-4 sm:py-3"
                   >
                     <div className="flex items-center gap-4">
-                      <div className="p-2 rounded-xl bg-zinc-100 dark:bg-zinc-900 text-zinc-500 group-hover:text-red-500 group-hover:bg-red-50 dark:group-hover:bg-red-900/20 transition-all">
+                      <div className="rounded-xl bg-red-50 p-2 text-red-600 transition-all group-hover:bg-red-600 group-hover:text-white dark:bg-red-950/30 dark:text-red-300">
                         <User size={18}/>
                       </div>
                       <span>Meu Perfil</span>
@@ -893,10 +904,10 @@ function NavSideBar({
 
                   <button
                     onClick={() => { setIsTimerSettingsOpen(true); setIsProfileMenuOpen(false); }}
-                    className="w-full flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 rounded-xl sm:rounded-2xl text-sm font-bold text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-900 hover:text-zinc-900 dark:hover:text-white transition-all group border border-transparent hover:border-zinc-200 dark:hover:border-zinc-800"
+                    className="group flex w-full items-center justify-between rounded-xl border border-transparent px-3 py-2.5 text-sm font-bold text-zinc-700 transition-all hover:border-red-100 hover:bg-red-50/70 hover:text-zinc-950 dark:text-zinc-300 dark:hover:border-red-950/60 dark:hover:bg-red-950/20 dark:hover:text-white sm:rounded-2xl sm:px-4 sm:py-3"
                   >
                     <div className="flex items-center gap-4">
-                      <div className="p-2 rounded-xl bg-zinc-100 dark:bg-zinc-900 text-zinc-500 group-hover:text-red-500 group-hover:bg-red-50 dark:group-hover:bg-red-900/20 transition-all">
+                      <div className="rounded-xl bg-red-50 p-2 text-red-600 transition-all group-hover:bg-red-600 group-hover:text-white dark:bg-red-950/30 dark:text-red-300">
                         <Settings size={18}/>
                       </div>
                       <span>Configurações</span>
@@ -906,10 +917,10 @@ function NavSideBar({
 
                   <button
                     onClick={() => { onOpenFeedback(); setIsProfileMenuOpen(false); }}
-                    className="w-full flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 rounded-xl sm:rounded-2xl text-sm font-bold text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-900 hover:text-zinc-900 dark:hover:text-white transition-all group border border-transparent hover:border-zinc-200 dark:hover:border-zinc-800"
+                    className="group flex w-full items-center justify-between rounded-xl border border-transparent px-3 py-2.5 text-sm font-bold text-zinc-700 transition-all hover:border-red-100 hover:bg-red-50/70 hover:text-zinc-950 dark:text-zinc-300 dark:hover:border-red-950/60 dark:hover:bg-red-950/20 dark:hover:text-white sm:rounded-2xl sm:px-4 sm:py-3"
                   >
                     <div className="flex items-center gap-4">
-                      <div className="relative p-2 rounded-xl bg-zinc-100 dark:bg-zinc-900 text-zinc-500 group-hover:text-blue-500 group-hover:bg-blue-50 dark:group-hover:bg-blue-900/20 transition-all">
+                      <div className="relative rounded-xl bg-red-50 p-2 text-red-600 transition-all group-hover:bg-red-600 group-hover:text-white dark:bg-red-950/30 dark:text-red-300">
                         <Radio size={18} className={hasUnreadSupport ? 'animate-pulse' : ''}/>
                         {hasUnreadSupport && (
                           <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white dark:border-zinc-900"/>
@@ -920,14 +931,14 @@ function NavSideBar({
                     <ChevronRight size={16} className="text-zinc-300 group-hover:text-zinc-500"/>
                   </button>
 
-                  <div className="h-px bg-zinc-100 dark:bg-zinc-900 mx-4"/>
+                  <div className="mx-4 h-px bg-red-100 dark:bg-red-950/50"/>
 
                   <button
                     onClick={handleLogout}
-                    className="w-full flex items-center px-3 sm:px-4 py-2.5 sm:py-3.5 rounded-xl sm:rounded-2xl text-sm font-bold text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-all group"
+                    className="group flex w-full items-center rounded-xl px-3 py-2.5 text-sm font-bold text-red-600 transition-all hover:bg-red-50 dark:hover:bg-red-950/20 sm:rounded-2xl sm:px-4 sm:py-3"
                   >
                     <div className="flex items-center gap-4">
-                      <div className="p-2 rounded-xl bg-red-50 dark:bg-red-900/10 text-red-500 group-hover:bg-red-100 dark:group-hover:bg-red-900/30 transition-all">
+                      <div className="rounded-xl bg-red-100 p-2 text-red-600 transition-all group-hover:bg-red-600 group-hover:text-white dark:bg-red-950/40 dark:text-red-300">
                         <LogOut size={18}/>
                       </div>
                       <span>Sair do Sistema</span>

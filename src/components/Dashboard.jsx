@@ -27,6 +27,7 @@ const TimerFinishModal = lazy(() => import('../components/ciclos/TimerFinishModa
 const RegistroEstudoModal = lazy(() => import('../components/ciclos/RegistroEstudoModal'));
 const OnboardingTour = lazy(() => import('../components/shared/OnboardingTour'));
 const BroadcastReceiver = lazy(() => import('../components/shared/BroadcastReceiver'));
+const WelcomeCarouselModal = lazy(() => import('../components/shared/WelcomeCarouselModal'));
 const FeedbackWidget = lazy(() => import('../components/FeedbackWidget'));
 const SimuladosPage = lazy(() => import('../pages/SimuladosPage/SimuladosPage'));
 const SimuladoTimer = lazy(() => import('../pages/SimuladosPage/SimuladoTimer'));
@@ -34,6 +35,7 @@ const NoticiasPage = lazy(() => import('../pages/NoticiasPage'));
 const RevisaoPage = lazy(() => import('../pages/RevisaoPage'));
 
 const ENABLE_ONBOARDING_TOUR = false;
+const WELCOME_UPDATE_VERSION = '2026-06-dashboard-rebuild-v2';
 
 import { useNotifications } from '../hooks/useNotifications';
 import { useUserAccess } from '../hooks/useUserAccess';
@@ -245,6 +247,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   const [feedbackInitialState, setFeedbackInitialState] = useState({ initialView: 'home', initialType: 'ideia' });
   const [warningAlert, setWarningAlert]         = useState({ isOpen:false, title:'', message:'' });
   const [forcePlanejamentoSelector, setForcePlanejamentoSelector] = useState(false);
+  const [welcomeCarousel, setWelcomeCarousel]   = useState({ loading:true, mode:null });
 
   const [activeStudySession, setActiveStudySession]   = useState(null);
   const [finishModalData, setFinishModalData]         = useState(null);
@@ -259,6 +262,8 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   const [activeCicloId, setActiveCicloId]         = useState(null);
   const [activeCicloData, setActiveCicloData]     = useState(null);
   const [activeCronogramaData, setActiveCronogramaData] = useState(null);
+  const [activeCicloLoaded, setActiveCicloLoaded] = useState(false);
+  const [activeCronogramaLoaded, setActiveCronogramaLoaded] = useState(false);
   const [targetOpenCicloId, setTargetOpenCicloId] = useState(null);
   const [allRegistrosEstudo, setAllRegistrosEstudo] = useState([]);
   const [allSimulados, setAllSimulados]           = useState([]);
@@ -441,6 +446,56 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     const semRegistros = mergedAllRegistrosEstudo.length === 0;
     return semCicloAtivo && semCronogramaAtivo && semRegistros;
   }, [activeCicloId, activeCronogramaData?.id, mergedAllRegistrosEstudo.length]);
+
+  useEffect(() => {
+    if (!user?.uid) {
+      setWelcomeCarousel({ loading:false, mode:null });
+      return;
+    }
+
+    const ready = registrosLoaded && simuladosLoaded && activeCicloLoaded && activeCronogramaLoaded;
+    if (!ready) {
+      setWelcomeCarousel((current) => ({ ...current, loading:true }));
+      return;
+    }
+
+    let alive = true;
+    const localBaseKey = `modoqap_welcome_carousel_${user.uid}`;
+
+    const resolveMode = (saved = {}) => {
+      const localWelcomeSeen = localStorage.getItem(`${localBaseKey}_welcome`) === 'true';
+      const localUpdateSeen = localStorage.getItem(`${localBaseKey}_update_${WELCOME_UPDATE_VERSION}`) === 'true';
+      const welcomeSeen = Boolean(saved.welcomeCompletedAt || saved.welcomeSeen || localWelcomeSeen);
+      const updateSeen = saved.updateVersionSeen === WELCOME_UPDATE_VERSION || localUpdateSeen;
+
+      if (isNovoUsuarioPlanejamento && !welcomeSeen) return 'welcome';
+      if (!isNovoUsuarioPlanejamento && !updateSeen) return 'update';
+      return null;
+    };
+
+    setWelcomeCarousel((current) => ({ ...current, loading:true }));
+
+    getDoc(doc(db, 'users', user.uid, 'system_state', 'welcome_carousel'))
+      .then((snap) => {
+        if (!alive) return;
+        const mode = resolveMode(snap.exists() ? snap.data() : {});
+        setWelcomeCarousel({ loading:false, mode });
+      })
+      .catch((error) => {
+        console.error('[Dashboard] Erro ao carregar carrossel inicial:', error);
+        if (!alive) return;
+        setWelcomeCarousel({ loading:false, mode:resolveMode({}) });
+      });
+
+    return () => { alive = false; };
+  }, [
+    user?.uid,
+    registrosLoaded,
+    simuladosLoaded,
+    activeCicloLoaded,
+    activeCronogramaLoaded,
+    isNovoUsuarioPlanejamento,
+  ]);
 
   const dayToShareData = useMemo(() => {
     const recs = mergedAllRegistrosEstudo.filter(r => r.data === todayStr);
@@ -1133,6 +1188,47 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     setForcePlanejamentoSelector(false);
   }, []);
 
+  const handleWelcomeCreatePlanning = useCallback(() => {
+    setForcePlanejamentoSelector(true);
+    setActiveTab('planejamento');
+  }, []);
+
+  const handleWelcomeCarouselComplete = useCallback(async ({ action } = {}) => {
+    if (!user?.uid) {
+      setWelcomeCarousel({ loading:false, mode:null });
+      return;
+    }
+
+    const completedMode = welcomeCarousel.mode;
+    const localBaseKey = `modoqap_welcome_carousel_${user.uid}`;
+    const payload = {
+      lastCompletedMode: completedMode || null,
+      lastCompletedAction: action || 'done',
+      lastCompletedAt: Timestamp.now(),
+    };
+
+    if (completedMode === 'welcome') {
+      payload.welcomeSeen = true;
+      payload.welcomeCompletedAt = Timestamp.now();
+      payload.updateVersionSeen = WELCOME_UPDATE_VERSION;
+      payload.updateCompletedAt = Timestamp.now();
+      localStorage.setItem(`${localBaseKey}_welcome`, 'true');
+      localStorage.setItem(`${localBaseKey}_update_${WELCOME_UPDATE_VERSION}`, 'true');
+    } else if (completedMode === 'update') {
+      payload.updateVersionSeen = WELCOME_UPDATE_VERSION;
+      payload.updateCompletedAt = Timestamp.now();
+      localStorage.setItem(`${localBaseKey}_update_${WELCOME_UPDATE_VERSION}`, 'true');
+    }
+
+    setWelcomeCarousel({ loading:false, mode:null });
+
+    try {
+      await setDoc(doc(db, 'users', user.uid, 'system_state', 'welcome_carousel'), payload, { merge:true });
+    } catch (error) {
+      console.error('[Dashboard] Erro ao salvar carrossel inicial:', error);
+    }
+  }, [user?.uid, welcomeCarousel.mode]);
+
   const handleLogout     = async () => { clearActiveTimerDoc(); clearActiveSimuladoDoc(); signOut(auth).catch(console.error); };
 
   const handleShareGoal  = (stats) => { setSharePreviewData({ stats, userName:user.displayName||'Estudante', dayData:dayToShareData, goals:goalsHistory[0]||{ questions:0, hours:0 }, isDarkMode }); };
@@ -1175,19 +1271,32 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
 
   useEffect(() => {
     if (!user) return;
+    setActiveCicloLoaded(false);
     const q = query(collection(db,'users',user.uid,'ciclos'), where('ativo','==',true), where('arquivado','==',false));
     return onSnapshot(q, (snap) => {
       if (snap.empty) { setActiveCicloId(null); setActiveCicloData(null); }
       else { const d = snap.docs[0]; setActiveCicloId(d.id); setActiveCicloData({ id:d.id, ...d.data() }); }
+      setActiveCicloLoaded(true);
+    }, (error) => {
+      console.error('[Dashboard] Erro ao sincronizar ciclo ativo:', error);
+      setActiveCicloId(null);
+      setActiveCicloData(null);
+      setActiveCicloLoaded(true);
     });
   }, [user]);
 
   useEffect(() => {
     if (!user) return;
+    setActiveCronogramaLoaded(false);
     const q = query(collection(db,'users',user.uid,'cronogramas'), where('ativo','==',true));
     return onSnapshot(q, (snap) => {
       if (snap.empty) setActiveCronogramaData(null);
       else setActiveCronogramaData({ id:snap.docs[0].id, ...snap.docs[0].data() });
+      setActiveCronogramaLoaded(true);
+    }, (error) => {
+      console.error('[Dashboard] Erro ao sincronizar cronograma ativo:', error);
+      setActiveCronogramaData(null);
+      setActiveCronogramaLoaded(true);
     });
   }, [user]);
 
@@ -1271,9 +1380,18 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     <div className="relative isolate flex min-h-screen bg-background-light dark:bg-background-dark text-text-primary dark:text-text-dark-primary transition-colors duration-300 overflow-x-hidden">
       <AppBackgroundEffects />
       <WarningModal isOpen={warningAlert.isOpen} title={warningAlert.title} message={warningAlert.message} onClose={() => setWarningAlert(p => ({ ...p, isOpen:false }))}/>
+      <Suspense fallback={null}>
+        <WelcomeCarouselModal
+          isOpen={!!welcomeCarousel.mode}
+          mode={welcomeCarousel.mode || 'welcome'}
+          userName={user.displayName || user.email || ''}
+          onComplete={handleWelcomeCarouselComplete}
+          onCreatePlanning={handleWelcomeCreatePlanning}
+        />
+      </Suspense>
       {activeTab === 'home' && (
         <Suspense fallback={null}>
-          <BroadcastReceiver canShow={!tourState.isActive} userAccess={userAccess}/>
+          <BroadcastReceiver canShow={!tourState.isActive && !welcomeCarousel.mode} userAccess={userAccess}/>
         </Suspense>
       )}
       <DownloadAlert isVisible={isDownloadAlertVisible} onDismiss={() => setIsDownloadAlertVisible(false)}/>
