@@ -582,29 +582,34 @@ export function RevisaoPage({ user, onStartStudy, addRegistroEstudo, deleteCompl
     return res;
   }, [cronograma]);
 
+  const revisoesCicloAtivas = useMemo(() => {
+    if (!cicloAtivo?.id) return [];
+    return todasRevisoesCiclo.filter((r) => r.cicloId === cicloAtivo.id);
+  }, [todasRevisoesCiclo, cicloAtivo?.id]);
+
   const hoje = useMemo(() => [
     ...revisoesHojeCron,
-    ...todasRevisoesCiclo
+    ...revisoesCicloAtivas
       .filter((r) => {
         const hojeKey = formatDateKeyLocal(new Date());
         return String(r.dataAgendada || "") === hojeKey;
       })
       .map((r) => ({ ...r, _fonte: "ciclo" }))
-  ], [revisoesHojeCron, todasRevisoesCiclo]);
+  ], [revisoesHojeCron, revisoesCicloAtivas]);
 
   const atrasadas = useMemo(() => [
     ...atrasadasC,
-    ...todasRevisoesCiclo
+    ...revisoesCicloAtivas
       .filter((r) => {
         const hojeKey = formatDateKeyLocal(new Date());
         return r.dataAgendada < hojeKey;
       })
       .map((r) => ({ ...r, _fonte: "ciclo", diasAtraso: diffDias(new Date(), toMidnight(r.dataAgendada)) }))
-  ], [atrasadasC, todasRevisoesCiclo]);
+  ], [atrasadasC, revisoesCicloAtivas]);
 
   const proximas = useMemo(() => [
     ...proximasC,
-    ...todasRevisoesCiclo
+    ...revisoesCicloAtivas
       .filter((r) => {
         const agora = toMidnight(new Date());
         const dt = toMidnight(r.dataAgendada);
@@ -612,7 +617,7 @@ export function RevisaoPage({ user, onStartStudy, addRegistroEstudo, deleteCompl
       })
       .map((r) => ({ ...r, _fonte: "ciclo", dataSlot: toMidnight(r.dataAgendada) }))
       .sort((a, b) => a.dataSlot - b.dataSlot)
-  ], [proximasC, todasRevisoesCiclo]);
+  ], [proximasC, revisoesCicloAtivas]);
 
   const listaAtual = useMemo(() => ({ hoje, atrasadas, proximas })[aba] || [], [aba, hoje, atrasadas, proximas]);
 
@@ -742,7 +747,7 @@ export function RevisaoPage({ user, onStartStudy, addRegistroEstudo, deleteCompl
     );
   }
 
-  const nenhuma = !cronograma && !cicloAtivo && todasRevisoesCiclo.length === 0;
+  const nenhuma = !cronograma && !cicloAtivo && revisoesCicloAtivas.length === 0;
 
   if (nenhuma) {
     return (
@@ -838,16 +843,16 @@ export function RevisaoPage({ user, onStartStudy, addRegistroEstudo, deleteCompl
         <section className="shrink-0">
           <div className="relative mb-4 flex flex-row items-center justify-between gap-2 overflow-hidden rounded-2xl border border-zinc-300 bg-zinc-50 px-3 py-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:px-4 md:gap-6 md:px-6 md:py-4">
             {headerLogo ? (
-              <div className="pointer-events-none absolute -bottom-3 right-20 h-16 w-16 rotate-[-10deg] opacity-10 transition-all duration-500 dark:opacity-20 md:-bottom-4 md:-right-4 md:h-44 md:w-44 md:opacity-10">
+              <div className="pointer-events-none absolute -bottom-2 right-1 h-20 w-20 rotate-[-10deg] opacity-25 transition-all duration-500 dark:opacity-35 md:-bottom-4 md:-right-4 md:h-44 md:w-44 md:opacity-20">
                 <img src={headerLogo} alt="" className="h-full w-full object-contain saturate-150" onError={(e) => { e.currentTarget.style.display = "none"; }} />
               </div>
             ) : (
-              <div className="pointer-events-none absolute -bottom-4 -right-4 flex h-32 w-32 rotate-[-10deg] items-center justify-center opacity-5 dark:opacity-10 md:h-44 md:w-44">
+              <div className="pointer-events-none absolute -bottom-4 -right-4 flex h-32 w-32 rotate-[-10deg] items-center justify-center opacity-10 dark:opacity-20 md:h-44 md:w-44">
                 <ShieldCheck size={120} className="text-zinc-400 dark:text-zinc-500" />
               </div>
             )}
 
-            <div className="relative z-10 flex shrink-0 flex-col items-center gap-1">
+            <div className="relative z-10 hidden shrink-0 flex-col items-center gap-1">
               <div className="relative flex h-10 w-10 items-center justify-center rounded-full border-2 border-white bg-zinc-50 shadow-md dark:border-zinc-800 dark:bg-zinc-950 sm:h-12 sm:w-12 md:h-24 md:w-24 md:border-4 md:shadow-xl">
                 {headerLogo
                   ? <img src={headerLogo} alt="Logo do concurso" className="h-7 w-7 object-contain sm:h-8 sm:w-8 md:h-16 md:w-16" onError={(e) => { e.currentTarget.style.display = "none"; }} />
@@ -870,19 +875,28 @@ export function RevisaoPage({ user, onStartStudy, addRegistroEstudo, deleteCompl
               <div className="flex flex-col gap-3">
                 <div className="flex min-w-0 items-center gap-1.5 md:flex-wrap md:gap-3">
                   <h1 className="truncate text-sm font-black uppercase leading-none tracking-tight text-zinc-900 dark:text-white sm:text-lg md:text-3xl">
-                    Revisoes
+                    REVISÕES
                   </h1>
-                  <span className="hidden items-center gap-1.5 rounded border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-500 sm:flex">
+                  <span className="hidden items-center gap-1.5 rounded border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-500">
                     <span className="relative flex h-2 w-2">
                       <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
                       <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
                     </span>
                     Central ativa
                   </span>
-                  <span className="shrink-0 rounded bg-blue-50 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider text-blue-700 ring-1 ring-blue-100 dark:bg-blue-400/10 dark:text-blue-300 dark:ring-blue-300/20 md:px-2 md:text-[10px] md:tracking-widest">
+                  <span className="hidden shrink-0 rounded bg-blue-50 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider text-blue-700 ring-1 ring-blue-100 dark:bg-blue-400/10 dark:text-blue-300 dark:ring-blue-300/20 md:px-2 md:text-[10px] md:tracking-widest">
                     {totalGeral} mapeadas
                   </span>
                 </div>
+
+                {showSourceToggle && (
+                  <SourceToggleButton
+                    source={sourceAtual}
+                    onToggle={() => setFiltroFonte(sourceAtual === "ciclo" ? "cronograma" : "ciclo")}
+                    cicloLogo={cicloLogo}
+                    cronogramaLogo={cronogramaLogo}
+                  />
+                )}
 
                 <div className="mt-1 hidden flex-col gap-3 sm:flex-row sm:items-center sm:gap-6 md:flex">
                   <div className="flex flex-wrap items-center gap-4">
@@ -910,36 +924,34 @@ export function RevisaoPage({ user, onStartStudy, addRegistroEstudo, deleteCompl
               </div>
             </div>
 
-            <div className="z-10 flex shrink-0 items-center gap-2 md:gap-6">
-              <div className="hidden text-center sm:block">
-                <p className="mb-1 text-[10px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400">Concluidas</p>
-                <p className="text-2xl font-black text-zinc-900 dark:text-white">
-                  {totalConcluidas}<span className="text-sm font-bold text-zinc-400">/{totalGeral}</span>
-                </p>
+            <div className="z-10 flex w-[112px] shrink-0 items-center justify-between gap-1.5 rounded-xl border border-zinc-200 bg-white/75 p-2 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/55 sm:w-[150px] md:w-auto md:min-w-[360px] md:gap-4 md:rounded-2xl md:p-3">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-2 md:gap-5">
+                  <div>
+                    <p className="text-[7px] font-black uppercase tracking-wider text-zinc-400 md:text-[9px] md:tracking-[0.22em]">Meta</p>
+                    <p className="font-mono text-[10px] font-black text-zinc-900 dark:text-white md:mt-0.5 md:text-lg">{totalGeral}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[7px] font-black uppercase tracking-wider text-zinc-400 md:text-[9px] md:tracking-[0.22em]">Feito</p>
+                    <p className="font-mono text-[10px] font-black text-zinc-900 dark:text-white md:mt-0.5 md:text-lg">{totalConcluidas}</p>
+                  </div>
+                </div>
+                <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-zinc-100 ring-1 ring-zinc-200/70 dark:bg-zinc-800 dark:ring-zinc-700/70 md:mt-3 md:h-2">
+                  <motion.div
+                    initial={false}
+                    animate={{ width: `${Math.min(progressoGeral, 100)}%` }}
+                    transition={{ duration: 0.45, ease: "easeOut" }}
+                    className={progressoGeral >= 100 ? "h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400" : "h-full rounded-full bg-gradient-to-r from-blue-600 via-sky-500 to-cyan-400"}
+                  />
+                </div>
               </div>
-              <div className="hidden h-12 w-px bg-zinc-200 dark:bg-zinc-800 sm:block" />
-              <div className="relative">
+              <div className="relative shrink-0">
                 <svg className="h-10 w-10 -rotate-90 sm:h-12 sm:w-12 md:h-20 md:w-20" viewBox="0 0 80 80">
                   <circle cx="40" cy="40" r="34" fill="none" stroke="currentColor" className="text-zinc-200 dark:text-zinc-800" strokeWidth="6" />
-                  <motion.circle
-                    cx="40"
-                    cy="40"
-                    r="34"
-                    fill="none"
-                    stroke="currentColor"
-                    className={progressoGeral >= 100 ? "text-emerald-500" : progressoGeral > 0 ? "text-blue-600 dark:text-blue-500" : "text-zinc-300 dark:text-zinc-700"}
-                    strokeWidth="6"
-                    strokeLinecap="round"
-                    strokeDasharray={2 * Math.PI * 34}
-                    initial={{ strokeDashoffset: 2 * Math.PI * 34 }}
-                    animate={{ strokeDashoffset: 2 * Math.PI * 34 * (1 - Math.min(progressoGeral, 100) / 100) }}
-                    transition={{ duration: 1.5, ease: "easeOut" }}
-                  />
+                  <motion.circle cx="40" cy="40" r="34" fill="none" stroke="currentColor" className={progressoGeral >= 100 ? "text-emerald-500" : progressoGeral > 0 ? "text-blue-600 dark:text-blue-500" : "text-zinc-400"} strokeWidth="6" strokeLinecap="round" strokeDasharray={2 * Math.PI * 34} initial={{ strokeDashoffset: 2 * Math.PI * 34 }} animate={{ strokeDashoffset: 2 * Math.PI * 34 * (1 - Math.min(progressoGeral, 100) / 100) }} transition={{ duration: 1.5, ease: "easeOut" }} />
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className={cx("text-[10px] font-black sm:text-xs md:text-lg", progressoGeral >= 100 ? "text-emerald-500" : progressoGeral > 0 ? "text-blue-600 dark:text-blue-500" : "text-zinc-400")}>
-                    {progressoGeral}%
-                  </span>
+                  <span className={cx("text-[10px] font-black sm:text-xs md:text-xl", progressoGeral >= 100 ? "text-emerald-500" : progressoGeral > 0 ? "text-blue-600 dark:text-blue-500" : "text-zinc-400")}>{progressoGeral}%</span>
                 </div>
               </div>
             </div>

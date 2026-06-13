@@ -69,6 +69,14 @@ export function startOfLocalDay(date) {
   return d;
 }
 
+function getRecordCreatedDay(record) {
+  const raw = record?.criadoEm || record?.dataCriacao || record?.createdAt || record?.criadoEmIso || null;
+  if (!raw) return null;
+  const parsed = raw?.toDate ? raw.toDate() : raw?.seconds ? new Date(raw.seconds * 1000) : new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return startOfLocalDay(parsed);
+}
+
 export function formatDateKeyLocal(date) {
   const d = startOfLocalDay(date);
   const yyyy = d.getFullYear();
@@ -964,14 +972,18 @@ export function getRevisoesAtrasadas(cronograma, dataHoje = null) {
   const atrasadasRaw = [];
   const windowDays = 30;
 
-  // [FIX-2] Não verifica dias antes do dataInicio do cronograma
+  // [FIX-2] Nao verifica dias antes do dataInicio/criacao real do cronograma.
   const dataInicioMidnight = _startOfDay(dataInicioDate);
+  const dataCriacaoMidnight = getRecordCreatedDay(cronograma);
+  const dataMinimaRevisao = dataCriacaoMidnight && dataCriacaoMidnight > dataInicioMidnight
+    ? dataCriacaoMidnight
+    : dataInicioMidnight;
 
   for (let i = 1; i <= windowDays; i++) {
     const diaAlvo = new Date(hoje);
     diaAlvo.setDate(diaAlvo.getDate() - i);
 
-    if (_startOfDay(diaAlvo).getTime() < dataInicioMidnight.getTime()) continue;
+    if (_startOfDay(diaAlvo).getTime() < dataMinimaRevisao.getTime()) continue;
 
     const revisoesDoDia = getRevisoesParaDia(
       diaAlvo,

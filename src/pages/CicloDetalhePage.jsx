@@ -842,6 +842,14 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
       const start = new Date(ciclo.dataInicioAtual);
       formattedStartDate = start.toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'});
   }
+  let formattedEndDate = ciclo.ativo ? 'Em aberto' : '...';
+  const cicloEndDate = ciclo.dataFim || ciclo.dataFechamento || ciclo.dataArquivamento || null;
+  if (cicloEndDate) {
+      const end = cicloEndDate?.toDate ? cicloEndDate.toDate() : new Date(cicloEndDate);
+      if (!Number.isNaN(end.getTime())) {
+          formattedEndDate = end.toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'});
+      }
+  }
 
   const concluidos = ciclo.conclusoes || 0;
 
@@ -903,20 +911,62 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
           {/* CARD DO CICLO (RESUMO GERAL) */}
           <div className="flex flex-row items-center justify-between gap-2 bg-zinc-50 dark:bg-zinc-900 px-3 py-3 sm:px-4 md:gap-6 md:px-6 md:py-4 rounded-2xl border border-zinc-300 dark:border-zinc-800 shadow-sm relative overflow-hidden">
               {dynamicLogo ? (
-                  <div className="absolute -bottom-3 right-24 h-20 w-20 opacity-10 pointer-events-none transform rotate-[-10deg] z-0 filter saturate-150 transition-all duration-500 md:-bottom-4 md:-right-4 md:h-44 md:w-44 md:opacity-10 dark:opacity-20">
+                  <div className="absolute -bottom-2 right-1 h-20 w-20 opacity-25 pointer-events-none transform rotate-[-10deg] z-0 filter saturate-150 transition-all duration-500 dark:opacity-35 md:-bottom-4 md:-right-4 md:h-44 md:w-44 md:opacity-20">
                       <img src={dynamicLogo} alt="Logo Edital" className="w-full h-full object-contain" onError={(e) => { e.target.style.display = 'none'; }} />
                   </div>
               ) : (
-                  <div className="absolute -bottom-4 -right-4 w-32 h-32 md:w-44 md:h-44 opacity-5 dark:opacity-10 pointer-events-none flex items-center justify-center">
+                  <div className="absolute -bottom-4 -right-4 w-32 h-32 md:w-44 md:h-44 opacity-10 dark:opacity-20 pointer-events-none flex items-center justify-center">
                       <Shield size={120} className="text-zinc-400 dark:text-zinc-500" />
                   </div>
               )}
 
               <div className="min-w-0 flex-1 z-10">
                   <div className="flex flex-col gap-3">
+                      <div className="flex flex-col gap-1.5 md:gap-3">
+                          {ciclo.ativo ? (
+                              <span className="flex w-fit items-center gap-1.5 rounded border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-500 md:px-2 md:text-[10px]">
+                                  <span className="relative flex h-1.5 w-1.5 md:h-2 md:w-2">
+                                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
+                                      <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500 md:h-2 md:w-2"></span>
+                                  </span>
+                                  Ativo
+                              </span>
+                          ) : (
+                              <span className="w-fit rounded bg-zinc-200 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-widest text-zinc-500 dark:bg-zinc-800 md:px-2 md:text-[10px]">Arquivado</span>
+                          )}
+                          <div className="flex min-w-0 items-center gap-2 md:gap-3">
+                              <h1 className="min-w-0 truncate text-sm font-black text-zinc-900 dark:text-white uppercase tracking-tight leading-none sm:text-lg md:text-3xl">{ciclo.nome}</h1>
+                              <button onClick={onGoToEdital} className="flex shrink-0 items-center gap-1 rounded-lg border border-zinc-200 bg-white/90 px-2 py-1 text-[8px] font-black uppercase tracking-widest text-zinc-600 shadow-sm transition-all hover:border-red-200 hover:bg-red-50 hover:text-red-700 dark:border-zinc-700 dark:bg-zinc-800/90 dark:text-zinc-300 dark:hover:border-red-900/30 dark:hover:bg-red-900/10 dark:hover:text-red-400 md:gap-2 md:px-3 md:py-1.5 md:text-[11px]">
+                                  <BookOpen size={11} className="text-red-600 dark:text-red-500 md:h-3.5 md:w-3.5" />
+                                  EDITAL
+                              </button>
+                              <div className={`hidden items-center gap-1 rounded-lg border px-1.5 py-1 transition-all sm:flex md:gap-2 md:pl-1.5 md:pr-3 ${
+                                  concluidos > 0
+                                  ? 'bg-amber-50 dark:bg-amber-900/10 border-amber-500/20 shadow-[0_0_10px_rgba(245,158,11,0.1)]'
+                                  : 'bg-zinc-100 dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-700'
+                              }`}>
+                                  <div className="relative flex h-6 w-6 shrink-0 items-center justify-center md:h-8 md:w-8">
+                                      <motion.svg animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 15, ease: "linear" }} className="absolute inset-0 w-full h-full" viewBox="0 0 100 100">
+                                          <circle cx="50" cy="50" r="44" fill="none" stroke="currentColor" strokeWidth="6" strokeDasharray="16 12" strokeLinecap="round" className={concluidos > 0 ? "text-amber-500/60" : "text-zinc-300 dark:text-zinc-600"} />
+                                      </motion.svg>
+                                      <div className={`absolute inset-0 z-10 flex items-center justify-center rounded-full ${concluidos > 0 ? 'text-amber-600 dark:text-amber-500' : 'text-zinc-500'}`}>
+                                          <span className="text-sm font-black leading-none md:text-xl">{concluidos}</span>
+                                      </div>
+                                  </div>
+                                  <div className="hidden flex-col justify-center ml-1 md:flex">
+                                      <span className="text-[8px] font-bold uppercase tracking-widest text-zinc-500 dark:text-zinc-400 leading-none mb-0.5">Ciclos</span>
+                                      <span className={`text-[10px] font-black uppercase tracking-wide leading-none ${concluidos > 0 ? 'text-amber-600 dark:text-amber-500' : 'text-zinc-600 dark:text-zinc-400'}`}>Concluídos</span>
+                                  </div>
+                              </div>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-zinc-400">
+                            <div className="flex items-center gap-1"><CalendarDays size={10} className="md:h-3.5 md:w-3.5" /><p className="text-[8px] font-bold uppercase tracking-wide md:text-[10px]">Início: <span className="text-zinc-600 dark:text-zinc-300">{formattedStartDate}</span></p></div>
+                            <div className="flex items-center gap-1"><Target size={10} className="md:h-3.5 md:w-3.5" /><p className="text-[8px] font-bold uppercase tracking-wide md:text-[10px]">Final: <span className="text-zinc-600 dark:text-zinc-300">{formattedEndDate}</span></p></div>
+                          </div>
+                      </div>
 
                       {/* --- TÍTULO E BADGES --- */}
-                      <div className="flex min-w-0 items-center gap-2 md:flex-wrap md:gap-3">
+                      <div className="hidden min-w-0 items-center gap-2 md:flex-wrap md:gap-3">
                           <h1 className="min-w-0 truncate text-sm font-black text-zinc-900 dark:text-white uppercase tracking-tight leading-none sm:text-lg md:text-3xl">{ciclo.nome}</h1>
                           <div className="flex shrink-0 items-center gap-1.5 md:flex-wrap md:gap-2">
 
@@ -974,7 +1024,7 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
                           </div>
                       </div>
 
-                      <div className="mt-1 hidden flex-col gap-3 sm:flex-row sm:gap-6 md:flex">
+                      <div className="mt-1 hidden flex-col gap-3 sm:flex-row sm:gap-6">
                         <div className="flex items-center gap-4">
                             <div className="flex items-center gap-1.5 text-zinc-400"><CalendarDays size={13} /><p className="text-[10px] font-bold uppercase tracking-wide">Início: <span className="text-zinc-600 dark:text-zinc-300">{formattedStartDate}</span></p></div>
                         </div>
