@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Hash, CalendarDays, CalendarClock, Layers, BookOpen,
@@ -32,6 +33,7 @@ const CustomDatePicker = ({ value, onChange, name, color = 'blue' }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [viewDate, setViewDate] = useState(parseDateLocal(value));
   const containerRef = useRef(null);
+  const calendarRef = useRef(null);
 
   const dateObj = parseDateLocal(value);
   const dayDisplay = dateObj.getDate();
@@ -40,7 +42,11 @@ const CustomDatePicker = ({ value, onChange, name, color = 'blue' }) => {
 
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (containerRef.current && !containerRef.current.contains(event.target)) setIsOpen(false);
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(event.target) &&
+        !calendarRef.current?.contains(event.target)
+      ) setIsOpen(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -104,11 +110,21 @@ const CustomDatePicker = ({ value, onChange, name, color = 'blue' }) => {
         </div>
       </div>
 
-      <AnimatePresence>
-        {isOpen && (
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {isOpen && (
           <motion.div
+            className="fixed inset-0 z-[100059] flex items-center justify-center bg-zinc-950/25 p-3 backdrop-blur-[2px] sm:bg-transparent sm:backdrop-blur-none"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onMouseDown={() => setIsOpen(false)}
+          >
+          <motion.div
+            ref={calendarRef}
             initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.95 }}
-            className="fixed left-1/2 top-1/2 z-[100060] w-[min(280px,calc(100vw-24px))] -translate-x-1/2 -translate-y-1/2 rounded-[24px] border border-zinc-200 bg-white p-5 shadow-2xl dark:border-zinc-800 dark:bg-zinc-900 sm:absolute sm:left-0 sm:top-full sm:mt-2 sm:w-[280px] sm:translate-x-0 sm:translate-y-0"
+            className="w-[min(280px,calc(100vw-24px))] rounded-[24px] border border-zinc-200 bg-white p-5 shadow-2xl dark:border-zinc-800 dark:bg-zinc-900"
+            onMouseDown={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-center mb-4">
               <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); changeMonth(-1) }} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl text-zinc-400 transition-colors">
@@ -126,8 +142,11 @@ const CustomDatePicker = ({ value, onChange, name, color = 'blue' }) => {
               {renderCalendarGrid()}
             </div>
           </motion.div>
-        )}
-      </AnimatePresence>
+          </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body,
+      )}
     </div>
   );
 };
@@ -395,7 +414,7 @@ const Step4_Config = ({ config, onConfigChange, editalSelecionado, horarios = {}
                   <Hash size={16} />
                 </div>
                 <label className="text-[9px] sm:text-[11px] font-black uppercase tracking-[0.12em] sm:tracking-[0.15em] text-zinc-400 group-focus-within:text-zinc-600 dark:group-focus-within:text-zinc-300 transition-colors">
-                  Nome do Projeto
+                  Nome do Cronograma
                 </label>
               </div>
               <input

@@ -165,18 +165,23 @@ const SlotCard = ({ item, onDragStart, onClick, compact = false, config = {}, co
       className={`discipline-tinted-card ${isDone ? 'discipline-completed-card' : ''} group relative min-h-[104px] cursor-grab active:cursor-grabbing select-none overflow-hidden rounded-2xl border transition-all duration-200 shadow-sm ${isToday ? (isRev ? 'ring-1 ring-blue-500/45' : 'ring-1 ring-red-500/45') : ''}`}
     >
       <div className={`absolute bottom-0 left-0 top-0 w-1.5 transition-colors duration-300 ${
-        isRev ? 'bg-blue-500' : isToday ? 'bg-red-600' : isDone ? disciplinaColor.bg : emAndamento ? 'bg-orange-500' : disciplinaColor.bg
+        isRev ? 'bg-blue-500' : isDone ? disciplinaColor.bg : emAndamento ? 'bg-orange-500' : disciplinaColor.bg
       }`} />
 
       <div className="flex h-full flex-col gap-2 px-3.5 py-3">
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-0.5">
-            <div className={`w-2.5 h-2.5 rounded-full shrink-0 shadow-sm ${isRev ? 'bg-blue-500' : isToday ? 'bg-red-600' : disciplinaColor.bg || 'bg-zinc-400'}`} />
+            <div className={`w-2.5 h-2.5 rounded-full shrink-0 shadow-sm ${isRev ? 'bg-blue-500' : disciplinaColor.bg || 'bg-zinc-400'}`} />
             {/* [FIX-A] Nome da disciplina — funciona para revisões individuais e consolidadas */}
-            <h4 className={`text-[12px] font-black uppercase tracking-wide truncate ${isDone ? `${isRev ? 'text-blue-700' : isToday ? 'text-red-800' : disciplinaColor.text} line-through opacity-75` : isRev ? 'text-blue-700 dark:text-blue-300' : isToday ? 'text-red-800 dark:text-red-200' : disciplinaColor.text}`}>
+            <h4 className={`text-[12px] font-black uppercase tracking-wide truncate ${isDone ? `${isRev ? 'text-blue-700' : disciplinaColor.text} line-through opacity-75` : isRev ? 'text-blue-700 dark:text-blue-300' : disciplinaColor.text}`}>
               {nomeDisc}
             </h4>
+            {isRev && (
+              <span className="shrink-0 rounded-md bg-blue-600 px-1.5 py-0.5 text-[7px] font-black uppercase tracking-wider text-white">
+                Revisão
+              </span>
+            )}
             {isDone && <CheckCircle2 size={11} className="shrink-0 text-emerald-500" strokeWidth={3} />}
           </div>
           {/* [FIX-B] Assunto — para revisões exibe o assunto revisado */}
@@ -205,7 +210,7 @@ const SlotCard = ({ item, onDragStart, onClick, compact = false, config = {}, co
               initial={false}
               animate={{ width: `${isDone ? 100 : progressoPercentual}%` }}
               transition={{ duration: 0.25 }}
-              className={`h-full rounded-full ${isRev ? REVIEW_COLOR.progress : isToday ? 'bg-red-700' : isDone ? disciplinaColor.progress : emAndamento ? 'bg-orange-500' : disciplinaColor.progress}`}
+              className={`h-full rounded-full ${isRev ? REVIEW_COLOR.progress : isDone ? disciplinaColor.progress : emAndamento ? 'bg-orange-500' : disciplinaColor.progress}`}
             />
           </div>
         </div>

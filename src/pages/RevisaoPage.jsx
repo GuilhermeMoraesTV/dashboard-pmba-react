@@ -836,9 +836,9 @@ export function RevisaoPage({ user, onStartStudy, addRegistroEstudo, deleteCompl
 
       <main className="relative z-10 flex min-h-screen w-full flex-1 flex-col gap-5 px-3 pb-6 pt-4 sm:px-5 lg:px-7">
         <section className="shrink-0">
-          <div className="relative mb-4 flex flex-col justify-between gap-6 overflow-hidden rounded-2xl border border-zinc-300 bg-zinc-50 px-6 py-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 md:flex-row md:items-center">
+          <div className="relative mb-4 flex flex-row items-center justify-between gap-2 overflow-hidden rounded-2xl border border-zinc-300 bg-zinc-50 px-3 py-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:px-4 md:gap-6 md:px-6 md:py-4">
             {headerLogo ? (
-              <div className="pointer-events-none absolute -bottom-4 -right-4 h-32 w-32 rotate-[-10deg] opacity-20 transition-all duration-500 dark:opacity-30 md:h-44 md:w-44 md:opacity-10 dark:md:opacity-20">
+              <div className="pointer-events-none absolute -bottom-3 right-20 h-16 w-16 rotate-[-10deg] opacity-10 transition-all duration-500 dark:opacity-20 md:-bottom-4 md:-right-4 md:h-44 md:w-44 md:opacity-10">
                 <img src={headerLogo} alt="" className="h-full w-full object-contain saturate-150" onError={(e) => { e.currentTarget.style.display = "none"; }} />
               </div>
             ) : (
@@ -847,12 +847,12 @@ export function RevisaoPage({ user, onStartStudy, addRegistroEstudo, deleteCompl
               </div>
             )}
 
-            <div className="relative z-10 flex shrink-0 flex-col items-center gap-2 self-center md:self-auto">
-              <div className="relative flex h-20 w-20 items-center justify-center rounded-full border-4 border-white bg-zinc-50 shadow-xl dark:border-zinc-800 dark:bg-zinc-950 md:h-24 md:w-24">
+            <div className="relative z-10 flex shrink-0 flex-col items-center gap-1">
+              <div className="relative flex h-10 w-10 items-center justify-center rounded-full border-2 border-white bg-zinc-50 shadow-md dark:border-zinc-800 dark:bg-zinc-950 sm:h-12 sm:w-12 md:h-24 md:w-24 md:border-4 md:shadow-xl">
                 {headerLogo
-                  ? <img src={headerLogo} alt="Logo do concurso" className="h-14 w-14 object-contain md:h-16 md:w-16" onError={(e) => { e.currentTarget.style.display = "none"; }} />
-                  : <ShieldCheck size={36} className="text-zinc-300 dark:text-zinc-600" />}
-                <span className="absolute -bottom-2 rounded-full border-2 border-white bg-emerald-500 px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-white shadow-md dark:border-zinc-900">
+                  ? <img src={headerLogo} alt="Logo do concurso" className="h-7 w-7 object-contain sm:h-8 sm:w-8 md:h-16 md:w-16" onError={(e) => { e.currentTarget.style.display = "none"; }} />
+                  : <ShieldCheck size={22} className="text-zinc-300 dark:text-zinc-600 md:h-9 md:w-9" />}
+                <span className="absolute -bottom-1.5 rounded-full border border-white bg-emerald-500 px-1 py-0.5 text-[6px] font-bold uppercase tracking-wider text-white shadow-md dark:border-zinc-900 md:-bottom-2 md:border-2 md:px-2 md:text-[9px] md:tracking-widest">
                   Ativo
                 </span>
               </div>
@@ -868,23 +868,23 @@ export function RevisaoPage({ user, onStartStudy, addRegistroEstudo, deleteCompl
 
             <div className="z-10 min-w-0 flex-1">
               <div className="flex flex-col gap-3">
-                <div className="flex flex-wrap items-center gap-3">
-                  <h1 className="text-3xl font-black uppercase leading-none tracking-tight text-zinc-900 dark:text-white">
+                <div className="flex min-w-0 items-center gap-1.5 md:flex-wrap md:gap-3">
+                  <h1 className="truncate text-sm font-black uppercase leading-none tracking-tight text-zinc-900 dark:text-white sm:text-lg md:text-3xl">
                     Revisoes
                   </h1>
-                  <span className="flex items-center gap-1.5 rounded border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-500">
+                  <span className="hidden items-center gap-1.5 rounded border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-500 sm:flex">
                     <span className="relative flex h-2 w-2">
                       <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
                       <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
                     </span>
                     Central ativa
                   </span>
-                  <span className="rounded bg-blue-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-blue-700 ring-1 ring-blue-100 dark:bg-blue-400/10 dark:text-blue-300 dark:ring-blue-300/20">
+                  <span className="shrink-0 rounded bg-blue-50 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider text-blue-700 ring-1 ring-blue-100 dark:bg-blue-400/10 dark:text-blue-300 dark:ring-blue-300/20 md:px-2 md:text-[10px] md:tracking-widest">
                     {totalGeral} mapeadas
                   </span>
                 </div>
 
-                <div className="mt-1 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-6">
+                <div className="mt-1 hidden flex-col gap-3 sm:flex-row sm:items-center sm:gap-6 md:flex">
                   <div className="flex flex-wrap items-center gap-4">
                     <div className="flex items-center gap-1.5 text-zinc-400">
                       <CheckCircle2 size={13} />
@@ -910,7 +910,7 @@ export function RevisaoPage({ user, onStartStudy, addRegistroEstudo, deleteCompl
               </div>
             </div>
 
-            <div className="z-10 flex items-center gap-6">
+            <div className="z-10 flex shrink-0 items-center gap-2 md:gap-6">
               <div className="hidden text-center sm:block">
                 <p className="mb-1 text-[10px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400">Concluidas</p>
                 <p className="text-2xl font-black text-zinc-900 dark:text-white">
@@ -919,7 +919,7 @@ export function RevisaoPage({ user, onStartStudy, addRegistroEstudo, deleteCompl
               </div>
               <div className="hidden h-12 w-px bg-zinc-200 dark:bg-zinc-800 sm:block" />
               <div className="relative">
-                <svg className="h-20 w-20 -rotate-90" viewBox="0 0 80 80">
+                <svg className="h-10 w-10 -rotate-90 sm:h-12 sm:w-12 md:h-20 md:w-20" viewBox="0 0 80 80">
                   <circle cx="40" cy="40" r="34" fill="none" stroke="currentColor" className="text-zinc-200 dark:text-zinc-800" strokeWidth="6" />
                   <motion.circle
                     cx="40"
@@ -937,7 +937,7 @@ export function RevisaoPage({ user, onStartStudy, addRegistroEstudo, deleteCompl
                   />
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className={cx("text-lg font-black", progressoGeral >= 100 ? "text-emerald-500" : progressoGeral > 0 ? "text-blue-600 dark:text-blue-500" : "text-zinc-400")}>
+                  <span className={cx("text-[10px] font-black sm:text-xs md:text-lg", progressoGeral >= 100 ? "text-emerald-500" : progressoGeral > 0 ? "text-blue-600 dark:text-blue-500" : "text-zinc-400")}>
                     {progressoGeral}%
                   </span>
                 </div>

@@ -901,9 +901,9 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
           )}
 
           {/* CARD DO CICLO (RESUMO GERAL) */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-zinc-50 dark:bg-zinc-900 px-6 py-4 rounded-2xl border border-zinc-300 dark:border-zinc-800 shadow-sm relative overflow-hidden">
+          <div className="flex flex-row items-center justify-between gap-2 bg-zinc-50 dark:bg-zinc-900 px-3 py-3 sm:px-4 md:gap-6 md:px-6 md:py-4 rounded-2xl border border-zinc-300 dark:border-zinc-800 shadow-sm relative overflow-hidden">
               {dynamicLogo ? (
-                  <div className="absolute -bottom-4 -right-4 w-32 h-32 md:w-44 md:h-44 opacity-20 md:opacity-10 dark:opacity-30 dark:md:opacity-20 pointer-events-none transform rotate-[-10deg] z-0 filter saturate-150 transition-all duration-500">
+                  <div className="absolute -bottom-3 right-24 h-20 w-20 opacity-10 pointer-events-none transform rotate-[-10deg] z-0 filter saturate-150 transition-all duration-500 md:-bottom-4 md:-right-4 md:h-44 md:w-44 md:opacity-10 dark:opacity-20">
                       <img src={dynamicLogo} alt="Logo Edital" className="w-full h-full object-contain" onError={(e) => { e.target.style.display = 'none'; }} />
                   </div>
               ) : (
@@ -912,13 +912,13 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
                   </div>
               )}
 
-              <div className="flex-1 z-10">
+              <div className="min-w-0 flex-1 z-10">
                   <div className="flex flex-col gap-3">
 
                       {/* --- TÍTULO E BADGES --- */}
-                      <div className="flex flex-wrap items-center gap-3">
-                          <h1 className="text-3xl font-black text-zinc-900 dark:text-white uppercase tracking-tight leading-none">{ciclo.nome}</h1>
-                          <div className="flex flex-wrap gap-2 items-center w-full sm:w-auto mt-1 sm:mt-0">
+                      <div className="flex min-w-0 items-center gap-2 md:flex-wrap md:gap-3">
+                          <h1 className="min-w-0 truncate text-sm font-black text-zinc-900 dark:text-white uppercase tracking-tight leading-none sm:text-lg md:text-3xl">{ciclo.nome}</h1>
+                          <div className="flex shrink-0 items-center gap-1.5 md:flex-wrap md:gap-2">
 
                             {/* Status Badge */}
                             {ciclo.ativo ? (
@@ -934,12 +934,12 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
                             )}
 
                             {/* --- RODA "CICLO" DE CONCLUSÕES --- */}
-                            <div className={`flex items-center gap-2 pl-1.5 pr-3 py-1 rounded-lg border transition-all ${
+                            <div className={`flex items-center gap-1 px-1.5 py-1 rounded-lg border transition-all md:gap-2 md:pl-1.5 md:pr-3 ${
                                 concluidos > 0
                                 ? 'bg-amber-50 dark:bg-amber-900/10 border-amber-500/20 shadow-[0_0_10px_rgba(245,158,11,0.1)]'
                                 : 'bg-zinc-100 dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-700'
                             }`}>
-                                <div className="relative flex items-center justify-center w-8 h-8 shrink-0">
+                                <div className="relative flex h-6 w-6 shrink-0 items-center justify-center md:h-8 md:w-8">
                                     <motion.svg
                                         animate={{ rotate: 360 }}
                                         transition={{ repeat: Infinity, duration: 15, ease: "linear" }}
@@ -956,10 +956,10 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
                                     <div className={`absolute inset-0 flex items-center justify-center z-10 rounded-full ${
                                         concluidos > 0 ? 'text-amber-600 dark:text-amber-500' : 'text-zinc-500'
                                     }`}>
-                                        <span className="text-xl font-black leading-none mt-[1px]">{concluidos}</span>
+                                        <span className="text-sm font-black leading-none md:text-xl">{concluidos}</span>
                                     </div>
                                 </div>
-                                <div className="flex flex-col justify-center ml-1">
+                                <div className="hidden flex-col justify-center ml-1 sm:flex">
                                     <span className="text-[8px] font-bold uppercase tracking-widest text-zinc-500 dark:text-zinc-400 leading-none mb-0.5">
                                         Ciclos
                                     </span>
@@ -974,7 +974,7 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
                           </div>
                       </div>
 
-                      <div className="flex flex-col sm:flex-row gap-3 sm:gap-6 mt-1">
+                      <div className="mt-1 hidden flex-col gap-3 sm:flex-row sm:gap-6 md:flex">
                         <div className="flex items-center gap-4">
                             <div className="flex items-center gap-1.5 text-zinc-400"><CalendarDays size={13} /><p className="text-[10px] font-bold uppercase tracking-wide">Início: <span className="text-zinc-600 dark:text-zinc-300">{formattedStartDate}</span></p></div>
                         </div>
@@ -985,19 +985,19 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
                   </div>
               </div>
 
-              <div className="z-10 flex w-full items-center justify-between gap-4 rounded-2xl border border-zinc-200 bg-white/75 p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/55 md:w-auto md:min-w-[360px]">
+              <div className="z-10 flex w-[112px] shrink-0 items-center justify-between gap-1.5 rounded-xl border border-zinc-200 bg-white/75 p-2 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/55 sm:w-[150px] md:w-auto md:min-w-[360px] md:gap-4 md:rounded-2xl md:p-3">
                   <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-5">
+                      <div className="flex items-center justify-between gap-2 md:gap-5">
                           <div>
-                              <p className="text-[9px] font-black uppercase tracking-[0.22em] text-zinc-400">Meta</p>
-                              <p className="mt-0.5 font-mono text-lg font-black text-zinc-900 dark:text-white">{formatVisualNumber(totalMeta)}</p>
+                              <p className="text-[7px] font-black uppercase tracking-wider text-zinc-400 md:text-[9px] md:tracking-[0.22em]">Meta</p>
+                              <p className="font-mono text-[10px] font-black text-zinc-900 dark:text-white md:mt-0.5 md:text-lg">{formatVisualNumber(totalMeta)}</p>
                           </div>
                           <div className="text-right">
-                              <p className="text-[9px] font-black uppercase tracking-[0.22em] text-zinc-400">Feito</p>
-                              <p className="mt-0.5 font-mono text-lg font-black text-zinc-900 dark:text-white">{formatVisualNumber(totalEstudado)}</p>
+                              <p className="text-[7px] font-black uppercase tracking-wider text-zinc-400 md:text-[9px] md:tracking-[0.22em]">Feito</p>
+                              <p className="font-mono text-[10px] font-black text-zinc-900 dark:text-white md:mt-0.5 md:text-lg">{formatVisualNumber(totalEstudado)}</p>
                           </div>
                       </div>
-                      <div className="mt-3 h-2 overflow-hidden rounded-full bg-zinc-100 ring-1 ring-zinc-200/70 dark:bg-zinc-800 dark:ring-zinc-700/70">
+                      <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-zinc-100 ring-1 ring-zinc-200/70 dark:bg-zinc-800 dark:ring-zinc-700/70 md:mt-3 md:h-2">
                           <motion.div
                               initial={false}
                               animate={{ width: `${Math.min(progressoGeral, 100)}%` }}
@@ -1007,11 +1007,11 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
                       </div>
                   </div>
                   <div className="relative shrink-0">
-                      <svg className="h-20 w-20 -rotate-90" viewBox="0 0 80 80">
+                      <svg className="h-10 w-10 -rotate-90 sm:h-12 sm:w-12 md:h-20 md:w-20" viewBox="0 0 80 80">
                           <circle cx="40" cy="40" r="34" fill="none" stroke="currentColor" className="text-zinc-200 dark:text-zinc-800" strokeWidth="6" />
                           <motion.circle cx="40" cy="40" r="34" fill="none" stroke="currentColor" className={progressoGeral >= 100 && isAllDisciplinesMet ? 'text-emerald-500' : progressoGeral > 0 ? 'text-yellow-500' : 'text-zinc-400'} strokeWidth="6" strokeLinecap="round" strokeDasharray={2 * Math.PI * 34} initial={{ strokeDashoffset: 2 * Math.PI * 34 }} animate={{ strokeDashoffset: 2 * Math.PI * 34 * (1 - Math.min(progressoGeral, 100) / 100) }} transition={{ duration: 1.5, ease: "easeOut" }} />
                       </svg>
-                      <div className="absolute inset-0 flex flex-col items-center justify-center"><span className={`text-xl font-black ${progressoGeral >= 100 && isAllDisciplinesMet ? 'text-emerald-500' : progressoGeral > 0 ? 'text-yellow-500' : 'text-zinc-400'}`}>{progressoGeral.toFixed(0)}%</span></div>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center"><span className={`text-[10px] font-black sm:text-xs md:text-xl ${progressoGeral >= 100 && isAllDisciplinesMet ? 'text-emerald-500' : progressoGeral > 0 ? 'text-yellow-500' : 'text-zinc-400'}`}>{progressoGeral.toFixed(0)}%</span></div>
                   </div>
               </div>
           </div>
