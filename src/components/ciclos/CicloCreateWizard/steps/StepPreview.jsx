@@ -19,7 +19,7 @@ const EditalSidebarCard = ({ editalSelecionado, nomeCiclo }) => (
     <span className="absolute top-2 left-2 sm:top-4 sm:left-4 z-10 inline-block px-2 py-0.5 sm:px-2.5 sm:py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-[8px] sm:text-[9px] font-black uppercase tracking-widest rounded-lg">
       {editalSelecionado ? 'Edital Alvo' : 'Ciclo Manual'}
     </span>
-    <div className="relative z-10 w-12 h-12 sm:w-24 sm:h-24 shrink-0 rounded-xl sm:rounded-2xl bg-white dark:bg-zinc-800 border-2 border-red-100 dark:border-red-900/30 flex items-center justify-center p-1.5 sm:p-3 mt-5 sm:mt-6 shadow-lg shadow-red-500/20">
+    <div className="relative z-10 w-16 h-16 sm:w-28 sm:h-28 shrink-0 rounded-xl sm:rounded-2xl bg-white dark:bg-zinc-800 border-2 border-red-100 dark:border-red-900/30 flex items-center justify-center p-1 sm:p-2 mt-5 sm:mt-6 shadow-lg shadow-red-500/20">
       {editalSelecionado?.logo || editalSelecionado?.logoUrl ? (
         <img src={editalSelecionado.logo || editalSelecionado.logoUrl} alt="Logo Edital" className="w-full h-full object-contain" />
       ) : <Target size={36} className="text-red-500" />}
@@ -72,7 +72,7 @@ export default function StepPreview({
 
       <div className="w-full px-2 sm:px-4 lg:px-8 overflow-y-auto custom-scrollbar pb-10">
         <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_340px] gap-4 md:gap-5 items-start">
-          <div className="order-2 xl:order-1 rounded-[28px] border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/70 shadow-sm p-2 sm:p-4 lg:p-6 min-h-[520px] sm:min-h-[640px]">
+          <div className="order-2 xl:order-1 h-[430px] sm:h-auto rounded-[28px] border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/70 shadow-sm p-2 sm:p-4 lg:p-6 sm:min-h-[640px]">
             <CicloVisual
               selectedDisciplinaId={selectedDisciplinaId}
               onSelectDisciplina={setSelectedDisciplinaId}
@@ -107,19 +107,19 @@ export default function StepPreview({
                   apoio visual
                 </span>
               </div>
-              <div className="hidden sm:grid max-h-[292px] grid-cols-2 gap-2 overflow-y-auto pr-1 custom-scrollbar xl:max-h-[390px] xl:grid-cols-1">
+              <div className="grid max-h-[62px] grid-cols-1 gap-1 overflow-y-auto pr-1 custom-scrollbar sm:max-h-[292px] sm:grid-cols-2 sm:gap-2 xl:max-h-[390px] xl:grid-cols-1">
                 {disciplinasPreview.map((disciplina) => (
-                  <div key={disciplina.id} className="rounded-xl bg-zinc-50 dark:bg-zinc-800/60 px-3 py-2 border border-zinc-100 dark:border-zinc-800">
+                  <div key={disciplina.id} className="rounded-lg sm:rounded-xl bg-zinc-50 dark:bg-zinc-800/60 px-2 py-1 sm:px-3 sm:py-2 border border-zinc-100 dark:border-zinc-800">
                     <div className="flex items-center justify-between gap-2">
                       <div className="min-w-0">
-                        <p className="text-[13px] font-black text-zinc-900 dark:text-white leading-tight line-clamp-1">{disciplina.nome}</p>
-                        <p className="text-[10px] text-zinc-500 mt-0.5 capitalize line-clamp-1">{disciplina.nivelDominio || 'nivel nao definido'}</p>
+                        <p className="text-[9px] sm:text-[13px] font-black text-zinc-900 dark:text-white leading-tight line-clamp-1">{disciplina.nome}</p>
+                        <p className="hidden sm:block text-[10px] text-zinc-500 mt-0.5 capitalize line-clamp-1">{disciplina.nivelDominio || 'nivel nao definido'}</p>
                       </div>
-                      <span className="rounded-full bg-white dark:bg-zinc-900 px-2 py-1 text-[10px] font-black uppercase tracking-wide text-red-600 whitespace-nowrap border border-zinc-100 dark:border-zinc-800">
+                      <span className="rounded-full bg-white dark:bg-zinc-900 px-1.5 py-0.5 sm:px-2 sm:py-1 text-[8px] sm:text-[10px] font-black uppercase tracking-wide text-red-600 whitespace-nowrap border border-zinc-100 dark:border-zinc-800">
                         {disciplina.sessoesPorCiclo}x
                       </span>
                     </div>
-                    <div className="mt-1.5 text-[10px] font-semibold text-zinc-500">
+                    <div className="hidden sm:block mt-1.5 text-[10px] font-semibold text-zinc-500">
                       {formatarHoras((disciplina.tempoAlocadoMinutos || 0) / 60)} por volta
                     </div>
                   </div>

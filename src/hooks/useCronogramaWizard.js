@@ -676,6 +676,7 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
    * [FIX-C] o callback onProgress recebe (percent, msg) diretamente.
    */
   const handleGerarPrevia = useCallback(async () => {
+    const animationStartedAt = Date.now();
     const todasDiscs  = edital?.id === 'manual' ? disciplinas : [...disciplinas, ...extraDisciplinas];
     const discsFinais = _filtrarDisciplinasSelecionadas(todasDiscs, selecao);
 
@@ -732,7 +733,7 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
     setStatusIA('Tudo pronto! Preparando prévia...');
 
     // Delay para o usuário ver o 100%
-    await new Promise(r => setTimeout(r, 800));
+    await new Promise(r => setTimeout(r, Math.max(0, 3000 - (Date.now() - animationStartedAt))));
 
     // Fallback local se IA falhar
     if (!result?.semanaTemplate?.length) {
@@ -764,6 +765,7 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
    * @param {Array}  discs
    */
   const handleSalvarExpresso = async (editalObj, discs) => {
+    const animationStartedAt = Date.now();
     setIsLoading(true);
     setPercentIA(10);
     setStatusIA('Analisando disciplinas...');
@@ -788,9 +790,6 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
 
     setPercentIA(90);
 
-    setIsLoading(false);
-    setStatusIA(null);
-
     // [FIX-A] Para o fluxo expresso, considera Seg-Sex como dias padrão
     const horariosExpressoPadrao = { 1: horasExpresso, 2: horasExpresso, 3: horasExpresso, 4: horasExpresso, 5: horasExpresso };
 
@@ -798,6 +797,9 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
     if (!template?.semanaTemplate?.length) {
       template = _gerarFallbackLocal(discsNorm, horariosExpressoPadrao, {});
       if (!template) {
+        await new Promise(r => setTimeout(r, Math.max(0, 3000 - (Date.now() - animationStartedAt))));
+        setIsLoading(false);
+        setStatusIA(null);
         setPercentIA(0);
         return;
       }
@@ -837,7 +839,7 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
 
     setPercentIA(100);
     setStatusIA('Cronograma criado com sucesso!');
-    await new Promise(r => setTimeout(r, 1000));
+    await new Promise(r => setTimeout(r, Math.max(0, 3000 - (Date.now() - animationStartedAt))));
 
     if (novoId) {
       _limparDraft();
@@ -848,6 +850,8 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
       if (onCronogramaCriado) onCronogramaCriado(novoId);
       onClose();
     }
+    setIsLoading(false);
+    setStatusIA(null);
     setPercentIA(0);
   };
 
@@ -858,6 +862,7 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
    * Reutiliza resultadoGeracao se disponível; caso contrário, regenera.
    */
   const handleSalvar = async () => {
+    const animationStartedAt = Date.now();
     const todasDiscs  = edital?.id === 'manual' ? disciplinas : [...disciplinas, ...extraDisciplinas];
     const discsFinais = _filtrarDisciplinasSelecionadas(todasDiscs, selecao);
 
@@ -939,10 +944,10 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
 
     setPercentIA(90);
 
-    setIsLoading(false);
-    setStatusIA(null);
-
     if (!result?.semanaTemplate?.length) {
+      await new Promise(r => setTimeout(r, Math.max(0, 3000 - (Date.now() - animationStartedAt))));
+      setIsLoading(false);
+      setStatusIA(null);
       setErroGeracao('Erro ao gerar cronograma. Verifique as configurações e tente novamente.');
       setPercentIA(0);
       return;
@@ -968,7 +973,7 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
 
     setPercentIA(100);
     setStatusIA(isEditMode ? 'Cronograma atualizado com sucesso!' : 'Cronograma criado com sucesso!');
-    await new Promise(r => setTimeout(r, 1000));
+    await new Promise(r => setTimeout(r, Math.max(0, 3000 - (Date.now() - animationStartedAt))));
 
     if (novoId) {
       if (!isEditMode) _limparDraft();
@@ -981,6 +986,8 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
       if (onCronogramaCriado) onCronogramaCriado(novoId);
       onClose();
     }
+    setIsLoading(false);
+    setStatusIA(null);
     setPercentIA(0);
   };
 

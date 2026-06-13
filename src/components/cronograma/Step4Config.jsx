@@ -152,7 +152,7 @@ const EditalSidebarCard = ({ editalSelecionado }) => (
     <span className="relative z-10 inline-block px-2.5 py-1 mb-4 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-[9px] font-black uppercase tracking-widest rounded-lg">
       Edital Alvo
     </span>
-    <div className="relative z-10 w-24 h-24 shrink-0 rounded-2xl bg-white dark:bg-zinc-800 border-2 border-zinc-100 dark:border-zinc-700 flex items-center justify-center p-3 mb-4 shadow-md">
+    <div className="relative z-10 w-28 h-28 shrink-0 rounded-2xl bg-white dark:bg-zinc-800 border-2 border-zinc-100 dark:border-zinc-700 flex items-center justify-center p-2 mb-4 shadow-md">
       {editalSelecionado?.logo || editalSelecionado?.logoUrl ? (
         <img src={editalSelecionado.logo || editalSelecionado.logoUrl} alt="Logo" className="w-full h-full object-contain" />
       ) : <Target size={36} className="text-red-500" />}
@@ -171,7 +171,7 @@ const EditalSidebarCard = ({ editalSelecionado }) => (
 const EditalMiniCard = ({ editalSelecionado }) => (
   <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-3 shadow-sm flex flex-col items-center text-center justify-center relative overflow-hidden h-full min-h-[120px] mb-6">
     <div className="absolute top-0 inset-x-0 h-1 bg-red-500 rounded-t-2xl" />
-    <div className="w-10 h-10 shrink-0 rounded-xl bg-zinc-50 dark:bg-zinc-800 border border-zinc-100 dark:border-zinc-700 flex items-center justify-center p-1.5 mb-2 z-10">
+    <div className="w-16 h-16 shrink-0 rounded-xl bg-zinc-50 dark:bg-zinc-800 border border-zinc-100 dark:border-zinc-700 flex items-center justify-center p-1 mb-2 z-10">
       {editalSelecionado?.logo || editalSelecionado?.logoUrl ? (
         <img src={editalSelecionado.logo || editalSelecionado.logoUrl} alt="Logo" className="w-full h-full object-contain" />
       ) : <Target size={20} className="text-red-500" />}
@@ -200,7 +200,7 @@ const PageHeader = () => (
 
 // ─── SELECTOR DE MODO (REFINADO) ──────────────────────────────────────────────
 const ModeSelector = ({ options, value, onChange }) => (
-  <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${options.length}, 1fr)` }}>
+  <div className={`grid grid-cols-1 gap-2 ${options.length === 3 ? '2xl:grid-cols-3' : 'xl:grid-cols-2'}`}>
     {options.map(opt => {
       const active = value === opt.id;
       const Icon = opt.icon;
@@ -209,7 +209,7 @@ const ModeSelector = ({ options, value, onChange }) => (
           key={opt.id}
           onClick={() => onChange(opt.id)}
           className={`
-            relative flex flex-col items-start gap-2.5 p-4 rounded-2xl border-2 text-left
+            relative flex flex-col items-start gap-2 p-3 sm:gap-2.5 sm:p-4 rounded-2xl border-2 text-left
             transition-all duration-300 group overflow-hidden
             ${active
               ? `${opt.activeBorder} ${opt.activeBg} shadow-md scale-[1.02] z-10`
@@ -413,13 +413,13 @@ const Step4_Config = ({ config, onConfigChange, editalSelecionado, horarios = {}
           </motion.div>
 
           {/* ── Datas (REVISITADO) ────────────────────────────────────────── */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+          <div className="grid grid-cols-2 gap-3 sm:gap-6">
             {/* Data de Início */}
             <motion.div
               initial={{ opacity: 0, x: -12 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.1 }}
-              className="bg-white dark:bg-zinc-900 rounded-3xl border border-zinc-100 dark:border-zinc-800/50 p-6 shadow-sm relative overflow-visible group"
+              className="bg-white dark:bg-zinc-900 rounded-2xl sm:rounded-3xl border border-zinc-100 dark:border-zinc-800/50 p-4 sm:p-6 shadow-sm relative overflow-visible group"
             >
               <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 blur-3xl rounded-full -mr-16 -mt-16 transition-all group-hover:bg-blue-500/10 pointer-events-none" />
               <div className="flex items-center gap-3 mb-4 relative z-10">
@@ -448,7 +448,7 @@ const Step4_Config = ({ config, onConfigChange, editalSelecionado, horarios = {}
               initial={{ opacity: 0, x: 12 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.12 }}
-              className={`bg-white dark:bg-zinc-900 rounded-3xl border transition-all duration-300 p-6 shadow-sm relative overflow-visible group ${config.retaFinal ? 'border-red-500/30' : 'border-zinc-100 dark:border-zinc-800/50'}`}
+              className={`bg-white dark:bg-zinc-900 rounded-2xl sm:rounded-3xl border transition-all duration-300 p-4 sm:p-6 shadow-sm relative overflow-visible group ${config.retaFinal ? 'border-red-500/30' : 'border-zinc-100 dark:border-zinc-800/50'}`}
             >
               <div className={`absolute top-0 right-0 w-32 h-32 blur-3xl rounded-full -mr-16 -mt-16 transition-all ${config.retaFinal ? 'bg-red-500/10' : 'bg-zinc-500/5'} pointer-events-none`} />
               <div className="flex items-center justify-between mb-4 relative z-10">
@@ -588,13 +588,13 @@ const Step4_Config = ({ config, onConfigChange, editalSelecionado, horarios = {}
           </motion.div>
 
           {/* ── Seção: Modos de Visualização ─────────────────────────────── */}
-          <div className="grid grid-cols-1 gap-6">
+          <div className="grid grid-cols-2 gap-3 sm:gap-6">
             {/* Modo de Assuntos */}
             <motion.div
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
-              className="bg-white dark:bg-zinc-900 rounded-3xl border border-zinc-100 dark:border-zinc-800/50 p-7 shadow-sm"
+              className="bg-white dark:bg-zinc-900 rounded-2xl sm:rounded-3xl border border-zinc-100 dark:border-zinc-800/50 p-4 sm:p-7 shadow-sm"
             >
               <div className="flex items-center gap-4 mb-6">
                 <div className="w-10 h-10 rounded-2xl bg-zinc-50 dark:bg-zinc-800 flex items-center justify-center text-zinc-400">
@@ -621,7 +621,7 @@ const Step4_Config = ({ config, onConfigChange, editalSelecionado, horarios = {}
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.25 }}
-              className="bg-white dark:bg-zinc-900 rounded-3xl border border-zinc-100 dark:border-zinc-800/50 p-7 shadow-sm"
+              className="bg-white dark:bg-zinc-900 rounded-2xl sm:rounded-3xl border border-zinc-100 dark:border-zinc-800/50 p-4 sm:p-7 shadow-sm"
             >
               <div className="flex items-center gap-4 mb-6">
                 <div className="w-10 h-10 rounded-2xl bg-zinc-50 dark:bg-zinc-800 flex items-center justify-center text-zinc-400">

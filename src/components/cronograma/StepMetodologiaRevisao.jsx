@@ -42,26 +42,24 @@ const SplitVisual = () => (
       <div className="bg-red-500 dark:bg-red-600" style={{ width: '75%' }} />
       <div className="bg-zinc-300 dark:bg-zinc-600" style={{ width: '25%' }} />
     </div>
-    <div className="flex divide-x divide-zinc-200 dark:divide-zinc-700 bg-white dark:bg-zinc-900">
-      <div className="flex-1 px-4 py-3 flex items-center gap-3" style={{ flexBasis: '75%' }}>
+    <div className="grid grid-cols-2 divide-x divide-zinc-200 bg-white dark:divide-zinc-700 dark:bg-zinc-900">
+      <div className="min-w-0 px-2.5 py-3 sm:px-4 flex items-center gap-2 sm:gap-3">
         <div className="w-8 h-8 rounded-xl bg-red-100 dark:bg-red-900/30 flex items-center justify-center shrink-0">
           <BookOpen size={14} className="text-red-600 dark:text-red-400" />
         </div>
-        <div>
-          <div className="text-sm font-black text-zinc-900 dark:text-white">75% Estudo</div>
+        <div className="min-w-0">
+          <div className="text-xs sm:text-sm font-black text-zinc-900 dark:text-white whitespace-nowrap">75% Estudo</div>
           <div className="text-[10px] text-zinc-500 dark:text-zinc-400">Conteúdo novo</div>
         </div>
-        <div className="ml-auto text-xl font-black text-red-500 dark:text-red-400 tabular-nums">75%</div>
       </div>
-      <div className="flex items-center gap-3 px-4 py-3" style={{ flexBasis: '25%' }}>
+      <div className="min-w-0 flex items-center gap-2 sm:gap-3 px-2.5 py-3 sm:px-4">
         <div className="w-8 h-8 rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center shrink-0">
           <Zap size={14} className="text-zinc-500 dark:text-zinc-400" />
         </div>
-        <div>
-          <div className="text-sm font-black text-zinc-900 dark:text-white">25% Revisão</div>
+        <div className="min-w-0">
+          <div className="text-xs sm:text-sm font-black text-zinc-900 dark:text-white whitespace-nowrap">25% Revisão</div>
           <div className="text-[10px] text-zinc-500 dark:text-zinc-400">Fixação</div>
         </div>
-        <div className="ml-auto text-xl font-black text-zinc-400 dark:text-zinc-500 tabular-nums">25%</div>
       </div>
     </div>
   </div>
@@ -245,7 +243,7 @@ const StepMetodologiaRevisao = ({ config = {}, onConfigChange = () => {} }) => {
         </div>
 
         <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-3 leading-relaxed">
-          Padrao: 20 minutos. Aqui voce ajusta apenas `tempoRevisaoMinutos`.
+          Padrão: 20 minutos por revisão.
         </p>
       </motion.div>
 

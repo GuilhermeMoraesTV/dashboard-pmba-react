@@ -36,7 +36,7 @@ const EditalSidebarCard = ({ editalSelecionado }) => (
     <span className="relative z-10 inline-block px-2.5 py-1 mb-4 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-[9px] font-black uppercase tracking-widest rounded-lg">
       Edital Alvo
     </span>
-    <div className="relative z-10 w-24 h-24 shrink-0 rounded-2xl bg-white dark:bg-zinc-800 border-2 border-red-100 dark:border-red-900/30 flex items-center justify-center p-3 mb-4 shadow-lg shadow-red-500/20">
+    <div className="relative z-10 w-28 h-28 shrink-0 rounded-2xl bg-white dark:bg-zinc-800 border-2 border-red-100 dark:border-red-900/30 flex items-center justify-center p-2 mb-4 shadow-lg shadow-red-500/20">
       {editalSelecionado.logo || editalSelecionado.logoUrl ? (
         <img src={editalSelecionado.logo || editalSelecionado.logoUrl} alt="Logo Edital" className="w-full h-full object-contain" />
       ) : <Target size={36} className="text-red-500" />}
@@ -75,7 +75,7 @@ const StatsSidebarCard = ({ stats }) => (
 const EditalMiniCard = ({ editalSelecionado }) => (
   <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-3 shadow-sm flex flex-col items-center text-center justify-center relative overflow-hidden h-full min-h-[120px]">
     <div className="absolute top-0 inset-x-0 h-1 bg-red-500" />
-    <div className="w-10 h-10 shrink-0 rounded-xl bg-zinc-50 dark:bg-zinc-800 border border-zinc-100 dark:border-zinc-700 flex items-center justify-center p-1.5 mb-2 z-10">
+    <div className="w-16 h-16 shrink-0 rounded-xl bg-zinc-50 dark:bg-zinc-800 border border-zinc-100 dark:border-zinc-700 flex items-center justify-center p-1 mb-2 z-10">
       {editalSelecionado.logo || editalSelecionado.logoUrl ? (
         <img src={editalSelecionado.logo || editalSelecionado.logoUrl} alt="Logo Edital" className="w-full h-full object-contain" />
       ) : <Target size={20} className="text-red-500" />}

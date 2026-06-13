@@ -497,7 +497,7 @@ const Step5_Preview = ({
               key="semana" initial={{ opacity:0, x: 20 }} animate={{ opacity:1, x:0 }} exit={{ opacity:0, x:-20 }}
               ref={scrollRef}
               onMouseDown={handleMouseDown} onMouseLeave={handleMouseLeave} onMouseUp={handleMouseUp} onMouseMove={handleMouseMove}
-              className="flex gap-4 overflow-x-auto custom-scrollbar pb-6 cursor-grab active:cursor-grabbing px-1 select-none"
+              className="flex gap-3 sm:gap-4 overflow-x-auto custom-scrollbar pb-6 cursor-grab active:cursor-grabbing px-1 select-none"
               style={{ scrollBehavior: isDraggingScroll.current ? 'auto' : 'smooth' }}
             >
               {[0, 1, 2, 3, 4, 5, 6].map((diaOffset) => {
@@ -510,7 +510,7 @@ const Step5_Preview = ({
 
                 return (
                   <div key={diaOffset} onDragOver={(e) => e.preventDefault()} onDrop={(e) => onDrop(e, key)}
-                    className={`relative flex min-h-[420px] min-w-[292px] max-w-[292px] flex-col rounded-[22px] border p-2 transition-all duration-300 sm:min-w-[320px] sm:max-w-[320px] ${hoje ? 'border-red-500/60 bg-white/70 shadow-md ring-1 ring-red-500/30 dark:bg-zinc-950/40' : 'border-zinc-200 bg-zinc-50/70 shadow-sm hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-950/30 dark:hover:border-zinc-700'}`}
+                    className={`relative flex min-h-[360px] min-w-[250px] max-w-[250px] flex-col rounded-[20px] border p-2 transition-all duration-300 sm:min-h-[420px] sm:min-w-[320px] sm:max-w-[320px] sm:rounded-[22px] ${hoje ? 'border-red-500/60 bg-white/70 shadow-md ring-1 ring-red-500/30 dark:bg-zinc-950/40' : 'border-zinc-200 bg-zinc-50/70 shadow-sm hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-950/30 dark:hover:border-zinc-700'}`}
                   >
                     <div className={`mb-3 shrink-0 rounded-2xl border px-4 py-3 shadow-sm transition-all duration-300 ${hoje ? 'border-red-500/60 bg-zinc-950 text-white dark:border-red-500/40 dark:bg-zinc-900' : 'border-zinc-800 bg-zinc-900 text-white dark:border-zinc-800 dark:bg-zinc-900'}`}>
                       {hoje && (

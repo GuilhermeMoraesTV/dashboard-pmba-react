@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Check, Sparkles } from 'lucide-react';
+import { Check } from 'lucide-react';
 
 const PARTICLES = Array.from({ length: 14 }, (_, index) => ({
   id: index,
@@ -39,7 +39,7 @@ export default function PlanningSuccessCelebration() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[100200] flex items-center justify-center overflow-hidden bg-zinc-950/55 p-5 backdrop-blur-md"
+          className="fixed inset-0 z-[100200] flex items-center justify-center overflow-hidden bg-zinc-900/25 p-5 backdrop-blur-md dark:bg-zinc-950/55"
           onClick={() => setCelebration(null)}
         >
           <motion.div
@@ -47,7 +47,7 @@ export default function PlanningSuccessCelebration() {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 12 }}
             transition={{ type: 'spring', stiffness: 300, damping: 24 }}
-            className="relative w-full max-w-sm overflow-hidden rounded-[32px] border border-white/15 bg-zinc-950 px-7 py-9 text-center text-white shadow-[0_32px_100px_rgba(0,0,0,0.5)]"
+            className="relative w-full max-w-sm overflow-hidden rounded-[32px] border border-zinc-200 bg-white px-7 py-9 text-center text-zinc-900 shadow-[0_32px_100px_rgba(15,23,42,0.24)] dark:border-white/15 dark:bg-zinc-950 dark:text-white dark:shadow-[0_32px_100px_rgba(0,0,0,0.5)]"
             onClick={(event) => event.stopPropagation()}
           >
             <motion.div
@@ -89,20 +89,19 @@ export default function PlanningSuccessCelebration() {
             </div>
 
             <div className="relative">
-              <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-red-400/25 bg-red-500/10 px-3 py-1 text-[9px] font-black uppercase tracking-[0.22em] text-red-300">
-                <Sparkles size={12} />
+              <div className="mb-3 inline-flex items-center rounded-full border border-red-200 bg-red-50 px-3 py-1 text-[9px] font-black uppercase tracking-[0.22em] text-red-600 dark:border-red-400/25 dark:bg-red-500/10 dark:text-red-300">
                 Planejamento pronto
               </div>
               <h2 className="text-2xl font-black uppercase tracking-tight">
                 {celebration.type} criado!
               </h2>
-              <p className="mt-2 text-sm font-medium leading-relaxed text-zinc-400">
+              <p className="mt-2 text-sm font-medium leading-relaxed text-zinc-500 dark:text-zinc-400">
                 {celebration.name
                   ? `${celebration.name} ja esta pronto para guiar seus estudos.`
                   : 'Seu novo planejamento ja esta pronto para guiar seus estudos.'}
               </p>
               <motion.div
-                className="mx-auto mt-6 h-1 w-28 overflow-hidden rounded-full bg-white/10"
+                className="mx-auto mt-6 h-1 w-28 overflow-hidden rounded-full bg-zinc-200 dark:bg-white/10"
               >
                 <motion.div
                   className="h-full bg-red-500"

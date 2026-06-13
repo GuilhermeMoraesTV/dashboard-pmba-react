@@ -1038,7 +1038,7 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
       {!showEmptyMessage && (
           <div className="-mx-2 min-h-0 flex-grow sm:-mx-4 md:-mx-6 lg:-mx-8">
               <div className="grid min-h-0 grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(440px,0.86fr)] 2xl:grid-cols-[minmax(0,1fr)_minmax(540px,0.9fr)]">
-                  <section className="relative flex min-h-[640px] flex-col overflow-hidden rounded-3xl border border-zinc-200/70 bg-white/80 px-3 py-5 shadow-xl shadow-zinc-200/40 backdrop-blur-xl dark:border-zinc-800/70 dark:bg-zinc-950/35 dark:shadow-none sm:px-5 lg:min-h-[720px] xl:h-[calc(100vh-250px)] xl:min-h-[720px]">
+                  <section className="relative flex flex-col overflow-hidden rounded-3xl border border-zinc-200/70 bg-white/80 px-3 py-5 shadow-xl shadow-zinc-200/40 backdrop-blur-xl dark:border-zinc-800/70 dark:bg-zinc-950/35 dark:shadow-none sm:min-h-[640px] sm:px-5 lg:min-h-[720px] xl:h-[calc(100vh-250px)] xl:min-h-[720px]">
                       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-red-500/40 to-transparent" />
                       <div className="relative mb-4 flex flex-wrap items-center justify-between gap-3 px-1 sm:px-2">
                           <div>
@@ -1050,7 +1050,7 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
                           </div>
                       </div>
 
-                      <div className="relative flex min-h-[540px] flex-1 items-stretch justify-center xl:min-h-0">
+                      <div className="relative flex h-[430px] flex-1 items-stretch justify-center sm:h-auto sm:min-h-[540px] xl:min-h-0">
                           <CicloVisual
                               selectedDisciplinaId={selectedDisciplinaId}
                               onSelectDisciplina={setSelectedDisciplinaId}
