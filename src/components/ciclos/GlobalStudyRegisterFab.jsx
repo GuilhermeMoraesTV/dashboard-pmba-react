@@ -10,9 +10,10 @@ export default function GlobalStudyRegisterFab({
   hidden = false,
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [canHover, setCanHover] = useState(false);
   const [showDisabledHint, setShowDisabledHint] = useState(false);
   const hideHintTimerRef = useRef(null);
-  const expanded = !disabled && isExpanded;
+  const expanded = !disabled && canHover && isExpanded;
   const clearHintTimer = () => {
     if (hideHintTimerRef.current) {
       clearTimeout(hideHintTimerRef.current);
@@ -20,12 +21,24 @@ export default function GlobalStudyRegisterFab({
     }
   };
 
-  useEffect(() => () => clearHintTimer(), []);
+  useEffect(() => {
+    const media = window.matchMedia('(hover: hover) and (pointer: fine)');
+    const syncHover = () => {
+      setCanHover(media.matches);
+      if (!media.matches) setIsExpanded(false);
+    };
+    syncHover();
+    media.addEventListener?.('change', syncHover);
+    return () => {
+      clearHintTimer();
+      media.removeEventListener?.('change', syncHover);
+    };
+  }, []);
 
   if (hidden) return null;
 
   const fabContent = (
-    <div className="global-study-register-fab fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom,0px))] right-6 z-[100060] pointer-events-none">
+    <div className="global-study-register-fab fixed bottom-[calc(1rem+env(safe-area-inset-bottom,0px))] right-4 z-[100060] pointer-events-none sm:bottom-[calc(1.5rem+env(safe-area-inset-bottom,0px))] sm:right-6">
       <motion.button
         type="button"
         onClick={(event) => {
@@ -35,12 +48,13 @@ export default function GlobalStudyRegisterFab({
             return;
           }
           onClick?.(event);
+          setIsExpanded(false);
         }}
         aria-disabled={disabled}
         aria-label={disabled ? disabledMessage : 'Registrar estudo'}
         title={disabled ? disabledMessage : 'Registrar estudo'}
         initial={false}
-        animate={{ width: expanded ? 232 : 68 }}
+        animate={{ width: expanded ? 224 : canHover ? 64 : 54 }}
         transition={{ type: 'spring', stiffness: 320, damping: 28, mass: 0.6 }}
         whileHover={disabled ? {} : { scale: 1.02 }}
         whileTap={disabled ? {} : { scale: 0.96 }}
@@ -69,7 +83,7 @@ export default function GlobalStudyRegisterFab({
             hideHintTimerRef.current = null;
           }, 2200);
         }}
-        className={`group pointer-events-auto relative h-[68px] rounded-full shadow-xl transition-all duration-200 overflow-hidden
+        className={`group pointer-events-auto relative h-[54px] sm:h-[64px] rounded-full shadow-xl transition-all duration-200 overflow-hidden
           ${disabled
             ? 'bg-zinc-400 text-zinc-100 cursor-not-allowed'
             : 'bg-red-600 text-white hover:bg-red-700 hover:shadow-red-600/35'
@@ -82,11 +96,11 @@ export default function GlobalStudyRegisterFab({
           }`}
         >
           <div
-            className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 transition-colors
+            className={`w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center shrink-0 transition-colors
               ${disabled ? 'bg-zinc-500/50 text-zinc-200' : 'bg-black/10 text-white'}
             `}
           >
-            <Plus size={20} strokeWidth={3.25} />
+            <Plus size={18} strokeWidth={3.25} />
           </div>
 
           <AnimatePresence initial={false}>

@@ -322,11 +322,11 @@ const SecaoModelo = ({ chaveCategoria, itens, idSelecionado, aoDestacar, aoConfi
                     ref={contentRef}
                     drag="x"
                     dragConstraints={{ right: 0, left: -largura }}
-                    dragElastic={0.15}
-                    dragTransition={{ bounceStiffness: 400, bounceDamping: 30 }}
+                    dragElastic={0.06}
+                    dragMomentum={false}
                     onDragStart={() => setArrastando(true)}
                     onDragEnd={() => setTimeout(() => setArrastando(false), 150)}
-                    className="flex gap-3 sm:gap-4 w-max pb-3"
+                    className="flex gap-3 sm:gap-4 w-max pb-3 transform-gpu will-change-transform"
                 >
                     {gruposDeEditais.map((grupo, index) => (
                         <div key={index} className="relative transform transition-transform hover:z-10" onClickCapture={(e) => { if(arrastando) e.stopPropagation() }}>

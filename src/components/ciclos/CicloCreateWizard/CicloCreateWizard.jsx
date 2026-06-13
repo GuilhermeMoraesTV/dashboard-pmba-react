@@ -618,6 +618,9 @@ function CicloCreateWizard({
     const novoId = await criarCiclo(dadosCiclo);
     if (novoId) {
       limparCicloDraft();
+      window.dispatchEvent(new CustomEvent('Planning:Created', {
+        detail: { type: 'ciclo', name: nomeCiclo.trim() },
+      }));
       onClose?.();
       if (onCicloAtivado) onCicloAtivado(novoId);
     }
@@ -800,9 +803,10 @@ function CicloCreateWizard({
           <AnimatePresence mode="wait">
             <motion.div
               key={passo}
-              initial={{ opacity: 0, x: 20 }}
+              initial={{ opacity: 0, x: 14 }}
               animate={{ opacity: 1, y: 0, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
+              exit={{ opacity: 0, x: -14 }}
+              transition={{ duration: 0.2, ease: 'easeOut' }}
             >
               {renderStep()}
             </motion.div>
@@ -810,7 +814,7 @@ function CicloCreateWizard({
         </div>
       </div>
 
-      <div className="wizard-navigation-bar fixed inset-x-3 bottom-4 z-[100050] mx-auto max-w-5xl rounded-2xl border border-zinc-200/80 bg-white/92 shadow-2xl shadow-zinc-950/12 backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-900/94">
+      <div className="wizard-navigation-bar fixed inset-x-2 bottom-2 z-[100050] mx-auto max-w-5xl rounded-2xl border border-zinc-200/80 bg-white/92 shadow-2xl shadow-zinc-950/12 backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-900/94 sm:inset-x-3 sm:bottom-4">
         <div className="absolute top-0 left-0 right-0 h-[2px] bg-zinc-100 dark:bg-zinc-800">
           <motion.div
             className="h-full bg-red-600"
@@ -820,12 +824,12 @@ function CicloCreateWizard({
           />
         </div>
 
-        <div className="max-w-5xl mx-auto px-4 sm:px-8 py-3.5 flex items-center justify-between gap-4">
+        <div className="max-w-5xl mx-auto px-2.5 py-1.5 sm:px-8 sm:py-3.5 flex items-center justify-between gap-2 sm:gap-4">
           <div className="flex items-center gap-2">
             {isEditMode || passo > 1 || (passo === 1 && (idModeloSelecionado || mostrarModalModelo)) ? (
               <button
                 onClick={handleVoltar}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 font-black text-[10px] uppercase tracking-widest transition-all active:scale-95 border border-transparent hover:border-zinc-200 dark:hover:border-zinc-700"
+                className="flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-2xl text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 font-black text-[10px] uppercase tracking-widest transition-all active:scale-95 border border-transparent hover:border-zinc-200 dark:hover:border-zinc-700"
               >
                 <ArrowLeft size={14} strokeWidth={3} />
                 <span className="hidden xs:inline">Voltar</span>
@@ -863,7 +867,7 @@ function CicloCreateWizard({
                 <button
                   onClick={() => setPasso((s) => s + 1)}
                   disabled={!podeAvancar}
-                  className="group flex items-center gap-2 px-8 py-3 rounded-2xl font-black uppercase tracking-widest text-[11px] text-white bg-zinc-900 dark:bg-white dark:text-zinc-900 shadow-xl shadow-zinc-900/20 dark:shadow-white/5 transition-all active:scale-95 disabled:opacity-40 disabled:pointer-events-none hover:bg-red-600 dark:hover:bg-red-600 dark:hover:text-white"
+                  className="group flex items-center gap-2 px-5 py-2.5 sm:px-8 sm:py-3 rounded-2xl font-black uppercase tracking-widest text-[10px] sm:text-[11px] text-white bg-zinc-900 dark:bg-white dark:text-zinc-900 shadow-xl shadow-zinc-900/20 dark:shadow-white/5 transition-all active:scale-95 disabled:opacity-40 disabled:pointer-events-none hover:bg-red-600 dark:hover:bg-red-600 dark:hover:text-white"
                 >
                   Próximo <ArrowRight size={14} strokeWidth={3} className="group-hover:translate-x-1 transition-transform" />
                 </button>
@@ -872,7 +876,7 @@ function CicloCreateWizard({
               <button
                 onClick={salvarWizard}
                 disabled={disciplinasComCalculo.length === 0 || loading || !podeAvancar}
-                className="group flex items-center gap-2 px-8 py-3 rounded-2xl font-black uppercase tracking-widest text-[11px] text-white bg-red-600 hover:bg-red-700 shadow-xl shadow-red-500/30 transition-all active:scale-95 disabled:opacity-60 disabled:pointer-events-none"
+                className="group flex items-center gap-2 px-5 py-2.5 sm:px-8 sm:py-3 rounded-2xl font-black uppercase tracking-widest text-[10px] sm:text-[11px] text-white bg-red-600 hover:bg-red-700 shadow-xl shadow-red-500/30 transition-all active:scale-95 disabled:opacity-60 disabled:pointer-events-none"
               >
                 {loading ? (
                   isEditMode ? 'Salvando...' : 'Criando...'

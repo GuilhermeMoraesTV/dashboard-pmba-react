@@ -286,11 +286,11 @@ const Step3_Horarios = ({ horarios, onHorariosChange, editalSelecionado }) => {
             )}
 
             {/* Dashboard: Resumo Semanal — mais compacto no mobile */}
-            <div className="bg-zinc-900 rounded-2xl md:rounded-3xl p-4 md:p-6 shadow-xl relative overflow-hidden text-white">
+            <div className="bg-zinc-900 rounded-2xl md:rounded-3xl p-3 md:p-6 shadow-xl relative overflow-hidden text-white">
               <div className="absolute top-0 right-0 w-32 h-32 bg-red-600/30 rounded-full blur-[40px] pointer-events-none" />
 
               <div className="relative z-10">
-                <div className="flex items-center gap-2 mb-3 md:mb-5 opacity-80">
+                <div className="flex items-center gap-2 mb-2 md:mb-5 opacity-80">
                   <Flame size={14} className="text-red-400" />
                   <p className="text-[10px] font-black uppercase tracking-widest text-zinc-300">
                     Carga Semanal
@@ -298,7 +298,7 @@ const Step3_Horarios = ({ horarios, onHorariosChange, editalSelecionado }) => {
                 </div>
 
                 {/* Número de horas + gráfico lado a lado no mobile */}
-                <div className="flex items-center gap-4 md:block">
+                <div className="flex items-center gap-3 md:block">
 
                   <motion.div
                     key={totalHoras}
@@ -306,7 +306,7 @@ const Step3_Horarios = ({ horarios, onHorariosChange, editalSelecionado }) => {
                     animate={{ scale: 1, opacity: 1 }}
                     className="flex items-baseline shrink-0"
                   >
-                    <span className="text-4xl md:text-5xl font-black tracking-tighter leading-none">
+                    <span className="text-3xl md:text-5xl font-black tracking-tighter leading-none">
                       {Math.floor(totalHoras)}
                     </span>
                     <span className="text-lg md:text-xl font-bold text-zinc-400 mx-1">h</span>
@@ -320,7 +320,7 @@ const Step3_Horarios = ({ horarios, onHorariosChange, editalSelecionado }) => {
 
                   {/* Gráfico de Barras — menor no mobile */}
                   <div className="flex-1 md:mt-4 md:mb-3">
-                    <div className="flex items-end justify-between h-10 md:h-16 gap-1 mb-1.5 md:mb-2.5">
+                    <div className="flex items-end justify-between h-8 md:h-16 gap-1 mb-1 md:mb-2.5">
                       {DIAS.map(dia => {
                         const h = horarios[dia.idx] || 0;
                         const heightPercent = h > 0 ? Math.max(15, (h / maxHorasDia) * 100) : 0;
@@ -358,7 +358,7 @@ const Step3_Horarios = ({ horarios, onHorariosChange, editalSelecionado }) => {
 
                 </div>
 
-                <div className="pt-3 md:pt-4 border-t border-zinc-800/50 flex items-center justify-between mt-2 md:mt-0">
+                <div className="pt-2 md:pt-4 border-t border-zinc-800/50 flex items-center justify-between mt-1 md:mt-0">
                   <div>
                     <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider mb-0.5">Ritmo Mensal</p>
                     <p className="text-sm font-black text-white">~{Math.round(totalHoras * 4.3)} horas</p>

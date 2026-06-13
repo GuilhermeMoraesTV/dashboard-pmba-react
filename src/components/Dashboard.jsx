@@ -11,6 +11,7 @@ import NavSideBar from '../components/dashboard/NavSideBar';
 import Header from '../components/dashboard/Header';
 import GlobalStudyRegisterFab from '../components/ciclos/GlobalStudyRegisterFab';
 import AppBackgroundEffects from '../components/shared/AppBackgroundEffects';
+import PlanningSuccessCelebration from '../components/shared/PlanningSuccessCelebration';
 const ShareCard = lazy(() => import('../components/shared/ShareCard'));
 const Home = lazy(() => import('../pages/HomePage/HomePage'));
 const CalendarTab = lazy(() => import('../components/dashboard/CalendarTab'));
@@ -1353,6 +1354,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         disabledMessage="Ative um ciclo ou cronograma para registrar estudo"
         hidden={showGlobalRegistroModal}
       />
+      <PlanningSuccessCelebration />
 
       {showGlobalRegistroModal && hasActiveStudyContext && (
         <Suspense fallback={null}>

@@ -213,12 +213,11 @@ const NivelInteligenteSelector = ({ nivelAtual, onNivelChange, isFaltando }) => 
           <span className="min-w-0 whitespace-normal break-words text-[10px]">
             {isFaltando ? 'Obrigatorio escolher nivel' : 'Nivel de Dominio'}
           </span>
-          {isFaltando ? 'Ação Necessária: Defina seu nível' : 'Nível de Domínio'}
         </span>
       </div>
 
       {/* Botões SEMPRE em linha horizontal, ícones nunca cortados */}
-      <div className={`grid grid-cols-1 sm:grid-cols-3 gap-2 p-1.5 rounded-xl transition-all duration-300 ${isFaltando ? 'bg-red-500/[0.04] dark:bg-red-500/[0.06]' : 'bg-zinc-50 dark:bg-zinc-800/40'}`}>
+      <div className={`grid grid-cols-3 gap-1.5 sm:gap-2 p-1 sm:p-1.5 rounded-xl transition-all duration-300 ${isFaltando ? 'bg-red-500/[0.04] dark:bg-red-500/[0.06]' : 'bg-zinc-50 dark:bg-zinc-800/40'}`}>
         {options.map((opt) => {
           const isActive = nivelAtual === opt.id;
           const Icon = opt.icon;
@@ -228,9 +227,9 @@ const NivelInteligenteSelector = ({ nivelAtual, onNivelChange, isFaltando }) => 
               key={opt.id}
               onClick={(e) => { e.preventDefault(); e.stopPropagation(); onNivelChange(opt.id); }}
               className={`
-                min-w-0 flex items-center justify-center gap-2
-                py-2.5 px-3 rounded-lg
-                text-[11px] font-bold transition-all duration-200
+                min-w-0 flex items-center justify-center gap-1 sm:gap-2
+                py-2 px-1 sm:py-2.5 sm:px-3 rounded-lg
+                text-[9px] sm:text-[11px] font-bold transition-all duration-200
                 active:scale-95
                 ${isActive
                   ? `${opt.activeBg} ${opt.activeText} shadow-md`
@@ -264,14 +263,14 @@ const AssuntoItem = ({ assunto, checked, onToggle, onRemover, onEditar }) => {
   const confirmar = () => { const trimmed = valor.trim(); if (trimmed && trimmed !== assunto) onEditar?.(trimmed); setEditando(false); };
 
   return (
-    <motion.div layout initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} className={`flex items-center gap-3 group px-4 py-2.5 rounded-xl border transition-all cursor-pointer ${checked ? 'bg-red-50/50 dark:bg-red-900/10 border-red-200 dark:border-red-900/40' : 'bg-white dark:bg-zinc-900 border-zinc-100 dark:border-zinc-800 hover:border-red-100 dark:hover:border-red-900/30'}`} onClick={() => onToggle?.()}>
+    <motion.div layout initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} className={`flex items-center gap-2 sm:gap-3 group px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl border transition-all cursor-pointer ${checked ? 'bg-red-50/50 dark:bg-red-900/10 border-red-200 dark:border-red-900/40' : 'bg-white dark:bg-zinc-900 border-zinc-100 dark:border-zinc-800 hover:border-red-100 dark:hover:border-red-900/30'}`} onClick={() => onToggle?.()}>
       <div className={`shrink-0 flex items-center justify-center transition-colors ${checked ? 'text-red-600 dark:text-red-500' : 'text-zinc-300 dark:text-zinc-600 group-hover:text-red-400'}`}>
         {checked ? <CheckSquare size={16} strokeWidth={2.5} /> : <Square size={16} strokeWidth={1.5} />}
       </div>
       {editando ? (
         <input value={valor} onChange={e => setValor(e.target.value)} onBlur={confirmar} onKeyDown={e => { if (e.key === 'Enter') confirmar(); if (e.key === 'Escape') setEditando(false); }} autoFocus onClick={e => e.stopPropagation()} className="flex-1 text-sm font-medium bg-white dark:bg-zinc-950 border border-red-400 rounded-lg px-3 py-1 outline-none text-zinc-900 dark:text-white shadow-sm" />
       ) : (
-        <span className={`flex-1 text-sm font-medium leading-relaxed truncate transition-colors ${checked ? 'text-zinc-900 dark:text-zinc-100' : 'text-zinc-600 dark:text-zinc-400'}`}>{assunto}</span>
+        <span className={`flex-1 text-xs sm:text-sm font-medium leading-relaxed truncate transition-colors ${checked ? 'text-zinc-900 dark:text-zinc-100' : 'text-zinc-600 dark:text-zinc-400'}`}>{assunto}</span>
       )}
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
         <button onClick={() => { setEditando(true); setValor(assunto); }} className="p-1.5 rounded-lg text-zinc-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all"><Edit2 size={14} /></button>

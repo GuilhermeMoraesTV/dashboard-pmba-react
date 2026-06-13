@@ -842,6 +842,9 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
     if (novoId) {
       _limparDraft();
       _dispararConfetti();
+      window.dispatchEvent(new CustomEvent('Planning:Created', {
+        detail: { type: 'cronograma', name: editalObj?.titulo || '' },
+      }));
       if (onCronogramaCriado) onCronogramaCriado(novoId);
       onClose();
     }
@@ -970,6 +973,11 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
     if (novoId) {
       if (!isEditMode) _limparDraft();
       _dispararConfetti(true);
+      if (!isEditMode) {
+        window.dispatchEvent(new CustomEvent('Planning:Created', {
+          detail: { type: 'cronograma', name: cronConfig.nome || edital?.titulo || '' },
+        }));
+      }
       if (onCronogramaCriado) onCronogramaCriado(novoId);
       onClose();
     }

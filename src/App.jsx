@@ -2,8 +2,6 @@ import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from './firebaseConfig';
-// Importe o componente Footer (ajuste o caminho se necessário)
-import Footer from './components/Footer';
 
 // Importações Lazy
 const Dashboard = lazy(() => import('./components/Dashboard'));
@@ -117,8 +115,6 @@ function App() {
           </main>
         </Suspense>
 
-        {/* O Footer é renderizado aqui, fora do Routes, para aparecer em todas as páginas */}
-        <Footer />
       </div>
     </BrowserRouter>
   );

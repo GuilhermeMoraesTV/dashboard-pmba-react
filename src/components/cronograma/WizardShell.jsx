@@ -267,7 +267,7 @@ const WizardShell = ({
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.3 }}
+              transition={{ duration: 0.2, ease: 'easeOut' }}
             >
               {renderStep()}
             </motion.div>
@@ -276,8 +276,8 @@ const WizardShell = ({
       </main>
 
       {/* ── Footer Navigation ── */}
-      <div className="wizard-navigation-bar fixed inset-x-3 bottom-4 z-[100050] mx-auto max-w-5xl rounded-2xl border border-zinc-200/80 bg-white/92 p-3 shadow-2xl shadow-zinc-950/12 backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-900/94">
-        <div className="flex items-center justify-between gap-3">
+      <div className="wizard-navigation-bar fixed inset-x-2 bottom-2 z-[100050] mx-auto max-w-5xl rounded-2xl border border-zinc-200/80 bg-white/92 p-1.5 shadow-2xl shadow-zinc-950/12 backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-900/94 sm:inset-x-3 sm:bottom-4 sm:p-3">
+        <div className="flex items-center justify-between gap-2 sm:gap-3">
           
           <div className="flex items-center gap-2">
             {isPassoEdital || (isEditMode && isPrimeiroStep) ? (
@@ -288,7 +288,7 @@ const WizardShell = ({
                   else if (onBackToSelector) onBackToSelector();
                   else onClose();
                 }}
-                className="flex items-center gap-2 px-5 py-3 rounded-2xl text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 font-black text-[11px] uppercase tracking-widest transition-all active:scale-95"
+                className="flex items-center gap-2 px-3 py-2 sm:px-5 sm:py-3 rounded-2xl text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 font-black text-[10px] sm:text-[11px] uppercase tracking-widest transition-all active:scale-95"
               >
                 {isEditMode || onBackToSelector ? <ArrowLeft size={16} strokeWidth={3} /> : <X size={16} strokeWidth={3} />}
                 <span className="hidden xs:inline">{onBackToSelector ? 'Métodos' : 'Cancelar'}</span>
@@ -296,7 +296,7 @@ const WizardShell = ({
             ) : (
               <button
                 onClick={handleVoltar}
-                className="flex items-center gap-2 px-5 py-3 rounded-2xl text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 font-black text-[11px] uppercase tracking-widest transition-all active:scale-95"
+                className="flex items-center gap-2 px-3 py-2 sm:px-5 sm:py-3 rounded-2xl text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 font-black text-[10px] sm:text-[11px] uppercase tracking-widest transition-all active:scale-95"
               >
                 <ArrowLeft size={16} strokeWidth={3} />
                 <span className="hidden xs:inline">Voltar</span>
@@ -309,7 +309,7 @@ const WizardShell = ({
               <button
                 onClick={handleSalvar}
                 disabled={isLoading || !resultadoGeracao}
-                className="group flex items-center gap-2 px-10 py-3.5 rounded-2xl bg-red-600 text-white font-black text-[11px] uppercase tracking-widest shadow-xl shadow-red-500/30 hover:bg-red-700 transition-all active:scale-95 disabled:opacity-50"
+                className="group flex items-center gap-2 px-5 py-2.5 sm:px-10 sm:py-3.5 rounded-2xl bg-red-600 text-white font-black text-[10px] sm:text-[11px] uppercase tracking-widest shadow-xl shadow-red-500/30 hover:bg-red-700 transition-all active:scale-95 disabled:opacity-50"
               >
                 <CheckCircle2 size={18} strokeWidth={2.5} />
                   {ctaFinalLabel}
@@ -324,7 +324,7 @@ const WizardShell = ({
                 <button
                   onClick={handleAvancar}
                   disabled={!podeAvancar(passo, false)}
-                  className="group flex items-center gap-2 px-10 py-3.5 rounded-2xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-black text-[11px] uppercase tracking-widest shadow-xl shadow-zinc-900/20 dark:shadow-white/5 hover:bg-red-600 dark:hover:bg-red-600 dark:hover:text-white transition-all active:scale-95 disabled:opacity-30 disabled:pointer-events-none"
+                  className="group flex items-center gap-2 px-5 py-2.5 sm:px-10 sm:py-3.5 rounded-2xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-black text-[10px] sm:text-[11px] uppercase tracking-widest shadow-xl shadow-zinc-900/20 dark:shadow-white/5 hover:bg-red-600 dark:hover:bg-red-600 dark:hover:text-white transition-all active:scale-95 disabled:opacity-30 disabled:pointer-events-none"
                 >
                   Próximo
                   <ArrowRight size={16} strokeWidth={3} className="group-hover:translate-x-1 transition-transform" />

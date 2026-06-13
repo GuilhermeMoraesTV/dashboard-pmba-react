@@ -242,11 +242,11 @@ const SecaoCategoria = ({ chave, itens, idConfirmado, onConfirmar }) => {
           ref={contentRef}
           drag="x"
           dragConstraints={{ right: 0, left: -largura }}
-          dragElastic={0.15}
-          dragTransition={{ bounceStiffness: 400, bounceDamping: 30 }}
+          dragElastic={0.06}
+          dragMomentum={false}
           onDragStart={() => setArrastando(true)}
           onDragEnd={() => setTimeout(() => setArrastando(false), 150)}
-          className="flex gap-3 sm:gap-4 w-max pb-3"
+          className="flex gap-3 sm:gap-4 w-max pb-3 transform-gpu will-change-transform"
         >
           {grupos.map((grupo, i) => (
             <div key={i} className="relative transform transition-transform hover:z-10" onClickCapture={(e) => { if (arrastando) e.stopPropagation(); }}>
@@ -366,11 +366,11 @@ const Step1_Edital = ({ editalSelecionado, modelos = [], carregando, onSelect, o
     <div className="flex flex-col w-full min-h-[500px]">
       <AnimatePresence mode="wait">
         {tela === 'escolha' ? (
-          <motion.div key="escolha" initial={{ opacity: 0, x: -30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -30, scale: 0.95 }} transition={{ type: 'spring', bounce: 0, duration: 0.5 }} className="w-full">
+          <motion.div key="escolha" initial={{ opacity: 0, x: -18 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -18 }} transition={{ duration: 0.22, ease: 'easeOut' }} className="w-full">
             <TelaEscolhaTipo onManual={handleManual} onCatalogo={() => setTela('catalogo')} />
           </motion.div>
         ) : (
-          <motion.div key="catalogo" initial={{ opacity: 0, x: 30, scale: 0.95 }} animate={{ opacity: 1, x: 0, scale: 1 }} exit={{ opacity: 0, x: 30 }} transition={{ type: 'spring', bounce: 0, duration: 0.5 }} className="w-full">
+          <motion.div key="catalogo" initial={{ opacity: 0, x: 18 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 18 }} transition={{ duration: 0.22, ease: 'easeOut' }} className="w-full">
             <div className="mb-6 px-1"><button onClick={() => setTela('escolha')} className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 hover:text-red-600 transition-colors"><ChevronLeft size={14} strokeWidth={3} /> Voltar para opções</button></div>
             <TelaCatalogo modelos={modelos} carregando={carregando} idConfirmado={idConfirmado} onConfirmar={handleConfirmar} onAbrirSuporte={onAbrirSuporte} />
           </motion.div>
