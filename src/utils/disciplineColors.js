@@ -224,9 +224,15 @@ export const getStoredDisciplineColor = (cor) => {
   return getColorByHex(cor) || getColorById(cor);
 };
 
-export const buildDisciplineColorMap = (disciplinas = []) => {
+export const buildDisciplineColorMap = (
+  disciplinas = [],
+  { preserveStored = true, excludeReviewBlue = false } = {},
+) => {
   const map = {};
   let colorIndex = 0;
+  const palette = excludeReviewBlue
+    ? DISCIPLINE_COLOR_PALETTE.filter((color) => color.id !== 'blue')
+    : DISCIPLINE_COLOR_PALETTE;
 
   disciplinas.forEach((disciplina) => {
     const keys = [
@@ -238,8 +244,8 @@ export const buildDisciplineColorMap = (disciplinas = []) => {
 
     if (keys.length === 0 || keys.some((key) => map[key])) return;
 
-    const color = getStoredDisciplineColor(disciplina?.cor)
-      || DISCIPLINE_COLOR_PALETTE[colorIndex % DISCIPLINE_COLOR_PALETTE.length];
+    const storedColor = preserveStored ? getStoredDisciplineColor(disciplina?.cor) : null;
+    const color = storedColor || palette[colorIndex % palette.length];
     colorIndex += 1;
     keys.forEach((key) => { map[key] = color; });
   });

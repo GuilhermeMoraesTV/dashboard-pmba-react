@@ -34,6 +34,7 @@ import {
   buildDisciplineColorMap,
   getDisciplineCardVars,
   getDisciplineColorForSlot,
+  getDisciplineKey,
 } from '../../utils/disciplineColors';
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
@@ -125,13 +126,11 @@ function getLabelTipo(item) {
 // ─── COMPONENTES ──────────────────────────────────────────────────────────────
 
 const SlotCard = ({ item, onDragStart, onClick, compact = false, config = {}, colorMap = null, isToday = false }) => {
-  const isRev = item.isRevisao || item.isRevisaoAuto;
+  const isRev = item.isRevisao || item.isRevisaoAuto || item.isConsolidada;
   const modoTempo = config.modoExibirTempo || 'detalhado';
   const isDone = Boolean(item.concluido);
   const disciplinaColor = getDisciplineColorForSlot(item, colorMap);
-  const cardStyle = isToday
-    ? { '--discipline-rgb': '239, 68, 68' }
-    : getDisciplineCardVars(disciplinaColor);
+  const cardStyle = getDisciplineCardVars(isRev ? REVIEW_COLOR : disciplinaColor);
   const tempoPlanejadoMinutos = Number(item.tempoPlanejadoMinutos ?? item.tempoMinutos ?? item.minutosEstudo ?? 0);
   const progressoAtualMinutos = Number(item.progressoMinutos || 0);
   const progressoLimitado = Math.min(progressoAtualMinutos, tempoPlanejadoMinutos || progressoAtualMinutos);
@@ -163,19 +162,19 @@ const SlotCard = ({ item, onDragStart, onClick, compact = false, config = {}, co
       onClick={() => onClick(item)}
       whileHover={{ y: -1, scale: 1.01 }}
       style={cardStyle}
-      className={`discipline-tinted-card ${isDone ? 'discipline-completed-card' : ''} group relative min-h-[116px] cursor-grab active:cursor-grabbing select-none overflow-hidden rounded-2xl border transition-all duration-200 shadow-sm ${isToday ? 'ring-1 ring-red-500/45' : ''}`}
+      className={`discipline-tinted-card ${isDone ? 'discipline-completed-card' : ''} group relative min-h-[104px] cursor-grab active:cursor-grabbing select-none overflow-hidden rounded-2xl border transition-all duration-200 shadow-sm ${isToday ? (isRev ? 'ring-1 ring-blue-500/45' : 'ring-1 ring-red-500/45') : ''}`}
     >
       <div className={`absolute bottom-0 left-0 top-0 w-1.5 transition-colors duration-300 ${
-        isToday ? 'bg-red-600' : isDone ? disciplinaColor.bg : emAndamento ? 'bg-orange-500' : isRev ? 'bg-blue-500' : disciplinaColor.bg
+        isRev ? 'bg-blue-500' : isToday ? 'bg-red-600' : isDone ? disciplinaColor.bg : emAndamento ? 'bg-orange-500' : disciplinaColor.bg
       }`} />
 
       <div className="flex h-full flex-col gap-2 px-3.5 py-3">
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-0.5">
-            <div className={`w-2.5 h-2.5 rounded-full shrink-0 shadow-sm ${isToday ? 'bg-red-600' : disciplinaColor.bg || 'bg-zinc-400'}`} />
+            <div className={`w-2.5 h-2.5 rounded-full shrink-0 shadow-sm ${isRev ? 'bg-blue-500' : isToday ? 'bg-red-600' : disciplinaColor.bg || 'bg-zinc-400'}`} />
             {/* [FIX-A] Nome da disciplina — funciona para revisões individuais e consolidadas */}
-            <h4 className={`text-[12px] font-black uppercase tracking-wide truncate ${isDone ? `${isToday ? 'text-red-800' : disciplinaColor.text} line-through opacity-75` : isToday ? 'text-red-800 dark:text-red-200' : disciplinaColor.text}`}>
+            <h4 className={`text-[12px] font-black uppercase tracking-wide truncate ${isDone ? `${isRev ? 'text-blue-700' : isToday ? 'text-red-800' : disciplinaColor.text} line-through opacity-75` : isRev ? 'text-blue-700 dark:text-blue-300' : isToday ? 'text-red-800 dark:text-red-200' : disciplinaColor.text}`}>
               {nomeDisc}
             </h4>
             {isDone && <CheckCircle2 size={11} className="shrink-0 text-emerald-500" strokeWidth={3} />}
@@ -206,7 +205,7 @@ const SlotCard = ({ item, onDragStart, onClick, compact = false, config = {}, co
               initial={false}
               animate={{ width: `${isDone ? 100 : progressoPercentual}%` }}
               transition={{ duration: 0.25 }}
-              className={`h-full rounded-full ${isToday ? 'bg-red-700' : isDone ? disciplinaColor.progress : emAndamento ? 'bg-orange-500' : disciplinaColor.progress}`}
+              className={`h-full rounded-full ${isRev ? REVIEW_COLOR.progress : isToday ? 'bg-red-700' : isDone ? disciplinaColor.progress : emAndamento ? 'bg-orange-500' : disciplinaColor.progress}`}
             />
           </div>
         </div>
@@ -264,7 +263,40 @@ const Step5_Preview = ({
   };
 
   // ── Lógica de Agenda ───────────────────────────────────────────────────────
-  const colorMap = useMemo(() => buildDisciplineColorMap(disciplinas || []), [disciplinas]);
+  const colorMap = useMemo(() => {
+    const disciplinasPorChave = new Map();
+    (disciplinas || []).forEach((disciplina) => {
+      [disciplina?.id, disciplina?.nome, disciplina?.disciplinaNome]
+        .filter(Boolean)
+        .map(getDisciplineKey)
+        .forEach((key) => disciplinasPorChave.set(key, disciplina));
+    });
+
+    const vistas = new Set();
+    const disciplinasPresentes = [];
+    (resultado?.semanaTemplate || [])
+      .filter((slot) => !slot?.isRevisao && !slot?.isRevisaoAuto && !slot?.isConsolidada)
+      .forEach((slot) => {
+        const referencias = [slot?.disciplinaId, slot?.disciplinaNome, slot?.disciplina].filter(Boolean);
+        const key = getDisciplineKey(referencias[0]);
+        if (vistas.has(key)) return;
+        vistas.add(key);
+
+        const disciplinaCadastrada = referencias
+          .map(getDisciplineKey)
+          .map((ref) => disciplinasPorChave.get(ref))
+          .find(Boolean);
+        disciplinasPresentes.push(disciplinaCadastrada || {
+          id: slot?.disciplinaId || slot?.disciplinaNome || slot?.disciplina,
+          nome: slot?.disciplinaNome || slot?.disciplina || slot?.disciplinaId,
+        });
+      });
+
+    return buildDisciplineColorMap(disciplinasPresentes, {
+      preserveStored: false,
+      excludeReviewBlue: true,
+    });
+  }, [disciplinas, resultado?.semanaTemplate]);
 
   // CORREÇÃO: startDate é o primeiro dia com horas > 0 a partir de hoje.
   const startDate = useMemo(() => {
@@ -407,27 +439,27 @@ const Step5_Preview = ({
       </motion.div>
 
       {/* ── HEADER TOOLBAR ── */}
-      <div className="mx-auto grid w-full max-w-3xl grid-cols-1 gap-2.5 px-1 sm:grid-cols-3">
-        <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60 px-3 py-2.5">
+      <div className="mx-auto grid w-full max-w-3xl grid-cols-3 gap-1.5 px-1 sm:gap-2.5">
+        <div className="min-w-0 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60 px-2 py-2.5 sm:px-3">
           <p className="mb-0.5 text-[9px] font-black uppercase tracking-[0.18em] text-zinc-400 dark:text-zinc-500">Início</p>
-          <p className="text-[13px] font-black text-zinc-900 dark:text-white">{fmtDate(resultado?.dataInicio || isoKey(startDate))}</p>
+          <p className="truncate text-[10px] font-black text-zinc-900 dark:text-white sm:text-[13px]">{fmtDate(resultado?.dataInicio || isoKey(startDate))}</p>
         </div>
-        <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60 px-3 py-2.5">
+        <div className="min-w-0 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60 px-2 py-2.5 sm:px-3">
           <p className="mb-0.5 text-[9px] font-black uppercase tracking-[0.18em] text-zinc-400 dark:text-zinc-500">Data Final</p>
-          <p className="text-[13px] font-black text-zinc-900 dark:text-white">{fmtDate(dataFinalCronograma)}</p>
+          <p className="truncate text-[10px] font-black text-zinc-900 dark:text-white sm:text-[13px]">{fmtDate(dataFinalCronograma)}</p>
         </div>
-        <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60 px-3 py-2.5">
+        <div className="min-w-0 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60 px-2 py-2.5 sm:px-3">
           <p className="mb-0.5 text-[9px] font-black uppercase tracking-[0.18em] text-zinc-400 dark:text-zinc-500">Duração</p>
-          <p className="text-[13px] font-black text-zinc-900 dark:text-white">{totalSemanas} sem. · {totalHorasSemanais}h/sem</p>
+          <p className="truncate text-[10px] font-black text-zinc-900 dark:text-white sm:text-[13px]">{totalSemanas} sem. · {totalHorasSemanais}h/sem</p>
         </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-1">
+      <div className="flex flex-col items-center justify-center gap-3 px-1 sm:flex-row sm:justify-between">
         <div className="flex items-center gap-3">
           <div className="w-1.5 h-6 rounded-full bg-red-600 shadow-[0_0_10px_rgba(220,38,38,0.3)]" />
           <h2 className="text-lg font-black uppercase tracking-widest text-zinc-900 dark:text-white leading-none">Visão do Plano</h2>
         </div>
-        <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 p-1 rounded-2xl">
+        <div className="mx-auto flex items-center justify-center gap-1 rounded-2xl bg-zinc-100 p-1 dark:bg-zinc-800 sm:mx-0">
           {[
             { id: 'semana', icon: CalendarDays, label: 'Semana' },
             { id: 'mes',    icon: LayoutGrid,   label: 'Mês' },
@@ -510,7 +542,7 @@ const Step5_Preview = ({
 
                 return (
                   <div key={diaOffset} onDragOver={(e) => e.preventDefault()} onDrop={(e) => onDrop(e, key)}
-                    className={`relative flex min-h-[360px] min-w-[250px] max-w-[250px] flex-col rounded-[20px] border p-2 transition-all duration-300 sm:min-h-[420px] sm:min-w-[320px] sm:max-w-[320px] sm:rounded-[22px] ${hoje ? 'border-red-500/60 bg-white/70 shadow-md ring-1 ring-red-500/30 dark:bg-zinc-950/40' : 'border-zinc-200 bg-zinc-50/70 shadow-sm hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-950/30 dark:hover:border-zinc-700'}`}
+                    className={`relative flex min-h-[320px] min-w-[220px] max-w-[220px] flex-col rounded-[18px] border p-2 transition-all duration-300 sm:min-h-[420px] sm:min-w-[320px] sm:max-w-[320px] sm:rounded-[22px] ${hoje ? 'border-red-500/60 bg-white/70 shadow-md ring-1 ring-red-500/30 dark:bg-zinc-950/40' : 'border-zinc-200 bg-zinc-50/70 shadow-sm hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-950/30 dark:hover:border-zinc-700'}`}
                   >
                     <div className={`mb-3 shrink-0 rounded-2xl border px-4 py-3 shadow-sm transition-all duration-300 ${hoje ? 'border-red-500/60 bg-zinc-950 text-white dark:border-red-500/40 dark:bg-zinc-900' : 'border-zinc-800 bg-zinc-900 text-white dark:border-zinc-800 dark:bg-zinc-900'}`}>
                       {hoje && (
@@ -590,7 +622,8 @@ const Step5_Preview = ({
           )}
 
           {viewMode === 'mes' && (
-            <motion.div key="mes" initial={{ opacity:0, scale:0.98 }} animate={{ opacity:1, scale:1 }} exit={{ opacity:0, scale:0.98 }} className="grid grid-cols-7 gap-2 sm:gap-3 rounded-[40px] border border-red-100/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(254,242,242,0.92))] p-4 shadow-[0_24px_60px_rgba(239,68,68,0.08)] dark:border-zinc-800 dark:bg-zinc-950/70 dark:shadow-none">
+            <div className="w-full overflow-x-auto pb-2 custom-scrollbar">
+            <motion.div key="mes" initial={{ opacity:0, scale:0.98 }} animate={{ opacity:1, scale:1 }} exit={{ opacity:0, scale:0.98 }} className="grid min-w-[560px] grid-cols-7 gap-1 rounded-[24px] border border-red-100/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(254,242,242,0.92))] p-2 shadow-[0_24px_60px_rgba(239,68,68,0.08)] dark:border-zinc-800 dark:bg-zinc-950/70 dark:shadow-none sm:min-w-0 sm:gap-3 sm:rounded-[40px] sm:p-4">
               {monthDays.map((dayObj, i) => {
                 const data = dayObj.date;
                 const key = isoKey(data);
@@ -602,14 +635,15 @@ const Step5_Preview = ({
                 const resumoPorDiscMap = {};
                 items.forEach((item) => {
                   const nome = getNomeDisc(item);
-                  const chave = `${item.disciplinaId || nome}::${item.isRevisao || item.isRevisaoAuto ? 'rev' : 'std'}`;
+                  const isReviewItem = Boolean(item.isRevisao || item.isRevisaoAuto || item.isConsolidada);
+                  const chave = `${item.disciplinaId || nome}::${isReviewItem ? 'rev' : 'std'}`;
                   const cor = getDisciplineColorForSlot(item, colorMap);
                   if (!resumoPorDiscMap[chave]) {
                     resumoPorDiscMap[chave] = {
                       chave,
                       nome,
                       minutos: 0,
-                      isRevisao: Boolean(item.isRevisao || item.isRevisaoAuto),
+                      isRevisao: isReviewItem,
                       cor,
                     };
                   }
@@ -633,7 +667,7 @@ const Step5_Preview = ({
                       setSemanaOffset(targetWeek);
                       setViewMode('semana');
                     }}
-                    className={`relative min-h-[110px] overflow-hidden rounded-2xl border p-2 text-left transition-all cursor-pointer group ${hoje ? 'border-red-300 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(254,226,226,0.95))] ring-2 ring-red-300/40 shadow-[0_18px_40px_rgba(239,68,68,0.18)] dark:border-red-500/50 dark:bg-red-950/20 dark:ring-red-500/20 dark:shadow-lg dark:shadow-red-500/10' : isMesAtual ? 'border-red-100 bg-white/95 shadow-[0_10px_26px_rgba(15,23,42,0.06)] hover:border-red-200 hover:shadow-[0_18px_34px_rgba(239,68,68,0.12)] dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-red-900/40 dark:hover:shadow-md' : 'border-transparent bg-white/20 opacity-30 grayscale dark:bg-zinc-950/20'}`}
+                    className={`relative min-h-[88px] overflow-hidden rounded-xl border p-1.5 text-left transition-all cursor-pointer group sm:min-h-[110px] sm:rounded-2xl sm:p-2 ${hoje ? 'border-red-300 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(254,226,226,0.95))] ring-2 ring-red-300/40 shadow-[0_18px_40px_rgba(239,68,68,0.18)] dark:border-red-500/50 dark:bg-red-950/20 dark:ring-red-500/20 dark:shadow-lg dark:shadow-red-500/10' : isMesAtual ? 'border-red-100 bg-white/95 shadow-[0_10px_26px_rgba(15,23,42,0.06)] hover:border-red-200 hover:shadow-[0_18px_34px_rgba(239,68,68,0.12)] dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-red-900/40 dark:hover:shadow-md' : 'border-transparent bg-white/20 opacity-30 grayscale dark:bg-zinc-950/20'}`}
                   >
                     <div className="relative z-10 mb-1 flex items-start justify-between">
                       <span className={`text-[10px] font-black uppercase tracking-tighter ${hoje ? 'text-red-500' : 'text-zinc-400 dark:text-zinc-500'}`}>{diaNome}</span>
@@ -649,7 +683,7 @@ const Step5_Preview = ({
                         <div key={disc.chave} className="flex items-center justify-between gap-1 rounded-md border border-red-50 bg-white/90 px-1.5 py-1 shadow-sm dark:border-zinc-700 dark:bg-zinc-800/90 dark:shadow-none">
                           <div className="flex items-center gap-1 min-w-0">
                             <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${disc.cor?.bg || 'bg-zinc-400'}`} />
-                            <span className={`text-[8px] font-bold truncate ${disc.isRevisao ? 'text-violet-600 dark:text-violet-300' : 'text-zinc-700 dark:text-zinc-200'}`}>
+                            <span className={`text-[8px] font-bold truncate ${disc.isRevisao ? 'text-blue-600 dark:text-blue-300' : 'text-zinc-700 dark:text-zinc-200'}`}>
                               {disc.nome}
                             </span>
                           </div>
@@ -665,6 +699,7 @@ const Step5_Preview = ({
                 );
               })}
             </motion.div>
+            </div>
           )}
 
           {viewMode === 'lista' && (
@@ -773,13 +808,13 @@ const Step5_Preview = ({
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               className="relative w-full max-w-sm bg-white dark:bg-zinc-900 rounded-[40px] overflow-hidden shadow-2xl border border-zinc-200 dark:border-zinc-800"
             >
-              <div className={`h-2 w-full ${(modalSlot.isRevisao || modalSlot.isRevisaoAuto) ? 'bg-violet-600 shadow-[0_0_15px_rgba(139,92,246,0.5)]' : (modalSlot.cor?.bg || 'bg-red-600 shadow-[0_0_15px_rgba(220,38,38,0.5)]')}`} />
+              <div className={`h-2 w-full ${(modalSlot.isRevisao || modalSlot.isRevisaoAuto || modalSlot.isConsolidada) ? 'bg-blue-600 shadow-[0_0_15px_rgba(37,99,235,0.5)]' : (modalSlot.cor?.bg || 'bg-red-600 shadow-[0_0_15px_rgba(220,38,38,0.5)]')}`} />
               <div className="p-8">
                 <div className="flex justify-between items-start mb-6">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 mb-2">
                       {/* [FIX-C] Label do tipo com intervalo de revisão */}
-                      <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest text-white ${(modalSlot.isRevisao || modalSlot.isRevisaoAuto) ? 'bg-violet-600' : 'bg-red-600'}`}>
+                      <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest text-white ${(modalSlot.isRevisao || modalSlot.isRevisaoAuto || modalSlot.isConsolidada) ? 'bg-blue-600' : 'bg-red-600'}`}>
                         {getLabelTipo(modalSlot)}
                       </span>
                     </div>
@@ -813,7 +848,7 @@ const Step5_Preview = ({
                       <ul className="space-y-2">
                         {modalSlot.topicosRevisao.map((t, i) => (
                           <li key={i} className="flex items-start gap-2">
-                            <div className="w-1.5 h-1.5 rounded-full bg-violet-500 mt-1.5 shrink-0" />
+                            <div className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1.5 shrink-0" />
                             <div>
                               <p className="text-[10px] font-black uppercase text-zinc-700 dark:text-zinc-300">{t.disciplinaNome}</p>
                               <p className="text-xs text-zinc-500 dark:text-zinc-400">{t.assunto}</p>

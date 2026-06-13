@@ -1,4 +1,5 @@
 import React from 'react';
+import { motion } from 'framer-motion';
 import { BookOpen, Clock, Edit2, Layers3, LayoutList, Settings2, Shuffle, Target } from 'lucide-react';
 
 const fmtMin = (min) => {
@@ -122,15 +123,22 @@ export default function StepConfig({
 
   return (
     <div className="flex flex-col h-full overflow-hidden w-full">
+      <motion.div
+        initial={{ opacity: 0, y: -12 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="mb-8 max-w-2xl mx-auto px-4 text-center shrink-0"
+      >
+        <h2 className="mb-3 text-3xl font-black uppercase leading-none tracking-tight text-zinc-900 dark:text-white sm:text-4xl">
+          Ajuste fino do seu<br /><span className="text-red-600">Plano</span>
+        </h2>
+        <p className="mx-auto max-w-md text-sm font-medium leading-relaxed text-zinc-500 dark:text-zinc-400">
+          Defina o nome e como o ciclo vai se comportar no seu dia a dia.
+        </p>
+      </motion.div>
       <div className="px-1 sm:px-4">
         <div className="flex flex-col lg:flex-row gap-4 md:gap-6 w-full">
           <div className="flex-1 min-w-0">
             <div className="max-w-4xl mx-auto p-5 sm:p-7 rounded-3xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/40 shadow-sm space-y-6">
-              <div className="text-center">
-                <h3 className="text-2xl sm:text-3xl font-black text-zinc-900 dark:text-white uppercase tracking-tight">Configuracoes do Ciclo</h3>
-                <p className="text-sm text-zinc-500 mt-2">Defina o nome do ciclo e ajuste a duracao das sessoes.</p>
-              </div>
-
               <div>
                 <label className="text-xs font-black uppercase tracking-wider text-zinc-500">Nome do Ciclo</label>
                 <div className="relative mt-2">

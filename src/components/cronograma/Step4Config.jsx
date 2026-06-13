@@ -108,7 +108,7 @@ const CustomDatePicker = ({ value, onChange, name, color = 'blue' }) => {
         {isOpen && (
           <motion.div
             initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.95 }}
-            className="absolute left-0 top-full mt-2 z-[999] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-[24px] shadow-2xl p-5 w-[280px]"
+            className="fixed left-1/2 top-1/2 z-[100060] w-[min(280px,calc(100vw-24px))] -translate-x-1/2 -translate-y-1/2 rounded-[24px] border border-zinc-200 bg-white p-5 shadow-2xl dark:border-zinc-800 dark:bg-zinc-900 sm:absolute sm:left-0 sm:top-full sm:mt-2 sm:w-[280px] sm:translate-x-0 sm:translate-y-0"
           >
             <div className="flex justify-between items-center mb-4">
               <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); changeMonth(-1) }} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl text-zinc-400 transition-colors">
@@ -169,7 +169,7 @@ const EditalSidebarCard = ({ editalSelecionado }) => (
 );
 
 const EditalMiniCard = ({ editalSelecionado }) => (
-  <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-3 shadow-sm flex flex-col items-center text-center justify-center relative overflow-hidden h-full min-h-[120px] mb-6">
+  <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-3 shadow-sm flex flex-col items-center text-center justify-center relative overflow-hidden h-full min-h-[120px]">
     <div className="absolute top-0 inset-x-0 h-1 bg-red-500 rounded-t-2xl" />
     <div className="w-16 h-16 shrink-0 rounded-xl bg-zinc-50 dark:bg-zinc-800 border border-zinc-100 dark:border-zinc-700 flex items-center justify-center p-1 mb-2 z-10">
       {editalSelecionado?.logo || editalSelecionado?.logoUrl ? (
@@ -375,42 +375,42 @@ const Step4_Config = ({ config, onConfigChange, editalSelecionado, horarios = {}
         {/* ── Coluna Principal ──────────────────────────────────────────────── */}
         <div className="flex-1 min-w-0 flex flex-col gap-6">
 
-          {/* Edital mini (mobile) - MANTIDO */}
-          {hasEdital && (
-            <div className="lg:hidden">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-2">
+          <div className={hasEdital ? 'grid grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] gap-3 lg:block' : ''}>
+            {/* Edital mini (mobile) */}
+            {hasEdital && (
+              <div className="lg:hidden">
                 <EditalMiniCard editalSelecionado={editalSelecionado} />
               </div>
-            </div>
-          )}
+            )}
 
-          {/* ── Nome do Cronograma (REVISITADO) ───────────────────────────── */}
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.05 }}
-            className="group bg-white dark:bg-zinc-900 rounded-3xl border border-zinc-100 dark:border-zinc-800/50 p-6 shadow-sm hover:shadow-md transition-all duration-300"
-          >
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-8 h-8 rounded-xl bg-zinc-50 dark:bg-zinc-800 flex items-center justify-center text-zinc-400 group-focus-within:text-red-500 transition-colors">
-                <Hash size={16} />
+            {/* ── Nome do Cronograma ─────────────────────────────────────── */}
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.05 }}
+              className="group bg-white dark:bg-zinc-900 rounded-2xl sm:rounded-3xl border border-zinc-100 dark:border-zinc-800/50 p-4 sm:p-6 shadow-sm hover:shadow-md transition-all duration-300"
+            >
+              <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+                <div className="w-8 h-8 rounded-xl bg-zinc-50 dark:bg-zinc-800 flex items-center justify-center text-zinc-400 group-focus-within:text-red-500 transition-colors">
+                  <Hash size={16} />
+                </div>
+                <label className="text-[9px] sm:text-[11px] font-black uppercase tracking-[0.12em] sm:tracking-[0.15em] text-zinc-400 group-focus-within:text-zinc-600 dark:group-focus-within:text-zinc-300 transition-colors">
+                  Nome do Projeto
+                </label>
               </div>
-              <label className="text-[11px] font-black uppercase tracking-[0.15em] text-zinc-400 group-focus-within:text-zinc-600 dark:group-focus-within:text-zinc-300 transition-colors">
-                Nome do seu Projeto
-              </label>
-            </div>
-            <input
-              type="text"
-              value={config.nome || ''}
-              onChange={e => setField('nome', e.target.value)}
-              placeholder="Ex: Reta Final PMBA 2025"
-              className="w-full px-5 py-4 text-lg font-black bg-zinc-50 dark:bg-zinc-950 border-2 border-transparent focus:bg-white dark:focus:bg-zinc-900 focus:border-red-500/20 focus:ring-4 focus:ring-red-500/5 rounded-2xl outline-none transition-all text-zinc-900 dark:text-white placeholder:text-zinc-300 dark:placeholder:text-zinc-700"
-            />
-            <div className="mt-3 flex items-center gap-2 text-[10px] text-zinc-400 font-medium">
-              <span className="w-1 h-1 rounded-full bg-zinc-300 dark:bg-zinc-700" />
-              <span>Dica: Use nomes que identifiquem claramente seu objetivo</span>
-            </div>
-          </motion.div>
+              <input
+                type="text"
+                value={config.nome || ''}
+                onChange={e => setField('nome', e.target.value)}
+                placeholder="Ex: Reta Final PMBA"
+                className="w-full px-3 py-3 sm:px-5 sm:py-4 text-sm sm:text-lg font-black bg-zinc-50 dark:bg-zinc-950 border-2 border-transparent focus:bg-white dark:focus:bg-zinc-900 focus:border-red-500/20 focus:ring-4 focus:ring-red-500/5 rounded-xl sm:rounded-2xl outline-none transition-all text-zinc-900 dark:text-white placeholder:text-zinc-300 dark:placeholder:text-zinc-700"
+              />
+              <div className="mt-3 hidden sm:flex items-center gap-2 text-[10px] text-zinc-400 font-medium">
+                <span className="w-1 h-1 rounded-full bg-zinc-300 dark:bg-zinc-700" />
+                <span>Use um nome que identifique claramente seu objetivo</span>
+              </div>
+            </motion.div>
+          </div>
 
           {/* ── Datas (REVISITADO) ────────────────────────────────────────── */}
           <div className="grid grid-cols-2 gap-3 sm:gap-6">
@@ -513,7 +513,7 @@ const Step4_Config = ({ config, onConfigChange, editalSelecionado, horarios = {}
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.15 }}
-            className={`bg-white dark:bg-zinc-900 rounded-3xl border transition-all duration-300 p-7 shadow-sm relative overflow-visible ${config.limitarMaterias ? 'border-red-500/20 ring-4 ring-red-500/5' : 'border-zinc-100 dark:border-zinc-800/50'}`}
+            className={`bg-white dark:bg-zinc-900 rounded-3xl border transition-all duration-300 p-4 sm:p-7 shadow-sm relative overflow-visible ${config.limitarMaterias ? 'border-red-500/20 ring-4 ring-red-500/5' : 'border-zinc-100 dark:border-zinc-800/50'}`}
           >
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 relative z-10">
               <div className="flex items-center gap-4">
@@ -549,20 +549,20 @@ const Step4_Config = ({ config, onConfigChange, editalSelecionado, horarios = {}
                         </p>
                       </div>
                     ) : (
-                      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+                      <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-2 sm:gap-3">
                         {diasComEstudo.map(dia => {
                           const val = config.limitesPorDia?.[dia.idx] ?? config.materiasPorDia ?? 3;
                           return (
-                            <div key={dia.idx} className="bg-zinc-50 dark:bg-zinc-800/40 rounded-2xl p-4 border border-zinc-100 dark:border-zinc-700/50 flex flex-col items-center hover:bg-white dark:hover:bg-zinc-800 hover:shadow-sm transition-all group">
+                            <div key={dia.idx} className="bg-zinc-50 dark:bg-zinc-800/40 rounded-xl sm:rounded-2xl p-2 sm:p-4 border border-zinc-100 dark:border-zinc-700/50 flex flex-col items-center hover:bg-white dark:hover:bg-zinc-800 hover:shadow-sm transition-all group">
                               <span className="text-[9px] font-black uppercase text-zinc-400 mb-3 tracking-tighter group-hover:text-red-500 transition-colors">
                                 {dia.curto}
                               </span>
-                              <div className="flex flex-col items-center gap-2">
+                              <div className="flex items-center gap-1.5 sm:flex-col sm:gap-2">
                                 <button
                                   onClick={() => setLimiteDia(dia.idx, Math.min(7, val + 1))}
                                   className="w-6 h-6 rounded-lg bg-white dark:bg-zinc-700 border border-zinc-200 dark:border-zinc-600 flex items-center justify-center text-zinc-400 hover:text-red-500 hover:border-red-200 transition-all shadow-sm"
                                 >+</button>
-                                <span className="text-xl font-black text-zinc-900 dark:text-white tabular-nums">{val}</span>
+                                <span className="min-w-4 text-center text-base sm:text-xl font-black text-zinc-900 dark:text-white tabular-nums">{val}</span>
                                 <button
                                   onClick={() => setLimiteDia(dia.idx, Math.max(1, val - 1))}
                                   className="w-6 h-6 rounded-lg bg-white dark:bg-zinc-700 border border-zinc-200 dark:border-zinc-600 flex items-center justify-center text-zinc-400 hover:text-red-500 hover:border-red-200 transition-all shadow-sm"
@@ -588,7 +588,7 @@ const Step4_Config = ({ config, onConfigChange, editalSelecionado, horarios = {}
           </motion.div>
 
           {/* ── Seção: Modos de Visualização ─────────────────────────────── */}
-          <div className="grid grid-cols-2 gap-3 sm:gap-6">
+          <div className="grid grid-cols-1 gap-3 sm:gap-6">
             {/* Modo de Assuntos */}
             <motion.div
               initial={{ opacity: 0, y: 12 }}

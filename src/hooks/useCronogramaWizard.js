@@ -203,7 +203,11 @@ const _montarDisciplinasSnapshotCompleto = ({ edital, disciplinas, extraDiscipli
 };
 
 const _aplicarCoresUnicasCronograma = (semanaTemplate = [], disciplinas = []) => {
-  const colorMap = buildDisciplineColorMap(disciplinas);
+  const disciplinasAtivas = disciplinas.filter((disciplina) => disciplina?.inCiclo !== false);
+  const colorMap = buildDisciplineColorMap(disciplinasAtivas, {
+    preserveStored: false,
+    excludeReviewBlue: true,
+  });
   const getCorDisciplina = (disciplina) => (
     colorMap[getDisciplineKey(disciplina?.id)]
     || colorMap[getDisciplineKey(disciplina?.nome)]
@@ -218,7 +222,9 @@ const _aplicarCoresUnicasCronograma = (semanaTemplate = [], disciplinas = []) =>
     )),
     disciplinas: (disciplinas || []).map((disciplina) => ({
       ...disciplina,
-      cor: getCorDisciplina(disciplina) || disciplina?.cor || null,
+      cor: disciplina?.inCiclo === false
+        ? disciplina?.cor || null
+        : getCorDisciplina(disciplina) || disciplina?.cor || null,
     })),
   };
 };

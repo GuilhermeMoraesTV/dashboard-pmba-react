@@ -807,7 +807,7 @@ function NavSideBar({
         onClick={handleLogoClick}
         className="absolute left-1/2 -translate-x-1/2 cursor-pointer z-0 group select-none"
       >
-        <h1 className="text-red-600 font-black tracking-[0.16em] sm:tracking-[0.2em] uppercase text-sm sm:text-xl whitespace-nowrap transition-all duration-300 group-hover:scale-105 group-active:scale-95 drop-shadow-sm">
+        <h1 className="text-red-600 font-black tracking-[0.14em] sm:tracking-[0.2em] uppercase text-lg sm:text-2xl whitespace-nowrap transition-all duration-300 group-hover:scale-105 group-active:scale-95 drop-shadow-sm">
           MODOQAP
         </h1>
       </div>

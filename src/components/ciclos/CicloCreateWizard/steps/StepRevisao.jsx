@@ -1,4 +1,5 @@
 import React from 'react';
+import { motion } from 'framer-motion';
 import { CheckCircle2, RefreshCw } from 'lucide-react';
 import { REVISAO_MODO_FLEXIVEL, REVISAO_MODO_SUGESTAO } from '../../../../utils/cicloReviewMode';
 
@@ -19,15 +20,28 @@ const MODOS_REVISAO = [
 
 export default function StepRevisao({ revisaoModo, setRevisaoModo }) {
   return (
-    <div className="px-1 sm:px-4">
-      <div className="max-w-4xl mx-auto p-5 sm:p-7 rounded-3xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/40 shadow-sm">
-        <div className="mb-6 text-center">
-          <h3 className="text-2xl sm:text-3xl font-black text-zinc-900 dark:text-white uppercase tracking-tight">Revisao no Ciclo</h3>
-          <p className="text-sm text-zinc-500 mt-2">
-            Este passo define o contrato real salvo no ciclo e aplicado depois no registro manual e no timer.
-          </p>
+    <div className="flex min-h-full flex-col items-center px-4 py-4">
+      <motion.div
+        initial={{ opacity: 0, y: -12 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="mb-8 w-full px-4 text-center"
+      >
+        <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-red-600 shadow-lg shadow-red-600/30">
+          <RefreshCw size={26} className="text-white" strokeWidth={2.5} />
         </div>
+        <h2 className="mb-3 text-3xl font-black uppercase leading-none tracking-tight text-zinc-900 dark:text-white sm:text-4xl">
+          Revisao <span className="text-red-600">Espacada</span>
+        </h2>
+        <p className="mx-auto max-w-md text-sm font-medium leading-relaxed text-zinc-500 dark:text-zinc-400">
+          Defina como a sugestao de revisao aparece durante os registros do ciclo.
+        </p>
+      </motion.div>
 
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="w-full max-w-2xl rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900"
+      >
         <div className="space-y-3">
           {MODOS_REVISAO.map((modo) => {
             const ativo = revisaoModo === modo.id;
@@ -64,7 +78,7 @@ export default function StepRevisao({ revisaoModo, setRevisaoModo }) {
           <RefreshCw size={14} className="text-red-600" />
           Os dois modos continuam permitindo ajuste por registro. A diferenca e apenas o estado inicial do modal.
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }

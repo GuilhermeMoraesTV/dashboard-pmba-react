@@ -92,7 +92,7 @@ return (
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       whileHover={{ y: -2, scale: 1.01 }}
-      className={`group relative min-h-[104px] overflow-hidden border transition-all duration-200 ${
+      className={`group relative min-h-[92px] overflow-hidden border transition-all duration-200 ${
         isCycle ? 'rounded-[22px]' : 'rounded-2xl'
       } ${
         useDisciplineColor ? 'discipline-tinted-card' : ''
@@ -114,7 +114,7 @@ return (
         : 'bg-blue-500'
       }`} />
 
-      <div className="flex h-full flex-col gap-2.5 px-3.5 py-3">
+      <div className="flex h-full flex-col gap-2 px-3 py-2.5">
         <div className="flex min-w-0 items-start justify-between gap-2 pr-1">
           <div className="flex min-w-0 flex-1 items-start gap-2">
             <motion.button
@@ -122,7 +122,7 @@ return (
               whileTap={{ scale: 0.95 }}
               onClick={() => onToggle(slot)}
               disabled={isLoading}
-              className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border shadow-sm transition-all disabled:opacity-60 ${
+              className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border shadow-sm transition-all disabled:opacity-60 ${
                 isDone
                   ? 'border-emerald-500 bg-emerald-500 text-white shadow-emerald-500/20'
                   : 'border-emerald-200 bg-white text-emerald-600 shadow-emerald-500/10 hover:border-emerald-300 hover:bg-emerald-50 dark:border-emerald-900/40 dark:bg-white/10 dark:text-emerald-300 dark:hover:bg-emerald-900/35'
@@ -131,7 +131,7 @@ return (
             >
               {isLoading ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} strokeWidth={3.5} />}
             </motion.button>
-            <h4 className={`min-w-0 flex-1 truncate text-[13px] font-black uppercase tracking-wide leading-tight ${
+            <h4 className={`min-w-0 flex-1 truncate text-[11px] sm:text-xs font-black uppercase tracking-wide leading-tight ${
               isDone ? `${disciplinaColor.text} line-through opacity-75`
               : emAndamento ? 'text-orange-700 dark:text-orange-400'
               : useDisciplineColor ? disciplinaColor.text
@@ -141,7 +141,7 @@ return (
             </h4>
           </div>
           {tempoPlanejado > 0 && (
-            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-white/70 bg-white/85 px-2.5 py-1 text-[11px] font-black tabular-nums text-zinc-800 shadow-sm dark:border-white/15 dark:bg-white/15 dark:text-white">
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-white/70 bg-white/85 px-2 py-0.5 text-[10px] font-black tabular-nums text-zinc-800 shadow-sm dark:border-white/15 dark:bg-white/15 dark:text-white">
               <Clock size={12} className="text-zinc-600 dark:text-zinc-200" />
               {fmtMin(tempoPlanejado)}
             </span>
@@ -149,7 +149,7 @@ return (
         </div>
 
         <div className="flex items-center gap-2">
-          <p className={`truncate text-[12px] font-bold uppercase leading-snug tracking-tight text-zinc-500 dark:text-zinc-300 ${isDone ? 'line-through decoration-emerald-500/60' : ''}`}>
+          <p className={`truncate text-[10px] sm:text-[11px] font-bold uppercase leading-snug tracking-tight text-zinc-500 dark:text-zinc-300 ${isDone ? 'line-through decoration-emerald-500/60' : ''}`}>
             {slot.assunto || (isEstudo ? 'Teoria e Base' : 'Revisão de Elite')}
           </p>
         </div>
@@ -793,7 +793,7 @@ function HojeCard({
                 <p className={`text-[8px] font-black uppercase tracking-[0.24em] sm:text-[9px] ${
                   completionGlowActive ? 'text-emerald-600 dark:text-emerald-400' : activePanel === 'estudo' ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'
                 }`}>
-                  Missao do dia
+                  Estudo do dia
                 </p>
                 <h2 className="mt-0.5 text-base font-black uppercase leading-none tracking-tight text-zinc-900 dark:text-white sm:text-xl">
                   {activePanel === 'estudo' ? 'Sessoes' : 'Revisoes'} <span className={activePanel === 'estudo' ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}>ativas</span>
@@ -865,7 +865,7 @@ function HojeCard({
                 <p className={`text-[9px] font-black uppercase tracking-[0.22em] ${
                   completionGlowActive ? 'text-emerald-500' : activePanel === 'estudo' ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'
                 }`}>
-                  Missão do Dia
+                  Estudo do Dia
                 </p>
                 <div className={`h-1.5 w-1.5 rounded-full animate-pulse ${
                   completionGlowActive ? 'bg-emerald-500' : activePanel === 'estudo' ? 'bg-red-500' : 'bg-blue-500'
