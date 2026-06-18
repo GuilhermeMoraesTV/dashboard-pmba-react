@@ -81,8 +81,9 @@ ESTRUTURA DE SAÍDA (JSON puro, sem markdown, sem blocos de código):
  * @returns {Promise<string>} texto bruto da resposta
  * @throws {Error} em caso de falha de rede, Function error ou resposta vazia
  */
-export async function chamarGeminiREST(prompt, maxOutputTokens = 2048) {
-  const result = await _chamarGeminiProxy({ prompt, maxOutputTokens });
+export async function chamarGeminiREST(prompt, maxOutputTokens = 2048, options = {}) {
+  const surface = options?.surface || 'outro';
+  const result = await _chamarGeminiProxy({ prompt, maxOutputTokens, surface });
   const payload = result?.data ?? result;
 
   if (typeof payload?.text === 'string' && payload.text.trim()) {
@@ -357,7 +358,7 @@ export async function otimizarComIA(slots, disciplinas, opcoes = {}) {
     // Estima tokens de saída: ~40 tokens por slot (slotId + assunto + estrutura JSON)
     const maxOutputTokens = Math.min(4096, Math.max(512, slots.length * 40));
 
-    const raw     = await chamarGeminiREST(fullPrompt, maxOutputTokens);
+    const raw     = await chamarGeminiREST(fullPrompt, maxOutputTokens, { surface: 'cronograma' });
     const parsed  = extrairJSON(raw);
     const normalizada = normalizarRespostaIA(parsed);
 
@@ -414,7 +415,7 @@ CRITÉRIOS: "iniciante"=extenso/abstrato (mais tempo necessário), "intermediari
 DISCIPLINAS:\n${disciplinas.map(d => `- ${d.nome} (${d.assuntos?.length || 0} tópicos)`).join('\n')}
 JSON APENAS: {"sugestoes":{"Nome da Disciplina":"iniciante|intermediario|avancado"},"resumo":"frase curta"}`;
   try {
-    const p = parseIA(await chamarGeminiREST(prompt));
+    const p = parseIA(await chamarGeminiREST(prompt, 2048, { surface: 'cronograma' }));
     const mapa = {};
     disciplinas.forEach(d => {
       const s = p?.sugestoes?.[d.nome];
@@ -430,7 +431,7 @@ export async function detectarSobrecarga(disciplinas, horarios, dataProva = null
   const prompt = `Analise se a carga de estudo é viável: ${tt} tópicos, ${th}h/semana, prova: ${dataProva || 'não informada'}.
 Disciplinas: ${disciplinas.map(d => `${d.nome}(${d.assuntos?.length || 0})`).join(', ')}.
 JSON APENAS: {"viavel":true,"alerta":"","sugestoes":[],"semanasEstimadas":0}`;
-  try { return parseIA(await chamarGeminiREST(prompt)); }
+  try { return parseIA(await chamarGeminiREST(prompt, 2048, { surface: 'cronograma' })); }
   catch { return { viavel: true, alerta: '', sugestoes: [], semanasEstimadas: null }; }
 }
 
@@ -438,14 +439,14 @@ export async function analisarProgressoIA(cronograma, progresso) {
   const prompt = `Analise o progresso deste candidato a concurso.
 Semanas: ${cronograma.totalSemanasNecessarias || 0}, Slots: ${progresso.slotsCompletos || 0}/${progresso.totalSlots || 0}, Adesão: ${progresso.taxaAdesao || 0}%.
 JSON APENAS: {"resumo":"","notaGeral":"bom","insights":[],"sugestoes":[],"proximoFoco":null}`;
-  try { return parseIA(await chamarGeminiREST(prompt, 1024)); }
+  try { return parseIA(await chamarGeminiREST(prompt, 1024, { surface: 'cronograma' })); }
   catch { return { resumo: 'Não foi possível analisar o progresso.', notaGeral: 'bom', insights: [], sugestoes: [], proximoFoco: null }; }
 }
 
 export async function gerarMensagemDia(contexto) {
   const prompt = `Gere UMA frase motivacional curta (máx 120 chars) para candidato a concurso. ${contexto.slotsDia || 0} matérias hoje, ${contexto.taxaAdesao || 0}% de adesão. Sem emojis, sem "guerreiro"/"campeão"/"rumo à aprovação". Retorne APENAS o texto.`;
   try {
-    let t = (await chamarGeminiREST(prompt, 200)).trim().replace(/^["«]/, '').replace(/["»]$/, '');
+    let t = (await chamarGeminiREST(prompt, 200, { surface: 'cronograma' })).trim().replace(/^["«]/, '').replace(/["»]$/, '');
     return t.length > 140 ? t.slice(0, 137) + '...' : t;
   } catch { return `${contexto.slotsDia || 0} matéria(s) no plano de hoje. Bom estudo.`; }
 }

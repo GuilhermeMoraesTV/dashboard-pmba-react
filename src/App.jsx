@@ -99,6 +99,20 @@ function App() {
                 }
               />
               <Route
+                path="/app/:tab"
+                element={
+                  user ? (
+                    <Dashboard
+                      user={user}
+                      isDarkMode={isDarkMode}
+                      toggleTheme={toggleTheme}
+                    />
+                  ) : (
+                    <Navigate to="/login" />
+                  )
+                }
+              />
+              <Route
                 path="/login"
                 element={user ? <Navigate to="/" /> : <Login />}
               />

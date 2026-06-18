@@ -1,10 +1,15 @@
 // src/services/noticiaIA.js
 import { chamarGeminiREST } from './scheduling/aiAdapter';
 import { db } from '../firebaseConfig';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { app } from '../firebaseConfig';
 
 export const artigoCache = new Map();
 export const listaCache  = new Map();
+
+const functions = getFunctions(app);
+const salvarNoticiaCacheCallable = httpsCallable(functions, 'salvarNoticiaCache');
 
 // ─── CACHE FIRESTORE ─────────────────────────────────────────────────────────
 // TTL de 24h — artigos são reprocessados uma vez por dia no máximo
@@ -35,9 +40,7 @@ async function lerCacheFirestore(url) {
 async function salvarCacheFirestore(url, artigo) {
   if (!artigo) return;
   try {
-    const chave = urlParaChaveFirestore(url);
-    const ref   = doc(db, 'noticiaCache', chave);
-    await setDoc(ref, { artigo, _savedAt: serverTimestamp() });
+    await salvarNoticiaCacheCallable({ url, artigo });
   } catch { /* falha silenciosa — cache é best-effort */ }
 }
 
@@ -116,7 +119,7 @@ function pareceConteudoConcurso({ titulo = '', resumo = '', link = '', texto = '
 
 // ─── HELPER: chama Gemini via fetch ─────────────────────────────────────────
 async function chamarGemini(prompt) {
-  return chamarGeminiREST(prompt, 4096);
+  return chamarGeminiREST(prompt, 4096, { surface: 'noticias' });
 }
 
 // ─── HELPER: extrai JSON de resposta que pode ter markdown ──────────────────

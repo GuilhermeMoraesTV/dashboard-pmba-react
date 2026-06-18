@@ -2,18 +2,43 @@ rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isLegacyAdmin() {
+      return isSignedIn() && request.auth.uid == "OLoJi457GQNE2eTSOcz9DAD6ppZ2";
+    }
+
+    function userAccess() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.access;
+    }
+
+    function isAdmin() {
+      return isLegacyAdmin()
+        || (
+          isSignedIn()
+          && firestore.exists(/databases/(default)/documents/users/$(request.auth.uid))
+          && (
+            userAccess().permissions.adminPanel == true
+            || userAccess().adminRole in ['admin', 'super_admin']
+            || userAccess().role == 'admin'
+          )
+        );
+    }
+
     // Imagens de perfil: o dono le/escreve a propria pasta.
     match /profile_images/{userId}/{allPaths=**} {
-      allow read: if request.auth != null && request.auth.uid == userId;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow read: if isSignedIn() && request.auth.uid == userId;
+      allow write: if isSignedIn() && request.auth.uid == userId;
     }
 
     // --- NOVA REGRA PARA LOGOS DE EDITAIS ---
     // Leitura: Todos os usuários logados
     // Escrita: Apenas o ADMIN (OLoJi457GQNE2eTSOcz9DAD6ppZ2)
     match /editais_logos/{allPaths=**} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.uid == "OLoJi457GQNE2eTSOcz9DAD6ppZ2";
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
   }
 }

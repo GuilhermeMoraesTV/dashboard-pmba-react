@@ -5,7 +5,7 @@ import {
   TrendingUp, Target, SkipForward, Trash2, AlertTriangle, X,
   BookOpen, Clock, Star, Flame, BarChart2, Sun, LayoutList,
   GripVertical, Calendar, LayoutGrid, Check, MoreHorizontal,
-  BadgeCheck, FilePenLine, Loader2, Trophy, History, Settings2, RefreshCw,
+  BadgeCheck, Loader2, Trophy, History, Cog, RefreshCw,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createPortal } from 'react-dom';
@@ -544,8 +544,8 @@ const TarefaCardDraggable = ({
             </h4>
           </div>
           {modoExibirTempo !== 'oculto' && tempoPlanejadoMinutos > 0 && (
-            <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-white/70 bg-white/75 px-2 py-0.5 text-[9px] font-black tabular-nums text-zinc-700 shadow-sm dark:border-white/10 dark:bg-white/10 dark:text-zinc-100">
-              <Clock size={10} className="text-zinc-500 dark:text-zinc-300"/>
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-white/70 bg-white/75 px-2 py-0.5 text-[11px] font-black tabular-nums text-zinc-700 shadow-sm dark:border-white/10 dark:bg-white/10 dark:text-zinc-100">
+              <Clock size={11} className="text-zinc-500 dark:text-zinc-300"/>
               {formatarDuracao(tempoPlanejadoMinutos)}
             </span>
           )}
@@ -565,11 +565,11 @@ const TarefaCardDraggable = ({
         {modoExibirTempo !== 'oculto' && tempoPlanejadoMinutos > 0 && (
           <div className="flex items-end gap-2">
             <div className="min-w-0 flex-1">
-              <div className="mb-1 flex items-center justify-between gap-2 text-[8px] font-bold text-zinc-500 dark:text-zinc-400">
-                <span className="tabular-nums">
+              <div className="mb-1 flex items-center justify-between gap-2 text-[10px] font-bold text-zinc-500 dark:text-zinc-400">
+                <span className="font-black tabular-nums">
                   {formatarDuracao(tarefa.concluido ? tempoPlanejadoMinutos : progressoLimitado)} / {formatarDuracao(tempoPlanejadoMinutos)}
                 </span>
-                <span className="font-black tabular-nums">
+                <span className="text-[11px] font-black tabular-nums">
                   {tarefa.concluido ? 100 : progressoPercentual}%
                 </span>
               </div>
@@ -1900,7 +1900,7 @@ const VisualizacaoLista = ({ cronograma, weekDates, tarefasPorDia, onStart, onOp
                         {tempo > 0 && (
                           <div className="flex shrink-0 items-center gap-1.5 rounded-lg border border-zinc-200/50 bg-zinc-100 px-2 py-1 dark:border-zinc-700/50 dark:bg-zinc-800">
                             <Clock size={12} className="text-zinc-400" />
-                            <span className="text-xs font-black tabular-nums text-zinc-600 dark:text-zinc-300">
+                            <span className="text-sm font-black tabular-nums text-zinc-600 dark:text-zinc-300">
                               {formatarDuracao(tempo)}
                             </span>
                           </div>
@@ -1930,11 +1930,11 @@ const VisualizacaoLista = ({ cronograma, weekDates, tarefasPorDia, onStart, onOp
                       {tempo > 0 && (
                         <div className="mt-2.5 flex items-end gap-2 sm:mt-3">
                           <div className="min-w-0 flex-1">
-                            <div className="mb-1 flex items-center justify-between gap-2 text-[8px] font-black uppercase tracking-wide">
+                            <div className="mb-1 flex items-center justify-between gap-2 text-[10px] font-black uppercase tracking-wide">
                               <span className={isCompleted ? 'text-emerald-600 dark:text-emerald-400' : emAndamento ? 'text-orange-600 dark:text-orange-400' : 'text-zinc-400'}>
                                 {formatarDuracao(progressoMinutos)} / {formatarDuracao(tempo)}
                               </span>
-                              <span className="text-zinc-400">{progressoPercentual}%</span>
+                              <span className="text-[11px] text-zinc-400">{progressoPercentual}%</span>
                             </div>
                             <div className="h-1 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
                               <motion.div
@@ -2798,43 +2798,43 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
           <div className="flex flex-col items-center gap-2 lg:grid lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:items-center">
           <div className="flex w-full items-start justify-between gap-2 lg:contents">
           <div className="flex min-w-0 flex-col items-start gap-1.5 lg:col-start-1 lg:row-start-1 lg:justify-self-start">
-            <h3 className="flex items-center gap-1.5 text-[8px] font-bold uppercase tracking-widest text-zinc-400 sm:text-sm">
+            <h3 className="flex items-center gap-1.5 text-[8px] font-bold uppercase tracking-widest text-zinc-400 sm:text-sm lg:text-[10px]">
               <LayoutList size={12} className="sm:size-3.5" /> MODOS DE VIZUALIZAÇÃO
             </h3>
 
             {/* View Toggles */}
-            <div className="flex min-w-0 items-center gap-0.5 rounded-lg bg-zinc-200/50 p-0.5 dark:bg-zinc-800 sm:gap-1 sm:p-1">
+            <div className="flex min-w-0 items-center gap-0.5 rounded-lg bg-zinc-200/50 p-0.5 dark:bg-zinc-800 sm:gap-1 sm:p-1 lg:gap-0.5 lg:p-0.5">
               <button
                 onClick={() => setViewMode('list')}
-                className={`flex items-center justify-center gap-1 rounded px-1.5 py-1.5 text-[9px] font-black uppercase tracking-widest transition-colors sm:gap-1.5 sm:px-3 sm:text-[10px] ${viewMode === 'list' ? 'bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
+                className={`flex items-center justify-center gap-1 rounded px-1.5 py-1.5 text-[9px] font-black uppercase tracking-widest transition-colors sm:gap-1.5 sm:px-3 sm:text-[10px] lg:h-7 lg:gap-1 lg:px-2 lg:py-0 lg:text-[8px] lg:tracking-wide ${viewMode === 'list' ? 'bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
               >
                 <LayoutList size={12}/> Lista
               </button>
               <button
                 onClick={() => setViewMode('week')}
-                className={`flex items-center justify-center gap-1 rounded px-1.5 py-1.5 text-[9px] font-black uppercase tracking-widest transition-colors sm:gap-1.5 sm:px-3 sm:text-[10px] ${viewMode === 'week' ? 'bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
+                className={`flex items-center justify-center gap-1 rounded px-1.5 py-1.5 text-[9px] font-black uppercase tracking-widest transition-colors sm:gap-1.5 sm:px-3 sm:text-[10px] lg:h-7 lg:gap-1 lg:px-2 lg:py-0 lg:text-[8px] lg:tracking-wide ${viewMode === 'week' ? 'bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
               >
                 <LayoutGrid size={12}/> Semanal
               </button>
               <button
                 onClick={() => setViewMode('month')}
-                className={`flex items-center justify-center gap-1 rounded px-1.5 py-1.5 text-[9px] font-black uppercase tracking-widest transition-colors sm:gap-1.5 sm:px-3 sm:text-[10px] ${viewMode === 'month' ? 'bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
+                className={`flex items-center justify-center gap-1 rounded px-1.5 py-1.5 text-[9px] font-black uppercase tracking-widest transition-colors sm:gap-1.5 sm:px-3 sm:text-[10px] lg:h-7 lg:gap-1 lg:px-2 lg:py-0 lg:text-[8px] lg:tracking-wide ${viewMode === 'month' ? 'bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
               >
                 <Calendar size={12}/> Mensal
               </button>
             </div>
           </div>
 
-          <div className="flex shrink-0 items-center justify-end gap-1.5 lg:col-start-3 lg:row-start-1 lg:justify-self-end">
+          <div className="flex shrink-0 items-center justify-end gap-1.5 lg:col-start-3 lg:row-start-1 lg:w-full lg:gap-1 lg:justify-self-stretch">
             <div className="relative" ref={configMenuRef}>
               <button
                 onClick={() => setConfigMenuOpen((open) => !open)}
-                className="flex h-8 w-8 items-center justify-center rounded-lg border border-red-600 bg-red-600 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm shadow-red-600/20 transition-all hover:bg-red-700 sm:h-auto sm:w-auto sm:gap-2 sm:px-3 sm:py-1.5"
+                className="group flex h-8 w-8 items-center justify-center rounded-lg border border-red-600 bg-red-600 text-[9px] font-bold uppercase tracking-wide text-white shadow-sm shadow-red-600/20 transition-all hover:bg-red-700 sm:w-auto sm:gap-1.5 sm:px-2.5"
                 title="Configuração de cronograma"
                 aria-label="Configuração de cronograma"
               >
-                <FilePenLine size={14} className="group-hover:scale-110 transition-transform"/>
-                <span className="hidden sm:inline">Configuração de cronograma</span>
+                <Cog size={14} className="transition-transform group-hover:rotate-45"/>
+                <span className="hidden sm:inline">Configurar</span>
               </button>
 
               <AnimatePresence>
@@ -2843,8 +2843,18 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
                     initial={{ opacity: 0, y: -6, scale: 0.98 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: -6, scale: 0.98 }}
-                    className="absolute right-0 top-full z-40 mt-2 w-[290px] overflow-hidden rounded-2xl border border-zinc-200 bg-white p-2 shadow-2xl shadow-zinc-900/12 dark:border-zinc-800 dark:bg-zinc-950"
+                    className="absolute right-0 top-full z-40 mt-2 w-[264px] overflow-hidden rounded-2xl border border-zinc-200/80 bg-white/95 p-2 shadow-[0_18px_55px_-22px_rgba(0,0,0,0.45)] ring-1 ring-white/70 backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-950/95 dark:ring-white/5"
                   >
+                    <div className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-red-500/10 to-transparent" />
+                    <div className="relative mb-1.5 flex items-center gap-2.5 px-2 py-1.5">
+                      <span className="flex h-7 w-7 items-center justify-center rounded-lg border border-red-200/70 bg-red-50 text-red-600 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-400">
+                        <Cog size={13} />
+                      </span>
+                      <span>
+                        <span className="block text-[9px] font-black uppercase tracking-[0.18em] text-zinc-900 dark:text-white">Configurar cronograma</span>
+                        <span className="mt-0.5 block text-[8px] font-semibold text-zinc-400">Escolha como deseja ajustar</span>
+                      </span>
+                    </div>
                     <button
                       type="button"
                       onClick={() => {
@@ -2852,13 +2862,14 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
                         setConfigMenuOpen(false);
                         setMostrandoEditar(true);
                       }}
-                      className="flex w-full items-start gap-3 rounded-xl p-3 text-left transition hover:bg-red-50 dark:hover:bg-red-950/20"
+                      className="group relative flex w-full items-center gap-2.5 rounded-xl border border-red-100/80 bg-gradient-to-r from-red-50/90 to-white p-2.5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-red-200 hover:shadow-md hover:shadow-red-600/10 dark:border-red-950/60 dark:from-red-950/35 dark:to-zinc-950 dark:hover:border-red-900"
                     >
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-600 text-white"><Settings2 size={16} /></span>
-                      <span>
-                        <span className="block text-xs font-black uppercase tracking-wider text-zinc-900 dark:text-white">Ajuste simples</span>
-                        <span className="mt-1 block text-[11px] font-medium leading-relaxed text-zinc-500 dark:text-zinc-400">Altere nome, data inicial e preferências sem redistribuir o cronograma.</span>
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-600 text-white shadow-sm shadow-red-600/20"><Cog size={14} /></span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[10px] font-black uppercase tracking-wide text-zinc-900 dark:text-white">Ajuste simples</span>
+                        <span className="mt-0.5 block text-[9px] font-medium leading-snug text-zinc-500 dark:text-zinc-400">Altere nome, data e preferências sem redistribuir.</span>
                       </span>
+                      <ChevronRight size={14} className="shrink-0 text-red-300 transition-transform group-hover:translate-x-0.5 group-hover:text-red-600 dark:text-red-800 dark:group-hover:text-red-400" />
                     </button>
                     <button
                       type="button"
@@ -2867,13 +2878,14 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
                         setConfigMenuOpen(false);
                         setMostrandoEditar(true);
                       }}
-                      className="mt-1 flex w-full items-start gap-3 rounded-xl p-3 text-left transition hover:bg-red-50 dark:hover:bg-red-950/20"
+                      className="group relative mt-1.5 flex w-full items-center gap-2.5 rounded-xl border border-zinc-200/80 bg-zinc-50/80 p-2.5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-zinc-300 hover:bg-white hover:shadow-md hover:shadow-zinc-900/5 dark:border-zinc-800 dark:bg-zinc-900/60 dark:hover:border-zinc-700 dark:hover:bg-zinc-900"
                     >
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-600 text-white"><RefreshCw size={16} /></span>
-                      <span>
-                        <span className="block text-xs font-black uppercase tracking-wider text-zinc-900 dark:text-white">Recalcular</span>
-                        <span className="mt-1 block text-[11px] font-medium leading-relaxed text-zinc-500 dark:text-zinc-400">Refaça dias, horas, disciplinas e distribuição usando o assistente completo.</span>
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-zinc-900 text-white shadow-sm dark:bg-white dark:text-zinc-950"><RefreshCw size={14} /></span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[10px] font-black uppercase tracking-wide text-zinc-900 dark:text-white">Recalcular</span>
+                        <span className="mt-0.5 block text-[9px] font-medium leading-snug text-zinc-500 dark:text-zinc-400">Refaça rotina, disciplinas e distribuição pelo assistente.</span>
                       </span>
+                      <ChevronRight size={14} className="shrink-0 text-zinc-300 transition-transform group-hover:translate-x-0.5 group-hover:text-zinc-700 dark:text-zinc-700 dark:group-hover:text-zinc-300" />
                     </button>
                   </motion.div>
                 )}
@@ -2883,22 +2895,22 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
             <button
               onClick={() => { setLoadingAction(true); adiarCronograma(cronograma.id, cronograma).finally(() => setLoadingAction(false)); }}
               disabled={loadingAction}
-              className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 bg-white text-[10px] font-bold uppercase tracking-wide text-zinc-600 shadow-sm transition-all hover:border-amber-200 hover:bg-amber-50 hover:text-amber-700 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:border-amber-900/30 dark:hover:bg-amber-900/10 dark:hover:text-amber-400 sm:h-auto sm:w-auto sm:gap-2 sm:px-3 sm:py-1.5"
+              className="group flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 bg-white text-[9px] font-bold uppercase tracking-wide text-zinc-600 shadow-sm transition-all hover:border-amber-200 hover:bg-amber-50 hover:text-amber-700 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:border-amber-900/30 dark:hover:bg-amber-900/10 dark:hover:text-amber-400 sm:w-auto sm:gap-1.5 sm:px-2.5"
               title="Adiar semana"
               aria-label="Adiar semana"
             >
               <SkipForward size={14} className="text-amber-500 group-hover:scale-110 transition-transform"/>
-              <span className="hidden sm:inline">Adiar Semana</span>
+              <span className="hidden sm:inline">Adiar</span>
             </button>
 
             <button
               onClick={() => setShowHistoryModal(true)}
-              className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 bg-white text-[10px] font-bold uppercase tracking-wide text-zinc-600 shadow-sm transition-all hover:border-red-200 hover:bg-red-50 hover:text-red-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:border-red-900/30 dark:hover:bg-red-900/10 dark:hover:text-red-400 sm:h-auto sm:w-auto sm:gap-2 sm:px-3 sm:py-1.5"
+              className="group flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 bg-white text-[9px] font-bold uppercase tracking-wide text-zinc-600 shadow-sm transition-all hover:border-red-200 hover:bg-red-50 hover:text-red-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:border-red-900/30 dark:hover:bg-red-900/10 dark:hover:text-red-400 sm:w-auto sm:gap-1.5 sm:px-2.5"
               title="Ver Histórico Completo"
               aria-label="Ver histórico completo"
             >
               <History size={14} className="text-red-600 dark:text-red-500 group-hover:scale-110 transition-transform"/>
-              <span className="hidden sm:inline">Histórico de Estudos</span>
+              <span className="hidden sm:inline">Histórico</span>
             </button>
 
           </div>

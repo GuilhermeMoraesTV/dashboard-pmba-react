@@ -22,7 +22,7 @@ import {
   BookOpen, ChevronRight, History, X, Trash2,
   AlertOctagon, Shield, LayoutList, RotateCw,
   Check, CheckCircle2, Clock3, Loader2, Play, CalendarPlus,
-  Sparkles, Settings2, PlusCircle
+  Sparkles, Settings2, Cog, PlusCircle
 } from 'lucide-react';
 
 // --- FUNÇÕES AUXILIARES ---
@@ -1080,16 +1080,15 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
                  <LayoutList size={16} /> Meu Progresso
               </h3>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
                   <div className="relative" ref={configMenuRef}>
                       <button
                           onClick={() => setConfigMenuOpen((open) => !open)}
-                          className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 border border-red-600 text-white text-[10px] font-bold uppercase tracking-wide transition-all group shadow-sm shadow-red-600/20"
+                          className="group flex h-8 w-8 items-center justify-center rounded-lg border border-red-600 bg-red-600 text-[9px] font-bold uppercase tracking-wide text-white shadow-sm shadow-red-600/20 transition-all hover:bg-red-700 sm:w-auto sm:gap-1.5 sm:px-2.5"
                           title="Configuração de ciclo"
                       >
-                          <Settings2 size={14} className="group-hover:scale-110 transition-transform" />
-                          <span className="hidden sm:inline">Configuração de ciclo</span>
-                          <span className="sm:hidden">Configurar</span>
+                          <Cog size={14} className="group-hover:rotate-45 transition-transform" />
+                          <span className="hidden sm:inline">Configurar</span>
                       </button>
 
                       <AnimatePresence>
@@ -1098,21 +1097,32 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
                                   initial={{ opacity: 0, y: -6, scale: 0.98 }}
                                   animate={{ opacity: 1, y: 0, scale: 1 }}
                                   exit={{ opacity: 0, y: -6, scale: 0.98 }}
-                                  className="absolute right-0 top-full z-40 mt-2 w-[290px] overflow-hidden rounded-2xl border border-zinc-200 bg-white p-2 shadow-2xl shadow-zinc-900/12 dark:border-zinc-800 dark:bg-zinc-950"
+                                  className="absolute right-0 top-full z-40 mt-2 w-[264px] overflow-hidden rounded-2xl border border-zinc-200/80 bg-white/95 p-2 shadow-[0_18px_55px_-22px_rgba(0,0,0,0.45)] ring-1 ring-white/70 backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-950/95 dark:ring-white/5"
                               >
+                                  <div className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-red-500/10 to-transparent" />
+                                  <div className="relative mb-1.5 flex items-center gap-2.5 px-2 py-1.5">
+                                      <span className="flex h-7 w-7 items-center justify-center rounded-lg border border-red-200/70 bg-red-50 text-red-600 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-400">
+                                          <Cog size={13} />
+                                      </span>
+                                      <span>
+                                          <span className="block text-[9px] font-black uppercase tracking-[0.18em] text-zinc-900 dark:text-white">Configurar ciclo</span>
+                                          <span className="mt-0.5 block text-[8px] font-semibold text-zinc-400">Escolha como deseja ajustar</span>
+                                      </span>
+                                  </div>
                                   <button
                                       type="button"
                                       onClick={() => {
                                           setConfigMenuOpen(false);
                                           setShowUpgradeModal(true);
                                       }}
-                                      className="flex w-full items-start gap-3 rounded-xl p-3 text-left transition hover:bg-red-50 dark:hover:bg-red-950/20"
+                                      className="group relative flex w-full items-center gap-2.5 rounded-xl border border-red-100/80 bg-gradient-to-r from-red-50/90 to-white p-2.5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-red-200 hover:shadow-md hover:shadow-red-600/10 dark:border-red-950/60 dark:from-red-950/35 dark:to-zinc-950 dark:hover:border-red-900"
                                   >
-                                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-600 text-white"><Settings2 size={16} /></span>
-                                      <span>
-                                          <span className="block text-xs font-black uppercase tracking-wider text-zinc-900 dark:text-white">Ajuste simples</span>
-                                          <span className="mt-1 block text-[11px] font-medium leading-relaxed text-zinc-500 dark:text-zinc-400">Altere nome e preferências visuais sem redistribuir o ciclo.</span>
+                                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-600 text-white shadow-sm shadow-red-600/20"><Cog size={14} /></span>
+                                      <span className="min-w-0 flex-1">
+                                          <span className="block text-[10px] font-black uppercase tracking-wide text-zinc-900 dark:text-white">Ajuste simples</span>
+                                          <span className="mt-0.5 block text-[9px] font-medium leading-snug text-zinc-500 dark:text-zinc-400">Altere nome e preferências sem redistribuir o ciclo.</span>
                                       </span>
+                                      <ChevronRight size={14} className="shrink-0 text-red-300 transition-transform group-hover:translate-x-0.5 group-hover:text-red-600 dark:text-red-800 dark:group-hover:text-red-400" />
                                   </button>
                                   <button
                                       type="button"
@@ -1120,13 +1130,14 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
                                           setConfigMenuOpen(false);
                                           setShowUpgradeWizard(true);
                                       }}
-                                      className="mt-1 flex w-full items-start gap-3 rounded-xl p-3 text-left transition hover:bg-zinc-50 dark:hover:bg-zinc-900"
+                                      className="group relative mt-1.5 flex w-full items-center gap-2.5 rounded-xl border border-zinc-200/80 bg-zinc-50/80 p-2.5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-zinc-300 hover:bg-white hover:shadow-md hover:shadow-zinc-900/5 dark:border-zinc-800 dark:bg-zinc-900/60 dark:hover:border-zinc-700 dark:hover:bg-zinc-900"
                                   >
-                                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-zinc-900 text-white dark:bg-white dark:text-zinc-950"><RotateCw size={16} /></span>
-                                      <span>
-                                          <span className="block text-xs font-black uppercase tracking-wider text-zinc-900 dark:text-white">Recalcular</span>
-                                          <span className="mt-1 block text-[11px] font-medium leading-relaxed text-zinc-500 dark:text-zinc-400">Refaça dias, duração, matérias e distribuição usando o assistente completo.</span>
+                                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-zinc-900 text-white shadow-sm dark:bg-white dark:text-zinc-950"><RotateCw size={14} /></span>
+                                      <span className="min-w-0 flex-1">
+                                          <span className="block text-[10px] font-black uppercase tracking-wide text-zinc-900 dark:text-white">Recalcular</span>
+                                          <span className="mt-0.5 block text-[9px] font-medium leading-snug text-zinc-500 dark:text-zinc-400">Refaça rotina, matérias e distribuição pelo assistente.</span>
                                       </span>
+                                      <ChevronRight size={14} className="shrink-0 text-zinc-300 transition-transform group-hover:translate-x-0.5 group-hover:text-zinc-700 dark:text-zinc-700 dark:group-hover:text-zinc-300" />
                                   </button>
                               </motion.div>
                           )}
@@ -1135,11 +1146,11 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
 
                   <button
                       onClick={() => setShowHistoryModal(true)}
-                      className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white hover:bg-red-50 border border-zinc-200 hover:border-red-200 dark:bg-zinc-800 dark:hover:bg-red-900/10 dark:border-zinc-700 dark:hover:border-red-900/30 text-zinc-600 hover:text-red-700 dark:text-zinc-300 dark:hover:text-red-400 text-[10px] font-bold uppercase tracking-wide transition-all group shadow-sm"
+                      className="group flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 bg-white text-[9px] font-bold uppercase tracking-wide text-zinc-600 shadow-sm transition-all hover:border-red-200 hover:bg-red-50 hover:text-red-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:border-red-900/30 dark:hover:bg-red-900/10 dark:hover:text-red-400 sm:w-auto sm:gap-1.5 sm:px-2.5"
                       title="Ver Histórico Completo"
                   >
                       <History size={14} className="text-red-600 dark:text-red-500 group-hover:scale-110 transition-transform" />
-                      <span className="hidden sm:inline">Histórico de Estudos</span>
+                      <span className="hidden sm:inline">Histórico</span>
                   </button>
               </div>
           </div>

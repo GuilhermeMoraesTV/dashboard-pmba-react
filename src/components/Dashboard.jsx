@@ -3,6 +3,7 @@ import {
   collection, onSnapshot, query, orderBy, addDoc, deleteDoc, doc, where, Timestamp,
   getDocs, getDoc, setDoc, updateDoc, increment } from 'firebase/firestore';
 import { Suspense, lazy } from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { db, auth } from '../firebaseConfig';
 import { signOut } from 'firebase/auth';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -36,6 +37,39 @@ const RevisaoPage = lazy(() => import('../pages/RevisaoPage'));
 
 const ENABLE_ONBOARDING_TOUR = false;
 const WELCOME_UPDATE_VERSION = '2026-06-dashboard-rebuild-v2';
+const PATH_TO_TAB = {
+  home: 'home',
+  calendario: 'calendar',
+  calendar: 'calendar',
+  ciclos: 'ciclos',
+  planejamento: 'planejamento',
+  cronograma: 'cronograma',
+  cronogramas: 'planejamento',
+  edital: 'edital',
+  revisoes: 'revisoes',
+  desempenho: 'stats',
+  stats: 'stats',
+  simulados: 'simulados',
+  perfil: 'profile',
+  profile: 'profile',
+  noticias: 'noticias',
+  admin: 'admin',
+};
+const TAB_TO_PATH = {
+  home: 'home',
+  calendar: 'calendario',
+  ciclos: 'ciclos',
+  planejamento: 'planejamento',
+  cronograma: 'cronograma',
+  cronogramas: 'planejamento',
+  edital: 'edital',
+  revisoes: 'revisoes',
+  stats: 'desempenho',
+  simulados: 'simulados',
+  profile: 'perfil',
+  noticias: 'noticias',
+  admin: 'admin',
+};
 
 import { useNotifications } from '../hooks/useNotifications';
 import { useUserAccess } from '../hooks/useUserAccess';
@@ -220,6 +254,10 @@ const ShareCardPreviewModal = ({ data, onClose, onDownload }) => {
 };
 
 function Dashboard({ user, isDarkMode, toggleTheme }) {
+  const { tab: routeTab } = useParams();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const initialRouteTab = PATH_TO_TAB[String(routeTab || 'home').toLowerCase()] || 'home';
   const userUid = user?.uid || 'anonymous';
   const STUDY_STORAGE_KEY   = useMemo(() => `@ModoQAP:ActiveSession:${userUid}`, [userUid]);
   const SIMULADO_STORAGE_KEY = useMemo(() => `@ModoQAP:SimuladoActive:${userUid}`, [userUid]);
@@ -242,7 +280,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   } = useNotifications(user);
   const userAccess = useUserAccess(user);
 
-  const [activeTab, setActiveTab]               = useState('home');
+  const [activeTab, setActiveTab]               = useState(initialRouteTab);
   const [loading, setLoading]                   = useState(true);
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
   const [isMobileOpen, setIsMobileOpen]         = useState(false);
@@ -265,6 +303,23 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   const [activeSimuladoSession, setActiveSimuladoSession] = useState(null);
   const [finishedSimuladoData, setFinishedSimuladoData]   = useState(null);
   const [pendingSimuladoReview, setPendingSimuladoReview] = useState(null);
+
+  useEffect(() => {
+    const resolvedTab = PATH_TO_TAB[String(routeTab || 'home').toLowerCase()];
+    if (!resolvedTab) {
+      if (location.pathname.startsWith('/app/')) navigate('/app/home', { replace: true });
+      return;
+    }
+    setActiveTab((current) => (current === resolvedTab ? current : resolvedTab));
+  }, [location.pathname, navigate, routeTab]);
+
+  useEffect(() => {
+    const pathTab = TAB_TO_PATH[activeTab] || 'home';
+    const targetPath = `/app/${pathTab}`;
+    if (location.pathname.startsWith('/app/') && location.pathname !== targetPath) {
+      navigate(targetPath, { replace: true });
+    }
+  }, [activeTab, location.pathname, navigate]);
 
   const [goalsHistory, setGoalsHistory]           = useState([]);
   const [activeCicloId, setActiveCicloId]         = useState(null);

@@ -9,6 +9,7 @@ import {
 import StatusBadge from './StatusBadge';
 // ✅ USA O SERVIÇO CENTRALIZADO — sem chave de API duplicada aqui
 import { reescreverArtigo } from '../../services/noticiaIA';
+import { sanitizeArticleHtml } from '../../utils/sanitizeHtml';
 
 // ─── LOGO ESTRATÉGIA (com fallback) ──────────────────────────────────────────
 function LogoComFallback({ size = 'sm' }) {
@@ -291,7 +292,8 @@ function QuadroResumo({ dados }) {
 // ─── RENDERIZADOR HTML LIMPO ──────────────────────────────────────────────────
 function HtmlLimpo({ html }) {
   if (!html) return null;
-  const estilizado = html
+  const htmlSeguro = sanitizeArticleHtml(html);
+  const estilizado = htmlSeguro
     .replace(/<h3\b[^>]*>/gi, '<h3 style="font-size:0.95rem;font-weight:800;margin:1.25rem 0 0.5rem;padding-bottom:0.4rem;border-bottom:2px solid rgba(220,38,38,0.15)">')
     .replace(/<p\b[^>]*>/gi, '<p style="font-size:0.875rem;line-height:1.75;margin:0.6rem 0">')
     .replace(/<ul\b[^>]*>/gi, '<ul style="padding-left:1.25rem;margin:0.6rem 0;list-style:disc">')
@@ -299,8 +301,7 @@ function HtmlLimpo({ html }) {
     .replace(/<li\b[^>]*>/gi, '<li style="font-size:0.85rem;line-height:1.6;margin:0.25rem 0">')
     .replace(/<strong\b[^>]*>/gi, '<strong style="font-weight:700">')
     .replace(/<em\b[^>]*>/gi, '<em style="font-style:italic;opacity:0.7;font-size:0.8rem">')
-    .replace(/<table\b[^>]*>/gi, '<div style="overflow-x:auto;margin:1rem 0;border-radius:10px;border:1px solid rgba(220,38,38,0.15);overflow:hidden"><table style="width:100%;border-collapse:collapse;font-size:0.8rem">')
-    .replace(/<\/table>/gi, '</table></div>')
+    .replace(/<table\b[^>]*>/gi, '<table style="width:100%;border-collapse:collapse;font-size:0.8rem;margin:1rem 0;border-radius:10px;overflow:hidden;border:1px solid rgba(220,38,38,0.15)">')
     .replace(/<thead\b[^>]*>/gi, '<thead style="background:linear-gradient(135deg,#dc2626,#991b1b)">')
     .replace(/<th\b[^>]*>/gi, '<th style="padding:0.5rem 0.75rem;text-align:left;font-size:0.68rem;font-weight:800;color:#fff;text-transform:uppercase;letter-spacing:0.06em">')
     .replace(/<tbody\b[^>]*>/gi, '<tbody>')

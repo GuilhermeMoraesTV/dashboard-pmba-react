@@ -174,7 +174,7 @@ ${cfg.restricoes.length + 4}. Retorne APENAS o texto final, sem aspas, sem prefi
 TEXTO:`;
 
   try {
-    let texto = (await chamarGeminiREST(prompt, 512)).trim();
+    let texto = (await chamarGeminiREST(prompt, 512, { surface: 'edital' })).trim();
 
     // Remove aspas e prefixos que o modelo ocasionalmente inclui
     texto = texto

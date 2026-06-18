@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { db } from '../../firebaseConfig';
 import {
-  collection, deleteDoc, doc, getDocs, query, setDoc, Timestamp,
+  collection, deleteDoc, doc, getDoc, getDocs, query, setDoc, Timestamp,
 } from 'firebase/firestore';
 import {
   Users, Activity, Server, Loader2, Search, Maximize2, Trash2, X, FileSpreadsheet,
@@ -15,6 +15,7 @@ import EditaisManagerModal from './EditaisManager';
 import AdminAnalyticsSection from './AdminAnalyticsSection';
 import StudyingNowPanel from './LiveStudyMonitor';
 import UserDetailModal from './UserDetailModal';
+import ConfirmModal from '../../components/shared/ConfirmModal';
 import { useForceUnlock } from '../../hooks/useForceUnlock';
 import { useAdminAnalytics } from '../../hooks/useAdminAnalytics';
 import {
@@ -55,6 +56,71 @@ const FILTER_PERIOD_OPTIONS = [
   { value: 60, label: '60d' },
   { value: 90, label: '90d' },
 ];
+
+const dateToYMD = (date = new Date()) => {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Bahia',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const get = (type) => parts.find((part) => part.type === type)?.value;
+  return `${get('year')}-${get('month')}-${get('day')}`;
+};
+
+const AdminHealthPanel = () => {
+  const [health, setHealth] = useState({ loading: true, quotes: null, ai: [], activeTimers: 0 });
+
+  useEffect(() => {
+    let alive = true;
+    async function loadHealth() {
+      try {
+        const today = dateToYMD();
+        const [quotesSnap, usageSnap, timersSnap] = await Promise.all([
+          getDoc(doc(db, 'system_config', 'quotes_automation')),
+          getDocs(collection(db, 'system_ai_usage')),
+          getDocs(collection(db, 'active_timers')),
+        ]);
+
+        if (!alive) return;
+        setHealth({
+          loading: false,
+          quotes: quotesSnap.exists() ? quotesSnap.data() : null,
+          ai: usageSnap.docs
+            .filter((item) => item.id.startsWith(`${today}_`))
+            .map((item) => ({ id: item.id, ...item.data() })),
+          activeTimers: timersSnap.size,
+        });
+      } catch (error) {
+        if (!alive) return;
+        setHealth((current) => ({ ...current, loading: false, error: error?.message || 'Falha ao carregar saude do sistema.' }));
+      }
+    }
+    loadHealth();
+    return () => { alive = false; };
+  }, []);
+
+  const totalAiCalls = health.ai.reduce((sum, item) => sum + Number(item.calls || 0), 0);
+  const totalAiTokens = health.ai.reduce((sum, item) => sum + Number(item.estimatedTokens || 0), 0);
+  const quoteStatus = health.quotes?.status || 'sem status';
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+      {[
+        { label: 'Frases IA', value: health.loading ? '...' : quoteStatus, detail: health.quotes?.message || health.error || 'Automacao de frases' },
+        { label: 'Chamadas IA hoje', value: health.loading ? '...' : totalAiCalls, detail: `${totalAiTokens.toLocaleString('pt-BR')} tokens estimados` },
+        { label: 'Timers ativos', value: health.loading ? '...' : health.activeTimers, detail: 'Colecao active_timers' },
+        { label: 'Usuarios com IA hoje', value: health.loading ? '...' : health.ai.length, detail: 'Quota por usuario/dia' },
+      ].map((item) => (
+        <div key={item.label} className="rounded-3xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-400">{item.label}</p>
+          <p className="mt-2 text-2xl font-black tracking-tight text-zinc-950 dark:text-white">{item.value}</p>
+          <p className="mt-1 line-clamp-2 text-xs font-semibold text-zinc-500 dark:text-zinc-400">{item.detail}</p>
+        </div>
+      ))}
+    </div>
+  );
+};
 
 const FilterBar = ({ filters, options, onChange, onReset }) => (
   <div className="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-[28px] p-4 shadow-sm">
@@ -290,6 +356,7 @@ function AdminPage() {
   const [rankingLimit] = useState(10);
   const [selectedFeedUid] = useState('all');
   const [selectedExecutiveMetric, setSelectedExecutiveMetric] = useState(null);
+  const [userToDelete, setUserToDelete] = useState(null);
   const [segmentDrilldown, setSegmentDrilldown] = useState(null);
   const [activeSavedSegmentId, setActiveSavedSegmentId] = useState('filtered-base');
   const [broadcastDraft, setBroadcastDraft] = useState(null);
@@ -561,9 +628,13 @@ function AdminPage() {
   };
 
   const handleDeleteUser = async (uid) => {
-    if (window.confirm('Apagar usuario e dados?')) {
-      await deleteDoc(doc(db, 'users', uid));
-    }
+    setUserToDelete(uid);
+  };
+
+  const confirmDeleteUser = async () => {
+    if (!userToDelete) return;
+    await deleteDoc(doc(db, 'users', userToDelete));
+    setUserToDelete(null);
   };
 
   const handleRecalculateAllUsersStats = async () => {
@@ -680,6 +751,15 @@ function AdminPage() {
         </ExpandedModal>
 
         <UserDetailModal isOpen={!!detailUser} onClose={() => setDetailUser(null)} user={detailUser} records={studyRecords} />
+        <ConfirmModal
+          isOpen={!!userToDelete}
+          onClose={() => setUserToDelete(null)}
+          onConfirm={confirmDeleteUser}
+          title="Apagar usuario?"
+          message="O documento principal do aluno sera removido. Confirme apenas se essa acao administrativa for realmente necessaria."
+          confirmText="Apagar"
+          isDestructive
+        />
 
         <ExpandedModal isOpen={!!segmentDrilldown} onClose={() => setSegmentDrilldown(null)} title={segmentDrilldown?.title || 'Drill-down'}>
           <div className="space-y-5">
@@ -808,6 +888,8 @@ function AdminPage() {
               onChange={updateGlobalFilter}
               onReset={resetGlobalFilters}
             />
+
+            <AdminHealthPanel />
 
             <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-6 items-start">
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">

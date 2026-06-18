@@ -7,6 +7,7 @@ import {
   Plus, Layers, Trash2, Edit3, LogOut, CalendarDays, RotateCcw, Info
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 
 // --- IMPORTAÇÃO DA GAMIFICAÇÃO ---
 import { useLevelSystem } from '../../hooks/useLevelSystem';
@@ -607,6 +608,7 @@ function RegistroEstudoModal({
   requireExplicitContextSelection = false,
 }) {
   const { addXP, checkAndAwardMilestone } = useLevelSystem({ uid: userId });
+  useBodyScrollLock(true, { bodyClass: 'registro-modal-open' });
 
   const [viewportHeight, setViewportHeight] = useState(window.innerHeight);
 
@@ -614,25 +616,13 @@ function RegistroEstudoModal({
     const handleResize = () => setViewportHeight(window.innerHeight);
     window.addEventListener('resize', handleResize);
 
-    const scrollY = window.scrollY;
-    document.body.style.position = 'fixed';
-    document.body.style.top = `-${scrollY}px`;
-    document.body.style.width = '100%';
-    document.body.style.overflow = 'hidden';
-    document.body.classList.add('registro-modal-open');
     const footer = document.querySelector('.app-global-footer');
     const previousFooterDisplay = footer?.style?.display || '';
     if (footer) footer.style.display = 'none';
 
     return () => {
       window.removeEventListener('resize', handleResize);
-      document.body.style.position = '';
-      document.body.style.top = '';
-      document.body.style.width = '';
-      document.body.style.overflow = '';
-      document.body.classList.remove('registro-modal-open');
       if (footer) footer.style.display = previousFooterDisplay;
-      window.scrollTo(0, scrollY);
     };
   }, []);
 

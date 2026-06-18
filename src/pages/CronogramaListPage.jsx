@@ -17,6 +17,7 @@ import FeedbackWidget from '../components/FeedbackWidget';
 import ModalEditarCronograma from '../components/cronograma/ModalEditarCronograma';
 import { CATALOGO_EDITAIS } from '../pages/AdminPage/EditaisManager';
 import EmptyStateCard from '../components/shared/EmptyStateCard';
+import { sanitizeArticleHtml } from '../utils/sanitizeHtml';
 
 // ============================================================================
 // CORREÇÃO 1: getLogo — idêntico ao CiclosList
@@ -50,7 +51,7 @@ const ModalConfirmacao = ({ isOpen, titulo, descricao, icone: Icone, corBg, corB
           <h2 className="text-xl font-black text-zinc-900 dark:text-white uppercase tracking-tight">{titulo}</h2>
         </div>
         <div className="p-6 text-center">
-          <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-6" dangerouslySetInnerHTML={{ __html: descricao }} />
+          <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-6" dangerouslySetInnerHTML={{ __html: sanitizeArticleHtml(descricao) }} />
           <div className="flex gap-3">
             <button onClick={onClose} disabled={loading} className="flex-1 px-4 py-3 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 rounded-xl font-bold text-xs uppercase tracking-wider hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors">Cancelar</button>
             <button onClick={onConfirm} disabled={loading} className={`flex-1 px-4 py-3 ${corBtn} text-white rounded-xl font-bold text-xs uppercase tracking-wider shadow-lg transition-all flex items-center justify-center gap-2`}>

@@ -11,6 +11,8 @@ import {
   Palette, ImageIcon, Upload, Trash, Check, Smartphone, Monitor, Power, Trash2,
   Images, ChevronLeft, ChevronRight, Type
 } from 'lucide-react';
+import ConfirmModal from '../../components/shared/ConfirmModal';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 
 // --- UTILITÁRIOS ---
 const formatTimeAgo = (date) => {
@@ -25,11 +27,7 @@ const formatTimeAgo = (date) => {
 
 // --- MODAL EXPANDIDO ---
 const ExpandedModal = ({ isOpen, onClose, title, children }) => {
-  useEffect(() => {
-    if (isOpen) document.body.style.overflow = 'hidden';
-    else document.body.style.overflow = 'unset';
-    return () => { document.body.style.overflow = 'unset'; };
-  }, [isOpen]);
+  useBodyScrollLock(isOpen, { fixed: false });
 
   if (!isOpen) return null;
 
@@ -67,6 +65,7 @@ const HeaderBroadcast = ({ isOpen, onClose, segmentDraft = null }) => {
   const [previewMode, setPreviewMode] = useState('mobile');
   const [isTestMode, setIsTestMode] = useState(false);
   const [selectedSegment, setSelectedSegment] = useState(null);
+  const [broadcastToDelete, setBroadcastToDelete] = useState(null);
 
   // Estados de Imagem (Carrossel)
   const [images, setImages] = useState([]);
@@ -177,7 +176,13 @@ const HeaderBroadcast = ({ isOpen, onClose, segmentDraft = null }) => {
   };
 
   const handleDeleteBroadcast = async (id) => {
-    if (window.confirm("Excluir permanentemente?")) await deleteDoc(doc(db, 'system_broadcasts', id));
+    setBroadcastToDelete(id);
+  };
+
+  const confirmDeleteBroadcast = async () => {
+    if (!broadcastToDelete) return;
+    await deleteDoc(doc(db, 'system_broadcasts', broadcastToDelete));
+    setBroadcastToDelete(null);
   };
 
   // --- LÓGICA DE VISUALIZAÇÃO DO PREVIEW (Igual ao Receiver) ---
@@ -205,6 +210,7 @@ const HeaderBroadcast = ({ isOpen, onClose, segmentDraft = null }) => {
   if (!isOpen) return null;
 
   return (
+    <>
     <ExpandedModal isOpen={isOpen} onClose={onClose} title="Estúdio de Transmissão">
       <div className="flex flex-col h-full bg-zinc-50 dark:bg-zinc-950 w-full">
 
@@ -480,6 +486,16 @@ const HeaderBroadcast = ({ isOpen, onClose, segmentDraft = null }) => {
         )}
       </div>
     </ExpandedModal>
+    <ConfirmModal
+      isOpen={!!broadcastToDelete}
+      onClose={() => setBroadcastToDelete(null)}
+      onConfirm={confirmDeleteBroadcast}
+      title="Excluir broadcast?"
+      message="Essa mensagem sera removida permanentemente do historico de comunicados."
+      confirmText="Excluir"
+      isDestructive
+    />
+    </>
   );
 };
 
