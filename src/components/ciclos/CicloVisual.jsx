@@ -652,8 +652,8 @@ function CicloVisual({
           <div
             className="aspect-square max-h-full max-w-full shrink-0"
             style={{
-              height: 'min(calc(100% - 82px), calc(100vh - 350px), 88vw, 720px)',
-              width: 'min(calc(100% - 82px), calc(100vh - 350px), 88vw, 720px)',
+              height: 'min(calc(100% - 56px), calc(100vh - 245px), 88vw, 780px)',
+              width: 'min(calc(100% - 56px), calc(100vh - 245px), 88vw, 780px)',
             }}
           >
             <svg viewBox="0 0 100 100" className="w-full h-full overflow-visible drop-shadow-lg">

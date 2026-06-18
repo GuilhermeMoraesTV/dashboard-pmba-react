@@ -16,7 +16,6 @@ import { listaCache } from '../services/noticiaIA';
 import { sanitizarValorCampo } from '../hooks/useNoticias';
 import { useNoticias } from '../hooks/useNoticias';
 import { CATEGORIAS, CATS_RSS, REGIOES, getSvgPattern, BASE } from '../config/noticiasConfig';
-import EmptyStateCard from '../components/shared/EmptyStateCard';
 
 // ─── LOGO ESTRATÉGIA ─────────────────────────────────────────────────────────
 function LogoComFallback({ size = 'sm' }) {
@@ -66,16 +65,9 @@ function Skeleton() {
   );
 }
 
-function NoticiasLoadingState({ title = 'Carregando oportunidades...', description = 'Buscando noticias, editais e atualizacoes para deixar sua central pronta.' }) {
+function NoticiasLoadingState() {
   return (
-    <div className="space-y-5">
-      <EmptyStateCard
-        icon={RefreshCw}
-        title={title}
-        description={description}
-        variant="loading"
-        className="min-h-[210px]"
-      />
+    <div className="space-y-4">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} />)}
       </div>
@@ -704,6 +696,9 @@ export default function NoticiasPage() {
   const noticiasPadrao     = noticias;
   const destaque           = !ehConcursosAbertos && !regiaoAtiva && !estadoFiltro && noticiasPadrao.length > 0 ? noticiasPadrao[0] : null;
   const lista              = !ehConcursosAbertos && !regiaoAtiva && !estadoFiltro && noticiasPadrao.length > 0 ? noticiasPadrao.slice(1) : [];
+  const showAtualizando = (loading && noticias.length > 0)
+    || (loadingRegiao && noticiasRegiao.length > 0)
+    || (loadingEstado && noticiasEstado.length > 0);
 
   if (artigoAberto) {
     return (
@@ -734,15 +729,19 @@ export default function NoticiasPage() {
         onAbrirArtigo={handleAbrirNoticia}
       />
 
+      {showAtualizando && (
+        <div className="mb-4 flex justify-end">
+          <span className="inline-flex items-center gap-2 rounded-full border border-red-100 bg-red-50 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-red-700 dark:border-red-900/40 dark:bg-red-950/20 dark:text-red-300">
+            <RefreshCw size={12} className="animate-spin" />
+            Atualizando
+          </span>
+        </div>
+      )}
+
       {/* ══ VISTA ESTADO ══ */}
       {estadoFiltro && (
         <>
-          {loadingEstado && (
-            <NoticiasLoadingState
-              title={`Carregando concursos de ${estadoFiltro.nome}...`}
-              description="Estamos consultando as oportunidades e organizando os cards por relevancia."
-            />
-          )}
+          {loadingEstado && noticiasEstado.length === 0 && <NoticiasLoadingState />}
           {!loadingEstado && noticiasEstado.length === 0 && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
               className="flex flex-col items-center py-16 text-center px-4">
@@ -801,12 +800,7 @@ export default function NoticiasPage() {
       {/* ══ VISTA REGIÃO ══ */}
       {regiaoAtiva && !estadoFiltro && (
         <>
-          {loadingRegiao && (
-            <NoticiasLoadingState
-              title={`Carregando regiao ${regiaoAtiva.label}...`}
-              description="Aguarde enquanto reunimos concursos e noticias dessa regiao."
-            />
-          )}
+          {loadingRegiao && noticiasRegiao.length === 0 && <NoticiasLoadingState />}
           {!loadingRegiao && noticiasRegiao.length === 0 && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center py-20 text-center">
               <BookOpen size={48} className="text-zinc-300 dark:text-zinc-600 mb-4" />
@@ -875,7 +869,7 @@ export default function NoticiasPage() {
       {!regiaoAtiva && !estadoFiltro && (
         <>
           {erro && !loading && <ErroState onRetry={() => { listaCache.delete(catAtiva.id); carregar(catAtiva); }} />}
-          {!erro && loading && <NoticiasLoadingState />}
+          {!erro && loading && noticias.length === 0 && <NoticiasLoadingState />}
           {!erro && !loading && noticias.length === 0 && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center py-20 text-center">
               <BookOpen size={48} className="text-zinc-300 dark:text-zinc-600 mb-4" />

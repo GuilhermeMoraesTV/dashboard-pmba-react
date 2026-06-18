@@ -14,6 +14,7 @@ import { useCronogramaSystem } from '../../hooks/useCronogramaSystem';
 import { buildCompletionRegistro } from '../../utils/completionRegistro';
 import { getCycleDailyGuide } from '../../utils/studyDayStatus';
 import { getDisciplineCardVars, getDisciplineColorForSlot } from '../../utils/disciplineColors';
+import HomeEmptyState from './HomeEmptyState.jsx';
 
 // --- Helpers ---
 const fmtMin = (min) => {
@@ -149,7 +150,7 @@ return (
         </div>
 
         <div className="flex items-center gap-2">
-          <p className={`truncate text-[10px] sm:text-[11px] font-bold uppercase leading-snug tracking-tight text-zinc-500 dark:text-zinc-300 ${isDone ? 'line-through decoration-emerald-500/60' : ''}`}>
+          <p className={`truncate text-[10px] sm:text-[11px] font-bold leading-snug tracking-tight text-zinc-500 dark:text-zinc-300 ${isDone ? 'line-through decoration-emerald-500/60' : ''}`}>
             {slot.assunto || (isEstudo ? 'Teoria e Base' : 'Revisão de Elite')}
           </p>
         </div>
@@ -715,17 +716,12 @@ function HojeCard({
           </div>
 
           <div className="flex min-h-0 flex-1 items-center justify-center py-8">
-            <div className="w-full rounded-xl border-2 border-dashed border-red-100 bg-white/70 p-6 text-center shadow-sm dark:border-red-900/25 dark:bg-white/5">
-              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-red-50 text-red-500 shadow-lg shadow-red-500/10 dark:bg-red-950/25">
-                <ListTodo size={32} />
-              </div>
-              <p className="text-[11px] font-black uppercase tracking-[0.2em] text-red-600 dark:text-red-400">
-                Seu guia ainda nao foi criado
-              </p>
-              <p className="mx-auto mt-2 max-w-xs text-xs font-bold uppercase tracking-wider text-zinc-400">
-                Crie um ciclo ou cronograma para a Home mostrar as missoes de estudo do dia.
-              </p>
-            </div>
+            <HomeEmptyState
+              icon={ListTodo}
+              title="Seu guia ainda nao foi criado"
+              description="Crie um ciclo ou cronograma para a Home mostrar as missoes de estudo do dia."
+              className="min-h-[220px]"
+            />
           </div>
 
           <div className="border-t border-zinc-100 pt-6 dark:border-white/5">

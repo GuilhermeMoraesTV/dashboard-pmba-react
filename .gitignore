@@ -137,6 +137,13 @@ dist
 
 # Scripts de Admin e Chaves Secretas
 scripts/serviceAccountkey.json
+scripts/serviceAccountKey.json
+scripts/serviceAccount*.json
+
+# Artefatos locais do Vite
+.vite/
+vite-dev.out
+vite-dev.err
 
 # Assistentes locais e backups
 .claude/

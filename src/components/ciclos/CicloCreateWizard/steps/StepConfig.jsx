@@ -118,8 +118,14 @@ export default function StepConfig({
   totalDisciplinas = 0,
   minimumActiveDayMinutes = null,
   sessionAutoAdjustedNotice = null,
+  totalSessionSlots = 0,
+  minimumRequiredSessions = 0,
+  distribuicaoCabeNaRotina = true,
 }) {
   const modoAssuntos = modoExibirAssuntos === false ? 'livre' : 'guiado';
+  const exemploDiaMinutos = minimumActiveDayMinutes || 120;
+  const sessoesNoExemplo = Math.floor(exemploDiaMinutos / Math.max(1, tempoSessaoMinutos));
+  const sobraNoExemplo = Math.max(0, exemploDiaMinutos - (sessoesNoExemplo * tempoSessaoMinutos));
 
   return (
     <div className="flex flex-col h-full overflow-hidden w-full">
@@ -177,10 +183,17 @@ export default function StepConfig({
                 />
               </div>
 
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <Clock size={16} className="text-zinc-400" />
-                  <span className="text-xs font-black uppercase tracking-wider text-zinc-500">Duracao de cada sessao</span>
+              <div className="rounded-3xl border border-red-100 bg-gradient-to-br from-red-50/70 to-white p-5 dark:border-red-950/50 dark:from-red-950/20 dark:to-zinc-900">
+                <div className="flex items-start gap-3 mb-4">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-red-600 text-white shadow-lg shadow-red-600/20">
+                    <Clock size={18} />
+                  </div>
+                  <div>
+                    <span className="text-xs font-black uppercase tracking-wider text-zinc-900 dark:text-white">Tempo de cada bloco de estudo</span>
+                    <p className="mt-1 text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-400">
+                      Cada sessao e um bloco completo no radar. Todas usam a mesma duracao; a dificuldade define quantos blocos cada materia recebe.
+                    </p>
+                  </div>
                 </div>
 
                 <div className="flex flex-wrap gap-2 mb-3">
@@ -201,7 +214,7 @@ export default function StepConfig({
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-zinc-500">Ou defina:</span>
+                  <span className="text-xs text-zinc-500">Personalizar:</span>
                   <input
                     type="number"
                     min={10}
@@ -210,7 +223,18 @@ export default function StepConfig({
                     onChange={(e) => setTempoSessaoMinutos(Math.max(10, Math.min(minimumActiveDayMinutes || 180, Number(e.target.value))))}
                     className="w-20 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg px-2 py-1 text-sm font-bold text-zinc-800 dark:text-white text-center focus:outline-none focus:ring-2 focus:ring-red-500"
                   />
-                  <span className="text-xs text-zinc-400">por sessao</span>
+                  <span className="text-xs text-zinc-400">min por bloco</span>
+                </div>
+
+                <div className="mt-4 grid grid-cols-[auto_1fr] items-center gap-3 rounded-2xl border border-red-100 bg-white/80 p-3 dark:border-red-950/50 dark:bg-zinc-900/70">
+                  <div className="rounded-xl bg-red-600 px-3 py-2 text-center text-white">
+                    <p className="text-lg font-black leading-none">{fmtMin(tempoSessaoMinutos)}</p>
+                    <p className="mt-1 text-[7px] font-black uppercase tracking-widest text-red-100">1 sessao</p>
+                  </div>
+                  <p className="text-[11px] font-medium leading-relaxed text-zinc-600 dark:text-zinc-300">
+                    Em um dia de <strong>{fmtMin(exemploDiaMinutos)}</strong>, o sistema agenda <strong>{sessoesNoExemplo} {sessoesNoExemplo === 1 ? 'sessao' : 'sessoes'}</strong>
+                    {sobraNoExemplo > 0 ? ` e deixa ${fmtMin(sobraNoExemplo)} livres.` : '.'}
+                  </p>
                 </div>
 
                 {minimumActiveDayMinutes && (
@@ -225,6 +249,12 @@ export default function StepConfig({
                   </div>
                 )}
               </div>
+
+              {!distribuicaoCabeNaRotina && (
+                <div className="rounded-3xl border border-red-200 bg-red-50 px-4 py-3 text-[11px] font-bold text-red-700 dark:border-red-900/40 dark:bg-red-950/20 dark:text-red-300">
+                  Sua rotina comporta {totalSessionSlots} blocos, mas esta configuracao precisa de pelo menos {minimumRequiredSessions}. Aumente as horas, reduza o tempo da sessao ou remova a preferencia diaria no passo de disciplinas.
+                </div>
+              )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 px-4 py-4">

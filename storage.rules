@@ -2,9 +2,9 @@ rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
-    // Regra para Imagens de Perfil (Usuário escreve na própria pasta)
+    // Imagens de perfil: o dono le/escreve a propria pasta.
     match /profile_images/{userId}/{allPaths=**} {
-      allow read: if request.auth != null;
+      allow read: if request.auth != null && request.auth.uid == userId;
       allow write: if request.auth != null && request.auth.uid == userId;
     }
 

@@ -105,19 +105,6 @@ const TAB_TONES = {
   },
 };
 
-export function contarRevisoesPendentes(cronograma) {
-  if (!cronograma) return 0;
-  let count = 0;
-  try {
-    const buckets = getCronogramaReviewBuckets(cronograma, new Date());
-    count += buckets.atrasadas.filter((slot) => !slot.concluido).length;
-    count += buckets.hoje.filter((slot) => !slot.concluido).length;
-  } catch (e) {
-    console.warn("[contarRevisoesPendentes] Erro:", e);
-  }
-  return count;
-}
-
 const SourceBadge = ({ tipo }) => {
   const isCiclo = tipo === "ciclo";
   const Icon = isCiclo ? Layers : CalendarDays;
@@ -194,7 +181,7 @@ const SourceToggleButton = ({ source, onToggle, cicloLogo, cronogramaLogo }) => 
       onClick={onToggle}
       whileHover={{ scale: 1.04, y: -1 }}
       whileTap={{ scale: 0.96 }}
-      className="group relative flex items-center gap-1.5 rounded-full border border-zinc-200 bg-white/90 py-1 pl-1.5 pr-3 shadow-md backdrop-blur-sm transition-all duration-200 hover:border-red-300 hover:shadow-lg dark:border-zinc-700 dark:bg-zinc-800/90 dark:hover:border-red-600"
+      className="group relative inline-flex w-fit max-w-full shrink-0 items-center gap-1.5 self-start rounded-full border border-zinc-200 bg-white/90 py-1 pl-1.5 pr-3 shadow-md backdrop-blur-sm transition-all duration-200 hover:border-red-300 hover:shadow-lg dark:border-zinc-700 dark:bg-zinc-800/90 dark:hover:border-red-600"
       title={`Ver revisoes do ${destinoLabel}`}
     >
       <span className="flex h-5 w-5 shrink-0 items-center justify-center overflow-hidden rounded-full border border-zinc-200 bg-zinc-100 dark:border-zinc-600 dark:bg-zinc-700">
@@ -736,16 +723,7 @@ export function RevisaoPage({ user, onStartStudy, addRegistroEstudo, deleteCompl
     }
   };
 
-  if (loading || loadingRevisoesCiclo) {
-    return (
-      <div className="flex min-h-screen w-full items-center justify-center bg-transparent">
-        <div className="flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white px-6 py-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-          <RefreshCw className="animate-spin text-red-600 dark:text-red-300" size={22} />
-          <span className="text-xs font-black uppercase tracking-[0.22em] text-zinc-600 dark:text-zinc-200">Carregando revisoes</span>
-        </div>
-      </div>
-    );
-  }
+  if (loading || loadingRevisoesCiclo) return <div className="min-h-[calc(100vh-120px)]" />;
 
   const nenhuma = !cronograma && !cicloAtivo && revisoesCicloAtivas.length === 0;
 
@@ -757,7 +735,6 @@ export function RevisaoPage({ user, onStartStudy, addRegistroEstudo, deleteCompl
           animate={{ opacity: 1, y: 0, scale: 1 }}
           className="group relative w-full max-w-2xl overflow-hidden rounded-[40px] border border-zinc-200 bg-white p-8 text-center shadow-[0_30px_100px_rgba(0,0,0,0.06)] dark:border-white/10 dark:bg-zinc-950 dark:shadow-[0_30px_100px_rgba(0,0,0,0.3)] sm:px-12 sm:pb-9 sm:pt-12"
         >
-          {/* Decorative background elements */}
           <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-blue-500/5 blur-[80px] transition-all duration-700 group-hover:bg-blue-500/10" />
           <div className="pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-red-500/5 blur-[80px] transition-all duration-700 group-hover:bg-red-500/10" />
 
@@ -771,19 +748,15 @@ export function RevisaoPage({ user, onStartStudy, addRegistroEstudo, deleteCompl
                 <Zap size={20} fill="currentColor" />
               </div>
             </div>
-
             <p className="text-[11px] font-black uppercase tracking-[0.4em] text-blue-600 dark:text-blue-400">
               Central de Revisão
             </p>
-            
             <h2 className="mt-4 text-3xl font-black uppercase tracking-tight text-zinc-900 dark:text-white sm:text-4xl">
               Nenhum planejamento <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">ativo</span>
             </h2>
-            
             <p className="mt-6 max-w-md text-base font-medium leading-relaxed text-zinc-500 dark:text-zinc-400">
               Sua central de revisões está aguardando um plano ativo. Ative um cronograma ou ciclo de estudos para começar a dominar o conteúdo.
             </p>
-
             <div className="mt-10 flex flex-col items-center gap-3">
               <button
                 type="button"
@@ -794,11 +767,7 @@ export function RevisaoPage({ user, onStartStudy, addRegistroEstudo, deleteCompl
                   Ir para Planejamento <ArrowLeftRight size={16} />
                 </span>
               </button>
-              <img
-                src="/logoModoQAP.png"
-                alt="Logo Modo QAP"
-                className="h-8 w-auto object-contain opacity-90 transition-opacity duration-300 group-hover:opacity-100"
-              />
+              <img src="/logoModoQAP.png" alt="Logo Modo QAP" className="h-8 w-auto object-contain opacity-90 transition-opacity duration-300 group-hover:opacity-100" />
             </div>
           </div>
         </motion.div>
@@ -924,19 +893,19 @@ export function RevisaoPage({ user, onStartStudy, addRegistroEstudo, deleteCompl
               </div>
             </div>
 
-            <div className="z-10 flex w-[112px] shrink-0 items-center justify-between gap-1.5 rounded-xl border border-zinc-200 bg-white/75 p-2 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/55 sm:w-[150px] md:w-auto md:min-w-[360px] md:gap-4 md:rounded-2xl md:p-3">
+            <div className="z-10 flex w-[104px] shrink-0 items-center justify-between gap-1.5 rounded-xl border border-zinc-200 bg-white/75 p-1.5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/55 sm:w-[132px] md:w-auto md:min-w-[240px] md:gap-3 md:p-2.5">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between gap-2 md:gap-5">
                   <div>
-                    <p className="text-[7px] font-black uppercase tracking-wider text-zinc-400 md:text-[9px] md:tracking-[0.22em]">Meta</p>
-                    <p className="font-mono text-[10px] font-black text-zinc-900 dark:text-white md:mt-0.5 md:text-lg">{totalGeral}</p>
+                    <p className="text-[7px] font-black uppercase tracking-wider text-zinc-400 md:text-[8px] md:tracking-widest">Meta</p>
+                    <p className="font-mono text-[10px] font-black text-zinc-900 dark:text-white md:text-sm">{totalGeral}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-[7px] font-black uppercase tracking-wider text-zinc-400 md:text-[9px] md:tracking-[0.22em]">Feito</p>
-                    <p className="font-mono text-[10px] font-black text-zinc-900 dark:text-white md:mt-0.5 md:text-lg">{totalConcluidas}</p>
+                    <p className="text-[7px] font-black uppercase tracking-wider text-zinc-400 md:text-[8px] md:tracking-widest">Feito</p>
+                    <p className="font-mono text-[10px] font-black text-zinc-900 dark:text-white md:text-sm">{totalConcluidas}</p>
                   </div>
                 </div>
-                <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-zinc-100 ring-1 ring-zinc-200/70 dark:bg-zinc-800 dark:ring-zinc-700/70 md:mt-3 md:h-2">
+                <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-zinc-100 ring-1 ring-zinc-200/70 dark:bg-zinc-800 dark:ring-zinc-700/70 md:mt-2 md:h-1.5">
                   <motion.div
                     initial={false}
                     animate={{ width: `${Math.min(progressoGeral, 100)}%` }}
@@ -946,12 +915,12 @@ export function RevisaoPage({ user, onStartStudy, addRegistroEstudo, deleteCompl
                 </div>
               </div>
               <div className="relative shrink-0">
-                <svg className="h-10 w-10 -rotate-90 sm:h-12 sm:w-12 md:h-20 md:w-20" viewBox="0 0 80 80">
+                <svg className="h-9 w-9 -rotate-90 sm:h-10 sm:w-10 md:h-14 md:w-14" viewBox="0 0 80 80">
                   <circle cx="40" cy="40" r="34" fill="none" stroke="currentColor" className="text-zinc-200 dark:text-zinc-800" strokeWidth="6" />
                   <motion.circle cx="40" cy="40" r="34" fill="none" stroke="currentColor" className={progressoGeral >= 100 ? "text-emerald-500" : progressoGeral > 0 ? "text-blue-600 dark:text-blue-500" : "text-zinc-400"} strokeWidth="6" strokeLinecap="round" strokeDasharray={2 * Math.PI * 34} initial={{ strokeDashoffset: 2 * Math.PI * 34 }} animate={{ strokeDashoffset: 2 * Math.PI * 34 * (1 - Math.min(progressoGeral, 100) / 100) }} transition={{ duration: 1.5, ease: "easeOut" }} />
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className={cx("text-[10px] font-black sm:text-xs md:text-xl", progressoGeral >= 100 ? "text-emerald-500" : progressoGeral > 0 ? "text-blue-600 dark:text-blue-500" : "text-zinc-400")}>{progressoGeral}%</span>
+                  <span className={cx("text-[9px] font-black sm:text-[10px] md:text-sm", progressoGeral >= 100 ? "text-emerald-500" : progressoGeral > 0 ? "text-blue-600 dark:text-blue-500" : "text-zinc-400")}>{progressoGeral}%</span>
                 </div>
               </div>
             </div>

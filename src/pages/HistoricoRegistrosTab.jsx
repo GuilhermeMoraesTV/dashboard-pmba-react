@@ -5,7 +5,7 @@ import {
   collection, query, orderBy, onSnapshot, doc, deleteDoc, updateDoc, getDocs, where
 } from 'firebase/firestore';
 import { 
-  Trash2, Edit, Calendar, Clock, CheckSquare, Hash, Filter, Eye, Download
+  AlertTriangle, Trash2, Edit, Calendar, Clock, CheckSquare, Hash, Filter, Eye, Download
 } from 'lucide-react';
 
 function HistoricoRegistrosPage({ user }) {
@@ -17,6 +17,8 @@ function HistoricoRegistrosPage({ user }) {
   const [ciclos, setCiclos] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [registroEditando, setRegistroEditando] = useState(null);
+  const [registroParaExcluir, setRegistroParaExcluir] = useState(null);
+  const [toastMessage, setToastMessage] = useState('');
 
   // Buscar ciclos
   useEffect(() => {
@@ -66,14 +68,13 @@ function HistoricoRegistrosPage({ user }) {
 
   // Deletar registro
   const handleDelete = async (registroId) => {
-    if (!window.confirm('Deseja excluir este registro permanentemente?')) return;
-
     try {
       await deleteDoc(doc(db, 'users', user.uid, 'registrosEstudo', registroId));
-      alert('Registro excluído com sucesso!');
+      setRegistroParaExcluir(null);
+      setToastMessage('Registro excluido com sucesso.');
     } catch (error) {
       console.error('Erro ao excluir:', error);
-      alert('Erro ao excluir o registro.');
+      setToastMessage('Erro ao excluir o registro.');
     }
   };
 
@@ -98,10 +99,10 @@ function HistoricoRegistrosPage({ user }) {
       });
       setModalOpen(false);
       setRegistroEditando(null);
-      alert('Registro atualizado com sucesso!');
+      setToastMessage('Registro atualizado com sucesso.');
     } catch (error) {
       console.error('Erro ao salvar:', error);
-      alert('Erro ao atualizar o registro.');
+      setToastMessage('Erro ao atualizar o registro.');
     }
   };
 
@@ -125,6 +126,32 @@ function HistoricoRegistrosPage({ user }) {
 
   return (
     <div className="space-y-6">
+      {toastMessage && (
+        <div className="fixed left-1/2 top-4 z-[90] flex w-[calc(100%-2rem)] max-w-md -translate-x-1/2 items-center gap-3 rounded-2xl border border-red-200 bg-white px-4 py-3 text-sm font-bold text-red-700 shadow-2xl shadow-red-900/10">
+          <AlertTriangle size={18} className="shrink-0" />
+          <span>{toastMessage}</span>
+          <button onClick={() => setToastMessage('')} className="ml-auto rounded-lg px-2 py-1 text-[10px] uppercase tracking-wider text-red-500 hover:bg-red-50">Ok</button>
+        </div>
+      )}
+
+      {registroParaExcluir && (
+        <div className="fixed inset-0 z-[95] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md overflow-hidden rounded-3xl border border-red-200 bg-white shadow-2xl">
+            <div className="border-b border-red-100 bg-red-50 p-6 text-center">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-red-600 text-white shadow-lg shadow-red-600/25">
+                <Trash2 size={28} />
+              </div>
+              <h3 className="text-lg font-black uppercase text-zinc-900">Excluir registro?</h3>
+              <p className="mt-2 text-sm font-medium text-zinc-600">Esta acao e permanente.</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3 p-5">
+              <button onClick={() => setRegistroParaExcluir(null)} className="rounded-2xl bg-zinc-100 px-4 py-3 text-xs font-black uppercase tracking-wider text-zinc-700 hover:bg-zinc-200">Cancelar</button>
+              <button onClick={() => handleDelete(registroParaExcluir)} className="rounded-2xl bg-red-600 px-4 py-3 text-xs font-black uppercase tracking-wider text-white shadow-lg shadow-red-600/25 hover:bg-red-700">Excluir</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Cabeçalho */}
       <div className="bg-card-background-color dark:bg-dark-card-background-color rounded-xl shadow-card-shadow p-6 border border-border-color dark:border-dark-border-color">
         <h1 className="text-3xl font-bold text-heading-color dark:text-dark-heading-color mb-2">
@@ -231,7 +258,7 @@ function HistoricoRegistrosPage({ user }) {
                       <Edit size={18} />
                     </button>
                     <button
-                      onClick={() => handleDelete(registro.id)}
+                      onClick={() => setRegistroParaExcluir(registro.id)}
                       className="p-2 rounded-lg text-red-400 hover:bg-red-500/10 transition-colors"
                       title="Excluir"
                     >

@@ -407,6 +407,8 @@ function EditalPage({
   const [overId,                setOverId]                = useState(null);
   const [isSavingOrder,         setIsSavingOrder]         = useState(false);
   const [showInactive,          setShowInactive]          = useState(false);
+  const [disciplinaParaExcluir, setDisciplinaParaExcluir] = useState(null);
+  const [toastMessage,          setToastMessage]          = useState('');
 
   // ── Fonte de visualização: 'ciclo' | 'cronograma' ────────────────────────
   const [viewSource, setViewSource] = useState('ciclo');
@@ -751,10 +753,13 @@ function EditalPage({
 
   const handleHardDeleteDisciplina = async (disc) => {
     if (!user || !activeCicloId) return;
-    if (!window.confirm(`Tem certeza que deseja apagar "${disc.nome}" permanentemente do ciclo?`)) return;
     try {
       await deleteDoc(doc(db, 'users', user.uid, 'ciclos', activeCicloId, 'disciplinas', disc.id));
-    } catch (err) { console.error("Erro ao excluir disciplina", err); }
+      setDisciplinaParaExcluir(null);
+    } catch (err) {
+      console.error("Erro ao excluir disciplina", err);
+      setToastMessage('Erro ao excluir disciplina. Tente novamente.');
+    }
   };
 
   // ── Toggle check de assunto ───────────────────────────────────────────────
@@ -813,7 +818,7 @@ function EditalPage({
       setOptimisticChecks(prev => { const s = { ...prev }; delete s[key]; return s; });
     } catch {
       setOptimisticChecks(prev => ({ ...prev, [key]: estadoAtual }));
-      alert('Erro de conexão. Tente novamente.');
+      setToastMessage('Erro de conexao. Tente novamente.');
     } finally {
       setLoadingCheck(prev => ({ ...prev, [key]: false }));
     }
@@ -895,6 +900,51 @@ function EditalPage({
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="w-full space-y-6 animate-fade-in pb-24">
+      <AnimatePresence>
+        {toastMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="fixed left-1/2 top-4 z-[90] flex w-[calc(100%-2rem)] max-w-md -translate-x-1/2 items-center gap-3 rounded-2xl border border-red-200 bg-white px-4 py-3 text-sm font-bold text-red-700 shadow-2xl shadow-red-900/10 dark:border-red-900/40 dark:bg-zinc-950 dark:text-red-300"
+          >
+            <AlertTriangle size={18} className="shrink-0" />
+            <span>{toastMessage}</span>
+            <button onClick={() => setToastMessage('')} className="ml-auto rounded-lg px-2 py-1 text-[10px] uppercase tracking-wider text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30">Ok</button>
+          </motion.div>
+        )}
+
+        {disciplinaParaExcluir && (
+          <div className="fixed inset-0 z-[95] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={() => setDisciplinaParaExcluir(null)}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.94, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.94, y: 12 }}
+              className="w-full max-w-md overflow-hidden rounded-3xl border border-red-200 bg-white shadow-2xl dark:border-red-900/40 dark:bg-zinc-950"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="border-b border-red-100 bg-red-50 p-6 text-center dark:border-red-900/30 dark:bg-red-950/20">
+                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-red-600 text-white shadow-lg shadow-red-600/25">
+                  <Trash2 size={28} />
+                </div>
+                <h3 className="text-lg font-black uppercase text-zinc-900 dark:text-white">Excluir disciplina?</h3>
+                <p className="mt-2 text-sm font-medium text-zinc-600 dark:text-zinc-400">
+                  Isso apaga "{disciplinaParaExcluir.nome}" permanentemente deste ciclo.
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-3 p-5">
+                <button onClick={() => setDisciplinaParaExcluir(null)} className="rounded-2xl bg-zinc-100 px-4 py-3 text-xs font-black uppercase tracking-wider text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-200">
+                  Cancelar
+                </button>
+                <button onClick={() => handleHardDeleteDisciplina(disciplinaParaExcluir)} className="rounded-2xl bg-red-600 px-4 py-3 text-xs font-black uppercase tracking-wider text-white shadow-lg shadow-red-600/25 hover:bg-red-700">
+                  Excluir
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {studyModalData && (
         <StartStudyModal
           disciplina={studyModalData.disciplina}
@@ -1234,7 +1284,7 @@ function EditalPage({
                         <button onClick={() => handleRestoreDisciplina(disc.id)} className="px-3 py-2 bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-lg text-xs font-bold uppercase hover:bg-emerald-100 transition-colors flex items-center gap-1.5">
                           <Undo2 size={14} /> Restaurar
                         </button>
-                        <button onClick={() => handleHardDeleteDisciplina(disc)} className="px-3 py-2 bg-red-50 text-red-600 border border-red-200 rounded-lg text-xs font-bold uppercase hover:bg-red-100 transition-colors flex items-center gap-1.5">
+                        <button onClick={() => setDisciplinaParaExcluir(disc)} className="px-3 py-2 bg-red-50 text-red-600 border border-red-200 rounded-lg text-xs font-bold uppercase hover:bg-red-100 transition-colors flex items-center gap-1.5">
                           <Trash2 size={14} /> Excluir
                         </button>
                       </div>

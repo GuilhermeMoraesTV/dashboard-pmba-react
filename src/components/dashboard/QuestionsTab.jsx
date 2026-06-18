@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { db } from '../../firebaseConfig';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { Timestamp } from 'firebase/firestore';
@@ -61,6 +61,7 @@ function QuestionsTab({ registrosEstudo, onAddRegistro, onDeleteRegistro, user }
   // --- NOVOS ESTADOS DO FORMULÁRIO ---
   const [selectedCicloId, setSelectedCicloId] = useState('');
   const [selectedDisciplinaId, setSelectedDisciplinaId] = useState('');
+  const [formError, setFormError] = useState('');
 
   // Busca dados dos ciclos e disciplinas
   const { ciclos, disciplinas, loadingCiclos } = useCicloData(user);
@@ -75,9 +76,10 @@ function QuestionsTab({ registrosEstudo, onAddRegistro, onDeleteRegistro, user }
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!selectedDisciplinaId) {
-      alert("Por favor, selecione uma disciplina.");
+      setFormError("Selecione uma disciplina para registrar as questoes.");
       return;
     }
+    setFormError('');
 
     const disciplinaSelecionada = disciplinas.find(d => d.id === selectedDisciplinaId);
 
@@ -118,6 +120,11 @@ function QuestionsTab({ registrosEstudo, onAddRegistro, onDeleteRegistro, user }
         <div className="bg-card-background-color dark:bg-dark-card-background-color p-6 rounded-xl shadow-card-shadow border border-border-color dark:border-dark-border-color">
           <h3 className="text-xl font-semibold mb-4 text-heading-color dark:text-dark-heading-color">Registrar Questões</h3>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {formError && (
+              <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700">
+                {formError}
+              </div>
+            )}
 
             {/* Dropdown de Disciplina */}
             <div>

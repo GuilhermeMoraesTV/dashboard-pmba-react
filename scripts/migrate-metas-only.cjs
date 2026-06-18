@@ -1,10 +1,6 @@
 // Arquivo: migrate-metas-only.cjs
-const admin = require("firebase-admin");
-const serviceAccount = require("./serviceAccountKey.json");
-
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
-});
+const { initializeFirebaseAdmin } = require("./firebaseAdmin.cjs");
+const admin = initializeFirebaseAdmin();
 
 const db = admin.firestore();
 

@@ -127,11 +127,11 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
-    // Cache compartilhado: autenticados podem ler e atualizar.
-    // A exclusão fica apenas com o admin para limpeza manual.
+    // Cache compartilhado: usuarios autenticados podem ler; somente admin pode popular/alterar.
+    // Evita que um cliente comum contamine dados exibidos para outros usuarios.
     match /noticiaCache/{docId} {
-      allow read, create, update: if isSignedIn();
-      allow delete: if isAdmin();
+      allow read: if isSignedIn();
+      allow create, update, delete: if isAdmin();
     }
 
     // Estado do timer ao vivo: o dono escreve apenas o próprio timer e o admin pode monitorar.
@@ -156,7 +156,7 @@ service cloud.firestore {
           && ownerUserDocTouchedKeysAreSafe()
           && request.resource.data.uid == resource.data.uid
         );
-      allow delete: if isOwnerOrAdmin(userId);
+      allow delete: if isAdmin();
 
       match /{document=**} {
         allow read, write, delete: if isOwnerOrAdmin(userId);
@@ -193,12 +193,12 @@ service cloud.firestore {
       match /messages/{messageId} {
         allow read: if isAdmin() || isFeedbackOwner(feedbackId);
 
-        // O dono pode enviar mensagens no próprio chamado.
-        // O sender "system" é mantido por compatibilidade com o fluxo atual de resposta automática no cliente.
+        // O dono pode enviar apenas mensagens de usuario no proprio chamado.
+        // Mensagens admin/system ficam restritas ao painel/admin.
         allow create: if isAdmin()
           || (
             isFeedbackOwner(feedbackId)
-            && request.resource.data.sender in ['system', 'user']
+            && request.resource.data.sender == 'user'
           );
 
         allow update, delete: if isAdmin();

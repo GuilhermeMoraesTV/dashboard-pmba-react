@@ -170,9 +170,27 @@ const DownloadAlert = ({ isVisible, onDismiss }) => (
   </AnimatePresence>
 );
 
-const SectionLoader = ({ minHeight = '16rem' }) => (
-  <div className="flex items-center justify-center" style={{ minHeight }}>
-    <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-t-2 border-red-600" />
+const SectionLoader = ({ minHeight = '16rem', label = 'Carregando area' }) => (
+  <div className="flex items-center justify-center px-3" style={{ minHeight }}>
+    <div className="relative w-full max-w-xl overflow-hidden rounded-[28px] border border-l-4 border-red-100 !border-l-red-500/50 bg-white/88 p-5 shadow-[0_24px_80px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-zinc-950/75">
+      <div className="pointer-events-none absolute -right-12 -top-14 h-40 w-40 rounded-full bg-red-500/10 blur-[70px]" />
+      <div className="pointer-events-none absolute -bottom-14 left-8 h-32 w-32 rounded-full bg-zinc-500/10 blur-[60px]" />
+      <div className="relative flex items-center gap-4">
+        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-red-600 to-rose-700 text-white shadow-2xl shadow-red-500/25">
+          <ClipboardList size={25} className="animate-pulse" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-[9px] font-black uppercase tracking-[0.24em] text-red-500 dark:text-red-300">Modo QAP</p>
+          <p className="mt-1 text-sm font-black uppercase tracking-tight text-zinc-900 dark:text-white">{label}</p>
+          <div className="mt-3 space-y-2">
+            <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
+              <div className="h-full w-1/2 animate-[pulse_1.2s_ease-in-out_infinite] rounded-full bg-gradient-to-r from-red-500 to-rose-400" />
+            </div>
+            <div className="h-2 w-2/3 rounded-full bg-zinc-100 dark:bg-zinc-800" />
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 );
 
@@ -202,20 +220,10 @@ const ShareCardPreviewModal = ({ data, onClose, onDownload }) => {
 };
 
 function Dashboard({ user, isDarkMode, toggleTheme }) {
-  if (!user) {
-    return (
-      <div className="flex justify-center items-center min-h-screen bg-background-light dark:bg-background-dark">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-red-600 mx-auto mb-4"></div>
-          <h2 className="text-lg font-medium text-gray-600 dark:text-gray-300">Carregando...</h2>
-        </div>
-      </div>
-    );
-  }
-
-  const STUDY_STORAGE_KEY   = useMemo(() => `@ModoQAP:ActiveSession:${user.uid}`, [user.uid]);
-  const SIMULADO_STORAGE_KEY = useMemo(() => `@ModoQAP:SimuladoActive:${user.uid}`, [user.uid]);
-  const SIMULADO_PENDING_KEY = useMemo(() => `@ModoQAP:SimuladoPending:${user.uid}`, [user.uid]);
+  const userUid = user?.uid || 'anonymous';
+  const STUDY_STORAGE_KEY   = useMemo(() => `@ModoQAP:ActiveSession:${userUid}`, [userUid]);
+  const SIMULADO_STORAGE_KEY = useMemo(() => `@ModoQAP:SimuladoActive:${userUid}`, [userUid]);
+  const SIMULADO_PENDING_KEY = useMemo(() => `@ModoQAP:SimuladoPending:${userUid}`, [userUid]);
 
   const {
     notifications,
@@ -270,6 +278,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   const [registrosLoaded, setRegistrosLoaded]     = useState(false);
   const [simuladosLoaded, setSimuladosLoaded]     = useState(false);
   const [activeCycleDisciplines, setActiveCycleDisciplines] = useState([]);
+
   const mainContentRef = useRef(null);
 
   const handleOpenFeedback = (options = {}) => {
@@ -654,8 +663,10 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       simSnap.docs.forEach(d => { const v=d.data(); tMin+=Number(v.durationMinutes||0); tQ+=Number(v.resumo?.totalQuestoes||0); tC+=Number(v.resumo?.totalAcertos||0); });
 
       await setDoc(doc(db,'users',user.uid,'stats','geral'), { totalHorasMinutos:tMin, totalQuestoes:tQ, totalAcertos:tC, lastUpdated:Timestamp.now() });
-      alert('Estatísticas recalculadas com sucesso!');
-    } catch { alert('Erro ao recalcular.'); }
+      setWarningAlert({ isOpen:true, title:'Estatisticas atualizadas', message:'Os dados gerais foram recalculados com sucesso.' });
+    } catch {
+      setWarningAlert({ isOpen:true, title:'Erro ao recalcular', message:'Nao foi possivel recalcular as estatisticas agora. Tente novamente em instantes.' });
+    }
     finally { setLoading(false); }
   };
 
@@ -1025,7 +1036,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   const handleStopStudyRequest = (minutes) => {
     if (!activeStudySession) return;
     if (!hasActiveStudyContext) {
-      alert('Nenhum ciclo ou cronograma ativo encontrado.');
+      setWarningAlert({ isOpen:true, title:'Planejamento nao encontrado', message:'Ative um ciclo ou cronograma antes de finalizar esta sessao.' });
       return;
     }
     const cur = JSON.parse(localStorage.getItem(STUDY_STORAGE_KEY)||'{}');
@@ -1118,7 +1129,10 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       }
 
       setFinishModalData(null); setPendingReviewData(null); setActiveStudySession(null); clearActiveTimerDoc();
-    } catch (e) { console.error(e); alert('Erro ao salvar sessão. Verifique sua conexão.'); }
+    } catch (e) {
+      console.error(e);
+      setWarningAlert({ isOpen:true, title:'Erro ao salvar sessao', message:'Nao foi possivel salvar a sessao. Verifique sua conexao e tente novamente.' });
+    }
   };
 
   const handleStartSimulado = (config) => {
@@ -1188,10 +1202,43 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     setForcePlanejamentoSelector(false);
   }, []);
 
+  const markUpdateCarouselSeen = useCallback(async (action = 'planning_created') => {
+    if (!user?.uid) return;
+
+    const localBaseKey = `modoqap_welcome_carousel_${user.uid}`;
+    localStorage.setItem(`${localBaseKey}_update_${WELCOME_UPDATE_VERSION}`, 'true');
+    setWelcomeCarousel((current) => (
+      current.mode === 'update' ? { loading:false, mode:null } : current
+    ));
+
+    try {
+      await setDoc(doc(db, 'users', user.uid, 'system_state', 'welcome_carousel'), {
+        updateVersionSeen: WELCOME_UPDATE_VERSION,
+        updateCompletedAt: Timestamp.now(),
+        lastCompletedMode: 'update',
+        lastCompletedAction: action,
+        lastCompletedAt: Timestamp.now(),
+      }, { merge:true });
+    } catch (error) {
+      console.error('[Dashboard] Erro ao marcar carrossel de atualizacao como visto:', error);
+    }
+  }, [user?.uid]);
+
   const handleWelcomeCreatePlanning = useCallback(() => {
+    markUpdateCarouselSeen('create_planning_from_carousel');
     setForcePlanejamentoSelector(true);
     setActiveTab('planejamento');
-  }, []);
+  }, [markUpdateCarouselSeen]);
+
+  useEffect(() => {
+    const handlePlanningCreated = () => {
+      markUpdateCarouselSeen('planning_created');
+      setWelcomeCarousel((current) => ({ ...current, mode:null }));
+    };
+
+    window.addEventListener('Planning:Created', handlePlanningCreated);
+    return () => window.removeEventListener('Planning:Created', handlePlanningCreated);
+  }, [markUpdateCarouselSeen]);
 
   const handleWelcomeCarouselComplete = useCallback(async ({ action } = {}) => {
     if (!user?.uid) {
@@ -1239,7 +1286,10 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
 
   const handleDownloadPDF = async () => {
     const el = document.getElementById('share-card-capture-target');
-    if (!el) return alert('Erro ao capturar cartão.');
+    if (!el) {
+      setWarningAlert({ isOpen:true, title:'Erro ao capturar cartao', message:'Nao encontramos o cartao para gerar o PDF. Feche o preview e tente novamente.' });
+      return;
+    }
     const bw = document.querySelector('.download-button-wrapper');
     if (bw) bw.style.display = 'none';
     try {
@@ -1253,7 +1303,9 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       pdf.addImage(canvas.toDataURL('image/jpeg',1.0),'JPEG',0,0,W*pxMm,H*pxMm);
       pdf.save(`Progresso_${dateToYMD(new Date())}.pdf`);
       setSharePreviewData(null); setIsDownloadAlertVisible(true); setTimeout(() => setIsDownloadAlertVisible(false),3500);
-    } catch { alert('Falha ao gerar PDF.'); }
+    } catch {
+      setWarningAlert({ isOpen:true, title:'Falha ao gerar PDF', message:'Nao foi possivel gerar o arquivo agora. Tente novamente em instantes.' });
+    }
     finally { if (bw) bw.style.display = 'flex'; }
   };
 
@@ -1324,11 +1376,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
 
   const renderTabContent = () => {
     if (loading && ['home','calendar','stats'].includes(activeTab)) {
-      return (
-        <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-red-600 mx-auto mb-4"></div>
-        </div>
-      );
+      return <SectionLoader minHeight="18rem" label="Carregando seus dados" />;
     }
     switch (activeTab) {
       case 'home':
@@ -1375,6 +1423,17 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         return null;
     }
   };
+
+  if (!user) {
+    return (
+      <div className="flex justify-center items-center min-h-screen bg-background-light dark:bg-background-dark">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-red-600 mx-auto mb-4"></div>
+          <h2 className="text-lg font-medium text-gray-600 dark:text-gray-300">Carregando...</h2>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative isolate flex min-h-screen bg-background-light dark:bg-background-dark text-text-primary dark:text-text-dark-primary transition-colors duration-300 overflow-x-hidden">
@@ -1447,7 +1506,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       <div ref={mainContentRef} className={`dashboard-main-content relative z-10 min-w-0 flex-1 transition-all duration-300 pt-[80px] px-4 md:px-8 lg:pt-[90px] pb-10 ${isSidebarExpanded ? 'lg:ml-[260px]' : 'lg:ml-[80px]'}`}>
         <Header user={user} activeTab={activeTab}/>
         <main className={`mt-2 min-w-0 animate-fade-in ${['home', 'ciclos', 'cronograma', 'planejamento'].includes(activeTab) ? 'w-full' : 'max-w-7xl mx-auto'}`}>
-          <Suspense fallback={<SectionLoader />}>
+          <Suspense fallback={<SectionLoader label="Abrindo area" />}>
             {renderTabContent()}
           </Suspense>
         </main>

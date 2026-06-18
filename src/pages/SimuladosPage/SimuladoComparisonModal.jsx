@@ -153,10 +153,7 @@ const SimuladoComparisonModal = ({ simuladosSelecionados, onClose }) => {
     return { base, targets };
   }, [simuladosSelecionados]);
 
-  // Se não houver dados, retorna nulo antes de chamar hooks condicionais
-  if (!comparisonData) return null;
-
-  const { base, targets } = comparisonData;
+  const { base = null, targets = [] } = comparisonData || {};
   const [activeTargetId, setActiveTargetId] = useState(targets[targets.length - 1]?.id);
 
   useEffect(() => {
@@ -175,8 +172,8 @@ const SimuladoComparisonModal = ({ simuladosSelecionados, onClose }) => {
   const growthPerc = scoreBase > 0 ? (deltaPontos / scoreBase) * 100 : 100;
 
   // Time Comparison
-  const timeBase = base.durationMinutes || 0;
-  const timeTarget = target.durationMinutes || 0;
+  const timeBase = base?.durationMinutes || 0;
+  const timeTarget = target?.durationMinutes || 0;
   const timeDiff = timeBase - timeTarget;
   const isTimeFaster = timeDiff > 0;
 
@@ -211,6 +208,8 @@ const SimuladoComparisonModal = ({ simuladosSelecionados, onClose }) => {
   const radarData = allDisciplines.slice(0, 7).map(d => ({ subject: d.name, valA: d.basePerc, valB: d.targetPerc }));
   const topDrops = useMemo(() => allDisciplines.filter(d => d.diff < -0.5).sort((a, b) => a.diff - b.diff).slice(0, 4), [allDisciplines]);
   const topGrowth = useMemo(() => allDisciplines.filter(d => d.diff > 0.5).sort((a, b) => b.diff - a.diff).slice(0, 4), [allDisciplines]);
+
+  if (!comparisonData) return null;
 
   return (
     <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in overflow-hidden touch-none" onClick={onClose}>

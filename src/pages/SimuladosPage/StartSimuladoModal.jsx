@@ -9,7 +9,7 @@ const StartSimuladoModal = ({ isOpen, onClose, onStart }) => {
   const [minutes, setMinutes] = useState('00');
 
   // State para controle de erro
-  const [error, setError] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     if (isOpen) {
@@ -17,21 +17,24 @@ const StartSimuladoModal = ({ isOpen, onClose, onStart }) => {
       setMode('free');
       setHours('04');
       setMinutes('00');
-      setError(false); // Reseta o erro ao abrir
+      setError(''); // Reseta o erro ao abrir
     }
   }, [isOpen]);
 
   const handleStart = () => {
     // Validação: Se estiver vazio ou só tiver espaços
     if (!titulo.trim()) {
-      setError(true);
+      setError('O nome do simulado e obrigatorio');
       return;
     }
 
     let totalSeconds = 0;
     if (mode === 'countdown') {
       totalSeconds = (parseInt(hours || 0) * 3600) + (parseInt(minutes || 0) * 60);
-      if (totalSeconds <= 0) return alert("Defina um tempo válido para o cronômetro.");
+      if (totalSeconds <= 0) {
+        setError('Defina um tempo valido para o cronometro.');
+        return;
+      }
     }
 
     onStart({ titulo, mode, totalSeconds });
@@ -89,7 +92,7 @@ const StartSimuladoModal = ({ isOpen, onClose, onStart }) => {
                 value={titulo}
                 onChange={e => {
                   setTitulo(e.target.value);
-                  if (error) setError(false); // Limpa o erro assim que digitar
+                  if (error) setError(''); // Limpa o erro assim que digitar
                 }}
                 className={`w-full p-4 pl-4 rounded-2xl border-2 outline-none font-bold text-zinc-800 dark:text-white transition-all shadow-sm text-sm
                   ${error
@@ -116,7 +119,7 @@ const StartSimuladoModal = ({ isOpen, onClose, onStart }) => {
                 >
                   <AlertCircle size={12} className="text-red-600 dark:text-red-400" strokeWidth={3} />
                   <span className="text-[10px] font-black uppercase tracking-wide text-red-600 dark:text-red-400">
-                    O nome do simulado é obrigatório
+                    {error}
                   </span>
                 </motion.div>
               )}

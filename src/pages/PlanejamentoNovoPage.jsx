@@ -137,7 +137,7 @@ function PlanejamentoNovoPage({ onBack, onCriarCiclo, onCriarCronograma, hideBac
           >
             <h1 className="text-3xl md:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-[0.95] mb-4">
               Escolha sua <br />
-              <span className="text-red-600">Estratégia de Vitória</span>
+              <span className="text-red-600">Estratégia de Estudo</span>
             </h1>
             <motion.div 
               initial={{ width: 0 }}

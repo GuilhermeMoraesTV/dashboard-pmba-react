@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  BookOpen, ChevronDown, CheckCircle2, Square, MinusSquare,
+  BookOpen, CalendarCheck2, ChevronDown, CheckCircle2, Square, MinusSquare,
   Search, X, CheckSquare, Layers, Tag, Sparkles, Target,
   Plus, Trash2, Edit2, AlertTriangle, Zap, TrendingUp, Flame
 } from 'lucide-react';
@@ -478,7 +478,20 @@ const DisciplinaCard = ({
 // ══════════════════════════════════════════════════════════════════════════════
 //  COMPONENTE PRINCIPAL MODO GERAL
 // ══════════════════════════════════════════════════════════════════════════════
-const ModoGeral = ({ disciplinas, selecao, onSelecaoChange, onDisciplinasChange, extraDisciplinas = [], onExtraDisciplinasChange = () => {}, editalSelecionado, modoManual, horarios }) => {
+const ModoGeral = ({
+  disciplinas,
+  selecao,
+  onSelecaoChange,
+  onDisciplinasChange,
+  extraDisciplinas = [],
+  onExtraDisciplinasChange = () => {},
+  editalSelecionado,
+  modoManual,
+  horarios,
+  disciplinaTodosDiasId = null,
+  onDisciplinaTodosDiasChange = null,
+  activeStudyDaysCount = 0,
+}) => {
   const [nomeNova, setNomeNova] = useState('');
   const [busca, setBusca] = useState('');
   const [expandedId, setExpandedId] = useState(null);
@@ -554,6 +567,11 @@ const ModoGeral = ({ disciplinas, selecao, onSelecaoChange, onDisciplinasChange,
 
   const todasSelecionadas = disciplinas.length > 0 && disciplinas.every(d => selecao[d.id]?.checked) && (extraDisciplinas.length === 0 || extraDisciplinas.every(d => selecao[d.id]?.checked));
   const handleToggleTodos = () => { if (todasSelecionadas) handleLimparTodos(); else handleSelecionarTodos(); };
+  const disciplinasAtivasParaDiaria = [...disciplinas, ...extraDisciplinas].filter((disc) => {
+    const estado = selecao[disc.id];
+    return estado?.checked || estado?.parcial;
+  });
+  const mostrarPreferenciaDiaria = typeof onDisciplinaTodosDiasChange === 'function';
 
   return (
     <div className="flex flex-col h-full w-full">
@@ -567,6 +585,49 @@ const ModoGeral = ({ disciplinas, selecao, onSelecaoChange, onDisciplinasChange,
               <StatsMiniCard stats={stats} />
             </div>
           </div>
+
+          {mostrarPreferenciaDiaria && (
+            <div className="mb-5 rounded-3xl border border-red-100 bg-gradient-to-br from-red-50/70 to-white p-4 shadow-sm dark:border-red-950/50 dark:from-red-950/20 dark:to-zinc-900">
+              <div className="mb-3 flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-red-600 text-white shadow-lg shadow-red-600/20">
+                  <CalendarCheck2 size={18} />
+                </div>
+                <div>
+                  <h4 className="text-xs font-black uppercase tracking-widest text-zinc-900 dark:text-white">Estudar matéria todos os dias</h4>
+                  <p className="mt-1 text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-400">
+                    Opcional. Escolha uma disciplina para aparecer pelo menos uma vez em cada dia ativo{activeStudyDaysCount ? ` (${activeStudyDaysCount} dias)` : ''}.
+                  </p>
+                </div>
+              </div>
+
+              {disciplinasAtivasParaDiaria.length > 0 ? (
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {disciplinasAtivasParaDiaria.map((disciplina) => {
+                    const active = disciplinaTodosDiasId === disciplina.id;
+                    return (
+                      <button
+                        key={disciplina.id}
+                        type="button"
+                        onClick={() => onDisciplinaTodosDiasChange(active ? null : disciplina.id)}
+                        className={`flex items-center justify-between gap-3 rounded-2xl border px-3 py-2.5 text-left transition-all ${
+                          active
+                            ? 'border-red-500 bg-red-50 text-red-700 shadow-sm dark:bg-red-950/20 dark:text-red-300'
+                            : 'border-zinc-200 bg-white text-zinc-600 hover:border-red-200 dark:border-zinc-800 dark:bg-zinc-800/50 dark:text-zinc-300'
+                        }`}
+                      >
+                        <span className="min-w-0 truncate text-[11px] font-black">{disciplina.nome}</span>
+                        <CheckCircle2 size={15} className={active ? 'text-red-600' : 'text-zinc-300 dark:text-zinc-600'} />
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="rounded-2xl border border-dashed border-red-200 bg-white/70 px-3 py-3 text-[11px] font-bold text-zinc-500 dark:border-red-900/40 dark:bg-zinc-900/50 dark:text-zinc-400">
+                  Marque pelo menos uma disciplina para liberar esta preferência.
+                </p>
+              )}
+            </div>
+          )}
 
           {/* ── BARRA DE AÇÕES MOBILE ─────────────────────────────────────── */}
           <div className="lg:hidden flex flex-col gap-3 mb-6">

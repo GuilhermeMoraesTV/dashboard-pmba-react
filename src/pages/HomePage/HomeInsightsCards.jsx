@@ -1,7 +1,7 @@
 ﻿import React, { useMemo } from 'react';
 import { ArrowDownRight, ArrowUpRight, Clock3, Minus, Target, TrendingUp, Trophy, Zap } from 'lucide-react';
 import { motion } from 'framer-motion';
-import EmptyStateCard from '../../components/shared/EmptyStateCard';
+import HomeEmptyState from './HomeEmptyState.jsx';
 
 const dateToYMDLocal = (date) => {
   const year = date.getFullYear();
@@ -178,13 +178,11 @@ function WeeklyRankingCard({ bestItems, worstItems, className = '' }) {
         </div>
       ) : (
         <div className="flex-1 flex flex-col items-center justify-center mt-6">
-          <EmptyStateCard
+          <HomeEmptyState
             icon={Trophy}
             title="Ranking ainda sem dados"
             description="Registre tempo de estudo ou questoes nesta semana para montar seu top 3."
-            variant="compact"
-            compact
-            className="w-full border-none shadow-none bg-transparent"
+            className="w-full"
           />
         </div>
       )}
@@ -373,15 +371,13 @@ function WeekEvolutionCard({ currentWeek, previousWeek, className = '' }) {
         </div>
       ) : (
         <div className="flex-1 flex flex-col items-center justify-center mt-6">
-          <EmptyStateCard
+          <HomeEmptyState
             icon={Zap}
             title="Sem comparativo ainda"
             description={hasPreviousData
               ? 'Registre algo nesta semana para mostrar sua evolução.'
               : 'Depois dos primeiros registros, a comparação semanal aparece aqui.'}
-            variant="compact"
-            compact
-            className="w-full border-none shadow-none bg-transparent"
+            className="w-full"
           />
         </div>
       )}

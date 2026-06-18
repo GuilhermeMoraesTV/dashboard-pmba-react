@@ -873,11 +873,11 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
     const discsFinais = _filtrarDisciplinasSelecionadas(todasDiscs, selecao);
 
     if (!discsFinais.length) {
-      alert('Selecione ao menos uma disciplina.');
+      setErroGeracao('Selecione ao menos uma disciplina para salvar o cronograma.');
       return;
     }
     if (!_selecionadasTemNivelValido(discsFinais, selecao)) {
-      alert('Escolha o nivel de dominio em todas as disciplinas selecionadas.');
+      setErroGeracao('Escolha o nivel de dominio em todas as disciplinas selecionadas.');
       return;
     }
 

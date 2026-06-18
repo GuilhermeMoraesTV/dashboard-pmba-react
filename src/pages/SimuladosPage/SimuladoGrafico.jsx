@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import EmptyStateCard from '../../components/shared/EmptyStateCard';
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 
@@ -397,12 +398,14 @@ const SimuladoGrafico = ({ simulados = [], compact = false }) => {
       {/* ── BODY ── */}
       <div className="relative z-10 p-4">
         {!hasData ? (
-          <div className="flex flex-col items-center justify-center py-10 text-zinc-400">
-            <div className="p-4 rounded-2xl bg-zinc-100 dark:bg-zinc-800 mb-3">
-              <BarChart2 size={24} className="opacity-40" />
-            </div>
-            <p className="text-xs font-bold text-zinc-500 dark:text-zinc-400">Nenhum simulado no período</p>
-          </div>
+          <EmptyStateCard
+            icon={BarChart2}
+            title="Nenhum simulado no periodo"
+            description="Altere o filtro ou registre um simulado para visualizar sua evolucao."
+            variant="compact"
+            compact
+            className="min-h-[180px] border-none bg-transparent shadow-none"
+          />
         ) : (
           <div className="space-y-3">
 

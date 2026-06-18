@@ -5,7 +5,7 @@ import {
   TrendingUp, Target, SkipForward, Trash2, AlertTriangle, X,
   BookOpen, Clock, Star, Flame, BarChart2, Sun, LayoutList,
   GripVertical, Calendar, LayoutGrid, Check, MoreHorizontal,
-  BadgeCheck, FilePenLine, Loader2, Trophy, History,
+  BadgeCheck, FilePenLine, Loader2, Trophy, History, Settings2, RefreshCw,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createPortal } from 'react-dom';
@@ -1120,11 +1120,6 @@ const DayDropZone = ({
                 </div>
               </div>
             </div>
-            {isHoje && !todoConcluido && (
-              <span className="text-[9px] font-black bg-white text-red-600 px-2 py-0.5 rounded shadow-sm uppercase flex items-center gap-1">
-                <Flame size={10}/> Hoje
-              </span>
-            )}
             {todoConcluido && !isHoje && (
               <motion.div
                 initial={{ scale: 0 }} animate={{ scale: 1 }}
@@ -2159,8 +2154,11 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
   const [showHistoryModal,  setShowHistoryModal]  = useState(false);
   const [recordToDelete,    setRecordToDelete]    = useState(null);
   const [optimisticDone,    setOptimisticDone]    = useState({});
+  const [configMenuOpen,    setConfigMenuOpen]    = useState(false);
+  const [editInitialMode,   setEditInitialMode]   = useState('simple');
 
   const weekScrollRef = useRef(null);
+  const configMenuRef = useRef(null);
   const weekPanRef = useRef({ active: false, startX: 0, scrollLeft: 0, pointerId: null });
   const didInitWeekOffsetRef = useRef(false);
   const dragSensors = useSensors(useSensor(PointerSensor, {
@@ -2550,6 +2548,17 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
     });
   }, [viewMode, weekOffset]);
 
+  useEffect(() => {
+    if (!configMenuOpen) return undefined;
+    const handlePointerDown = (event) => {
+      if (configMenuRef.current && !configMenuRef.current.contains(event.target)) {
+        setConfigMenuOpen(false);
+      }
+    };
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => document.removeEventListener('pointerdown', handlePointerDown);
+  }, [configMenuOpen]);
+
   const handleDominar = useCallback(async (tarefa) => {
     if (!cronograma) return;
     const chave = chaveAssuntoDominado(tarefa.disciplinaId, tarefa.assunto);
@@ -2576,11 +2585,7 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
   }, [cronograma, dominiosLocal, toggleAssuntoDominado, showToast]);
 
   // Early returns
-  if (loadingPage) return (
-    <div className="flex justify-center items-center h-[calc(100vh-80px)]">
-      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-red-600"/>
-    </div>
-  );
+  if (loadingPage) return <div className="min-h-[calc(100vh-120px)]" />;
 
   if (showWizard) return (
     <CronogramaCreateWizard
@@ -2602,6 +2607,7 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
           setMostrandoEditar(false);
           showToast('✅ Cronograma atualizado!');
         }}
+        initialMode={editInitialMode}
       />
     );
   }
@@ -2744,19 +2750,19 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
           </div>
 
           {/* Lado direito — mesmo padrão de progresso do Ciclo */}
-          <div className="z-10 flex w-[112px] shrink-0 items-center justify-between gap-1.5 rounded-xl border border-zinc-200 bg-white/75 p-2 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/55 sm:w-[150px] md:w-auto md:min-w-[360px] md:gap-4 md:rounded-2xl md:p-3">
+          <div className="z-10 flex w-[104px] shrink-0 items-center justify-between gap-1.5 rounded-xl border border-zinc-200 bg-white/75 p-1.5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/55 sm:w-[132px] md:w-auto md:min-w-[240px] md:gap-3 md:p-2.5">
             <div className="min-w-0 flex-1">
               <div className="flex items-center justify-between gap-2 md:gap-5">
                 <div>
-                  <p className="text-[7px] font-black uppercase tracking-wider text-zinc-400 md:text-[9px] md:tracking-[0.22em]">Meta</p>
-                  <p className="font-mono text-[10px] font-black text-zinc-900 dark:text-white md:mt-0.5 md:text-lg">{formatarDuracao(progressoMinutosHeader.totalMeta)}</p>
+                  <p className="text-[7px] font-black uppercase tracking-wider text-zinc-400 md:text-[8px] md:tracking-widest">Meta</p>
+                  <p className="font-mono text-[10px] font-black text-zinc-900 dark:text-white md:text-sm">{formatarDuracao(progressoMinutosHeader.totalMeta)}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-[7px] font-black uppercase tracking-wider text-zinc-400 md:text-[9px] md:tracking-[0.22em]">Feito</p>
-                  <p className="font-mono text-[10px] font-black text-zinc-900 dark:text-white md:mt-0.5 md:text-lg">{formatarDuracao(progressoMinutosHeader.totalFeito)}</p>
+                  <p className="text-[7px] font-black uppercase tracking-wider text-zinc-400 md:text-[8px] md:tracking-widest">Feito</p>
+                  <p className="font-mono text-[10px] font-black text-zinc-900 dark:text-white md:text-sm">{formatarDuracao(progressoMinutosHeader.totalFeito)}</p>
                 </div>
               </div>
-              <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-zinc-100 ring-1 ring-zinc-200/70 dark:bg-zinc-800 dark:ring-zinc-700/70 md:mt-3 md:h-2">
+              <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-zinc-100 ring-1 ring-zinc-200/70 dark:bg-zinc-800 dark:ring-zinc-700/70 md:mt-2 md:h-1.5">
                 <motion.div
                   initial={false}
                   animate={{ width: `${Math.min(progressoGeral, 100)}%` }}
@@ -2766,7 +2772,7 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
               </div>
             </div>
             <div className="relative shrink-0">
-              <svg className="h-10 w-10 -rotate-90 sm:h-12 sm:w-12 md:h-20 md:w-20" viewBox="0 0 80 80">
+              <svg className="h-9 w-9 -rotate-90 sm:h-10 sm:w-10 md:h-14 md:w-14" viewBox="0 0 80 80">
                 <circle cx="40" cy="40" r="34" fill="none" stroke="currentColor" className="text-zinc-200 dark:text-zinc-800" strokeWidth="6"/>
                 <motion.circle
                   cx="40" cy="40" r="34" fill="none" stroke="currentColor"
@@ -2779,7 +2785,7 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
                 />
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className={`text-[10px] font-black sm:text-xs md:text-xl ${progressoGeral >= 100 ? 'text-emerald-500' : progressoGeral > 0 ? 'text-yellow-500' : 'text-zinc-400'}`}>
+                <span className={`text-[9px] font-black sm:text-[10px] md:text-sm ${progressoGeral >= 100 ? 'text-emerald-500' : progressoGeral > 0 ? 'text-yellow-500' : 'text-zinc-400'}`}>
                   {progressoGeral}%
                 </span>
               </div>
@@ -2789,37 +2795,117 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
 
         {/* ── BARRA DE FERRAMENTAS ── */}
         <div className="mt-4 mb-2 px-1 sm:px-2">
-          <div className="flex flex-col items-center gap-2 lg:flex-row lg:justify-between">
-          <div className="flex w-full flex-col items-center gap-2">
-            <h3 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2 sm:text-sm">
-              <LayoutList size={14} /> MODOS DE VIZUALIZAÇÃO
+          <div className="flex flex-col items-center gap-2 lg:grid lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:items-center">
+          <div className="flex w-full items-start justify-between gap-2 lg:contents">
+          <div className="flex min-w-0 flex-col items-start gap-1.5 lg:col-start-1 lg:row-start-1 lg:justify-self-start">
+            <h3 className="flex items-center gap-1.5 text-[8px] font-bold uppercase tracking-widest text-zinc-400 sm:text-sm">
+              <LayoutList size={12} className="sm:size-3.5" /> MODOS DE VIZUALIZAÇÃO
             </h3>
 
             {/* View Toggles */}
-            <div className="flex min-w-0 items-center gap-1 rounded-lg bg-zinc-200/50 p-1 dark:bg-zinc-800">
+            <div className="flex min-w-0 items-center gap-0.5 rounded-lg bg-zinc-200/50 p-0.5 dark:bg-zinc-800 sm:gap-1 sm:p-1">
               <button
                 onClick={() => setViewMode('list')}
-                className={`flex items-center justify-center gap-1.5 rounded px-2.5 py-1.5 text-[10px] font-black uppercase tracking-widest transition-colors sm:px-3 ${viewMode === 'list' ? 'bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
+                className={`flex items-center justify-center gap-1 rounded px-1.5 py-1.5 text-[9px] font-black uppercase tracking-widest transition-colors sm:gap-1.5 sm:px-3 sm:text-[10px] ${viewMode === 'list' ? 'bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
               >
                 <LayoutList size={12}/> Lista
               </button>
               <button
                 onClick={() => setViewMode('week')}
-                className={`flex items-center justify-center gap-1.5 rounded px-2.5 py-1.5 text-[10px] font-black uppercase tracking-widest transition-colors sm:px-3 ${viewMode === 'week' ? 'bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
+                className={`flex items-center justify-center gap-1 rounded px-1.5 py-1.5 text-[9px] font-black uppercase tracking-widest transition-colors sm:gap-1.5 sm:px-3 sm:text-[10px] ${viewMode === 'week' ? 'bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
               >
                 <LayoutGrid size={12}/> Semanal
               </button>
               <button
                 onClick={() => setViewMode('month')}
-                className={`flex items-center justify-center gap-1.5 rounded px-2.5 py-1.5 text-[10px] font-black uppercase tracking-widest transition-colors sm:px-3 ${viewMode === 'month' ? 'bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
+                className={`flex items-center justify-center gap-1 rounded px-1.5 py-1.5 text-[9px] font-black uppercase tracking-widest transition-colors sm:gap-1.5 sm:px-3 sm:text-[10px] ${viewMode === 'month' ? 'bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
               >
                 <Calendar size={12}/> Mensal
               </button>
             </div>
           </div>
 
+          <div className="flex shrink-0 items-center justify-end gap-1.5 lg:col-start-3 lg:row-start-1 lg:justify-self-end">
+            <div className="relative" ref={configMenuRef}>
+              <button
+                onClick={() => setConfigMenuOpen((open) => !open)}
+                className="flex h-8 w-8 items-center justify-center rounded-lg border border-red-600 bg-red-600 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm shadow-red-600/20 transition-all hover:bg-red-700 sm:h-auto sm:w-auto sm:gap-2 sm:px-3 sm:py-1.5"
+                title="Configuração de cronograma"
+                aria-label="Configuração de cronograma"
+              >
+                <FilePenLine size={14} className="group-hover:scale-110 transition-transform"/>
+                <span className="hidden sm:inline">Configuração de cronograma</span>
+              </button>
+
+              <AnimatePresence>
+                {configMenuOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -6, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -6, scale: 0.98 }}
+                    className="absolute right-0 top-full z-40 mt-2 w-[290px] overflow-hidden rounded-2xl border border-zinc-200 bg-white p-2 shadow-2xl shadow-zinc-900/12 dark:border-zinc-800 dark:bg-zinc-950"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditInitialMode('simple');
+                        setConfigMenuOpen(false);
+                        setMostrandoEditar(true);
+                      }}
+                      className="flex w-full items-start gap-3 rounded-xl p-3 text-left transition hover:bg-red-50 dark:hover:bg-red-950/20"
+                    >
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-600 text-white"><Settings2 size={16} /></span>
+                      <span>
+                        <span className="block text-xs font-black uppercase tracking-wider text-zinc-900 dark:text-white">Ajuste simples</span>
+                        <span className="mt-1 block text-[11px] font-medium leading-relaxed text-zinc-500 dark:text-zinc-400">Altere nome, data inicial e preferências sem redistribuir o cronograma.</span>
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditInitialMode('recalculate');
+                        setConfigMenuOpen(false);
+                        setMostrandoEditar(true);
+                      }}
+                      className="mt-1 flex w-full items-start gap-3 rounded-xl p-3 text-left transition hover:bg-red-50 dark:hover:bg-red-950/20"
+                    >
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-600 text-white"><RefreshCw size={16} /></span>
+                      <span>
+                        <span className="block text-xs font-black uppercase tracking-wider text-zinc-900 dark:text-white">Recalcular</span>
+                        <span className="mt-1 block text-[11px] font-medium leading-relaxed text-zinc-500 dark:text-zinc-400">Refaça dias, horas, disciplinas e distribuição usando o assistente completo.</span>
+                      </span>
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            <button
+              onClick={() => { setLoadingAction(true); adiarCronograma(cronograma.id, cronograma).finally(() => setLoadingAction(false)); }}
+              disabled={loadingAction}
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 bg-white text-[10px] font-bold uppercase tracking-wide text-zinc-600 shadow-sm transition-all hover:border-amber-200 hover:bg-amber-50 hover:text-amber-700 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:border-amber-900/30 dark:hover:bg-amber-900/10 dark:hover:text-amber-400 sm:h-auto sm:w-auto sm:gap-2 sm:px-3 sm:py-1.5"
+              title="Adiar semana"
+              aria-label="Adiar semana"
+            >
+              <SkipForward size={14} className="text-amber-500 group-hover:scale-110 transition-transform"/>
+              <span className="hidden sm:inline">Adiar Semana</span>
+            </button>
+
+            <button
+              onClick={() => setShowHistoryModal(true)}
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 bg-white text-[10px] font-bold uppercase tracking-wide text-zinc-600 shadow-sm transition-all hover:border-red-200 hover:bg-red-50 hover:text-red-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:border-red-900/30 dark:hover:bg-red-900/10 dark:hover:text-red-400 sm:h-auto sm:w-auto sm:gap-2 sm:px-3 sm:py-1.5"
+              title="Ver Histórico Completo"
+              aria-label="Ver histórico completo"
+            >
+              <History size={14} className="text-red-600 dark:text-red-500 group-hover:scale-110 transition-transform"/>
+              <span className="hidden sm:inline">Histórico de Estudos</span>
+            </button>
+
+          </div>
+          </div>
+
           {(viewMode === 'week' || viewMode === 'list') && (
-            <div className="flex w-full items-center justify-between gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 py-1.5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:w-[258px] lg:mx-3">
+            <div className="flex w-full items-center justify-between gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 py-1.5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:w-[258px] lg:col-start-2 lg:row-start-1 lg:mx-0 lg:justify-self-center">
               <button
                 onClick={() => setWeekOffset(w => Math.max(0, w - 1))}
                 disabled={weekOffset === 0}
@@ -2844,27 +2930,6 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
               </button>
             </div>
           )}
-
-          <div className="flex flex-wrap items-center justify-start gap-2 lg:justify-end">
-            <button
-              onClick={() => { setLoadingAction(true); adiarCronograma(cronograma.id, cronograma).finally(() => setLoadingAction(false)); }}
-              disabled={loadingAction}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white hover:bg-amber-50 border border-zinc-200 hover:border-amber-200 dark:bg-zinc-800 dark:hover:bg-amber-900/10 dark:border-zinc-700 dark:hover:border-amber-900/30 text-zinc-600 hover:text-amber-700 dark:text-zinc-300 dark:hover:text-amber-400 text-[10px] font-bold uppercase tracking-wide transition-all group shadow-sm"
-            >
-              <SkipForward size={14} className="text-amber-500 group-hover:scale-110 transition-transform"/>
-              <span className="hidden sm:inline">Adiar Semana</span>
-            </button>
-
-            <button
-              onClick={() => setShowHistoryModal(true)}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white hover:bg-red-50 border border-zinc-200 hover:border-red-200 dark:bg-zinc-800 dark:hover:bg-red-900/10 dark:border-zinc-700 dark:hover:border-red-900/30 text-zinc-600 hover:text-red-700 dark:text-zinc-300 dark:hover:text-red-400 text-[10px] font-bold uppercase tracking-wide transition-all group shadow-sm"
-              title="Ver Histórico Completo"
-            >
-              <History size={14} className="text-red-600 dark:text-red-500 group-hover:scale-110 transition-transform"/>
-              <span className="hidden sm:inline">Histórico de Estudos</span>
-            </button>
-
-          </div>
         </div>
           </div>
         </div>

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Target } from 'lucide-react';
+import { CalendarCheck2, Clock3, Layers3, Target } from 'lucide-react';
 
 import CicloVisual from '../../CicloVisual';
 
@@ -57,6 +57,13 @@ export default function StepPreview({
     () => disciplinasPreview.reduce((total, disciplina) => total + (disciplina.sessoesPorCiclo || 0), 0),
     [disciplinasPreview]
   );
+  const totalPlanejadoMinutos = totalSessoesPreview * tempoSessaoMinutos;
+  const totalDisponivelMinutos = Math.round(horasTotais * 60);
+  const minutosLivres = Math.max(0, totalDisponivelMinutos - totalPlanejadoMinutos);
+  const maxSessoesDisciplina = Math.max(
+    1,
+    ...disciplinasPreview.map((disciplina) => Number(disciplina.sessoesPorCiclo) || 0)
+  );
 
   return (
     <div className="flex flex-col h-full overflow-hidden w-full">
@@ -95,35 +102,68 @@ export default function StepPreview({
           <div className="order-1 xl:order-2 grid grid-cols-2 gap-2 sm:gap-4 xl:block xl:space-y-4">
             <EditalSidebarCard editalSelecionado={editalSelecionado} nomeCiclo={nomeCiclo} />
 
-            <div className="min-h-[118px] rounded-2xl sm:rounded-3xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-2.5 sm:p-4 shadow-sm xl:max-h-[476px]">
+            <div className="min-h-[118px] overflow-hidden rounded-2xl sm:rounded-3xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm xl:max-h-[476px]">
+              <div className="bg-gradient-to-br from-zinc-950 via-zinc-900 to-red-950 p-3 text-white sm:p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.18em] text-red-300">Distribuicao prevista</p>
+                    <p className="mt-1 text-xl font-black sm:text-2xl">{formatarHoras(totalPlanejadoMinutos / 60)}</p>
+                    <p className="text-[9px] font-bold text-zinc-400">{totalSessoesPreview} blocos de {tempoSessaoMinutos} min</p>
+                  </div>
+                  <div className="grid h-14 w-14 place-items-center rounded-2xl border border-white/10 bg-white/10 shadow-inner">
+                    <Layers3 size={22} className="text-red-400" />
+                  </div>
+                </div>
+
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <div className="rounded-xl border border-white/10 bg-white/5 px-2.5 py-2">
+                    <p className="flex items-center gap-1 text-[7px] font-black uppercase tracking-widest text-zinc-400"><Clock3 size={9} /> Disponivel</p>
+                    <p className="mt-1 text-xs font-black">{formatarHoras(horasTotais)}</p>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-white/5 px-2.5 py-2">
+                    <p className="text-[7px] font-black uppercase tracking-widest text-zinc-400">Fora dos blocos</p>
+                    <p className="mt-1 text-xs font-black">{formatarHoras(minutosLivres / 60)}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-2.5 sm:p-4">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between mb-3">
                 <div>
-                  <p className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest text-zinc-400">Distribuicao prevista</p>
+                  <p className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest text-zinc-400">Peso por dificuldade</p>
                   <p className="text-[10px] sm:text-[11px] font-bold text-zinc-500 dark:text-zinc-400 mt-1">
-                    {disciplinasPreview.length} disciplinas em {totalSessoesPreview} sessoes por volta
+                    Mais dificuldade recebe mais blocos no radar.
                   </p>
                 </div>
-                <span className="hidden sm:inline-flex w-fit rounded-full bg-red-50 dark:bg-red-950/30 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-red-600 dark:text-red-400">
-                  apoio visual
-                </span>
               </div>
-              <div className="grid max-h-[62px] grid-cols-1 gap-1 overflow-y-auto pr-1 custom-scrollbar sm:max-h-[292px] sm:grid-cols-2 sm:gap-2 xl:max-h-[390px] xl:grid-cols-1">
+              <div className="grid max-h-[92px] grid-cols-1 gap-1.5 overflow-y-auto pr-1 custom-scrollbar sm:max-h-[238px] sm:grid-cols-2 sm:gap-2 xl:max-h-[250px] xl:grid-cols-1">
                 {disciplinasPreview.map((disciplina) => (
-                  <div key={disciplina.id} className="rounded-lg sm:rounded-xl bg-zinc-50 dark:bg-zinc-800/60 px-2 py-1 sm:px-3 sm:py-2 border border-zinc-100 dark:border-zinc-800">
+                  <div key={disciplina.id} className="rounded-lg sm:rounded-xl bg-zinc-50 dark:bg-zinc-800/60 px-2 py-1.5 sm:px-3 sm:py-2 border border-zinc-100 dark:border-zinc-800">
                     <div className="flex items-center justify-between gap-2">
                       <div className="min-w-0">
                         <p className="text-[9px] sm:text-[13px] font-black text-zinc-900 dark:text-white leading-tight line-clamp-1">{disciplina.nome}</p>
-                        <p className="hidden sm:block text-[10px] text-zinc-500 mt-0.5 capitalize line-clamp-1">{disciplina.nivelDominio || 'nivel nao definido'}</p>
+                        <p className="hidden sm:flex items-center gap-1 text-[10px] text-zinc-500 mt-0.5 capitalize line-clamp-1">
+                          {disciplina.nivelDominio || 'nivel nao definido'}
+                          {disciplina.estudarTodosDias && <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-1.5 py-0.5 text-[7px] font-black uppercase text-red-600 dark:bg-red-950/40 dark:text-red-300"><CalendarCheck2 size={8} /> diaria</span>}
+                        </p>
                       </div>
                       <span className="rounded-full bg-white dark:bg-zinc-900 px-1.5 py-0.5 sm:px-2 sm:py-1 text-[8px] sm:text-[10px] font-black uppercase tracking-wide text-red-600 whitespace-nowrap border border-zinc-100 dark:border-zinc-800">
                         {disciplina.sessoesPorCiclo}x
                       </span>
                     </div>
-                    <div className="hidden sm:block mt-1.5 text-[10px] font-semibold text-zinc-500">
-                      {formatarHoras((disciplina.tempoAlocadoMinutos || 0) / 60)} por volta
+                    <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-red-500 to-red-700"
+                        style={{ width: `${Math.max(8, ((disciplina.sessoesPorCiclo || 0) / maxSessoesDisciplina) * 100)}%` }}
+                      />
+                    </div>
+                    <div className="hidden sm:flex items-center justify-between mt-1.5 text-[10px] font-semibold text-zinc-500">
+                      <span>{formatarHoras((disciplina.tempoAlocadoMinutos || 0) / 60)}</span>
+                      <span>{disciplina.sessoesPorCiclo} blocos</span>
                     </div>
                   </div>
                 ))}
+              </div>
               </div>
             </div>
           </div>

@@ -40,15 +40,6 @@ const getTypeIcon = (t) => {
   }
 };
 
-const getAutoReply = (type) => {
-  switch (type) {
-    case 'edital': return "Recebemos sua solicitação! 🫡\n\nObrigado! Em breve sua mensagem será retornada.";
-    case 'bug':    return "Obrigado por reportar! 🚨\n\nSerá encaminhado para a equipe de dev verificar com prioridade.";
-    case 'ideia':  return "Show de bola! 💡\n\nObrigado pela ideia! Em breve sua mensagem será retornada.";
-    default:       return "Olá! Recebemos sua mensagem. 👮\n\nUm de nossos atendentes irá te responder em breve.";
-  }
-};
-
 // ─── COMPONENTE PRINCIPAL ─────────────────────────────────────────────────────
 /**
  * Props:
@@ -77,6 +68,7 @@ const FeedbackWidget = ({
   const [newType, setNewType] = useState(initialType);
   const [newMsg,  setNewMsg]  = useState('');
   const [sending, setSending] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const [chatMessages, setChatMessages] = useState([]);
   const [replyText,    setReplyText]    = useState('');
@@ -171,6 +163,7 @@ const FeedbackWidget = ({
   const handleCreateTicket = async (e) => {
     e.preventDefault();
     if (!newMsg.trim()) return;
+    setErrorMessage('');
     setSending(true);
     try {
       const docRef = await addDoc(collection(db, 'system_feedback'), {
@@ -198,19 +191,11 @@ const FeedbackWidget = ({
       setActiveTicket(newTicket);
       setView('chat');
 
-      // Resposta automática
-      setTimeout(async () => {
-        await updateDoc(doc(db, 'system_feedback', docRef.id), { adminTyping: true });
-        setTimeout(async () => {
-          await addDoc(collection(db, 'system_feedback', docRef.id, 'messages'), {
-            text: getAutoReply(newType), sender: 'system', timestamp: serverTimestamp(),
-          });
-          await updateDoc(doc(db, 'system_feedback', docRef.id), { adminTyping: false, unreadUser: true });
-        }, 2500);
-      }, 1000);
+      // A resposta do sistema/admin deve ser criada pelo painel ou backend.
+      // O cliente comum nao escreve mais mensagens "system" por seguranca.
     } catch (err) {
       console.error(err);
-      alert('Erro ao criar chamado.');
+      setErrorMessage('Nao foi possivel criar o chamado agora. Verifique sua conexao e tente novamente.');
       setSending(false);
     }
   };
@@ -218,6 +203,7 @@ const FeedbackWidget = ({
   const handleSendReply = async (e) => {
     e.preventDefault();
     if (!replyText.trim() || !activeTicket) return;
+    setErrorMessage('');
     try {
       await addDoc(collection(db, 'system_feedback', activeTicket.id, 'messages'), {
         text: replyText, sender: 'user', timestamp: serverTimestamp(),
@@ -227,7 +213,10 @@ const FeedbackWidget = ({
       });
       setReplyText('');
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-    } catch (err) { console.error(err); }
+    } catch (err) {
+      console.error(err);
+      setErrorMessage('Nao foi possivel enviar a mensagem agora.');
+    }
   };
 
   return (
@@ -270,6 +259,12 @@ const FeedbackWidget = ({
             </div>
 
             {/* ── VIEW: HOME ── */}
+            {errorMessage && (
+              <div className="mx-4 mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-[11px] font-bold leading-relaxed text-red-700 dark:border-red-900/40 dark:bg-red-950/25 dark:text-red-300">
+                {errorMessage}
+              </div>
+            )}
+
             {view === 'home' && (
               <div className="flex-1 p-5 flex flex-col justify-center gap-3 bg-zinc-50 dark:bg-zinc-950">
                 <motion.button

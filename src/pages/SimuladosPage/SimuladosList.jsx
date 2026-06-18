@@ -4,6 +4,7 @@ import {
   AlertTriangle, Target, Pencil, ClipboardList
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import EmptyStateCard from '../../components/shared/EmptyStateCard';
 
 // --- HELPERS LOCAIS ---
 const systemInfoCardClass = 'group/card relative flex min-h-[94px] flex-col justify-between overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white p-4 shadow-soft transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/40 hover:!border-l-red-500 hover:shadow-[0_0_18px_rgba(239,68,68,0.07)] dark:border-white/10 dark:!border-l-red-500/25 dark:bg-zinc-950 dark:hover:border-accent-light/20 dark:hover:!border-l-red-500 dark:hover:shadow-[0_0_22px_rgba(239,68,68,0.08)]';
@@ -292,8 +293,15 @@ const SimuladosList = ({
             Carregando histórico...
             </div>
         ) : filteredSimulados.length === 0 ? (
-            <div className="p-8 text-center text-zinc-400 text-sm">
-            Nenhum simulado registrado ainda.
+            <div className="p-4">
+              <EmptyStateCard
+                icon={ClipboardList}
+                title="Nenhum simulado registrado"
+                description="Assim que voce registrar ou finalizar um simulado, o historico aparece aqui com pontos, acertos e precisao."
+                variant="default"
+                compact
+                className="min-h-[220px]"
+              />
             </div>
         ) : (
             filteredSimulados.map((sim) => (

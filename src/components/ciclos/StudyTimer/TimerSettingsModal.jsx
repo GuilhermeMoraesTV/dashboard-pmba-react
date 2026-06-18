@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  X, Save, Volume2, Upload, Play, Check, Clock,
+  AlertTriangle, X, Save, Volume2, Upload, Play, Check, Clock,
   RefreshCw, Music, Palette, Coffee, Zap, Sliders, Plus, Minus
 } from 'lucide-react';
 import { db } from '../../../firebaseConfig';
@@ -150,6 +150,7 @@ const TimerSettingsModal = ({ isOpen, onClose, onSave }) => {
   const { settings: initialSettings } = useTimerSettings();
   const [localSettings, setLocalSettings] = useState(initialSettings);
   const [activeTab, setActiveTab] = useState('geral');
+  const [uploadError, setUploadError] = useState('');
   const fileInputRef = useRef(null);
   const audioPreviewRef = useRef(null);
 
@@ -166,9 +167,10 @@ const TimerSettingsModal = ({ isOpen, onClose, onSave }) => {
     const file = e.target.files[0];
     if (file) {
       if (file.size > 2 * 1024 * 1024) {
-        alert("O arquivo deve ter menos de 2MB.");
+        setUploadError("O arquivo deve ter menos de 2MB.");
         return;
       }
+      setUploadError('');
       const reader = new FileReader();
       reader.onloadend = () => {
         setLocalSettings(prev => ({
@@ -253,6 +255,20 @@ const TimerSettingsModal = ({ isOpen, onClose, onSave }) => {
 
         <div className="p-6 overflow-y-auto custom-scrollbar flex-1 bg-white dark:bg-zinc-900">
           {renderPreview()}
+
+          <AnimatePresence>
+            {uploadError && (
+              <motion.div
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                className="mb-4 flex items-start gap-2 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-bold text-red-700 dark:border-red-900/40 dark:bg-red-950/20 dark:text-red-300"
+              >
+                <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+                <span>{uploadError}</span>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           <div className="flex bg-zinc-100 dark:bg-zinc-950 p-1.5 rounded-2xl mb-6 border border-zinc-200 dark:border-zinc-800 relative">
             {['geral', 'aparencia', 'som'].map(tab => (

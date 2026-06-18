@@ -3,8 +3,8 @@ import {
   collection, query, orderBy, onSnapshot, doc, Timestamp, updateDoc, addDoc, deleteDoc
 } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
-import { ClipboardList, Zap, ArrowRight } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { AlertTriangle, ClipboardList, Zap, ArrowRight } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
 
 // Importação dos Módulos Separados
 import HeaderSimulado from './HeaderSimulado';
@@ -35,6 +35,12 @@ const SimuladosPage = ({ user, activeCycleDisciplines, onStartSimulado, initialD
   const [showArena, setShowArena] = useState(false);
 
   const [finishedSimuladoData, setFinishedSimuladoData] = useState(null);
+  const [toast, setToast] = useState(null);
+
+  const showToast = (message, type = 'error') => {
+    setToast({ message, type });
+    window.setTimeout(() => setToast(null), 3200);
+  };
 
   useEffect(() => {
     if (initialData) {
@@ -68,7 +74,7 @@ const SimuladosPage = ({ user, activeCycleDisciplines, onStartSimulado, initialD
       await processSimuladoResult(porcentagem);
 
     } catch (e) {
-      alert("Erro ao salvar simulado.");
+      showToast('Erro ao salvar simulado. Tente novamente.');
       console.error(e);
     }
   };
@@ -80,7 +86,7 @@ const SimuladosPage = ({ user, activeCycleDisciplines, onStartSimulado, initialD
         updatedAt: Timestamp.now()
       });
     } catch (e) {
-      alert("Erro ao atualizar simulado.");
+      showToast('Erro ao atualizar simulado. Tente novamente.');
       console.error(e);
     }
   };
@@ -93,7 +99,7 @@ const SimuladosPage = ({ user, activeCycleDisciplines, onStartSimulado, initialD
           setSelectedIds(prev => prev.filter(id => id !== item.id));
         }
       } catch (e) {
-        alert("Erro ao excluir.");
+        showToast('Erro ao excluir simulado. Tente novamente.');
       }
     }
   };
@@ -130,6 +136,20 @@ const SimuladosPage = ({ user, activeCycleDisciplines, onStartSimulado, initialD
 
   return (
     <div className="space-y-6 md:space-y-8 pb-20 animate-fade-in min-h-screen text-zinc-800 dark:text-zinc-200">
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: -14, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -14, scale: 0.96 }}
+            className="fixed left-1/2 top-4 z-[120] flex w-[calc(100%-2rem)] max-w-md -translate-x-1/2 items-center gap-3 rounded-2xl border border-red-200 bg-white px-4 py-3 text-sm font-bold text-red-700 shadow-2xl shadow-red-900/10 dark:border-red-900/40 dark:bg-zinc-950 dark:text-red-300"
+          >
+            <AlertTriangle size={18} className="shrink-0" />
+            <span>{toast.message}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <SimuladoCreationModal
         isOpen={isModalOpen}
         onClose={() => {

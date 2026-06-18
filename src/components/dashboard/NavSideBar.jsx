@@ -4,15 +4,14 @@ import {
   Home, Target, Calendar, LogOut, RefreshCw, Menu, ShieldAlert,
   LayoutList, BarChart3, ClipboardList, Sun, Moon, User, Radio, X, ChevronRight,
   CalendarClock, Layers, ChevronDown, Newspaper, RotateCw, CalendarDays, BookOpen,
-  Clock, AlertTriangle, ArrowRight, Bell, Flame, Settings,
+  Clock, AlertTriangle, ArrowRight, Bell, Flame, Settings, HelpCircle,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
 import ProfileLevelRing from '../gamification/ProfileLevelRing';
 import { NotificationBell } from '../shared/NotificationPanel';
-import { contarRevisoesPendentes } from '../../pages/RevisaoPage';
-import { calcularStatusEstudoHoje, contarRevisoesPendentesHoje } from '../../hooks/useCronogramaSystem';
+import { calcularStatusEstudoHoje, contarRevisoesPendentes, contarRevisoesPendentesHoje } from '../../hooks/useCronogramaSystem';
 import { buildStudyDaysMap, calculateCurrentStudyStreak } from '../../utils/studyDayStatus';
 import { getAgendaSemana } from '../../services/scheduling/review';
 import TimerSettingsModal, { useTimerSettings } from '../ciclos/StudyTimer/TimerSettingsModal';
@@ -1147,6 +1146,43 @@ function NavSideBar({
               />
             );
           })}
+        </div>
+
+        <div className="flex-shrink-0 border-t border-zinc-100 p-2.5 dark:border-zinc-800">
+          <button
+            type="button"
+            onClick={() => {
+              onOpenFeedback?.({ initialView: 'new', initialType: 'duvida' });
+              setMobileOpen(false);
+            }}
+            className={`group relative flex w-full items-center overflow-hidden rounded-xl border transition-all ${
+              hasUnreadSupport
+                ? 'border-red-200 bg-red-50/80 text-red-700 shadow-sm dark:border-red-900/40 dark:bg-red-950/20 dark:text-red-300'
+                : 'border-transparent bg-transparent text-zinc-500 hover:border-zinc-200 hover:bg-zinc-50 hover:text-red-600 dark:text-zinc-400 dark:hover:border-zinc-800 dark:hover:bg-zinc-900 dark:hover:text-red-400'
+            } ${isFullyExpanded ? 'gap-3 px-2.5 py-2.5' : 'justify-center px-2 py-2.5'}`}
+            title="Abrir suporte"
+          >
+            <span className={`relative flex h-8 w-8 shrink-0 items-center justify-center rounded-xl transition-all ${
+              hasUnreadSupport
+                ? 'bg-red-600 text-white shadow-md shadow-red-600/20'
+                : 'bg-zinc-100 text-zinc-500 group-hover:bg-red-600 group-hover:text-white dark:bg-zinc-800 dark:text-zinc-400'
+            }`}>
+              <HelpCircle size={18} strokeWidth={2.5} />
+              {hasUnreadSupport && (
+                <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-white bg-red-400 dark:border-zinc-900" />
+              )}
+            </span>
+            {isFullyExpanded && (
+              <span className="min-w-0 text-left">
+                <span className="block text-[10px] font-black uppercase tracking-[0.18em]">
+                  {hasUnreadSupport ? 'Suporte respondeu' : 'Suporte'}
+                </span>
+                <span className="mt-0.5 block text-[10px] font-bold opacity-65">
+                  Dúvidas e problemas
+                </span>
+              </span>
+            )}
+          </button>
         </div>
       </nav>
       <AnimatePresence>

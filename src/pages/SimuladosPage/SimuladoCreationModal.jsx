@@ -72,6 +72,7 @@ const SimuladoCreationModal = ({ isOpen, onClose, onSave, disciplinasSugestivas,
 
   // ESTADO PARA ERROS VISUAIS
   const [fieldErrors, setFieldErrors] = useState({ titulo: false, data: false, disciplinas: false });
+  const [validationMessage, setValidationMessage] = useState('');
 
   const [durationMinutes, setDurationMinutes] = useState(null);
   const [confirmCloseOpen, setConfirmCloseOpen] = useState(false);
@@ -343,7 +344,9 @@ const SimuladoCreationModal = ({ isOpen, onClose, onSave, disciplinasSugestivas,
 
     for (let d of validas) {
       if ((Number(d.acertos) + Number(d.branco)) > Number(d.questoes)) {
-        return alert(`Erro em "${d.nome}": A soma de Acertos + Brancos não pode ser maior que o total de Questões.`);
+        setValidationMessage(`Erro em "${d.nome}": acertos + brancos nao pode ser maior que o total de questoes.`);
+        setActiveTab('subjects');
+        return;
       }
     }
 
@@ -351,11 +354,14 @@ const SimuladoCreationModal = ({ isOpen, onClose, onSave, disciplinasSugestivas,
     for (let d of validas) {
       const k = normName(d.nome);
       if (seen.has(k)) {
-        return alert(`Disciplina duplicada: "${d.nome}". Remova ou renomeie.`);
+        setValidationMessage(`Disciplina duplicada: "${d.nome}". Remova ou renomeie.`);
+        setActiveTab('subjects');
+        return;
       }
       seen.add(k);
     }
 
+    setValidationMessage('');
     setLoading(true);
     const payload = {
       titulo,
@@ -469,6 +475,20 @@ const SimuladoCreationModal = ({ isOpen, onClose, onSave, disciplinasSugestivas,
             </button>
           </div>
         </div>
+
+        <AnimatePresence>
+          {validationMessage && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              className="mx-4 mt-4 flex items-start gap-2 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-bold text-red-700 shadow-sm dark:border-red-900/40 dark:bg-red-950/20 dark:text-red-300 md:mx-6"
+            >
+              <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+              <span>{validationMessage}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* TABS COM INDICADOR DE ERRO */}
         <div className="flex border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 shrink-0">

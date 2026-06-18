@@ -572,7 +572,7 @@ export const useNotifications = (user) => {
   // Exclui os apagados da visão
   const rawActiveEditalUpdates = editalUpdates.filter((u) => !u.isDismissed && !deletedNotifs.has(u.id));
   const activeEditalUpdates = agruparAtualizacoesPorEdital(rawActiveEditalUpdates);
-  const activeBroadcasts = broadcasts.filter(b => !deletedNotifs.has(b.id));
+  const activeBroadcasts = broadcasts.filter(b => !deletedNotifs.has(b.id) && !readBroadcasts.has(b.id));
   const activeHistory = dismissedHistory.filter(h => {
       const hId = h.id || `edital_${h.cicloId}_${h.versionKey}`;
       return !deletedNotifs.has(hId);
@@ -588,23 +588,84 @@ export const useNotifications = (user) => {
   const unreadCount = activeBroadcasts.filter((b) => !readBroadcasts.has(b.id)).length + activeEditalUpdates.length;
 
   // AÇÕES
+  const addItemsToHistory = useCallback((items = []) => {
+    if (!user || items.length === 0) return;
+    setDismissedHistory((history) => {
+      const incoming = items.map((item) => {
+        const type = item._type || (item.cicloId ? 'edital_update' : 'broadcast');
+        if (type === 'broadcast') {
+          return {
+            id: item.id,
+            _type: 'broadcast',
+            category: item.category || 'comunicado',
+            title: item.title || item.titulo || null,
+            message: item.message || '',
+            imageUrl: item.imageUrl || item.imageUrls?.[0] || null,
+            timestamp: item.timestamp instanceof Date ? item.timestamp.toISOString() : item.timestamp || null,
+            isDismissed: true,
+            dismissedAt: new Date().toISOString(),
+          };
+        }
+        return {
+          ...item,
+          _type: type,
+          isDismissed: true,
+          dismissedAt: new Date().toISOString(),
+          ...(type === 'edital_update' ? {
+            ciclosAfetados: undefined,
+            templateData: {
+              updateMetadata: item.templateData?.updateMetadata || null,
+              banca: item.templateData?.banca || null,
+            },
+          } : {}),
+        };
+      });
+      const incomingKeys = new Set(incoming.map((item) => `${item._type}:${item.id}:${item.versionKey || ''}`));
+      const deduped = history.filter((item) => !incomingKeys.has(`${item._type}:${item.id}:${item.versionKey || ''}`));
+      const next = [...incoming, ...deduped].slice(0, 50);
+      try {
+        localStorage.setItem(`notif_dismissed_history_${user.uid}`, JSON.stringify(next));
+      } catch (error) {
+        console.warn('Nao foi possivel persistir o historico de notificacoes', error);
+      }
+      return next;
+    });
+  }, [user]);
+
   const markBroadcastRead = useCallback((id) => {
       if (!user) return;
+      const broadcast = broadcasts.find((item) => item.id === id);
+      if (broadcast) addItemsToHistory([broadcast]);
       setReadBroadcasts((prev) => {
         const next = new Set([...prev, id]);
         try { localStorage.setItem(`notif_read_${user.uid}`, JSON.stringify([...next])); } catch {}
         return next;
       });
-  }, [user]);
+  }, [user, broadcasts, addItemsToHistory]);
 
-  const markAllRead = useCallback(() => {
+  const markAllRead = useCallback(async () => {
     if (!user) return;
+    addItemsToHistory([...activeBroadcasts, ...activeEditalUpdates]);
     setReadBroadcasts((prev) => {
       const next = new Set([...prev, ...activeBroadcasts.map((b) => b.id)]);
       try { localStorage.setItem(`notif_read_${user.uid}`, JSON.stringify([...next])); } catch {}
       return next;
     });
-  }, [user, activeBroadcasts]);
+
+    const updatesParaArquivar = [...rawActiveEditalUpdates];
+    updatesParaArquivar.forEach((item) => {
+      delete editalUpdatesRef.current[item.cicloId];
+    });
+    setEditalUpdates(Object.values(editalUpdatesRef.current));
+
+    try {
+      await Promise.all(updatesParaArquivar.map((item) => (
+        updateDoc(doc(db, 'users', user.uid, 'ciclos', item.cicloId), {
+          dismissedUpdateVersion: item.versionKey,
+        })
+      )));
+    } catch {}
+  }, [user, activeBroadcasts, activeEditalUpdates, rawActiveEditalUpdates, addItemsToHistory]);
 
   const deleteBroadcast = useCallback((id) => {
       if (!user) return;

@@ -48,6 +48,7 @@ const montarInitialState = ({ ciclo, disciplinas }) => {
       nivelDominio,
       assuntos: normalizarAssuntos(disciplina.assuntos),
       inCiclo: disciplina?.inCiclo !== false,
+      estudarTodosDias: disciplina?.estudarTodosDias === true,
       index: Number.isFinite(Number(disciplina?.index)) ? Number(disciplina.index) : index,
     };
   });
@@ -81,6 +82,10 @@ const montarInitialState = ({ ciclo, disciplinas }) => {
         },
     gradeDisponibilidade: normalizarDiasEstudo(ciclo),
     tempoSessaoMinutos: Number(ciclo?.tempoSessaoMinutos) || 50,
+    disciplinaTodosDiasId:
+      ciclo?.disciplinaTodosDiasId ||
+      disciplinasWizard.find((disciplina) => disciplina.estudarTodosDias)?.id ||
+      null,
     modoExibirAssuntos: ciclo?.modoExibirAssuntos !== false,
     disciplinas: disciplinasWizard,
     extraDisciplinas: [],
@@ -146,9 +151,9 @@ function CicloEditModal({ onClose, user, ciclo, onCicloAtivado, upgradeMode = fa
             <Loader2 size={28} className="text-red-600 animate-spin" />
           </div>
           <div>
-            <h2 className="text-lg font-black uppercase text-zinc-900 dark:text-white">{upgradeMode ? 'Preparando atualizacao' : 'Preparando edicao'}</h2>
+            <h2 className="text-lg font-black uppercase text-zinc-900 dark:text-white">{upgradeMode ? 'Preparando recalculo' : 'Preparando edicao completa'}</h2>
             <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-2">
-              Carregando o ciclo completo para abrir no mesmo wizard da criacao.
+              Carregando o assistente completo para redistribuir disciplinas, dias e sessoes com consistencia.
             </p>
           </div>
         </div>

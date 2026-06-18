@@ -1,13 +1,12 @@
 ﻿import React, { useMemo, useState, useEffect } from 'react';
 import { parseISO, startOfToday, subDays, eachDayOfInterval, format } from 'date-fns';
-import { LayoutDashboard, BarChart3, Zap, ArrowLeftRight } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { BarChart3, Zap, ArrowLeftRight } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 import DesempenhoHeader from './DesempenhoHeader';
 import DesempenhoResumo from './DesempenhoResumo';
 import DesempenhoDetalhado from './DesempenhoDetalhado';
 import { useForceUnlock } from '../../hooks/useForceUnlock';
-import EmptyStateCard from '../../components/shared/EmptyStateCard';
 
 // ============================================================================
 // UTILS
@@ -289,7 +288,6 @@ const DesempenhoPage = ({
           animate={{ opacity: 1, y: 0, scale: 1 }}
           className="group relative w-full max-w-2xl overflow-hidden rounded-[40px] border border-zinc-200 bg-white p-8 text-center shadow-[0_30px_100px_rgba(0,0,0,0.06)] dark:border-white/10 dark:bg-zinc-950 dark:shadow-[0_30px_100px_rgba(0,0,0,0.3)] sm:px-12 sm:pb-9 sm:pt-12"
         >
-          {/* Decorative background elements */}
           <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-red-500/5 blur-[80px] transition-all duration-700 group-hover:bg-red-500/10" />
           <div className="pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-zinc-500/5 blur-[80px] transition-all duration-700 group-hover:bg-zinc-500/10" />
 
@@ -303,19 +301,15 @@ const DesempenhoPage = ({
                 <Zap size={20} fill="currentColor" />
               </div>
             </div>
-
             <p className="text-[11px] font-black uppercase tracking-[0.4em] text-red-600 dark:text-red-400">
               Análise de Desempenho
             </p>
-            
             <h2 className="mt-4 text-3xl font-black uppercase tracking-tight text-zinc-900 dark:text-white sm:text-4xl">
               Nenhuma métrica <span className="bg-gradient-to-r from-red-600 to-rose-600 bg-clip-text text-transparent">disponível</span>
             </h2>
-            
             <p className="mt-6 max-w-md text-base font-medium leading-relaxed text-zinc-500 dark:text-zinc-400">
               Seu histórico de desempenho está aguardando um plano ativo. Ative um cronograma ou ciclo e registre suas sessões para visualizar estatísticas detalhadas.
             </p>
-
             <div className="mt-10 flex flex-col items-center gap-3">
               {onCreateCycle && (
                 <button
@@ -328,11 +322,7 @@ const DesempenhoPage = ({
                   </span>
                 </button>
               )}
-              <img
-                src="/logoModoQAP.png"
-                alt="Logo Modo QAP"
-                className="h-8 w-auto object-contain opacity-90 transition-opacity duration-300 group-hover:opacity-100"
-              />
+              <img src="/logoModoQAP.png" alt="Logo Modo QAP" className="h-8 w-auto object-contain opacity-90 transition-opacity duration-300 group-hover:opacity-100" />
             </div>
           </div>
         </motion.div>

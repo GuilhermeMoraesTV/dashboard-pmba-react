@@ -607,3 +607,15 @@ export const useCronogramaSystem = (user) => {
     excluirCronograma,
   };
 };
+
+export function contarRevisoesPendentes(cronograma) {
+  if (!cronograma) return 0;
+  try {
+    const buckets = getCronogramaReviewBuckets(cronograma, new Date());
+    return buckets.hoje.filter((slot) => !slot.concluido).length
+      + buckets.atrasadas.filter((slot) => !slot.concluido).length;
+  } catch (e) {
+    console.warn("[contarRevisoesPendentes] Erro:", e);
+    return 0;
+  }
+}

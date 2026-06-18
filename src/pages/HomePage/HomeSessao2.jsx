@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Clock, BookOpen, Target,
 } from 'lucide-react';
+import HomeEmptyState from './HomeEmptyState.jsx';
 
 const customScrollbarClass = "overflow-y-auto pr-1 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-zinc-200 dark:[&::-webkit-scrollbar-thumb]:bg-zinc-700 [&::-webkit-scrollbar-thumb]:rounded-full";
 
@@ -246,13 +247,13 @@ const TodayChart = ({ registrosEstudo, wide = false, compact = false, expandedVi
 
       <div className={`relative z-10 flex-1 flex flex-col min-h-0 ${expandedView ? '' : 'overflow-hidden'}`}>
         {data.totalMinutes === 0 && data.totalQuestions === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center opacity-40 gap-4 py-12">
-            <div className="p-6 bg-zinc-100 dark:bg-zinc-800/50 rounded-full">
-              <BookOpen size={48} strokeWidth={1.2} className="text-zinc-400" />
-            </div>
-            <p className="text-sm font-bold uppercase tracking-[0.15em] text-center text-zinc-500 px-6">
-              Nenhum estudo registrado hoje
-            </p>
+          <div className="flex flex-1 items-center justify-center px-3 py-8">
+            <HomeEmptyState
+              icon={BookOpen}
+              title="Nenhum estudo registrado hoje"
+              description="Quando você registrar uma sessão, o resumo do dia aparece aqui."
+              className="min-h-[210px]"
+            />
           </div>
         ) : (
           <div className={`flex-1 flex flex-col ${expandedView ? 'px-6 pb-6 pt-4 gap-3' : 'px-4 pb-4 pt-2 gap-2 overflow-hidden'}`}>

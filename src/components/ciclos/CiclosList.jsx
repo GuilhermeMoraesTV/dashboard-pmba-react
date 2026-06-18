@@ -218,22 +218,6 @@ const CicloCard = ({ ciclo, onClick, onMenuToggle, isMenuOpen, onAction, registr
                   onClick={(e) => e.stopPropagation()}
                   className="absolute top-8 right-0 w-44 sm:w-52 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xl py-1 z-50 overflow-hidden ring-1 ring-black/5"
                 >
-                  {/* Ativar — só para ciclos inativos */}
-                  {!ciclo.ativo && (
-                    <button
-                      onClick={(e) => onAction(e, 'ativar', ciclo)}
-                      className={`w-full text-left px-4 py-2.5 text-xs font-bold uppercase tracking-wide flex items-center gap-2 transition-colors ${
-                        isTimerActive
-                          ? 'text-zinc-400 dark:text-zinc-600 cursor-not-allowed opacity-50'
-                          : 'text-emerald-600 dark:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/10'
-                      }`}
-                    >
-                      <Zap size={14} />
-                      Ativar
-                      {isTimerActive && <span className="ml-auto text-[9px] font-black uppercase tracking-wider text-amber-500">Timer ativo</span>}
-                    </button>
-                  )}
-
                   {/* ── NOVO: Desativar — só para ciclos ativos ─────────────── */}
                   {ciclo.ativo && (
                     <button
@@ -245,9 +229,6 @@ const CicloCard = ({ ciclo, onClick, onMenuToggle, isMenuOpen, onAction, registr
                     </button>
                   )}
 
-                  <button onClick={(e) => onAction(e, 'editar', ciclo)} className="w-full text-left px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 flex items-center gap-2 transition-colors">
-                    <Edit size={14} /> Editar
-                  </button>
                   <button onClick={(e) => onAction(e, 'arquivar', ciclo)} className="w-full text-left px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-amber-600 dark:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/10 flex items-center gap-2 transition-colors">
                     <Archive size={14} /> Arquivar
                   </button>
@@ -293,11 +274,36 @@ const CicloCard = ({ ciclo, onClick, onMenuToggle, isMenuOpen, onAction, registr
           </div>
         </div>
 
-        <div className="flex items-center justify-between pt-3 sm:pt-4 border-t border-zinc-100 dark:border-zinc-800/50 mt-1 sm:mt-2">
-          <span className="text-[9px] sm:text-[10px] font-black text-zinc-400 uppercase tracking-widest group-hover:text-red-500 transition-colors">Acessar</span>
-          <div className={`w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all duration-300 ${ciclo.ativo ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/30' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400 group-hover:bg-red-500 group-hover:text-white'}`}>
-            <ArrowRight size={14} className="sm:w-4 sm:h-4" />
-          </div>
+        <div className="grid grid-cols-2 gap-2 pt-3 sm:pt-4 border-t border-zinc-100 dark:border-zinc-800/50 mt-1 sm:mt-2">
+          {ciclo.ativo ? (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onClick(ciclo.id);
+              }}
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-red-600 px-3 py-2 text-[9px] font-black uppercase tracking-widest text-white shadow-lg shadow-red-600/20 transition hover:bg-red-700 sm:text-[10px]"
+            >
+              Acessar <ArrowRight size={13} />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={(event) => onAction(event, 'ativar', ciclo)}
+              disabled={isTimerActive}
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-2 text-[9px] font-black uppercase tracking-widest text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50 sm:text-[10px]"
+            >
+              <Zap size={13} /> Ativar
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={(event) => onAction(event, 'editar', ciclo)}
+            className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-[9px] font-black uppercase tracking-widest text-zinc-700 shadow-sm transition hover:border-red-200 hover:bg-red-50 hover:text-red-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-red-900/40 dark:hover:bg-red-950/20 dark:hover:text-red-400 sm:text-[10px]"
+          >
+            <Edit size={13} /> Editar
+          </button>
         </div>
       </div>
     </div>
@@ -331,6 +337,7 @@ function CiclosList({
 
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [timerActiveWarning, setTimerActiveWarning] = useState(false);
+  const [deleteActionError, setDeleteActionError] = useState('');
   const canUseInlineCreate = typeof onRequestCreate !== 'function';
   const canUseInlineEdit = typeof onRequestEdit !== 'function';
   const containerClassName = compact ? 'p-0 animate-fade-in' : 'p-0 min-h-[50vh] animate-fade-in pb-12';
@@ -426,7 +433,7 @@ function CiclosList({
       await batch.commit();
     } catch (error) {
       console.error("Erro ao excluir ciclo:", error);
-      alert("Erro ao excluir ciclo. Tente novamente.");
+      setDeleteActionError("Erro ao excluir ciclo. Tente novamente.");
     } finally {
       setDeleteLoading(false);
       setCicloParaExcluir(null);
@@ -466,6 +473,19 @@ function CiclosList({
   return (
     <div className={containerClassName}>
       <AnimatePresence>
+        {deleteActionError && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="fixed left-1/2 top-4 z-[90] flex w-[calc(100%-2rem)] max-w-md -translate-x-1/2 items-center gap-3 rounded-2xl border border-red-200 bg-white px-4 py-3 text-sm font-bold text-red-700 shadow-2xl shadow-red-900/10 dark:border-red-900/40 dark:bg-zinc-950 dark:text-red-300"
+          >
+            <AlertTriangle size={18} className="shrink-0" />
+            <span>{deleteActionError}</span>
+            <button onClick={() => setDeleteActionError('')} className="ml-auto rounded-lg px-2 py-1 text-[10px] uppercase tracking-wider text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30">Ok</button>
+          </motion.div>
+        )}
+
         {/* Warning: timer ativo */}
         {timerActiveWarning && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex justify-center items-center p-4" onClick={() => setTimerActiveWarning(false)}>

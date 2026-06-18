@@ -32,7 +32,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { resolveLogoUrl } from '../../components/admin/config/editalAssets';
-import EmptyStateCard from '../../components/shared/EmptyStateCard';
+import HomeEmptyState from './HomeEmptyState.jsx';
 
 const PT_DAYS_SHORT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab'];
 
@@ -482,13 +482,11 @@ export const WeeklyBarChart = ({ registrosEstudo, compact = false }) => {
             </ComposedChart>
           </ResponsiveContainer>
         ) : (
-          <EmptyStateCard
+          <HomeEmptyState
             icon={TrendingUp}
             title="Semana ainda zerada"
             description="Registre seu primeiro estudo para acompanhar horas e questoes da semana."
-            variant="compact"
-            compact
-            className="h-full min-h-[160px] shadow-none border-none bg-transparent"
+            className="h-full min-h-[160px]"
           />
         )}
       </div>

@@ -8,7 +8,7 @@ import HomeSessao1, { WeeklyBarChart } from './HomeSessao1.jsx';
 import HomeSessao2 from './HomeSessao2.jsx';
 import HojeCard from './HojeCard.jsx';
 import HomeInsightsCards from './HomeInsightsCards.jsx';
-import EmptyStateCard from '../../components/shared/EmptyStateCard';
+import HomeEmptyState from './HomeEmptyState.jsx';
 import { useForceUnlock } from '../../hooks/useForceUnlock';
 import { getAgendaSemana } from '../../services/scheduling/review';
 import {
@@ -186,13 +186,11 @@ function StudyHistoryTimelineCard({ data, className = '' }) {
   if (!data.activeDays) {
     return (
       <div className={`group relative flex flex-col overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white p-4 transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/50 hover:!border-l-red-500 hover:shadow-glow dark:border-white/10 dark:!border-l-red-500/25 dark:hover:border-accent-light/30 dark:hover:!border-l-red-500 dark:bg-zinc-950 ${className}`}>
-        <EmptyStateCard
+        <HomeEmptyState
           icon={BarChart3}
           title="Histórico ainda zerado"
           description="Seus últimos dias aparecem aqui depois dos primeiros registros de estudo."
-          variant="compact"
-          compact
-          className="flex-1 shadow-none border-none bg-transparent"
+          className="flex-1"
         />
       </div>
     );

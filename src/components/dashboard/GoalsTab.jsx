@@ -75,6 +75,7 @@ function GoalsTab({ onSetGoal, goalsHistory, onDeleteGoal }) {
   const [questionsGoal, setQuestionsGoal] = useState(0);
   const [hoursGoal, setHoursGoal] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
+  const [goalToDelete, setGoalToDelete] = useState(null);
 
   // Efeito de segurança para garantir que o scroll esteja liberado ao montar este componente
   useEffect(() => {
@@ -289,11 +290,7 @@ function GoalsTab({ onSetGoal, goalsHistory, onDeleteGoal }) {
                         ) : (
                             <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                 <button
-                                    onClick={() => {
-                                        if(window.confirm("Tem certeza que deseja excluir este registro de meta do histórico?")) {
-                                            onDeleteGoal(goal.id);
-                                        }
-                                    }}
+                                    onClick={() => setGoalToDelete(goal)}
                                     className="p-1 rounded-md bg-zinc-200 dark:bg-zinc-800 text-zinc-400 hover:text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
                                     title="Excluir Registro"
                                 >
@@ -334,6 +331,31 @@ function GoalsTab({ onSetGoal, goalsHistory, onDeleteGoal }) {
         </div>
 
       </div>
+      {goalToDelete && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm overflow-hidden rounded-3xl border border-red-200 bg-white shadow-2xl dark:border-red-900/40 dark:bg-zinc-950">
+            <div className="border-b border-red-100 bg-red-50 p-6 text-center dark:border-red-900/30 dark:bg-red-950/20">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-red-600 text-white shadow-lg shadow-red-600/25">
+                <Trash2 size={24} />
+              </div>
+              <h3 className="text-base font-black uppercase text-zinc-900 dark:text-white">Excluir registro?</h3>
+              <p className="mt-2 text-sm font-medium text-zinc-600 dark:text-zinc-400">Essa meta sai do historico.</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3 p-5">
+              <button onClick={() => setGoalToDelete(null)} className="rounded-2xl bg-zinc-100 px-4 py-3 text-xs font-black uppercase tracking-wider text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-200">Cancelar</button>
+              <button
+                onClick={() => {
+                  onDeleteGoal(goalToDelete.id);
+                  setGoalToDelete(null);
+                }}
+                className="rounded-2xl bg-red-600 px-4 py-3 text-xs font-black uppercase tracking-wider text-white shadow-lg shadow-red-600/25 hover:bg-red-700"
+              >
+                Excluir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

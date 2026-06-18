@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -19,13 +19,13 @@ const notifGlobalStyles = `
   .notif-scrollbar::-webkit-scrollbar-thumb { background: linear-gradient(to bottom, #dc2626, #ef4444); border-radius: 10px; }
   
   .glass-panel-fire {
-    background: rgba(255, 255, 255, 0.75);
-    backdrop-filter: blur(20px) saturate(160%);
+    background: rgba(255, 255, 255, 0.96);
+    backdrop-filter: blur(8px);
     border: 1px solid rgba(239, 68, 68, 0.12);
   }
   .dark .glass-panel-fire {
-    background: rgba(15, 15, 18, 0.8);
-    backdrop-filter: blur(20px) saturate(160%);
+    background: rgba(15, 15, 18, 0.97);
+    backdrop-filter: blur(8px);
     border: 1px solid rgba(239, 68, 68, 0.18);
   }
 
@@ -64,6 +64,13 @@ const formatDate = (date) => {
   const d = date instanceof Date ? date : new Date(date);
   if (isNaN(d.getTime())) return '';
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
+};
+
+const toMillisSafe = (value) => {
+  if (!value) return null;
+  if (typeof value.toDate === 'function') return value.toDate().getTime();
+  const millis = new Date(value).getTime();
+  return Number.isNaN(millis) ? null : millis;
 };
 
 const BROADCAST_CONFIG = {
@@ -532,9 +539,8 @@ const NotifItem = ({ notif, isRead, onRead, onOpenBroadcast, onOpenEditalModal, 
     const preview = notif.message?.slice(0, 60);
 
     return (
-      <motion.div layout initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }}
-        whileHover={{ y: -1.5, scale: 1.01 }}
-        className={`relative rounded-xl border overflow-hidden transition-all group ${isRead ? 'opacity-70 hover:opacity-100' : 'shadow-md animate-fire-glow'} bg-white dark:bg-zinc-900/80 border-zinc-200 dark:border-zinc-800 hover:border-red-500/30 dark:hover:border-red-500/40`}
+      <motion.div initial={false}
+        className={`relative rounded-xl border overflow-hidden transition-colors duration-75 group ${isRead ? 'opacity-70 hover:opacity-100' : 'shadow-md'} bg-white dark:bg-zinc-900/80 border-zinc-200 dark:border-zinc-800 hover:border-red-500/30 dark:hover:border-red-500/40`}
       >
         <div className={`absolute left-0 top-0 bottom-0 w-1 ${cfg.strip} shadow-xl`} />
         {!isRead && (
@@ -586,8 +592,7 @@ const NotifItem = ({ notif, isRead, onRead, onOpenBroadcast, onOpenEditalModal, 
     const totalRem = (diff?.disciplinasRemovidas?.length || 0) + (diff?.disciplinasComAssuntosRemovidos?.reduce((a, d) => a + d.assuntosRemovidos.length, 0) || 0);
 
     return (
-      <motion.div layout initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }}
-        whileHover={{ y: -1.5, scale: 1.01 }}
+      <motion.div initial={false}
         className={`rounded-xl border bg-white dark:bg-zinc-900/80 overflow-hidden cursor-pointer transition-all group ${isDismissedItem ? 'border-zinc-200 dark:border-zinc-800 opacity-70 hover:opacity-100' : 'border-zinc-200 dark:border-zinc-800 hover:border-red-500/30 dark:hover:border-red-500/40 shadow-sm'}`}
         onClick={() => onOpenEditalModal(notif)}
       >
@@ -656,21 +661,18 @@ const NotificationPanel = ({
 
   useEffect(() => {
     if (!isOpen) return;
-    const timer = setTimeout(() => {
-      const handler = (e) => {
-        if (panelRef.current && !panelRef.current.contains(e.target)) {
-          if (e.target.closest('.notif-modal-portal')) return;
-          onCloseRef.current();
-        }
-      };
-      document.addEventListener('mousedown', handler, true);
-      return () => document.removeEventListener('mousedown', handler, true);
-    }, 150);
-    return () => clearTimeout(timer);
+    const handler = (e) => {
+      if (panelRef.current && !panelRef.current.contains(e.target)) {
+        if (e.target.closest('.notif-modal-portal')) return;
+        onCloseRef.current();
+      }
+    };
+    document.addEventListener('mousedown', handler, true);
+    return () => document.removeEventListener('mousedown', handler, true);
   }, [isOpen]);
 
-  let validNotifications = notifications || [];
-  validNotifications = validNotifications.filter(n => {
+  const validNotifications = useMemo(() => {
+    const valid = (notifications || []).filter(n => {
       if (n._type === 'edital_update') {
           const totalAdd = (n.diff?.novasDisciplinas?.length || 0) + (n.diff?.disciplinasComNovosAssuntos?.reduce((a, d) => a + d.novosAssuntos.length, 0) || 0);
           const totalRem = (n.diff?.disciplinasRemovidas?.length || 0) + (n.diff?.disciplinasComAssuntosRemovidos?.reduce((a, d) => a + d.assuntosRemovidos.length, 0) || 0);
@@ -678,29 +680,34 @@ const NotificationPanel = ({
           return totalAdd > 0 || totalRem > 0 || hasMessage;
       }
       return true;
-  });
+    });
 
-  const latestUpdates = new Map();
-  validNotifications.forEach(n => {
+    const latestUpdates = new Map();
+    valid.forEach(n => {
       if (n._type === 'edital_update') {
           const existing = latestUpdates.get(n.cicloId);
           if (!existing || n.timestamp > existing.timestamp) latestUpdates.set(n.cicloId, n);
       }
-  });
-  validNotifications = validNotifications.filter(n => n._type !== 'edital_update' || latestUpdates.get(n.cicloId) === n);
+    });
+    return valid.filter(n => n._type !== 'edital_update' || latestUpdates.get(n.cicloId) === n);
+  }, [notifications]);
 
-  const filtered = (() => {
+  const filtered = useMemo(() => {
     if (activeFilter === 'broadcasts') return validNotifications.filter((n) => n._type === 'broadcast');
     if (activeFilter === 'updates') return validNotifications.filter((n) => n._type === 'edital_update');
-    if (activeFilter === 'history') return (dismissedHistory || []).map(h => ({ ...h, _type: h._type || (h.cicloId ? 'edital_update' : 'broadcast'), isDismissed: true }));
+    if (activeFilter === 'history') {
+      return (dismissedHistory || [])
+        .map(h => ({ ...h, _type: h._type || (h.cicloId ? 'edital_update' : 'broadcast'), isDismissed: true }))
+        .sort((a, b) => (toMillisSafe(b.dismissedAt || b.timestamp) || 0) - (toMillisSafe(a.dismissedAt || a.timestamp) || 0));
+    }
     return validNotifications;
-  })();
+  }, [activeFilter, validNotifications, dismissedHistory]);
 
   const filters = [
     { id: 'all', label: 'TUDO', count: unreadCount },
     { id: 'broadcasts', label: 'AVISOS', count: validNotifications.filter(n => n._type === 'broadcast' && !readBroadcasts.has(n.id)).length, icon: Megaphone },
     { id: 'updates', label: 'EDITAL', count: validNotifications.filter(n => n._type === 'edital_update').length, icon: BookOpen },
-    { id: 'history', label: 'ANTIGAS', count: (dismissedHistory || []).length, icon: History },
+    { id: 'history', label: 'HISTORICO', count: (dismissedHistory || []).length, icon: History },
   ];
 
   const [bellRectState, setBellRectState] = useState(null);
@@ -726,25 +733,36 @@ const NotificationPanel = ({
         <>
           {broadcastModal && <BroadcastModal notif={broadcastModal} onClose={() => setBroadcastModal(null)} />}
           {editalModal && <EditalUpdateModal notif={editalModal} onClose={() => setEditalModal(null)} onApply={onApplyEditalUpdate} onDismiss={onDismissEditalUpdate} loading={loadingUpdate} onNavigateToEdital={onNavigateToEdital} />}
-          {!broadcastModal && !editalModal && <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[90] bg-zinc-950/10 backdrop-blur-[2px]" onClick={onClose} />}
+          {!broadcastModal && !editalModal && <div className="fixed inset-0 z-[90] bg-zinc-950/10" onClick={onClose} />}
           <motion.div
             ref={panelRef}
-            initial={{ opacity: 0, scale: 0.95, y: -20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: -20 }}
+            initial={{ opacity: 0, scale: 0.985, y: -4 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.985, y: -4 }}
+            transition={{ duration: 0.1, ease: 'easeOut' }}
             style={{ top: bellBottom + 8, ...panelPosition, maxHeight: panelMaxHeight }}
             className="fixed z-[100] flex flex-col overflow-hidden glass-panel-fire rounded-[20px] sm:rounded-[24px] shadow-2xl"
           >
             <style>{notifGlobalStyles}</style>
-            <div className="h-1 bg-gradient-to-r from-red-700 via-red-500 to-red-700 animate-pulse flex-shrink-0 shadow-lg" />
+            <div className="h-1 bg-gradient-to-r from-red-700 via-red-500 to-red-700 flex-shrink-0 shadow-lg" />
             <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-zinc-100 dark:border-zinc-800/60 bg-white/20 dark:bg-zinc-950/40">
               <div className="flex items-center gap-2.5">
                 <div className="relative flex items-center justify-center w-8 h-8 bg-red-600/10 dark:bg-red-500/20 rounded-lg">
-                  <Bell size={16} className="text-red-600 dark:text-red-500 animate-float" strokeWidth={2.5} />
+                  <Bell size={16} className="text-red-600 dark:text-red-500" strokeWidth={2.5} />
                   {unreadCount > 0 && <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white dark:border-zinc-900 shadow-lg" />}
                 </div>
                 <div><h3 className="text-[13px] font-black text-zinc-900 dark:text-white uppercase tracking-[0.1em] leading-none">Notificações</h3><p className="text-[8px] font-bold text-zinc-400 uppercase tracking-widest mt-1 flex items-center gap-1"><Flame size={8} className="text-red-500" /> FEED OPERACIONAL</p></div>
               </div>
               <div className="flex items-center gap-1.5">
-                <button onClick={onMarkAllRead} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase text-zinc-500 hover:text-white hover:bg-zinc-900 dark:hover:bg-white dark:hover:text-zinc-900 transition-all"><CheckCheck size={12} /></button>
+                <button
+                  onClick={onMarkAllRead}
+                  disabled={validNotifications.length === 0}
+                  title="Marcar todas como vistas e mover para o historico"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase text-zinc-500 hover:text-white hover:bg-zinc-900 dark:hover:bg-white dark:hover:text-zinc-900 transition-all disabled:cursor-not-allowed disabled:opacity-30"
+                >
+                  <CheckCheck size={12} />
+                  <span className="hidden sm:inline">Marcar todas como lido</span>
+                </button>
                 <button onClick={onClose} className="p-1.5 rounded-lg text-zinc-400 hover:text-red-600 transition-all"><X size={16} /></button>
               </div>
             </div>
@@ -754,9 +772,9 @@ const NotificationPanel = ({
                   {systemAlerts.map(alert => <SystemAlertCard key={alert.id} alert={alert} onAction={onSystemAlertAction} />)}
                 </div>
               )}
-              <div className="sticky top-0 z-20 flex items-center justify-between px-3 py-2 bg-white/60 dark:bg-zinc-950/80 backdrop-blur-2xl border-b border-zinc-100 dark:border-zinc-800/60 overflow-x-hidden">
+              <div className="sticky top-0 z-20 flex items-center justify-between px-3 py-2 bg-white/95 dark:bg-zinc-950/95 border-b border-zinc-100 dark:border-zinc-800/60 overflow-x-hidden">
                 {filters.map(f => (
-                  <button key={f.id} onClick={() => setActiveFilter(f.id)} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all border ${activeFilter === f.id ? 'bg-zinc-900 text-white border-zinc-900 dark:bg-white dark:text-zinc-900 dark:border-white shadow-md' : 'bg-white dark:bg-zinc-900 text-zinc-500 border-zinc-100 dark:border-zinc-800 shadow-sm'}`}>
+                  <button key={f.id} onClick={() => setActiveFilter(f.id)} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-colors duration-75 border ${activeFilter === f.id ? 'bg-zinc-900 text-white border-zinc-900 dark:bg-white dark:text-zinc-900 dark:border-white shadow-md' : 'bg-white dark:bg-zinc-900 text-zinc-500 border-zinc-100 dark:border-zinc-800 shadow-sm'}`}>
                     {f.icon && <f.icon size={11} />} {f.label} {f.count > 0 && <span className="text-[8px] font-black px-1.5 py-0.5 rounded-md bg-red-500 text-white shadow-md">{f.count}</span>}
                   </button>
                 ))}
@@ -768,13 +786,13 @@ const NotificationPanel = ({
                     <h4 className="text-[12px] font-black text-zinc-700 dark:text-zinc-200 tracking-[0.1em] uppercase leading-tight">SEM PENDÊNCIAS</h4>
                   </div>
                 ) : (
-                  <AnimatePresence mode="popLayout">
-                    {filtered.map(n => <NotifItem key={n.id + (n.isDismissed ? '_d_' : '_a_') + (n.versionKey || n.timestamp)} notif={n} isRead={n._type === 'broadcast' ? readBroadcasts.has(n.id) : false} onRead={onMarkBroadcastRead} onOpenBroadcast={(notif) => { setBroadcastModal(notif); if (!readBroadcasts.has(notif.id)) onMarkBroadcastRead(notif.id); }} onOpenEditalModal={setEditalModal} onDismissUpdate={onDismissEditalUpdate} onDeleteBroadcast={deleteBroadcast} onDeleteHistory={deleteHistoryItem} isDismissedItem={n.isDismissed || activeFilter === 'history'} />)}
-                  </AnimatePresence>
+                  <div key={activeFilter} className="space-y-3.5">
+                    {filtered.map(n => <NotifItem key={`${n._type || 'notif'}:${n.id}:${n.versionKey || ''}`} notif={n} isRead={n._type === 'broadcast' ? readBroadcasts.has(n.id) : false} onRead={onMarkBroadcastRead} onOpenBroadcast={(notif) => { setBroadcastModal(notif); if (!readBroadcasts.has(notif.id)) onMarkBroadcastRead(notif.id); }} onOpenEditalModal={setEditalModal} onDismissUpdate={onDismissEditalUpdate} onDeleteBroadcast={deleteBroadcast} onDeleteHistory={deleteHistoryItem} isDismissedItem={n.isDismissed || activeFilter === 'history'} />)}
+                  </div>
                 )}
               </div>
             </div>
-            <div className="flex-shrink-0 px-4 py-3 border-t border-zinc-100 dark:border-zinc-800/60 flex items-center justify-between bg-white/60 dark:bg-zinc-950/60 backdrop-blur-2xl">
+            <div className="flex-shrink-0 px-4 py-3 border-t border-zinc-100 dark:border-zinc-800/60 flex items-center justify-between bg-white/95 dark:bg-zinc-950/95">
               <span className="text-[9px] font-black text-zinc-400 uppercase tracking-[0.1em]">{filtered.length} REGISTROS</span>
               <div className="flex items-center gap-2 opacity-40 group cursor-default"><img src="/logoModoQAP.png" alt="Logo" className="h-3.5 grayscale dark:invert" /><span className="text-[8px] font-black text-zinc-900 dark:text-white uppercase tracking-[0.2em]">MODOQAP</span></div>
             </div>

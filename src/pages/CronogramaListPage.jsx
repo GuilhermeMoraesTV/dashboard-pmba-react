@@ -167,9 +167,7 @@ const CronogramaCard = ({ cronograma, onOpen, onMenuToggle, isMenuOpen, onAction
             <AnimatePresence>
               {isMenuOpen && (
                 <motion.div initial={{ opacity: 0, y: 5, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} onClick={e => e.stopPropagation()} className="absolute top-8 right-0 w-44 sm:w-52 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xl py-1 z-50 overflow-hidden ring-1 ring-black/5">
-                  {!cronograma.ativo && <button onClick={e => onAction(e, 'ativar', cronograma)} className="w-full text-left px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-emerald-600 dark:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/10 flex items-center gap-2 transition-colors"><Zap size={14} /> Ativar</button>}
                   {cronograma.ativo && <button onClick={e => onAction(e, 'desativar', cronograma)} className="w-full text-left px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/60 flex items-center gap-2 transition-colors"><PauseCircle size={14} /> Desativar</button>}
-                  <button onClick={e => onAction(e, 'editar', cronograma)} className="w-full text-left px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/60 flex items-center gap-2 transition-colors"><FilePenLine size={14} /> Editar</button>
                   <button onClick={e => onAction(e, 'adiar', cronograma)} className="w-full text-left px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-amber-600 dark:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/10 flex items-center gap-2 transition-colors"><SkipForward size={14} /> Adiar semana</button>
                   <div className="h-px bg-zinc-100 dark:bg-zinc-800 my-1" />
                   <button onClick={e => onAction(e, 'excluir', cronograma)} className="w-full text-left px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-red-600 dark:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 flex items-center gap-2 transition-colors"><Trash2 size={14} /> Excluir</button>
@@ -254,12 +252,35 @@ const CronogramaCard = ({ cronograma, onOpen, onMenuToggle, isMenuOpen, onAction
             )}
           </div>
 
-          {/* Linha "Acessar" */}
-          <div className="flex items-center justify-between">
-            <span className="text-[9px] sm:text-[10px] font-black text-zinc-400 uppercase tracking-widest group-hover:text-emerald-500 transition-colors">Acessar</span>
-            <div className={`w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all duration-300 ${cronograma.ativo ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/30' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400 group-hover:bg-emerald-500 group-hover:text-white'}`}>
-              <ArrowRight size={14} className="sm:w-4 sm:h-4" />
-            </div>
+          <div className="grid grid-cols-2 gap-2">
+            {cronograma.ativo ? (
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  if (canOpen) onOpen(cronograma.id, cronograma);
+                }}
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-2 text-[9px] font-black uppercase tracking-widest text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-700 sm:text-[10px]"
+              >
+                Acessar <ArrowRight size={13} />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={(event) => onAction(event, 'ativar', cronograma)}
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-2 text-[9px] font-black uppercase tracking-widest text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-700 sm:text-[10px]"
+              >
+                <Zap size={13} /> Ativar
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={(event) => onAction(event, 'editar', cronograma)}
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-[9px] font-black uppercase tracking-widest text-zinc-700 shadow-sm transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-emerald-900/40 dark:hover:bg-emerald-950/20 dark:hover:text-emerald-400 sm:text-[10px]"
+            >
+              <FilePenLine size={13} /> Editar
+            </button>
           </div>
         </div>
       </div>
@@ -288,6 +309,7 @@ function CronogramaListPage({
   const [feedbackView, setFeedbackView] = useState('home');
   const [feedbackType, setFeedbackType] = useState('ideia');
   const [cronogramaParaEditar, setCronogramaParaEditar] = useState(null);
+  const [actionError, setActionError] = useState('');
   const canUseInlineCreate = typeof onRequestCreate !== 'function';
   const canUseInlineEdit = typeof onRequestEdit !== 'function';
   const containerClassName = compact ? 'p-0 animate-fade-in' : 'p-0 min-h-[50vh] animate-fade-in pb-12';
@@ -374,7 +396,7 @@ function CronogramaListPage({
       await batch.commit();
     } catch (err) {
       console.error('Erro ao excluir:', err);
-      alert('Erro ao excluir. Tente novamente.');
+      setActionError('Erro ao excluir cronograma. Tente novamente.');
     } finally {
       setActionLoading(false); setCronogramaParaExcluir(null);
     }
@@ -407,6 +429,19 @@ function CronogramaListPage({
       ) : (
         <>
           <AnimatePresence>
+            {actionError && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="fixed left-1/2 top-4 z-[90] flex w-[calc(100%-2rem)] max-w-md -translate-x-1/2 items-center gap-3 rounded-2xl border border-red-200 bg-white px-4 py-3 text-sm font-bold text-red-700 shadow-2xl shadow-red-900/10 dark:border-red-900/40 dark:bg-zinc-950 dark:text-red-300"
+              >
+                <AlertOctagon size={18} className="shrink-0" />
+                <span>{actionError}</span>
+                <button onClick={() => setActionError('')} className="ml-auto rounded-lg px-2 py-1 text-[10px] uppercase tracking-wider text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30">Ok</button>
+              </motion.div>
+            )}
+
             {cronogramaParaDesativar && (
               <ModalConfirmacao isOpen={true} titulo="Desativar Cronograma?" descricao={`O cronograma <strong>"${cronogramaParaDesativar.nome}"</strong> será pausado. Seu progresso é preservado.`} icone={PauseCircle} corBg="bg-zinc-100 dark:bg-zinc-800/60 border-zinc-200 dark:border-zinc-700 text-zinc-500" corBtn="bg-zinc-700 hover:bg-zinc-800 dark:bg-zinc-600 dark:hover:bg-zinc-500" labelBtn="Desativar" onClose={() => setCronogramaParaDesativar(null)} onConfirm={handleConfirmarDesativacao} loading={actionLoading} />
             )}

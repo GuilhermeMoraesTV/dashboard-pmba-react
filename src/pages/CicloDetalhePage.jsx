@@ -104,9 +104,10 @@ const normalizeUpgradeStudyDays = (rawDays) => {
   }, {});
 };
 
-const CicloLegacyUpgradeModal = ({ ciclo, disciplinas, registros, onClose, onConfirm, loading }) => {
-  const [diasEstudo, setDiasEstudo] = useState(() => normalizeUpgradeStudyDays(ciclo?.diasEstudo));
-  const [tempoSessaoMinutos, setTempoSessaoMinutos] = useState(() => Number(ciclo?.tempoSessaoMinutos || 50));
+const CicloLegacyUpgradeModal = ({ ciclo, disciplinas, registros, onClose, onConfirm, onRecalculate, loading }) => {
+  const [nome, setNome] = useState(() => ciclo?.nome || '');
+  const diasEstudo = normalizeUpgradeStudyDays(ciclo?.diasEstudo);
+  const tempoSessaoMinutos = Number(ciclo?.tempoSessaoMinutos || 50);
   const [modoExibirAssuntos, setModoExibirAssuntos] = useState(() => ciclo?.modoExibirAssuntos !== false);
   const [revisaoModo, setRevisaoModo] = useState(() => normalizeRevisaoModoCiclo(ciclo?.revisaoModo));
 
@@ -115,31 +116,12 @@ const CicloLegacyUpgradeModal = ({ ciclo, disciplinas, registros, onClose, onCon
   const registrosDoCiclo = registros.filter((registro) => registro.cicloId === ciclo?.id);
   const totalMinutos = registrosDoCiclo.reduce((acc, registro) => acc + Number(registro.tempoEstudadoMinutos || 0), 0);
   const diasSelecionados = Object.keys(diasEstudo).length;
-
-  const toggleDay = (dayId) => {
-    setDiasEstudo((current) => {
-      const next = { ...current };
-      if (Number(next[dayId] || 0) > 0) delete next[dayId];
-      else next[dayId] = 1;
-      return next;
-    });
-  };
-
-  const updateDayHours = (dayId, value) => {
-    const hours = Math.max(0, Number(value) || 0);
-    setDiasEstudo((current) => {
-      const next = { ...current };
-      if (hours <= 0) delete next[dayId];
-      else next[dayId] = hours;
-      return next;
-    });
-  };
+  const totalHorasSemana = Object.values(diasEstudo).reduce((acc, horas) => acc + Number(horas || 0), 0);
 
   const handleSubmit = () => {
     if (diasSelecionados === 0) return;
     onConfirm({
-      diasEstudo,
-      tempoSessaoMinutos,
+      nome: nome.trim() || ciclo?.nome || 'Meu ciclo',
       modoExibirAssuntos,
       revisaoModo,
     });
@@ -156,10 +138,10 @@ const CicloLegacyUpgradeModal = ({ ciclo, disciplinas, registros, onClose, onCon
         <div className="border-b border-zinc-100 bg-gradient-to-br from-red-600 to-zinc-950 p-5 text-white dark:border-zinc-800">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.26em] text-white/65">Atualizacao do ciclo</p>
-              <h2 className="mt-1 text-xl font-black uppercase tracking-tight">Ativar guia de estudos</h2>
+              <p className="text-[10px] font-black uppercase tracking-[0.26em] text-white/65">Edicao simples</p>
+              <h2 className="mt-1 text-xl font-black uppercase tracking-tight">Ajustes rapidos</h2>
               <p className="mt-2 max-w-xl text-sm font-medium text-white/75">
-                Seu edital, assuntos e registros serao mantidos. Vamos adicionar apenas a rotina do guia.
+                Altere nome e preferencias de exibicao sem redistribuir sessoes. Para mudar dias, duracao ou materias, use Recalcular planejamento.
               </p>
             </div>
             <button onClick={onClose} className="rounded-xl p-2 text-white/70 transition hover:bg-white/10 hover:text-white">
@@ -186,47 +168,43 @@ const CicloLegacyUpgradeModal = ({ ciclo, disciplinas, registros, onClose, onCon
 
           <div className="mt-5 space-y-5">
             <section>
-              <p className="mb-2 text-xs font-black uppercase tracking-wider text-zinc-700 dark:text-zinc-200">Dias de estudo</p>
+              <label className="mb-5 block">
+                <span className="text-xs font-black uppercase tracking-wider text-zinc-700 dark:text-zinc-200">Nome do planejamento</span>
+                <input
+                  value={nome}
+                  onChange={(event) => setNome(event.target.value)}
+                  className="mt-2 h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm font-black text-zinc-900 outline-none focus:border-red-400 dark:border-zinc-800 dark:bg-zinc-900 dark:text-white"
+                  placeholder="Ex: Ciclo PMBA"
+                />
+              </label>
+
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <p className="text-xs font-black uppercase tracking-wider text-zinc-700 dark:text-zinc-200">Rotina atual</p>
+                <span className="rounded-lg bg-red-50 px-2 py-1 text-[10px] font-black uppercase tracking-wider text-red-700 dark:bg-red-950/30 dark:text-red-300">
+                  {totalHorasSemana}h/sem
+                </span>
+              </div>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-7">
                 {DAY_LABELS.map((day) => {
                   const active = Number(diasEstudo[day.id] || 0) > 0;
                   return (
-                    <div key={day.id} className={`rounded-2xl border p-2 ${active ? 'border-red-200 bg-red-50 dark:border-red-900/40 dark:bg-red-950/20' : 'border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/50'}`}>
-                      <button
-                        type="button"
-                        onClick={() => toggleDay(day.id)}
-                        className={`mb-2 w-full rounded-xl py-2 text-xs font-black uppercase transition ${active ? 'bg-red-600 text-white' : 'bg-white text-zinc-500 dark:bg-zinc-950 dark:text-zinc-400'}`}
-                      >
-                        {day.label}
-                      </button>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.5"
-                        value={active ? diasEstudo[day.id] : ''}
-                        onChange={(event) => updateDayHours(day.id, event.target.value)}
-                        placeholder="h"
-                        className="h-9 w-full rounded-lg border border-zinc-200 bg-white px-2 text-center text-xs font-bold text-zinc-800 outline-none focus:border-red-400 dark:border-zinc-800 dark:bg-zinc-950 dark:text-white"
-                      />
+                    <div key={day.id} className={`rounded-2xl border p-2 text-center ${active ? 'border-red-200 bg-red-50 dark:border-red-900/40 dark:bg-red-950/20' : 'border-zinc-200 bg-zinc-50 opacity-60 dark:border-zinc-800 dark:bg-zinc-900/50'}`}>
+                      <p className={`rounded-xl py-2 text-xs font-black uppercase ${active ? 'bg-red-600 text-white' : 'bg-white text-zinc-400 dark:bg-zinc-950'}`}>{day.label}</p>
+                      <p className="mt-2 text-xs font-black text-zinc-700 dark:text-zinc-200">{active ? `${diasEstudo[day.id]}h` : '-'}</p>
                     </div>
                   );
                 })}
               </div>
-              {diasSelecionados === 0 && <p className="mt-2 text-xs font-bold text-red-600">Selecione pelo menos um dia.</p>}
+              <p className="mt-3 text-xs font-medium text-red-700 dark:text-red-300">
+                Dias, horas e materia todos os dias alteram a ordem das sessoes. Use Recalcular planejamento para mudar essa estrutura.
+              </p>
             </section>
 
             <section className="grid gap-4 sm:grid-cols-2">
-              <label className="block">
+              <div className="block rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900/60">
                 <span className="text-xs font-black uppercase tracking-wider text-zinc-700 dark:text-zinc-200">Duracao da sessao</span>
-                <input
-                  type="number"
-                  min="10"
-                  step="5"
-                  value={tempoSessaoMinutos}
-                  onChange={(event) => setTempoSessaoMinutos(Math.max(10, Number(event.target.value) || 50))}
-                  className="mt-2 h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm font-black text-zinc-900 outline-none focus:border-red-400 dark:border-zinc-800 dark:bg-zinc-900 dark:text-white"
-                />
-              </label>
+                <p className="mt-2 text-lg font-black text-zinc-900 dark:text-white">{tempoSessaoMinutos} min</p>
+              </div>
               <label className="block">
                 <span className="text-xs font-black uppercase tracking-wider text-zinc-700 dark:text-zinc-200">Revisao para novos estudos</span>
                 <select
@@ -255,18 +233,27 @@ const CicloLegacyUpgradeModal = ({ ciclo, disciplinas, registros, onClose, onCon
           </div>
         </div>
 
-        <div className="flex flex-col gap-2 border-t border-zinc-100 p-4 dark:border-zinc-800 sm:flex-row sm:justify-end">
+        <div className="flex flex-col gap-2 border-t border-zinc-100 p-4 dark:border-zinc-800 sm:flex-row sm:justify-between">
+          <button
+            onClick={onRecalculate}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-200 px-4 py-2 text-xs font-black uppercase tracking-wider text-zinc-600 transition hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900"
+          >
+            <Settings2 size={14} />
+            Recalcular planejamento
+          </button>
+          <div className="flex flex-col gap-2 sm:flex-row">
           <button onClick={onClose} className="rounded-xl border border-zinc-200 px-4 py-2 text-xs font-black uppercase tracking-wider text-zinc-500 transition hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900">
             Agora nao
           </button>
           <button
             onClick={handleSubmit}
-            disabled={loading || diasSelecionados === 0}
+            disabled={loading}
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-5 py-2 text-xs font-black uppercase tracking-wider text-white shadow-lg shadow-red-600/20 transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {loading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-            Atualizar ciclo
+            Salvar ajustes
           </button>
+          </div>
         </div>
       </motion.div>
     </div>
@@ -489,14 +476,14 @@ const CicloRevisoesOperacionaisCard = ({
               })}
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center rounded-2xl border border-zinc-200/50 bg-white/50 px-4 py-10 text-center dark:border-zinc-800/50 dark:bg-zinc-900/20">
-              <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-500 shadow-inner dark:bg-emerald-900/20">
-                <CheckCircle2 size={24} />
+            <div className="flex flex-col items-center justify-center rounded-2xl border border-emerald-200/50 bg-emerald-50/30 p-5 text-center backdrop-blur-sm dark:border-emerald-900/30 dark:bg-emerald-950/20 sm:rounded-[32px] sm:p-8">
+              <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500 text-white shadow-lg shadow-emerald-500/20 sm:mb-4 sm:h-16 sm:w-16 sm:rounded-2xl">
+                <CheckCircle2 size={24} className="sm:h-8 sm:w-8" />
               </div>
-              <p className="text-xs font-black uppercase tracking-widest text-zinc-700 dark:text-zinc-200">
+              <h3 className="text-sm font-black uppercase text-emerald-800 dark:text-emerald-400 sm:text-lg">
                 Tudo em dia!
-              </p>
-              <p className="mt-1 text-[11px] text-zinc-400 max-w-[200px] leading-relaxed">
+              </h3>
+              <p className="mt-2 max-w-sm text-xs text-emerald-600/70 dark:text-emerald-400/60 sm:text-sm">
                 Nenhuma revisão atrasada ou marcada para hoje neste ciclo.
               </p>
             </div>
@@ -521,11 +508,13 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showUpgradeWizard, setShowUpgradeWizard] = useState(false);
+  const [configMenuOpen, setConfigMenuOpen] = useState(false);
   const [loadingCicloSessao, setLoadingCicloSessao] = useState(null);
   const [acaoRevisaoCiclo, setAcaoRevisaoCiclo] = useState(null);
   const [cicloResetAnimation, setCicloResetAnimation] = useState(false);
   const [optimisticReviewDone, setOptimisticReviewDone] = useState({});
   const revisoesSectionRef = useRef(null);
+  const configMenuRef = useRef(null);
   // ESTADO DA LOGO DINÃ‚MICA
   const [dynamicLogo, setDynamicLogo] = useState(null);
 
@@ -624,6 +613,16 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
     const timeoutId = window.setTimeout(() => setCicloResetAnimation(false), 2600);
     return () => window.clearTimeout(timeoutId);
   }, [cicloResetAnimation]);
+  useEffect(() => {
+    if (!configMenuOpen) return undefined;
+    const handlePointerDown = (event) => {
+      if (configMenuRef.current && !configMenuRef.current.contains(event.target)) {
+        setConfigMenuOpen(false);
+      }
+    };
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => document.removeEventListener('pointerdown', handlePointerDown);
+  }, [configMenuOpen]);
 
   // Cálculos
   const registrosAtivosDaSemana = useMemo(() => allRegistrosEstudo.filter(reg => reg.cicloId === cicloId && !reg.conclusaoId), [allRegistrosEstudo, cicloId]);
@@ -773,8 +772,17 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
     }
   };
   const handleConfirmUpgrade = async (config) => {
-    const ok = await atualizarCicloLegadoParaGuia(cicloId, config);
-    if (ok) setShowUpgradeModal(false);
+    if (!user?.uid || !cicloId) return;
+    try {
+      await updateDoc(doc(db, 'users', user.uid, 'ciclos', cicloId), {
+        nome: config.nome || ciclo?.nome || 'Meu ciclo',
+        modoExibirAssuntos: config.modoExibirAssuntos !== false,
+        revisaoModo: normalizeRevisaoModoCiclo(config.revisaoModo),
+      });
+      setShowUpgradeModal(false);
+    } catch (error) {
+      console.error('Erro ao salvar ajustes simples do ciclo:', error);
+    }
   };
   const handleIniciarRevisaoCiclo = (revisao) => {
     if (!onStartStudy || !revisao) return;
@@ -834,7 +842,7 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
   const showEmptyMessage = !disciplinas.length;
   const showAssuntosCiclo = ciclo?.modoExibirAssuntos !== false;
 
-  if (loading) return <div className="flex justify-center p-10"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-red-500"></div></div>;
+  if (loading) return <div className="min-h-[calc(100vh-120px)]" />;
   if (!ciclo) return <div className="p-10 text-center text-zinc-500">Ciclo não encontrado.</div>;
 
   let formattedStartDate = '...';
@@ -1035,19 +1043,19 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
                   </div>
               </div>
 
-              <div className="z-10 flex w-[112px] shrink-0 items-center justify-between gap-1.5 rounded-xl border border-zinc-200 bg-white/75 p-2 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/55 sm:w-[150px] md:w-auto md:min-w-[360px] md:gap-4 md:rounded-2xl md:p-3">
+              <div className="z-10 flex w-[104px] shrink-0 items-center justify-between gap-1.5 rounded-xl border border-zinc-200 bg-white/75 p-1.5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/55 sm:w-[132px] md:w-auto md:min-w-[240px] md:gap-3 md:p-2.5">
                   <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2 md:gap-5">
                           <div>
-                              <p className="text-[7px] font-black uppercase tracking-wider text-zinc-400 md:text-[9px] md:tracking-[0.22em]">Meta</p>
-                              <p className="font-mono text-[10px] font-black text-zinc-900 dark:text-white md:mt-0.5 md:text-lg">{formatVisualNumber(totalMeta)}</p>
+                              <p className="text-[7px] font-black uppercase tracking-wider text-zinc-400 md:text-[8px] md:tracking-widest">Meta</p>
+                              <p className="font-mono text-[10px] font-black text-zinc-900 dark:text-white md:text-sm">{formatVisualNumber(totalMeta)}</p>
                           </div>
                           <div className="text-right">
-                              <p className="text-[7px] font-black uppercase tracking-wider text-zinc-400 md:text-[9px] md:tracking-[0.22em]">Feito</p>
-                              <p className="font-mono text-[10px] font-black text-zinc-900 dark:text-white md:mt-0.5 md:text-lg">{formatVisualNumber(totalEstudado)}</p>
+                              <p className="text-[7px] font-black uppercase tracking-wider text-zinc-400 md:text-[8px] md:tracking-widest">Feito</p>
+                              <p className="font-mono text-[10px] font-black text-zinc-900 dark:text-white md:text-sm">{formatVisualNumber(totalEstudado)}</p>
                           </div>
                       </div>
-                      <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-zinc-100 ring-1 ring-zinc-200/70 dark:bg-zinc-800 dark:ring-zinc-700/70 md:mt-3 md:h-2">
+                      <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-zinc-100 ring-1 ring-zinc-200/70 dark:bg-zinc-800 dark:ring-zinc-700/70 md:mt-2 md:h-1.5">
                           <motion.div
                               initial={false}
                               animate={{ width: `${Math.min(progressoGeral, 100)}%` }}
@@ -1057,11 +1065,11 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
                       </div>
                   </div>
                   <div className="relative shrink-0">
-                      <svg className="h-10 w-10 -rotate-90 sm:h-12 sm:w-12 md:h-20 md:w-20" viewBox="0 0 80 80">
+                      <svg className="h-9 w-9 -rotate-90 sm:h-10 sm:w-10 md:h-14 md:w-14" viewBox="0 0 80 80">
                           <circle cx="40" cy="40" r="34" fill="none" stroke="currentColor" className="text-zinc-200 dark:text-zinc-800" strokeWidth="6" />
                           <motion.circle cx="40" cy="40" r="34" fill="none" stroke="currentColor" className={progressoGeral >= 100 && isAllDisciplinesMet ? 'text-emerald-500' : progressoGeral > 0 ? 'text-yellow-500' : 'text-zinc-400'} strokeWidth="6" strokeLinecap="round" strokeDasharray={2 * Math.PI * 34} initial={{ strokeDashoffset: 2 * Math.PI * 34 }} animate={{ strokeDashoffset: 2 * Math.PI * 34 * (1 - Math.min(progressoGeral, 100) / 100) }} transition={{ duration: 1.5, ease: "easeOut" }} />
                       </svg>
-                      <div className="absolute inset-0 flex flex-col items-center justify-center"><span className={`text-[10px] font-black sm:text-xs md:text-xl ${progressoGeral >= 100 && isAllDisciplinesMet ? 'text-emerald-500' : progressoGeral > 0 ? 'text-yellow-500' : 'text-zinc-400'}`}>{progressoGeral.toFixed(0)}%</span></div>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center"><span className={`text-[9px] font-black sm:text-[10px] md:text-sm ${progressoGeral >= 100 && isAllDisciplinesMet ? 'text-emerald-500' : progressoGeral > 0 ? 'text-yellow-500' : 'text-zinc-400'}`}>{progressoGeral.toFixed(0)}%</span></div>
                   </div>
               </div>
           </div>
@@ -1073,7 +1081,59 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
               </h3>
 
               <div className="flex items-center gap-2">
-<button
+                  <div className="relative" ref={configMenuRef}>
+                      <button
+                          onClick={() => setConfigMenuOpen((open) => !open)}
+                          className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 border border-red-600 text-white text-[10px] font-bold uppercase tracking-wide transition-all group shadow-sm shadow-red-600/20"
+                          title="Configuração de ciclo"
+                      >
+                          <Settings2 size={14} className="group-hover:scale-110 transition-transform" />
+                          <span className="hidden sm:inline">Configuração de ciclo</span>
+                          <span className="sm:hidden">Configurar</span>
+                      </button>
+
+                      <AnimatePresence>
+                          {configMenuOpen && (
+                              <motion.div
+                                  initial={{ opacity: 0, y: -6, scale: 0.98 }}
+                                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                                  exit={{ opacity: 0, y: -6, scale: 0.98 }}
+                                  className="absolute right-0 top-full z-40 mt-2 w-[290px] overflow-hidden rounded-2xl border border-zinc-200 bg-white p-2 shadow-2xl shadow-zinc-900/12 dark:border-zinc-800 dark:bg-zinc-950"
+                              >
+                                  <button
+                                      type="button"
+                                      onClick={() => {
+                                          setConfigMenuOpen(false);
+                                          setShowUpgradeModal(true);
+                                      }}
+                                      className="flex w-full items-start gap-3 rounded-xl p-3 text-left transition hover:bg-red-50 dark:hover:bg-red-950/20"
+                                  >
+                                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-600 text-white"><Settings2 size={16} /></span>
+                                      <span>
+                                          <span className="block text-xs font-black uppercase tracking-wider text-zinc-900 dark:text-white">Ajuste simples</span>
+                                          <span className="mt-1 block text-[11px] font-medium leading-relaxed text-zinc-500 dark:text-zinc-400">Altere nome e preferências visuais sem redistribuir o ciclo.</span>
+                                      </span>
+                                  </button>
+                                  <button
+                                      type="button"
+                                      onClick={() => {
+                                          setConfigMenuOpen(false);
+                                          setShowUpgradeWizard(true);
+                                      }}
+                                      className="mt-1 flex w-full items-start gap-3 rounded-xl p-3 text-left transition hover:bg-zinc-50 dark:hover:bg-zinc-900"
+                                  >
+                                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-zinc-900 text-white dark:bg-white dark:text-zinc-950"><RotateCw size={16} /></span>
+                                      <span>
+                                          <span className="block text-xs font-black uppercase tracking-wider text-zinc-900 dark:text-white">Recalcular</span>
+                                          <span className="mt-1 block text-[11px] font-medium leading-relaxed text-zinc-500 dark:text-zinc-400">Refaça dias, duração, matérias e distribuição usando o assistente completo.</span>
+                                      </span>
+                                  </button>
+                              </motion.div>
+                          )}
+                      </AnimatePresence>
+                  </div>
+
+                  <button
                       onClick={() => setShowHistoryModal(true)}
                       className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white hover:bg-red-50 border border-zinc-200 hover:border-red-200 dark:bg-zinc-800 dark:hover:bg-red-900/10 dark:border-zinc-700 dark:hover:border-red-900/30 text-zinc-600 hover:text-red-700 dark:text-zinc-300 dark:hover:text-red-400 text-[10px] font-bold uppercase tracking-wide transition-all group shadow-sm"
                       title="Ver Histórico Completo"
@@ -1087,8 +1147,8 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
 
       {!showEmptyMessage && (
           <div className="-mx-2 min-h-0 flex-grow sm:-mx-4 md:-mx-6 lg:-mx-8">
-              <div className="grid min-h-0 grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(440px,0.86fr)] 2xl:grid-cols-[minmax(0,1fr)_minmax(540px,0.9fr)]">
-                  <section className="relative flex flex-col overflow-hidden rounded-3xl border border-zinc-200/70 bg-white/80 px-3 py-5 shadow-xl shadow-zinc-200/40 backdrop-blur-xl dark:border-zinc-800/70 dark:bg-zinc-950/35 dark:shadow-none sm:min-h-[640px] sm:px-5 lg:min-h-[720px] xl:h-[calc(100vh-250px)] xl:min-h-[720px]">
+              <div className="grid min-h-0 grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(420px,0.82fr)] 2xl:grid-cols-[minmax(0,1.16fr)_minmax(500px,0.84fr)]">
+                  <section className="relative flex flex-col overflow-hidden rounded-3xl border border-zinc-200/70 bg-white/80 px-3 py-5 shadow-xl shadow-zinc-200/40 backdrop-blur-xl dark:border-zinc-800/70 dark:bg-zinc-950/35 dark:shadow-none sm:min-h-[640px] sm:px-5 lg:min-h-[720px] xl:h-[calc(100vh-210px)] xl:min-h-[720px]">
                       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-red-500/40 to-transparent" />
                       <div className="relative mb-4 flex flex-wrap items-center justify-between gap-3 px-1 sm:px-2">
                           <div>
@@ -1100,7 +1160,7 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
                           </div>
                       </div>
 
-                      <div className="relative flex h-[430px] flex-1 items-stretch justify-center sm:h-auto sm:min-h-[540px] xl:min-h-0">
+                      <div className="relative flex h-[460px] flex-1 items-stretch justify-center sm:h-auto sm:min-h-[560px] xl:min-h-0">
                           <CicloVisual
                               selectedDisciplinaId={selectedDisciplinaId}
                               onSelectDisciplina={setSelectedDisciplinaId}
@@ -1120,10 +1180,10 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
                       </div>
                   </section>
 
-                  <aside className="min-w-0 space-y-5 xl:sticky xl:top-4 xl:max-h-[calc(100vh-120px)] xl:overflow-y-auto xl:pr-4 [scrollbar-gutter:stable]">
+                  <aside className="min-w-0 space-y-5 xl:flex xl:h-[calc(100vh-210px)] xl:min-h-[720px] xl:flex-col xl:space-y-5">
                   {/* COLUNA: GUIA DE ESTUDO DO DIA (A ESTRELA DA PÁGINA) */}
-                  <div className="space-y-3">
-                      <div>
+                  <div className="space-y-3 xl:order-1 xl:flex xl:min-h-0 xl:flex-1 xl:flex-col">
+                      <div className="xl:shrink-0">
                       <CicloRevisoesShortcutButton
                           totalAtrasadas={revisoesAtrasadasCiclo.length}
                           totalHoje={revisoesDoDiaCicloVisiveis.length}
@@ -1132,6 +1192,7 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
                           onClick={handleGoToRevisoesCiclo}
                       />
                       </div>
+                      <div className="xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-2 [scrollbar-gutter:stable]">
                       <CardSessoesCicloHoje
                           ciclo={ciclo}
                           disciplinas={disciplinas}
@@ -1142,10 +1203,11 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
                           variant="cycle"
                           showAssuntos={showAssuntosCiclo}
                       />
+                      </div>
                   </div>
 
                   {/* COLUNA: REVISÕES DO CICLO (SIDEBAR SLEEK) */}
-                  <div ref={revisoesSectionRef} className="scroll-mt-4">
+                  <div ref={revisoesSectionRef} className="scroll-mt-4 xl:order-2 xl:shrink-0">
                       <div className="relative overflow-hidden rounded-2xl border border-zinc-200/60 bg-white/40 p-1 shadow-xl shadow-zinc-200/20 backdrop-blur-xl dark:border-zinc-800/40 dark:bg-zinc-950/20 dark:shadow-none sm:rounded-[32px] sm:shadow-2xl">
                          <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-blue-500/5 blur-3xl" />
                          
@@ -1202,6 +1264,10 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
                 registros={allRegistrosEstudo}
                 onClose={() => setShowUpgradeModal(false)}
                 onConfirm={handleConfirmUpgrade}
+                onRecalculate={() => {
+                  setShowUpgradeModal(false);
+                  setShowUpgradeWizard(true);
+                }}
                 loading={cicloActionLoading}
             />
         )}

@@ -586,7 +586,7 @@ export function useNoticias(CATEGORIAS, CATS_RSS) {
       if (token !== fetchTokenRef.current) return;
       setNoticias(listaCache.get(cat.id)); setLoading(false); return;
     }
-    setLoading(true); setErro(false); setNoticias([]);
+    setLoading(true); setErro(false);
     try {
       let data = [];
       if (cat.tipo === 'todas') {
@@ -619,7 +619,7 @@ export function useNoticias(CATEGORIAS, CATS_RSS) {
       }
     } catch {
       if (token !== fetchTokenRef.current) return;
-      setErro(true); setNoticias([]); setLoading(false);
+      setErro(true); setLoading(false);
     }
   }, [CATS_RSS]);
 
@@ -630,7 +630,7 @@ export function useNoticias(CATEGORIAS, CATS_RSS) {
       if (token !== fetchRegiaoRef.current) return;
       setNoticiasRegiao(regionCache.get(regiao.id)); setLoadingRegiao(false); return;
     }
-    setLoadingRegiao(true); setErroRegiao(false); setNoticiasRegiao([]);
+    setLoadingRegiao(true); setErroRegiao(false);
     try {
       const html = await fetchViaProxy(regiao.url);
       if (token !== fetchRegiaoRef.current) return;
@@ -657,7 +657,6 @@ export function useNoticias(CATEGORIAS, CATS_RSS) {
 
     setLoadingEstado(true);
     setErroEstado(false);
-    setNoticiasEstado([]);
 
     const slugOficial = ESTADOS_SLUGS[estadoObj.uf] || estadoObj.slug || estadoObj.uf.toLowerCase();
     const urlEstado   = `${BASE}/concursos-${slugOficial}/`;

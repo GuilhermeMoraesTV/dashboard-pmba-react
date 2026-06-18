@@ -11,6 +11,9 @@ export default function StepDisciplinas({
   editalSelecionado,
   modoManual,
   horarios,
+  disciplinaTodosDiasId,
+  setDisciplinaTodosDiasId,
+  activeStudyDaysCount,
 }) {
   return (
     <Step2Disciplinas
@@ -23,6 +26,9 @@ export default function StepDisciplinas({
       editalSelecionado={editalSelecionado}
       modoManual={modoManual}
       horarios={horarios}
+      disciplinaTodosDiasId={disciplinaTodosDiasId}
+      onDisciplinaTodosDiasChange={setDisciplinaTodosDiasId}
+      activeStudyDaysCount={activeStudyDaysCount}
     />
   );
 }
