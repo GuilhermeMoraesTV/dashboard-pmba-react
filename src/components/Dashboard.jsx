@@ -204,28 +204,8 @@ const DownloadAlert = ({ isVisible, onDismiss }) => (
   </AnimatePresence>
 );
 
-const SectionLoader = ({ minHeight = '16rem', label = 'Carregando area' }) => (
-  <div className="flex items-center justify-center px-3" style={{ minHeight }}>
-    <div className="relative w-full max-w-xl overflow-hidden rounded-[28px] border border-l-4 border-red-100 !border-l-red-500/50 bg-white/88 p-5 shadow-[0_24px_80px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-zinc-950/75">
-      <div className="pointer-events-none absolute -right-12 -top-14 h-40 w-40 rounded-full bg-red-500/10 blur-[70px]" />
-      <div className="pointer-events-none absolute -bottom-14 left-8 h-32 w-32 rounded-full bg-zinc-500/10 blur-[60px]" />
-      <div className="relative flex items-center gap-4">
-        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-red-600 to-rose-700 text-white shadow-2xl shadow-red-500/25">
-          <ClipboardList size={25} className="animate-pulse" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-[9px] font-black uppercase tracking-[0.24em] text-red-500 dark:text-red-300">Modo QAP</p>
-          <p className="mt-1 text-sm font-black uppercase tracking-tight text-zinc-900 dark:text-white">{label}</p>
-          <div className="mt-3 space-y-2">
-            <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
-              <div className="h-full w-1/2 animate-[pulse_1.2s_ease-in-out_infinite] rounded-full bg-gradient-to-r from-red-500 to-rose-400" />
-            </div>
-            <div className="h-2 w-2/3 rounded-full bg-zinc-100 dark:bg-zinc-800" />
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
+const SectionLoader = ({ minHeight = '16rem' }) => (
+  <div className="w-full" style={{ minHeight }} aria-busy="true" />
 );
 
 const ShareCardPreviewModal = ({ data, onClose, onDownload }) => {
@@ -1243,7 +1223,15 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     const resolvedTab = tab === 'cronogramas' ? 'planejamento' : tab;
     if (resolvedTab !== 'planejamento') setForcePlanejamentoSelector(false);
     if (resolvedTab === 'cronograma') setPreferredHomeContext('cronograma');
-    if (resolvedTab === 'ciclos') setPreferredHomeContext('ciclo');
+    if (resolvedTab === 'ciclos') {
+      if (activeCicloId) {
+        handleCicloCreationOrActivation(activeCicloId);
+        return;
+      }
+      setForcePlanejamentoSelector(true);
+      setActiveTab('planejamento');
+      return;
+    }
     setActiveTab(resolvedTab);
     if (resolvedTab !== 'ciclos') { setForceOpenVisual(false); setIsTimerRaised(false); }
   };
@@ -1540,6 +1528,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         activeCicloData={activeCicloData}
         activeCronogramaData={activeCronogramaData}
         onGoToCicloAtivo={handleGoToActiveCycle}
+        shouldGuidePlanning={isNovoUsuarioPlanejamento}
         cicloFinalizacaoAlert={cicloFinalizacaoAlert}
         cicloLegacyUpgradeAlert={cicloLegacyUpgradeAlert}
         notificationProps={{

@@ -282,14 +282,14 @@ function StreakInfoPortal({ streak, anchorRef, onClose }) {
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: 10, scale: 0.95 }}
       style={{ top: coords.top, right: coords.right }}
-      className="fixed z-[9999] w-72 overflow-hidden rounded-3xl border border-zinc-200 bg-white p-6 shadow-2xl dark:border-zinc-800 dark:bg-zinc-950"
+      className="fixed z-[9999] w-60 overflow-hidden rounded-2xl border border-zinc-200 bg-white p-4 shadow-2xl dark:border-zinc-800 dark:bg-zinc-950"
     >
       {/* Fundo Decorativo */}
       <div className="absolute inset-0 bg-gradient-to-b from-orange-500/5 to-transparent dark:from-orange-500/10 pointer-events-none" />
       
       <div className="relative z-10 flex flex-col items-center text-center">
         {/* Grande Chama Animada */}
-        <div className="relative mb-6 flex h-32 w-32 items-center justify-center">
+        <div className="relative mb-3 flex h-20 w-20 items-center justify-center">
           {/* Brilhos de fundo da chama */}
           <motion.div
             animate={{ scale: [1, 1.4, 1], opacity: [0.2, 0.4, 0.2] }}
@@ -299,7 +299,7 @@ function StreakInfoPortal({ streak, anchorRef, onClose }) {
           <motion.div
             animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.5, 0.3] }}
             transition={{ duration: 2, repeat: Infinity, delay: 0.5 }}
-            className="absolute h-20 w-20 rounded-full bg-red-500/20 blur-xl"
+            className="absolute h-14 w-14 rounded-full bg-red-500/20 blur-xl"
           />
 
           {/* Ícone da Chama Principal */}
@@ -313,7 +313,7 @@ function StreakInfoPortal({ streak, anchorRef, onClose }) {
             className="relative z-20"
           >
             <Flame 
-              size={80} 
+              size={52}
               className={streak > 0 
                 ? "text-orange-600 dark:text-orange-500 fill-orange-500/40" 
                 : "text-zinc-300 dark:text-zinc-800"
@@ -344,22 +344,22 @@ function StreakInfoPortal({ streak, anchorRef, onClose }) {
           ))}
         </div>
 
-        <h4 className="text-sm font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
+        <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
           Sequência de Estudo
         </h4>
         
         <div className="mt-1 flex items-baseline gap-2">
-          <span className={`text-6xl font-black tabular-nums ${
+          <span className={`text-4xl font-black tabular-nums ${
             streak > 0 
               ? 'bg-gradient-to-br from-red-600 to-orange-500 bg-clip-text text-transparent dark:from-red-500 dark:to-orange-400' 
               : 'text-zinc-300 dark:text-zinc-800'
           }`}>
             {streak}
           </span>
-          <span className="text-lg font-bold text-zinc-400 dark:text-zinc-600">dias</span>
+          <span className="text-sm font-bold text-zinc-400 dark:text-zinc-600">dias</span>
         </div>
 
-        <p className="mt-4 text-sm font-medium leading-relaxed text-zinc-600 dark:text-zinc-400 px-2">
+        <p className="mt-2 text-xs font-medium leading-relaxed text-zinc-600 dark:text-zinc-400">
           {streak === 0 
             ? "Você ainda não começou sua jornada hoje. Vamos ativar o Modo QAP?" 
             : streak < 3 
@@ -370,7 +370,7 @@ function StreakInfoPortal({ streak, anchorRef, onClose }) {
         </p>
 
         {/* Footer do Card */}
-        <div className="mt-8 w-full border-t border-zinc-100 pt-4 dark:border-zinc-800/50">
+        <div className="mt-4 w-full border-t border-zinc-100 pt-3 dark:border-zinc-800/50">
           <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-wider text-zinc-400">
             <span>Status</span>
             <span className={streak > 0 ? "text-orange-500" : "text-zinc-500"}>
@@ -404,6 +404,7 @@ function NavSideBar({
   activeCicloData,
   activeCronogramaData,
   onGoToCicloAtivo,
+  shouldGuidePlanning = false,
   cicloFinalizacaoAlert,
   cicloLegacyUpgradeAlert,
   notificationProps,
@@ -709,14 +710,14 @@ function NavSideBar({
   }, [registrosEstudo, goalsHistory, activeCronogramaData, activeCicloData, homeContextPreferred]);
 
   // ── NavButton — agora aceita badgeCount ───────────────────────────────
-  const NavButton = ({ label, icon, isActive, isAdmin, isNew, isAtalho, badgeCount, onClick }) => (
+  const NavButton = ({ label, icon, isActive, isAdmin, isNew, isAtalho, isPlanningGuide, badgeCount, onClick }) => (
     <button
       onClick={(e) => {
         setExpanded(true);
         onClick(e);
       }}
       className={`
-        relative flex items-center w-full ${NAV_BTN_PAD} ${NAV_BTN_RADIUS}
+        relative flex items-center w-full ${NAV_BTN_PAD} ${NAV_BTN_RADIUS} ${isPlanningGuide && !isActive ? 'pr-9' : ''}
         transition-all duration-200 group overflow-hidden whitespace-nowrap
         ${isActive
           ? isAdmin
@@ -727,6 +728,22 @@ function NavSideBar({
       `}
     >
       {/* Ícone */}
+      {isPlanningGuide && !isActive && (
+        <>
+          <motion.span
+            className="pointer-events-none absolute inset-0 rounded-xl border-2 border-red-400"
+            animate={{ opacity: [0.15, 0.7, 0.15], scale: [1, 1.035, 1] }}
+            transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
+          />
+          <motion.span
+            className="pointer-events-none absolute right-2 top-1/2 hidden h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full bg-red-600 text-white shadow-lg shadow-red-600/30 lg:flex"
+            animate={{ x: [0, -6, 0] }}
+            transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
+          >
+            <ArrowRight size={13} strokeWidth={3} />
+          </motion.span>
+        </>
+      )}
       <span className={`flex-shrink-0 relative transition-transform duration-300 ${isActive ? 'scale-110' : 'group-hover:scale-110'}`}>
         {icon}
         {/* Ponto de ativo/atalho quando collapsed */}
@@ -861,40 +878,40 @@ function NavSideBar({
                 initial={{ opacity:0, y:10, scale:0.95 }}
                 animate={{ opacity:1, y:0, scale:1 }}
                 exit={{ opacity:0, y:10, scale:0.95 }}
-                className="absolute right-0 top-full mt-2 sm:mt-3 w-64 sm:w-80 overflow-hidden rounded-2xl sm:rounded-3xl border border-red-100 bg-white shadow-2xl shadow-red-950/10 ring-1 ring-red-500/10 dark:border-red-950/50 dark:bg-zinc-950 dark:ring-red-500/20 z-[100]"
+                className="absolute right-0 top-full mt-2 w-60 overflow-hidden rounded-2xl border border-red-100 bg-white shadow-2xl shadow-red-950/10 ring-1 ring-red-500/10 dark:border-red-950/50 dark:bg-zinc-950 dark:ring-red-500/20 sm:w-64 z-[100]"
               >
-                <div className="relative flex flex-col items-center overflow-hidden border-b border-red-100 bg-gradient-to-b from-red-50 via-white to-white px-4 pb-4 pt-5 dark:border-red-950/50 dark:from-red-950/35 dark:via-zinc-950 dark:to-zinc-950 sm:px-6 sm:pb-6 sm:pt-7">
+                <div className="relative flex flex-col items-center overflow-hidden border-b border-red-100 bg-gradient-to-b from-red-50 via-white to-white px-4 pb-3 pt-4 dark:border-red-950/50 dark:from-red-950/35 dark:via-zinc-950 dark:to-zinc-950">
                   <div className="pointer-events-none absolute -top-16 left-1/2 h-40 w-40 -translate-x-1/2 rounded-full bg-red-500/20 blur-3xl dark:bg-red-500/15"/>
                   <div className="pointer-events-none absolute left-0 right-0 top-0 h-1 bg-gradient-to-r from-red-700 via-red-500 to-orange-500"/>
                   <motion.div
                     animate={{ scale: [1, 1.12, 1], opacity: [0.35, 0.55, 0.35] }}
                     transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-                    className="pointer-events-none absolute top-10 h-24 w-24 rounded-full bg-red-500/15 blur-2xl"
+                    className="pointer-events-none absolute top-8 h-20 w-20 rounded-full bg-red-500/15 blur-2xl"
                   />
                   <div
-                    className="relative z-10 mb-3 cursor-pointer drop-shadow-xl transition-transform duration-500 hover:scale-105"
+                    className="relative z-10 mb-2 cursor-pointer drop-shadow-xl transition-transform duration-500 hover:scale-105"
                     onClick={() => { setActiveTab('profile'); setIsProfileMenuOpen(false); }}
                   >
-                    <div className="rounded-full bg-white/80 p-1.5 shadow-xl shadow-red-900/10 ring-4 ring-red-100/80 dark:bg-zinc-950/70 dark:ring-red-950/70">
-                      <ProfileLevelRing userPhotoURL={user?.photoURL} size={70} strokeWidth={3.5}/>
+                    <div className="rounded-full bg-white/80 p-1 shadow-xl shadow-red-900/10 ring-4 ring-red-100/80 dark:bg-zinc-950/70 dark:ring-red-950/70">
+                      <ProfileLevelRing userPhotoURL={user?.photoURL} size={56} strokeWidth={3.5}/>
                     </div>
                   </div>
-                  <h3 className="relative z-10 mb-1 w-full truncate text-center text-base font-black leading-tight tracking-tight text-zinc-950 dark:text-white sm:text-lg">
+                  <h3 className="relative z-10 mb-1 w-full truncate text-center text-sm font-black leading-tight tracking-tight text-zinc-950 dark:text-white">
                     {user?.displayName || 'Guerreiro'}
                   </h3>
-                  <div className="relative z-10 rounded-full border border-red-200 bg-white/75 px-3 py-1 text-[9px] font-black uppercase tracking-[0.18em] text-red-600 shadow-sm dark:border-red-900/70 dark:bg-red-950/20 dark:text-red-300">
+                  <div className="relative z-10 rounded-full border border-red-200 bg-white/75 px-2.5 py-0.5 text-[8px] font-black uppercase tracking-[0.18em] text-red-600 shadow-sm dark:border-red-900/70 dark:bg-red-950/20 dark:text-red-300">
                     Central do aluno
                   </div>
                 </div>
 
-                <div className="space-y-1 bg-white p-2 dark:bg-zinc-950 sm:space-y-2 sm:p-3">
+                <div className="space-y-1 bg-white p-2 dark:bg-zinc-950">
                   <button
                     onClick={() => { setActiveTab('profile'); setIsProfileMenuOpen(false); }}
-                    className="group flex w-full items-center justify-between rounded-xl border border-transparent px-3 py-2.5 text-sm font-bold text-zinc-700 transition-all hover:border-red-100 hover:bg-red-50/70 hover:text-zinc-950 dark:text-zinc-300 dark:hover:border-red-950/60 dark:hover:bg-red-950/20 dark:hover:text-white sm:rounded-2xl sm:px-4 sm:py-3"
+                    className="group flex w-full items-center justify-between rounded-xl border border-transparent px-3 py-2 text-xs font-bold text-zinc-700 transition-all hover:border-red-100 hover:bg-red-50/70 hover:text-zinc-950 dark:text-zinc-300 dark:hover:border-red-950/60 dark:hover:bg-red-950/20 dark:hover:text-white"
                   >
                     <div className="flex items-center gap-4">
-                      <div className="rounded-xl bg-red-50 p-2 text-red-600 transition-all group-hover:bg-red-600 group-hover:text-white dark:bg-red-950/30 dark:text-red-300">
-                        <User size={18}/>
+                      <div className="rounded-lg bg-red-50 p-1.5 text-red-600 transition-all group-hover:bg-red-600 group-hover:text-white dark:bg-red-950/30 dark:text-red-300">
+                        <User size={16}/>
                       </div>
                       <span>Meu Perfil</span>
                     </div>
@@ -903,11 +920,11 @@ function NavSideBar({
 
                   <button
                     onClick={() => { setIsTimerSettingsOpen(true); setIsProfileMenuOpen(false); }}
-                    className="group flex w-full items-center justify-between rounded-xl border border-transparent px-3 py-2.5 text-sm font-bold text-zinc-700 transition-all hover:border-red-100 hover:bg-red-50/70 hover:text-zinc-950 dark:text-zinc-300 dark:hover:border-red-950/60 dark:hover:bg-red-950/20 dark:hover:text-white sm:rounded-2xl sm:px-4 sm:py-3"
+                    className="group flex w-full items-center justify-between rounded-xl border border-transparent px-3 py-2 text-xs font-bold text-zinc-700 transition-all hover:border-red-100 hover:bg-red-50/70 hover:text-zinc-950 dark:text-zinc-300 dark:hover:border-red-950/60 dark:hover:bg-red-950/20 dark:hover:text-white"
                   >
                     <div className="flex items-center gap-4">
-                      <div className="rounded-xl bg-red-50 p-2 text-red-600 transition-all group-hover:bg-red-600 group-hover:text-white dark:bg-red-950/30 dark:text-red-300">
-                        <Settings size={18}/>
+                      <div className="rounded-lg bg-red-50 p-1.5 text-red-600 transition-all group-hover:bg-red-600 group-hover:text-white dark:bg-red-950/30 dark:text-red-300">
+                        <Settings size={16}/>
                       </div>
                       <span>Configurações</span>
                     </div>
@@ -916,11 +933,11 @@ function NavSideBar({
 
                   <button
                     onClick={() => { onOpenFeedback(); setIsProfileMenuOpen(false); }}
-                    className="group flex w-full items-center justify-between rounded-xl border border-transparent px-3 py-2.5 text-sm font-bold text-zinc-700 transition-all hover:border-red-100 hover:bg-red-50/70 hover:text-zinc-950 dark:text-zinc-300 dark:hover:border-red-950/60 dark:hover:bg-red-950/20 dark:hover:text-white sm:rounded-2xl sm:px-4 sm:py-3"
+                    className="group flex w-full items-center justify-between rounded-xl border border-transparent px-3 py-2 text-xs font-bold text-zinc-700 transition-all hover:border-red-100 hover:bg-red-50/70 hover:text-zinc-950 dark:text-zinc-300 dark:hover:border-red-950/60 dark:hover:bg-red-950/20 dark:hover:text-white"
                   >
                     <div className="flex items-center gap-4">
-                      <div className="relative rounded-xl bg-red-50 p-2 text-red-600 transition-all group-hover:bg-red-600 group-hover:text-white dark:bg-red-950/30 dark:text-red-300">
-                        <Radio size={18} className={hasUnreadSupport ? 'animate-pulse' : ''}/>
+                      <div className="relative rounded-lg bg-red-50 p-1.5 text-red-600 transition-all group-hover:bg-red-600 group-hover:text-white dark:bg-red-950/30 dark:text-red-300">
+                        <Radio size={16} className={hasUnreadSupport ? 'animate-pulse' : ''}/>
                         {hasUnreadSupport && (
                           <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white dark:border-zinc-900"/>
                         )}
@@ -934,11 +951,11 @@ function NavSideBar({
 
                   <button
                     onClick={handleLogout}
-                    className="group flex w-full items-center rounded-xl px-3 py-2.5 text-sm font-bold text-red-600 transition-all hover:bg-red-50 dark:hover:bg-red-950/20 sm:rounded-2xl sm:px-4 sm:py-3"
+                    className="group flex w-full items-center rounded-xl px-3 py-2 text-xs font-bold text-red-600 transition-all hover:bg-red-50 dark:hover:bg-red-950/20"
                   >
                     <div className="flex items-center gap-4">
-                      <div className="rounded-xl bg-red-100 p-2 text-red-600 transition-all group-hover:bg-red-600 group-hover:text-white dark:bg-red-950/40 dark:text-red-300">
-                        <LogOut size={18}/>
+                      <div className="rounded-lg bg-red-100 p-1.5 text-red-600 transition-all group-hover:bg-red-600 group-hover:text-white dark:bg-red-950/40 dark:text-red-300">
+                        <LogOut size={16}/>
                       </div>
                       <span>Sair do Sistema</span>
                     </div>
@@ -1136,6 +1153,7 @@ function NavSideBar({
                 isActive={isActive}
                 isAdmin={item.isAdmin}
                 isNew={item.isNew}
+                isPlanningGuide={shouldGuidePlanning && item.id === 'planejamento'}
                 // Passa o badge apenas para o item de revisões
                 badgeCount={item.id === 'revisoes' ? revisoesPendentesBadge : 0}
                 onClick={() => {

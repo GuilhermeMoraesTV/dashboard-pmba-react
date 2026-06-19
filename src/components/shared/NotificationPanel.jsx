@@ -719,10 +719,10 @@ const NotificationPanel = ({
   }, [bellRef, isOpen]);
 
   const isMobileViewport = window.innerWidth < 640;
-  const panelWidth = isMobileViewport ? Math.min(350, window.innerWidth - 24) : 390;
+  const panelWidth = isMobileViewport ? Math.min(326, window.innerWidth - 24) : 340;
   const bellRight = bellRectState ? Math.max(window.innerWidth - bellRectState.right, 10) : 10;
   const bellBottom = bellRectState ? bellRectState.bottom : 74;
-  const panelMaxHeight = Math.min(isMobileViewport ? 520 : 580, Math.max(280, window.innerHeight - bellBottom - 24));
+  const panelMaxHeight = Math.min(isMobileViewport ? 470 : 520, Math.max(260, window.innerHeight - bellBottom - 24));
   const panelPosition = isMobileViewport
     ? { left: 12, right: 12, width: 'auto' }
     : { right: bellRight, width: panelWidth };
@@ -741,14 +741,14 @@ const NotificationPanel = ({
             exit={{ opacity: 0, scale: 0.985, y: -4 }}
             transition={{ duration: 0.1, ease: 'easeOut' }}
             style={{ top: bellBottom + 8, ...panelPosition, maxHeight: panelMaxHeight }}
-            className="fixed z-[100] flex flex-col overflow-hidden glass-panel-fire rounded-[20px] sm:rounded-[24px] shadow-2xl"
+            className="fixed z-[100] flex flex-col overflow-hidden glass-panel-fire rounded-[18px] sm:rounded-[20px] shadow-2xl"
           >
             <style>{notifGlobalStyles}</style>
             <div className="h-1 bg-gradient-to-r from-red-700 via-red-500 to-red-700 flex-shrink-0 shadow-lg" />
-            <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-zinc-100 dark:border-zinc-800/60 bg-white/20 dark:bg-zinc-950/40">
-              <div className="flex items-center gap-2.5">
-                <div className="relative flex items-center justify-center w-8 h-8 bg-red-600/10 dark:bg-red-500/20 rounded-lg">
-                  <Bell size={16} className="text-red-600 dark:text-red-500" strokeWidth={2.5} />
+            <div className="flex-shrink-0 flex items-center justify-between px-3 py-2.5 border-b border-zinc-100 dark:border-zinc-800/60 bg-white/20 dark:bg-zinc-950/40">
+              <div className="flex items-center gap-2">
+                <div className="relative flex items-center justify-center w-7 h-7 bg-red-600/10 dark:bg-red-500/20 rounded-lg">
+                  <Bell size={14} className="text-red-600 dark:text-red-500" strokeWidth={2.5} />
                   {unreadCount > 0 && <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white dark:border-zinc-900 shadow-lg" />}
                 </div>
                 <div><h3 className="text-[13px] font-black text-zinc-900 dark:text-white uppercase tracking-[0.1em] leading-none">Notificações</h3><p className="text-[8px] font-bold text-zinc-400 uppercase tracking-widest mt-1 flex items-center gap-1"><Flame size={8} className="text-red-500" /> FEED OPERACIONAL</p></div>
@@ -768,18 +768,18 @@ const NotificationPanel = ({
             </div>
             <div className="flex-1 overflow-y-auto notif-scrollbar">
               {systemAlerts.length > 0 && activeFilter === 'all' && (
-                <div className="px-4 pt-4 pb-2 space-y-2.5 bg-gradient-to-b from-red-600/5 to-transparent">
+                <div className="px-3 pt-3 pb-2 space-y-2 bg-gradient-to-b from-red-600/5 to-transparent">
                   {systemAlerts.map(alert => <SystemAlertCard key={alert.id} alert={alert} onAction={onSystemAlertAction} />)}
                 </div>
               )}
-              <div className="sticky top-0 z-20 flex items-center justify-between px-3 py-2 bg-white/95 dark:bg-zinc-950/95 border-b border-zinc-100 dark:border-zinc-800/60 overflow-x-hidden">
+              <div className="sticky top-0 z-20 flex items-center justify-between px-2.5 py-2 bg-white/95 dark:bg-zinc-950/95 border-b border-zinc-100 dark:border-zinc-800/60 overflow-x-hidden">
                 {filters.map(f => (
-                  <button key={f.id} onClick={() => setActiveFilter(f.id)} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-colors duration-75 border ${activeFilter === f.id ? 'bg-zinc-900 text-white border-zinc-900 dark:bg-white dark:text-zinc-900 dark:border-white shadow-md' : 'bg-white dark:bg-zinc-900 text-zinc-500 border-zinc-100 dark:border-zinc-800 shadow-sm'}`}>
+                  <button key={f.id} onClick={() => setActiveFilter(f.id)} className={`flex items-center gap-1 px-2 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-wider transition-colors duration-75 border ${activeFilter === f.id ? 'bg-zinc-900 text-white border-zinc-900 dark:bg-white dark:text-zinc-900 dark:border-white shadow-md' : 'bg-white dark:bg-zinc-900 text-zinc-500 border-zinc-100 dark:border-zinc-800 shadow-sm'}`}>
                     {f.icon && <f.icon size={11} />} {f.label} {f.count > 0 && <span className="text-[8px] font-black px-1.5 py-0.5 rounded-md bg-red-500 text-white shadow-md">{f.count}</span>}
                   </button>
                 ))}
               </div>
-              <div className="p-4 space-y-3.5">
+              <div className="p-3 space-y-3">
                 {filtered.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-12 text-center">
                     <div className="w-16 h-16 bg-zinc-50 dark:bg-zinc-900 rounded-[20px] flex items-center justify-center mb-5 shadow-inner border border-zinc-100 dark:border-zinc-800"><Flame size={28} className="text-red-100 dark:text-red-950" strokeWidth={1.5} /></div>
@@ -792,7 +792,7 @@ const NotificationPanel = ({
                 )}
               </div>
             </div>
-            <div className="flex-shrink-0 px-4 py-3 border-t border-zinc-100 dark:border-zinc-800/60 flex items-center justify-between bg-white/95 dark:bg-zinc-950/95">
+            <div className="flex-shrink-0 px-3 py-2.5 border-t border-zinc-100 dark:border-zinc-800/60 flex items-center justify-between bg-white/95 dark:bg-zinc-950/95">
               <span className="text-[9px] font-black text-zinc-400 uppercase tracking-[0.1em]">{filtered.length} REGISTROS</span>
               <div className="flex items-center gap-2 opacity-40 group cursor-default"><img src="/logoModoQAP.png" alt="Logo" className="h-3.5 grayscale dark:invert" /><span className="text-[8px] font-black text-zinc-900 dark:text-white uppercase tracking-[0.2em]">MODOQAP</span></div>
             </div>

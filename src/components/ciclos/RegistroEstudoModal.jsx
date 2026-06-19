@@ -133,14 +133,14 @@ const globalStyles = `
 
   .registro-ambient-grid {
     background-image:
-      linear-gradient(rgba(244, 244, 245, 0.82) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(244, 244, 245, 0.82) 1px, transparent 1px);
+      linear-gradient(rgba(161, 161, 170, 0.18) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(161, 161, 170, 0.18) 1px, transparent 1px);
     background-size: 28px 28px;
   }
   .dark .registro-ambient-grid {
     background-image:
-      linear-gradient(rgba(39, 39, 42, 0.52) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(39, 39, 42, 0.52) 1px, transparent 1px);
+      linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
   }
 
   .registro-flow-strip {

@@ -1,7 +1,11 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
+import { createPortal } from 'react-dom';
 import { doc, updateDoc } from 'firebase/firestore';
-import { FilePenLine, Loader2, Settings2, X } from 'lucide-react';
+import {
+  BookOpen, CalendarDays, Check, Clock3, FilePenLine,
+  Loader2, Settings2, TimerReset, X,
+} from 'lucide-react';
 import { db } from '../../firebaseConfig';
 import WizardShell from './WizardShell';
 
@@ -100,139 +104,198 @@ const ModalEditarCronograma = ({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-[210] flex items-center justify-center bg-zinc-950/80 p-4 backdrop-blur-sm">
+  return createPortal(
+    <div className="fixed inset-0 z-[20000] flex items-center justify-center bg-zinc-950/80 px-4 py-3 backdrop-blur-sm">
       <motion.div
         initial={{ opacity: 0, y: 16, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 16, scale: 0.98 }}
-        className="w-full max-w-2xl overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-950"
+        className="relative max-h-[calc(100dvh-24px)] w-full max-w-3xl overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-950"
       >
-        <div className="border-b border-zinc-100 bg-gradient-to-br from-emerald-600 to-zinc-950 p-5 text-white dark:border-zinc-800">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.26em] text-white/65">Edicao simples</p>
-              <h2 className="mt-1 text-xl font-black uppercase tracking-tight">Ajustes rapidos</h2>
-              <p className="mt-2 max-w-xl text-sm font-medium text-white/75">
-                Altere nome, inicio e exibicao sem mexer na distribuicao. Para mudar dias, horas ou disciplinas, use Recalcular planejamento.
-              </p>
+        <div className="relative overflow-hidden border-b border-red-700 bg-red-600 px-4 py-3 text-white">
+          {cronograma.logoUrl && (
+            <img
+              src={cronograma.logoUrl}
+              alt=""
+              aria-hidden="true"
+              className="pointer-events-none absolute -bottom-10 -right-4 h-36 w-36 rotate-[-12deg] object-contain opacity-20 saturate-0"
+            />
+          )}
+          <div className="relative z-10 flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-red-100">Edicao simples</p>
+              <h2 className="mt-0.5 text-lg font-black uppercase tracking-tight">Ajustes rapidos</h2>
+              <p className="mt-1 text-xs font-medium text-red-50/90">Atualize nome, inicio e exibicao sem redistribuir os blocos.</p>
             </div>
-            <button onClick={onFechar} className="rounded-xl p-2 text-white/70 transition hover:bg-white/10 hover:text-white">
+            <button onClick={onFechar} className="shrink-0 rounded-lg p-2 text-white/80 transition hover:bg-red-700 hover:text-white">
               <X size={18} />
             </button>
           </div>
         </div>
 
-        <div className="max-h-[72vh] overflow-y-auto p-5">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className="block">
-              <span className="text-xs font-black uppercase tracking-wider text-zinc-700 dark:text-zinc-200">Nome do planejamento</span>
+        <div className="space-y-2.5 overflow-y-auto bg-zinc-50/70 p-3 dark:bg-zinc-950">
+          <div className="grid gap-2.5 md:grid-cols-2">
+            <label className="block rounded-2xl border border-zinc-200 bg-white p-2.5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+              <span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-zinc-500">
+                <Settings2 size={13} className="text-red-600" />
+                Nome do planejamento
+              </span>
               <input
                 value={nome}
                 onChange={(event) => setNome(event.target.value)}
-                className="mt-2 h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm font-black text-zinc-900 outline-none focus:border-emerald-400 dark:border-zinc-800 dark:bg-zinc-900 dark:text-white"
+                className="mt-1.5 h-9 w-full rounded-xl border-2 border-zinc-200 bg-zinc-50 px-3 text-sm font-black text-zinc-900 outline-none transition-all focus:border-red-500 focus:ring-4 focus:ring-red-500/10 dark:border-zinc-700 dark:bg-zinc-950 dark:text-white"
                 placeholder="Ex: Cronograma PMBA"
               />
             </label>
 
-            <label className="block">
-              <span className="text-xs font-black uppercase tracking-wider text-zinc-700 dark:text-zinc-200">Inicio do planejamento</span>
+            <label className="block rounded-2xl border border-zinc-200 bg-white p-2.5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+              <span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-zinc-500">
+                <CalendarDays size={13} className="text-red-600" />
+                Inicio do planejamento
+              </span>
               <input
                 type="date"
                 value={dataInicio}
                 onChange={(event) => setDataInicio(event.target.value)}
-                className="mt-2 h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm font-black text-zinc-900 outline-none focus:border-emerald-400 dark:border-zinc-800 dark:bg-zinc-900 dark:text-white"
+                className="mt-1.5 h-9 w-full rounded-xl border-2 border-zinc-200 bg-zinc-50 px-3 text-sm font-black text-zinc-900 outline-none transition-all focus:border-red-500 focus:ring-4 focus:ring-red-500/10 dark:border-zinc-700 dark:bg-zinc-950 dark:text-white"
               />
             </label>
           </div>
 
-          <section className="mt-5 rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4 dark:border-emerald-900/40 dark:bg-emerald-950/20">
+          <section className="rounded-2xl border border-red-100 bg-white p-2.5 shadow-sm dark:border-red-950/50 dark:bg-zinc-900">
             <div className="mb-2 flex items-center justify-between gap-3">
-              <p className="text-xs font-black uppercase tracking-wider text-zinc-700 dark:text-zinc-200">Rotina atual</p>
-              <span className="rounded-lg bg-emerald-50 px-2 py-1 text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400">
+              <p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-zinc-900 dark:text-white">
+                <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-red-600 text-white shadow-md shadow-red-600/20">
+                  <CalendarDays size={13} />
+                </span>
+                Rotina atual
+              </p>
+              <span className="rounded-lg bg-red-50 px-2 py-1 text-[9px] font-black uppercase text-red-700 dark:bg-red-950/30 dark:text-red-300">
                 {totalHorasSemanais}h/sem
               </span>
             </div>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-7">
+            <div className="grid grid-cols-7 gap-1.5">
               {DIAS.map((dia) => {
                 const active = Number(horarios[dia.id] || 0) > 0;
                 return (
-                  <div key={dia.id} className={`rounded-2xl border p-2 text-center ${active ? 'border-emerald-200 bg-white dark:border-emerald-900/40 dark:bg-zinc-950' : 'border-zinc-200 bg-white/60 opacity-60 dark:border-zinc-800 dark:bg-zinc-900/50'}`}>
-                    <p className={`rounded-xl py-2 text-xs font-black uppercase ${active ? 'bg-emerald-600 text-white' : 'bg-zinc-100 text-zinc-400 dark:bg-zinc-950'}`}>{dia.label}</p>
-                    <p className="mt-2 text-xs font-black text-zinc-700 dark:text-zinc-200">{active ? `${horarios[dia.id]}h` : '-'}</p>
+                  <div key={dia.id} className={`rounded-xl border p-1 text-center ${active ? 'border-red-200 bg-red-50 dark:border-red-900/40 dark:bg-red-950/20' : 'border-zinc-200 bg-zinc-50 opacity-60 dark:border-zinc-800 dark:bg-zinc-900/50'}`}>
+                    <p className={`rounded-lg py-1 text-[9px] font-black uppercase ${active ? 'bg-red-600 text-white' : 'bg-white text-zinc-400 dark:bg-zinc-950'}`}>{dia.label}</p>
+                    <p className="mt-1 text-[10px] font-black text-zinc-700 dark:text-zinc-200">{active ? `${horarios[dia.id]}h` : '-'}</p>
                   </div>
                 );
               })}
             </div>
-            <p className="mt-3 text-xs font-medium text-emerald-800 dark:text-emerald-300">
-              Dias e horas redistribuem o cronograma. Use Recalcular planejamento para alterar essa estrutura.
+            <p className="mt-1.5 text-[10px] font-medium leading-snug text-red-700 dark:text-red-300">
+              Para alterar dias, horas ou disciplinas, use Recalcular planejamento.
             </p>
           </section>
 
-          <section className="mt-5 grid gap-4 sm:grid-cols-2">
-            <label className="block">
-              <span className="text-xs font-black uppercase tracking-wider text-zinc-700 dark:text-zinc-200">Tempo de revisao</span>
-              <input
-                type="number"
-                min="5"
-                step="5"
-                value={tempoRevisaoMinutos}
-                onChange={(event) => setTempoRevisaoMinutos(Math.max(5, Number(event.target.value) || 20))}
-                className="mt-2 h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm font-black text-zinc-900 outline-none focus:border-emerald-400 dark:border-zinc-800 dark:bg-zinc-900 dark:text-white"
-              />
+          <section className="grid gap-2.5 md:grid-cols-2">
+            <label className="rounded-2xl border border-red-100 bg-white p-2.5 shadow-sm dark:border-red-950/50 dark:bg-zinc-900">
+              <div className="flex items-center gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-red-600 text-white shadow-md shadow-red-600/20">
+                  <TimerReset size={16} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <span className="text-[9px] font-black uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Tempo de revisao</span>
+                  <div className="mt-1 flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="5"
+                      step="5"
+                      value={tempoRevisaoMinutos}
+                      onChange={(event) => setTempoRevisaoMinutos(Math.max(5, Number(event.target.value) || 20))}
+                      className="h-8 w-20 rounded-lg border-2 border-zinc-200 bg-zinc-50 px-2 text-center text-sm font-black text-zinc-900 outline-none focus:border-red-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-white"
+                    />
+                    <span className="text-[10px] font-bold text-zinc-400">min por revisao</span>
+                  </div>
+                </div>
+              </div>
             </label>
 
-            <label className="block">
-              <span className="text-xs font-black uppercase tracking-wider text-zinc-700 dark:text-zinc-200">Tempo nos cards</span>
-              <select
-                value={modoExibirTempo}
-                onChange={(event) => setModoExibirTempo(event.target.value)}
-                className="mt-2 h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm font-black text-zinc-900 outline-none focus:border-emerald-400 dark:border-zinc-800 dark:bg-zinc-900 dark:text-white"
-              >
-                <option value="detalhado">Mostrar detalhado</option>
-                <option value="simples">Mostrar simples</option>
-              </select>
-            </label>
+            <div className="rounded-2xl border border-zinc-200 bg-white p-2.5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+              <div className="mb-2 flex items-center gap-2">
+                <Clock3 size={14} className="text-red-600" />
+                <p className="text-[9px] font-black uppercase tracking-wider text-zinc-900 dark:text-white">Tempo nos cards</p>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  ['detalhado', 'Detalhado', 'Exibe a duracao completa.'],
+                  ['simples', 'Simples', 'Mantem o card mais limpo.'],
+                ].map(([value, title, description]) => {
+                  const active = modoExibirTempo === value;
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setModoExibirTempo(value)}
+                      className={`flex min-w-0 items-start gap-2 rounded-xl border-2 p-2 text-left transition-all ${
+                        active
+                          ? 'border-red-500 bg-red-50 dark:bg-red-950/30'
+                          : 'border-zinc-200 bg-zinc-50 hover:border-red-300 dark:border-zinc-700 dark:bg-zinc-950'
+                      }`}
+                    >
+                      <span className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 ${
+                        active ? 'border-red-600 bg-red-600 text-white' : 'border-zinc-300 dark:border-zinc-600'
+                      }`}>
+                        {active && <Check size={9} strokeWidth={4} />}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block text-[8px] font-black uppercase text-zinc-900 dark:text-white">{title}</span>
+                        <span className="mt-0.5 block text-[8px] leading-snug text-zinc-500 dark:text-zinc-400">{description}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </section>
 
-          <label className="mt-5 flex items-center justify-between gap-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900/60">
+          <label className="flex items-center justify-between gap-3 rounded-2xl border border-zinc-200 bg-white px-3 py-2.5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
             <div>
-              <p className="text-sm font-black text-zinc-900 dark:text-white">Guia por assunto</p>
-              <p className="text-xs font-medium text-zinc-500">Mostra o assunto sugerido em cada bloco do cronograma.</p>
+              <div className="flex items-center gap-2">
+                <BookOpen size={14} className="text-red-600" />
+                <p className="text-[10px] font-black uppercase tracking-wider text-zinc-900 dark:text-white">Guia por assunto</p>
+              </div>
+              <p className="mt-1 text-[10px] font-medium text-zinc-500">Mostra o assunto sugerido em cada bloco do cronograma.</p>
             </div>
-            <input
-              type="checkbox"
-              checked={modoExibirAssuntos}
-              onChange={(event) => setModoExibirAssuntos(event.target.checked)}
-              className="h-5 w-5 accent-emerald-600"
-            />
+            <button
+              type="button"
+              role="switch"
+              aria-checked={modoExibirAssuntos}
+              onClick={() => setModoExibirAssuntos((current) => !current)}
+              className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${modoExibirAssuntos ? 'bg-red-600' : 'bg-zinc-300 dark:bg-zinc-700'}`}
+            >
+              <span className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow transition-all ${modoExibirAssuntos ? 'right-1' : 'left-1'}`} />
+            </button>
           </label>
         </div>
 
-        <div className="flex flex-col gap-2 border-t border-zinc-100 p-4 dark:border-zinc-800 sm:flex-row sm:justify-between">
+        <div className="flex items-center justify-between gap-2 border-t border-zinc-100 bg-zinc-50/80 p-3 dark:border-zinc-800 dark:bg-zinc-950">
           <button
             onClick={() => setModoCompleto(true)}
-            className="inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-200 px-4 py-2 text-xs font-black uppercase tracking-wider text-zinc-600 transition hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900"
+            className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-zinc-200 px-3 py-2.5 text-[9px] font-black uppercase text-zinc-600 transition hover:bg-white dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900"
           >
-            <Settings2 size={14} />
+            <Settings2 size={13} />
             Recalcular planejamento
           </button>
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <button onClick={onFechar} className="rounded-xl border border-zinc-200 px-4 py-2 text-xs font-black uppercase tracking-wider text-zinc-500 transition hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900">
+          <div className="flex items-center gap-2">
+            <button onClick={onFechar} className="rounded-xl border border-zinc-200 px-3 py-2.5 text-[9px] font-black uppercase text-zinc-500 transition hover:bg-white dark:border-zinc-800 dark:hover:bg-zinc-900">
               Agora nao
             </button>
             <button
               onClick={handleSalvarRapido}
               disabled={salvando}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-2 text-xs font-black uppercase tracking-wider text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-red-600 px-3 py-2.5 text-[9px] font-black uppercase text-white shadow-lg shadow-red-600/20 transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {salvando ? <Loader2 size={14} className="animate-spin" /> : <FilePenLine size={14} />}
+              {salvando ? <Loader2 size={13} className="animate-spin" /> : <FilePenLine size={13} />}
               Salvar ajustes
             </button>
           </div>
         </div>
       </motion.div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

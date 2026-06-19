@@ -244,7 +244,7 @@ const somarDias = (data, dias) => {
 };
 
 // ─── MODAL DE CONFIRMAÇÃO ──────────────────────────────────────────────────────
-const ModalConfirm = ({ msg, onConfirm, onCancel, loading }) => (
+const ModalConfirm = ({ msg, onConfirm, onCancel, loading, title = 'Confirmar ação', confirmLabel = 'Confirmar', confirmIcon: ConfirmIcon = Trash2, tone = 'red' }) => (
   <motion.div
     initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
     className="fixed inset-0 bg-zinc-950/70 backdrop-blur-sm z-[200] flex items-center justify-center p-4"
@@ -253,15 +253,16 @@ const ModalConfirm = ({ msg, onConfirm, onCancel, loading }) => (
       initial={{ scale: 0.95, y: 10 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 10 }}
       className="bg-white dark:bg-zinc-900 rounded-2xl p-6 max-w-sm w-full shadow-2xl border border-zinc-200 dark:border-zinc-800"
     >
-      <div className="w-12 h-12 bg-red-100 dark:bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
-        <AlertTriangle size={24} className="text-red-600 dark:text-red-500"/>
+      <div className={`w-12 h-12 ${tone === 'amber' ? 'bg-amber-100 dark:bg-amber-500/10' : 'bg-red-100 dark:bg-red-500/10'} rounded-full flex items-center justify-center mx-auto mb-4`}>
+        <AlertTriangle size={24} className={tone === 'amber' ? 'text-amber-600 dark:text-amber-500' : 'text-red-600 dark:text-red-500'}/>
       </div>
+      <h3 className="mb-2 text-center text-sm font-black uppercase tracking-widest text-zinc-900 dark:text-white">{title}</h3>
       <p className="text-sm font-medium text-zinc-600 dark:text-zinc-300 text-center mb-6 leading-relaxed">{msg}</p>
       <div className="flex gap-3">
         <button onClick={onCancel} className="flex-1 py-2.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 rounded-xl font-bold text-xs uppercase tracking-wide hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors">Cancelar</button>
-        <button onClick={onConfirm} disabled={loading} className="flex-1 py-2.5 bg-red-600 text-white rounded-xl font-bold text-xs uppercase tracking-wide hover:bg-red-700 transition-colors disabled:opacity-60 flex items-center justify-center gap-2 shadow-sm">
-          {loading ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/> : <Trash2 size={14}/>}
-          Confirmar
+        <button onClick={onConfirm} disabled={loading} className={`flex-1 py-2.5 ${tone === 'amber' ? 'bg-amber-600 hover:bg-amber-700' : 'bg-red-600 hover:bg-red-700'} text-white rounded-xl font-bold text-xs uppercase tracking-wide transition-colors disabled:opacity-60 flex items-center justify-center gap-2 shadow-sm`}>
+          {loading ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/> : <ConfirmIcon size={14}/>}
+          {confirmLabel}
         </button>
       </div>
     </motion.div>
@@ -2153,6 +2154,8 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
   const [slotDetalhes,      setSlotDetalhes]      = useState(null);
   const [showHistoryModal,  setShowHistoryModal]  = useState(false);
   const [recordToDelete,    setRecordToDelete]    = useState(null);
+  const [delayConfirmation, setDelayConfirmation] = useState(null);
+  const [undoDelayData,     setUndoDelayData]     = useState(null);
   const [optimisticDone,    setOptimisticDone]    = useState({});
   const [configMenuOpen,    setConfigMenuOpen]    = useState(false);
   const [editInitialMode,   setEditInitialMode]   = useState('simple');
@@ -2183,12 +2186,28 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
   const adiarCronograma = async (cronogramaId, cronogramaAtual) => {
     try {
       const dataAtual = new Date(cronogramaAtual.dataInicio + 'T12:00:00');
+      const dataAnterior = cronogramaAtual.dataInicio;
       dataAtual.setDate(dataAtual.getDate() + 7);
       const novaData = dataAtual.toISOString().split('T')[0];
       await updateDoc(doc(db, 'users', user.uid, 'cronogramas', cronogramaId), { dataInicio: novaData });
+      setUndoDelayData({ cronogramaId, previousDate: dataAnterior, nextDate: novaData });
       showToast('📅 Cronograma adiado em 1 semana!');
     } catch (e) {
       showToast('❌ Erro ao adiar. Tente novamente.');
+    }
+  };
+
+  const desfazerAdiamentoCronograma = async () => {
+    if (!undoDelayData?.cronogramaId || !undoDelayData?.previousDate) return;
+    setLoadingAction(true);
+    try {
+      await updateDoc(doc(db, 'users', user.uid, 'cronogramas', undoDelayData.cronogramaId), { dataInicio: undoDelayData.previousDate });
+      setUndoDelayData(null);
+      showToast('↩️ Adiamento revertido!');
+    } catch (e) {
+      showToast('❌ Erro ao reverter adiamento.');
+    } finally {
+      setLoadingAction(false);
     }
   };
 
@@ -2626,6 +2645,26 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
           />
         )}
 
+        {delayConfirmation && (
+          <ModalConfirm
+            title="Adiar semana"
+            msg="Deseja empurrar o cronograma uma semana para frente? Depois da confirmação, você poderá desfazer e voltar para a data atual."
+            confirmLabel="Adiar"
+            confirmIcon={SkipForward}
+            tone="amber"
+            onConfirm={() => {
+              setLoadingAction(true);
+              adiarCronograma(delayConfirmation.id, delayConfirmation)
+                .finally(() => {
+                  setLoadingAction(false);
+                  setDelayConfirmation(null);
+                });
+            }}
+            onCancel={() => setDelayConfirmation(null)}
+            loading={loadingAction}
+          />
+        )}
+
         {showHistoryModal && (
           <HistoricoModal
             isOpen={showHistoryModal}
@@ -2668,6 +2707,27 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
             className="fixed top-6 left-1/2 -translate-x-1/2 z-[300] bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 px-5 py-2.5 rounded-xl shadow-lg text-[11px] font-bold pointer-events-none flex items-center gap-2"
           >
             {toast}
+          </motion.div>
+        )}
+
+        {undoDelayData && (
+          <motion.div
+            initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 18 }}
+            className="fixed bottom-5 left-1/2 z-[300] flex w-[calc(100vw-24px)] max-w-md -translate-x-1/2 items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-white px-4 py-3 text-zinc-900 shadow-2xl shadow-amber-900/10 dark:border-amber-900/40 dark:bg-zinc-950 dark:text-white"
+          >
+            <div className="min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400">Semana adiada</p>
+              <p className="mt-0.5 truncate text-xs font-semibold text-zinc-500 dark:text-zinc-400">Voltar para {formatarDataHeader(undoDelayData.previousDate)}</p>
+            </div>
+            <button
+              type="button"
+              onClick={desfazerAdiamentoCronograma}
+              disabled={loadingAction}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-amber-600 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white shadow-sm transition-colors hover:bg-amber-700 disabled:opacity-60"
+            >
+              {loadingAction ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+              Desfazer
+            </button>
           </motion.div>
         )}
       </AnimatePresence>
@@ -2862,12 +2922,15 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
                         setConfigMenuOpen(false);
                         setMostrandoEditar(true);
                       }}
-                      className="group relative flex w-full items-center gap-2.5 rounded-xl border border-red-100/80 bg-gradient-to-r from-red-50/90 to-white p-2.5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-red-200 hover:shadow-md hover:shadow-red-600/10 dark:border-red-950/60 dark:from-red-950/35 dark:to-zinc-950 dark:hover:border-red-900"
+                      className="group relative flex w-full items-center gap-3 overflow-hidden rounded-xl border border-red-200 bg-red-50 p-3 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-red-300 hover:bg-red-100 hover:shadow-md hover:shadow-red-600/10 dark:border-red-900/50 dark:bg-red-950/20 dark:hover:border-red-800 dark:hover:bg-red-950/35"
                     >
-                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-600 text-white shadow-sm shadow-red-600/20"><Cog size={14} /></span>
+                      <span className="absolute right-2 top-2 rounded-full bg-white/80 px-1.5 py-0.5 text-[7px] font-black uppercase tracking-widest text-red-600 ring-1 ring-red-100 dark:bg-red-950/60 dark:text-red-300 dark:ring-red-900/50">
+                        rápido
+                      </span>
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-600 text-white shadow-sm shadow-red-600/20"><Cog size={16} /></span>
                       <span className="min-w-0 flex-1">
-                        <span className="block text-[10px] font-black uppercase tracking-wide text-zinc-900 dark:text-white">Ajuste simples</span>
-                        <span className="mt-0.5 block text-[9px] font-medium leading-snug text-zinc-500 dark:text-zinc-400">Altere nome, data e preferências sem redistribuir.</span>
+                        <span className="block text-[11px] font-black uppercase tracking-wide text-zinc-900 dark:text-white">Ajuste simples</span>
+                        <span className="mt-1 block text-[9px] font-semibold leading-snug text-red-700/80 dark:text-red-200/80">Nome, datas e preferências sem recalcular a distribuição.</span>
                       </span>
                       <ChevronRight size={14} className="shrink-0 text-red-300 transition-transform group-hover:translate-x-0.5 group-hover:text-red-600 dark:text-red-800 dark:group-hover:text-red-400" />
                     </button>
@@ -2893,7 +2956,7 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
             </div>
 
             <button
-              onClick={() => { setLoadingAction(true); adiarCronograma(cronograma.id, cronograma).finally(() => setLoadingAction(false)); }}
+              onClick={() => setDelayConfirmation(cronograma)}
               disabled={loadingAction}
               className="group flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 bg-white text-[9px] font-bold uppercase tracking-wide text-zinc-600 shadow-sm transition-all hover:border-amber-200 hover:bg-amber-50 hover:text-amber-700 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:border-amber-900/30 dark:hover:bg-amber-900/10 dark:hover:text-amber-400 sm:w-auto sm:gap-1.5 sm:px-2.5"
               title="Adiar semana"

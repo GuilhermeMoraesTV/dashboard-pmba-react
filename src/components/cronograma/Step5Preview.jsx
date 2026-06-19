@@ -85,7 +85,7 @@ const MESES_FULL  = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julh
  * Para revisões consolidadas: usa "Revisão Consolidada".
  */
 function getNomeDisc(item) {
-  if (item.isConsolidada) return 'Revisão Consolidada';
+  if (item.isConsolidada) return item.titulo || 'Revisões';
   if (item.isRevisao || item.isRevisaoAuto) {
     return item.disciplinaNome || item.disc?.nome || 'Revisão';
   }
@@ -101,8 +101,8 @@ function getNomeDisc(item) {
 function getTextoAssunto(item, config) {
   if (item.isConsolidada) {
     const topicos = item.topicosRevisao || [];
-    if (topicos.length === 0) return 'Revisão espaçada consolidada';
-    return topicos.slice(0, 2).map(t => t.assunto).join(' · ') + (topicos.length > 2 ? ` +${topicos.length - 2}` : '');
+    if (topicos.length === 0) return 'Revisões espaçadas do dia';
+    return `${topicos.length} revisão${topicos.length === 1 ? '' : 'ões'} agrupada${topicos.length === 1 ? '' : 's'}`;
   }
   if (item.isRevisao || item.isRevisaoAuto) {
     // [FIX-B] Revisões individuais: mostra o assunto que está sendo revisado
@@ -118,10 +118,60 @@ function getTextoAssunto(item, config) {
  * Retorna o label do tipo de slot para o modal.
  */
 function getLabelTipo(item) {
-  if (item.isConsolidada)                    return 'Revisão Consolidada';
+  if (item.isConsolidada)                    return 'Revisões';
   if (item.isRevisao || item.isRevisaoAuto)  return `Revisão Espaçada · +${item.intervaloDias ?? '?'}d`;
   return 'Missão de Teoria';
 }
+
+const isReviewSlot = (item) => Boolean(item?.isRevisao || item?.isRevisaoAuto || item?.isConsolidada);
+
+const topicosFromReviewSlot = (item) => {
+  const dadosSlot = {
+    slotId: item.slotId,
+    slotIdBase: item.slotIdBase,
+    dataSlot: item.dataSlot,
+    intervaloDias: item.intervaloDias ?? '?',
+    tempoMinutos: item.tempoMinutos ?? item.minutosEstudo ?? 0,
+    isRevisaoAuto: true,
+  };
+
+  if (Array.isArray(item.topicosRevisao) && item.topicosRevisao.length > 0) {
+    return item.topicosRevisao.map((topico) => ({ ...topico, ...dadosSlot }));
+  }
+
+  return [{
+    ...dadosSlot,
+    disciplinaId: item.disciplinaId,
+    disciplinaNome: item.disciplinaNome || getNomeDisc(item) || 'Revisão',
+    assunto: item.assunto || item.assuntoOriginal || 'Revisão agendada',
+  }];
+};
+
+const agruparRevisoesDoDia = (items = [], dayKey = '') => {
+  const revisoes = items.filter(isReviewSlot);
+  if (revisoes.length <= 1) return items;
+
+  const teorias = items.filter((item) => !isReviewSlot(item));
+  const primeiraRevisaoIndex = items.findIndex(isReviewSlot);
+  const topicosRevisao = revisoes.flatMap(topicosFromReviewSlot);
+  const blocoRevisoes = {
+    ...revisoes[0],
+    idUnique: `revisoes-${dayKey}`,
+    slotId: `revisoes-${dayKey}`,
+    titulo: 'Revisões',
+    disciplinaNome: 'Revisões',
+    assunto: `${topicosRevisao.length} revisões agrupadas`,
+    isConsolidada: true,
+    isRevisao: true,
+    isRevisaoAuto: true,
+    topicosRevisao,
+    tempoMinutos: revisoes.reduce((acc, item) => acc + Number(item.tempoMinutos ?? item.minutosEstudo ?? 0), 0),
+  };
+
+  const resultado = [...teorias];
+  resultado.splice(Math.max(0, primeiraRevisaoIndex), 0, blocoRevisoes);
+  return resultado;
+};
 
 // ─── COMPONENTES ──────────────────────────────────────────────────────────────
 
@@ -157,12 +207,18 @@ const SlotCard = ({ item, onDragStart, onClick, compact = false, config = {}, co
 
   return (
     <motion.div
-      draggable
-      onDragStart={(e) => onDragStart?.(e, item)}
+      draggable={!item.isConsolidada}
+      onDragStart={(e) => {
+        if (item.isConsolidada) {
+          e.preventDefault();
+          return;
+        }
+        onDragStart?.(e, item);
+      }}
       onClick={() => onClick(item)}
       whileHover={{ y: -1, scale: 1.01 }}
       style={cardStyle}
-      className={`discipline-tinted-card ${isDone ? 'discipline-completed-card' : ''} group relative min-h-[104px] cursor-grab active:cursor-grabbing select-none overflow-hidden rounded-2xl border transition-all duration-200 shadow-sm ${isToday ? (isRev ? 'ring-1 ring-blue-500/45' : 'ring-1 ring-red-500/45') : ''}`}
+      className={`discipline-tinted-card ${isDone ? 'discipline-completed-card' : ''} group relative min-h-[104px] ${item.isConsolidada ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'} select-none overflow-hidden rounded-2xl border transition-all duration-200 shadow-sm ${isToday ? (isRev ? 'ring-1 ring-blue-500/45' : 'ring-1 ring-red-500/45') : ''}`}
     >
       <div className={`absolute bottom-0 left-0 top-0 w-1.5 transition-colors duration-300 ${
         isRev ? 'bg-blue-500' : isDone ? disciplinaColor.bg : emAndamento ? 'bg-orange-500' : disciplinaColor.bg
@@ -402,7 +458,12 @@ const Step5_Preview = ({
     return map;
   }, [resultado, semanaOffset, colorMap, disciplinas, startDate, horarios, config, viewMode, monthDays]);
 
-  const displayAgenda = agendaOverride || agendaBase;
+  const displayAgenda = useMemo(() => {
+    const source = agendaOverride || agendaBase;
+    return Object.fromEntries(
+      Object.entries(source).map(([key, items]) => [key, agruparRevisoesDoDia(items, key)])
+    );
+  }, [agendaOverride, agendaBase]);
 
   // ── Drag and Drop ──────────────────────────────────────────────────────────
   const onDragStart = (e, item) => { e.dataTransfer.setData('text/plain', JSON.stringify(item)); };
@@ -872,7 +933,7 @@ const Step5_Preview = ({
                   </div>
                 </div>
                 <button onClick={() => setModalSlot(null)} className="w-full mt-8 py-4 bg-red-600 hover:bg-red-700 text-white rounded-2xl font-black uppercase text-xs tracking-[0.2em] active:scale-95 transition-all shadow-xl shadow-red-500/20">
-                  Confirmar Leitura
+                  {modalSlot.isConsolidada ? 'Fechar' : 'Confirmar Leitura'}
                 </button>
               </div>
             </motion.div>

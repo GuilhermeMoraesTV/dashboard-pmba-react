@@ -4,7 +4,7 @@
  */
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Check, Sparkles } from 'lucide-react';
+import { Check } from 'lucide-react';
 
 const StepBar = ({ passo, steps, isExpresso }) => {
   const accentBg = isExpresso ? 'bg-amber-500' : 'bg-red-600';
@@ -16,9 +16,9 @@ const StepBar = ({ passo, steps, isExpresso }) => {
       {/* 📱 MOBILE VIEW: Todos os passos visíveis em linha conectada */}
       <div className="flex sm:hidden items-start justify-center w-full px-1 py-1.5 gap-1 rounded-[1.6rem] border border-zinc-200/80 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/70 backdrop-blur">
         {steps.map((step, idx) => {
-          const Icone = step.icon || Sparkles;
           const isDone = passo > step.id;
           const isActive = passo === step.id;
+          const stepNumber = idx + 1;
 
           return (
             <React.Fragment key={step.id}>
@@ -38,7 +38,7 @@ const StepBar = ({ passo, steps, isExpresso }) => {
                   {isDone ? (
                     <Check size={12} strokeWidth={4} />
                   ) : (
-                    <Icone size={12} strokeWidth={isActive ? 3 : 2} />
+                    <span className="text-[11px] font-black leading-none tabular-nums">{stepNumber}</span>
                   )}
                 </motion.div>
                 
@@ -71,9 +71,9 @@ const StepBar = ({ passo, steps, isExpresso }) => {
       {/* 💻 DESKTOP VIEW: Design Conectado e Espaçado */}
       <div className="hidden sm:flex items-center justify-center gap-0 w-full rounded-[1.8rem] border border-zinc-200/80 dark:border-zinc-800 bg-white/85 dark:bg-zinc-950/70 backdrop-blur px-4 py-3">
         {steps.map((step, idx) => {
-          const Icone = step.icon || Sparkles;
           const isDone = passo > step.id;
           const isActive = passo === step.id;
+          const stepNumber = idx + 1;
 
           return (
             <React.Fragment key={step.id}>
@@ -91,7 +91,7 @@ const StepBar = ({ passo, steps, isExpresso }) => {
                   {isDone ? (
                     <Check size={14} strokeWidth={4} />
                   ) : (
-                    <Icone size={14} strokeWidth={isActive ? 2.5 : 2} />
+                    <span className="text-[12px] font-black leading-none tabular-nums">{stepNumber}</span>
                   )}
                 </motion.div>
 
