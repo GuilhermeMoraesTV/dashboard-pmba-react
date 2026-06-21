@@ -217,7 +217,9 @@ const CustomTooltip = ({ active, payload, label, metric }) => {
 
 const CustomBar = (props) => {
   const { x, y, width, height, score, isActive } = props;
-  if (!height || height <= 0) return null;
+  const safeWidth = Math.max(0, Number(width) || 0);
+  const safeHeight = Math.max(0, Number(height) || 0);
+  if (safeWidth <= 0 || safeHeight <= 0) return null;
 
   const color = getScoreColor(score);
   const radius = 5;
@@ -225,14 +227,24 @@ const CustomBar = (props) => {
   return (
     <g>
       {isActive && (
-        <rect x={x - 2} y={y - 2} width={width + 4} height={height + 4} rx={radius + 2} fill={color} opacity={0.12} />
+        <rect x={x - 2} y={y - 2} width={safeWidth + 4} height={safeHeight + 4} rx={radius + 2} fill={color} opacity={0.12} />
       )}
       <rect
-        x={x} y={y} width={width} height={height} rx={radius}
+        x={x} y={y} width={safeWidth} height={safeHeight} rx={radius}
         fill={color} opacity={isActive ? 1 : 0.75}
         style={{ filter: isActive ? `drop-shadow(0 0 6px ${color}80)` : 'none', transition: 'all 0.2s ease' }}
       />
-      <rect x={x + 2} y={y + 2} width={width - 4} height={Math.min(5, height - 4)} rx={radius - 2} fill="white" opacity={isActive ? 0.2 : 0.1} />
+      {safeWidth > 4 && safeHeight > 4 && (
+        <rect
+          x={x + 2}
+          y={y + 2}
+          width={Math.max(0, safeWidth - 4)}
+          height={Math.max(0, Math.min(5, safeHeight - 4))}
+          rx={radius - 2}
+          fill="white"
+          opacity={isActive ? 0.2 : 0.1}
+        />
+      )}
     </g>
   );
 };
@@ -448,7 +460,7 @@ const SimuladoGrafico = ({ simulados = [], compact = false }) => {
                 className="w-full overflow-visible"
                 style={{ height: chartHeight }}
               >
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={chartHeight}>
                   {viewMode === 'bar' ? (
                     <BarChart
                       data={chartData}

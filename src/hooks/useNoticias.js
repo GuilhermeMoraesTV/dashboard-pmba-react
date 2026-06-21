@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { ESTADOS_LISTA, ESTADOS_SLUGS } from '../utils/estadosSlugs';
 import { analisarListaNoticias, filtrarTitulosComIA, listaCache } from '../services/noticiaIA';
+import { fetchNewsSource } from '../services/newsSource';
 
 const BASE = 'https://www.estrategiaconcursos.com.br/blog';
 
@@ -10,48 +11,8 @@ const BASE = 'https://www.estrategiaconcursos.com.br/blog';
 export const estadoCache = new Map();
 export const regionCache = new Map();
 
-// ─── PROXIES ──────────────────────────────────────────────────────────────────
-const PROXIES = [
-  { makeProxy: (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`,                    timeout: 12000, useRaw: false },
-  { makeProxy: (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,       timeout: 15000, useRaw: true  },
-  { makeProxy: (url) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`, timeout: 12000, useRaw: false },
-  { makeProxy: (url) => `https://proxy.cors.sh/${encodeURIComponent(url)}`,                   timeout: 15000, useRaw: false, headers: { 'x-api-key': '' } },
-];
-
 export async function fetchViaProxy(url, options = {}) {
-  const { timeout = 15000, retries = 2 } = options;
-
-  try {
-    const controller = new AbortController();
-    const tid = setTimeout(() => controller.abort(), 8000);
-    const res = await fetch(url, {
-      signal: controller.signal,
-      headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'text/html,*/*;q=0.8' },
-    });
-    clearTimeout(tid);
-    if (res.ok) { const t = await res.text(); if (t.length > 200) return t; }
-  } catch { /* cai nos proxies */ }
-
-  for (let attempt = 0; attempt < retries; attempt++) {
-    for (const config of PROXIES) {
-      try {
-        const pUrl = config.makeProxy(url);
-        const res  = await fetch(pUrl, {
-          signal: AbortSignal.timeout(config.timeout),
-          headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'text/html,*/*;q=0.8', ...config.headers },
-        });
-        if (!res.ok) continue;
-        let text = await res.text();
-        if (config.useRaw && pUrl.includes('allorigins')) {
-          try { const j = JSON.parse(text); if (j?.contents?.length > 200) return j.contents; } catch {}
-          continue;
-        }
-        if (text.length > 200) return text;
-      } catch { continue; }
-    }
-    if (attempt < retries - 1) await new Promise(r => setTimeout(r, 400 * (attempt + 1)));
-  }
-  throw new Error('Proxy falhou: ' + url);
+  return fetchNewsSource(url, options);
 }
 
 // ─── UTILITÁRIOS ──────────────────────────────────────────────────────────────

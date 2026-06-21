@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { db, auth, storage } from '../../firebaseConfig';
 import {
@@ -31,13 +32,13 @@ const ExpandedModal = ({ isOpen, onClose, title, children }) => {
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-3 md:p-8 bg-zinc-950/70 backdrop-blur-md animate-fade-in">
+  return createPortal(
+    <div className="fixed inset-0 z-[10020] flex items-center justify-center p-3 sm:p-5 md:p-7 bg-zinc-950/70 backdrop-blur-md animate-fade-in">
       <motion.div
         initial={{ scale: 0.95, opacity: 0, y: 20 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.95, opacity: 0, y: 20 }}
-        className="bg-zinc-100 dark:bg-zinc-900 w-full h-full md:w-[88vw] md:max-w-5xl md:h-[76vh] md:rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-2xl flex flex-col overflow-hidden relative"
+        className="bg-zinc-100 dark:bg-zinc-900 w-full h-[calc(100dvh-1.5rem)] sm:h-[calc(100dvh-2.5rem)] md:w-[90vw] md:max-w-5xl md:h-[calc(100dvh-3.5rem)] lg:h-[78dvh] rounded-2xl md:rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-2xl flex flex-col overflow-hidden relative"
       >
         <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800 flex justify-between items-center bg-white dark:bg-zinc-950 shadow-sm z-50">
           <h3 className="text-xl font-black text-zinc-900 dark:text-white flex items-center gap-2 tracking-tight">
@@ -51,7 +52,8 @@ const ExpandedModal = ({ isOpen, onClose, title, children }) => {
           {children}
         </div>
       </motion.div>
-    </div>
+    </div>,
+    document.body,
   );
 };
 

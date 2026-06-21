@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { db, storage } from '../../firebaseConfig';
 import { collection, doc, deleteDoc, onSnapshot, setDoc, serverTimestamp } from 'firebase/firestore';
@@ -761,9 +762,9 @@ const EditaisManagerModal = ({ isOpen, onClose }) => {
     );
   };
 
-  return (
+  return createPortal(
     <>
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md font-sans">
+    <div className="fixed inset-0 z-[10020] flex items-center justify-center p-3 sm:p-5 md:p-7 bg-black/60 backdrop-blur-md font-sans">
       <style>{`.custom-scrollbar{scrollbar-width:thin;scrollbar-color:#ef4444 transparent}.custom-scrollbar::-webkit-scrollbar{width:6px}.custom-scrollbar::-webkit-scrollbar-thumb{background:linear-gradient(180deg,#ef4444,#991b1b);border-radius:10px}`}</style>
 
       {seedAtual && (
@@ -778,7 +779,7 @@ const EditaisManagerModal = ({ isOpen, onClose }) => {
       <AnimatePresence>{showCustomModal && <CustomEditalModal onClose={() => { setShowCustomModal(false); setEditalToEdit(null); }} editalToEdit={editalToEdit} showToast={triggerToast} allEditais={allEditais} />}</AnimatePresence>
 
       <motion.div initial={{ scale: 0.95, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }}
-        className="bg-zinc-50 dark:bg-zinc-950 w-full max-w-7xl max-h-[92vh] rounded-[2.5rem] border border-zinc-200 dark:border-zinc-800 shadow-2xl flex flex-col overflow-hidden">
+        className="bg-zinc-50 dark:bg-zinc-950 w-full max-w-6xl h-[calc(100dvh-1.5rem)] sm:h-[calc(100dvh-2.5rem)] md:h-[calc(100dvh-3.5rem)] lg:h-[82dvh] rounded-2xl md:rounded-[2.5rem] border border-zinc-200 dark:border-zinc-800 shadow-2xl flex flex-col overflow-hidden">
 
         <div className="px-8 py-6 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 flex flex-col md:flex-row justify-between items-center gap-6 z-10 shadow-sm">
           <div className="flex items-center gap-4">
@@ -846,6 +847,8 @@ const EditaisManagerModal = ({ isOpen, onClose }) => {
       isDestructive={pendingAction?.type !== 'syncSeeds'}
     />
     </>
+    ,
+    document.body,
   );
 };
 

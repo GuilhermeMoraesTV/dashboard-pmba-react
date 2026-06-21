@@ -22,6 +22,7 @@ const AI_MAX_PROMPT_CHARS = 24000;
 const AI_MAX_OUTPUT_TOKENS = 4096;
 const NEWS_CACHE_MAX_ARTICLE_BYTES = 120000;
 const NEWS_CACHE_DAILY_WRITE_LIMIT = 40;
+const NEWS_FETCH_MAX_BYTES = 1500000;
 const QUOTE_SOURCES = [
   'https://ultimoconcurso.com/frases-de-motivacao-para-concurso-publico/',
   'https://www.demandaconcursos.com.br/dicas/frases-motivadoras-que-todo-concurseiro-precisa-ler-para-manter-o-foco/',
@@ -74,6 +75,23 @@ function safeDocIdFromUrl(url = '') {
     .replace(/^https?:\/\//i, '')
     .replace(/[^a-zA-Z0-9_-]/g, '_')
     .slice(0, 500);
+}
+
+function validateNewsSourceUrl(value = '') {
+  let parsed;
+  try {
+    parsed = new URL(String(value || ''));
+  } catch {
+    throw new HttpsError('invalid-argument', 'URL de noticia invalida.');
+  }
+  const hostname = parsed.hostname.toLowerCase();
+  if (parsed.protocol !== 'https:' || hostname !== 'www.estrategiaconcursos.com.br') {
+    throw new HttpsError('permission-denied', 'Fonte de noticia nao permitida.');
+  }
+  if (!parsed.pathname.startsWith('/blog/')) {
+    throw new HttpsError('permission-denied', 'Caminho de noticia nao permitido.');
+  }
+  return parsed.toString();
 }
 
 function todayKey() {
@@ -719,6 +737,52 @@ exports.salvarNoticiaCache = onCall(
   },
 );
 
+exports.buscarConteudoNoticia = onCall(
+  {
+    timeoutSeconds: 30,
+    region: 'us-central1',
+  },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) {
+      throw new HttpsError('permission-denied', 'Login obrigatorio para carregar noticias.');
+    }
+
+    const url = validateNewsSourceUrl(request.data?.url);
+    try {
+      const response = await fetch(url, {
+        redirect: 'follow',
+        headers: {
+          'Accept': 'application/rss+xml, application/xml, text/xml, text/html;q=0.9, */*;q=0.5',
+          'User-Agent': 'ModoQAP-NewsReader/1.0',
+        },
+        signal: AbortSignal.timeout(20000),
+      });
+      if (!response.ok) {
+        throw new Error(`Fonte respondeu HTTP ${response.status}`);
+      }
+      const contentLength = Number(response.headers.get('content-length') || 0);
+      if (contentLength > NEWS_FETCH_MAX_BYTES) {
+        throw new HttpsError('resource-exhausted', 'Conteudo de noticia acima do limite permitido.');
+      }
+      const text = await response.text();
+      if (!text || Buffer.byteLength(text, 'utf8') > NEWS_FETCH_MAX_BYTES) {
+        throw new HttpsError('resource-exhausted', 'Conteudo de noticia vazio ou acima do limite.');
+      }
+      return { text, sourceUrl: url };
+    } catch (error) {
+      if (error instanceof HttpsError) throw error;
+      await logOperationalFailure('system_cache_errors', {
+        uid,
+        sourceUrl: url,
+        code: 'news-fetch-failed',
+        message: String(error?.message || error).slice(0, 500),
+      });
+      throw new HttpsError('unavailable', 'Nao foi possivel carregar a fonte de noticias.');
+    }
+  },
+);
+
 exports.abastecerFrasesMotivacionais = onCall(
   {
     secrets: [GOOGLE_SERVICE_ACCOUNT_JSON_BASE64],
@@ -768,5 +832,6 @@ exports.__test = {
   estimateTokenCost,
   normalizeSurface,
   safeDocIdFromUrl,
+  validateNewsSourceUrl,
   validateAiRequest,
 };

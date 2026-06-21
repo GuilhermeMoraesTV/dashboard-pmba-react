@@ -289,6 +289,8 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     const pathTab = TAB_TO_PATH[resolvedTab] || 'home';
     const targetPath = `/app/${pathTab}`;
     setActiveTabState(resolvedTab);
+    setIsSidebarExpanded(false);
+    setIsMobileOpen(false);
     if (location.pathname !== targetPath) navigate(targetPath);
   }, [activeTab, location.pathname, navigate]);
 
@@ -1547,7 +1549,14 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         }}
       />
 
-      <div ref={mainContentRef} className={`dashboard-main-content relative z-10 min-w-0 flex-1 transition-all duration-300 pt-[80px] px-4 md:px-8 lg:pt-[90px] pb-10 ${isSidebarExpanded ? 'lg:ml-[260px]' : 'lg:ml-[80px]'}`}>
+      <div
+        ref={mainContentRef}
+        onPointerDown={() => {
+          if (isSidebarExpanded) setIsSidebarExpanded(false);
+          if (isMobileOpen) setIsMobileOpen(false);
+        }}
+        className={`dashboard-main-content relative z-10 min-w-0 flex-1 transition-all duration-300 pt-[80px] px-4 md:px-8 lg:pt-[90px] pb-10 ${isSidebarExpanded ? 'lg:ml-[260px]' : 'lg:ml-[80px]'}`}
+      >
         <Header user={user} activeTab={activeTab}/>
         <main className={`mt-2 min-w-0 animate-fade-in ${['home', 'ciclos', 'cronograma', 'planejamento'].includes(activeTab) ? 'w-full' : 'max-w-7xl mx-auto'}`}>
           <Suspense fallback={<SectionLoader label="Abrindo area" />}>

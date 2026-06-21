@@ -10,6 +10,7 @@ import StatusBadge from './StatusBadge';
 // ✅ USA O SERVIÇO CENTRALIZADO — sem chave de API duplicada aqui
 import { reescreverArtigo } from '../../services/noticiaIA';
 import { sanitizeArticleHtml } from '../../utils/sanitizeHtml';
+import { fetchNewsSource } from '../../services/newsSource';
 
 // ─── LOGO ESTRATÉGIA (com fallback) ──────────────────────────────────────────
 function LogoComFallback({ size = 'sm' }) {
@@ -32,13 +33,6 @@ function LogoComFallback({ size = 'sm' }) {
     />
   );
 }
-
-// ─── PROXIES ──────────────────────────────────────────────────────────────────
-const PROXIES = [
-  (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
-  (url) => `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
-  (url) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
-];
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 function stripHtmlBasico(html = '') {
@@ -63,23 +57,6 @@ function extrairCorpoArtigo(html) {
   const main = html.match(/<main[^>]*>([\s\S]*?)<\/main>/i);
   if (main?.[1]) return main[1];
   return html;
-}
-
-async function fetchViaProxy(url) {
-  for (const makeProxy of PROXIES) {
-    try {
-      const pUrl = makeProxy(url);
-      const res  = await fetch(pUrl, { signal: AbortSignal.timeout(12000) });
-      if (!res.ok) continue;
-      const text = await res.text();
-      if (pUrl.includes('allorigins')) {
-        try { const j = JSON.parse(text); if (j.contents) return j.contents; } catch {}
-        continue;
-      }
-      if (text.length > 200) return text;
-    } catch { /* próximo proxy */ }
-  }
-  throw new Error('Todos os proxies falharam');
 }
 
 // ─── CACHE LOCAL ──────────────────────────────────────────────────────────────
@@ -147,7 +124,7 @@ function useArtigoProcessado(noticia) {
 
       if (link) {
         try {
-          const raw = await fetchViaProxy(link);
+          const raw = await fetchNewsSource(link);
           htmlBruto = extrairCorpoArtigo(raw);
         } catch {
           proxyFalhou = true;
