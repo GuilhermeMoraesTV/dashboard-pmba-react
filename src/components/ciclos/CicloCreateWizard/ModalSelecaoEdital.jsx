@@ -5,6 +5,7 @@ import {
     Search, Filter, ChevronDown, Briefcase,
     ShieldAlert, Globe, BadgeAlert, Lock, Flame, Siren, LayoutGrid, RefreshCw, Target
 } from 'lucide-react';
+import { useBodyScrollLock } from '../../../hooks/useBodyScrollLock';
 
 // ==================================================================================
 // 🔧 CONFIGURAÇÃO DE LAYOUT
@@ -348,22 +349,7 @@ const ModalSelecaoEdital = ({ aberto, aoFechar, aoSelecionar, modelos, carregand
     const [idSelecionadoLocal, setIdSelecionadoLocal] = useState(null);
     const [termoBusca, setTermoBusca] = useState('');
 
-    useEffect(() => {
-        if (!modoPagina && aberto) {
-            document.body.style.overflow = 'hidden';
-            document.documentElement.style.overflow = 'hidden';
-            document.body.style.overscrollBehavior = 'none';
-        } else {
-            document.body.style.overflow = '';
-            document.documentElement.style.overflow = '';
-            document.body.style.overscrollBehavior = '';
-        }
-        return () => {
-            document.body.style.overflow = '';
-            document.documentElement.style.overflow = '';
-            document.body.style.overscrollBehavior = '';
-        };
-    }, [aberto, modoPagina]);
+    useBodyScrollLock(!modoPagina && aberto, { overscrollBehavior: 'none' });
 
     const modelosCategorizados = useMemo(() => {
         const grupos = { pm: [], pc: [], pp: [], cbm: [], gcm: [], fa: [], federal: [], adm: [] };

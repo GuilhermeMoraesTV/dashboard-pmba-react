@@ -18,10 +18,10 @@ const QUOTES_COLLECTION = 'system_quotes';
 const QUOTES_AUTOMATION_DOC = 'quotes_automation';
 const QUOTE_TARGET_FUTURE_DAYS = 21;
 const AI_ALLOWED_SURFACES = new Set(['cronograma', 'noticias', 'edital', 'frases', 'outro']);
-const AI_DAILY_TOKEN_LIMIT = 90000;
 const AI_MAX_PROMPT_CHARS = 24000;
 const AI_MAX_OUTPUT_TOKENS = 4096;
 const NEWS_CACHE_MAX_ARTICLE_BYTES = 120000;
+const NEWS_CACHE_DAILY_WRITE_LIMIT = 40;
 const QUOTE_SOURCES = [
   'https://ultimoconcurso.com/frases-de-motivacao-para-concurso-publico/',
   'https://www.demandaconcursos.com.br/dicas/frases-motivadoras-que-todo-concurseiro-precisa-ler-para-manter-o-foco/',
@@ -90,23 +90,43 @@ function estimateTokenCost(prompt, maxOutputTokens) {
   return promptTokens + Number(maxOutputTokens || 0);
 }
 
-async function reserveAiQuota({ uid, surface, prompt, maxOutputTokens }) {
+function validateAiRequest(request = {}) {
+  const uid = request.auth?.uid;
+  if (!uid) {
+    throw new HttpsError('permission-denied', 'Login obrigatorio para usar a IA.');
+  }
+
+  const { prompt, maxOutputTokens = 2048, surface = 'outro' } = request.data ?? {};
+  if (!prompt) {
+    throw new HttpsError('invalid-argument', 'O campo "prompt" é obrigatório.');
+  }
+  if (typeof prompt !== 'string') {
+    throw new HttpsError('invalid-argument', 'O campo "prompt" deve ser texto.');
+  }
+  if (prompt.length > AI_MAX_PROMPT_CHARS) {
+    throw new HttpsError('invalid-argument', `Prompt acima do limite de ${AI_MAX_PROMPT_CHARS} caracteres.`);
+  }
+
+  const requestedTokens = Math.floor(Number(maxOutputTokens) || 2048);
+  return {
+    uid,
+    prompt,
+    surface: normalizeSurface(surface),
+    maxOutputTokens: Math.min(Math.max(requestedTokens, 128), AI_MAX_OUTPUT_TOKENS),
+  };
+}
+
+async function recordAiUsage({ uid, surface, prompt, maxOutputTokens }) {
   const db = admin.firestore();
   const day = todayKey();
   const quotaRef = db.collection('system_ai_usage').doc(`${day}_${uid}`);
   const estimatedTokens = estimateTokenCost(prompt, maxOutputTokens);
 
-  await db.runTransaction(async (transaction) => {
-    const snap = await transaction.get(quotaRef);
-    const current = Number(snap.data()?.estimatedTokens || 0);
-    if (current + estimatedTokens > AI_DAILY_TOKEN_LIMIT) {
-      throw new HttpsError('resource-exhausted', 'Limite diario de IA atingido para este usuario.');
-    }
-
-    const payload = {
+  try {
+    await quotaRef.set({
       uid,
       day,
-      estimatedTokens: current + estimatedTokens,
+      estimatedTokens: admin.firestore.FieldValue.increment(estimatedTokens),
       calls: admin.firestore.FieldValue.increment(1),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       surfaces: {
@@ -115,20 +135,51 @@ async function reserveAiQuota({ uid, surface, prompt, maxOutputTokens }) {
           estimatedTokens: admin.firestore.FieldValue.increment(estimatedTokens),
         },
       },
-    };
-    if (!snap.exists) payload.createdAt = admin.firestore.FieldValue.serverTimestamp();
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
 
-    transaction.set(quotaRef, payload, { merge: true });
-  });
+    await quotaRef.collection('calls').add({
+      uid,
+      surface,
+      requestedMaxOutputTokens: maxOutputTokens,
+      estimatedTokens,
+      promptChars: String(prompt || '').length,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  } catch (error) {
+    // Métricas não podem impedir a funcionalidade principal de IA.
+    console.error('Falha ao registrar uso de IA:', error);
+  }
+}
 
-  await quotaRef.collection('calls').add({
-    uid,
-    surface,
-    requestedMaxOutputTokens: maxOutputTokens,
-    estimatedTokens,
-    promptChars: String(prompt || '').length,
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+async function reserveNewsCacheQuota(uid) {
+  const db = admin.firestore();
+  const day = todayKey();
+  const ref = db.collection('system_news_cache_usage').doc(`${day}_${uid}`);
+  await db.runTransaction(async (transaction) => {
+    const snap = await transaction.get(ref);
+    const calls = Number(snap.data()?.calls || 0);
+    if (calls >= NEWS_CACHE_DAILY_WRITE_LIMIT) {
+      throw new HttpsError('resource-exhausted', 'Limite diario de cache de noticias atingido.');
+    }
+    transaction.set(ref, {
+      uid,
+      day,
+      calls: calls + 1,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
   });
+}
+
+async function logOperationalFailure(collectionName, payload) {
+  try {
+    await admin.firestore().collection(collectionName).add({
+      ...payload,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  } catch (loggingError) {
+    console.error('Falha ao registrar erro operacional:', loggingError);
+  }
 }
 
 function extractGeminiText(payload) {
@@ -587,29 +638,15 @@ exports.chamarGemini = onCall(
     region: 'us-central1',
   },
   async (request) => {
-    const uid = request.auth?.uid;
-    if (!uid) {
-      throw new HttpsError('permission-denied', 'Login obrigatorio para usar a IA.');
-    }
-
-    const { prompt, maxOutputTokens = 2048, surface = 'outro' } = request.data ?? {};
-    const normalizedSurface = normalizeSurface(surface);
-    const requestedTokens = Math.floor(Number(maxOutputTokens) || 2048);
-    const safeMaxOutputTokens = Math.min(Math.max(requestedTokens, 128), AI_MAX_OUTPUT_TOKENS);
-
-    if (!prompt) {
-      throw new HttpsError('invalid-argument', 'O campo "prompt" é obrigatório.');
-    }
-
-    if (typeof prompt !== 'string') {
-      throw new HttpsError('invalid-argument', 'O campo "prompt" deve ser texto.');
-    }
-    if (prompt.length > AI_MAX_PROMPT_CHARS) {
-      throw new HttpsError('invalid-argument', `Prompt acima do limite de ${AI_MAX_PROMPT_CHARS} caracteres.`);
-    }
+    const {
+      uid,
+      prompt,
+      surface: normalizedSurface,
+      maxOutputTokens: safeMaxOutputTokens,
+    } = validateAiRequest(request);
 
     try {
-      await reserveAiQuota({ uid, surface: normalizedSurface, prompt, maxOutputTokens: safeMaxOutputTokens });
+      await recordAiUsage({ uid, surface: normalizedSurface, prompt, maxOutputTokens: safeMaxOutputTokens });
       const text = await callVertexAI(prompt, safeMaxOutputTokens, 0.3);
       return {
         provider: 'google_vertex',
@@ -619,6 +656,12 @@ exports.chamarGemini = onCall(
         candidates: [{ content: { parts: [{ text }] } }],
       };
     } catch (err) {
+      await logOperationalFailure('system_ai_failures', {
+        uid,
+        surface: normalizedSurface,
+        code: err?.code || 'internal',
+        message: String(err?.message || err).slice(0, 500),
+      });
       if (err instanceof HttpsError) throw err;
       throw new HttpsError('internal', `Erro ao chamar Vertex AI: ${err.message || err}`);
     }
@@ -636,32 +679,43 @@ exports.salvarNoticiaCache = onCall(
       throw new HttpsError('permission-denied', 'Login obrigatorio para salvar cache de noticias.');
     }
 
-    const { url, artigo } = request.data ?? {};
-    if (!url || typeof url !== 'string' || !/^https?:\/\//i.test(url)) {
-      throw new HttpsError('invalid-argument', 'URL de noticia invalida.');
-    }
-    if (!artigo || typeof artigo !== 'object') {
-      throw new HttpsError('invalid-argument', 'Artigo invalido.');
-    }
+    try {
+      const { url, artigo } = request.data ?? {};
+      if (!url || typeof url !== 'string' || !/^https?:\/\//i.test(url)) {
+        throw new HttpsError('invalid-argument', 'URL de noticia invalida.');
+      }
+      if (!artigo || typeof artigo !== 'object') {
+        throw new HttpsError('invalid-argument', 'Artigo invalido.');
+      }
 
-    const serialized = JSON.stringify(artigo);
-    if (Buffer.byteLength(serialized, 'utf8') > NEWS_CACHE_MAX_ARTICLE_BYTES) {
-      throw new HttpsError('invalid-argument', 'Artigo acima do limite permitido para cache.');
+      const serialized = JSON.stringify(artigo);
+      if (Buffer.byteLength(serialized, 'utf8') > NEWS_CACHE_MAX_ARTICLE_BYTES) {
+        throw new HttpsError('invalid-argument', 'Artigo acima do limite permitido para cache.');
+      }
+
+      const key = safeDocIdFromUrl(url);
+      if (!key) {
+        throw new HttpsError('invalid-argument', 'Nao foi possivel gerar chave de cache.');
+      }
+
+      await reserveNewsCacheQuota(uid);
+      await admin.firestore().collection('noticiaCache').doc(key).set({
+        artigo,
+        sourceUrl: url,
+        savedBy: uid,
+        _savedAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+
+      return { ok: true, key };
+    } catch (error) {
+      await logOperationalFailure('system_cache_errors', {
+        uid,
+        code: error?.code || 'internal',
+        message: String(error?.message || error).slice(0, 500),
+      });
+      if (error instanceof HttpsError) throw error;
+      throw new HttpsError('internal', 'Nao foi possivel salvar o cache da noticia.');
     }
-
-    const key = safeDocIdFromUrl(url);
-    if (!key) {
-      throw new HttpsError('invalid-argument', 'Nao foi possivel gerar chave de cache.');
-    }
-
-    await admin.firestore().collection('noticiaCache').doc(key).set({
-      artigo,
-      sourceUrl: url,
-      savedBy: uid,
-      _savedAt: admin.firestore.FieldValue.serverTimestamp(),
-    }, { merge: true });
-
-    return { ok: true, key };
   },
 );
 
@@ -709,3 +763,10 @@ exports.abastecerFrasesMotivacionaisAgendado = onSchedule(
     }
   },
 );
+
+exports.__test = {
+  estimateTokenCost,
+  normalizeSurface,
+  safeDocIdFromUrl,
+  validateAiRequest,
+};

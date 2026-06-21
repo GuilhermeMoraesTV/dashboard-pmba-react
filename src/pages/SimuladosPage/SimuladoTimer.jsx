@@ -15,6 +15,14 @@ import {
   increment,
 } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
+import {
+  createTimerTabId,
+  formatTimerClock,
+  isValidTimerElapsedMs,
+  timerTimestampToMillis,
+  useFullscreenState,
+  useWakeLock,
+} from '../../hooks/useTimerEngine';
 
 // ============================================
 // CONFIGURAÇÕES DE TAMANHOS
@@ -102,13 +110,7 @@ const MODE_MAP = {
 const WHITE_NOISE_URL = 'https://raw.githubusercontent.com/anars/blank-audio/master/10-minutes-of-silence.mp3';
 const ALARM_URL = 'https://actions.google.com/sounds/v1/alarms/beep_short.ogg';
 
-const formatClock = (totalSeconds) => {
-  const safe = Math.max(0, Number(totalSeconds) || 0);
-  const hours = Math.floor(safe / 3600);
-  const minutes = Math.floor((safe % 3600) / 60);
-  const seconds = safe % 60;
-  return [hours, minutes, seconds].map(v => String(v).padStart(2, '0')).join(':');
-};
+const formatClock = formatTimerClock;
 
 const safeNotify = (title, body) => {
   try {
@@ -123,15 +125,8 @@ const safeNotify = (title, body) => {
   } catch {}
 };
 
-const toMillisSafe = (ts) => {
-  try { return ts?.toMillis?.() ?? null; } catch { return null; }
-};
-
-const isValidElapsedMs = (ms) => {
-  const val = Number(ms);
-  if (!Number.isFinite(val)) return false;
-  return val >= 0 && val < 604800000;
-};
+const toMillisSafe = timerTimestampToMillis;
+const isValidElapsedMs = isValidTimerElapsedMs;
 
 function SimuladoTimer({
   tituloSimulado,
@@ -150,12 +145,7 @@ function SimuladoTimer({
   const themeColor = '#dc2626';
   const STORAGE_KEY = useMemo(() => `@ModoQAP:SimuladoActive:${userUid}`, [userUid]);
 
-  const tabIdRef = useRef(
-    (() => {
-      try { if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID(); } catch {}
-      return `tab_${Math.random().toString(16).slice(2)}_${Date.now()}`;
-    })()
-  );
+  const tabIdRef = useRef(createTimerTabId());
 
   const mountTimeRef = useRef(Date.now());
   const bcRef = useRef(null);
@@ -177,7 +167,8 @@ function SimuladoTimer({
   const [isPreparing, setIsPreparing] = useState(true);
   const [countdown, setCountdown] = useState(3);
   const [isDark, setIsDark] = useState(true);
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const { isFullscreen, toggleFullscreen } = useFullscreenState();
+  const { wakeLockWantedRef, requestWakeLock, releaseWakeLock } = useWakeLock();
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [viewMode, setViewMode] = useState('normal');
 
@@ -205,6 +196,11 @@ function SimuladoTimer({
 
   useEffect(() => { secondsRef.current = seconds; }, [seconds]);
   useEffect(() => { isPausedRef.current = isPaused; }, [isPaused]);
+  useEffect(() => {
+    wakeLockWantedRef.current = !isPreparing && !isPaused;
+    if (wakeLockWantedRef.current) requestWakeLock();
+    else releaseWakeLock();
+  }, [isPreparing, isPaused, releaseWakeLock, requestWakeLock, wakeLockWantedRef]);
 
   const simuladoDocRef = useMemo(() => {
     if (!userUid) return null;
@@ -971,14 +967,6 @@ function SimuladoTimer({
   const toggleTheme = () => {
     if (isDark) { document.documentElement.classList.remove('dark'); setIsDark(false); }
     else { document.documentElement.classList.add('dark'); setIsDark(true); }
-  };
-
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {});
-    } else {
-      document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {});
-    }
   };
 
   // ============================================================

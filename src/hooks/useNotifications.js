@@ -5,6 +5,7 @@ import {
   doc, getDoc, getDocs, updateDoc, writeBatch, serverTimestamp,
 } from 'firebase/firestore';
 import { CATALOGO_EDITAIS } from '../pages/AdminPage/EditaisManager';
+import { normalizeNotification } from '../services/notificationContract';
 
 // =======================================================
 // HELPERS E ALGORITMOS DE MATCHING (INTELIGÊNCIA)
@@ -571,12 +572,14 @@ export const useNotifications = (user) => {
 
   // Exclui os apagados da visão
   const rawActiveEditalUpdates = editalUpdates.filter((u) => !u.isDismissed && !deletedNotifs.has(u.id));
-  const activeEditalUpdates = agruparAtualizacoesPorEdital(rawActiveEditalUpdates);
-  const activeBroadcasts = broadcasts.filter(b => !deletedNotifs.has(b.id) && !readBroadcasts.has(b.id));
+  const activeEditalUpdates = agruparAtualizacoesPorEdital(rawActiveEditalUpdates).map(normalizeNotification);
+  const activeBroadcasts = broadcasts
+    .filter(b => !deletedNotifs.has(b.id) && !readBroadcasts.has(b.id))
+    .map(normalizeNotification);
   const activeHistory = dismissedHistory.filter(h => {
       const hId = h.id || `edital_${h.cicloId}_${h.versionKey}`;
       return !deletedNotifs.has(hId);
-  }).map((h) => ({
+  }).map((h) => normalizeNotification({
       ...h,
       id: h.id || `edital_${h.cicloId}_${h.versionKey}`,
   }));

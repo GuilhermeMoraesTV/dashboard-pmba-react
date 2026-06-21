@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { db } from '../../firebaseConfig';
 import {
-  collection, deleteDoc, doc, getDoc, getDocs, query, setDoc, Timestamp,
+  collection, deleteDoc, doc, getDoc, getDocs, limit, orderBy, query, setDoc, Timestamp,
 } from 'firebase/firestore';
 import {
   Users, Activity, Server, Loader2, Search, Maximize2, Trash2, X, FileSpreadsheet,
@@ -69,17 +69,26 @@ const dateToYMD = (date = new Date()) => {
 };
 
 const AdminHealthPanel = () => {
-  const [health, setHealth] = useState({ loading: true, quotes: null, ai: [], activeTimers: 0 });
+  const [health, setHealth] = useState({
+    loading: true,
+    quotes: null,
+    ai: [],
+    activeTimers: 0,
+    aiFailures: 0,
+    cacheErrors: 0,
+  });
 
   useEffect(() => {
     let alive = true;
     async function loadHealth() {
       try {
         const today = dateToYMD();
-        const [quotesSnap, usageSnap, timersSnap] = await Promise.all([
+        const [quotesSnap, usageSnap, timersSnap, aiFailuresSnap, cacheErrorsSnap] = await Promise.all([
           getDoc(doc(db, 'system_config', 'quotes_automation')),
           getDocs(collection(db, 'system_ai_usage')),
           getDocs(collection(db, 'active_timers')),
+          getDocs(query(collection(db, 'system_ai_failures'), orderBy('createdAt', 'desc'), limit(5))),
+          getDocs(query(collection(db, 'system_cache_errors'), orderBy('createdAt', 'desc'), limit(5))),
         ]);
 
         if (!alive) return;
@@ -90,6 +99,8 @@ const AdminHealthPanel = () => {
             .filter((item) => item.id.startsWith(`${today}_`))
             .map((item) => ({ id: item.id, ...item.data() })),
           activeTimers: timersSnap.size,
+          aiFailures: aiFailuresSnap.size,
+          cacheErrors: cacheErrorsSnap.size,
         });
       } catch (error) {
         if (!alive) return;
@@ -103,14 +114,25 @@ const AdminHealthPanel = () => {
   const totalAiCalls = health.ai.reduce((sum, item) => sum + Number(item.calls || 0), 0);
   const totalAiTokens = health.ai.reduce((sum, item) => sum + Number(item.estimatedTokens || 0), 0);
   const quoteStatus = health.quotes?.status || 'sem status';
+  const surfaceUsage = health.ai.reduce((summary, item) => {
+    Object.entries(item.surfaces || {}).forEach(([surface, metrics]) => {
+      summary[surface] = (summary[surface] || 0) + Number(metrics?.calls || 0);
+    });
+    return summary;
+  }, {});
+  const surfaceDetail = Object.entries(surfaceUsage)
+    .sort((a, b) => b[1] - a[1])
+    .map(([surface, calls]) => `${surface}: ${calls}`)
+    .join(' · ') || 'Sem chamadas por superfície';
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3">
       {[
         { label: 'Frases IA', value: health.loading ? '...' : quoteStatus, detail: health.quotes?.message || health.error || 'Automacao de frases' },
-        { label: 'Chamadas IA hoje', value: health.loading ? '...' : totalAiCalls, detail: `${totalAiTokens.toLocaleString('pt-BR')} tokens estimados` },
+        { label: 'Chamadas IA hoje', value: health.loading ? '...' : totalAiCalls, detail: `${totalAiTokens.toLocaleString('pt-BR')} tokens · ${surfaceDetail}` },
         { label: 'Timers ativos', value: health.loading ? '...' : health.activeTimers, detail: 'Colecao active_timers' },
-        { label: 'Usuarios com IA hoje', value: health.loading ? '...' : health.ai.length, detail: 'Quota por usuario/dia' },
+        { label: 'Falhas recentes de IA', value: health.loading ? '...' : health.aiFailures, detail: 'Últimos 5 registros operacionais' },
+        { label: 'Erros cache/notícias', value: health.loading ? '...' : health.cacheErrors, detail: 'Últimos 5 registros operacionais' },
       ].map((item) => (
         <div key={item.label} className="rounded-3xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
           <p className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-400">{item.label}</p>
@@ -360,6 +382,7 @@ function AdminPage() {
   const [segmentDrilldown, setSegmentDrilldown] = useState(null);
   const [activeSavedSegmentId, setActiveSavedSegmentId] = useState('filtered-base');
   const [broadcastDraft, setBroadcastDraft] = useState(null);
+  const [adminFeedback, setAdminFeedback] = useState(null);
   const [globalFilters, setGlobalFilters] = useState({
     windowDays: 30,
     contextType: 'all',
@@ -668,10 +691,10 @@ function AdminPage() {
         processedCount += 1;
       }
 
-      alert(`Sucesso! ${processedCount} usuarios recalibrados.`);
+      setAdminFeedback({ type: 'success', message: `${processedCount} usuários recalibrados com sucesso.` });
     } catch (error) {
       console.error('Erro fatal no recalculo:', error);
-      alert('Erro ao recalcular estatisticas. Veja o console.');
+      setAdminFeedback({ type: 'error', message: 'Erro ao recalcular estatísticas. Veja o console.' });
     }
   };
 
@@ -686,6 +709,12 @@ function AdminPage() {
         .dark .live-monitor-scroll::-webkit-scrollbar-thumb:hover { background: #52525b; }
       ` }}
       />
+      {adminFeedback && (
+        <div className={`fixed top-5 left-1/2 -translate-x-1/2 z-[320] px-4 py-3 rounded-xl text-sm font-bold text-white shadow-xl ${adminFeedback.type === 'success' ? 'bg-emerald-600' : 'bg-red-600'}`}>
+          {adminFeedback.message}
+          <button onClick={() => setAdminFeedback(null)} className="ml-3 opacity-80 hover:opacity-100">×</button>
+        </div>
+      )}
 
       <div className="w-full pb-20 animate-slide-up space-y-8 max-w-[1600px] mx-auto px-4 sm:px-6 pt-10">
         <AnimatePresence>

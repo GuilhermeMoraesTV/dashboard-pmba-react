@@ -10,6 +10,8 @@ import {
   MessageSquare, Loader2, X, Trash2, Check, Send, Search,
   ArrowLeft, Edit2, Bug, FileText, Lightbulb, HelpCircle
 } from 'lucide-react';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
+import ConfirmModal from '../../components/shared/ConfirmModal';
 
 // --- UTILITÁRIOS INTERNOS ---
 const formatTimeAgo = (date) => {
@@ -24,11 +26,7 @@ const formatTimeAgo = (date) => {
 
 // --- COMPONENTE MODAL BASE ---
 const ExpandedModal = ({ isOpen, onClose, title, children }) => {
-  useEffect(() => {
-    if (isOpen) document.body.style.overflow = 'hidden';
-    else document.body.style.overflow = 'unset';
-    return () => { document.body.style.overflow = 'unset'; };
-  }, [isOpen]);
+  useBodyScrollLock(isOpen, { fixed: false });
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-0 md:p-4 bg-zinc-950/70 backdrop-blur-md animate-fade-in">
@@ -73,6 +71,7 @@ const HeaderOcorrencias = ({ isOpen, onClose }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTicketData, setActiveTicketData] = useState(null);
   const [editingMessage, setEditingMessage] = useState(null);
+  const [deleteRequest, setDeleteRequest] = useState(null);
 
   const scrollRef = useRef(null);
   const adminTypingTimeoutRef = useRef(null);
@@ -147,22 +146,31 @@ const HeaderOcorrencias = ({ isOpen, onClose }) => {
     await updateDoc(doc(db, 'system_feedback', activeTicketId), { status: newStatus });
   };
 
-  const handleDeleteTicket = async (id, e) => {
+  const handleDeleteTicket = (id, e) => {
     e.stopPropagation();
-    if (window.confirm('Apagar ticket e todo histórico?')) {
-      await deleteDoc(doc(db, 'system_feedback', id));
-      if (activeTicketId === id) setActiveTicketId(null);
-    }
+    setDeleteRequest({ type: 'ticket', id });
   };
 
   const startEditing = (msg) => { setEditingMessage({ id: msg.id, text: msg.text }); setReply(msg.text); };
   const cancelEditing = () => { setEditingMessage(null); setReply(''); };
-  const deleteMessage = async (msgId) => {
-    if (window.confirm("Excluir esta mensagem?")) {
-      try {
-        await deleteDoc(doc(db, 'system_feedback', activeTicketId, 'messages', msgId));
-        if (editingMessage?.id === msgId) cancelEditing();
-      } catch (e) { console.error("Erro", e); }
+  const deleteMessage = (msgId) => {
+    setDeleteRequest({ type: 'message', id: msgId });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteRequest) return;
+    try {
+      if (deleteRequest.type === 'ticket') {
+        await deleteDoc(doc(db, 'system_feedback', deleteRequest.id));
+        if (activeTicketId === deleteRequest.id) setActiveTicketId(null);
+      } else if (activeTicketId) {
+        await deleteDoc(doc(db, 'system_feedback', activeTicketId, 'messages', deleteRequest.id));
+        if (editingMessage?.id === deleteRequest.id) cancelEditing();
+      }
+    } catch (error) {
+      console.error('Erro ao excluir item de suporte', error);
+    } finally {
+      setDeleteRequest(null);
     }
   };
 
@@ -183,6 +191,7 @@ const HeaderOcorrencias = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
 
   return (
+    <>
     <ExpandedModal isOpen={isOpen} onClose={onClose} title="Central de Ocorrências">
       <div className="flex w-full h-full overflow-hidden bg-zinc-50 dark:bg-zinc-950">
         <div className={`flex flex-col w-full md:w-80 lg:w-[400px] border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 z-20 absolute md:relative inset-0 transition-transform duration-300 ease-in-out ${activeTicketId ? '-translate-x-full md:translate-x-0' : 'translate-x-0'}`}>
@@ -278,6 +287,18 @@ const HeaderOcorrencias = ({ isOpen, onClose }) => {
         </div>
       </div>
     </ExpandedModal>
+    <ConfirmModal
+      isOpen={!!deleteRequest}
+      onClose={() => setDeleteRequest(null)}
+      onConfirm={confirmDelete}
+      title={deleteRequest?.type === 'ticket' ? 'Excluir chamado?' : 'Excluir mensagem?'}
+      message={deleteRequest?.type === 'ticket'
+        ? 'O chamado e todo o histórico serão removidos permanentemente.'
+        : 'A mensagem será removida permanentemente do chamado.'}
+      confirmText="Excluir"
+      isDestructive
+    />
+    </>
   );
 };
 

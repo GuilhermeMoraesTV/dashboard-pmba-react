@@ -32,12 +32,12 @@ const ExpandedModal = ({ isOpen, onClose, title, children }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-0 md:p-4 bg-zinc-950/70 backdrop-blur-md animate-fade-in">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-3 md:p-8 bg-zinc-950/70 backdrop-blur-md animate-fade-in">
       <motion.div
         initial={{ scale: 0.95, opacity: 0, y: 20 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.95, opacity: 0, y: 20 }}
-        className="bg-zinc-100 dark:bg-zinc-900 w-full h-full md:w-[95%] md:max-w-6xl md:h-[85vh] md:rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-2xl flex flex-col overflow-hidden relative"
+        className="bg-zinc-100 dark:bg-zinc-900 w-full h-full md:w-[88vw] md:max-w-5xl md:h-[76vh] md:rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-2xl flex flex-col overflow-hidden relative"
       >
         <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800 flex justify-between items-center bg-white dark:bg-zinc-950 shadow-sm z-50">
           <h3 className="text-xl font-black text-zinc-900 dark:text-white flex items-center gap-2 tracking-tight">
@@ -62,6 +62,7 @@ const HeaderBroadcast = ({ isOpen, onClose, segmentDraft = null }) => {
   const [category, setCategory] = useState('comunicado');
   const [sending, setSending] = useState(false);
   const [history, setHistory] = useState([]);
+  const [feedback, setFeedback] = useState(null);
   const [previewMode, setPreviewMode] = useState('mobile');
   const [isTestMode, setIsTestMode] = useState(false);
   const [selectedSegment, setSelectedSegment] = useState(null);
@@ -165,7 +166,7 @@ const HeaderBroadcast = ({ isOpen, onClose, segmentDraft = null }) => {
       setIsTestMode(false);
     } catch (error) {
       console.error(error);
-      alert("Erro ao enviar: " + error.message);
+      setFeedback({ type: 'error', message: `Erro ao enviar: ${error.message}` });
     } finally {
       setSending(false);
     }
@@ -495,6 +496,12 @@ const HeaderBroadcast = ({ isOpen, onClose, segmentDraft = null }) => {
       confirmText="Excluir"
       isDestructive
     />
+    {feedback && (
+      <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[320] px-4 py-3 rounded-xl text-sm font-bold text-white shadow-xl bg-red-600">
+        {feedback.message}
+        <button onClick={() => setFeedback(null)} className="ml-3 opacity-80 hover:opacity-100">×</button>
+      </div>
+    )}
     </>
   );
 };

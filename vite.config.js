@@ -12,6 +12,9 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
+          if (id.includes('/src/pages/AdminPage/') || id.includes('\\src\\pages\\AdminPage\\')) return 'admin';
+          if (id.includes('/src/pages/NoticiasPage') || id.includes('/src/components/noticias/')) return 'noticias';
+          if (id.includes('/src/components/ciclos/StudyTimer/') || id.includes('/src/pages/SimuladosPage/SimuladoTimer')) return 'timers';
           if (id.includes('node_modules')) {
             if (id.includes('firebase')) return 'firebase';
             if (id.includes('framer-motion')) return 'motion';

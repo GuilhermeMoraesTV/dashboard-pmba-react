@@ -5,6 +5,7 @@ import {
   ClipboardList, Pencil, ListChecks, AlertCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 
 // --- HELPERS LOCAIS ---
 const normName = (s) => (s || '').trim().toLowerCase();
@@ -83,22 +84,7 @@ const SimuladoCreationModal = ({ isOpen, onClose, onSave, disciplinasSugestivas,
   const [manualMins, setManualMins] = useState('');
 
   // ✅ TRAVA DE SCROLL ROBUSTA (Igual ao ModalSelecaoEdital)
-  useEffect(() => {
-    if (isOpen) {
-        document.body.style.overflow = 'hidden';
-        document.documentElement.style.overflow = 'hidden';
-        document.body.style.overscrollBehavior = 'none';
-    } else {
-        document.body.style.overflow = '';
-        document.documentElement.style.overflow = '';
-        document.body.style.overscrollBehavior = '';
-    }
-    return () => {
-        document.body.style.overflow = '';
-        document.documentElement.style.overflow = '';
-        document.body.style.overscrollBehavior = '';
-    };
-  }, [isOpen]);
+  useBodyScrollLock(isOpen, { overscrollBehavior: 'none' });
 
   // Verifica se houve alteração
   const isDirty = useMemo(() => {

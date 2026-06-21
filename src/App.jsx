@@ -1,5 +1,5 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from './firebaseConfig';
 
@@ -9,6 +9,18 @@ const Login = lazy(() => import('./components/Login'));
 const Signup = lazy(() => import('./components/Signup'));
 const ForgotPassword = lazy(() => import('./components/ForgotPassword'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
+
+function ProtectedDashboard({ user, isDarkMode, toggleTheme }) {
+  const location = useLocation();
+  if (!user) return <Navigate to="/login" state={{ from: location }} replace />;
+  return <Dashboard user={user} isDarkMode={isDarkMode} toggleTheme={toggleTheme} />;
+}
+
+function PublicRoute({ user, children }) {
+  const location = useLocation();
+  const destination = location.state?.from?.pathname || '/app/home';
+  return user ? <Navigate to={destination} replace /> : children;
+}
 
 function App() {
   const [user, setUser] = useState(null);
@@ -86,43 +98,23 @@ function App() {
             <Routes>
               <Route
                 path="/"
-                element={
-                  user ? (
-                    <Dashboard
-                      user={user}
-                      isDarkMode={isDarkMode}
-                      toggleTheme={toggleTheme}
-                    />
-                  ) : (
-                    <Navigate to="/login" />
-                  )
-                }
+                element={<ProtectedDashboard user={user} isDarkMode={isDarkMode} toggleTheme={toggleTheme} />}
               />
               <Route
                 path="/app/:tab"
-                element={
-                  user ? (
-                    <Dashboard
-                      user={user}
-                      isDarkMode={isDarkMode}
-                      toggleTheme={toggleTheme}
-                    />
-                  ) : (
-                    <Navigate to="/login" />
-                  )
-                }
+                element={<ProtectedDashboard user={user} isDarkMode={isDarkMode} toggleTheme={toggleTheme} />}
               />
               <Route
                 path="/login"
-                element={user ? <Navigate to="/" /> : <Login />}
+                element={<PublicRoute user={user}><Login /></PublicRoute>}
               />
               <Route
                 path="/signup"
-                element={user ? <Navigate to="/" /> : <Signup />}
+                element={<PublicRoute user={user}><Signup /></PublicRoute>}
               />
               <Route
                 path="/forgot-password"
-                element={user ? <Navigate to="/" /> : <ForgotPassword />}
+                element={<PublicRoute user={user}><ForgotPassword /></PublicRoute>}
               />
               <Route path="*" element={<NotFoundPage />} />
             </Routes>

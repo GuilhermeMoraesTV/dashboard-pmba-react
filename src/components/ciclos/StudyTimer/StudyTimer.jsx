@@ -11,6 +11,15 @@ import {
   increment,
 } from 'firebase/firestore';
 import { db } from '../../../firebaseConfig';
+import {
+  createTimerTabId,
+  formatTimerClock,
+  isValidTimerElapsedMs,
+  parseTimerJson,
+  timerTimestampToMillis,
+  useFullscreenState,
+  useWakeLock,
+} from '../../../hooks/useTimerEngine';
 
 import MiniWidgetTimer from './MiniWidgetTimer';
 import OverlaysTimer from './OverlaysTimer';
@@ -28,13 +37,7 @@ const DEFAULT_SOUNDS = [
   { id: 'zen', url: 'https://cdn.freesound.org/previews/235/235886_3226359-lq.mp3' },
 ];
 
-const formatClock = (totalSeconds) => {
-  const safe = Math.max(0, Number(totalSeconds) || 0);
-  const hours = Math.floor(safe / 3600);
-  const minutes = Math.floor((safe % 3600) / 60);
-  const seconds = safe % 60;
-  return [hours, minutes, seconds].map(v => String(v).padStart(2, '0')).join(':');
-};
+const formatClock = formatTimerClock;
 
 const formatHMFromSeconds = (totalSeconds) => {
   const safe = Math.max(0, Number(totalSeconds) || 0);
@@ -45,21 +48,11 @@ const formatHMFromSeconds = (totalSeconds) => {
   return `${m}m`;
 };
 
-const rememberJson = (str) => {
-  try { return JSON.parse(str || ''); } catch { return null; }
-};
-
-const toMillisSafe = (ts) => {
-  try { return ts?.toMillis?.() ?? null; } catch { return null; }
-};
+const rememberJson = parseTimerJson;
+const toMillisSafe = timerTimestampToMillis;
 
 // 🛡️ ANTI-EPOCH: Valida se um valor ms é razoável (não é timestamp epoch)
-const isValidElapsedMs = (ms) => {
-  const val = Number(ms);
-  if (!Number.isFinite(val)) return false;
-  // Máximo 7 dias em ms (604800000) - qualquer coisa acima é suspeita
-  return val >= 0 && val < 604800000;
-};
+const isValidElapsedMs = isValidTimerElapsedMs;
 
 function StudyTimer({
   disciplina,
@@ -87,12 +80,7 @@ function StudyTimer({
 }) {
   const { settings } = useTimerSettings(userUid);
 
-  const tabIdRef = useRef(
-    (() => {
-      try { if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID(); } catch {}
-      return `tab_${Math.random().toString(16).slice(2)}_${Date.now()}`;
-    })()
-  );
+  const tabIdRef = useRef(createTimerTabId());
 
   const mountTimeRef = useRef(Date.now());
   const bcRef = useRef(null);
@@ -125,7 +113,7 @@ function StudyTimer({
 
   const [isPaused, setIsPaused] = useState(false);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const { isFullscreen, toggleFullscreen } = useFullscreenState();
   const [isDark, setIsDark] = useState(true);
 
   const [isPomodoroFinished, setIsPomodoroFinished] = useState(false);
@@ -171,32 +159,15 @@ function StudyTimer({
   const alarmRef = useRef(null);
   const originalTitleRef = useRef(document.title);
 
-  const wakeLockRef = useRef(null);
-  const wakeLockWantedRef = useRef(false);
+  const {
+    wakeLockWantedRef,
+    requestWakeLock,
+    releaseWakeLock,
+  } = useWakeLock();
 
   // ✅ NOVO: controla se o servidor já "ackou" o doc do timer (evita depender do heartbeat de 30s)
   const remoteAckRef = useRef(false);
   const remoteStartMsAckedRef = useRef(null);
-
-  const requestWakeLock = useCallback(async () => {
-    try {
-      if (!('wakeLock' in navigator)) return;
-      if (!wakeLockWantedRef.current) return;
-      if (wakeLockRef.current) return;
-
-      const lock = await navigator.wakeLock.request('screen');
-      wakeLockRef.current = lock;
-      lock.addEventListener('release', () => { wakeLockRef.current = null; });
-    } catch {}
-  }, []);
-
-  const releaseWakeLock = useCallback(async () => {
-    try {
-      wakeLockWantedRef.current = false;
-      if (wakeLockRef.current) await wakeLockRef.current.release();
-    } catch {}
-    wakeLockRef.current = null;
-  }, []);
 
   // ✅ FIX: effectiveMode agora prioriza o modo vindo do servidor quando entrando em sessão existente.
   // Isso garante que o PC exiba "pomodoro" quando o tablet iniciou nesse modo.
@@ -887,14 +858,6 @@ function StudyTimer({
     } else {
       document.documentElement.classList.add('dark');
       setIsDark(true);
-    }
-  };
-
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {});
-    } else {
-      document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {});
     }
   };
 

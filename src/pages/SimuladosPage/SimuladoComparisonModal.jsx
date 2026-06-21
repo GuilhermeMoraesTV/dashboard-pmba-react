@@ -4,6 +4,7 @@ import {
   ArrowUpRight, ArrowDownRight, Activity, Target, Layers, X, Clock, Timer
 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 
 // --- HELPER LOCAL ---
 const formatDate = (dateString) => {
@@ -133,14 +134,7 @@ const SimpleRadarChart = ({ data, colorA, colorB, labelA, labelB }) => {
 
 const SimuladoComparisonModal = ({ simuladosSelecionados, onClose }) => {
   // ✅ TRAVA DE SCROLL PADRONIZADA
-  useEffect(() => {
-    document.body.style.overflow = 'hidden';
-    document.documentElement.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = '';
-      document.documentElement.style.overflow = '';
-    };
-  }, []);
+  useBodyScrollLock(true);
 
   // UseMemo para ordenar e calcular dados somente se existirem simulados suficientes
   const comparisonData = useMemo(() => {
@@ -212,7 +206,7 @@ const SimuladoComparisonModal = ({ simuladosSelecionados, onClose }) => {
   if (!comparisonData) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in overflow-hidden touch-none" onClick={onClose}>
+    <div className="fixed inset-0 z-[300] bg-black/60 backdrop-blur-sm flex items-center justify-center p-5 md:p-10 animate-fade-in overflow-hidden touch-none" onClick={onClose}>
 
       <style>{`
         .custom-scrollbar { scrollbar-width: thin; scrollbar-color: #ef4444 transparent; }
@@ -230,8 +224,8 @@ const SimuladoComparisonModal = ({ simuladosSelecionados, onClose }) => {
         onClick={(e) => e.stopPropagation()}
         className={`
             bg-white dark:bg-zinc-950
-            w-full max-w-[95%] sm:max-w-2xl md:max-w-4xl lg:max-w-5xl
-            h-auto max-h-[85vh]
+            w-full max-w-[92%] sm:max-w-xl md:max-w-3xl lg:max-w-4xl
+            h-auto max-h-[76vh]
             rounded-3xl border-2 border-zinc-200/50 dark:border-zinc-800/50 shadow-2xl
             flex flex-col relative overflow-hidden
         `}

@@ -10,6 +10,8 @@ import {
   X, Loader2, Calendar, Star, Edit2, Trash2, Check, Plus, Upload,
   Search, Sparkles, ChevronRight, CheckCircle2, Quote, Clock
 } from 'lucide-react';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
+import ConfirmModal from '../../components/shared/ConfirmModal';
 
 // --- UTILITÁRIOS INTERNOS ---
 const dateToYMD = (date) => {
@@ -115,11 +117,7 @@ const shiftQuotesFromDate = async (startDate, excludeId = null) => {
 
 // --- COMPONENTE MODAL BASE ---
 const ExpandedModal = ({ isOpen, onClose, title, children }) => {
-  useEffect(() => {
-    if (isOpen) document.body.style.overflow = 'hidden';
-    else document.body.style.overflow = 'unset';
-    return () => { document.body.style.overflow = 'unset'; };
-  }, [isOpen]);
+  useBodyScrollLock(isOpen, { fixed: false });
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-0 md:p-4 bg-zinc-950/70 backdrop-blur-md animate-fade-in">
@@ -171,6 +169,8 @@ const HeaderFrases = ({ isOpen, onClose }) => {
   const [editText, setEditText] = useState('');
   const [editAuthor, setEditAuthor] = useState('');
   const [editDate, setEditDate] = useState('');
+  const [feedback, setFeedback] = useState(null);
+  const [confirmRequest, setConfirmRequest] = useState(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -242,7 +242,7 @@ const HeaderFrases = ({ isOpen, onClose }) => {
         createdAt: serverTimestamp(),
       });
       setNewText(''); setNewAuthor(''); setNewDate(''); setActiveTab('all');
-    } catch (e) { console.error(e); alert('Erro ao salvar frase.'); } finally { setSaving(false); }
+    } catch (e) { console.error(e); setFeedback({ type: 'error', message: 'Erro ao salvar frase.' }); } finally { setSaving(false); }
   };
 
   const handleBulkImport = async () => {
@@ -264,7 +264,7 @@ const HeaderFrases = ({ isOpen, onClose }) => {
       setBulkText(''); setBulkParsed([]); setBulkSaved(true);
       setTimeout(() => setBulkSaved(false), 3000);
       setActiveTab('all');
-    } catch (e) { console.error(e); alert('Erro ao importar frases.'); } finally { setBulkSaving(false); }
+    } catch (e) { console.error(e); setFeedback({ type: 'error', message: 'Erro ao importar frases.' }); } finally { setBulkSaving(false); }
   };
 
   const handleAutoReplenish = async () => {
@@ -279,14 +279,17 @@ const HeaderFrases = ({ isOpen, onClose }) => {
       setActiveTab('all');
     } catch (e) {
       console.error(e);
-      alert('Erro ao abastecer frases com IA.');
+      setFeedback({ type: 'error', message: 'Erro ao abastecer frases com IA.' });
     } finally {
       setAutomationRunning(false);
     }
   };
 
   const handleDeleteQuote = async (q) => {
-    if (!window.confirm('Excluir esta frase?')) return;
+    setConfirmRequest({ type: 'quote', quote: q });
+  };
+
+  const confirmDeleteQuote = async (q) => {
     try {
       await deleteDoc(doc(db, 'system_quotes', q.id));
       if (featuredConfig?.featuredQuoteId === q.id) {
@@ -295,7 +298,10 @@ const HeaderFrases = ({ isOpen, onClose }) => {
         }, { merge: true });
       }
       if (editingQuote?.id === q.id) setEditingQuote(null);
-    } catch (e) { alert('Erro ao excluir.'); }
+    } catch (e) {
+      console.error(e);
+      setFeedback({ type: 'error', message: 'Erro ao excluir frase.' });
+    }
   };
 
   const handleStartEdit = (q) => {
@@ -324,7 +330,7 @@ const HeaderFrases = ({ isOpen, onClose }) => {
         }, { merge: true });
       }
       setEditingQuote(null);
-    } catch (e) { console.error(e); alert('Erro ao salvar edição.'); } finally { setSaving(false); }
+    } catch (e) { console.error(e); setFeedback({ type: 'error', message: 'Erro ao salvar edição.' }); } finally { setSaving(false); }
   };
 
   const handleSchedule = async () => {
@@ -336,14 +342,24 @@ const HeaderFrases = ({ isOpen, onClose }) => {
         featuredQuoteId: schedulingQuote.id || null, updatedAt: serverTimestamp(),
       }, { merge: true });
       setSchedulingQuote(null);
-    } catch (e) { alert('Erro ao agendar frase.'); } finally { setSaving(false); }
+    } catch (e) { console.error(e); setFeedback({ type: 'error', message: 'Erro ao agendar frase.' }); } finally { setSaving(false); }
   };
 
   const handleClearFeatured = async () => {
-    if (!window.confirm('Remover destaque manual?')) return;
+    setConfirmRequest({ type: 'featured' });
+  };
+
+  const confirmClearFeatured = async () => {
     await setDoc(doc(db, 'system_config', 'quotes_settings'), {
       featuredDate: null, featuredText: null, featuredAuthor: null, featuredQuoteId: null,
     }, { merge: true });
+  };
+
+  const handleConfirmRequest = async () => {
+    const request = confirmRequest;
+    setConfirmRequest(null);
+    if (request?.type === 'quote') await confirmDeleteQuote(request.quote);
+    if (request?.type === 'featured') await confirmClearFeatured();
   };
 
   const todayStr = dateToYMD(new Date());
@@ -468,6 +484,7 @@ const HeaderFrases = ({ isOpen, onClose }) => {
   };
 
   return (
+    <>
     <ExpandedModal isOpen={isOpen} onClose={onClose} title="Gerenciar Frases">
       <div className="flex flex-col w-full h-full overflow-hidden">
         <div className="flex items-center justify-between px-6 pt-4 pb-0 bg-white dark:bg-zinc-950 border-b border-zinc-100 dark:border-zinc-800 shrink-0 gap-4">
@@ -616,6 +633,24 @@ const HeaderFrases = ({ isOpen, onClose }) => {
         </div>
       </div>
     </ExpandedModal>
+    {feedback && (
+      <div className={`fixed top-5 left-1/2 -translate-x-1/2 z-[320] px-4 py-3 rounded-xl text-sm font-bold text-white shadow-xl ${feedback.type === 'error' ? 'bg-red-600' : 'bg-emerald-600'}`}>
+        {feedback.message}
+        <button onClick={() => setFeedback(null)} className="ml-3 opacity-80 hover:opacity-100">×</button>
+      </div>
+    )}
+    <ConfirmModal
+      isOpen={!!confirmRequest}
+      onClose={() => setConfirmRequest(null)}
+      onConfirm={handleConfirmRequest}
+      title={confirmRequest?.type === 'quote' ? 'Excluir frase?' : 'Remover destaque manual?'}
+      message={confirmRequest?.type === 'quote'
+        ? 'A frase será removida permanentemente.'
+        : 'A configuração de destaque manual será removida.'}
+      confirmText="Confirmar"
+      isDestructive
+    />
+    </>
   );
 };
 

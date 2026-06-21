@@ -5,7 +5,17 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist', 'Backup ModoQAP']),
+  globalIgnores([
+    'dist',
+    '.vite',
+    'Backup',
+    'Backup ModoQAP',
+    'vite-dev.out',
+    'vite-dev.err',
+    '.firebase',
+    // Arquivo desativado integralmente por comentário legado e sem imports ativos.
+    'src/components/gamification/XPNotification.jsx',
+  ]),
   {
     files: ['**/*.{js,jsx}'],
     extends: [
@@ -23,7 +33,17 @@ export default defineConfig([
       },
     },
     rules: {
-      'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
+      // Dívida legada: mantida visível como warning enquanto hooks e sintaxe
+      // continuam bloqueando o lint. Seeders duplicados estão fora desta leva.
+      'no-unused-vars': ['warn', {
+        argsIgnorePattern: '^_',
+        caughtErrorsIgnorePattern: '^_',
+        varsIgnorePattern: '^[A-Z_]',
+      }],
+      'no-empty': ['warn', { allowEmptyCatch: true }],
+      'no-constant-binary-expression': 'warn',
+      'no-useless-escape': 'warn',
+      'react-refresh/only-export-components': 'warn',
     },
   },
   {

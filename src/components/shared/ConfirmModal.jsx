@@ -1,5 +1,6 @@
 import React from 'react';
 import { Loader2, X, AlertTriangle } from 'lucide-react';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 
 /**
  * Um modal de confirmação visual reutilizável.
@@ -25,11 +26,12 @@ function ConfirmModal({
   isLoading = false,
   isDestructive = true
 }) {
+  useBodyScrollLock(isOpen, { fixed: false });
   if (!isOpen) return null;
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 backdrop-blur-sm"
       onClick={onClose}
     >
       <div

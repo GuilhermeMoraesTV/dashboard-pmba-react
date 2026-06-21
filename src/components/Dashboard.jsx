@@ -260,7 +260,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   } = useNotifications(user);
   const userAccess = useUserAccess(user);
 
-  const [activeTab, setActiveTab]               = useState(initialRouteTab);
+  const [activeTab, setActiveTabState]          = useState(initialRouteTab);
   const [loading, setLoading]                   = useState(true);
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
   const [isMobileOpen, setIsMobileOpen]         = useState(false);
@@ -284,22 +284,22 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   const [finishedSimuladoData, setFinishedSimuladoData]   = useState(null);
   const [pendingSimuladoReview, setPendingSimuladoReview] = useState(null);
 
+  const setActiveTab = useCallback((nextTab) => {
+    const resolvedTab = typeof nextTab === 'function' ? nextTab(activeTab) : nextTab;
+    const pathTab = TAB_TO_PATH[resolvedTab] || 'home';
+    const targetPath = `/app/${pathTab}`;
+    setActiveTabState(resolvedTab);
+    if (location.pathname !== targetPath) navigate(targetPath);
+  }, [activeTab, location.pathname, navigate]);
+
   useEffect(() => {
     const resolvedTab = PATH_TO_TAB[String(routeTab || 'home').toLowerCase()];
     if (!resolvedTab) {
       if (location.pathname.startsWith('/app/')) navigate('/app/home', { replace: true });
       return;
     }
-    setActiveTab((current) => (current === resolvedTab ? current : resolvedTab));
+    setActiveTabState((current) => (current === resolvedTab ? current : resolvedTab));
   }, [location.pathname, navigate, routeTab]);
-
-  useEffect(() => {
-    const pathTab = TAB_TO_PATH[activeTab] || 'home';
-    const targetPath = `/app/${pathTab}`;
-    if (location.pathname.startsWith('/app/') && location.pathname !== targetPath) {
-      navigate(targetPath, { replace: true });
-    }
-  }, [activeTab, location.pathname, navigate]);
 
   const [goalsHistory, setGoalsHistory]           = useState([]);
   const [activeCicloId, setActiveCicloId]         = useState(null);

@@ -11,6 +11,8 @@ import {
   Rocket, RefreshCw, AlertTriangle, Info
 } from 'lucide-react';
 import { gerarResumoAtualizacaoIA, gerarDescricaoDiff, deveNotificarAluno, formatarNomeEditalLegivel } from '../../services/editalIA';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
+import ConfirmModal from '../../components/shared/ConfirmModal';
 
 // ==================================================================================
 // 🔔 TOAST
@@ -613,14 +615,15 @@ const EditaisManagerModal = ({ isOpen, onClose }) => {
   const [syncLabel, setSyncLabel]             = useState('');
   const [seedAtual, setSeedAtual]             = useState(null);
   const [seedQueue, setSeedQueue]             = useState([]);
+  const [pendingAction, setPendingAction]     = useState(null);
   const syncStatsRef                          = useRef({ ok: 0, erros: [], total: 0 });
 
   const triggerToast = (msg, type = 'success') => setToast({ message: msg, type });
 
+  useBodyScrollLock(isOpen, { fixed: false });
+
   useEffect(() => {
-    if (isOpen) document.body.style.overflow = 'hidden';
-    else        document.body.style.overflow = 'unset';
-    if (!isOpen) return;
+    if (!isOpen) return undefined;
     const unsub = onSnapshot(collection(db, 'editais_templates'), (snap) => {
       setDbTemplates(snap.docs.map(d => ({ id: d.id, ...d.data(), isInstalled: true })));
     });
@@ -661,12 +664,35 @@ const EditaisManagerModal = ({ isOpen, onClose }) => {
     if (syncingSeeds) return;
     const seeds = CATALOGO_EDITAIS.filter(s => s.SeedComponent);
     if (!seeds.length) { triggerToast('Nenhum seed encontrado.', 'error'); return; }
-    if (!window.confirm(`Isso vai instalar/atualizar ${seeds.length} seeds no Firestore. Continuar?`)) return;
+    setPendingAction({ type: 'syncSeeds', count: seeds.length });
+  };
+
+  const confirmarSincronizacaoSeeds = () => {
+    const seeds = CATALOGO_EDITAIS.filter(s => s.SeedComponent);
     syncStatsRef.current = { ok: 0, erros: [], total: seeds.length };
     setSyncingSeeds(true);
     setSyncLabel(`1/${seeds.length} — ${seeds[0].titulo}`);
     setSeedQueue(seeds);
     setSeedAtual(seeds[0]);
+  };
+
+  const removerEdital = async (edital) => {
+    const isCustom = edital.isCustom || edital.isCustomGCM;
+    const isSeed = edital.isLocal;
+    try {
+      if (isCustom && !isSeed) await deleteDoc(doc(db, 'editais_templates', edital.id));
+      else await setDoc(doc(db, 'editais_templates', edital.id), { deleted: true, ativo: false, lastUpdate: serverTimestamp() }, { merge: true });
+      triggerToast('Edital removido!');
+    } catch (e) {
+      triggerToast('Erro: ' + e.message, 'error');
+    }
+  };
+
+  const confirmarAcaoPendente = async () => {
+    const action = pendingAction;
+    setPendingAction(null);
+    if (action?.type === 'syncSeeds') confirmarSincronizacaoSeeds();
+    if (action?.type === 'deleteEdital') await removerEdital(action.edital);
   };
 
   if (!isOpen) return null;
@@ -697,13 +723,7 @@ const EditaisManagerModal = ({ isOpen, onClose }) => {
 
     const handleToggleStatus = async () => { try { await setDoc(doc(db, 'editais_templates', edital.id), { ativo: !isAtivo, lastUpdate: serverTimestamp() }, { merge: true }); triggerToast(`Edital ${!isAtivo ? 'ativado' : 'arquivado'}!`); } catch (e) { triggerToast('Erro: ' + e.message, 'error'); } };
     const handleDelete = async () => {
-      const msg = isSeed ? '\n\nATENÇÃO: Seed — será ocultado permanentemente.' : '';
-      if (!window.confirm(`Remover "${edital.titulo}"?${msg}`)) return;
-      try {
-        if (isCustom && !isSeed) await deleteDoc(doc(db, 'editais_templates', edital.id));
-        else await setDoc(doc(db, 'editais_templates', edital.id), { deleted: true, ativo: false, lastUpdate: serverTimestamp() }, { merge: true });
-        triggerToast('Edital removido!');
-      } catch (e) { triggerToast('Erro: ' + e.message, 'error'); }
+      setPendingAction({ type: 'deleteEdital', edital });
     };
 
     return (
@@ -742,6 +762,7 @@ const EditaisManagerModal = ({ isOpen, onClose }) => {
   };
 
   return (
+    <>
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md font-sans">
       <style>{`.custom-scrollbar{scrollbar-width:thin;scrollbar-color:#ef4444 transparent}.custom-scrollbar::-webkit-scrollbar{width:6px}.custom-scrollbar::-webkit-scrollbar-thumb{background:linear-gradient(180deg,#ef4444,#991b1b);border-radius:10px}`}</style>
 
@@ -813,6 +834,18 @@ const EditaisManagerModal = ({ isOpen, onClose }) => {
         </div>
       </motion.div>
     </div>
+    <ConfirmModal
+      isOpen={!!pendingAction}
+      onClose={() => setPendingAction(null)}
+      onConfirm={confirmarAcaoPendente}
+      title={pendingAction?.type === 'syncSeeds' ? 'Sincronizar seeds?' : 'Remover edital?'}
+      message={pendingAction?.type === 'syncSeeds'
+        ? `Serão instalados ou atualizados ${pendingAction?.count || 0} editais no Firestore.`
+        : `O edital "${pendingAction?.edital?.titulo || ''}" será removido${pendingAction?.edital?.isLocal ? ' e o seed ficará oculto' : ''}.`}
+      confirmText={pendingAction?.type === 'syncSeeds' ? 'Sincronizar' : 'Remover'}
+      isDestructive={pendingAction?.type !== 'syncSeeds'}
+    />
+    </>
   );
 };
 
