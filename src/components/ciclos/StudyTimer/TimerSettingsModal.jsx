@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   AlertTriangle, X, Save, Volume2, Upload, Play, Check, Clock,
@@ -146,8 +147,8 @@ const TimeAdjuster = ({ label, valueMinutes, onChange, colorClass, icon: Icon, m
 // ─────────────────────────────────────────────
 // Modal principal
 // ─────────────────────────────────────────────
-const TimerSettingsModal = ({ isOpen, onClose, onSave }) => {
-  const { settings: initialSettings } = useTimerSettings();
+const TimerSettingsModal = ({ isOpen, onClose, onSave, userUid = null }) => {
+  const { settings: initialSettings, updateSettings } = useTimerSettings(userUid);
   const [localSettings, setLocalSettings] = useState(initialSettings);
   const [activeTab, setActiveTab] = useState('geral');
   const [uploadError, setUploadError] = useState('');
@@ -158,8 +159,9 @@ const TimerSettingsModal = ({ isOpen, onClose, onSave }) => {
     if (isOpen) setLocalSettings(initialSettings);
   }, [isOpen, initialSettings]);
 
-  const handleSave = () => {
-    onSave(localSettings);
+  const handleSave = async () => {
+    if (onSave) await onSave(localSettings);
+    else await updateSettings(localSettings);
     onClose();
   };
 
@@ -228,16 +230,16 @@ const TimerSettingsModal = ({ isOpen, onClose, onSave }) => {
     );
   };
 
-  if (!isOpen) return null;
+  if (!isOpen || typeof document === 'undefined') return null;
 
-  return (
-    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
+  return createPortal(
+    <div className="fixed inset-0 z-[30000] flex items-center justify-center overflow-y-auto bg-black/75 px-3 py-4 backdrop-blur-md animate-fade-in sm:p-6">
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 10 }}
         transition={{ type: "spring", duration: 0.5 }}
-        className="bg-zinc-50 dark:bg-zinc-900 w-full max-w-2xl rounded-3xl shadow-2xl border border-zinc-200 dark:border-zinc-800 flex flex-col max-h-[90vh] relative z-10 overflow-hidden"
+        className="relative z-10 flex w-full max-w-2xl flex-col overflow-hidden rounded-[28px] border border-zinc-200 bg-zinc-50 shadow-2xl dark:border-zinc-800 dark:bg-zinc-900 max-h-[calc(100dvh-32px)]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex justify-between items-center p-5 border-b border-zinc-200 dark:border-zinc-800 bg-white/50 dark:bg-zinc-900/50 backdrop-blur-sm relative z-10">
@@ -485,7 +487,8 @@ const TimerSettingsModal = ({ isOpen, onClose, onSave }) => {
 
         <audio ref={audioPreviewRef} className="hidden" />
       </motion.div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

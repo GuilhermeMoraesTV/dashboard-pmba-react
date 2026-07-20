@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Clock, Target, Coffee, Zap, AlertCircle, Trash2, Moon, Flame, Check } from 'lucide-react';
+import { Clock, Target, Coffee, Zap, AlertCircle, Trash2, Moon, Flame, Check, Wand2, SlidersHorizontal } from 'lucide-react';
 
 // ─── CONSTANTES ───────────────────────────────────────────────────────────────
 const DIAS = [
@@ -13,7 +13,7 @@ const DIAS = [
   { idx: 6, curto: 'Sáb', longo: 'Sábado',        weekend: true  },
 ];
 
-const PRESETS_HORAS = [1, 2, 3, 4, 6, 8];
+const PRESETS_HORAS = [1, 2, 3, 4, 5, 6, 7];
 
 const formatHorasTexto = (val) => {
   if (!val) return '0h';
@@ -196,8 +196,10 @@ const EditalSidebarCard = ({ editalSelecionado }) => (
 );
 
 // ─── COMPONENTE PRINCIPAL ─────────────────────────────────────────────────────
-const Step3_Horarios = ({ horarios, onHorariosChange, editalSelecionado }) => {
+const Step3_Horarios = ({ horarios, onHorariosChange, editalSelecionado, config = null, onConfigChange = null }) => {
   const hasEdital = !!editalSelecionado;
+  const modoMontagem = config?.modoMontagem || 'inteligente';
+  const podeEscolherModo = typeof onConfigChange === 'function';
 
   const totalHoras = useMemo(
     () => Object.values(horarios).reduce((a, h) => a + (parseFloat(h) || 0), 0),
@@ -220,6 +222,11 @@ const Step3_Horarios = ({ horarios, onHorariosChange, editalSelecionado }) => {
     const novo = {};
     DIAS.forEach(d => { novo[d.idx] = 0; });
     onHorariosChange(novo);
+  };
+
+  const handleModoMontagem = (modo) => {
+    if (!podeEscolherModo) return;
+    onConfigChange({ ...(config || {}), modoMontagem: modo });
   };
 
   return (
@@ -245,6 +252,61 @@ const Step3_Horarios = ({ horarios, onHorariosChange, editalSelecionado }) => {
 
         {/* ── Coluna Esquerda: Configuração em Grade ── */}
         <div className="flex-1 min-w-0 flex flex-col gap-3 md:gap-4">
+
+          {podeEscolherModo && (
+            <div className="rounded-2xl border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">
+                    Montagem do cronograma
+                  </p>
+                  <p className="mt-1 text-xs font-semibold text-zinc-600 dark:text-zinc-300">
+                    Escolha aqui se quer que o sistema distribua ou se prefere montar de forma personalizada.
+                  </p>
+                </div>
+                <span className="hidden rounded-full bg-red-50 px-2 py-1 text-[9px] font-black uppercase tracking-widest text-red-600 dark:bg-red-950/30 dark:text-red-300 sm:inline-flex">
+                  Opção principal
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {[
+                  { id: 'inteligente', label: 'Inteligente', desc: 'Distribuição automática equilibrada.', icon: Wand2 },
+                  { id: 'personalizado', label: 'Personalizado', desc: 'Você ajusta a montagem do plano.', icon: SlidersHorizontal },
+                ].map((opcao) => {
+                  const active = modoMontagem === opcao.id;
+                  const Icon = opcao.icon;
+                  return (
+                    <button
+                      key={opcao.id}
+                      type="button"
+                      onClick={() => handleModoMontagem(opcao.id)}
+                      className={`flex items-center gap-3 rounded-xl border px-3 py-3 text-left transition-all ${
+                        active
+                          ? 'border-red-300 bg-red-50/70 text-red-700 shadow-sm dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-300'
+                          : 'border-zinc-200 bg-zinc-50 text-zinc-600 hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300 dark:hover:border-zinc-700'
+                      }`}
+                    >
+                      <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
+                        active ? 'bg-red-600 text-white' : 'bg-white text-zinc-400 dark:bg-zinc-900'
+                      }`}>
+                        <Icon size={16} />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block text-xs font-black uppercase tracking-widest">
+                          {opcao.label}
+                        </span>
+                        <span className="mt-0.5 block text-[11px] font-semibold opacity-75">
+                          {opcao.desc}
+                        </span>
+                      </span>
+                      {active && <Check size={16} className="ml-auto shrink-0" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <div className="flex items-center justify-between">
             <span className="text-xs font-black text-zinc-400 uppercase tracking-widest">

@@ -5,7 +5,7 @@ import {
   TrendingUp, Target, SkipForward, Trash2, AlertTriangle, X,
   BookOpen, Clock, Star, Flame, BarChart2, Sun, LayoutList,
   GripVertical, Calendar, LayoutGrid, Check, MoreHorizontal,
-  BadgeCheck, Loader2, Trophy, History, Cog, RefreshCw,
+  BadgeCheck, Loader2, Trophy, History, Cog, RefreshCw, Printer,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createPortal } from 'react-dom';
@@ -25,6 +25,7 @@ import {
 import { db } from '../firebaseConfig';
 import CronogramaCreateWizard from '../components/cronograma/WizardShell';
 import ModalEditarCronograma from '../components/cronograma/ModalEditarCronograma';
+import TimerSettingsModal from '../components/ciclos/StudyTimer/TimerSettingsModal';
 import HistoricoModal from '../components/dashboard/HistoricoModal';
 import { useCronogramaSystem, getAgendaSemana, chaveAssuntoDominado } from '../hooks/useCronogramaSystem';
 import { buildCompletionRegistro } from '../utils/completionRegistro';
@@ -2154,6 +2155,7 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
   const [slotDetalhes,      setSlotDetalhes]      = useState(null);
   const [showHistoryModal,  setShowHistoryModal]  = useState(false);
   const [recordToDelete,    setRecordToDelete]    = useState(null);
+  const [showTimerSettings, setShowTimerSettings] = useState(false);
   const [delayConfirmation, setDelayConfirmation] = useState(null);
   const [undoDelayData,     setUndoDelayData]     = useState(null);
   const [optimisticDone,    setOptimisticDone]    = useState({});
@@ -2293,6 +2295,103 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
     if (!todos.length) return 0;
     return Math.round((todos.filter(t => t.concluido).length / todos.length) * 100);
   }, [tarefasPorDia]);
+
+  const handlePrintWeek = useCallback(() => {
+    if (!cronograma || weekDates.length === 0) return;
+
+    const escapeHtml = (value) => String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+
+    const weekLabel = `Semana ${weekOffset + 1}`;
+    const periodo = `${weekDates[0].getDate()} ${MESES_PT[weekDates[0].getMonth()]} - ${weekDates[6].getDate()} ${MESES_PT[weekDates[6].getMonth()]}`;
+    const diasHtml = weekDates.map((date) => {
+      const dia = date.getDay();
+      const tarefas = tarefasPorDia[dia] || [];
+      const itens = tarefas.length > 0
+        ? tarefas.map((tarefa) => {
+            const color = tarefa.cor?.hex || tarefa.cor || getDisciplineColorForSlot(tarefa).hex || '#71717a';
+            const titulo = tarefa.disciplinaNome || tarefa.disc?.nome || tarefa.titulo || 'Disciplina';
+            const assunto = tarefa.assunto || tarefa.assuntoOriginal || (tarefa.isRevisaoAuto ? 'Revisao' : 'Estudo');
+            const tempo = formatarDuracao(tarefa.tempoPlanejadoMinutos || tarefa.tempoMinutos || tarefa.minutosEstudo || 0);
+            return `
+              <div class="task" style="border-left-color:${escapeHtml(color)}">
+                <div class="task-head">
+                  <strong>${escapeHtml(titulo)}</strong>
+                  <span>${escapeHtml(tempo)}</span>
+                </div>
+                <p>${escapeHtml(assunto)}</p>
+              </div>
+            `;
+          }).join('')
+        : '<div class="empty">Sem blocos</div>';
+
+      return `
+        <section class="day">
+          <div class="day-head">
+            <strong>${escapeHtml(DIAS_LONGO[dia])}</strong>
+            <span>${date.getDate()} ${escapeHtml(MESES_PT[date.getMonth()])}</span>
+          </div>
+          ${itens}
+        </section>
+      `;
+    }).join('');
+
+    const printWindow = window.open('', '_blank', 'width=1280,height=900');
+    if (!printWindow) {
+      showToast('Nao foi possivel abrir a janela de impressao.');
+      return;
+    }
+
+    printWindow.document.write(`
+      <!doctype html>
+      <html>
+        <head>
+          <title>${escapeHtml(cronograma.nome || 'Cronograma')} - ${escapeHtml(weekLabel)}</title>
+          <style>
+            @page { size: A4 landscape; margin: 10mm; }
+            * { box-sizing: border-box; }
+            body { margin: 0; font-family: Inter, Arial, sans-serif; color: #18181b; background: #fff; }
+            .header { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 14px; border-bottom: 2px solid #e4e4e7; padding-bottom: 12px; }
+            .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+            .logo { width: 54px; height: 54px; object-fit: contain; border: 1px solid #e4e4e7; border-radius: 10px; padding: 5px; }
+            h1 { margin: 0; font-size: 20px; line-height: 1.05; text-transform: uppercase; }
+            .meta { margin-top: 4px; font-size: 11px; font-weight: 800; color: #71717a; text-transform: uppercase; letter-spacing: .08em; }
+            .pill { border: 1px solid #fecaca; background: #fef2f2; color: #b91c1c; border-radius: 999px; padding: 8px 12px; font-size: 11px; font-weight: 900; text-transform: uppercase; white-space: nowrap; }
+            .week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 7px; align-items: stretch; }
+            .day { min-height: 470px; border: 1px solid #e4e4e7; border-radius: 10px; padding: 8px; background: #fafafa; }
+            .day-head { display: flex; justify-content: space-between; gap: 6px; align-items: baseline; margin-bottom: 8px; border-bottom: 1px solid #e4e4e7; padding-bottom: 6px; }
+            .day-head strong { font-size: 11px; text-transform: uppercase; }
+            .day-head span { font-size: 9px; color: #71717a; font-weight: 800; text-transform: uppercase; }
+            .task { border-left: 4px solid #71717a; border-radius: 8px; background: #fff; padding: 7px; margin-bottom: 6px; box-shadow: 0 1px 2px rgba(15,23,42,.08); break-inside: avoid; }
+            .task-head { display: flex; justify-content: space-between; gap: 6px; margin-bottom: 4px; }
+            .task-head strong { font-size: 9px; text-transform: uppercase; line-height: 1.2; }
+            .task-head span { font-size: 8px; font-weight: 900; color: #dc2626; white-space: nowrap; }
+            .task p { margin: 0; font-size: 8.5px; line-height: 1.25; color: #52525b; font-weight: 700; }
+            .empty { display: grid; min-height: 84px; place-items: center; border: 1px dashed #d4d4d8; border-radius: 8px; color: #a1a1aa; font-size: 9px; font-weight: 900; text-transform: uppercase; }
+          </style>
+        </head>
+        <body>
+          <header class="header">
+            <div class="brand">
+              ${dynamicLogo ? `<img class="logo" src="${escapeHtml(dynamicLogo)}" alt="">` : ''}
+              <div>
+                <h1>${escapeHtml(cronograma.nome || 'Cronograma')}</h1>
+                <div class="meta">${escapeHtml(cronograma.editalNome || 'Plano de estudos')}</div>
+              </div>
+            </div>
+            <div class="pill">${escapeHtml(weekLabel)} - ${escapeHtml(periodo)}</div>
+          </header>
+          <main class="week">${diasHtml}</main>
+          <script>window.onload = () => { window.focus(); window.print(); };</script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  }, [cronograma, weekDates, weekOffset, tarefasPorDia, dynamicLogo, showToast]);
 
   const progressoMinutosHeader = useMemo(() => {
     const todos = Object.values(tarefasPorDia).flat();
@@ -2950,6 +3049,21 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
                       </span>
                       <ChevronRight size={14} className="shrink-0 text-zinc-300 transition-transform group-hover:translate-x-0.5 group-hover:text-zinc-700 dark:text-zinc-700 dark:group-hover:text-zinc-300" />
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setConfigMenuOpen(false);
+                        setShowTimerSettings(true);
+                      }}
+                      className="group relative mt-1.5 flex w-full items-center gap-2.5 rounded-xl border border-zinc-200/80 bg-white p-2.5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-zinc-300 hover:bg-zinc-50 hover:shadow-md hover:shadow-zinc-900/5 dark:border-zinc-800 dark:bg-zinc-900/70 dark:hover:border-zinc-700 dark:hover:bg-zinc-900"
+                    >
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-zinc-100 text-zinc-700 shadow-sm dark:bg-zinc-800 dark:text-zinc-200"><Clock size={14} /></span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[10px] font-black uppercase tracking-wide text-zinc-900 dark:text-white">Configurar timer</span>
+                        <span className="mt-0.5 block text-[9px] font-medium leading-snug text-zinc-500 dark:text-zinc-400">Ajuste modo, foco, descanso, cor e sons do cronometro.</span>
+                      </span>
+                      <ChevronRight size={14} className="shrink-0 text-zinc-300 transition-transform group-hover:translate-x-0.5 group-hover:text-zinc-700 dark:text-zinc-700 dark:group-hover:text-zinc-300" />
+                    </button>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -2964,6 +3078,16 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
             >
               <SkipForward size={14} className="text-amber-500 group-hover:scale-110 transition-transform"/>
               <span className="hidden sm:inline">Adiar</span>
+            </button>
+
+            <button
+              onClick={handlePrintWeek}
+              className="group flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 bg-white text-[9px] font-bold uppercase tracking-wide text-zinc-600 shadow-sm transition-all hover:border-red-200 hover:bg-red-50 hover:text-red-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:border-red-900/30 dark:hover:bg-red-900/10 dark:hover:text-red-400 sm:w-auto sm:gap-1.5 sm:px-2.5"
+              title="Imprimir semana ou salvar em PDF"
+              aria-label="Imprimir semana ou salvar em PDF"
+            >
+              <Printer size={14} className="text-red-500 group-hover:scale-110 transition-transform"/>
+              <span className="hidden sm:inline">PDF</span>
             </button>
 
             <button
@@ -3105,6 +3229,11 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
           </motion.div>
         )}
       </div>
+      <TimerSettingsModal
+        isOpen={showTimerSettings}
+        onClose={() => setShowTimerSettings(false)}
+        userUid={user?.uid}
+      />
     </div>
   );
 };

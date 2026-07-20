@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { BookOpen, Clock, Edit2, Layers3, LayoutList, Settings2, Shuffle, Target } from 'lucide-react';
+import { BookOpen, Check, Clock, Edit2, Layers3, LayoutList, Palette, Settings2, Shuffle, Target } from 'lucide-react';
 
 const fmtMin = (min) => {
   if (!min || min <= 0) return '0m';
@@ -39,7 +39,7 @@ const OPCOES_ASSUNTOS = [
     id: 'guiado',
     label: 'Guiado',
     icon: LayoutList,
-    desc: 'Mostra a disciplina e o assunto sugerido em cada sessao.',
+    desc: 'Mostra a disciplina e o assunto sugerido em cada bloco.',
     activeBorder: 'border-red-500/50',
     activeBg: 'bg-red-50/40 dark:bg-red-950/10',
     activeBar: 'bg-red-500',
@@ -113,6 +113,10 @@ export default function StepConfig({
   setTempoSessaoMinutos,
   modoExibirAssuntos = true,
   setModoExibirAssuntos,
+  coresDisciplinasAtivas = true,
+  setCoresDisciplinasAtivas,
+  disciplinasPreview = [],
+  onDisciplinaCorChange,
   editalSelecionado,
   horasTotais = 0,
   totalDisciplinas = 0,
@@ -123,9 +127,36 @@ export default function StepConfig({
   distribuicaoCabeNaRotina = true,
 }) {
   const modoAssuntos = modoExibirAssuntos === false ? 'livre' : 'guiado';
+  const [colorDrafts, setColorDrafts] = useState({});
   const exemploDiaMinutos = minimumActiveDayMinutes || 120;
   const sessoesNoExemplo = Math.floor(exemploDiaMinutos / Math.max(1, tempoSessaoMinutos));
   const sobraNoExemplo = Math.max(0, exemploDiaMinutos - (sessoesNoExemplo * tempoSessaoMinutos));
+
+  useEffect(() => {
+    setColorDrafts((current) => {
+      const next = {};
+      let changed = false;
+      disciplinasPreview.forEach((disciplina) => {
+        const id = disciplina.id || disciplina.nome;
+        next[id] = current[id] || disciplina.cor || '#71717a';
+        if (next[id] !== current[id]) changed = true;
+      });
+      if (Object.keys(current).length !== Object.keys(next).length) changed = true;
+      return changed ? next : current;
+    });
+  }, [disciplinasPreview]);
+
+  const handleDraftColorChange = (disciplina, color) => {
+    const id = disciplina.id || disciplina.nome;
+    setColorDrafts((current) => ({ ...current, [id]: color }));
+    onDisciplinaCorChange?.(disciplina.id, color);
+  };
+
+  const handleApplyColor = (disciplina) => {
+    const id = disciplina.id || disciplina.nome;
+    const color = colorDrafts[id] || disciplina.cor || '#71717a';
+    onDisciplinaCorChange?.(disciplina.id, color);
+  };
 
   return (
     <div className="flex flex-col h-full overflow-hidden w-full">
@@ -172,7 +203,7 @@ export default function StepConfig({
                       Foco do Conteudo
                     </h4>
                     <p className="mt-0.5 text-[11px] font-medium text-zinc-500 dark:text-zinc-400">
-                      Escolha como as sessoes do ciclo aparecem no radar, na Home e no guia do dia.
+                      Escolha como os blocos do ciclo aparecem no radar, na Home e no guia do dia.
                     </p>
                   </div>
                 </div>
@@ -183,6 +214,82 @@ export default function StepConfig({
                 />
               </div>
 
+              <div className="rounded-3xl border border-zinc-100 bg-white p-5 shadow-sm dark:border-zinc-800/60 dark:bg-zinc-900">
+                <div className="mb-4 flex items-start justify-between gap-4">
+                  <div className="flex min-w-0 items-start gap-4">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-zinc-50 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-300">
+                      <Palette size={19} />
+                    </div>
+                    <div className="min-w-0">
+                      <h4 className="text-xs font-black uppercase tracking-widest text-zinc-900 dark:text-white">
+                        Cores por disciplina
+                      </h4>
+                      <p className="mt-0.5 text-[11px] font-medium leading-relaxed text-zinc-500 dark:text-zinc-400">
+                        Use cores no radar ou deixe tudo neutro para uma leitura mais discreta.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={coresDisciplinasAtivas}
+                    onClick={() => setCoresDisciplinasAtivas?.((current) => !current)}
+                    className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${coresDisciplinasAtivas ? 'bg-red-600' : 'bg-zinc-300 dark:bg-zinc-700'}`}
+                  >
+                    <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${coresDisciplinasAtivas ? 'right-1' : 'left-1'}`} />
+                  </button>
+                </div>
+
+                {coresDisciplinasAtivas ? (
+                  <div className="grid max-h-56 grid-cols-1 gap-2 overflow-y-auto pr-1 custom-scrollbar sm:grid-cols-2">
+                    {disciplinasPreview.map((disciplina) => {
+                      const draftId = disciplina.id || disciplina.nome;
+                      const draftColor = colorDrafts[draftId] || disciplina.cor || '#71717a';
+                      const isApplied = (disciplina.cor || '#71717a').toLowerCase() === draftColor.toLowerCase();
+
+                      return (
+                        <div
+                          key={draftId}
+                          className="flex min-w-0 items-center gap-2 rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-800 dark:bg-zinc-950"
+                        >
+                          <label className="relative h-9 w-9 shrink-0 cursor-pointer overflow-hidden rounded-xl border border-zinc-200 shadow-inner dark:border-zinc-700" style={{ backgroundColor: draftColor }}>
+                            <input
+                              type="color"
+                              value={draftColor}
+                              onChange={(event) => handleDraftColorChange(disciplina, event.target.value)}
+                              className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                              aria-label={`Cor de ${disciplina.nome}`}
+                            />
+                          </label>
+                          <span className="min-w-0 flex-1 text-[11px] font-black uppercase leading-tight text-zinc-700 line-clamp-2 dark:text-zinc-200">
+                            {disciplina.nome}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleApplyColor(disciplina)}
+                            className={`inline-flex h-8 shrink-0 items-center justify-center gap-1 rounded-xl px-2 text-[9px] font-black uppercase tracking-wider transition-all ${
+                              isApplied
+                                ? 'bg-emerald-50 text-emerald-600 ring-1 ring-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-300 dark:ring-emerald-900/40'
+                                : 'bg-red-600 text-white shadow-md shadow-red-600/20 hover:bg-red-700'
+                            }`}
+                          >
+                            <Check size={12} />
+                            {isApplied ? 'OK' : 'Aplicar'}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-3 rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-3 dark:border-zinc-800 dark:bg-zinc-950">
+                    <span className="h-8 w-8 rounded-xl bg-zinc-500 shadow-inner" />
+                    <p className="text-[11px] font-bold text-zinc-500 dark:text-zinc-400">
+                      O ciclo sera exibido em cinza, mas as cores escolhidas ficam guardadas para quando voce reativar.
+                    </p>
+                  </div>
+                )}
+              </div>
+
               <div className="rounded-3xl border border-red-100 bg-gradient-to-br from-red-50/70 to-white p-5 dark:border-red-950/50 dark:from-red-950/20 dark:to-zinc-900">
                 <div className="flex items-start gap-3 mb-4">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-red-600 text-white shadow-lg shadow-red-600/20">
@@ -191,7 +298,7 @@ export default function StepConfig({
                   <div>
                     <span className="text-xs font-black uppercase tracking-wider text-zinc-900 dark:text-white">Tempo de cada bloco de estudo</span>
                     <p className="mt-1 text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-400">
-                      Cada sessao e um bloco completo no radar. Todas usam a mesma duracao; a dificuldade define quantos blocos cada materia recebe.
+                      Cada bloco aparece no radar com a mesma duracao; a dificuldade define quantos blocos cada materia recebe.
                     </p>
                   </div>
                 </div>
@@ -229,30 +336,30 @@ export default function StepConfig({
                 <div className="mt-4 grid grid-cols-[auto_1fr] items-center gap-3 rounded-2xl border border-red-100 bg-white/80 p-3 dark:border-red-950/50 dark:bg-zinc-900/70">
                   <div className="rounded-xl bg-red-600 px-3 py-2 text-center text-white">
                     <p className="text-lg font-black leading-none">{fmtMin(tempoSessaoMinutos)}</p>
-                    <p className="mt-1 text-[7px] font-black uppercase tracking-widest text-red-100">1 sessao</p>
+                    <p className="mt-1 text-[7px] font-black uppercase tracking-widest text-red-100">1 bloco</p>
                   </div>
                   <p className="text-[11px] font-medium leading-relaxed text-zinc-600 dark:text-zinc-300">
-                    Em um dia de <strong>{fmtMin(exemploDiaMinutos)}</strong>, o sistema agenda <strong>{sessoesNoExemplo} {sessoesNoExemplo === 1 ? 'sessao' : 'sessoes'}</strong>
+                    Em um dia de <strong>{fmtMin(exemploDiaMinutos)}</strong>, o sistema agenda <strong>{sessoesNoExemplo} {sessoesNoExemplo === 1 ? 'bloco' : 'blocos'}</strong>
                     {sobraNoExemplo > 0 ? ` e deixa ${fmtMin(sobraNoExemplo)} livres.` : '.'}
                   </p>
                 </div>
 
                 {minimumActiveDayMinutes && (
                   <p className="mt-2 text-[11px] text-zinc-500 dark:text-zinc-400">
-                    Menor dia ativo configurado: <span className="font-black text-zinc-800 dark:text-white">{fmtMin(minimumActiveDayMinutes)}</span>. A sessao nao pode passar desse limite.
+                    Menor dia ativo configurado: <span className="font-black text-zinc-800 dark:text-white">{fmtMin(minimumActiveDayMinutes)}</span>. O bloco nao pode passar desse limite.
                   </p>
                 )}
 
                 {sessionAutoAdjustedNotice && (
                   <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-700 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-300">
-                    A duracao da sessao foi ajustada automaticamente para {fmtMin(sessionAutoAdjustedNotice.adjustedTo)}, porque existe um dia ativo com apenas {fmtMin(sessionAutoAdjustedNotice.minDayMinutes)} disponiveis.
+                    A duracao do bloco foi ajustada automaticamente para {fmtMin(sessionAutoAdjustedNotice.adjustedTo)}, porque existe um dia ativo com apenas {fmtMin(sessionAutoAdjustedNotice.minDayMinutes)} disponiveis.
                   </div>
                 )}
               </div>
 
               {!distribuicaoCabeNaRotina && (
                 <div className="rounded-3xl border border-red-200 bg-red-50 px-4 py-3 text-[11px] font-bold text-red-700 dark:border-red-900/40 dark:bg-red-950/20 dark:text-red-300">
-                  Sua rotina comporta {totalSessionSlots} blocos, mas esta configuracao precisa de pelo menos {minimumRequiredSessions}. Aumente as horas, reduza o tempo da sessao ou remova a preferencia diaria no passo de disciplinas.
+                  Sua rotina comporta {totalSessionSlots} blocos, mas esta configuracao precisa de pelo menos {minimumRequiredSessions}. Aumente as horas, reduza o tempo do bloco ou remova a preferencia diaria no passo de disciplinas.
                 </div>
               )}
 

@@ -47,6 +47,7 @@ const montarInitialState = ({ ciclo, disciplinas }) => {
       peso: Number(disciplina?.peso) || 3,
       nivelDominio,
       assuntos: normalizarAssuntos(disciplina.assuntos),
+      cor: disciplina?.cor || null,
       inCiclo: disciplina?.inCiclo !== false,
       estudarTodosDias: disciplina?.estudarTodosDias === true,
       index: Number.isFinite(Number(disciplina?.index)) ? Number(disciplina.index) : index,

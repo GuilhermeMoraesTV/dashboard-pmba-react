@@ -273,6 +273,7 @@ const Step4_Config = ({ config, onConfigChange, editalSelecionado, horarios = {}
       const t = new Date();
       updates.dataInicio = `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`;
     }
+    if (config.modoMontagem === undefined) updates.modoMontagem = 'inteligente';
     if (config.modoExibirAssuntos === undefined) updates.modoExibirAssuntos = true;
     if (config.modoExibirTempo === undefined)    updates.modoExibirTempo    = 'detalhado'; // 'detalhado' | 'total' | 'nenhum'
     if (Object.keys(updates).length > 0) onConfigChange({ ...config, ...updates });
@@ -302,6 +303,37 @@ const Step4_Config = ({ config, onConfigChange, editalSelecionado, horarios = {}
   const totalHorasSem = Object.values(horarios).reduce((a, h) => a + (Number(h) || 0), 0);
 
   // Opções para o modo de exibição de assuntos
+  const OPCOES_MONTAGEM = [
+    {
+      id: 'inteligente',
+      label: 'Inteligente',
+      icon: Flame,
+      desc: 'O sistema otimiza a semana e distribui as disciplinas automaticamente.',
+      activeBorder: 'border-red-500/50',
+      activeBg: 'bg-red-50/30 dark:bg-red-950/10',
+      activeBar: 'bg-red-500',
+      activeIcon: 'bg-red-500',
+      activeText: 'text-red-600 dark:text-red-400',
+      activeDesc: 'text-red-700/70 dark:text-red-400/70',
+      activeBadge: 'bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400',
+    },
+    {
+      id: 'personalizado',
+      label: 'Personalizado',
+      icon: CalendarDays,
+      desc: 'Cria uma grade base editavel usando suas disciplinas e horarios.',
+      activeBorder: 'border-emerald-500/50',
+      activeBg: 'bg-emerald-50/30 dark:bg-emerald-950/10',
+      activeBar: 'bg-emerald-500',
+      activeIcon: 'bg-emerald-500',
+      activeText: 'text-emerald-600 dark:text-emerald-400',
+      activeDesc: 'text-emerald-700/70 dark:text-emerald-400/70',
+      activeBadge: 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400',
+    },
+  ];
+
+  const modoMontagem = config.modoMontagem || 'inteligente';
+
   const OPCOES_ASSUNTOS = [
     {
       id: 'guiado',
@@ -377,6 +409,7 @@ const Step4_Config = ({ config, onConfigChange, editalSelecionado, horarios = {}
   const modoAssuntos   = config.modoExibirAssuntos === false ? 'livre' : 'guiado';
   const modoTempo      = config.modoExibirTempo || 'detalhado';
 
+  const handleModoMontagem = (id) => setField('modoMontagem', id === 'personalizado' ? 'personalizado' : 'inteligente');
   const handleModoAssuntos = (id) => setField('modoExibirAssuntos', id !== 'livre');
   const handleModoTempo    = (id) => setField('modoExibirTempo', id);
 
@@ -608,6 +641,33 @@ const Step4_Config = ({ config, onConfigChange, editalSelecionado, horarios = {}
 
           {/* ── Seção: Modos de Visualização ─────────────────────────────── */}
           <div className="grid grid-cols-1 gap-3 sm:gap-6">
+            {false && (
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.16 }}
+              className="bg-white dark:bg-zinc-900 rounded-2xl sm:rounded-3xl border border-zinc-100 dark:border-zinc-800/50 p-4 sm:p-7 shadow-sm"
+            >
+              <div className="flex items-center gap-4 mb-6">
+                <div className="w-10 h-10 rounded-2xl bg-zinc-50 dark:bg-zinc-800 flex items-center justify-center text-zinc-400">
+                  <Target size={20} />
+                </div>
+                <div>
+                  <h4 className="text-xs font-black uppercase tracking-widest text-zinc-900 dark:text-white">
+                    Como deseja montar sua semana?
+                  </h4>
+                  <p className="text-[11px] text-zinc-500 font-medium mt-0.5">
+                    Escolha entre otimizacao inteligente ou uma grade base editavel por edital.
+                  </p>
+                </div>
+              </div>
+              <ModeSelector
+                options={OPCOES_MONTAGEM}
+                value={modoMontagem}
+                onChange={handleModoMontagem}
+              />
+            </motion.div>
+            )}
             {/* Modo de Assuntos */}
             <motion.div
               initial={{ opacity: 0, y: 12 }}

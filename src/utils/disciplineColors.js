@@ -221,7 +221,24 @@ export const getStoredDisciplineColor = (cor) => {
   if (typeof cor === 'object') {
     return getColorById(cor.id) || getColorByHex(cor.hex) || cor;
   }
-  return getColorByHex(cor) || getColorById(cor);
+  const normalized = String(cor).trim();
+  const paletteColor = getColorByHex(normalized) || getColorById(normalized);
+  if (paletteColor) return paletteColor;
+
+  if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(normalized)) {
+    return {
+      id: `custom-${normalized.replace('#', '').toLocaleLowerCase('pt-BR')}`,
+      hex: normalized,
+      bg: 'bg-zinc-600',
+      text: 'text-zinc-700',
+      border: 'border-zinc-200',
+      light: 'bg-zinc-50/50',
+      soft: 'bg-zinc-50 text-zinc-700 border-zinc-200 dark:bg-zinc-950/25 dark:text-zinc-300 dark:border-zinc-800/40',
+      progress: 'bg-zinc-700',
+    };
+  }
+
+  return null;
 };
 
 export const buildDisciplineColorMap = (

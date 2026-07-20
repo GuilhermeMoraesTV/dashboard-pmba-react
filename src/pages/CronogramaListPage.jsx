@@ -20,7 +20,7 @@ import EmptyStateCard from '../components/shared/EmptyStateCard';
 import { sanitizeArticleHtml } from '../utils/sanitizeHtml';
 
 // ============================================================================
-// CORREÇÃO 1: getLogo — idêntico ao CiclosList
+// Resolve a logo do cronograma a partir do registro ou do edital base.
 // ============================================================================
 const getLogo = (cronograma) => {
   if (!cronograma) return null;

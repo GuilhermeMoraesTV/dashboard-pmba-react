@@ -43,6 +43,7 @@ export default function StepPreview({
   horasTotais,
   tempoSessaoMinutos,
   modoExibirAssuntos = true,
+  coresDisciplinasAtivas = true,
   disciplinasPreview,
   cicloPreview,
 }) {
@@ -50,8 +51,9 @@ export default function StepPreview({
 
   const cicloInterativo = useMemo(() => ({
     ...(cicloPreview || {}),
+    coresDisciplinasAtivas: coresDisciplinasAtivas !== false,
     sessoesConcluidas: [],
-  }), [cicloPreview]);
+  }), [cicloPreview, coresDisciplinasAtivas]);
 
   const totalSessoesPreview = useMemo(
     () => disciplinasPreview.reduce((total, disciplina) => total + (disciplina.sessoesPorCiclo || 0), 0),
@@ -79,7 +81,7 @@ export default function StepPreview({
 
       <div className="w-full px-2 sm:px-4 lg:px-8 overflow-y-auto custom-scrollbar pb-10">
         <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_340px] gap-4 md:gap-5 items-start">
-          <div className="order-2 xl:order-1 h-[430px] sm:h-auto rounded-[28px] border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/70 shadow-sm p-2 sm:p-4 lg:p-6 sm:min-h-[640px]">
+          <div className="order-2 xl:order-1 h-[410px] sm:h-auto rounded-[24px] border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/70 shadow-sm p-1.5 sm:p-3 lg:p-4 sm:min-h-[600px]">
             <CicloVisual
               selectedDisciplinaId={selectedDisciplinaId}
               onSelectDisciplina={setSelectedDisciplinaId}
@@ -147,14 +149,17 @@ export default function StepPreview({
                           {disciplina.estudarTodosDias && <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-1.5 py-0.5 text-[7px] font-black uppercase text-red-600 dark:bg-red-950/40 dark:text-red-300"><CalendarCheck2 size={8} /> diaria</span>}
                         </p>
                       </div>
-                      <span className="rounded-full bg-white dark:bg-zinc-900 px-1.5 py-0.5 sm:px-2 sm:py-1 text-[8px] sm:text-[10px] font-black uppercase tracking-wide text-red-600 whitespace-nowrap border border-zinc-100 dark:border-zinc-800">
+                      <span className="rounded-full bg-white dark:bg-zinc-900 px-1.5 py-0.5 sm:px-2 sm:py-1 text-[8px] sm:text-[10px] font-black uppercase tracking-wide whitespace-nowrap border border-zinc-100 dark:border-zinc-800" style={{ color: disciplina.cor || '#dc2626' }}>
                         {disciplina.sessoesPorCiclo}x
                       </span>
                     </div>
                     <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700">
                       <div
-                        className="h-full rounded-full bg-gradient-to-r from-red-500 to-red-700"
-                        style={{ width: `${Math.max(8, ((disciplina.sessoesPorCiclo || 0) / maxSessoesDisciplina) * 100)}%` }}
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${Math.max(8, ((disciplina.sessoesPorCiclo || 0) / maxSessoesDisciplina) * 100)}%`,
+                          backgroundColor: disciplina.cor || '#dc2626',
+                        }}
                       />
                     </div>
                     <div className="hidden sm:flex items-center justify-between mt-1.5 text-[10px] font-semibold text-zinc-500">

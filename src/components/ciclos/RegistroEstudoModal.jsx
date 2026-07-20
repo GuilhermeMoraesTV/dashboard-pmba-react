@@ -37,17 +37,15 @@ const globalStyles = `
     border-radius: 18px;
     border: 1px solid rgba(161, 161, 170, 0.58);
     box-shadow:
-      0 16px 38px rgba(15, 23, 42, 0.12),
-      0 10px 28px rgba(239, 68, 68, 0.07),
-      inset 0 1px 0 rgba(255,255,255,0.72);
+      0 10px 24px rgba(15, 23, 42, 0.08),
+      inset 0 1px 0 rgba(255,255,255,0.66);
     transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease, background 0.25s ease;
   }
   .dark .registro-modal-form-section {
     background: #171717;
     border: 1px solid rgba(82, 82, 91, 0.86);
     box-shadow:
-      0 18px 44px rgba(0, 0, 0, 0.42),
-      0 0 32px rgba(239, 68, 68, 0.11),
+      0 14px 32px rgba(0, 0, 0, 0.34),
       inset 0 1px 0 rgba(255,255,255,0.05);
   }
   .registro-modal-form-section::before {
@@ -57,33 +55,31 @@ const globalStyles = `
     pointer-events: none;
     border-radius: inherit;
     background:
-      linear-gradient(90deg, rgba(239,68,68,0.12), transparent 28%),
-      radial-gradient(circle at top left, rgba(239,68,68,0.10), transparent 38%);
+      linear-gradient(90deg, rgba(239,68,68,0.06), transparent 32%),
+      radial-gradient(circle at top left, rgba(239,68,68,0.04), transparent 42%);
     opacity: 0;
     transition: opacity 0.25s ease;
   }
   .registro-modal-form-section:focus-within {
-    border-color: #ef4444;
+    border-color: rgba(113, 113, 122, 0.88);
     box-shadow:
-      0 0 0 3px rgba(239, 68, 68, 0.12),
-      0 18px 44px rgba(239, 68, 68, 0.16),
+      0 0 0 2px rgba(113, 113, 122, 0.14),
+      0 12px 28px rgba(15, 23, 42, 0.10),
       inset 0 1px 0 rgba(255,255,255,0.08);
     transform: translateY(-1px);
   }
   .registro-modal-form-section:focus-within::before { opacity: 1; }
 
   .registro-modal-form-section:hover {
-    border-color: rgba(239, 68, 68, 0.34);
+    border-color: rgba(161, 161, 170, 0.78);
     box-shadow:
-      0 18px 42px rgba(15, 23, 42, 0.13),
-      0 0 34px rgba(239, 68, 68, 0.12),
+      0 12px 28px rgba(15, 23, 42, 0.10),
       inset 0 1px 0 rgba(255,255,255,0.72);
   }
   .dark .registro-modal-form-section:hover {
-    border-color: rgba(239, 68, 68, 0.42);
+    border-color: rgba(113, 113, 122, 0.88);
     box-shadow:
-      0 20px 48px rgba(0, 0, 0, 0.48),
-      0 0 36px rgba(239, 68, 68, 0.16),
+      0 16px 34px rgba(0, 0, 0, 0.42),
       inset 0 1px 0 rgba(255,255,255,0.06);
   }
 
@@ -164,10 +160,10 @@ const globalStyles = `
 // =======================================================
 // 🔧 AJUSTES DE TAMANHO
 // =======================================================
-const MODAL_MAX_W_PX = 880;
-const MODAL_WITH_QUEUE_MAX_W_PX = 1080;
-const MODAL_COLLAPSED_MAX_H_PX = 860;
-const MODAL_EXPANDED_MAX_H_PX = 900;
+const MODAL_MAX_W_PX = 720;
+const MODAL_WITH_QUEUE_MAX_W_PX = 900;
+const MODAL_COLLAPSED_MAX_H_PX = 705;
+const MODAL_EXPANDED_MAX_H_PX = 738;
 
 const QUEUE_MOBILE_H_PX = 150;
 const FOOTER_PADDING_MOBILE = 'p-3';
@@ -536,11 +532,9 @@ const SaveButtonLoading = () => (
 const ContextLogo = ({ type, logoUrl, active }) => {
   const isCiclo = type === 'ciclo';
   return (
-    <div className={`relative flex h-12 w-12 md:h-14 md:w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border transition-all duration-300 ${
+    <div className={`relative flex h-9 w-9 md:h-10 md:w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border transition-all duration-300 ${
       active
-        ? isCiclo
-          ? 'border-red-500 bg-red-50 dark:bg-red-900/10'
-          : 'border-zinc-500 dark:border-zinc-400 bg-zinc-100 dark:bg-[#2A2A2A]'
+        ? 'border-zinc-400 dark:border-zinc-500 bg-zinc-100/80 dark:bg-[#2A2A2A]'
         : 'border-transparent bg-white dark:bg-[#2A2A2A]'
     }`}>
       {logoUrl ? (
@@ -551,7 +545,7 @@ const ContextLogo = ({ type, logoUrl, active }) => {
           onError={(event) => { event.currentTarget.style.display = 'none'; }}
         />
       ) : (
-        isCiclo ? <Layers size={24} className={active ? "text-red-600" : "text-zinc-400"} /> : <CalendarDays size={24} className={active ? "text-zinc-800 dark:text-white" : "text-zinc-400"} />
+        isCiclo ? <Layers size={18} className={active ? "text-zinc-800 dark:text-white" : "text-zinc-400"} /> : <CalendarDays size={18} className={active ? "text-zinc-800 dark:text-white" : "text-zinc-400"} />
       )}
     </div>
   );
@@ -563,6 +557,14 @@ const normalizeTextKey = (value) =>
     .replace(/[\u0300-\u036f]/g, '')
     .trim()
     .toLowerCase();
+
+const resolveIntervaloRevisaoRegistro = (value, customDays) => {
+  if (value === 'custom') {
+    const dias = Number(customDays);
+    return Number.isFinite(dias) && dias >= 1 ? Math.floor(dias) : null;
+  }
+  return value;
+};
 
 // 7. Chip de revisão
 const RevisaoChip = ({ value, label, active, onClick, autoMode }) => {
@@ -659,6 +661,7 @@ function RegistroEstudoModal({
   const [naoConcluidoCronograma, setNaoConcluidoCronograma] = useState(false);
   const [showPendenciaInfo, setShowPendenciaInfo] = useState(false);
   const [revisaoEscolhida, setRevisaoEscolhida] = useState(() => getRevisaoEscolhidaInicial());
+  const [revisaoPersonalizadaDias, setRevisaoPersonalizadaDias] = useState(14);
   const [revisaoModoCiclo, setRevisaoModoCiclo] = useState(REVISAO_MODO_FLEXIVEL);
   const [checkingFinishedStatus, setCheckingFinishedStatus] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -740,6 +743,7 @@ function RegistroEstudoModal({
     setMarkAsFinished(false);
     setNaoConcluidoCronograma(false);
     setRevisaoEscolhida(getRevisaoEscolhidaPlaceholder(selectedContext, revisaoModoCiclo));
+    setRevisaoPersonalizadaDias(14);
   }, [selectedContext, revisaoModoCiclo]);
 
   useEffect(() => {
@@ -967,6 +971,10 @@ function RegistroEstudoModal({
       setErrorMessage('Escolha quando revisar ou marque Não revisar.');
       return false;
     }
+    if (selectedContext === 'ciclo' && formData.tipoRegistro !== 'revisao' && revisaoEscolhida === 'custom' && !resolveIntervaloRevisaoRegistro(revisaoEscolhida, revisaoPersonalizadaDias)) {
+      setErrorMessage('Informe em quantos dias revisar.');
+      return false;
+    }
     return true;
   };
 
@@ -985,6 +993,7 @@ function RegistroEstudoModal({
       markAsFinished,
       naoConcluidoCronograma,
       revisaoEscolhida,
+      revisaoPersonalizadaDias,
       tipoRegistro: formData.tipoRegistro || 'estudo',
       id: editingQueueId || Date.now()
     };
@@ -1020,6 +1029,7 @@ function RegistroEstudoModal({
       setMarkAsFinished(item.markAsFinished);
       setNaoConcluidoCronograma(Boolean(item.naoConcluidoCronograma));
       setRevisaoEscolhida(item.revisaoEscolhida ?? getRevisaoEscolhidaPlaceholder(item.contextoRegistro || selectedContext, revisaoModoCiclo));
+      setRevisaoPersonalizadaDias(item.revisaoPersonalizadaDias ?? 14);
     }, 100);
   };
 
@@ -1058,6 +1068,7 @@ function RegistroEstudoModal({
           markAsFinished,
           naoConcluidoCronograma,
           revisaoEscolhida,
+          revisaoPersonalizadaDias,
           tipoRegistro: formData.tipoRegistro || 'estudo',
         });
       } else {
@@ -1085,7 +1096,7 @@ function RegistroEstudoModal({
           ...(item.tipoRegistro !== 'revisao' && item.markAsFinished ? { markAsFinished: true, assuntoFinalizado: true } : {}),
           ...(item.tipoRegistro !== 'revisao' && (item.contextoRegistro || selectedContext) === 'cronograma' && item.naoConcluidoCronograma ? { naoConcluidoCronograma: true } : {}),
           ...(item.tipoRegistro !== 'revisao' && shouldPersistIntervaloRevisao(item.contextoRegistro || selectedContext, item.revisaoEscolhida)
-            ? { intervaloRevisaoDias: item.revisaoEscolhida } : {}),
+            ? { intervaloRevisaoDias: resolveIntervaloRevisaoRegistro(item.revisaoEscolhida, item.revisaoPersonalizadaDias) } : {}),
           ...(item.tipoRegistro !== 'revisao' && (item.contextoRegistro || selectedContext) === 'ciclo' && revisaoModoCiclo === REVISAO_MODO_SUGESTAO
             ? { revisaoAutomaticaCiclo: true } : {}),
         });
@@ -1151,6 +1162,7 @@ function RegistroEstudoModal({
     { value: 1, label: '1 dia' },
     { value: 7, label: '7 dias' },
     { value: 30, label: '30 dias' },
+    { value: 'custom', label: 'Personalizado' },
     { value: 'skip', label: 'Não revisar' },
   ];
 
@@ -1172,37 +1184,34 @@ function RegistroEstudoModal({
         className="group relative bg-[#e6e6e8] dark:bg-[#070707] rounded-[26px] shadow-[0_28px_90px_rgba(0,0,0,0.42)] border border-zinc-300/80 dark:border-zinc-800 overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="registro-flow-strip h-1.5 w-full shrink-0" />
+        <div className="registro-flow-strip h-1 w-full shrink-0" />
         {/* ── HEADER ── */}
-        <div className="registro-modal-header relative z-10 flex flex-col gap-3 px-4 py-3 md:px-5 border-b border-zinc-300/80 dark:border-zinc-800 shrink-0">
+        <div className="registro-modal-header relative z-10 flex flex-col gap-2 px-3 py-2 md:px-4 md:py-2 border-b border-zinc-300/80 dark:border-zinc-800 shrink-0">
           <div className="flex items-center justify-between gap-4">
-          <div className="flex min-w-0 items-center gap-3">
+          <div className="flex min-w-0 items-center gap-2.5">
             <motion.div
               animate={{ rotate: [0, -4, 4, 0], scale: [1, 1.03, 1] }}
               transition={{ duration: 4.5, repeat: Infinity, ease: 'easeInOut' }}
-              className="relative flex h-10 w-10 items-center justify-center rounded-2xl bg-red-600 text-white shadow-lg shadow-red-500/25"
+              className="relative flex h-8 w-8 md:h-9 md:w-9 items-center justify-center rounded-xl bg-red-600 text-white shadow-lg shadow-red-500/25"
             >
-              <Save size={20} strokeWidth={1.8} />
+              <Save size={17} strokeWidth={1.8} />
             </motion.div>
             <div className="min-w-0">
-              <p className="text-[9px] font-black uppercase tracking-[0.24em] text-red-600 dark:text-red-400 mb-0.5">
-                MODOQAP • ATIVO E OPERANTE
-              </p>
-              <h2 className="truncate text-xl font-black tracking-tight text-zinc-950 dark:text-white leading-tight">
-                Nova Sessão <span className="text-red-600">Registro</span>
+              <h2 className="truncate text-base md:text-lg font-black uppercase tracking-tight text-zinc-950 dark:text-white leading-tight">
+                Registrar <span className="text-red-600">Estudo</span>
               </h2>
             </div>
           </div>
           <button
             onClick={handleCloseRequest}
-            className="p-2.5 bg-zinc-100 hover:bg-zinc-200 dark:bg-white/5 dark:hover:bg-white/10 text-zinc-500 dark:text-zinc-300 rounded-xl transition-all duration-300 hover:rotate-90"
+            className="p-2 bg-zinc-100 hover:bg-zinc-200 dark:bg-white/5 dark:hover:bg-white/10 text-zinc-500 dark:text-zinc-300 rounded-xl transition-all duration-300 hover:rotate-90"
           >
-            <X size={18} />
+            <X size={17} />
           </button>
           </div>
         </div>
 
-        <div className="pointer-events-none absolute left-1/2 top-[58%] z-0 h-72 w-[62%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-red-500/22 blur-[90px] dark:bg-red-600/24" />
+        <div className="pointer-events-none absolute left-1/2 top-[58%] z-0 h-72 w-[62%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-red-500/10 blur-[90px] dark:bg-red-600/12" />
         <div className="relative z-10 flex min-h-0 flex-1 overflow-hidden flex-col lg:flex-row">
           {/* ── FORM ── */}
           <div className="flex-1 overflow-y-auto md:overflow-visible px-4 py-3 md:px-4 md:py-2.5 custom-scrollbar space-y-3 md:space-y-2 bg-transparent">
@@ -1219,8 +1228,8 @@ function RegistroEstudoModal({
 
             {/* ── SEÇÃO: CONTEXTO (MENOR) ── */}
             {hasMultipleContexts && (
-              <div className="registro-modal-form-section p-3 md:p-2.5">
-                <p className="registro-section-kicker mb-2.5">
+              <div className="registro-modal-form-section p-2 md:p-2">
+                <p className="registro-section-kicker mb-1.5">
                   Planejamento
                 </p>
                 <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
@@ -1234,25 +1243,23 @@ function RegistroEstudoModal({
                         key={context.type}
                         type="button"
                         onClick={() => setSelectedContext(context.type)}
-                        className={`group relative flex items-center gap-2 sm:gap-3 rounded-xl sm:rounded-2xl p-2 sm:p-2.5 text-left border transition-all duration-300 overflow-hidden hover:-translate-y-0.5 ${
+                        className={`group relative flex min-h-[72px] flex-col items-center justify-center gap-1.5 rounded-xl p-1.5 text-center border transition-all duration-300 overflow-hidden hover:-translate-y-0.5 ${
                           active
-                            ? isCiclo
-                              ? 'border-red-500 bg-white/80 dark:bg-[#1f1f1f] shadow-lg shadow-red-500/10'
-                              : 'border-red-500/40 dark:border-red-500/30 bg-white/80 dark:bg-[#1f1f1f] shadow-lg shadow-red-500/10'
-                            : 'border-white/70 dark:border-zinc-700 bg-white/70 dark:bg-[#141414] hover:border-red-300 dark:hover:border-red-500/40'
+                            ? 'border-zinc-400 bg-white/90 dark:border-zinc-500 dark:bg-[#1f1f1f] shadow-sm'
+                            : 'border-white/70 dark:border-zinc-700 bg-white/70 dark:bg-[#141414] hover:border-zinc-300 dark:hover:border-zinc-500'
                         }`}
                       >
                         <ContextLogo type={context.type} active={active} logoUrl={context.logoUrl || context.logo || context.editalLogoUrl} />
-                        <div className="min-w-0 flex-1">
-                          <span className={`block text-[9px] font-black uppercase tracking-[0.2em] ${active ? 'text-red-500' : 'text-zinc-400'}`}>
+                        <div className="min-w-0 w-full">
+                          <span className={`block text-[8px] font-black uppercase tracking-[0.18em] ${active ? 'text-zinc-700 dark:text-zinc-200' : 'text-zinc-400'}`}>
                             {title}
                           </span>
-                          <span className={`block truncate text-xs font-black mt-0.5 ${active ? 'text-zinc-900 dark:text-white' : 'text-zinc-600 dark:text-zinc-300'}`}>
+                          <span className={`block truncate text-[11px] font-black ${active ? 'text-zinc-900 dark:text-white' : 'text-zinc-600 dark:text-zinc-300'}`}>
                             {label}
                           </span>
                         </div>
                         {active && (
-                          <div className="absolute top-2.5 right-2.5 text-red-500">
+                          <div className="absolute top-2.5 right-2.5 text-zinc-500 dark:text-zinc-300">
                             <CheckCircle2 size={15} strokeWidth={2.5} />
                           </div>
                         )}
@@ -1269,7 +1276,7 @@ function RegistroEstudoModal({
                    <p className="registro-section-kicker">
                     Modo da Sessão
                   </p>
-                  <div className="inline-flex w-full items-center gap-1 rounded-2xl border border-red-500/25 bg-red-500/10 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.18),0_8px_20px_rgba(239,68,68,0.08)] sm:w-auto">
+                  <div className="inline-flex w-full items-center gap-1 rounded-2xl border border-zinc-300/80 bg-zinc-100/70 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.18)] dark:border-zinc-700 dark:bg-zinc-900/70 sm:w-auto">
                     {[
                       { value: 'estudo', label: 'Estudo', icon: BookOpen },
                       { value: 'revisao', label: 'Revisão', icon: RotateCcw },
@@ -1292,8 +1299,8 @@ function RegistroEstudoModal({
                           }}
                           className={`flex-1 md:flex-none flex items-center justify-center gap-1.5 rounded-xl px-3.5 py-1.5 text-[11px] font-black transition-all duration-300 ${
                             active
-                              ? 'bg-red-600 text-white shadow-lg shadow-red-500/25'
-                              : 'text-red-700 dark:text-red-300 hover:bg-red-500/10 hover:text-red-800 dark:hover:text-red-200'
+                              ? 'bg-zinc-900 text-white shadow-sm dark:bg-zinc-100 dark:text-zinc-950'
+                              : 'text-zinc-600 dark:text-zinc-300 hover:bg-white/70 dark:hover:bg-white/10'
                           }`}
                         >
                           <Icon size={12} strokeWidth={2.5} />
@@ -1304,12 +1311,12 @@ function RegistroEstudoModal({
                   </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-2.5">
-                <div className="space-y-1 md:space-y-0.5">
+              <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_145px] gap-3 md:gap-2.5">
+                <div className="space-y-1 md:space-y-0.5 relative z-[120]">
                   <label className="registro-small-label text-[9px] uppercase tracking-[0.2em] flex items-center gap-1.5">
                     <BookOpen size={11} className="text-zinc-400" /> Disciplina
                   </label>
-                  <div className="relative z-50">
+                  <div className="relative z-[120]">
                     <CustomSelect
                       name="disciplinaId"
                       options={disciplinaOptions}
@@ -1325,11 +1332,33 @@ function RegistroEstudoModal({
                   </div>
                 </div>
 
-                <div className="space-y-1 md:space-y-0.5">
+                <div className="space-y-1 md:space-y-0.5 relative z-[130]">
+                  <label className="registro-small-label text-[9px] uppercase tracking-[0.2em] flex items-center justify-between">
+                    <span className="flex items-center gap-1.5"><Target size={11} className="text-zinc-400" /> Assunto</span>
+                    {loadingAssuntos && <span className="text-zinc-500 text-[9px] animate-pulse font-black tracking-widest uppercase">carregando...</span>}
+                  </label>
+                  <div className="relative z-[130]">
+                    <CustomSelect
+                      name="assunto"
+                      options={assuntoOptions}
+                      value={selectedAssuntoNome}
+                      onChange={(e) => setSelectedAssuntoNome(e.target.value)}
+                      placeholder={formData.disciplinaId ? 'Selecione o assunto...' : 'Escolha a disciplina...'}
+                      icon={Target}
+                      disabled={!formData.disciplinaId || loadingAssuntos}
+                      loading={loadingAssuntos}
+                      allowCreate
+                      createLabel="Criar assunto"
+                      onCreate={handleCreateAssunto}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1 md:space-y-0.5 relative z-10">
                   <label className="registro-small-label text-[9px] uppercase tracking-[0.2em] flex items-center gap-1.5">
                     <CalendarIcon size={11} className="text-zinc-400" /> Data do Estudo
                   </label>
-                  <div className="relative z-40">
+                  <div className="relative z-10">
                     <CustomDatePicker name="data" value={formData.data} onChange={handleChange} />
                   </div>
                 </div>
@@ -1337,13 +1366,13 @@ function RegistroEstudoModal({
             </div>
 
             {/* ── SEÇÃO: ASSUNTO E REVISÃO ── */}
-            {formData.disciplinaId && (
+            {selectedAssuntoNome && (
               <motion.div
                 initial={{ opacity: 0, y: -8 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="registro-modal-form-section p-3 md:p-2.5 space-y-3 md:space-y-2 relative z-[80]"
+                className="registro-modal-form-section p-2.5 md:p-2 space-y-2 relative z-[80]"
               >
-                <div className="space-y-1 md:space-y-0.5">
+                <div className="hidden">
                   <label className="registro-small-label text-[9px] uppercase tracking-[0.2em] flex items-center justify-between">
                     <span className="flex items-center gap-1.5"><Target size={11} className="text-zinc-400" /> O que você estudou?</span>
                     {loadingAssuntos && <span className="text-red-500 text-[9px] animate-pulse font-black tracking-widest uppercase">carregando...</span>}
@@ -1364,8 +1393,8 @@ function RegistroEstudoModal({
                 </div>
 
                 {/* ── REVISÃO ── */}
-                {formData.tipoRegistro !== 'revisao' && selectedAssuntoNome && (
-                  <div className={`grid grid-cols-1 gap-3 md:gap-2 pt-3 md:pt-2 border-t border-zinc-200 dark:border-[#333] ${selectedContext === 'ciclo' ? 'lg:grid-cols-2' : ''}`}>
+                {formData.tipoRegistro !== 'revisao' && (
+                  <div className={`grid grid-cols-1 gap-2 ${selectedContext === 'ciclo' ? 'md:grid-cols-[minmax(0,1fr)_minmax(170px,0.52fr)]' : ''}`}>
                     {selectedContext === 'ciclo' && (
                       <div className="space-y-2 relative z-20">
                         <div className="flex items-start justify-between gap-3">
@@ -1398,11 +1427,25 @@ function RegistroEstudoModal({
                             />
                           ))}
                         </div>
+                        {revisaoEscolhida === 'custom' && (
+                          <label className="flex items-center gap-3 rounded-xl border border-zinc-200 bg-white p-2 text-xs font-bold text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300">
+                            <span className="shrink-0 uppercase tracking-wide text-zinc-400">Revisar em</span>
+                            <input
+                              type="number"
+                              min="1"
+                              max="365"
+                              value={revisaoPersonalizadaDias}
+                              onChange={(event) => setRevisaoPersonalizadaDias(Math.max(1, Number(event.target.value) || 1))}
+                              className="h-9 w-20 rounded-xl border border-zinc-200 bg-zinc-50 px-2 text-center font-black text-zinc-900 outline-none focus:border-red-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-white"
+                            />
+                            <span className="shrink-0 text-zinc-500">dia(s)</span>
+                          </label>
+                        )}
                       </div>
                     )}
 
                     {/* ── MARCAR COMO CONCLUÍDO (Design Verde Bonito) ── */}
-                    <div className={`grid gap-2 ${selectedContext === 'cronograma' ? 'grid-cols-2' : 'grid-cols-1'} items-end`}>
+                    <div className={`grid gap-2 ${selectedContext === 'cronograma' ? 'grid-cols-2' : 'grid-cols-1'} items-start md:items-center`}>
                       <button
                         type="button"
                         onClick={() => {
@@ -1412,8 +1455,8 @@ function RegistroEstudoModal({
                         }}
                         className={`relative w-full min-h-[52px] md:min-h-[46px] overflow-hidden flex items-center gap-3 px-3.5 py-2.5 md:py-2 rounded-xl border transition-all duration-300 text-left ${
                           markAsFinished
-                            ? 'bg-gradient-to-r from-emerald-600 to-teal-500 border-emerald-400 text-white shadow-lg shadow-emerald-600/25'
-                            : 'bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/40 dark:to-teal-950/25 border-emerald-200 dark:border-emerald-800/60 hover:border-emerald-400 dark:hover:border-emerald-500 text-zinc-700 dark:text-zinc-300 hover:shadow-md hover:shadow-emerald-500/10'
+                            ? 'bg-emerald-600 border-emerald-500 text-white shadow-sm'
+                            : 'bg-emerald-50/70 dark:bg-emerald-950/25 border-emerald-200 dark:border-emerald-800/60 hover:border-emerald-400 dark:hover:border-emerald-500 text-zinc-700 dark:text-zinc-300'
                         }`}
                       >
                         <span className="pointer-events-none absolute inset-y-0 right-0 w-16 bg-white/20 blur-2xl" />
@@ -1494,7 +1537,7 @@ function RegistroEstudoModal({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 relative z-0">
 
               {/* Tempo */}
-              <div className="registro-modal-form-section p-3 md:p-2.5 space-y-2 md:space-y-1.5">
+              <div className="registro-modal-form-section p-2 md:p-2 space-y-1.5">
                 <div className="flex items-center gap-2 mb-1">
                   <span className="registro-section-kicker">
                     Tempo de Estudo
@@ -1506,7 +1549,7 @@ function RegistroEstudoModal({
                   )}
                 </div>
                 <div className="flex gap-2">
-                  <div className="flex-1 bg-white/90 dark:bg-white/5 border border-zinc-200 dark:border-white/10 rounded-xl px-2 py-1 md:py-0.5 flex flex-col items-center relative focus-within:border-red-400 dark:focus-within:border-red-500 transition-all shadow-inner">
+                  <div className="flex-1 bg-white/90 dark:bg-white/5 border border-zinc-200 dark:border-white/10 rounded-xl px-2 py-0.5 flex flex-col items-center relative focus-within:border-zinc-400 dark:focus-within:border-zinc-500 transition-all shadow-inner">
                     <input
                       type="number"
                       name="horas"
@@ -1514,7 +1557,7 @@ function RegistroEstudoModal({
                       onChange={handleChange}
                       min="0"
                       disabled={isTimeFromTimer}
-                    className="w-full text-center text-xl md:text-lg font-black bg-transparent outline-none text-zinc-900 dark:text-white disabled:opacity-50"
+                    className="w-full text-center text-lg md:text-base font-black bg-transparent outline-none text-zinc-900 dark:text-white disabled:opacity-50"
                     />
                     <span className="registro-small-label text-[8px] uppercase tracking-widest mt-0.5">Horas</span>
                     {!isTimeFromTimer && (
@@ -1525,7 +1568,7 @@ function RegistroEstudoModal({
                     )}
                   </div>
                   <div className="flex items-center text-zinc-400 font-black text-base pb-3">:</div>
-                  <div className="flex-1 bg-white/90 dark:bg-white/5 border border-zinc-200 dark:border-white/10 rounded-xl px-2 py-1 md:py-0.5 flex flex-col items-center relative focus-within:border-red-400 dark:focus-within:border-red-500 transition-all shadow-inner">
+                  <div className="flex-1 bg-white/90 dark:bg-white/5 border border-zinc-200 dark:border-white/10 rounded-xl px-2 py-0.5 flex flex-col items-center relative focus-within:border-zinc-400 dark:focus-within:border-zinc-500 transition-all shadow-inner">
                     <input
                       type="number"
                       name="minutos"
@@ -1534,7 +1577,7 @@ function RegistroEstudoModal({
                       min="0"
                       max="59"
                       disabled={isTimeFromTimer}
-                    className="w-full text-center text-xl md:text-lg font-black bg-transparent outline-none text-zinc-900 dark:text-white disabled:opacity-50"
+                    className="w-full text-center text-lg md:text-base font-black bg-transparent outline-none text-zinc-900 dark:text-white disabled:opacity-50"
                     />
                     <span className="registro-small-label text-[8px] uppercase tracking-widest mt-0.5">Minutos</span>
                     {!isTimeFromTimer && (
@@ -1548,7 +1591,7 @@ function RegistroEstudoModal({
               </div>
 
               {/* Questões */}
-              <div className={`registro-modal-form-section p-3 md:p-2.5 space-y-2 md:space-y-1.5 transition-all duration-500 ${hasAcertosError ? '!border-red-500 !bg-red-50/50 dark:!bg-red-900/10' : ''}`}>
+              <div className={`registro-modal-form-section p-2 md:p-2 space-y-1.5 transition-all duration-500 ${hasAcertosError ? '!border-red-500 !bg-red-50/50 dark:!bg-red-900/10' : ''}`}>
                 <div className="flex items-center justify-between mb-1">
                   <span className={`registro-section-kicker ${hasAcertosError ? '!text-red-500' : ''}`}>
                     Questões
@@ -1569,7 +1612,7 @@ function RegistroEstudoModal({
                       value={formData.questoesFeitas}
                       onChange={handleChange}
                       min="0"
-                      className={`w-full border rounded-xl py-1 md:py-0.5 px-2 text-center font-black text-xl md:text-lg outline-none transition-all duration-300 shadow-inner ${
+                      className={`w-full border rounded-xl py-0.5 px-2 text-center font-black text-lg md:text-base outline-none transition-all duration-300 shadow-inner ${
                         hasAcertosError
                           ? 'bg-white dark:bg-[#2A2A2A] border-red-500 text-red-600'
                           : 'bg-white dark:bg-[#2A2A2A] border-zinc-200 dark:border-[#444] text-zinc-900 dark:text-white focus:border-zinc-400 dark:focus:border-zinc-500'
@@ -1585,7 +1628,7 @@ function RegistroEstudoModal({
                       value={formData.acertos}
                       onChange={handleChange}
                       min="0"
-                      className={`w-full border rounded-xl py-1 md:py-0.5 px-2 text-center font-black text-xl md:text-lg outline-none transition-all duration-300 shadow-inner ${
+                      className={`w-full border rounded-xl py-0.5 px-2 text-center font-black text-lg md:text-base outline-none transition-all duration-300 shadow-inner ${
                         hasAcertosError
                           ? 'bg-white dark:bg-[#2A2A2A] border-red-500 text-red-600'
                           : 'bg-white dark:bg-[#2A2A2A] border-zinc-200 dark:border-[#444] text-zinc-900 dark:text-white focus:border-zinc-400 dark:focus:border-zinc-500'

@@ -193,6 +193,7 @@ const buildDisciplinaSnapshotCompleto = ({
       assuntos: ativa ? assuntosMarcados : assuntosOriginais,
       peso: NIVEL_TO_PESO[nivelDominio] || Number(disciplina.peso) || 3,
       nivelDominio,
+      cor: disciplina.cor || null,
       tempoAlocadoSemanalMinutos: ativa ? Number(disciplinaAtiva?.tempoAlocadoMinutos || 0) : 0,
       inCiclo: ativa,
       estudarTodosDias: ativa && disciplina.id === disciplinaTodosDiasId,
@@ -228,6 +229,7 @@ function CicloCreateWizard({
   const [mostrarModalModelo, setMostrarModalModelo] = useState(false);
   const [revisaoModo, setRevisaoModo] = useState(REVISAO_MODO_FLEXIVEL);
   const [modoExibirAssuntos, setModoExibirAssuntos] = useState(true);
+  const [coresDisciplinasAtivas, setCoresDisciplinasAtivas] = useState(true);
   const [disciplinaTodosDiasId, setDisciplinaTodosDiasId] = useState(null);
   const [mostrandoRascunho, setMostrandoRascunho] = useState(false);
   const [sessionAutoAdjustedNotice, setSessionAutoAdjustedNotice] = useState(null);
@@ -267,6 +269,7 @@ function CicloCreateWizard({
     );
     setRevisaoModo(normalizeRevisaoModoCiclo(state.revisaoModo));
     setModoExibirAssuntos(state.modoExibirAssuntos !== false);
+    setCoresDisciplinasAtivas(state.coresDisciplinasAtivas !== false);
     setDisciplinaTodosDiasId(state.disciplinaTodosDiasId || null);
   };
 
@@ -285,6 +288,7 @@ function CicloCreateWizard({
       selecaoDisciplinas: serializarSelecaoDisciplinas(selecaoDisciplinas),
       revisaoModo: normalizeRevisaoModoCiclo(revisaoModo),
       modoExibirAssuntos: modoExibirAssuntos !== false,
+      coresDisciplinasAtivas: coresDisciplinasAtivas !== false,
       disciplinaTodosDiasId,
     };
     try {
@@ -378,6 +382,7 @@ function CicloCreateWizard({
     selecaoDisciplinas,
     revisaoModo,
     modoExibirAssuntos,
+    coresDisciplinasAtivas,
     disciplinaTodosDiasId,
     isEditMode,
   ]);
@@ -533,6 +538,14 @@ function CicloCreateWizard({
     });
   }, [disciplinasComCalculo, horasTotais, tempoSessaoMinutos, gradeDisponibilidade]);
 
+  const handleDisciplinaColorChange = (disciplinaId, cor) => {
+    const updateList = (list) => list.map((disciplina) => (
+      disciplina.id === disciplinaId ? { ...disciplina, cor } : disciplina
+    ));
+    setDisciplinas(updateList);
+    setExtraDisciplinas(updateList);
+  };
+
   const cicloPreview = useMemo(() => {
     if (disciplinasPreview.length === 0) return null;
     const ordemSessoes = gerarOrdemSessoes(disciplinasPreview, 0, {
@@ -543,11 +556,17 @@ function CicloCreateWizard({
       nome: nomeCiclo || dadosModeloSelecionado?.titulo || 'Preview do Ciclo',
       tempoSessaoMinutos,
       modoExibirAssuntos: modoExibirAssuntos !== false,
+      coresDisciplinasAtivas: coresDisciplinasAtivas !== false,
+      disciplinasSnapshot: disciplinasPreview.map((disciplina) => ({
+        id: disciplina.id,
+        nome: disciplina.nome,
+        cor: disciplina.cor || null,
+      })),
       totalSessoesCiclo: ordemSessoes.length,
       ordemSessoes,
       sessoesConcluidas: [],
     };
-  }, [disciplinasPreview, tempoSessaoMinutos, modoExibirAssuntos, nomeCiclo, dadosModeloSelecionado, gradeDisponibilidade]);
+  }, [disciplinasPreview, tempoSessaoMinutos, modoExibirAssuntos, coresDisciplinasAtivas, nomeCiclo, dadosModeloSelecionado, gradeDisponibilidade]);
 
   const modoManualConfirmado = idModeloSelecionado === 'manual';
   const editalCatalogoConfirmado = Boolean(
@@ -574,6 +593,7 @@ function CicloCreateWizard({
         peso: NIVEL_TO_PESO[nivelDominio],
         nivelDominio,
         assuntos: assuntosLimpos,
+        cor: d.cor || d.color || null,
         index,
       };
     });
@@ -639,6 +659,7 @@ function CicloCreateWizard({
       logoUrl: logoFinal,
       tempoSessaoMinutos,
       modoExibirAssuntos: modoExibirAssuntos !== false,
+      coresDisciplinasAtivas: coresDisciplinasAtivas !== false,
       revisaoModo: normalizeRevisaoModoCiclo(revisaoModo),
       disciplinas: disciplinasComCalculo.map((d, position) => {
         const previewDisciplina = disciplinasPreview.find((item) => item.id === d.id || item.nome === d.nome);
@@ -803,6 +824,10 @@ function CicloCreateWizard({
           setTempoSessaoMinutos={setTempoSessaoMinutos}
           modoExibirAssuntos={modoExibirAssuntos}
           setModoExibirAssuntos={setModoExibirAssuntos}
+          coresDisciplinasAtivas={coresDisciplinasAtivas}
+          setCoresDisciplinasAtivas={setCoresDisciplinasAtivas}
+          disciplinasPreview={disciplinasPreview}
+          onDisciplinaCorChange={handleDisciplinaColorChange}
           editalSelecionado={dadosModeloSelecionado}
           horasTotais={horasTotais}
           totalDisciplinas={disciplinasComCalculo.length}
@@ -822,6 +847,7 @@ function CicloCreateWizard({
         horasTotais={horasTotais}
         tempoSessaoMinutos={tempoSessaoMinutos}
         modoExibirAssuntos={modoExibirAssuntos}
+        coresDisciplinasAtivas={coresDisciplinasAtivas}
         disciplinasPreview={disciplinasPreview}
         cicloPreview={cicloPreview}
       />

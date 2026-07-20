@@ -167,6 +167,7 @@ export const useCiclos = (user) => {
         tempoSessaoMinutos,
         revisaoModo: normalizeRevisaoModoCiclo(cicloData.revisaoModo),
         modoExibirAssuntos: cicloData.modoExibirAssuntos !== false,
+        coresDisciplinasAtivas: cicloData.coresDisciplinasAtivas !== false,
         totalSessoesCiclo,
         ordemSessoes: gerarOrdemSessoes(disciplinasAtivas, 0, {
           diasEstudo: cicloData.diasEstudo,
@@ -292,6 +293,7 @@ export const useCiclos = (user) => {
       if (cicloData.tipo !== undefined) updateData.tipo = cicloData.tipo;
       if (cicloData.revisaoModo !== undefined) updateData.revisaoModo = normalizeRevisaoModoCiclo(cicloData.revisaoModo);
       if (cicloData.modoExibirAssuntos !== undefined) updateData.modoExibirAssuntos = cicloData.modoExibirAssuntos !== false;
+      if (cicloData.coresDisciplinasAtivas !== undefined) updateData.coresDisciplinasAtivas = cicloData.coresDisciplinasAtivas !== false;
       if (cicloData.templateId !== undefined) updateData.templateOrigem = cicloData.templateId || null;
       if (cicloData.editalId !== undefined || cicloData.templateId !== undefined) {
         updateData.editalId = cicloData.editalId || cicloData.templateId || null;
@@ -487,6 +489,7 @@ export const useCiclos = (user) => {
         diasEstudo,
         tempoSessaoMinutos,
         modoExibirAssuntos: config.modoExibirAssuntos !== false,
+        coresDisciplinasAtivas: config.coresDisciplinasAtivas !== false,
         revisaoModo: normalizeRevisaoModoCiclo(config.revisaoModo),
         versaoCiclo: CICLO_GUIDE_VERSION,
         guiaAtualizadoEm: serverTimestamp(),

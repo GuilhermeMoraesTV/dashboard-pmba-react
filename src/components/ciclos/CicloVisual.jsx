@@ -87,7 +87,7 @@ const CicloSegment = ({
       onMouseLeave={onLeave}
       onClick={() => onClick(disciplina)}
       className="cursor-pointer group"
-      style={{ opacity: isActive ? 1 : 0.9, transition: 'opacity 0.3s ease' }}
+      style={{ opacity: isActive ? 0.96 : 0.72, transition: 'opacity 0.3s ease' }}
     >
       {concluida && (
         <motion.path
@@ -96,7 +96,7 @@ const CicloSegment = ({
           stroke={CICLO_CONCLUIDO_COLOR}
           strokeWidth={strokeWidth + 3}
           strokeOpacity={0.18}
-          strokeLinecap="round"
+          strokeLinecap="butt"
           initial={{ opacity: 0 }}
           animate={isRecentlyCompleted ? { opacity: [0.15, 0.34, 0.18] } : { opacity: 0.18 }}
           transition={{ duration: 0.9, ease: 'easeOut' }}
@@ -105,10 +105,11 @@ const CicloSegment = ({
       <motion.path
         initial={{ d: initialPath }}
         animate={{ d: bgPath }}
-        transition={{ duration: 0.8, ease: 'circOut' }}
+        transition={{ duration: 0.35, ease: 'circOut' }}
         fill="none"
         stroke={color}
         strokeWidth={strokeWidth}
+        strokeOpacity={isActive ? 0.58 : 0.36}
         strokeLinecap="butt"
       />
       {concluida && (
@@ -122,7 +123,7 @@ const CicloSegment = ({
             strokeWidth="0.8"
             initial={{ scale: 0.6, opacity: 0 }}
             animate={isRecentlyCompleted ? { scale: [0.8, 1.18, 1], opacity: [0.3, 1, 1] } : { scale: 1, opacity: 1 }}
-            transition={{ duration: 0.55, ease: 'easeOut' }}
+            transition={{ duration: 0.22, ease: 'easeOut' }}
           />
           <motion.path
             d={`M ${badgeX - 0.95} ${badgeY + 0.05} L ${badgeX - 0.2} ${badgeY + 0.8} L ${badgeX + 1.25} ${badgeY - 0.95}`}
@@ -133,7 +134,7 @@ const CicloSegment = ({
             strokeLinejoin="round"
             initial={{ pathLength: 0, opacity: 0 }}
             animate={{ pathLength: 1, opacity: 1 }}
-            transition={{ duration: 0.35, delay: 0.12, ease: 'easeOut' }}
+            transition={{ duration: 0.18, delay: 0.04, ease: 'easeOut' }}
           />
           {isRecentlyCompleted && (
             <motion.circle
@@ -145,7 +146,7 @@ const CicloSegment = ({
               strokeWidth="0.6"
               initial={{ scale: 1, opacity: 0.55 }}
               animate={{ scale: 1.9, opacity: 0 }}
-              transition={{ duration: 0.8, ease: 'easeOut' }}
+              transition={{ duration: 0.28, ease: 'easeOut' }}
             />
           )}
         </>
@@ -156,7 +157,7 @@ const CicloSegment = ({
           fill="none"
           stroke="white"
           strokeWidth={strokeWidth}
-          strokeOpacity={0.2}
+          strokeOpacity={0.12}
           strokeLinecap="butt"
           className="pointer-events-none"
         />
@@ -360,9 +361,14 @@ function CicloVisual({
   const shouldShowAssuntos = typeof showAssuntos === 'boolean'
     ? showAssuntos
     : ciclo?.modoExibirAssuntos !== false;
+  const shouldUseDisciplineColors = ciclo?.coresDisciplinasAtivas !== false;
   const coresDisciplinas = useMemo(() => {
     const mapa = {};
     disciplinas.forEach((d) => {
+      if (!shouldUseDisciplineColors) {
+        mapa[d.id] = '#71717a';
+        return;
+      }
       const color = getDisciplineColorForSlot({
         disciplinaId: d.id,
         disciplinaNome: d.nome,
@@ -372,7 +378,7 @@ function CicloVisual({
       mapa[d.id] = color?.hex || '#71717a';
     });
     return mapa;
-  }, [disciplinas]);
+  }, [disciplinas, shouldUseDisciplineColors]);
 
   useEffect(() => {
     if (!isModoCicloSessoes) return undefined;
@@ -600,6 +606,15 @@ function CicloVisual({
     onSelectDisciplina(seg.disciplina.id === selectedDisciplinaId ? null : seg.disciplina.id);
   };
 
+  const getNextPendingSessionForDisciplina = (disciplinaId) => (
+    data.find((sessao) => sessao.disciplina.id === disciplinaId && !sessao.concluida) || null
+  );
+
+  const handleConcluirDisciplinaAgregada = (disciplinaId) => {
+    const sessao = getNextPendingSessionForDisciplina(disciplinaId);
+    if (sessao) onMarcarSessao?.(sessao.globalIndex, sessao);
+  };
+
   if (!disciplinas.length) {
      return <div className="text-zinc-500 text-center py-10">Nenhuma disciplina alocada neste ciclo.</div>;
   }
@@ -615,11 +630,11 @@ function CicloVisual({
           </AnimatePresence>
 
           {isModoCicloSessoes && (
-            <div className="relative z-20 mb-6 flex flex-col items-center pt-1 sm:mb-8">
+            <div className="relative z-20 mb-2 flex flex-col items-center sm:mb-3">
               <div className="flex flex-wrap items-center gap-2 justify-center rounded-full bg-white/55 p-1 shadow-sm ring-1 ring-zinc-200/60 backdrop-blur-md dark:bg-zinc-950/35 dark:ring-zinc-800/60">
                 <button
                   onClick={() => { setViewCiclo('completo'); setDisciplinaFocada(null); onSelectDisciplina(null); }}
-                  className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide transition-all ${
+                  className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wide transition-all sm:px-4 sm:text-xs ${
                     viewCiclo === 'completo'
                       ? 'bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-md'
                       : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-white'
@@ -629,7 +644,7 @@ function CicloVisual({
                 </button>
                 <button
                   onClick={() => setViewCiclo('disciplina')}
-                  className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide transition-all ${
+                  className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wide transition-all sm:px-4 sm:text-xs ${
                     viewCiclo === 'disciplina'
                       ? 'bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-md'
                       : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-white'
@@ -646,14 +661,17 @@ function CicloVisual({
                   ← Voltar às disciplinas
                 </button>
               )}
+              <p className="mt-1 text-center text-[9px] font-semibold text-zinc-500 dark:text-zinc-400 sm:text-[10px]">
+                Clique em uma disciplina ou bloco de estudo para abrir as acoes.
+              </p>
             </div>
           )}
 
           <div
             className="aspect-square max-h-full max-w-full shrink-0"
             style={{
-              height: 'min(calc(100% - 56px), calc(100vh - 245px), 88vw, 780px)',
-              width: 'min(calc(100% - 56px), calc(100vh - 245px), 88vw, 780px)',
+              height: 'min(calc(100% - 46px), calc(100vh - 230px), 86vw, 720px)',
+              width: 'min(calc(100% - 46px), calc(100vh - 230px), 86vw, 720px)',
             }}
           >
             <svg viewBox="0 0 100 100" className="w-full h-full overflow-visible drop-shadow-lg">
@@ -729,18 +747,18 @@ function CicloVisual({
                           >
                             {isModoCicloSessoes ? (
                               <>
-                                <span className="text-[3.5px] md:text-[2.7px] font-extrabold uppercase tracking-[0.2em] text-zinc-400 mb-1">
-                                  SESSÕES
+                                <span className="text-[3.6px] md:text-[3.1px] font-extrabold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-300 mb-1">
+                                  HORAS
                                 </span>
                                 <div className="flex items-baseline justify-center gap-[1px]">
-                                  <span className="text-[10px] md:text-[9.5px] font-black text-zinc-800 dark:text-white leading-none tracking-tighter">
-                                    {sessoesConcluidas}
+                                  <span className="text-[10px] md:text-[9.5px] font-black text-zinc-900 dark:text-white leading-none tracking-tighter">
+                                    {formatVisualHours(totalEstudado)}
                                   </span>
-                                  <span className="text-[5px] text-zinc-400 font-bold">/{totalSessoes}</span>
+                                  <span className="text-[4.4px] text-zinc-500 dark:text-zinc-300 font-black">/ {formatVisualHours(totalMeta)}</span>
                                 </div>
                                 <div className="w-6 h-[0.5px] bg-zinc-300 dark:bg-zinc-700 my-1"></div>
-                                <span className="text-[3.5px] md:text-[3.2px] font-bold text-zinc-400 uppercase tracking-wide">
-                                  {Math.round(progressoGeral)}% completo
+                                <span className="text-[3.35px] md:text-[3px] font-black text-zinc-500 dark:text-zinc-300 uppercase tracking-wide">
+                                  {sessoesConcluidas}/{totalSessoes} blocos
                                 </span>
                               </>
                             ) : (
@@ -758,7 +776,7 @@ function CicloVisual({
                                 <div className="w-6 h-[0.5px] bg-zinc-300 dark:bg-zinc-700 my-1"></div>
 
                                 <div className="flex flex-col items-center">
-                                  <span className="text-[3.5px] md:text-[3.2px] font-bold text-zinc-400 uppercase tracking-wide">
+                                  <span className="text-[3.5px] md:text-[3.2px] font-black text-zinc-500 dark:text-zinc-300 uppercase tracking-wide">
                                     Meta: {formatVisualHours(totalMeta)}
                                   </span>
                                 </div>
@@ -773,22 +791,25 @@ function CicloVisual({
                             exit={{ opacity: 0, scale: 0.95 }}
                             className="flex h-full w-full flex-col items-center justify-center rounded-full px-2"
                           >
-                            <div className="mb-[1px] flex items-center justify-center gap-[1px]">
+                            <div className="mb-[0.8px] flex items-center justify-center">
                               <span
-                                className="h-[2.3px] w-[2.3px] rounded-full"
+                                className="h-[2.2px] w-[2.2px] rounded-full"
                                 style={{ backgroundColor: activeDisciplina.corBase || activeDisciplina.color }}
                               />
-                              <span className="text-[2.25px] font-black uppercase tracking-[0.12em] text-zinc-400">
-                                {activeDisciplina.isDisciplinaAgregada ? 'Disciplina' : isModoCicloSessoes ? `Sessão ${activeDisciplina.sessaoIndex + 1}` : 'Disciplina'}
-                              </span>
                             </div>
 
                             <span
-                              className="line-clamp-2 max-w-[48px] text-center text-[3.35px] font-black uppercase leading-[1.02]"
-                              style={{ color: activeDisciplina.corBase || activeDisciplina.color }}
+                              className="line-clamp-2 max-w-[56px] text-center text-[3.8px] font-extrabold normal-case leading-[1.08] tracking-normal text-zinc-950 dark:text-white"
+                              style={shouldUseDisciplineColors ? { color: activeDisciplina.corBase || activeDisciplina.color } : undefined}
                             >
                               {activeDisciplina.disciplina.nome}
                             </span>
+
+                            {isModoCicloSessoes && !activeDisciplina.isDisciplinaAgregada && (
+                              <span className="mt-[1px] text-[2.65px] font-black uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-300">
+                                Bloco {(Number(activeDisciplina.sessaoIndex) || 0) + 1}
+                              </span>
+                            )}
 
                             {shouldShowAssuntos && !activeDisciplina.isDisciplinaAgregada && activeDisciplina.assuntoSugerido?.nome && (
                               <span className="mt-[1.35px] line-clamp-3 max-w-[46px] text-center text-[2.55px] font-extrabold leading-[1.08] text-zinc-600 dark:text-zinc-200">
@@ -798,12 +819,10 @@ function CicloVisual({
 
                             <div className="mt-[1.6px] flex items-baseline justify-center gap-[1px]">
                               <span className="text-[6.25px] font-black leading-none text-zinc-900 dark:text-white">
-                                {activeDisciplina.isDisciplinaAgregada
-                                  ? `${activeDisciplina.concluidasDisciplina}/${activeDisciplina.totalSessoesDisciplina}`
-                                  : formatVisualHours(activeDisciplina.progressMinutos)}
+                                {formatVisualHours(activeDisciplina.progressMinutos)}
                               </span>
-                              <span className="text-[2.45px] font-bold text-zinc-400">
-                                {activeDisciplina.isDisciplinaAgregada ? 'sessões' : `/ ${formatVisualHours(activeDisciplina.metaMinutos)}`}
+                              <span className="text-[2.65px] font-black text-zinc-500 dark:text-zinc-300">
+                                / {formatVisualHours(activeDisciplina.metaMinutos)}
                               </span>
                             </div>
 
@@ -818,15 +837,21 @@ function CicloVisual({
                             </div>
 
                             {!hideActionButtons && isModoCicloSessoes && activeDisciplina.isDisciplinaAgregada ? (
-                              <button
-                                onClick={() => {
-                                  setDisciplinaFocada(activeDisciplina.disciplina.id);
-                                  onSelectDisciplina(null);
-                                }}
-                                className="pointer-events-auto mt-[2.8px] inline-flex h-[7.6px] min-w-[30px] items-center justify-center rounded-[3.8px] bg-zinc-900 px-[5.4px] text-[2.35px] font-black uppercase leading-none tracking-[0.03em] text-white shadow-sm transition hover:bg-zinc-700 dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-200"
-                              >
-                                Ver sessões
-                              </button>
+                              <div className="mt-[2.8px] flex w-full max-w-[50px] items-center justify-center gap-[1.1px] overflow-visible">
+                                <button
+                                  onClick={() => onStartStudy(activeDisciplina.disciplina, null, { defaultContext: 'ciclo' })}
+                                  className="pointer-events-auto inline-flex h-[7.6px] w-[23px] items-center justify-center rounded-[3.8px] bg-red-600 px-[2.2px] text-[2.25px] font-black uppercase leading-none tracking-[0.02em] text-white shadow-[0_1.5px_5px_rgba(220,38,38,0.18)] transition hover:bg-red-700 active:scale-95"
+                                >
+                                  Iniciar
+                                </button>
+                                <button
+                                  onClick={() => handleConcluirDisciplinaAgregada(activeDisciplina.disciplina.id)}
+                                  disabled={cicloActionLoading || !getNextPendingSessionForDisciplina(activeDisciplina.disciplina.id)}
+                                  className="pointer-events-auto inline-flex h-[7.6px] w-[24px] items-center justify-center rounded-[3.8px] bg-emerald-600 px-[2.2px] text-[2.25px] font-black uppercase leading-none tracking-[0.02em] text-white shadow-[0_1.5px_5px_rgba(5,150,105,0.18)] transition hover:bg-emerald-700 active:scale-95 disabled:opacity-50"
+                                >
+                                  Concluir
+                                </button>
+                              </div>
                             ) : !hideActionButtons && activeDisciplina.concluida && isModoCicloSessoes ? (
                               <button
                                 onClick={() => onMarcarSessao?.(activeDisciplina.globalIndex, activeDisciplina)}
@@ -840,7 +865,7 @@ function CicloVisual({
                                 <button
                                   onClick={() => onStartStudy(
                                     activeDisciplina.disciplina,
-                                    activeDisciplina.assuntoSugerido?.nome || null,
+                                    shouldShowAssuntos ? activeDisciplina.assuntoSugerido?.nome || null : null,
                                     isModoCicloSessoes ? { defaultContext: 'ciclo', sessaoGlobalIndex: activeDisciplina.globalIndex } : { defaultContext: 'ciclo' }
                                   )}
                                   className="pointer-events-auto inline-flex h-[7.6px] w-[22px] items-center justify-center rounded-[3.8px] bg-red-600 px-[2.6px] text-[2.35px] font-black uppercase leading-none tracking-[0.03em] text-white shadow-[0_1.5px_5px_rgba(220,38,38,0.22)] transition hover:bg-red-700 active:scale-95"
@@ -987,7 +1012,7 @@ function CicloVisual({
                       <div className="grid grid-cols-2 gap-4 mb-6">
                         <div className="bg-white dark:bg-zinc-800/50 rounded-xl p-3 border border-zinc-200 dark:border-zinc-700/50 shadow-sm">
                           <div className="flex items-center gap-2 text-zinc-400 text-[10px] font-bold uppercase mb-1">
-                            <Target size={12} /> Total Sessões
+                            <Target size={12} /> Total blocos
                           </div>
                           <p className="text-lg font-black text-zinc-800 dark:text-white">
                             {activeDisciplina.totalSessoesDisciplina}
@@ -1021,15 +1046,21 @@ function CicloVisual({
                         </div>
                       </div>
 
-                      <button
-                        onClick={() => {
-                          setDisciplinaFocada(activeDisciplina.disciplina.id);
-                          onSelectDisciplina(null);
-                        }}
-                        className="w-full py-3 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-xl font-bold text-xs uppercase tracking-wide shadow-lg hover:shadow-xl transition-all hover:-translate-y-0.5"
-                      >
-                        Ver sessões desta disciplina
-                      </button>
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        <button
+                          onClick={() => onStartStudy(activeDisciplina.disciplina, null, { defaultContext: 'ciclo' })}
+                          className="w-full py-3 bg-red-600 text-white rounded-xl font-bold text-xs uppercase tracking-wide shadow-lg shadow-red-600/20 transition-all hover:-translate-y-0.5 hover:bg-red-700"
+                        >
+                          Iniciar
+                        </button>
+                        <button
+                          onClick={() => handleConcluirDisciplinaAgregada(activeDisciplina.disciplina.id)}
+                          disabled={cicloActionLoading || !getNextPendingSessionForDisciplina(activeDisciplina.disciplina.id)}
+                          className="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold text-xs uppercase tracking-wide shadow-lg shadow-emerald-600/20 transition-all hover:-translate-y-0.5 hover:bg-emerald-700 disabled:opacity-50 disabled:hover:translate-y-0"
+                        >
+                          Concluir
+                        </button>
+                      </div>
                     </>
                   ) : isModoCicloSessoes ? (
                     <>
@@ -1048,7 +1079,7 @@ function CicloVisual({
                       <div className="grid grid-cols-2 gap-4 mb-6">
                         <div className="bg-white dark:bg-zinc-800/50 rounded-xl p-3 border border-zinc-200 dark:border-zinc-700/50 shadow-sm">
                           <div className="flex items-center gap-2 text-zinc-400 text-[10px] font-bold uppercase mb-1">
-                            <Target size={12} /> Sessão
+                            <Target size={12} /> Bloco
                           </div>
                           <p className="text-lg font-black text-zinc-800 dark:text-white">
                             {activeDisciplina.sessaoIndex + 1} de {activeDisciplina.disciplina.sessoesPorCiclo || 1}
@@ -1105,12 +1136,12 @@ function CicloVisual({
 
                       {activeDisciplina.concluida ? (
                         <div className="w-full py-3 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-xl font-black text-xs uppercase tracking-wide border border-emerald-500/30 text-center shadow-lg shadow-emerald-500/10">
-                          Sessão concluída
+                          Bloco concluido
                         </div>
                       ) : (
                         <div className="flex gap-3">
                           <button
-                            onClick={() => onStartStudy(activeDisciplina.disciplina, activeDisciplina.assuntoSugerido?.nome || null, { defaultContext: 'ciclo', sessaoGlobalIndex: activeDisciplina.globalIndex })}
+                            onClick={() => onStartStudy(activeDisciplina.disciplina, shouldShowAssuntos ? activeDisciplina.assuntoSugerido?.nome || null : null, { defaultContext: 'ciclo', sessaoGlobalIndex: activeDisciplina.globalIndex })}
                             className="flex-1 py-3 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-xl font-bold text-xs uppercase tracking-wide shadow-lg hover:shadow-xl transition-all hover:-translate-y-0.5 flex items-center justify-center gap-2"
                           >
                             <Play size={16} fill="currentColor" /> Iniciar estudo

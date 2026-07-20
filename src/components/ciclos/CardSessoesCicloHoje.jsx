@@ -127,22 +127,22 @@ function CardSessoesCicloHoje({
                   isCompleted
                     ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200/60 dark:border-emerald-900/40'
                   : isActive
-                    ? 'bg-white dark:bg-zinc-900 border-[rgba(var(--discipline-rgb),0.32)] shadow-lg shadow-[rgba(var(--discipline-rgb),0.12)]'
-                    : 'bg-zinc-50/50 dark:bg-zinc-950/30 border-[rgba(var(--discipline-rgb),0.18)] opacity-90'
+                    ? 'bg-white dark:bg-zinc-900 border-[rgba(var(--discipline-rgb),0.2)] shadow-lg shadow-[rgba(var(--discipline-rgb),0.06)]'
+                    : 'bg-zinc-50/50 dark:bg-zinc-950/30 border-[rgba(var(--discipline-rgb),0.12)] opacity-90'
                 }`}
               >
                 {!isCompleted && (
-                  <div className="pointer-events-none absolute inset-y-0 left-0 w-1.5 bg-[rgb(var(--discipline-rgb))]" />
+                  <div className="pointer-events-none absolute inset-y-0 left-0 w-1.5 bg-[rgba(var(--discipline-rgb),0.35)]" />
                 )}
                 {!isCompleted && (
-                  <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_10%_0%,rgba(var(--discipline-rgb),0.13),transparent_34%)] opacity-90" />
+                  <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_10%_0%,rgba(var(--discipline-rgb),0.07),transparent_34%)] opacity-80" />
                 )}
                 {/* Indicador de Status */}
                 <div className={`relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full shadow-sm transition-all duration-500 ${
                   isCompleted 
                     ? 'bg-emerald-500 text-white' 
                     : isActive 
-                    ? 'bg-[rgb(var(--discipline-rgb))] text-white shadow-[0_12px_24px_rgba(var(--discipline-rgb),0.22)]' 
+                    ? 'bg-[rgba(var(--discipline-rgb),0.14)] text-[rgb(var(--discipline-rgb))] shadow-[0_12px_24px_rgba(var(--discipline-rgb),0.08)]' 
                     : 'bg-white dark:bg-zinc-800 text-zinc-400 border border-zinc-200 dark:border-zinc-700'
                 }`}>
                   {isCompleted ? <Check size={18} strokeWidth={4} /> : isActive ? <Play size={16} fill="currentColor" /> : <span className="text-xs font-black">{idx + 1}</span>}
@@ -156,7 +156,7 @@ function CardSessoesCicloHoje({
                       {disc?.nome || 'Disciplina'}
                     </h4>
                     {isActive && (
-                      <span className="flex h-1.5 w-1.5 rounded-full bg-[rgb(var(--discipline-rgb))] animate-pulse" />
+                    <span className="flex h-1.5 w-1.5 rounded-full bg-[rgba(var(--discipline-rgb),0.45)] animate-pulse" />
                     )}
                   </div>
                   
@@ -171,7 +171,7 @@ function CardSessoesCicloHoje({
                   </div>
 
                   {isActive && s.assuntoSugerido?.nome && (
-                    <p className="mt-1 truncate rounded-md bg-[rgba(var(--discipline-rgb),0.1)] px-2 py-1 text-[9px] font-black uppercase tracking-wide text-[rgb(var(--discipline-rgb))]">
+                    <p className="mt-1 truncate rounded-md bg-[rgba(var(--discipline-rgb),0.06)] px-2 py-1 text-[9px] font-black uppercase tracking-wide text-[rgb(var(--discipline-rgb))]">
                       Foco: {s.assuntoSugerido.nome}
                     </p>
                   )}
@@ -338,12 +338,12 @@ function CardSessoesCicloHoje({
                         <Check size={16} className="sm:h-5 sm:w-5" strokeWidth={4} />
                       </div>
                     ) : isActive ? (
-                      <div className="relative z-10 flex h-8 w-8 items-center justify-center rounded-full bg-[rgb(var(--discipline-rgb))] text-white shadow-[0_0_18px_rgba(var(--discipline-rgb),0.45)] ring-4 ring-white dark:ring-zinc-950 sm:h-10 sm:w-10">
-                        <span className="absolute inset-0 animate-ping rounded-full bg-[rgb(var(--discipline-rgb))] opacity-40" />
+                      <div className="relative z-10 flex h-8 w-8 items-center justify-center rounded-full bg-[rgba(var(--discipline-rgb),0.16)] text-[rgb(var(--discipline-rgb))] shadow-[0_0_18px_rgba(var(--discipline-rgb),0.12)] ring-4 ring-white dark:ring-zinc-950 sm:h-10 sm:w-10">
+                        <span className="absolute inset-0 animate-ping rounded-full bg-[rgba(var(--discipline-rgb),0.28)] opacity-30" />
                         <Play size={14} className="sm:h-[18px] sm:w-[18px]" fill="currentColor" />
                       </div>
                     ) : (
-                      <div className="z-10 flex h-8 w-8 items-center justify-center rounded-full border-2 border-[rgba(var(--discipline-rgb),0.42)] bg-[rgba(var(--discipline-rgb),0.2)] text-[rgb(var(--discipline-rgb))] ring-4 ring-white dark:bg-[rgba(var(--discipline-rgb),0.26)] dark:ring-zinc-950 sm:h-10 sm:w-10">
+                      <div className="z-10 flex h-8 w-8 items-center justify-center rounded-full border-2 border-[rgba(var(--discipline-rgb),0.24)] bg-[rgba(var(--discipline-rgb),0.1)] text-[rgb(var(--discipline-rgb))] ring-4 ring-white dark:bg-[rgba(var(--discipline-rgb),0.14)] dark:ring-zinc-950 sm:h-10 sm:w-10">
                         <span className="text-[10px] font-black sm:text-xs">{idx + 1}</span>
                       </div>
                     )}
@@ -354,10 +354,10 @@ function CardSessoesCicloHoje({
                     style={disciplinaStyle}
                     className={`flex-1 overflow-hidden rounded-2xl border transition-all sm:rounded-[28px] ${
                       isActive
-                        ? 'border-[rgba(var(--discipline-rgb),0.34)] bg-white shadow-2xl shadow-[rgba(var(--discipline-rgb),0.1)] dark:bg-zinc-900'
+                        ? 'border-[rgba(var(--discipline-rgb),0.22)] bg-white shadow-2xl shadow-[rgba(var(--discipline-rgb),0.06)] dark:bg-zinc-900'
                         : isCompleted
                           ? 'border-emerald-200 bg-emerald-50/80 shadow-lg shadow-emerald-500/10 dark:border-emerald-900/40 dark:bg-emerald-950/20'
-                          : 'border-[rgba(var(--discipline-rgb),0.5)] bg-[rgba(var(--discipline-rgb),0.24)] shadow-md shadow-[rgba(var(--discipline-rgb),0.08)] dark:border-[rgba(var(--discipline-rgb),0.55)] dark:bg-[rgba(var(--discipline-rgb),0.3)]'
+                          : 'border-[rgba(var(--discipline-rgb),0.26)] bg-[rgba(var(--discipline-rgb),0.09)] shadow-md shadow-[rgba(var(--discipline-rgb),0.04)] dark:border-[rgba(var(--discipline-rgb),0.3)] dark:bg-[rgba(var(--discipline-rgb),0.13)]'
                     }`}
                   >
                     <div className="p-3 sm:p-5">
@@ -368,7 +368,7 @@ function CardSessoesCicloHoje({
                               isCompleted
                                 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
                                 : isActive
-                                  ? 'bg-[rgba(var(--discipline-rgb),0.14)] text-[rgb(var(--discipline-rgb))]'
+                                  ? 'bg-[rgba(var(--discipline-rgb),0.08)] text-[rgb(var(--discipline-rgb))]'
                                   : 'bg-white/70 text-[rgb(var(--discipline-rgb))] dark:bg-white/10'
                             }`}>
                               {isCompleted ? 'Concluida' : isActive ? 'Agora' : 'Proxima'}

@@ -10,6 +10,7 @@ import DisciplinaDetalheModal from '../components/ciclos/DisciplinaDetalheModal'
 import ModalConclusaoCiclo from '../components/ciclos/ModalConclusaoCiclo';
 import HistoricoModal from '../components/dashboard/HistoricoModal';
 import CicloEditModal from '../components/ciclos/CicloEditModal';
+import TimerSettingsModal from '../components/ciclos/StudyTimer/TimerSettingsModal';
 import { useCiclos } from '../hooks/useCiclos';
 import { useCicloRevisoes } from '../hooks/useCicloRevisoes';
 import CardSessoesCicloHoje from '../components/ciclos/CardSessoesCicloHoje';
@@ -23,7 +24,7 @@ import {
   BookOpen, ChevronRight, History, X, Trash2,
   AlertOctagon, Shield, LayoutList, RotateCw,
   Check, CheckCircle2, Clock3, Loader2, Play, CalendarPlus,
-  Sparkles, Settings2, Cog, PlusCircle
+  Sparkles, Settings2, Cog, PlusCircle, Palette
 } from 'lucide-react';
 
 // --- FUNÇÕES AUXILIARES ---
@@ -110,6 +111,7 @@ const CicloLegacyUpgradeModal = ({ ciclo, disciplinas, registros, logoUrl, onClo
   const diasEstudo = normalizeUpgradeStudyDays(ciclo?.diasEstudo);
   const tempoSessaoMinutos = Number(ciclo?.tempoSessaoMinutos || 50);
   const [modoExibirAssuntos, setModoExibirAssuntos] = useState(() => ciclo?.modoExibirAssuntos !== false);
+  const [coresDisciplinasAtivas, setCoresDisciplinasAtivas] = useState(() => ciclo?.coresDisciplinasAtivas !== false);
   const [revisaoModo, setRevisaoModo] = useState(() => normalizeRevisaoModoCiclo(ciclo?.revisaoModo));
 
   const totalDisciplinas = disciplinas.filter((disciplina) => disciplina.inCiclo !== false).length;
@@ -124,6 +126,7 @@ const CicloLegacyUpgradeModal = ({ ciclo, disciplinas, registros, logoUrl, onClo
     onConfirm({
       nome: nome.trim() || ciclo?.nome || 'Meu ciclo',
       modoExibirAssuntos,
+      coresDisciplinasAtivas,
       revisaoModo,
     });
   };
@@ -292,6 +295,25 @@ const CicloLegacyUpgradeModal = ({ ciclo, disciplinas, registros, logoUrl, onClo
                 <span className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow transition-all ${modoExibirAssuntos ? 'right-1' : 'left-1'}`} />
               </button>
             </label>
+
+            <label className="flex items-center justify-between gap-3 rounded-2xl border border-zinc-200 bg-white px-3 py-2.5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Palette size={14} className="text-red-600" />
+                  <p className="text-[10px] font-black uppercase tracking-wider text-zinc-900 dark:text-white">Cores no radar</p>
+                </div>
+                <p className="mt-1 text-[10px] font-medium text-zinc-500">Desligue para mostrar os blocos em cinza.</p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={coresDisciplinasAtivas}
+                onClick={() => setCoresDisciplinasAtivas((current) => !current)}
+                className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${coresDisciplinasAtivas ? 'bg-red-600' : 'bg-zinc-300 dark:bg-zinc-700'}`}
+              >
+                <span className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow transition-all ${coresDisciplinasAtivas ? 'right-1' : 'left-1'}`} />
+              </button>
+            </label>
         </div>
 
         <div className="flex items-center justify-between gap-2 border-t border-zinc-100 bg-zinc-50/80 p-3 dark:border-zinc-800 dark:bg-zinc-950">
@@ -419,6 +441,8 @@ const CicloRevisoesOperacionaisCard = ({
     ...revisoesAtrasadas.map((rev) => ({ ...rev, _bucket: 'atrasada' })),
     ...revisoesHoje.map((rev) => ({ ...rev, _bucket: 'hoje' })),
   ];
+
+  if (!loading && todas.length === 0) return null;
 
   return (
     <section className="relative h-full overflow-hidden rounded-2xl border border-zinc-200/80 bg-gradient-to-br from-white via-zinc-50 to-blue-50/30 p-3 shadow-[0_18px_50px_-30px_rgba(15,23,42,0.35)] dark:border-zinc-800/80 dark:from-zinc-950 dark:via-zinc-900 dark:to-blue-950/10 sm:rounded-[28px] sm:p-4 md:p-5">
@@ -571,6 +595,7 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showUpgradeWizard, setShowUpgradeWizard] = useState(false);
   const [configMenuOpen, setConfigMenuOpen] = useState(false);
+  const [showTimerSettings, setShowTimerSettings] = useState(false);
   const [loadingCicloSessao, setLoadingCicloSessao] = useState(null);
   const [acaoRevisaoCiclo, setAcaoRevisaoCiclo] = useState(null);
   const [cicloResetAnimation, setCicloResetAnimation] = useState(false);
@@ -839,6 +864,7 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
       await updateDoc(doc(db, 'users', user.uid, 'ciclos', cicloId), {
         nome: config.nome || ciclo?.nome || 'Meu ciclo',
         modoExibirAssuntos: config.modoExibirAssuntos !== false,
+        coresDisciplinasAtivas: config.coresDisciplinasAtivas !== false,
         revisaoModo: normalizeRevisaoModoCiclo(config.revisaoModo),
       });
       setShowUpgradeModal(false);
@@ -979,7 +1005,7 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
           )}
 
           {/* CARD DO CICLO (RESUMO GERAL) */}
-          <div className="flex flex-row items-center justify-between gap-2 bg-zinc-50 dark:bg-zinc-900 px-3 py-3 sm:px-4 md:gap-6 md:px-6 md:py-4 rounded-2xl border border-zinc-300 dark:border-zinc-800 shadow-sm relative overflow-hidden">
+          <div className="flex flex-row items-center justify-between gap-2 bg-zinc-50 dark:bg-zinc-900 px-3 py-2 sm:px-4 md:gap-5 md:px-5 md:py-3 rounded-2xl border border-zinc-300 dark:border-zinc-800 shadow-sm relative overflow-hidden">
               {dynamicLogo ? (
                   <div className="absolute -bottom-2 right-1 h-20 w-20 opacity-25 pointer-events-none transform rotate-[-10deg] z-0 filter saturate-150 transition-all duration-500 dark:opacity-35 md:-bottom-4 md:-right-4 md:h-44 md:w-44 md:opacity-20">
                       <img src={dynamicLogo} alt="Logo Edital" className="w-full h-full object-contain" onError={(e) => { e.target.style.display = 'none'; }} />
@@ -1137,7 +1163,7 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
           </div>
 
           {/* --- BARRA DE FERRAMENTAS --- */}
-          <div className="flex items-center justify-between mt-8 mb-4 px-2">
+          <div className="flex items-center justify-between mt-4 mb-2 px-2 md:mt-5">
               <h3 className="text-sm font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2">
                  <LayoutList size={16} /> Meu Progresso
               </h3>
@@ -1190,6 +1216,21 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
                                       type="button"
                                       onClick={() => {
                                           setConfigMenuOpen(false);
+                                          setShowTimerSettings(true);
+                                      }}
+                                      className="group relative mt-1.5 flex w-full items-center gap-2.5 rounded-xl border border-zinc-200/80 bg-white p-2.5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-zinc-300 hover:bg-zinc-50 hover:shadow-md hover:shadow-zinc-900/5 dark:border-zinc-800 dark:bg-zinc-900/70 dark:hover:border-zinc-700 dark:hover:bg-zinc-900"
+                                  >
+                                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-zinc-100 text-zinc-700 shadow-sm dark:bg-zinc-800 dark:text-zinc-200"><Clock3 size={14} /></span>
+                                      <span className="min-w-0 flex-1">
+                                          <span className="block text-[10px] font-black uppercase tracking-wide text-zinc-900 dark:text-white">Configurar timer</span>
+                                          <span className="mt-0.5 block text-[9px] font-medium leading-snug text-zinc-500 dark:text-zinc-400">Ajuste modo, foco, descanso, cor e sons do cronometro.</span>
+                                      </span>
+                                      <ChevronRight size={14} className="shrink-0 text-zinc-300 transition-transform group-hover:translate-x-0.5 group-hover:text-zinc-700 dark:text-zinc-700 dark:group-hover:text-zinc-300" />
+                                  </button>
+                                  <button
+                                      type="button"
+                                      onClick={() => {
+                                          setConfigMenuOpen(false);
                                           setShowUpgradeWizard(true);
                                       }}
                                       className="group relative mt-1.5 flex w-full items-center gap-2.5 rounded-xl border border-zinc-200/80 bg-zinc-50/80 p-2.5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-zinc-300 hover:bg-white hover:shadow-md hover:shadow-zinc-900/5 dark:border-zinc-800 dark:bg-zinc-900/60 dark:hover:border-zinc-700 dark:hover:bg-zinc-900"
@@ -1220,20 +1261,28 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
 
       {!showEmptyMessage && (
           <div className="-mx-2 min-h-0 flex-grow sm:-mx-4 md:-mx-6 lg:-mx-8">
-              <div className="grid min-h-0 grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(420px,0.82fr)] 2xl:grid-cols-[minmax(0,1.16fr)_minmax(500px,0.84fr)]">
-                  <section className="relative flex flex-col overflow-hidden rounded-3xl border border-zinc-200/70 bg-white/80 px-3 py-5 shadow-xl shadow-zinc-200/40 backdrop-blur-xl dark:border-zinc-800/70 dark:bg-zinc-950/35 dark:shadow-none sm:min-h-[640px] sm:px-5 lg:min-h-[720px] xl:h-[calc(100vh-210px)] xl:min-h-[720px]">
+              <div className={`grid min-h-0 grid-cols-1 items-start gap-4 ${showAssuntosCiclo ? 'xl:grid-cols-[minmax(0,1fr)_minmax(0,0.64fr)] 2xl:grid-cols-[minmax(0,1.06fr)_minmax(360px,0.66fr)]' : 'justify-items-center xl:grid-cols-1'}`}>
+                  <section className={`relative flex flex-col rounded-2xl border border-zinc-200/70 bg-white/80 px-2.5 py-2.5 shadow-lg shadow-zinc-200/30 backdrop-blur-xl dark:border-zinc-800/70 dark:bg-zinc-950/35 dark:shadow-none sm:px-4 sm:py-3 ${
+                      showAssuntosCiclo
+                          ? 'w-full overflow-hidden sm:min-h-[620px] lg:min-h-[690px] xl:min-h-[700px]'
+                          : 'mx-auto w-full max-w-[980px] overflow-hidden sm:min-h-[620px] lg:min-h-[660px] xl:min-h-[690px]'
+                  }`}>
                       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-red-500/40 to-transparent" />
-                      <div className="relative mb-4 flex flex-wrap items-center justify-between gap-3 px-1 sm:px-2">
+                      <div className="relative mb-2 flex flex-wrap items-center justify-between gap-2 px-1 sm:px-2">
                           <div>
-                              <p className="text-[10px] font-black uppercase tracking-[0.28em] text-red-600 dark:text-red-400">Ciclo de Estudos</p>
-                              <h2 className="mt-1 text-lg font-black uppercase tracking-tight text-zinc-900 dark:text-white">Mapa visual do ciclo</h2>
+                              <p className="text-[9px] font-black uppercase tracking-[0.24em] text-red-600 dark:text-red-400">Ciclo de Estudos</p>
+                              <h2 className="mt-0.5 text-base font-black uppercase tracking-tight text-zinc-900 dark:text-white sm:text-lg">Mapa visual do ciclo</h2>
                           </div>
-                          <div className="rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
+                          <div className="rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-[9px] font-black uppercase tracking-widest text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
                               {disciplinas.length} disciplinas
                           </div>
                       </div>
 
-                      <div className="relative flex h-[460px] flex-1 items-stretch justify-center sm:h-auto sm:min-h-[560px] xl:min-h-0">
+                      <div className={`relative flex flex-1 items-stretch justify-center ${
+                          showAssuntosCiclo
+                              ? 'h-[500px] sm:h-auto sm:min-h-[580px] xl:min-h-[610px]'
+                              : 'h-[500px] sm:h-auto sm:min-h-[560px] xl:min-h-[600px]'
+                      }`}>
                           <CicloVisual
                               selectedDisciplinaId={selectedDisciplinaId}
                               onSelectDisciplina={setSelectedDisciplinaId}
@@ -1253,7 +1302,8 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
                       </div>
                   </section>
 
-                  <aside className="min-w-0 space-y-5 xl:flex xl:flex-col xl:space-y-5">
+                  {showAssuntosCiclo && (
+                  <aside className="min-w-0 max-w-full space-y-4 overflow-hidden xl:flex xl:max-h-[700px] xl:flex-col xl:space-y-4 xl:overflow-y-auto xl:pr-1">
                   {/* COLUNA: GUIA DE ESTUDO DO DIA (A ESTRELA DA PÁGINA) */}
                   <div className="space-y-3 xl:order-1">
                       <div>
@@ -1265,22 +1315,23 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
                           onClick={handleGoToRevisoesCiclo}
                       />
                       </div>
-                      <div>
-                      <CardSessoesCicloHoje
-                          ciclo={ciclo}
-                          disciplinas={disciplinas}
-                          onIniciarSessao={handleIniciarSessaoSugerida}
-                          onToggleSessao={handleToggleSessaoSugerida}
-                          onMarcarTeoriaPendente={handleMarcarTeoriaPendente}
-                          loadingSessionId={loadingCicloSessao}
-                          variant="cycle"
-                          showAssuntos={showAssuntosCiclo}
-                      />
-                      </div>
+                        <div>
+                        <CardSessoesCicloHoje
+                            ciclo={ciclo}
+                            disciplinas={disciplinas}
+                            onIniciarSessao={handleIniciarSessaoSugerida}
+                            onToggleSessao={handleToggleSessaoSugerida}
+                            onMarcarTeoriaPendente={handleMarcarTeoriaPendente}
+                            loadingSessionId={loadingCicloSessao}
+                            variant="cycle"
+                            showAssuntos={showAssuntosCiclo}
+                        />
+                        </div>
                   </div>
 
                   {/* COLUNA: REVISÕES DO CICLO (SIDEBAR SLEEK) */}
                   <div ref={revisoesSectionRef} className="scroll-mt-4 xl:order-2 xl:shrink-0">
+                    {(loadingRevisoesCiclo || revisoesAtrasadasCicloVisiveis.length > 0 || revisoesDoDiaCicloVisiveis.length > 0) && (
                       <div className="relative overflow-hidden rounded-2xl border border-zinc-200/60 bg-white/40 p-1 shadow-xl shadow-zinc-200/20 backdrop-blur-xl dark:border-zinc-800/40 dark:bg-zinc-950/20 dark:shadow-none sm:rounded-[32px] sm:shadow-2xl">
                          <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-blue-500/5 blur-3xl" />
                          
@@ -1295,10 +1346,12 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
                             onReagendar={handleReagendarRevisaoCiclo}
                         />
                       </div>
+                    )}
                       
                       {/* CARD ADICIONAL DE DICA ESTRATÉGICA (DANDO MAIS VIDA À PÁGINA) */}
                   </div>
                   </aside>
+                  )}
               </div>
           </div>
       )}
@@ -1360,6 +1413,11 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
 
         {recordToDelete && <DeleteConfirmationModal isOpen={!!recordToDelete} onClose={() => setRecordToDelete(null)} onConfirm={handleConfirmDeleteRegistro} />}
       </AnimatePresence>
+      <TimerSettingsModal
+        isOpen={showTimerSettings}
+        onClose={() => setShowTimerSettings(false)}
+        userUid={user?.uid}
+      />
       <div className="h-12"></div>
     </div>
   );

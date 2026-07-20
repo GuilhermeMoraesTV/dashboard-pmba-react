@@ -49,6 +49,14 @@ const dateToYMDLocal = (date = new Date()) => {
   return `${y}-${m <= 9 ? '0' + m : m}-${d <= 9 ? '0' + d : d}`;
 };
 
+const resolveIntervaloRevisao = (topic) => {
+  if (topic?.revisaoEscolhida === 'custom') {
+    const dias = Number(topic?.revisaoPersonalizadaDias);
+    return Number.isFinite(dias) && dias >= 1 ? Math.floor(dias) : null;
+  }
+  return topic?.revisaoEscolhida;
+};
+
 // =======================================================
 // 🔧 UTILITÁRIO — Persistir nova disciplina / assunto no ciclo
 // Garante que o que foi digitado aparece no edital igual ao wizard
@@ -189,8 +197,8 @@ const ComboBox = ({
   return (
     <div className="relative" ref={containerRef}>
       <div
-        className={`w-full flex items-center bg-zinc-50 dark:bg-zinc-900 border rounded-xl shadow-sm transition-all
-          ${isOpen || focused ? 'border-red-500 ring-1 ring-red-500/20' : 'border-zinc-200 dark:border-zinc-800'}
+        className={`w-full flex items-center bg-white dark:bg-zinc-950 border rounded-xl transition-all
+          ${isOpen || focused ? 'border-red-500' : 'border-zinc-300 dark:border-zinc-700'}
           ${disabled ? 'opacity-60 cursor-not-allowed' : ''}
         `}
       >
@@ -225,7 +233,7 @@ const ComboBox = ({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -5 }}
             transition={{ duration: 0.12 }}
-            className="absolute z-[70] w-full mt-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xl max-h-52 overflow-y-auto custom-scrollbar"
+          className="absolute z-[220] w-full mt-1 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-2xl max-h-48 overflow-y-auto custom-scrollbar"
             style={{ '--scrollbar-thumb': '#e4e4e7' }}
           >
             <div className="p-1">
@@ -273,6 +281,108 @@ const ComboBox = ({
 // ----------------------------------------------------
 // COMPONENTES VISUAIS
 // ----------------------------------------------------
+const timerFinishStyles = `
+  .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
+  .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+  .custom-scrollbar::-webkit-scrollbar-thumb { background: #d4d4d8; border-radius: 10px; }
+  .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #3f3f46; }
+
+  .registro-modal-form-section {
+    position: relative;
+    overflow: visible;
+    background: #ededee;
+    border-radius: 18px;
+    border: 1px solid rgba(161, 161, 170, 0.58);
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255,255,255,0.66);
+    transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease, background 0.25s ease;
+  }
+  .dark .registro-modal-form-section {
+    background: #171717;
+    border-color: rgba(82, 82, 91, 0.86);
+    box-shadow: 0 14px 32px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255,255,255,0.05);
+  }
+  .registro-modal-form-section::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-radius: inherit;
+    background:
+      linear-gradient(90deg, rgba(239,68,68,0.06), transparent 32%),
+      radial-gradient(circle at top left, rgba(239,68,68,0.04), transparent 42%);
+    opacity: 0;
+    transition: opacity 0.25s ease;
+  }
+  .registro-modal-form-section:focus-within {
+    border-color: rgba(113, 113, 122, 0.88);
+    box-shadow: 0 0 0 2px rgba(113, 113, 122, 0.14), 0 12px 28px rgba(15, 23, 42, 0.10), inset 0 1px 0 rgba(255,255,255,0.08);
+    transform: translateY(-1px);
+  }
+  .registro-modal-form-section:focus-within::before { opacity: 1; }
+  .registro-modal-form-section:hover {
+    border-color: rgba(161, 161, 170, 0.78);
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.10), inset 0 1px 0 rgba(255,255,255,0.72);
+  }
+  .dark .registro-modal-form-section:hover {
+    border-color: rgba(113, 113, 122, 0.88);
+    box-shadow: 0 16px 34px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255,255,255,0.06);
+  }
+  .registro-modal-header { background: rgba(237, 237, 238, 0.96); }
+  .dark .registro-modal-header { background: rgba(5, 5, 5, 0.98) !important; border-color: rgba(39, 39, 42, 0.95) !important; }
+  .registro-section-kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    color: #52525b;
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+  .dark .registro-section-kicker { color: #d4d4d8; }
+  .registro-section-kicker::before {
+    content: "";
+    width: 4px;
+    height: 4px;
+    border-radius: 999px;
+    background: #ef4444;
+    box-shadow: 0 0 8px rgba(239, 68, 68, 0.60);
+  }
+  .registro-flow-strip {
+    background: linear-gradient(90deg, #ef4444, #dc2626, #991b1b, #ef4444);
+    background-size: 220% 100%;
+    animation: registro-flow 6s ease-in-out infinite;
+  }
+  @keyframes registro-flow {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+  .registro-small-label {
+    color: #52525b;
+    font-weight: 900;
+  }
+  .dark .registro-small-label {
+    color: #e4e4e7;
+  }
+  .registro-ambient-grid {
+    background-image:
+      linear-gradient(rgba(161, 161, 170, 0.18) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(161, 161, 170, 0.18) 1px, transparent 1px);
+    background-size: 28px 28px;
+  }
+  .dark .registro-ambient-grid {
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  }
+  .revisao-chip {
+    position: relative;
+    overflow: hidden;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .revisao-chip:active { transform: scale(0.95); }
+`;
+
 const SuccessToast = () => (
   <motion.div
     initial={{ opacity: 0, y: -50, x: 50 }}
@@ -333,31 +443,53 @@ const TimeInputControl = ({ currentMinutes, onTimeChange }) => {
   };
 
   return (
-    <div className="space-y-2">
-      <span className="text-xs font-extrabold text-zinc-400 uppercase tracking-widest flex items-center gap-1.5">
-        <Clock size={14} className="text-amber-500" /> Tempo do Tópico
-      </span>
-      <div className="flex gap-3">
-        <div className="flex-1 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-2 flex flex-col items-center relative group focus-within:border-amber-500">
-          <input type="number" value={horas} onChange={(e) => handleManualInput('horas', e.target.value)} min="0" className="w-full text-center text-xl font-black bg-transparent outline-none text-zinc-800 dark:text-white z-10" />
-          <span className="text-[9px] font-bold text-zinc-400 uppercase">Hr</span>
-          <div className="absolute right-0 top-0 bottom-0 flex flex-col justify-center px-1 z-20">
-            <button type="button" onClick={() => handleAdjust('horas', 1)} className="p-1 text-zinc-400 hover:text-amber-600 active:scale-90"><ChevronUp size={16} /></button>
-            <button type="button" onClick={() => handleAdjust('horas', -1)} className="p-1 text-zinc-400 hover:text-amber-600 active:scale-90"><ChevronDown size={16} /></button>
+    <div className="registro-modal-form-section p-2 md:p-2 space-y-1.5">
+      <div className="flex items-center gap-2 mb-1">
+        <span className="registro-section-kicker">
+          Tempo de Estudo
+        </span>
+        <span className="ml-auto text-[8px] font-black uppercase tracking-widest bg-zinc-200 dark:bg-[#333] text-zinc-800 dark:text-zinc-200 px-1.5 py-0.5 rounded-md">
+          Timer On
+        </span>
+      </div>
+      <div className="flex gap-2">
+        <div className="flex-1 bg-white/90 dark:bg-white/5 border border-zinc-200 dark:border-white/10 rounded-xl px-2 py-0.5 flex flex-col items-center relative group focus-within:border-zinc-400 dark:focus-within:border-zinc-500 transition-all shadow-inner">
+          <input type="number" value={horas} onChange={(e) => handleManualInput('horas', e.target.value)} min="0" className="w-full text-center text-lg md:text-base font-black bg-transparent outline-none text-zinc-900 dark:text-white z-10" />
+          <span className="registro-small-label text-[8px] uppercase tracking-widest mt-0.5">Horas</span>
+          <div className="absolute right-1 top-0 bottom-0 flex flex-col justify-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-20">
+            <button type="button" onClick={() => handleAdjust('horas', 1)} className="p-0.5 text-zinc-400 hover:text-zinc-800 dark:hover:text-white"><ChevronUp size={14} /></button>
+            <button type="button" onClick={() => handleAdjust('horas', -1)} className="p-0.5 text-zinc-400 hover:text-zinc-800 dark:hover:text-white"><ChevronDown size={14} /></button>
           </div>
         </div>
-        <div className="flex-1 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-2 flex flex-col items-center relative group focus-within:border-amber-500">
-          <input type="number" value={minutos} onChange={(e) => handleManualInput('minutos', e.target.value)} min="0" max="59" className="w-full text-center text-xl font-black bg-transparent outline-none text-zinc-800 dark:text-white z-10" />
-          <span className="text-[9px] font-bold text-zinc-400 uppercase">Min</span>
-          <div className="absolute right-0 top-0 bottom-0 flex flex-col justify-center px-1 z-20">
-            <button type="button" onClick={() => handleAdjust('minutos', 1)} className="p-1 text-zinc-400 hover:text-amber-600 active:scale-90"><ChevronUp size={16} /></button>
-            <button type="button" onClick={() => handleAdjust('minutos', -1)} className="p-1 text-zinc-400 hover:text-amber-600 active:scale-90"><ChevronDown size={16} /></button>
+        <div className="flex items-center text-zinc-400 font-black text-base pb-3">:</div>
+        <div className="flex-1 bg-white/90 dark:bg-white/5 border border-zinc-200 dark:border-white/10 rounded-xl px-2 py-0.5 flex flex-col items-center relative group focus-within:border-zinc-400 dark:focus-within:border-zinc-500 transition-all shadow-inner">
+          <input type="number" value={minutos} onChange={(e) => handleManualInput('minutos', e.target.value)} min="0" max="59" className="w-full text-center text-lg md:text-base font-black bg-transparent outline-none text-zinc-900 dark:text-white z-10" />
+          <span className="registro-small-label text-[8px] uppercase tracking-widest mt-0.5">Minutos</span>
+          <div className="absolute right-1 top-0 bottom-0 flex flex-col justify-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-20">
+            <button type="button" onClick={() => handleAdjust('minutos', 1)} className="p-0.5 text-zinc-400 hover:text-zinc-800 dark:hover:text-white"><ChevronUp size={14} /></button>
+            <button type="button" onClick={() => handleAdjust('minutos', -1)} className="p-0.5 text-zinc-400 hover:text-zinc-800 dark:hover:text-white"><ChevronDown size={14} /></button>
           </div>
         </div>
       </div>
     </div>
   );
 };
+
+const RevisaoChip = ({ value, label, active, onClick, autoMode }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className={`revisao-chip flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-semibold border transition-all ${
+      active
+        ? 'bg-red-600 text-white border-red-600 shadow-md shadow-red-500/20'
+        : autoMode
+          ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-900/50'
+          : 'bg-white/80 text-zinc-600 border-zinc-200 hover:border-red-300 hover:text-red-600 dark:bg-zinc-900 dark:text-zinc-300 dark:border-zinc-800'
+    }`}
+  >
+    <span>{label}</span>
+  </button>
+);
 
 // ----------------------------------------------------
 // COMPONENTE PRINCIPAL
@@ -385,8 +517,8 @@ function TimerFinishModal({
     [userUid, activeCicloId, disciplinaNome, timeMinutes]
   );
 
-  const [step, setStep] = useState(1);
-  const [hasQuestions, setHasQuestions] = useState(null);
+  const [step, setStep] = useState(2);
+  const [hasQuestions, setHasQuestions] = useState(true);
   const [topics, setTopics] = useState([{
     id: 'initial',
     assunto: initialAssunto || '',
@@ -394,6 +526,7 @@ function TimerFinishModal({
     questions: 0,
     correct: 0,
     revisaoEscolhida: getRevisaoEscolhidaInicial(),
+    revisaoPersonalizadaDias: 14,
     markAsFinished: false,
     teoriaNaoFinalizadaCiclo: false,
     naoConcluidoCronograma: false,
@@ -444,6 +577,12 @@ function TimerFinishModal({
     () => availableContexts.find((context) => context?.type === selectedContext) || null,
     [availableContexts, selectedContext]
   );
+  const selectedContextLogo = selectedContextMeta?.logoUrl
+    || selectedContextMeta?.logo
+    || selectedContextMeta?.editalLogoUrl
+    || (selectedContext === 'ciclo' ? activeCicloData?.logoUrl || activeCicloData?.logo : null);
+  const selectedContextLabel = selectedContextMeta?.label
+    || (selectedContext === 'cronograma' ? 'Cronograma' : selectedContext === 'ciclo' ? 'Ciclo' : 'Planejamento');
   const selectedCronogramaId = selectedContext === 'cronograma'
     ? (selectedContextMeta?.id || null)
     : null;
@@ -604,6 +743,7 @@ function TimerFinishModal({
         questions: 0,
         correct: 0,
         revisaoEscolhida: getRevisaoEscolhidaPlaceholder(selectedContext, revisaoModoCiclo),
+        revisaoPersonalizadaDias: 14,
         markAsFinished: false,
         teoriaNaoFinalizadaCiclo: false,
         naoConcluidoCronograma: false,
@@ -632,8 +772,8 @@ function TimerFinishModal({
     if (raw && typeof raw === 'object') {
       const ageMs = Date.now() - (Number(raw.savedAt) || 0);
       if (ageMs < 24 * 60 * 60 * 1000) {
-        if (raw.step) setStep(raw.step);
-        if (typeof raw.hasQuestions === 'boolean') setHasQuestions(raw.hasQuestions);
+        setStep(2);
+        setHasQuestions(true);
         if (Array.isArray(raw.topics)) setTopics(raw.topics);
         if (raw.disciplinaManual) setDisciplinaManual(raw.disciplinaManual);
         if (Array.isArray(raw.assuntosExtras)) setAssuntosExtras(raw.assuntosExtras);
@@ -752,7 +892,7 @@ function TimerFinishModal({
     setErrorMessage('');
 
     if (!selectedContext) {
-      setErrorMessage('Escolha onde deseja registrar esta sessão.');
+      setErrorMessage('Escolha onde deseja registrar este bloco de estudo.');
       return;
     }
     if (selectedContext === 'cronograma' && !selectedCronogramaId) {
@@ -765,6 +905,14 @@ function TimerFinishModal({
     }
     if (selectedContext === 'ciclo' && tipoRegistro !== 'revisao' && topics.some((t) => t.revisaoEscolhida === null)) {
       setErrorMessage('Escolha explicitamente a revisao ou marque Nao revisar em todos os topicos do ciclo.');
+      return;
+    }
+    if (
+      selectedContext === 'ciclo' &&
+      tipoRegistro !== 'revisao' &&
+      topics.some((t) => t.revisaoEscolhida === 'custom' && !resolveIntervaloRevisao(t))
+    ) {
+      setErrorMessage('Informe um intervalo valido para a revisao personalizada.');
       return;
     }
     if (!isTimeBalanced) {
@@ -789,12 +937,13 @@ function TimerFinishModal({
         const hasPendingCicloTopic = selectedContext === 'ciclo' && tipoRegistro !== 'revisao' && topics.some((topic) => topic.teoriaNaoFinalizadaCiclo);
 
         for (const t of topics) {
-          const qs = hasQuestions ? (Number(t.questions) || 0) : 0;
-          const ac = hasQuestions ? (Number(t.correct) || 0) : 0;
+          const qs = Number(t.questions) || 0;
+          const ac = Number(t.correct) || 0;
 
           totalQuestions += qs;
           totalCorrect += ac;
 
+          const intervaloRevisaoResolvido = resolveIntervaloRevisao(t);
           await addRegistroEstudo({
             ...(selectedContext === 'ciclo' && activeCicloId ? { cicloId: activeCicloId } : {}),
             ...(selectedContext === 'cronograma' && selectedCronogramaId ? { cronogramaId: selectedCronogramaId } : {}),
@@ -810,13 +959,13 @@ function TimerFinishModal({
             questoesFeitas: qs,
             acertos: ac,
             questoesAcertadas: ac,
-            tipoEstudo: tipoRegistro === 'revisao' ? 'revisao' : (hasQuestions ? 'Questoes' : 'Teoria'),
+            tipoEstudo: tipoRegistro === 'revisao' ? 'revisao' : (qs > 0 ? 'Questoes' : 'Teoria'),
             tipoRegistro,
             ...(tipoRegistro === 'revisao' ? { isRevisao: true, revisao: true } : {}),
             origem: 'timer',
             ...(!hasPendingCicloTopic && Number.isFinite(Number(sessaoGlobalIndex)) ? { sessaoGlobalIndex: Number(sessaoGlobalIndex) } : {}),
-            ...(tipoRegistro !== 'revisao' && shouldPersistIntervaloRevisao(selectedContext, t.revisaoEscolhida)
-              ? { intervaloRevisaoDias: t.revisaoEscolhida }
+            ...(tipoRegistro !== 'revisao' && shouldPersistIntervaloRevisao(selectedContext, intervaloRevisaoResolvido)
+              ? { intervaloRevisaoDias: intervaloRevisaoResolvido }
               : {}),
             ...(tipoRegistro !== 'revisao' && selectedContext === 'ciclo' && revisaoModoCiclo === REVISAO_MODO_SUGESTAO
               ? { revisaoAutomaticaCiclo: true }
@@ -827,7 +976,7 @@ function TimerFinishModal({
           });
 
           let xp = (Number(t.minutes) || 0) + qs + ac;
-          if (hasQuestions && qs >= 5 && qs > 0 && (ac / qs) >= 0.85) xp += 15;
+          if (qs >= 5 && (ac / qs) >= 0.85) xp += 15;
           totalXP += xp;
 
           if (tipoRegistro !== 'revisao' && selectedContext === 'ciclo' && t.markAsFinished) {
@@ -882,7 +1031,7 @@ function TimerFinishModal({
           }
         }
 
-        if (totalXP > 0) await addXP(totalXP, 'Sessão Cronometrada');
+        if (totalXP > 0) await addXP(totalXP, 'Bloco cronometrado');
         await checkAndAwardMilestone('FIRST_STUDY');
 
         const summaryPayload = {
@@ -928,8 +1077,8 @@ function TimerFinishModal({
 
       for (const t of topics) {
         const newDocRef = doc(collectionRef);
-        const qs = hasQuestions ? (Number(t.questions) || 0) : 0;
-        const ac = hasQuestions ? (Number(t.correct) || 0) : 0;
+        const qs = Number(t.questions) || 0;
+        const ac = Number(t.correct) || 0;
 
         totalQuestions += qs;
         totalCorrect += ac;
@@ -948,12 +1097,12 @@ function TimerFinishModal({
           questoesFeitas: qs,
           acertos: ac,
           questoesAcertadas: ac,
-          tipoEstudo: hasQuestions ? 'Questões' : 'Teoria',
+          tipoEstudo: qs > 0 ? 'Questões' : 'Teoria',
           origem: 'timer'
         });
 
         let xp = (Number(t.minutes) || 0) + qs + ac;
-        if (hasQuestions && qs >= 5 && qs > 0 && (ac / qs) >= 0.85) xp += 15;
+        if (qs >= 5 && (ac / qs) >= 0.85) xp += 15;
         totalXP += xp;
 
         if (t.markAsFinished) {
@@ -1019,7 +1168,7 @@ function TimerFinishModal({
         updateDoc(discSubRef, { assuntos: arrayUnion(...assuntosNovos) }).catch(() => {});
       }
 
-      if (totalXP > 0) await addXP(totalXP, 'Sessão Cronometrada');
+      if (totalXP > 0) await addXP(totalXP, 'Bloco cronometrado');
       await checkAndAwardMilestone('FIRST_STUDY');
 
       const summaryPayload = {
@@ -1053,13 +1202,14 @@ function TimerFinishModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[10000] bg-black/90 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 animate-fade-in">
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 md:p-5 bg-zinc-950/78 backdrop-blur-xl registro-ambient-grid">
+      <style>{timerFinishStyles}</style>
       <AnimatePresence>
         {showDiscardModal && (
           <ConfirmCloseModal
             isOpen={true}
             onCancel={() => setShowDiscardModal(false)}
-            title="Descartar Sessão?"
+            title="Descartar bloco?"
             desc="Todo o progresso deste cronômetro será perdido permanentemente."
             confirmText="Sim, Descartar"
             icon={Trash2}
@@ -1075,77 +1225,85 @@ function TimerFinishModal({
       </AnimatePresence>
 
       <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.95 }}
-        className="bg-white dark:bg-zinc-950 w-full max-w-2xl rounded-[32px] shadow-2xl border border-zinc-200 dark:border-zinc-800 flex flex-col relative max-h-[90vh] overflow-hidden"
+        initial={{ opacity: 0, scale: 0.96, y: 16 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.96, y: 8 }}
+        transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+        style={{ width: '100%', maxWidth: '720px', maxHeight: 'min(705px, calc(100dvh - 40px))' }}
+        className="group relative bg-[#e6e6e8] dark:bg-[#070707] rounded-[26px] shadow-[0_28px_90px_rgba(0,0,0,0.42)] border border-zinc-300/80 dark:border-zinc-800 overflow-hidden flex flex-col"
+        onClick={(e) => e.stopPropagation()}
       >
+        <div className="registro-flow-strip h-1 w-full shrink-0" />
         {/* HEADER */}
-        <div className="bg-zinc-50 dark:bg-zinc-900/50 p-6 border-b border-zinc-100 dark:border-zinc-800 flex flex-col sm:flex-row justify-between items-center gap-4 shrink-0">
-          <div className="flex items-center gap-3 sm:gap-4 w-full sm:w-auto">
-            <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-500 rounded-2xl flex items-center justify-center shadow-sm shrink-0">
-              <CheckCircle2 size={24} />
+        <div className="registro-modal-header relative z-10 flex flex-col gap-1.5 px-3 py-1.5 md:px-4 md:py-1.5 border-b border-zinc-300/80 dark:border-zinc-800 shrink-0">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <motion.div
+                animate={{ rotate: [0, -4, 4, 0], scale: [1, 1.03, 1] }}
+                transition={{ duration: 4.5, repeat: Infinity, ease: 'easeInOut' }}
+                className="relative flex h-7 w-7 md:h-8 md:w-8 items-center justify-center overflow-hidden rounded-xl bg-red-600 text-white shadow-lg shadow-red-500/25"
+              >
+                {selectedContextLogo ? (
+                  <img src={selectedContextLogo} alt={selectedContextLabel} className="h-full w-full object-contain bg-white p-1" />
+                ) : (
+                  <Save size={16} strokeWidth={1.8} />
+                )}
+              </motion.div>
+              <div className="min-w-0">
+                <h2 className="truncate text-base md:text-lg font-black uppercase tracking-tight text-zinc-950 dark:text-white leading-tight">
+                  Finalizar <span className="text-red-600">Sessão de Estudo</span>
+                </h2>
+              </div>
             </div>
-            <div className="flex-1">
-              <h2 className="text-xl font-black text-zinc-800 dark:text-white uppercase tracking-tight leading-none">Sessão Finalizada</h2>
-              <p className="text-zinc-500 font-medium text-xs sm:text-sm mt-1 flex items-center gap-2">
-                <Clock size={14} /> {formatTimeHeader(timeMinutes)} de foco total
-              </p>
-            </div>
-          </div>
-
-          {/* Disciplina — agora é um ComboBox no header */}
-          <div className="w-full sm:w-auto sm:min-w-[220px]">
-            <ComboBox
-              options={disciplinaOptions}
-              value={disciplinaManual || disciplinaNome}
-              onChange={handleDisciplinaManualChange}
-              placeholder="Selecione ou crie disciplina..."
-              icon={BookOpen}
-              allowCreate={true}
-              createLabel="Nova disciplina"
-              loading={loadingAssuntos}
-              emptyLabel="Nenhuma disciplina encontrada"
-            />
-            {erroDisciplina && !disciplinaManual && (
-              <p className="text-[10px] text-amber-600 mt-1 font-bold flex items-center gap-1">
-                <AlertTriangle size={10} /> Disciplina não reconhecida — selecione ou crie
-              </p>
-            )}
+            <button
+              type="button"
+              onClick={() => {
+                if (onCancel) onCancel();
+                setTimeout(() => window.dispatchEvent(new CustomEvent('StudyTimer:FinishResume')), 100);
+              }}
+              className="p-2 bg-zinc-100 hover:bg-zinc-200 dark:bg-white/5 dark:hover:bg-white/10 text-zinc-500 dark:text-zinc-300 rounded-xl transition-all duration-300 hover:rotate-90"
+              aria-label="Fechar"
+            >
+              <X size={17} />
+            </button>
           </div>
         </div>
 
         {/* BODY */}
-        <div className="p-6 md:p-8 overflow-y-auto flex-1" style={{ scrollbarWidth: 'thin' }}>
+        <div className="pointer-events-none absolute left-1/2 top-[58%] z-0 h-72 w-[62%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-red-500/10 blur-[90px] dark:bg-red-600/12" />
+        <div className="relative z-10 flex-1 overflow-y-auto px-4 py-3 md:px-4 md:py-2.5 custom-scrollbar space-y-3 md:space-y-2 bg-transparent" style={{ scrollbarWidth: 'thin' }}>
           {step === 1 ? (
-            <div className="flex flex-col items-center justify-center py-8 space-y-8 h-full">
-              <div className="text-center space-y-2">
-                <h3 className="text-2xl font-bold text-zinc-800 dark:text-white">Resolveu questões?</h3>
-                <p className="text-zinc-500 text-sm max-w-xs mx-auto">Registre seu desempenho para alimentar as estatísticas de acertos.</p>
+            <div className="flex min-h-[430px] flex-col justify-center space-y-3">
+              <div className="registro-modal-form-section p-3 md:p-2.5 space-y-2 text-center">
+                <p className="registro-section-kicker justify-center">Bloco finalizado</p>
+                <h3 className="text-lg md:text-xl font-black tracking-tight text-zinc-950 dark:text-white">Resolveu questoes?</h3>
+                <p className="mx-auto max-w-xs text-xs font-semibold text-zinc-500 dark:text-zinc-400">
+                  {formatTimeHeader(timeMinutes)} de foco total em {selectedContextLabel}.
+                </p>
               </div>
-              <div className="grid grid-cols-2 gap-6 w-full max-w-md">
-                <button type="button" onClick={() => { setHasQuestions(false); setStep(2); }} className="flex flex-col items-center justify-center gap-3 p-6 rounded-[32px] border-2 border-zinc-100 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-all group h-40">
-                  <XCircle size={42} className="text-zinc-300 group-hover:text-red-500 transition-colors" />
-                  <span className="font-bold text-base sm:text-lg text-zinc-600 dark:text-zinc-400 text-center">Apenas Estudo</span>
+              <div className="grid grid-cols-2 gap-3">
+                <button type="button" onClick={() => { setHasQuestions(false); setStep(2); }} className="registro-modal-form-section flex min-h-[96px] flex-col items-center justify-center gap-2 p-3 text-center transition-all hover:-translate-y-0.5">
+                  <XCircle size={26} className="text-zinc-400" />
+                  <span className="text-[11px] font-black uppercase tracking-wide text-zinc-700 dark:text-zinc-300">Apenas Estudo</span>
                 </button>
-                <button type="button" onClick={() => { setHasQuestions(true); setStep(2); }} className="flex flex-col items-center justify-center gap-3 p-6 rounded-[32px] border-2 border-emerald-100 dark:border-emerald-900/30 bg-emerald-50/50 dark:bg-emerald-900/10 hover:border-emerald-500 hover:shadow-xl hover:shadow-emerald-500/20 transition-all group h-40">
-                  <Target size={42} className="text-emerald-500 group-hover:scale-110 transition-transform" />
-                  <span className="font-bold text-base sm:text-lg text-emerald-700 dark:text-emerald-400 text-center">Sim, resolvi!</span>
+                <button type="button" onClick={() => { setHasQuestions(true); setStep(2); }} className="registro-modal-form-section flex min-h-[96px] flex-col items-center justify-center gap-2 p-3 text-center transition-all hover:-translate-y-0.5 !border-red-500/60">
+                  <Target size={26} className="text-red-500" />
+                  <span className="text-[11px] font-black uppercase tracking-wide text-red-700 dark:text-red-300">Sim, resolvi</span>
                 </button>
               </div>
-              <div className="flex gap-4 mt-6 w-full max-w-md">
+              <div className="flex gap-3">
                 {onDiscard && (
-                  <button type="button" onClick={() => setShowDiscardModal(true)} className="flex-1 flex items-center justify-center gap-2 px-3 py-3 rounded-xl border-2 border-red-100 dark:border-red-900/30 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 font-bold uppercase text-xs tracking-wider transition-all">
+                  <button type="button" onClick={() => setShowDiscardModal(true)} className="flex-1 py-3 md:py-2.5 px-3 rounded-2xl border border-zinc-300 dark:border-white/10 bg-zinc-50 dark:bg-white/5 text-zinc-700 dark:text-zinc-300 hover:-translate-y-0.5 hover:border-zinc-800 dark:hover:border-zinc-200 hover:text-zinc-900 dark:hover:text-white hover:shadow-lg text-[11px] font-bold uppercase tracking-wide transition-all flex items-center justify-center gap-1.5">
                     <Trash2 size={16} /> Descartar
                   </button>
                 )}
-                <button type="button" onClick={() => { if (onCancel) onCancel(); setTimeout(() => window.dispatchEvent(new CustomEvent('StudyTimer:FinishResume')), 100); }} className="flex-[2] flex items-center justify-center gap-2 px-3 py-3 rounded-xl border-2 border-zinc-200 dark:border-zinc-700 hover:border-zinc-400 dark:hover:border-zinc-600 text-zinc-600 dark:text-zinc-300 hover:text-black dark:hover:text-white font-bold uppercase text-xs tracking-wider transition-all">
+                <button type="button" onClick={() => { if (onCancel) onCancel(); setTimeout(() => window.dispatchEvent(new CustomEvent('StudyTimer:FinishResume')), 100); }} className="flex-1 overflow-hidden px-4 py-3 md:py-2.5 rounded-2xl text-[11px] font-bold uppercase tracking-wide text-white transition-all flex items-center justify-center gap-1.5 shadow-lg bg-red-600 hover:bg-red-700 hover:-translate-y-0.5 hover:shadow-red-500/25">
                   <RotateCcw size={16} /> Retomar
                 </button>
               </div>
             </div>
           ) : (
-            <form onSubmit={handleSaveSession} className="space-y-6">
+            <form onSubmit={handleSaveSession} className="space-y-3 md:space-y-2">
               {errorMessage && (
                 <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-500 text-sm font-medium flex items-center gap-2">
                   <AlertTriangle size={18} /> {errorMessage}
@@ -1153,30 +1311,51 @@ function TimerFinishModal({
               )}
 
               {hasMultipleContexts && (
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-zinc-400 uppercase tracking-wide ml-1">
-                    Registrar em
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
+                <div className="registro-modal-form-section p-2 md:p-2">
+                  <p className="registro-section-kicker mb-1.5">
+                    Planejamento
+                  </p>
+                  <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
                     {availableContexts.map((context) => {
                       const active = selectedContext === context.type;
+                      const isCiclo = context.type === 'ciclo';
+                      const label = context.label || (isCiclo ? 'Ciclo' : 'Cronograma');
+                      const title = isCiclo ? 'Ciclo' : 'Cronograma';
                       return (
                         <button
                           key={context.type}
                           type="button"
                           onClick={() => setSelectedContext(context.type)}
-                          className={`p-3 rounded-xl border-2 text-left transition-all ${
+                          className={`group relative flex min-h-[72px] flex-col items-center justify-center gap-1.5 rounded-xl p-1.5 text-center border transition-all duration-300 overflow-hidden hover:-translate-y-0.5 ${
                             active
-                              ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/10'
-                              : 'border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700'
+                              ? 'border-zinc-400 bg-white/90 dark:border-zinc-500 dark:bg-[#1f1f1f] shadow-sm'
+                              : 'border-white/70 dark:border-zinc-700 bg-white/70 dark:bg-[#141414] hover:border-zinc-300 dark:hover:border-zinc-500'
                           }`}
                         >
-                          <p className={`text-sm font-bold ${active ? 'text-emerald-700 dark:text-emerald-400' : 'text-zinc-700 dark:text-zinc-300'}`}>
-                            {context.label}
-                          </p>
-                          <p className="text-[10px] text-zinc-500 font-medium">
-                            {context.type === 'ciclo' ? 'Mantém a conclusão e revisão do ciclo' : 'Permite teoria ainda não concluída'}
-                          </p>
+                          <span className={`relative flex h-9 w-9 md:h-10 md:w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border transition-all duration-300 ${
+                            active
+                              ? 'border-zinc-400 dark:border-zinc-500 bg-zinc-100/80 dark:bg-[#2A2A2A]'
+                              : 'border-transparent bg-white dark:bg-[#2A2A2A]'
+                          }`}>
+                            {context.logoUrl || context.logo || context.editalLogoUrl ? (
+                              <img src={context.logoUrl || context.logo || context.editalLogoUrl} alt={context.label} className="h-full w-full object-contain p-1" />
+                            ) : (
+                              <BookOpen size={15} className="text-zinc-400" />
+                            )}
+                          </span>
+                          <span className="min-w-0 w-full">
+                            <span className={`block text-[8px] font-black uppercase tracking-[0.18em] ${active ? 'text-zinc-700 dark:text-zinc-200' : 'text-zinc-400'}`}>
+                              {title}
+                            </span>
+                            <span className={`block truncate text-[11px] font-black ${active ? 'text-zinc-900 dark:text-white' : 'text-zinc-600 dark:text-zinc-300'}`}>
+                              {label}
+                            </span>
+                          </span>
+                          {active && (
+                            <div className="absolute top-2.5 right-2.5 text-zinc-500 dark:text-zinc-300">
+                              <CheckCircle2 size={15} strokeWidth={2.5} />
+                            </div>
+                          )}
                         </button>
                       );
                     })}
@@ -1184,68 +1363,123 @@ function TimerFinishModal({
                 </div>
               )}
 
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-zinc-400 uppercase tracking-wide ml-1">
-                  Tipo de registro
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { value: 'estudo', label: 'Estudo', icon: BookOpen },
-                    { value: 'revisao', label: 'Revisao', icon: RotateCcw },
-                  ].map((option) => {
-                    const Icon = option.icon;
-                    const active = tipoRegistro === option.value;
-                    return (
-                      <button
-                        key={option.value}
-                        type="button"
-                        onClick={() => {
-                          setTipoRegistro(option.value);
-                          if (option.value === 'revisao') {
-                            setTopics((prev) => prev.map((topic) => ({
-                              ...topic,
-                              revisaoEscolhida: 'skip',
-                              markAsFinished: false,
-                              teoriaNaoFinalizadaCiclo: false,
-                              naoConcluidoCronograma: false,
-                            })));
-                          }
-                        }}
-                        className={`flex items-center justify-center gap-2 rounded-2xl border-2 px-3 py-3 text-sm font-black transition-all ${
-                          active
-                            ? 'border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/10 dark:text-emerald-300'
-                            : 'border-zinc-200 bg-white text-zinc-600 hover:border-emerald-200 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300'
-                        }`}
-                      >
-                        <Icon size={16} />
-                        {option.label}
-                      </button>
-                    );
-                  })}
+              <div className="registro-modal-form-section relative z-[90] p-3 md:p-2.5">
+                <div className="mb-3 md:mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="registro-section-kicker">
+                    Modo da Sessao
+                  </p>
+                  <div className="inline-flex w-full items-center gap-1 rounded-2xl border border-zinc-300/80 bg-zinc-100/70 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.18)] dark:border-zinc-700 dark:bg-zinc-900/70 sm:w-auto">
+                    {[
+                      { value: 'estudo', label: 'Estudo', icon: BookOpen },
+                      { value: 'revisao', label: 'Revisao', icon: RotateCcw },
+                    ].map((option) => {
+                      const Icon = option.icon;
+                      const active = tipoRegistro === option.value;
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => {
+                            setTipoRegistro(option.value);
+                            if (option.value === 'revisao') {
+                              setTopics((prev) => prev.map((topic) => ({
+                                ...topic,
+                                revisaoEscolhida: 'skip',
+                                markAsFinished: false,
+                                teoriaNaoFinalizadaCiclo: false,
+                                naoConcluidoCronograma: false,
+                              })));
+                            } else {
+                              setTopics((prev) => prev.map((topic) => ({
+                                ...topic,
+                                revisaoEscolhida: getRevisaoEscolhidaPlaceholder(selectedContext, revisaoModoCiclo),
+                              })));
+                            }
+                          }}
+                          className={`flex-1 md:flex-none flex items-center justify-center gap-1.5 rounded-xl px-3.5 py-1.5 text-[11px] font-black transition-all duration-300 ${
+                            active
+                              ? 'bg-zinc-900 text-white shadow-sm dark:bg-zinc-100 dark:text-zinc-950'
+                              : 'text-zinc-600 dark:text-zinc-300 hover:bg-white/70 dark:hover:bg-white/10'
+                          }`}
+                        >
+                          <Icon size={12} strokeWidth={2.5} />
+                          {option.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-2.5">
+                  <div className="space-y-1 md:space-y-0.5 relative z-[120]">
+                    <label className="registro-small-label text-[9px] uppercase tracking-[0.2em] flex items-center gap-1.5">
+                      <BookOpen size={11} className="text-zinc-400" /> Disciplina
+                    </label>
+                    <div className="relative z-[120]">
+                      <ComboBox
+                        options={disciplinaOptions}
+                        value={disciplinaManual || disciplinaNome}
+                        onChange={handleDisciplinaManualChange}
+                        placeholder="Selecione ou crie disciplina..."
+                        icon={BookOpen}
+                        allowCreate={true}
+                        createLabel="Criar disciplina"
+                        loading={loadingAssuntos}
+                        emptyLabel="Nenhuma disciplina encontrada"
+                      />
+                    </div>
+                    {erroDisciplina && !disciplinaManual && (
+                      <p className="text-[10px] text-amber-600 mt-1 font-bold flex items-center gap-1">
+                        <AlertTriangle size={10} /> Disciplina nao reconhecida - selecione ou crie
+                      </p>
+                    )}
+                  </div>
+
+                  {topics.length === 1 && (
+                    <div className="space-y-1 md:space-y-0.5 relative z-[130]">
+                      <label className="registro-small-label text-[9px] uppercase tracking-[0.2em] flex items-center justify-between">
+                        <span className="flex items-center gap-1.5"><Target size={11} className="text-zinc-400" /> Assunto</span>
+                        {loadingAssuntos && <span className="text-zinc-500 text-[9px] animate-pulse font-black tracking-widest uppercase">carregando...</span>}
+                      </label>
+                      <div className="relative z-[130]">
+                        <ComboBox
+                          options={assuntoOptions}
+                          value={topics[0]?.assunto || ''}
+                          onChange={(val) => handleAssuntoChange(0, val)}
+                          placeholder="Selecione ou crie assunto..."
+                          icon={List}
+                          allowCreate={true}
+                          createLabel="Novo assunto"
+                          loading={loadingAssuntos}
+                          emptyLabel="Nenhum assunto - digite para criar"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-3 md:space-y-2">
                 <AnimatePresence>
                   {topics.map((topic, index) => (
                     <motion.div
                       key={topic.id}
                       initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }}
-                      className="bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 relative"
+                      className="registro-modal-form-section p-3 md:p-2.5 relative z-[80]"
                     >
                       {topics.length > 1 && (
-                        <div className="flex justify-between items-center mb-4 pb-3 border-b border-zinc-200 dark:border-zinc-800">
+                        <div className="flex justify-between items-center mb-3 pb-2 border-b border-zinc-200 dark:border-zinc-800">
                           <span className="text-xs font-black text-zinc-400 uppercase tracking-wide">Tópico #{index + 1}</span>
                           <button type="button" onClick={() => removeTopic(index)} className="text-zinc-400 hover:text-red-500 transition-colors"><X size={16} /></button>
                         </div>
                       )}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-5">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-2.5">
+                        <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(158px,0.52fr)] gap-2 md:gap-2.5 content-start">
                           {/* ── ASSUNTO ComboBox ── */}
-                          <div className="space-y-1.5 relative z-50">
-                            <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest ml-1 flex items-center gap-1.5">
-                              Assunto Estudado
-                              <span className="text-[9px] normal-case font-normal text-zinc-400">(selecione ou crie)</span>
+                          <div className={`${topics.length === 1 ? 'hidden' : 'space-y-1 md:space-y-0.5'} relative z-50 md:col-span-2`}>
+                            <label className="registro-small-label text-[9px] uppercase tracking-[0.2em] flex items-center justify-between">
+                              <span className="flex items-center gap-1.5"><Target size={11} className="text-zinc-400" /> O que voce estudou?</span>
+                              {loadingAssuntos && <span className="text-red-500 text-[9px] animate-pulse font-black tracking-widest uppercase">carregando...</span>}
                             </label>
                             <ComboBox
                               options={assuntoOptions}
@@ -1261,65 +1495,74 @@ function TimerFinishModal({
                           </div>
 
                           {selectedContext === 'ciclo' && tipoRegistro !== 'revisao' && topic.assunto && (
-                            <div className="space-y-3">
+                            <div className="space-y-2 border-t border-zinc-200 pt-3 dark:border-zinc-800 md:row-span-2">
                               <div className="flex items-center justify-between gap-3">
                                 <div>
-                                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-400">Revisao do ciclo</p>
-                                  <p className="text-xs text-zinc-500">
+                                  <p className="registro-small-label text-[9px] uppercase tracking-[0.18em] flex items-center gap-1.5">
+                                    <RotateCcw size={11} /> Revisao do ciclo
+                                  </p>
+                                  <p className="text-[9px] font-semibold text-zinc-400 dark:text-zinc-500 mt-0.5 leading-snug">
                                     {revisaoModoCiclo === 'sugestao_automatica'
-                                      ? 'Agenda automatica completa: 1 dia, 7 dias e 30 dias.'
-                                      : 'Este ciclo exige escolha explicita ou Nao revisar em cada registro.'}
+                                      ? 'Revisoes automaticas ativas.'
+                                      : 'Escolha quando revisar.'}
                                   </p>
                                 </div>
-                                <span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wide ${
+                                <span className={`rounded-[6px] px-2 py-0.5 text-[8px] font-black uppercase tracking-widest ${
                                   revisaoModoCiclo === 'sugestao_automatica'
-                                    ? 'bg-blue-50 text-blue-600 border border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800'
-                                    : 'bg-zinc-100 text-zinc-600 border border-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-700'
+                                    ? 'bg-emerald-500/10 text-emerald-600'
+                                    : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300'
                                 }`}>
-                                  {revisaoModoCiclo === 'sugestao_automatica' ? '1d + 7d + 30d' : 'Escolha obrigatoria'}
+                                  {revisaoModoCiclo === 'sugestao_automatica' ? 'Smart' : 'Obrigatorio'}
                                 </span>
                               </div>
 
-                              <div className="grid grid-cols-2 gap-2">
+                              <div className="flex flex-wrap gap-1.5">
                                 {[
-                                  { value: 1, title: '1 dia', subtitle: 'Revisao inicial' },
-                                  { value: 7, title: '7 dias', subtitle: 'Revisao semanal' },
-                                  { value: 30, title: '30 dias', subtitle: 'Revisao mensal' },
-                                  { value: 'skip', title: 'Nao revisar', subtitle: 'Sem agendamento' },
+                                  { value: 1, label: '1 dia' },
+                                  { value: 7, label: '7 dias' },
+                                  { value: 30, label: '30 dias' },
+                                  { value: 'custom', label: 'Personalizado' },
+                                  { value: 'skip', label: 'Nao revisar' },
                                 ].map((option) => {
-                                  const active = topic.revisaoEscolhida === option.value;
                                   return (
-                                    <button
+                                    <RevisaoChip
                                       key={String(option.value)}
-                                      type="button"
+                                      value={option.value}
+                                      label={option.label}
+                                      active={topic.revisaoEscolhida === option.value}
                                       onClick={() => updateTopicData(index, { revisaoEscolhida: option.value })}
-                                      className={`rounded-2xl border-2 p-3 text-left transition-all ${
-                                        active
-                                          ? 'border-red-500 bg-red-50 dark:bg-red-900/10'
-                                          : 'border-zinc-200 bg-white hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700'
-                                      }`}
-                                    >
-                                      <p className={`text-sm font-bold ${active ? 'text-red-700 dark:text-red-300' : 'text-zinc-700 dark:text-zinc-300'}`}>
-                                        {option.title}
-                                      </p>
-                                      <p className="text-[10px] text-zinc-500 mt-0.5">{option.subtitle}</p>
-                                    </button>
+                                      autoMode={revisaoModoCiclo === 'sugestao_automatica' && option.value !== 'skip'}
+                                    />
                                   );
                                 })}
                               </div>
+                              {topic.revisaoEscolhida === 'custom' && (
+                                <label className="flex items-center gap-3 rounded-xl border border-zinc-200 bg-white p-2 text-xs font-bold text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300">
+                                  <span className="shrink-0 uppercase tracking-wide text-zinc-400">Revisar em</span>
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    max="365"
+                                    value={topic.revisaoPersonalizadaDias ?? 14}
+                                    onChange={(e) => updateTopicData(index, { revisaoPersonalizadaDias: Math.max(1, Number(e.target.value) || 1) })}
+                                    className="h-9 w-20 rounded-xl border border-zinc-200 bg-zinc-50 px-2 text-center font-black text-zinc-900 outline-none focus:border-red-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-white"
+                                  />
+                                  <span className="shrink-0 text-zinc-500">dia(s)</span>
+                                </label>
+                              )}
                             </div>
                           )}
 
                           {selectedContext === 'ciclo' && tipoRegistro !== 'revisao' && topic.assunto && (
                             <div
                               onClick={() => updateTopicData(index, { markAsFinished: !topic.markAsFinished, teoriaNaoFinalizadaCiclo: false })}
-                              className={`p-4 rounded-2xl border-2 cursor-pointer transition-all flex items-center gap-4 ${topic.markAsFinished ? 'bg-emerald-50 dark:bg-emerald-900/10 border-emerald-500' : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 hover:border-emerald-300'}`}
+                              className={`relative w-full min-h-[44px] overflow-hidden flex items-center gap-2.5 px-3 py-2 rounded-xl border cursor-pointer transition-all duration-300 text-left md:col-start-2 ${topic.markAsFinished ? 'bg-emerald-600 border-emerald-500 text-white shadow-sm' : 'bg-emerald-50/70 dark:bg-emerald-950/25 border-emerald-200 dark:border-emerald-800/60 hover:border-emerald-400 dark:hover:border-emerald-500 text-zinc-700 dark:text-zinc-300'}`}
                             >
-                              <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-colors shrink-0 ${topic.markAsFinished ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-zinc-300 dark:border-zinc-600 text-transparent'}`}>
-                                <CheckSquare size={14} strokeWidth={4} />
+                              <div className={`relative w-7 h-7 md:h-6 md:w-6 rounded-lg border-2 flex items-center justify-center transition-all duration-300 shrink-0 ${topic.markAsFinished ? 'bg-white border-white text-emerald-600 scale-105 shadow-sm' : 'bg-white/70 dark:bg-zinc-950/70 border-emerald-400 dark:border-emerald-600 text-emerald-500'}`}>
+                                {topic.markAsFinished ? <CheckSquare size={15} strokeWidth={3} /> : <CheckCircle2 size={15} strokeWidth={3} />}
                               </div>
-                              <div>
-                                <p className={`text-sm font-bold ${topic.markAsFinished ? 'text-emerald-700 dark:text-emerald-400' : 'text-zinc-700 dark:text-zinc-300'}`}>
+                              <div className="relative min-w-0">
+                                <p className={`text-[10px] font-black uppercase tracking-tight leading-tight ${topic.markAsFinished ? 'text-white' : 'text-emerald-700 dark:text-emerald-300'}`}>
                                   {topic.markAsFinished ? 'Tópico Concluído' : 'Marcar como Concluído'}
                                 </p>
                                 <p className="text-[10px] text-zinc-500 mt-0.5">
@@ -1331,17 +1574,17 @@ function TimerFinishModal({
                           {selectedContext === 'ciclo' && tipoRegistro !== 'revisao' && topic.assunto && (
                             <div
                               onClick={() => updateTopicData(index, { teoriaNaoFinalizadaCiclo: !topic.teoriaNaoFinalizadaCiclo, markAsFinished: false })}
-                              className={`p-4 rounded-2xl border-2 cursor-pointer transition-all flex items-center gap-4 ${topic.teoriaNaoFinalizadaCiclo ? 'bg-amber-50 dark:bg-amber-900/10 border-amber-500' : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 hover:border-amber-300'}`}
+                              className={`w-full min-h-[44px] flex items-center gap-2.5 px-3 py-2 rounded-xl border cursor-pointer transition-all duration-300 text-left md:col-start-2 ${topic.teoriaNaoFinalizadaCiclo ? 'bg-amber-500 border-amber-500 text-white shadow-sm' : 'bg-amber-50/50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800/50 hover:border-amber-400 dark:hover:border-amber-600 text-zinc-700 dark:text-zinc-300'}`}
                             >
-                              <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-colors shrink-0 ${topic.teoriaNaoFinalizadaCiclo ? 'bg-amber-500 border-amber-500 text-white' : 'border-zinc-300 dark:border-zinc-600 text-transparent'}`}>
-                                <AlertTriangle size={14} strokeWidth={3} />
+                              <div className={`w-5 h-5 rounded-[6px] border-2 flex items-center justify-center shrink-0 transition-all duration-300 ${topic.teoriaNaoFinalizadaCiclo ? 'bg-white border-white text-amber-500 scale-105' : 'border-amber-400 dark:border-amber-600 text-transparent'}`}>
+                                {topic.teoriaNaoFinalizadaCiclo && <AlertTriangle size={12} strokeWidth={3} />}
                               </div>
                               <div>
-                                <p className={`text-sm font-bold ${topic.teoriaNaoFinalizadaCiclo ? 'text-amber-700 dark:text-amber-400' : 'text-zinc-700 dark:text-zinc-300'}`}>
-                                  {topic.teoriaNaoFinalizadaCiclo ? 'Teoria ainda nao finalizada' : 'Marcar teoria nao finalizada'}
+                                <p className={`text-[10px] font-black uppercase tracking-tight leading-tight ${topic.teoriaNaoFinalizadaCiclo ? 'text-white' : 'text-amber-700 dark:text-amber-400'}`}>
+                                  {topic.teoriaNaoFinalizadaCiclo ? 'Assunto Pendente' : 'Manter Pendente'}
                                 </p>
-                                <p className="text-[10px] text-zinc-500 mt-0.5">
-                                  {topic.teoriaNaoFinalizadaCiclo ? 'Este assunto volta na proxima sessao desta disciplina.' : 'Outras disciplinas continuam girando normalmente.'}
+                                <p className="hidden text-[10px] text-zinc-500 mt-0.5">
+                                  {topic.teoriaNaoFinalizadaCiclo ? 'Este assunto volta no proximo bloco desta disciplina.' : 'Outras disciplinas continuam girando normalmente.'}
                                 </p>
                               </div>
                             </div>
@@ -1349,16 +1592,16 @@ function TimerFinishModal({
                           {selectedContext === 'cronograma' && tipoRegistro !== 'revisao' && topic.assunto && (
                             <div
                               onClick={() => updateTopicData(index, { naoConcluidoCronograma: !topic.naoConcluidoCronograma })}
-                              className={`p-4 rounded-2xl border-2 cursor-pointer transition-all flex items-center gap-4 ${topic.naoConcluidoCronograma ? 'bg-amber-50 dark:bg-amber-900/10 border-amber-500' : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 hover:border-amber-300'}`}
+                              className={`w-full min-h-[44px] flex items-center gap-2.5 px-3 py-2 rounded-xl border cursor-pointer transition-all duration-300 text-left md:col-start-2 ${topic.naoConcluidoCronograma ? 'bg-amber-500 border-amber-500 text-white shadow-sm' : 'bg-amber-50/50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800/50 hover:border-amber-400 dark:hover:border-amber-600 text-zinc-700 dark:text-zinc-300'}`}
                             >
-                              <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-colors shrink-0 ${topic.naoConcluidoCronograma ? 'bg-amber-500 border-amber-500 text-white' : 'border-zinc-300 dark:border-zinc-600 text-transparent'}`}>
-                                <AlertTriangle size={14} strokeWidth={3} />
+                              <div className={`w-5 h-5 rounded-[6px] border-2 flex items-center justify-center shrink-0 transition-all duration-300 ${topic.naoConcluidoCronograma ? 'bg-white border-white text-amber-500 scale-105' : 'border-amber-400 dark:border-amber-600 text-transparent'}`}>
+                                {topic.naoConcluidoCronograma && <AlertTriangle size={12} strokeWidth={3} />}
                               </div>
-                              <div>
-                                <p className={`text-sm font-bold ${topic.naoConcluidoCronograma ? 'text-amber-700 dark:text-amber-400' : 'text-zinc-700 dark:text-zinc-300'}`}>
+                              <div className="min-w-0">
+                                <p className={`text-[10px] font-black uppercase tracking-tight leading-tight ${topic.naoConcluidoCronograma ? 'text-white' : 'text-amber-700 dark:text-amber-400'}`}>
                                   {topic.naoConcluidoCronograma ? 'Teoria ainda não concluída' : 'Marcar teoria ainda não concluída'}
                                 </p>
-                                <p className="text-[10px] text-zinc-500 mt-0.5">
+                                <p className="hidden text-[10px] text-zinc-500 mt-0.5">
                                   {topic.naoConcluidoCronograma ? 'Esse assunto volta no próximo slot elegível do cronograma.' : 'Use quando o registro precisa voltar como pendência de teoria.'}
                                 </p>
                               </div>
@@ -1366,32 +1609,33 @@ function TimerFinishModal({
                           )}
                         </div>
 
-                        <div className="space-y-5">
+                          <div className="space-y-3 md:space-y-2">
                           <TimeInputControl currentMinutes={topic.minutes} onTimeChange={(newMin) => handleTimeUpdate(index, newMin)} />
                           {hasQuestions && (
-                            <div className="bg-zinc-50 dark:bg-zinc-900/50 p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-3">
-                              <span className="text-xs font-extrabold text-zinc-400 uppercase tracking-widest flex items-center gap-1.5">
-                                <Target size={14} className="text-emerald-500" /> Questões
+                            <div className="registro-modal-form-section p-2 md:p-2 space-y-1.5">
+                              <span className="registro-section-kicker">
+                                Questões
                               </span>
-                              <div className="flex gap-3">
+                              <div className="flex gap-2">
                                 <div className="flex-1 text-center">
-                                  <label className="text-[9px] font-bold text-zinc-400 uppercase block mb-1">Feitas</label>
+                                  <label className="registro-small-label text-[8px] uppercase tracking-widest block mb-1">Resolvidas</label>
                                   <input
                                     type="number"
                                     value={topic.questions}
                                     onChange={(e) => updateTopicData(index, { questions: parseInt(e.target.value) || 0 })}
                                     min="0"
-                                    className="w-full border border-zinc-200 dark:border-zinc-700 rounded-lg py-2 text-center font-bold text-lg bg-white dark:bg-zinc-900 focus:border-indigo-500 outline-none"
+                                    className="w-full border rounded-xl py-0.5 px-2 text-center font-black text-lg md:text-base outline-none transition-all duration-300 shadow-inner bg-white dark:bg-[#2A2A2A] border-zinc-200 dark:border-[#444] text-zinc-900 dark:text-white focus:border-zinc-400 dark:focus:border-zinc-500"
                                   />
                                 </div>
+                                <div className="flex items-center text-zinc-400 font-black text-base pb-1">/</div>
                                 <div className="flex-1 text-center">
-                                  <label className="text-[9px] font-bold text-zinc-400 uppercase block mb-1">Acertos</label>
+                                  <label className="registro-small-label text-[8px] uppercase tracking-widest block mb-1">Acertos</label>
                                   <input
                                     type="number"
                                     value={topic.correct}
                                     onChange={(e) => updateTopicData(index, { correct: parseInt(e.target.value) || 0 })}
                                     min="0"
-                                    className="w-full border border-zinc-200 dark:border-zinc-700 rounded-lg py-2 text-center font-bold text-lg bg-white dark:bg-zinc-900 text-emerald-600 focus:border-emerald-500 outline-none"
+                                    className="w-full border rounded-xl py-0.5 px-2 text-center font-black text-lg md:text-base outline-none transition-all duration-300 shadow-inner bg-white dark:bg-[#2A2A2A] border-zinc-200 dark:border-[#444] text-zinc-900 dark:text-white focus:border-zinc-400 dark:focus:border-zinc-500"
                                   />
                                 </div>
                               </div>
@@ -1403,8 +1647,8 @@ function TimerFinishModal({
                   ))}
                 </AnimatePresence>
 
-                <button type="button" onClick={addTopic} className="w-full py-3 rounded-xl border-2 border-dashed border-zinc-300 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 font-bold text-xs uppercase tracking-wide hover:border-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/10 transition-all flex items-center justify-center gap-2">
-                  <Split size={16} /> Dividir Sessão / Adicionar Tópico
+                <button type="button" onClick={addTopic} className="w-full py-3 rounded-xl border-2 border-dashed border-zinc-300 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 font-bold text-xs uppercase tracking-wide hover:border-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 transition-all flex items-center justify-center gap-2">
+                  <Split size={16} /> Dividir bloco / adicionar topico
                 </button>
               </div>
 
@@ -1417,14 +1661,27 @@ function TimerFinishModal({
                 </div>
               )}
 
-              <div className="flex gap-4 pt-4 border-t border-zinc-100 dark:border-zinc-800">
-                <button type="button" onClick={() => setStep(1)} className="px-6 py-4 rounded-xl font-bold text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors text-sm">Voltar</button>
+              <div className="sticky bottom-0 bg-[#dedee1]/96 dark:bg-[#080808]/96 border-t border-zinc-300/80 dark:border-zinc-800 -mx-4 -mb-3 mt-3 p-3 md:p-3 shrink-0 z-50 flex items-center gap-3 backdrop-blur">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onCancel) onCancel();
+                    setTimeout(() => window.dispatchEvent(new CustomEvent('StudyTimer:FinishResume')), 100);
+                  }}
+                  className="flex-1 py-3 md:py-2.5 px-3 rounded-2xl border border-zinc-300 dark:border-white/10 bg-zinc-50 dark:bg-white/5 text-zinc-700 dark:text-zinc-300 hover:-translate-y-0.5 hover:border-zinc-800 dark:hover:border-zinc-200 hover:text-zinc-900 dark:hover:text-white hover:shadow-lg text-[11px] font-bold uppercase tracking-wide transition-all flex items-center justify-center gap-1.5"
+                >
+                  <RotateCcw size={14} /> Retomar
+                </button>
                 <button
                   type="submit"
                   disabled={isSubmitting || (topics.length > 1 && !isTimeBalanced)}
-                  className="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 disabled:hover:bg-emerald-600  text-white rounded-xl font-bold shadow-xl shadow-emerald-600/20 transition-all transform hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-3 text-base py-4"
+                  className={`flex-1 overflow-hidden px-4 py-3 md:py-2.5 rounded-2xl text-[11px] font-bold uppercase tracking-wide text-white transition-all flex items-center justify-center gap-1.5 shadow-lg ${
+                    isSubmitting || (topics.length > 1 && !isTimeBalanced)
+                      ? 'bg-zinc-600 cursor-not-allowed'
+                      : 'bg-red-600 hover:bg-red-700 hover:-translate-y-0.5 hover:shadow-red-500/25'
+                  }`}
                 >
-                  <Save size={20} /> {isSubmitting ? 'Salvando...' : 'Salvar Sessão'}
+                  <Save size={14} /> {isSubmitting ? 'Salvando...' : 'Gravar Sessão'}
                 </button>
               </div>
             </form>

@@ -25,7 +25,7 @@ const MiniWidgetTimer = ({
             animate={{ opacity: 1, x: 0, scale: 1 }}
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            className="fixed bottom-24 right-4 z-[9999]"
+            className="fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom,0px))] right-4 z-[100040] sm:bottom-[calc(6.5rem+env(safe-area-inset-bottom,0px))] sm:right-6"
         >
             <div
                 className="relative overflow-hidden group bg-white/90 dark:bg-zinc-900/95 backdrop-blur-xl border border-zinc-200/50 dark:border-white/10 shadow-xl rounded-xl p-2.5 flex items-center gap-3 w-auto max-w-[280px] cursor-pointer transition-all duration-300"

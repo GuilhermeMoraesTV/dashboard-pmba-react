@@ -41,7 +41,7 @@ import { CATALOGO_EDITAIS } from '../pages/AdminPage/EditaisManager';
 import { gerarSchedule } from '../services/scheduling/index.js';
 import { gerarCronogramaIA, gerarCronogramaExpressoIA, limparCacheIA } from '../services/cronogramaIA';
 import { useCronogramaSystem } from './useCronogramaSystem';
-import { buildDisciplineColorMap, getDisciplineColorForSlot, getDisciplineKey } from '../utils/disciplineColors';
+import { buildDisciplineColorMap, getDisciplineColorForSlot, getDisciplineKey, getStoredDisciplineColor } from '../utils/disciplineColors';
 import confetti from 'canvas-confetti';
 
 // ─── CONSTANTES ───────────────────────────────────────────────────────────────
@@ -95,6 +95,8 @@ export const defaultConfig = () => {
     tempoRevisaoMinutos: 20,
     retaFinal:           false,
     dataProva:           '',
+    modoMontagem:        'inteligente',
+    gradePersonalizada:  {},
     modoExibirAssuntos:  true,
     modoExibirTempo:     'detalhado',
     limitarMaterias:     false,
@@ -170,6 +172,8 @@ const _montarDadosParaSalvar = (config, edital, horarios, result, geradoPorIA_) 
   tempoRevisaoMinutos:     config.tempoRevisaoMinutos || 20,
   retaFinal:               config.retaFinal           || false,
   dataProva:               config.dataProva           || null,
+  modoMontagem:            config.modoMontagem        || 'inteligente',
+  gradePersonalizada:      config.gradePersonalizada  || {},
   modoExibirAssuntos:      config.modoExibirAssuntos  !== false,
   modoExibirTempo:         config.modoExibirTempo     || 'detalhado',
   limitarMaterias:         config.limitarMaterias     || false,
@@ -218,13 +222,13 @@ const _aplicarCoresUnicasCronograma = (semanaTemplate = [], disciplinas = []) =>
     semanaTemplate: (semanaTemplate || []).map((slot) => (
       slot?.isRevisao || slot?.isRevisaoAuto || slot?.isConsolidada
         ? slot
-        : { ...slot, cor: getDisciplineColorForSlot(slot, colorMap) }
+        : { ...slot, cor: getStoredDisciplineColor(slot?.cor) || getDisciplineColorForSlot(slot, colorMap) }
     )),
     disciplinas: (disciplinas || []).map((disciplina) => ({
       ...disciplina,
       cor: disciplina?.inCiclo === false
         ? disciplina?.cor || null
-        : getCorDisciplina(disciplina) || disciplina?.cor || null,
+        : getStoredDisciplineColor(disciplina?.cor) || getCorDisciplina(disciplina) || disciplina?.cor || null,
     })),
   };
 };
@@ -407,6 +411,7 @@ const _normalizarInitialStateEdicao = (source = {}, modelos = []) => {
       tempoRevisaoMinutos: Number(cronograma.tempoRevisaoMinutos ?? 20) || 20,
       retaFinal: Boolean(cronograma.retaFinal),
       dataProva: cronograma.dataProva || '',
+      modoMontagem: cronograma.modoMontagem || 'inteligente',
       modoExibirAssuntos: cronograma.modoExibirAssuntos !== false,
       modoExibirTempo: cronograma.modoExibirTempo || 'detalhado',
       limitarMaterias: Boolean(cronograma.limitarMaterias),
@@ -684,17 +689,22 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
   const handleGerarPrevia = useCallback(async () => {
     const animationStartedAt = Date.now();
     const todasDiscs  = edital?.id === 'manual' ? disciplinas : [...disciplinas, ...extraDisciplinas];
-    const discsFinais = _filtrarDisciplinasSelecionadas(todasDiscs, selecao);
+    const modoPersonalizado = cronConfig.modoMontagem === 'personalizado';
+    const gradeManualAtiva = modoPersonalizado && _temGradePersonalizada(cronConfig.gradePersonalizada);
+    const idsGradeManual = new Set(_normalizarGradePersonalizada(cronConfig.gradePersonalizada).map((slot) => String(slot.disciplinaId)));
+    const discsFinais = gradeManualAtiva
+      ? todasDiscs.filter((disciplina) => idsGradeManual.has(String(disciplina.id)))
+      : _filtrarDisciplinasSelecionadas(todasDiscs, selecao);
 
     if (!discsFinais.length) return;
-    if (!_selecionadasTemNivelValido(discsFinais, selecao)) return;
+    if (!gradeManualAtiva && !_selecionadasTemNivelValido(discsFinais, selecao)) return;
 
     // Guard: não regenera se já está carregando
     if (isLoading) return;
 
     setIsLoading(true);
     setPercentIA(5);
-    setStatusIA('Calculando cotas e esqueleto...');
+    setStatusIA(modoPersonalizado ? 'Montando grade personalizada...' : 'Calculando cotas e esqueleto...');
     setResultadoGeracao(null);
     setErroGeracao(null);
 
@@ -711,6 +721,21 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
     // Como fallback de segurança, recalcula direto caso o state ainda não tenha propagado.
     const dataInicioPadrao = cronConfig.dataInicio || _getPrimeiroDiaUtil(horarios);
 
+    if (gradeManualAtiva) {
+      setPercentIA(80);
+      result = _gerarCronogramaDeGradePersonalizada(cronConfig.gradePersonalizada, discsFinais, { ...cronConfig, dataInicio: dataInicioPadrao });
+    } else if (modoPersonalizado) {
+      setPercentIA(55);
+      result = _gerarFallbackLocal(discsParaIA, horariosNumerados, { ...cronConfig, dataInicio: dataInicioPadrao });
+      if (result) {
+        result = {
+          ...result,
+          geradoPorIA: false,
+          modoMontagem: 'personalizado',
+          resumoGeracao: result.resumoGeracao || 'Grade personalizada gerada a partir das disciplinas e horarios escolhidos.',
+        };
+      }
+    } else {
     try {
       result = await gerarCronogramaIA(
         discsParaIA,
@@ -733,6 +758,7 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
     } catch (err) {
       result = null;
       if (import.meta.env.DEV) console.warn('[handleGerarPrevia] IA falhou:', err);
+    }
     }
 
     setPercentIA(100);
@@ -870,13 +896,18 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
   const handleSalvar = async () => {
     const animationStartedAt = Date.now();
     const todasDiscs  = edital?.id === 'manual' ? disciplinas : [...disciplinas, ...extraDisciplinas];
-    const discsFinais = _filtrarDisciplinasSelecionadas(todasDiscs, selecao);
+    const modoPersonalizadoSalvar = cronConfig.modoMontagem === 'personalizado';
+    const gradeManualAtiva = modoPersonalizadoSalvar && _temGradePersonalizada(cronConfig.gradePersonalizada);
+    const idsGradeManual = new Set(_normalizarGradePersonalizada(cronConfig.gradePersonalizada).map((slot) => String(slot.disciplinaId)));
+    const discsFinais = gradeManualAtiva
+      ? todasDiscs.filter((disciplina) => idsGradeManual.has(String(disciplina.id)))
+      : _filtrarDisciplinasSelecionadas(todasDiscs, selecao);
 
     if (!discsFinais.length) {
       setErroGeracao('Selecione ao menos uma disciplina para salvar o cronograma.');
       return;
     }
-    if (!_selecionadasTemNivelValido(discsFinais, selecao)) {
+    if (!gradeManualAtiva && !_selecionadasTemNivelValido(discsFinais, selecao)) {
       setErroGeracao('Escolha o nivel de dominio em todas as disciplinas selecionadas.');
       return;
     }
@@ -919,6 +950,20 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
         },
       };
       setPercentIA(70);
+    } else if (gradeManualAtiva) {
+      setPercentIA(55);
+      result = _gerarCronogramaDeGradePersonalizada(cronConfig.gradePersonalizada, discsFinais, { ...cronConfig, dataInicio: dataInicioPadrao });
+    } else if (modoPersonalizadoSalvar) {
+      setPercentIA(55);
+      result = _gerarFallbackLocal(discsParaIA, horariosNumerados, { ...cronConfig, dataInicio: dataInicioPadrao });
+      if (result) {
+        result = {
+          ...result,
+          geradoPorIA: false,
+          modoMontagem: 'personalizado',
+          resumoGeracao: result.resumoGeracao || 'Grade personalizada gerada a partir das disciplinas e horarios escolhidos.',
+        };
+      }
     } else {
       // Regenera se não há prévia
       try {
@@ -1010,6 +1055,11 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
 
     // Passo 1: Disciplinas e Nível
     if (passo === 1) {
+      if (cronConfig.modoMontagem === 'personalizado') return _temGradePersonalizada(cronConfig.gradePersonalizada);
+      return true;
+    }
+
+    if (passo === 2) {
       if (isExpresso) return horasExpresso >= 0.5;
 
       const selecionadas = Object.entries(selecao).filter(([, s]) => s.checked || s.parcial);
@@ -1023,13 +1073,13 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
     }
 
     // Passo 2: Horários
-    if (passo === 2) return Object.values(horarios).some(h => h > 0);
+    if (passo === 3) return Object.values(horarios).some(h => h > 0);
 
     // Passo 3: Revisão (Informativo)
-    if (passo === 3) return true;
+    if (passo === 4) return true;
 
     // Passo 4: Configurações
-    if (passo === 4) return !!cronConfig.nome?.trim();
+    if (passo === 5) return !!cronConfig.nome?.trim();
 
     return true;
   };
@@ -1133,6 +1183,87 @@ function _filtrarDisciplinasSelecionadas(disciplinas, selecao) {
     const sel = selecao[disciplina.id] || {};
     return Boolean(sel.checked || sel.parcial);
   });
+}
+
+function _normalizarGradePersonalizada(grade = {}) {
+  return Object.entries(grade || {}).flatMap(([dia, slots]) => (
+    Array.isArray(slots)
+      ? slots
+        .filter((slot) => slot?.disciplinaId && Number(slot?.minutos) > 0)
+        .map((slot, ordem) => ({ ...slot, dia: Number(dia), ordem }))
+      : []
+  ));
+}
+
+function _temGradePersonalizada(grade = {}) {
+  return _normalizarGradePersonalizada(grade).length > 0;
+}
+
+function _gerarCronogramaDeGradePersonalizada(grade, disciplinas = [], config = {}) {
+  const slotsGrade = _normalizarGradePersonalizada(grade);
+  if (!slotsGrade.length) return null;
+
+  const disciplinasPorId = new Map((disciplinas || []).map((disciplina) => [String(disciplina.id), disciplina]));
+  const contagemPorDisciplina = {};
+  slotsGrade.forEach((slot) => {
+    const key = String(slot.disciplinaId);
+    contagemPorDisciplina[key] = (contagemPorDisciplina[key] || 0) + 1;
+  });
+  const indicePorDisciplina = {};
+
+  const semanaTemplate = slotsGrade.map((slot, index) => {
+    const disciplina = disciplinasPorId.get(String(slot.disciplinaId)) || {};
+    const key = String(slot.disciplinaId);
+    const slotIndexParaDisc = indicePorDisciplina[key] || 0;
+    indicePorDisciplina[key] = slotIndexParaDisc + 1;
+    const minutos = Number(slot.minutos || slot.tempoMinutos || 60);
+
+    return {
+      slotId: slot.id || `custom-${slot.dia}-${index}`,
+      slotIdBase: slot.id || `custom-${slot.dia}-${index}`,
+      dia: Number(slot.dia),
+      ordem: Number(slot.ordem ?? index),
+      disciplinaId: slot.disciplinaId,
+      disciplinaNome: slot.disciplinaNome || disciplina.nome || 'Disciplina',
+      disciplina: slot.disciplinaNome || disciplina.nome || 'Disciplina',
+      assunto: slot.assunto || null,
+      cor: slot.cor || disciplina.cor || null,
+      tempoMinutos: minutos,
+      tempoPlanejadoMinutos: minutos,
+      minutosEstudo: minutos,
+      isRevisao: false,
+      isRevisaoAuto: false,
+      isConsolidada: false,
+      totalSlotsParaDisc: contagemPorDisciplina[key] || 1,
+      slotIndexParaDisc,
+    };
+  }).sort((a, b) => (a.dia - b.dia) || (a.ordem - b.ordem));
+
+  const dataInicio = config.dataInicio || _getPrimeiroDiaUtil(
+    semanaTemplate.reduce((acc, slot) => {
+      acc[slot.dia] = (acc[slot.dia] || 0) + Number(slot.tempoMinutos || 0) / 60;
+      return acc;
+    }, {})
+  );
+  const totalSemanas = 12;
+  const dtFimObj = new Date(`${dataInicio}T12:00:00`);
+  dtFimObj.setDate(dtFimObj.getDate() + totalSemanas * 7);
+
+  return {
+    semanaTemplate,
+    dataInicio,
+    dataFim: dtFimObj.toISOString().split('T')[0],
+    totalSemanasNecessarias: totalSemanas,
+    metodologiasAplicadas: {
+      cronograma: 'grade_personalizada',
+      revisao: METODOLOGIA_REVISAO,
+      estudo: ['grade_manual'],
+      tempoRevisaoMinutos: config.tempoRevisaoMinutos || 20,
+    },
+    geradoPorIA: false,
+    modoMontagem: 'personalizado',
+    resumoGeracao: 'Grade personalizada montada manualmente pelo aluno.',
+  };
 }
 
 /**

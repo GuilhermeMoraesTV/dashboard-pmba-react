@@ -109,8 +109,9 @@ return (
       style={useDisciplineColor ? getDisciplineCardVars(disciplinaColor) : undefined}
     >
       <div className={`absolute bottom-0 left-0 top-0 w-1.5 transition-colors duration-300 ${
-        isDone ? disciplinaColor.bg
+        isDone ? 'bg-emerald-500/45'
         : emAndamento ? 'bg-orange-500'
+        : useDisciplineColor ? 'bg-[rgba(var(--discipline-rgb),0.35)]'
         : isEstudo ? disciplinaColor.bg
         : 'bg-blue-500'
       }`} />

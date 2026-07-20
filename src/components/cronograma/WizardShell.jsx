@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 
 import Step1_Edital from './Step1Edital';
+import StepModoMontagem from './StepModoMontagem';
 import Step2_Disciplinas from './Step2Disciplinas';
 import Step3_Horarios from './Step3Horarios';
 import StepMetodologiaRevisao from './StepMetodologiaRevisao';
@@ -23,13 +24,23 @@ import StepBar from './steps/StepBar';
 
 import { useCronogramaWizard } from '../../hooks/useCronogramaWizard';
 
-const STEPS = [
+const STEPS_LEGACY = [
   { id: 0, label: 'Edital',      icon: Target,       title: 'Seleção de Edital', sub: 'Escolha sua base' },
   { id: 1, label: 'Matérias',    icon: Layout,       title: 'Disciplinas',      sub: 'O que estudar' },
   { id: 2, label: 'Horários',    icon: Clock,        title: 'Sua Rotina',       sub: 'Quando estudar' },
   { id: 3, label: 'Metodologia', icon: Settings2,    title: 'Revisão',          sub: 'Como revisar' },
   { id: 4, label: 'Ajustes',     icon: Sparkles,     title: 'Preferências',     sub: 'Personalização' },
   { id: 5, label: 'Prévia',      icon: Eye,          title: 'Resultado',        sub: 'Seu plano pronto' },
+];
+
+const STEPS = [
+  { id: 0, label: 'Edital',      icon: Target,       title: 'Selecao de Edital', sub: 'Escolha sua base' },
+  { id: 1, label: 'Montagem',    icon: CalendarDays, title: 'Montagem',         sub: 'Automatica ou manual' },
+  { id: 2, label: 'Materias',    icon: Layout,       title: 'Disciplinas',      sub: 'O que estudar' },
+  { id: 3, label: 'Horarios',    icon: Clock,        title: 'Sua Rotina',       sub: 'Quando estudar' },
+  { id: 4, label: 'Metodologia', icon: Settings2,    title: 'Revisao',          sub: 'Como revisar' },
+  { id: 5, label: 'Ajustes',     icon: Sparkles,     title: 'Preferencias',     sub: 'Personalizacao' },
+  { id: 6, label: 'Previa',      icon: Eye,          title: 'Resultado',        sub: 'Seu plano pronto' },
 ];
 
 const scrollToTopInstant = (element = null) => {
@@ -92,6 +103,10 @@ const WizardShell = ({
   const isPrimeiroStep = passo === firstVisibleStepId;
   const currentTitle  = STEPS[passo];
   const ctaFinalLabel = isEditMode ? 'Salvar Alteracoes' : 'Ativar Cronograma';
+  const isMontagemPersonalizada = cronConfig.modoMontagem === 'personalizado';
+  const isPassoMontagemPersonalizada = passo === 1 && isMontagemPersonalizada;
+  const getNextPasso = (current) => (isMontagemPersonalizada && current === 1 ? 4 : current + 1);
+  const getPrevPasso = (current) => (isMontagemPersonalizada && current === 4 ? 1 : current - 1);
 
   useEffect(() => {
     scrollToTopInstant(conteudoRef.current);
@@ -109,7 +124,7 @@ const WizardShell = ({
   }, [passo]);
 
   useEffect(() => {
-    if (passo === 5 && !isLoading && !resultadoGeracao && !erroGeracao) {
+    if (passo === 6 && !isLoading && !resultadoGeracao && !erroGeracao) {
       handleGerarPrevia();
     }
   }, [passo, isLoading, resultadoGeracao, erroGeracao, handleGerarPrevia]);
@@ -119,21 +134,22 @@ const WizardShell = ({
       onClose?.();
       return;
     }
-    if (passo === 1 && (disciplinas.length > 0 || extraDisciplinas.length > 0)) {
+    if (passo === 2 && (disciplinas.length > 0 || extraDisciplinas.length > 0)) {
       setConfirmandoVoltar(true);
       return;
     }
-    if (passo === 5) resetResultado();
-    setPasso(p => p - 1);
+    if (passo === 6) resetResultado();
+    setPasso(p => getPrevPasso(p));
   };
 
   const handleAvancar = () => {
     if (!podeAvancar(passo, false)) return;
-    if (passo + 1 === 5) {
+    const nextPasso = getNextPasso(passo);
+    if (nextPasso === 6) {
       resetResultado();
       setErroGeracao(null);
     }
-    setPasso(p => p + 1);
+    setPasso(nextPasso);
   };
 
   const onAbrirSuporte = () => onOpenFeedback?.({ initialView: 'new', initialType: 'edital' });
@@ -150,6 +166,17 @@ const WizardShell = ({
         />
       );
       case 1: return (
+        <StepModoMontagem
+          disciplinas={disciplinas}
+          extraDisciplinas={extraDisciplinas}
+          config={cronConfig}
+          onConfigChange={setCronConfig}
+          onHorariosChange={setHorarios}
+          selecao={selecao}
+          onSelecaoChange={setSelecao}
+        />
+      );
+      case 2: return (
         <Step2_Disciplinas
           disciplinas={disciplinas}
           onDisciplinasChange={setDisciplinas}
@@ -162,20 +189,20 @@ const WizardShell = ({
           horarios={horarios}
         />
       );
-      case 2: return (
+      case 3: return (
         <Step3_Horarios
           horarios={horarios}
           onHorariosChange={setHorarios}
           editalSelecionado={edital}
         />
       );
-      case 3: return (
+      case 4: return (
         <StepMetodologiaRevisao
           config={cronConfig}
           onConfigChange={setCronConfig}
         />
       );
-      case 4: return (
+      case 5: return (
         <Step4_Config
           config={cronConfig}
           onConfigChange={setCronConfig}
@@ -183,7 +210,7 @@ const WizardShell = ({
           horarios={horarios}
         />
       );
-      case 5: return (
+      case 6: return (
         <Step5_Preview
           disciplinas={edital?.id === 'manual' ? disciplinas : [...disciplinas, ...extraDisciplinas]}
           selecao={selecao}
@@ -260,7 +287,7 @@ const WizardShell = ({
 
       {/* ── Main Content ── */}
       <main ref={conteudoRef} className="flex-1 overflow-y-auto px-4 py-6 pb-32 md:px-6 md:py-8 md:pb-36 custom-scrollbar">
-        <div className={isPassoEdital || isUltimoStep ? 'w-full mx-auto' : 'max-w-5xl mx-auto'}>
+        <div className={isPassoEdital || isUltimoStep || isPassoMontagemPersonalizada ? 'w-full mx-auto' : 'max-w-5xl mx-auto'}>
           <AnimatePresence mode="wait">
             <motion.div
               key={passo}

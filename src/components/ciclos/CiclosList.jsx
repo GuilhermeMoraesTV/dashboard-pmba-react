@@ -1,349 +1,251 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { db } from '../../firebaseConfig';
+import React, { useEffect, useMemo, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
-  collection,
-  query,
-  onSnapshot,
-  orderBy,
-  doc,
-  writeBatch,
-  getDocs,
-  where
-} from 'firebase/firestore';
-import CicloCreateWizard from '../ciclos/CicloCreateWizard/CicloCreateWizard';
-import CicloEditModal from './CicloEditModal';
-import { useCiclos } from '../../hooks/useCiclos';
-import { CATALOGO_EDITAIS } from '../../pages/AdminPage/EditaisManager';
-import { useForceUnlock } from '../../hooks/useForceUnlock';
-import EmptyStateCard from '../shared/EmptyStateCard';
-
-import {
-  MoreVertical,
-  Plus,
-  Clock,
-  Zap,
-  Archive,
-  Edit,
-  AlertTriangle,
+  AlertOctagon,
+  ArrowRight,
   BookOpen,
   Calendar,
-  Target,
-  ArrowRight,
+  FilePenLine,
+  MoreVertical,
+  PauseCircle,
+  Plus,
+  RefreshCw,
   RotateCw,
-  Trophy,
-  Map,
-  BarChart3,
+  Target,
   Trash2,
-  AlertOctagon,
-  PauseCircle,   // ← ícone de desativar
+  Trophy,
+  Zap,
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import {
+  collection,
+  doc,
+  getDocs,
+  onSnapshot,
+  query,
+  where,
+  writeBatch,
+} from 'firebase/firestore';
 
-// --- MODAL DE ARQUIVAMENTO ---
-function ModalConfirmacaoArquivamento({ ciclo, onClose, onConfirm, loading }) {
-  return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex justify-center items-center p-4 animate-fade-in" onClick={onClose}>
-      <div className="bg-white dark:bg-zinc-950 p-0 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 w-full max-w-md relative overflow-hidden" onClick={(e) => e.stopPropagation()}>
-        <div className="bg-amber-500/10 p-6 flex flex-col items-center border-b border-amber-500/20">
-          <div className="w-16 h-16 bg-amber-500/20 text-amber-600 dark:text-amber-500 rounded-full flex items-center justify-center mb-4 shadow-[0_0_15px_rgba(245,158,11,0.4)]">
-            <Archive size={32} />
-          </div>
-          <h2 className="text-xl font-black text-zinc-900 dark:text-white uppercase tracking-tight">Arquivar Ciclo?</h2>
-        </div>
-        <div className="p-6 text-center">
-          <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-6">
-            O ciclo <strong className="text-zinc-900 dark:text-white">"{ciclo.nome}"</strong> será movido para o <strong>Arquivo Morto</strong> no seu perfil.
-            <br /><span className="text-xs opacity-70">(Seus dados e horas serão preservados).</span>
-          </p>
-          <div className="flex gap-3">
-            <button onClick={onClose} disabled={loading} className="flex-1 px-4 py-3 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 rounded-xl font-bold text-xs uppercase tracking-wider hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors">Cancelar</button>
-            <button onClick={onConfirm} disabled={loading} className="flex-1 px-4 py-3 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold text-xs uppercase tracking-wider shadow-lg shadow-amber-900/20 transition-all flex items-center justify-center gap-2">{loading ? "Arquivando..." : "Arquivar"}</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+import { db } from '../../firebaseConfig';
+import { CATALOGO_EDITAIS } from '../../pages/AdminPage/EditaisManager';
+import EmptyStateCard from '../shared/EmptyStateCard';
+import CicloCreateWizard from './CicloCreateWizard/CicloCreateWizard';
+import CicloEditModal from './CicloEditModal';
+import { useCiclos } from '../../hooks/useCiclos';
 
-// --- MODAL DE EXCLUSÃO ---
-function ModalConfirmacaoExclusao({ ciclo, onClose, onConfirm, loading }) {
-  return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex justify-center items-center p-4 animate-fade-in" onClick={onClose}>
-      <div className="bg-white dark:bg-zinc-950 p-0 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 w-full max-w-md relative overflow-hidden" onClick={(e) => e.stopPropagation()}>
-        <div className="bg-red-600/10 p-6 flex flex-col items-center border-b border-red-500/20">
-          <div className="w-16 h-16 bg-red-600/20 text-red-600 rounded-full flex items-center justify-center mb-4 shadow-[0_0_15px_rgba(220,38,38,0.4)]">
-            <AlertOctagon size={32} />
-          </div>
-          <h2 className="text-xl font-black text-zinc-900 dark:text-white uppercase tracking-tight">Excluir Tudo?</h2>
-        </div>
-        <div className="p-6 text-center">
-          <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">
-            Você está prestes a apagar o ciclo <strong className="text-red-600 font-bold">"{ciclo.nome}"</strong>.
-          </p>
-          <div className="bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/50 p-3 rounded-xl text-xs text-red-800 dark:text-red-300 font-medium mb-6 text-left">
-            <AlertTriangle size={14} className="inline mr-1 -mt-0.5" />
-            <strong>Atenção:</strong> Todos os registros de estudo e horas vinculados a este ciclo também serão apagados permanentemente. Isso reduzirá seu tempo total acumulado.
-          </div>
-          <div className="flex gap-3">
-            <button onClick={onClose} disabled={loading} className="flex-1 px-4 py-3 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 rounded-xl font-bold text-xs uppercase tracking-wider hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors">Cancelar</button>
-            <button onClick={onConfirm} disabled={loading} className="flex-1 px-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold text-xs uppercase tracking-wider shadow-lg shadow-red-900/20 transition-all flex items-center justify-center gap-2">{loading ? "Apagando..." : "Excluir Definitivamente"}</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+const formatDate = (value) => {
+  if (!value) return '-';
+  const date = value?.toDate ? value.toDate() : new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+  return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' });
+};
 
-// --- MODAL DE DESATIVAÇÃO (confirmação leve) ---
-function ModalConfirmacaoDesativacao({ ciclo, onClose, onConfirm, loading }) {
-  return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex justify-center items-center p-4 animate-fade-in" onClick={onClose}>
-      <div className="bg-white dark:bg-zinc-950 p-0 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 w-full max-w-md relative overflow-hidden" onClick={(e) => e.stopPropagation()}>
-        <div className="bg-zinc-100 dark:bg-zinc-800/60 p-6 flex flex-col items-center border-b border-zinc-200 dark:border-zinc-700">
-          <div className="w-16 h-16 bg-zinc-200 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-300 rounded-full flex items-center justify-center mb-4">
-            <PauseCircle size={32} />
-          </div>
-          <h2 className="text-xl font-black text-zinc-900 dark:text-white uppercase tracking-tight">Desativar Ciclo?</h2>
-        </div>
-        <div className="p-6 text-center">
-          <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-2">
-            O ciclo <strong className="text-zinc-900 dark:text-white">"{ciclo.nome}"</strong> será <strong>pausado</strong> e ficará inativo na lista.
-          </p>
-          <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-6">
-            Seus dados e registros de estudo são preservados. Você pode reativar a qualquer momento.
-          </p>
-          <div className="flex gap-3">
-            <button onClick={onClose} disabled={loading} className="flex-1 px-4 py-3 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 rounded-xl font-bold text-xs uppercase tracking-wider hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors">Cancelar</button>
-            <button onClick={onConfirm} disabled={loading} className="flex-1 px-4 py-3 bg-zinc-700 hover:bg-zinc-800 dark:bg-zinc-600 dark:hover:bg-zinc-500 text-white rounded-xl font-bold text-xs uppercase tracking-wider shadow-lg transition-all flex items-center justify-center gap-2">
-              {loading ? "Desativando..." : "Desativar"}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+const getTs = (item) => {
+  const value = item?.dataCriacao || item?.criadoEm;
+  if (!value) return 0;
+  if (value?.toDate) return value.toDate().getTime();
+  if (value?.seconds) return value.seconds * 1000;
+  return new Date(value).getTime() || 0;
+};
 
-// ============================================================================
-// FUNÇÃO DE LOGO
-// ============================================================================
 const getLogo = (ciclo) => {
   if (!ciclo) return null;
   if (ciclo.logoUrl) return ciclo.logoUrl;
-  if (ciclo.templateId && CATALOGO_EDITAIS) {
-    const editalTemplate = CATALOGO_EDITAIS.find(e => e.id === ciclo.templateId);
-    if (editalTemplate && (editalTemplate.logoUrl || editalTemplate.logo)) {
-      return editalTemplate.logoUrl || editalTemplate.logo;
-    }
+  const templateId = ciclo.editalId || ciclo.templateId || ciclo.templateOrigem;
+  if (templateId && CATALOGO_EDITAIS) {
+    const edital = CATALOGO_EDITAIS.find((item) => item.id === templateId);
+    if (edital?.logoUrl || edital?.logo) return edital.logoUrl || edital.logo;
   }
-  if (ciclo.templateId && ciclo.templateId !== 'manual') {
-    const idLimpo = ciclo.templateId.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-    return `/logosEditais/logo-${idLimpo}.png`;
+  if (templateId && templateId !== 'manual') {
+    const cleanId = templateId.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+    return `/logosEditais/logo-${cleanId}.png`;
   }
-  const nomeLower = ciclo.nome?.toLowerCase() || "";
-  if (nomeLower.includes("pmba")) return "/logosEditais/logoModoQAP.png";
-  if (nomeLower.includes("pmal")) return "/logosEditais/logo-pmal.png";
+  const nome = (ciclo.nome || '').toLowerCase();
+  if (nome.includes('pmba')) return '/logosEditais/logoModoQAP.png';
+  if (nome.includes('pmal')) return '/logosEditais/logo-pmal.png';
   return null;
 };
 
-// --- CARD DO CICLO ---
-const CicloCard = ({ ciclo, onClick, onMenuToggle, isMenuOpen, onAction, registrosEstudo, isTimerActive }) => {
-  const concluidos = ciclo.conclusoes || 0;
-  const logo = getLogo(ciclo);
-
-  const { totalHoras, progressoPercent } = useMemo(() => {
-    if (!registrosEstudo) return { totalHoras: 0, progressoPercent: 0 };
-    const registrosDoCiclo = registrosEstudo.filter(r => r.cicloId === ciclo.id && !r.conclusaoId && r.tipoEstudo !== 'check_manual');
-    const minutosTotais = registrosDoCiclo.reduce((acc, curr) => acc + Number(curr.tempoEstudadoMinutos || 0), 0);
-    const horasTotais = Math.round(minutosTotais / 60 * 10) / 10;
-    const metaSemanal = Number(ciclo.cargaHorariaSemanalTotal) || 1;
-    const percent = Math.min((horasTotais / metaSemanal) * 100, 100);
-    return { totalHoras: horasTotais, progressoPercent: percent };
-  }, [ciclo.id, registrosEstudo, ciclo.cargaHorariaSemanalTotal]);
+const ModalConfirmacao = ({ item, title, description, icon: Icon, tone = 'red', label, onClose, onConfirm, loading }) => {
+  if (!item) return null;
+  const toneClass = tone === 'zinc'
+    ? 'bg-zinc-100 dark:bg-zinc-800/60 border-zinc-200 dark:border-zinc-700 text-zinc-500'
+    : 'bg-red-600/10 border-red-500/20 text-red-600';
+  const buttonClass = tone === 'zinc'
+    ? 'bg-zinc-700 hover:bg-zinc-800 dark:bg-zinc-600 dark:hover:bg-zinc-500'
+    : 'bg-red-600 hover:bg-red-700';
 
   return (
-    <div
-      onClick={() => onClick(ciclo.id)}
-      className="group relative bg-white dark:bg-zinc-900/50 rounded-2xl p-4 sm:p-5 cursor-pointer border border-zinc-200 dark:border-zinc-800 overflow-hidden transition-all duration-500 hover:-translate-y-1 hover:shadow-2xl flex flex-col justify-between h-full min-h-[170px] sm:min-h-[220px]"
-    >
-      <div className="absolute left-0 top-0 bottom-0 w-1 bg-transparent group-hover:bg-red-500 transition-colors duration-300 z-20" />
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div className="w-full max-w-md overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-950" onClick={(event) => event.stopPropagation()}>
+        <div className={`${toneClass} flex flex-col items-center border-b p-6`}>
+          <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-white/50 dark:bg-black/20">
+            <Icon size={32} />
+          </div>
+          <h2 className="text-xl font-black uppercase tracking-tight text-zinc-900 dark:text-white">{title}</h2>
+        </div>
+        <div className="p-6 text-center">
+          <p className="mb-6 text-sm text-zinc-600 dark:text-zinc-400">{description}</p>
+          <div className="flex gap-3">
+            <button type="button" onClick={onClose} disabled={loading} className="flex-1 rounded-xl bg-zinc-100 px-4 py-3 text-xs font-bold uppercase tracking-wider text-zinc-700 transition-colors hover:bg-zinc-200 disabled:opacity-60 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700">
+              Cancelar
+            </button>
+            <button type="button" onClick={onConfirm} disabled={loading} className={`flex-1 rounded-xl px-4 py-3 text-xs font-bold uppercase tracking-wider text-white shadow-lg transition-all disabled:opacity-60 ${buttonClass}`}>
+              {loading ? 'Aguarde...' : label}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const CicloCard = ({ ciclo, registrosEstudo = [], onOpen, onMenuToggle, isMenuOpen, onAction, isTimerActive }) => {
+  const logo = getLogo(ciclo);
+  const concluidoCount = Number(ciclo.conclusoes || 0);
+  const totalBlocos = Number(
+    ciclo.totalSessoesCiclo ||
+    ciclo.ordemSessoes?.length ||
+    ciclo.disciplinas?.reduce?.((acc, disciplina) => acc + Number(disciplina.sessoesPorCiclo || 0), 0) ||
+    0
+  );
+  const concluidos = Array.isArray(ciclo.sessoesConcluidas) ? ciclo.sessoesConcluidas.length : 0;
+  const progressoPorSessao = totalBlocos > 0 ? Math.round((concluidos / totalBlocos) * 100) : 0;
+
+  const { totalHoras, progressoHoras } = useMemo(() => {
+    const registros = registrosEstudo.filter((registro) => registro.cicloId === ciclo.id && !registro.conclusaoId && registro.tipoEstudo !== 'check_manual');
+    const minutos = registros.reduce((acc, registro) => acc + Number(registro.tempoEstudadoMinutos || registro.duracaoMinutos || 0), 0);
+    const horas = Math.round((minutos / 60) * 10) / 10;
+    const meta = Number(ciclo.cargaHorariaSemanalTotal || ciclo.cargaHorariaTotal || 0);
+    return {
+      totalHoras: horas,
+      progressoHoras: meta > 0 ? Math.min(100, Math.round((horas / meta) * 100)) : progressoPorSessao,
+    };
+  }, [ciclo, registrosEstudo, progressoPorSessao]);
+
+  const progresso = Math.max(progressoPorSessao, progressoHoras);
+  const canOpen = typeof onOpen === 'function' && ciclo.ativo;
+
+  return (
+    <div onClick={() => canOpen && onOpen(ciclo.id, ciclo)} className={`group relative flex h-full min-h-[170px] flex-col justify-between overflow-hidden rounded-2xl border border-zinc-200 bg-white p-4 transition-all duration-500 hover:-translate-y-1 hover:shadow-2xl dark:border-zinc-800 dark:bg-zinc-900/50 sm:min-h-[220px] sm:p-5 ${canOpen ? 'cursor-pointer' : 'cursor-default'}`}>
+      <div className="absolute bottom-0 top-0 left-0 z-20 w-1 bg-transparent transition-colors duration-300 group-hover:bg-red-500" />
 
       {logo ? (
-        <div className="absolute bottom-0 right-0 w-20 h-20 sm:w-24 sm:h-24 md:w-36 md:h-36 opacity-25 md:opacity-20 transition-all duration-700 ease-out group-hover:scale-110 group-hover:opacity-40 z-0 pointer-events-none filter saturate-150">
-          <img src={logo} alt="Logo Edital" className="w-full h-full object-contain" onError={(e) => { e.target.style.display = 'none'; e.target.parentElement.style.display = 'none'; }} />
+        <div className="pointer-events-none absolute bottom-0 right-0 z-0 h-20 w-20 opacity-25 saturate-150 transition-all duration-700 ease-out group-hover:scale-110 group-hover:opacity-40 sm:h-24 sm:w-24 md:h-36 md:w-36 md:opacity-20">
+          <img src={logo} alt="" className="h-full w-full object-contain" onError={(event) => { event.currentTarget.style.display = 'none'; }} />
         </div>
       ) : (
-        <div className="absolute -bottom-6 -right-6 text-red-500/10 dark:text-red-500/5 transition-all duration-700 ease-out group-hover:scale-125 group-hover:rotate-[-10deg] z-0 pointer-events-none">
-          {ciclo.ativo ? <Target strokeWidth={1.5} size={100} className="sm:w-[140px] sm:h-[140px]" /> : <BookOpen strokeWidth={1.5} size={100} className="sm:w-[140px] sm:h-[140px]" />}
+        <div className="pointer-events-none absolute -bottom-6 -right-6 z-0 text-red-500/10 transition-all duration-700 ease-out group-hover:scale-125 group-hover:rotate-[-10deg] dark:text-red-500/5">
+          <RefreshCw strokeWidth={1.5} size={100} className="sm:h-[140px] sm:w-[140px]" />
         </div>
       )}
 
-      <div className="relative z-10 flex flex-col h-full">
-        <div className="flex justify-between items-start mb-3 sm:mb-4">
-          <div className="flex flex-wrap gap-2 items-center">
-            <div className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md text-[9px] sm:text-[10px] font-black uppercase tracking-widest border flex items-center gap-1.5 ${ciclo.ativo ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.2)]' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 border-zinc-200 dark:border-zinc-700'}`}>
-              {ciclo.ativo && (<span className="relative flex h-1.5 w-1.5"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" /><span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" /></span>)}
+      <div className="relative z-10 flex h-full flex-col">
+        <div className="mb-3 flex items-start justify-between sm:mb-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className={`flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[9px] font-black uppercase tracking-widest sm:px-2.5 sm:py-1 sm:text-[10px] ${ciclo.ativo ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.2)]' : 'border-zinc-200 bg-zinc-100 text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800'}`}>
+              {ciclo.ativo && <span className="relative flex h-1.5 w-1.5"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" /><span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" /></span>}
               {ciclo.ativo ? 'ATIVO' : 'INATIVO'}
             </div>
-
-            <div className={`flex items-center gap-1.5 sm:gap-2 pl-1.5 pr-2.5 py-1 sm:py-1.5 rounded-lg border transition-all ${concluidos > 0 ? 'bg-amber-50 dark:bg-amber-900/10 border-amber-500/20 shadow-[0_0_10px_rgba(245,158,11,0.1)]' : 'bg-zinc-100 dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-700'}`}>
-              <div className="relative flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 shrink-0">
-                <motion.svg animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 15, ease: "linear" }} className="absolute inset-0 w-full h-full" viewBox="0 0 100 100">
-                  <circle cx="50" cy="50" r="44" fill="none" stroke="currentColor" strokeWidth="5" strokeDasharray="14 10" strokeLinecap="round" className={concluidos > 0 ? "text-amber-500/60" : "text-zinc-300 dark:text-zinc-600"} />
-                </motion.svg>
-                <div className="absolute inset-0 flex items-center justify-center z-10">
-                  <span className={`text-base sm:text-lg font-black tracking-tighter leading-none mt-[1px] ${concluidos > 0 ? 'text-amber-600 dark:text-amber-500' : 'text-zinc-500'}`}>{concluidos}</span>
-                </div>
-                <div className="absolute -bottom-1 -right-1 bg-white dark:bg-zinc-900 rounded-full p-[3px] shadow-sm border border-zinc-100 dark:border-zinc-800 z-20">
-                  {concluidos > 0 ? <Trophy size={10} className="text-amber-500" /> : <RotateCw size={10} className="text-zinc-400" />}
-                </div>
-              </div>
-              <div className="flex flex-col justify-center">
-                <span className="text-[8px] font-bold uppercase tracking-widest text-zinc-500 dark:text-zinc-400 leading-none mb-0.5">Ciclos Semanais</span>
-                <span className={`text-[9px] sm:text-[10px] font-black uppercase tracking-wide leading-none ${concluidos > 0 ? 'text-amber-600 dark:text-amber-500' : 'text-zinc-600 dark:text-zinc-400'}`}>Concluídos</span>
-              </div>
+            <div className="flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-zinc-100 px-2 py-1 text-[9px] font-black uppercase tracking-widest text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800/50">
+              <RotateCw size={10} /> {concluidoCount} voltas
             </div>
           </div>
-
           <div className="relative">
-            <button onClick={(e) => onMenuToggle(e, ciclo.id)} className="p-1.5 sm:p-2 -mr-2 -mt-2 text-zinc-400 hover:text-zinc-800 dark:hover:text-white rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
-              <MoreVertical size={18} className="sm:w-5 sm:h-5" />
+            <button type="button" onClick={(event) => onMenuToggle(event, ciclo.id)} className="-mr-2 -mt-2 rounded-full p-1.5 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-800 dark:hover:bg-zinc-800 dark:hover:text-white sm:p-2">
+              <MoreVertical size={18} className="sm:h-5 sm:w-5" />
             </button>
             <AnimatePresence>
               {isMenuOpen && (
-                <motion.div
-                  initial={{ opacity: 0, y: 5, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  onClick={(e) => e.stopPropagation()}
-                  className="absolute top-8 right-0 w-44 sm:w-52 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xl py-1 z-50 overflow-hidden ring-1 ring-black/5"
-                >
-                  {/* ── NOVO: Desativar — só para ciclos ativos ─────────────── */}
-                  {ciclo.ativo && (
-                    <button
-                      onClick={(e) => onAction(e, 'desativar', ciclo)}
-                      className="w-full text-left px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/60 flex items-center gap-2 transition-colors"
-                    >
-                      <PauseCircle size={14} />
-                      Desativar
-                    </button>
-                  )}
-
-                  <button onClick={(e) => onAction(e, 'arquivar', ciclo)} className="w-full text-left px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-amber-600 dark:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/10 flex items-center gap-2 transition-colors">
-                    <Archive size={14} /> Arquivar
-                  </button>
-                  <div className="h-px bg-zinc-100 dark:bg-zinc-800 my-1" />
-                  <button onClick={(e) => onAction(e, 'excluir', ciclo)} className="w-full text-left px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-red-600 dark:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 flex items-center gap-2 transition-colors">
-                    <Trash2 size={14} /> Excluir Tudo
-                  </button>
+                <motion.div initial={{ opacity: 0, y: 5, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} onClick={(event) => event.stopPropagation()} className="absolute right-0 top-8 z-50 w-44 overflow-hidden rounded-xl border border-zinc-200 bg-white py-1 shadow-xl ring-1 ring-black/5 dark:border-zinc-800 dark:bg-zinc-950 sm:w-52">
+                  {ciclo.ativo && <button type="button" onClick={(event) => onAction(event, 'desativar', ciclo)} className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-zinc-500 transition-colors hover:bg-zinc-50 dark:text-zinc-400 dark:hover:bg-zinc-800/60"><PauseCircle size={14} /> Desativar</button>}
+                  <button type="button" onClick={(event) => onAction(event, 'editar', ciclo)} className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-zinc-500 transition-colors hover:bg-zinc-50 dark:text-zinc-400 dark:hover:bg-zinc-800/60"><FilePenLine size={14} /> Editar</button>
+                  <div className="my-1 h-px bg-zinc-100 dark:bg-zinc-800" />
+                  <button type="button" onClick={(event) => onAction(event, 'excluir', ciclo)} className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-red-600 transition-colors hover:bg-red-50 dark:text-red-500 dark:hover:bg-red-900/10"><Trash2 size={14} /> Excluir</button>
                 </motion.div>
               )}
             </AnimatePresence>
           </div>
         </div>
 
-        <div className="mb-3 sm:mb-4 flex-grow">
-          <h3 className="text-lg sm:text-xl md:text-2xl font-black text-zinc-900 dark:text-white leading-tight mb-2 line-clamp-2 group-hover:text-red-600 dark:group-hover:text-red-500 transition-colors">{ciclo.nome}</h3>
-          <div className="hidden sm:block w-8 h-1 bg-red-500 rounded-full mb-4 group-hover:w-16 transition-all duration-500" />
-          <div className="flex flex-row sm:flex-col gap-3 sm:gap-2 mb-3 sm:mb-4 flex-wrap">
-            <div className="flex items-center gap-1.5 sm:gap-2 text-zinc-500 dark:text-zinc-400 text-xs md:text-sm">
-              <Clock size={12} className="text-red-500/70 sm:w-[14px] sm:h-[14px]" />
-              <span className="font-mono font-bold text-zinc-700 dark:text-zinc-300">{ciclo.cargaHorariaSemanalTotal}h</span>
-              <span className="text-[9px] sm:text-[10px] uppercase font-bold opacity-70">Meta</span>
+        <div className="mb-3 flex-grow sm:mb-4">
+          <h3 className="mb-2 line-clamp-2 text-lg font-black leading-tight text-zinc-900 transition-colors group-hover:text-red-600 dark:text-white dark:group-hover:text-red-500 sm:text-xl md:text-2xl">{ciclo.nome || 'Ciclo sem nome'}</h3>
+          <div className="mb-4 hidden h-1 w-8 rounded-full bg-red-500 transition-all duration-500 group-hover:w-16 sm:block" />
+          <div className="mb-3 flex flex-row flex-wrap gap-3 sm:mb-4 sm:flex-col sm:gap-2">
+            <div className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400 sm:gap-2">
+              <Target size={12} className="text-red-500/70 sm:h-[14px] sm:w-[14px]" />
+              <span className="text-[9px] font-medium sm:text-[10px]">{totalBlocos || ciclo.disciplinas?.length || 0} blocos</span>
             </div>
-            <div className="flex items-center gap-1.5 sm:gap-2 text-zinc-500 dark:text-zinc-400 text-xs md:text-sm">
-              <Calendar size={12} className="text-red-500/70 sm:w-[14px] sm:h-[14px]" />
-              <span className="text-[9px] sm:text-[10px] md:text-xs font-medium truncate">
-                {new Date(ciclo.dataCriacao?.toDate ? ciclo.dataCriacao.toDate() : Date.now()).toLocaleDateString('pt-BR')}
-              </span>
+            <div className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400 sm:gap-2">
+              <Calendar size={12} className="text-red-500/70 sm:h-[14px] sm:w-[14px]" />
+              <span className="text-[9px] font-medium sm:text-[10px]">Criado: {formatDate(ciclo.dataCriacao || ciclo.criadoEm)}</span>
             </div>
           </div>
 
           <div className="mt-auto">
-            <div className="flex justify-between items-end mb-1">
-              <span className="text-[10px] sm:text-[12px] font-bold text-zinc-400 uppercase flex items-center gap-1">
-                <BarChart3 size={12} className="sm:w-[15px] sm:h-[15px]" /> Progresso
+            <div className="mb-1.5 flex items-end justify-between">
+              <span className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500 sm:text-[11px]">
+                <Trophy size={11} className="sm:h-[13px] sm:w-[13px]" /> Progresso
               </span>
-              <span className="text-[12px] sm:text-[15px] font-bold text-zinc-600 dark:text-zinc-300">
-                {totalHoras}h <span className="text-zinc-400 font-normal">/ {ciclo.cargaHorariaSemanalTotal}h</span>
-              </span>
+              <span className="text-[11px] font-black tabular-nums text-zinc-600 dark:text-zinc-300 sm:text-[13px]">{progresso}%</span>
             </div>
-            <div className="h-1.5 sm:h-2 w-full bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden shadow-inner">
-              <div className={`h-full rounded-full transition-all duration-700 ${progressoPercent >= 100 ? 'bg-emerald-500' : 'bg-red-500'}`} style={{ width: `${progressoPercent}%` }} />
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800/80 sm:h-2">
+              <div className="h-full rounded-full bg-red-600 transition-all duration-700" style={{ width: `${progresso}%` }} />
             </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-2 pt-3 sm:pt-4 border-t border-zinc-100 dark:border-zinc-800/50 mt-1 sm:mt-2">
-          {ciclo.ativo ? (
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                onClick(ciclo.id);
-              }}
-              className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-red-600 px-3 py-2 text-[9px] font-black uppercase tracking-widest text-white shadow-lg shadow-red-600/20 transition hover:bg-red-700 sm:text-[10px]"
-            >
-              Acessar <ArrowRight size={13} />
+        <div className="mt-1 flex flex-col gap-3 border-t border-zinc-100 pt-3 dark:border-zinc-800/50 sm:mt-2 sm:pt-4">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+            <span className="text-[9px] font-bold tabular-nums text-zinc-500 dark:text-zinc-400 sm:text-[10px]">{totalHoras}h estudadas</span>
+            {Number(ciclo.cargaHorariaSemanalTotal || 0) > 0 && <span className="text-[9px] font-bold tabular-nums text-zinc-500 dark:text-zinc-400 sm:text-[10px]">{ciclo.cargaHorariaSemanalTotal}h/sem</span>}
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {ciclo.ativo ? (
+              <button type="button" onClick={(event) => { event.stopPropagation(); if (canOpen) onOpen(ciclo.id, ciclo); }} className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-2 text-[9px] font-black uppercase tracking-widest text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-700 sm:text-[10px]">
+                Acessar <ArrowRight size={13} />
+              </button>
+            ) : (
+              <button type="button" onClick={(event) => onAction(event, 'ativar', ciclo)} disabled={isTimerActive} className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-2 text-[9px] font-black uppercase tracking-widest text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50 sm:text-[10px]">
+                <Zap size={13} /> Ativar
+              </button>
+            )}
+            <button type="button" onClick={(event) => onAction(event, 'editar', ciclo)} className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-[9px] font-black uppercase tracking-widest text-zinc-700 shadow-sm transition hover:border-red-200 hover:bg-red-50 hover:text-red-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-red-900/40 dark:hover:bg-red-950/20 dark:hover:text-red-400 sm:text-[10px]">
+              <FilePenLine size={13} /> Editar
             </button>
-          ) : (
-            <button
-              type="button"
-              onClick={(event) => onAction(event, 'ativar', ciclo)}
-              disabled={isTimerActive}
-              className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-2 text-[9px] font-black uppercase tracking-widest text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50 sm:text-[10px]"
-            >
-              <Zap size={13} /> Ativar
-            </button>
-          )}
-
-          <button
-            type="button"
-            onClick={(event) => onAction(event, 'editar', ciclo)}
-            className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-[9px] font-black uppercase tracking-widest text-zinc-700 shadow-sm transition hover:border-red-200 hover:bg-red-50 hover:text-red-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-red-900/40 dark:hover:bg-red-950/20 dark:hover:text-red-400 sm:text-[10px]"
-          >
-            <Edit size={13} /> Editar
-          </button>
+          </div>
         </div>
       </div>
     </div>
   );
 };
 
-// ============================================================================
-// LISTA DE CICLOS
-// ============================================================================
-function CiclosList({
-  onCicloClick,
+export default function CiclosList({
   user,
+  onCicloClick,
   onCicloAtivado,
-  registrosEstudo,
-  isTimerActive,
+  registrosEstudo = [],
+  isTimerActive = false,
   hideHeader = false,
   onRequestCreate = null,
   onRequestEdit = null,
   compact = false,
 }) {
-  useForceUnlock();
   const [ciclos, setCiclos] = useState([]);
   const [loadingList, setLoadingList] = useState(true);
-  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showCreateWizard, setShowCreateWizard] = useState(false);
   const [menuAberto, setMenuAberto] = useState(null);
-
-  const [cicloParaArquivar, setCicloParaArquivar] = useState(null);
-  const [cicloParaExcluir, setCicloParaExcluir] = useState(null);
   const [cicloParaEditar, setCicloParaEditar] = useState(null);
-  const [cicloParaDesativar, setCicloParaDesativar] = useState(null); // ← novo estado
-
+  const [cicloParaExcluir, setCicloParaExcluir] = useState(null);
+  const [cicloParaDesativar, setCicloParaDesativar] = useState(null);
+  const [timerWarning, setTimerWarning] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
-  const [timerActiveWarning, setTimerActiveWarning] = useState(false);
-  const [deleteActionError, setDeleteActionError] = useState('');
+  const [actionError, setActionError] = useState('');
+
+  const { ativarCiclo, desativarCiclo, loading: actionLoading, error } = useCiclos(user);
   const canUseInlineCreate = typeof onRequestCreate !== 'function';
   const canUseInlineEdit = typeof onRequestEdit !== 'function';
   const containerClassName = compact ? 'p-0 animate-fade-in' : 'p-0 min-h-[50vh] animate-fade-in pb-12';
-
-  // ← desativarCiclo extraído do hook
-  const { ativarCiclo, desativarCiclo, arquivarCiclo, loading: actionLoading, error: actionError } = useCiclos(user);
 
   useEffect(() => {
     const closeMenu = () => setMenuAberto(null);
@@ -352,107 +254,96 @@ function CiclosList({
   }, []);
 
   useEffect(() => {
-    if (!user) { setLoadingList(false); return; }
+    if (!user?.uid) {
+      setCiclos([]);
+      setLoadingList(false);
+      return undefined;
+    }
+
     setLoadingList(true);
     const ciclosRef = collection(db, 'users', user.uid, 'ciclos');
-    const q = query(ciclosRef, orderBy('dataCriacao', 'desc'));
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      const ciclosData = [];
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        if (!data.arquivado) ciclosData.push({ id: doc.id, ...data });
-      });
-      setCiclos(ciclosData);
+    return onSnapshot(query(ciclosRef), (snapshot) => {
+      const list = snapshot.docs
+        .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
+        .filter((ciclo) => !ciclo.arquivado)
+        .sort((a, b) => getTs(b) - getTs(a));
+      setCiclos(list);
       setLoadingList(false);
-    }, (error) => { console.error("Erro ao buscar ciclos: ", error); setLoadingList(false); });
-    return () => unsubscribe();
-  }, [user]);
-
-  const sortedCiclos = useMemo(() => {
-    return [...ciclos].sort((a, b) => {
-      if (a.ativo && !b.ativo) return -1;
-      if (!a.ativo && b.ativo) return 1;
-      return 0;
+    }, (err) => {
+      console.error('Erro ao buscar ciclos:', err);
+      setLoadingList(false);
     });
-  }, [ciclos]);
+  }, [user?.uid]);
 
-  const handleMenuToggle = (e, cicloId) => {
-    e.stopPropagation();
-    setMenuAberto(prev => (prev === cicloId ? null : cicloId));
-  };
-
-  const handleAction = async (e, action, ciclo) => {
-    e.stopPropagation();
-    setMenuAberto(null);
-
-    if (action === 'ativar') {
-      if (actionLoading) return;
-      if (isTimerActive) { setTimerActiveWarning(true); return; }
-      const sucesso = await ativarCiclo(ciclo.id);
-      if (sucesso && onCicloAtivado) onCicloAtivado(ciclo.id);
-
-    } else if (action === 'desativar') {
-      // Abre modal de confirmação leve
-      setCicloParaDesativar(ciclo);
-
-    } else if (action === 'editar') {
-      if (canUseInlineEdit) setCicloParaEditar(ciclo);
-      else onRequestEdit(ciclo);
-
-    } else if (action === 'arquivar') {
-      setCicloParaArquivar(ciclo);
-
-    } else if (action === 'excluir') {
-      setCicloParaExcluir(ciclo);
-    }
-  };
-
-  const handleConfirmarDesativacao = async () => {
-    if (actionLoading || !cicloParaDesativar) return;
-    await desativarCiclo(cicloParaDesativar.id);
-    setCicloParaDesativar(null);
-  };
-
-  const handleConfirmarArquivamento = async () => {
-    if (actionLoading || !cicloParaArquivar) return;
-    await arquivarCiclo(cicloParaArquivar.id);
-    setCicloParaArquivar(null);
-  };
-
-  const handleConfirmarExclusao = async () => {
-    if (deleteLoading || !cicloParaExcluir) return;
-    setDeleteLoading(true);
-    const { id } = cicloParaExcluir;
-    try {
-      const registrosQuery = query(collection(db, 'users', user.uid, 'registrosEstudo'), where('cicloId', '==', id));
-      const snapshot = await getDocs(registrosQuery);
-      const batch = writeBatch(db);
-      snapshot.docs.forEach((docRef) => { batch.delete(docRef.ref); });
-      const cicloRef = doc(db, 'users', user.uid, 'ciclos', id);
-      batch.delete(cicloRef);
-      await batch.commit();
-    } catch (error) {
-      console.error("Erro ao excluir ciclo:", error);
-      setDeleteActionError("Erro ao excluir ciclo. Tente novamente.");
-    } finally {
-      setDeleteLoading(false);
-      setCicloParaExcluir(null);
-    }
-  };
+  const sortedCiclos = useMemo(() => [...ciclos].sort((a, b) => {
+    if (a.ativo && !b.ativo) return -1;
+    if (!a.ativo && b.ativo) return 1;
+    return 0;
+  }), [ciclos]);
 
   const handleCreateRequest = () => {
-    if (canUseInlineCreate) setShowCreateModal(true);
+    if (canUseInlineCreate) setShowCreateWizard(true);
     else onRequestCreate();
   };
 
-  if (showCreateModal && canUseInlineCreate) {
+  const handleAction = async (event, action, ciclo) => {
+    event.stopPropagation();
+    setMenuAberto(null);
+    setActionError('');
+
+    if (action === 'ativar') {
+      if (isTimerActive) {
+        setTimerWarning(true);
+        return;
+      }
+      const success = await ativarCiclo(ciclo.id);
+      if (success) onCicloAtivado?.(ciclo.id);
+      return;
+    }
+
+    if (action === 'desativar') {
+      setCicloParaDesativar(ciclo);
+      return;
+    }
+
+    if (action === 'editar') {
+      if (canUseInlineEdit) setCicloParaEditar(ciclo);
+      else onRequestEdit(ciclo);
+      return;
+    }
+
+    if (action === 'excluir') setCicloParaExcluir(ciclo);
+  };
+
+  const handleConfirmarDesativacao = async () => {
+    if (!cicloParaDesativar || actionLoading) return;
+    const success = await desativarCiclo(cicloParaDesativar.id);
+    if (success) setCicloParaDesativar(null);
+  };
+
+  const handleConfirmarExclusao = async () => {
+    if (!cicloParaExcluir || deleteLoading || !user?.uid) return;
+    setDeleteLoading(true);
+    try {
+      const batch = writeBatch(db);
+      const registrosQuery = query(collection(db, 'users', user.uid, 'registrosEstudo'), where('cicloId', '==', cicloParaExcluir.id));
+      const registrosSnap = await getDocs(registrosQuery);
+      registrosSnap.docs.forEach((docSnap) => batch.delete(docSnap.ref));
+      batch.delete(doc(db, 'users', user.uid, 'ciclos', cicloParaExcluir.id));
+      await batch.commit();
+      setCicloParaExcluir(null);
+    } catch (err) {
+      console.error('Erro ao excluir ciclo:', err);
+      setActionError('Erro ao excluir ciclo. Tente novamente.');
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
+  if (showCreateWizard && canUseInlineCreate) {
     return (
       <div className={containerClassName}>
-        <CicloCreateWizard
-          onClose={() => setShowCreateModal(false)}
-          user={user}
-          onCicloAtivado={onCicloAtivado}
-        />
+        <CicloCreateWizard onClose={() => setShowCreateWizard(false)} user={user} onCicloAtivado={onCicloAtivado} />
       </div>
     );
   }
@@ -460,12 +351,7 @@ function CiclosList({
   if (cicloParaEditar && canUseInlineEdit) {
     return (
       <div className={containerClassName}>
-        <CicloEditModal
-          onClose={() => setCicloParaEditar(null)}
-          user={user}
-          ciclo={cicloParaEditar}
-          onCicloAtivado={onCicloAtivado}
-        />
+        <CicloEditModal onClose={() => setCicloParaEditar(null)} user={user} ciclo={cicloParaEditar} onCicloAtivado={onCicloAtivado} />
       </div>
     );
   }
@@ -473,100 +359,96 @@ function CiclosList({
   return (
     <div className={containerClassName}>
       <AnimatePresence>
-        {deleteActionError && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className="fixed left-1/2 top-4 z-[90] flex w-[calc(100%-2rem)] max-w-md -translate-x-1/2 items-center gap-3 rounded-2xl border border-red-200 bg-white px-4 py-3 text-sm font-bold text-red-700 shadow-2xl shadow-red-900/10 dark:border-red-900/40 dark:bg-zinc-950 dark:text-red-300"
-          >
-            <AlertTriangle size={18} className="shrink-0" />
-            <span>{deleteActionError}</span>
-            <button onClick={() => setDeleteActionError('')} className="ml-auto rounded-lg px-2 py-1 text-[10px] uppercase tracking-wider text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30">Ok</button>
-          </motion.div>
-        )}
-
-        {/* Warning: timer ativo */}
-        {timerActiveWarning && (
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex justify-center items-center p-4" onClick={() => setTimerActiveWarning(false)}>
-            <div className="bg-white dark:bg-zinc-950 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 w-full max-w-md overflow-hidden" onClick={(e) => e.stopPropagation()}>
-              <div className="bg-amber-500/10 p-6 flex flex-col items-center border-b border-amber-500/20">
-                <div className="w-16 h-16 bg-amber-500/20 text-amber-600 dark:text-amber-500 rounded-full flex items-center justify-center mb-4"><AlertTriangle size={32} /></div>
-                <h2 className="text-xl font-black text-zinc-900 dark:text-white uppercase tracking-tight">Cronômetro Ativo</h2>
+        {timerWarning && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" onClick={() => setTimerWarning(false)}>
+            <div className="w-full max-w-md overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-950" onClick={(event) => event.stopPropagation()}>
+              <div className="flex flex-col items-center border-b border-amber-500/20 bg-amber-500/10 p-6">
+                <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-amber-500/20 text-amber-600"><AlertOctagon size={32} /></div>
+                <h2 className="text-xl font-black uppercase tracking-tight text-zinc-900 dark:text-white">Cronometro ativo</h2>
               </div>
               <div className="p-6 text-center">
-                <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-6">Não é possível ativar outro ciclo enquanto houver um <strong className="text-zinc-900 dark:text-white">cronômetro em andamento</strong>. Finalize ou cancele a sessão atual primeiro.</p>
-                <button onClick={() => setTimerActiveWarning(false)} className="w-full px-4 py-3 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-xl font-bold text-xs uppercase tracking-wider hover:opacity-90 transition-opacity">Entendi</button>
+                <p className="mb-6 text-sm text-zinc-600 dark:text-zinc-400">Finalize ou cancele a sessao atual antes de ativar outro ciclo.</p>
+                <button type="button" onClick={() => setTimerWarning(false)} className="w-full rounded-xl bg-zinc-900 px-4 py-3 text-xs font-bold uppercase tracking-wider text-white transition-opacity hover:opacity-90 dark:bg-white dark:text-zinc-900">Entendi</button>
               </div>
             </div>
           </div>
         )}
-
-        {/* Modal desativar */}
-        {cicloParaDesativar && (
-          <ModalConfirmacaoDesativacao
-            ciclo={cicloParaDesativar}
-            onClose={() => setCicloParaDesativar(null)}
-            onConfirm={handleConfirmarDesativacao}
-            loading={actionLoading}
-          />
-        )}
-
-        {cicloParaArquivar && <ModalConfirmacaoArquivamento ciclo={cicloParaArquivar} onClose={() => setCicloParaArquivar(null)} onConfirm={handleConfirmarArquivamento} loading={actionLoading} />}
-        {cicloParaExcluir && <ModalConfirmacaoExclusao ciclo={cicloParaExcluir} onClose={() => setCicloParaExcluir(null)} onConfirm={handleConfirmarExclusao} loading={deleteLoading} />}
+        <ModalConfirmacao
+          item={cicloParaDesativar}
+          title="Desativar ciclo?"
+          description={`O ciclo "${cicloParaDesativar?.nome || ''}" sera pausado. Seu progresso fica preservado.`}
+          icon={PauseCircle}
+          tone="zinc"
+          label="Desativar"
+          onClose={() => setCicloParaDesativar(null)}
+          onConfirm={handleConfirmarDesativacao}
+          loading={actionLoading}
+        />
+        <ModalConfirmacao
+          item={cicloParaExcluir}
+          title="Excluir ciclo?"
+          description={`O ciclo "${cicloParaExcluir?.nome || ''}" e os registros vinculados serao apagados permanentemente.`}
+          icon={Trash2}
+          tone="red"
+          label="Excluir"
+          onClose={() => setCicloParaExcluir(null)}
+          onConfirm={handleConfirmarExclusao}
+          loading={deleteLoading}
+        />
       </AnimatePresence>
 
       {!hideHeader && (
-        <div className="mb-6 md:mb-8 flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-zinc-200 dark:border-zinc-800 pb-4 md:pb-6">
+        <div className="mb-6 flex flex-col items-start justify-between gap-4 border-b border-zinc-200 pb-4 dark:border-zinc-800 md:mb-8 md:flex-row md:items-end md:pb-6">
           <div>
-            <div className="flex items-center gap-3 mb-1 md:mb-2">
-              <div className="p-2 md:p-2.5 bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-500 rounded-xl">
-                <Map size={24} className="md:w-7 md:h-7" strokeWidth={2} />
+            <div className="mb-1 flex items-center gap-3 md:mb-2">
+              <div className="rounded-xl bg-red-100 p-2 text-red-600 dark:bg-red-900/20 dark:text-red-500 md:p-2.5">
+                <BookOpen size={24} className="md:h-7 md:w-7" strokeWidth={2} />
               </div>
-              <h1 className="text-2xl md:text-3xl font-black text-zinc-800 dark:text-white tracking-tight uppercase">Meus Ciclos</h1>
+              <h1 className="text-2xl font-black uppercase tracking-tight text-zinc-800 dark:text-white md:text-3xl">Meus ciclos</h1>
             </div>
+            <p className="pl-1 text-sm text-zinc-500 dark:text-zinc-400">Gerencie seus ciclos de estudo semanais</p>
           </div>
-          <button
-            onClick={handleCreateRequest}
-            disabled={actionLoading}
-            className="group relative px-4 py-2.5 md:px-5 md:py-3 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5 active:translate-y-0 flex items-center gap-2 overflow-hidden shrink-0 text-sm md:text-base w-full md:w-auto justify-center"
-          >
-            <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500" />
-            <Plus size={18} className="md:w-5 md:h-5 group-hover:rotate-90 transition-transform" />
-            <span>Novo Ciclo</span>
+          <button type="button" onClick={handleCreateRequest} className="group relative flex w-full shrink-0 items-center justify-center gap-2 overflow-hidden rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-bold text-white shadow-lg transition-all hover:-translate-y-0.5 hover:shadow-xl active:translate-y-0 dark:bg-white dark:text-zinc-900 md:w-auto md:px-5 md:py-3 md:text-base">
+            <span className="absolute inset-0 translate-x-[-100%] bg-white/20 transition-transform duration-500 group-hover:translate-x-[100%]" />
+            <Plus size={18} className="relative z-10 transition-transform group-hover:rotate-90 md:h-5 md:w-5" />
+            <span className="relative z-10">Novo Ciclo</span>
           </button>
         </div>
       )}
 
-      {actionError && (
-        <div className="mb-6 p-4 bg-red-100 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 rounded-xl flex items-center gap-3">
-          <AlertTriangle size={20} /><p>{actionError}</p>
+      {(actionError || error) && (
+        <div className="mb-6 flex items-center gap-3 rounded-xl border border-red-200 bg-red-100 p-4 text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400">
+          <AlertOctagon size={20} />
+          <p>{actionError || error}</p>
         </div>
       )}
 
       {loadingList ? (
-        <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-10 w-10 md:h-12 md:w-12 border-b-2 border-red-500" /></div>
-      ) : ciclos.length === 0 ? (
+        <div className="flex justify-center py-20"><div className="h-10 w-10 animate-spin rounded-full border-b-2 border-red-500" /></div>
+      ) : sortedCiclos.length === 0 ? (
         <EmptyStateCard
           icon={BookOpen}
-          title="Nenhum ciclo encontrado"
-          description="Crie seu primeiro plano de estudos para organizar a rotacao das disciplinas."
+          title="Nenhum ciclo"
+          description="Crie seu primeiro ciclo para organizar a rotacao das disciplinas."
           actionLabel="Criar ciclo"
           onAction={handleCreateRequest}
           variant="cta"
           className="min-h-[320px]"
         />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-6 lg:grid-cols-3">
           {sortedCiclos.map((ciclo) => (
             <CicloCard
               key={ciclo.id}
               ciclo={ciclo}
-              onClick={onCicloClick}
-              onMenuToggle={handleMenuToggle}
+              registrosEstudo={registrosEstudo}
+              onOpen={onCicloClick}
+              onMenuToggle={(event, id) => {
+                event.stopPropagation();
+                setMenuAberto((current) => (current === id ? null : id));
+              }}
               isMenuOpen={menuAberto === ciclo.id}
               onAction={handleAction}
-              registrosEstudo={registrosEstudo}
               isTimerActive={isTimerActive}
             />
           ))}
@@ -575,5 +457,3 @@ function CiclosList({
     </div>
   );
 }
-
-export default CiclosList;
