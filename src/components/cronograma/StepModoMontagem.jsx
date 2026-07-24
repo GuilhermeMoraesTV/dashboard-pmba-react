@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   CalendarDays,
@@ -10,8 +10,9 @@ import {
   Plus,
   Trash2,
   Wand2,
+  X,
 } from 'lucide-react';
-import { getDisciplineColorForSlot } from '../../utils/disciplineColors';
+import { getDisciplineCardVars, getDisciplineColorForSlot } from '../../utils/disciplineColors';
 
 const DIAS = [
   { idx: 0, curto: 'Dom', longo: 'Domingo' },
@@ -49,72 +50,99 @@ const gradeToHorarios = (grade) => {
 const normalizeSlotMinutes = (value, fallback = 60) => {
   const minutes = Number(value);
   if (!Number.isFinite(minutes)) return fallback;
-  return Math.max(15, Math.min(240, Math.round(minutes / 15) * 15));
-};
-
-const minutesToHours = (minutes) => {
-  const value = Number(minutes || 0) / 60;
-  return Number.isInteger(value) ? String(value) : String(Math.round(value * 100) / 100);
-};
-
-const hoursToMinutes = (hours, fallback) => {
-  const value = Number(String(hours).replace(',', '.'));
-  if (!Number.isFinite(value)) return fallback;
-  return normalizeSlotMinutes(value * 60, fallback);
+  return Math.max(15, Math.min(720, Math.round(minutes / 15) * 15));
 };
 
 const SlotCard = ({ slot, onRemove, onMinutesChange }) => {
   const color = getDisciplineColorForSlot(slot);
+  const cardStyle = getDisciplineCardVars(color);
+  const minutos = normalizeSlotMinutes(slot.minutos, 60);
+  const percent = Math.min(100, (minutos / 720) * 100);
+  const sliderClass = `slider-slot-${String(slot.id || '').replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+  const sliderStyle = `
+    .${sliderClass}::-webkit-slider-thumb {
+      -webkit-appearance: none; appearance: none;
+      width: 12px; height: 12px; border-radius: 50%;
+      background: #09090b; border: 2px solid #ffffff;
+      box-shadow: 0 1px 4px rgba(9,9,11,0.22); cursor: pointer;
+      margin-top: -4px;
+    }
+    .${sliderClass}::-webkit-slider-runnable-track {
+      width: 100%; height: 4px; border: 0; border-radius: 999px; background: transparent;
+    }
+    .${sliderClass}::-moz-range-thumb {
+      width: 12px; height: 12px; border-radius: 50%;
+      background: #09090b; border: 2px solid #ffffff;
+      box-shadow: 0 1px 4px rgba(9,9,11,0.22); cursor: pointer;
+    }
+    .${sliderClass}::-moz-range-track {
+      width: 100%; height: 4px; border: 0; border-radius: 999px; background: transparent;
+    }
+    .${sliderClass}::-moz-focus-outer { border: 0; }
+    .${sliderClass} {
+      -webkit-appearance: none; appearance: none;
+      width: 100%; height: 18px;
+      border: 0; border-radius: 0; background: transparent;
+      outline: none; box-shadow: none;
+    }
+  `;
 
   return (
     <motion.div
       layout
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="group relative min-h-[76px] overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-950 sm:min-h-[88px]"
+      onClick={(event) => event.stopPropagation()}
+      style={cardStyle}
+      className={`discipline-tinted-card group relative min-h-[70px] overflow-hidden rounded-2xl border shadow-sm transition-all hover:-translate-y-0.5 dark:border-zinc-800 ${color.text}`}
     >
-      <div className="absolute bottom-0 left-0 top-0 w-1 sm:w-1.5" style={{ backgroundColor: color.hex }} />
-      <div className="flex h-full flex-col gap-2 px-2 py-2 pl-3 sm:px-2.5 sm:py-2.5 sm:pl-3.5">
-        <div className="flex items-start justify-between gap-1.5">
-          <div className="min-w-0 flex-1">
-            <div className="mb-1 flex items-center gap-2">
-              <span className="h-2.5 w-2.5 shrink-0 rounded-full shadow-sm" style={{ backgroundColor: color.hex }} />
-              <h4 className="truncate text-[10px] font-black uppercase tracking-normal text-zinc-900 dark:text-white sm:text-[11px]">
-                {slot.disciplinaNome}
-              </h4>
-            </div>
-            <p className="line-clamp-2 text-[9px] font-semibold leading-snug text-zinc-500 dark:text-zinc-400 sm:text-[10px]">
-              Ajuste a carga deste bloco em horas.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onRemove}
-            className="rounded-lg p-1 text-zinc-300 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30"
-            aria-label="Remover bloco"
-          >
-            <Trash2 size={13} />
-          </button>
+      <style>{sliderStyle}</style>
+
+      <div className="flex h-full flex-col gap-2 px-2.5 py-2 pr-10 sm:px-3 sm:pr-10">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="h-2.5 w-2.5 shrink-0 rounded-full shadow-sm" style={{ backgroundColor: color.hex }} />
+          <h4 className={`min-w-0 flex-1 truncate text-[10px] font-black uppercase tracking-wide sm:text-[11px] ${color.text}`}>
+            {slot.disciplinaNome}
+          </h4>
+          <span className="shrink-0 text-sm font-black leading-none tracking-tight text-zinc-700 tabular-nums dark:text-zinc-200">
+            {fmtMin(minutos)}
+          </span>
         </div>
 
-        <label className="mt-auto flex items-center justify-between gap-1.5 rounded-xl border border-zinc-200 bg-zinc-50 px-2 py-1.5 dark:border-zinc-800 dark:bg-zinc-900">
-          <span className="flex items-center gap-1 text-[8px] font-black uppercase tracking-wide text-zinc-400 sm:text-[9px]">
-            <Clock size={11} /> Horas
-          </span>
-          <span className="flex items-center gap-1">
-            <input
-              type="number"
-              min="0.25"
-              max="4"
-              step="0.25"
-              value={minutesToHours(slot.minutos)}
-              onChange={(event) => onMinutesChange(hoursToMinutes(event.target.value, slot.minutos))}
-              className="h-7 w-12 rounded-lg border border-zinc-200 bg-white px-1 text-center text-[10px] font-black text-zinc-700 outline-none focus:border-red-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 sm:w-14 sm:text-[11px]"
-              aria-label={`Horas para ${slot.disciplinaNome}`}
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onRemove();
+          }}
+          className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-lg border border-zinc-200 bg-white/90 text-zinc-500 shadow-sm transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600 dark:border-zinc-700 dark:bg-zinc-950/90 dark:text-zinc-300 dark:hover:border-red-900/60 dark:hover:bg-red-950/30 dark:hover:text-red-300"
+          aria-label="Remover bloco"
+        >
+          <Trash2 size={13} />
+        </button>
+
+        <div className="relative h-5 w-full" data-no-pan>
+          <div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 overflow-hidden rounded-full bg-zinc-200/65 dark:bg-zinc-700/60">
+            <div
+              className="h-full rounded-full bg-zinc-950/75 dark:bg-white/70"
+              style={{ width: `${percent}%`, transition: 'width 0.1s ease-out' }}
             />
-            <span className="text-[9px] font-black text-zinc-400">h</span>
-          </span>
-        </label>
+          </div>
+          <div
+            className="pointer-events-none absolute top-1/2 z-10 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-zinc-950 shadow-sm dark:bg-white dark:border-zinc-900"
+            style={{ left: `${percent}%`, transition: 'left 0.1s ease-out' }}
+          />
+          <input
+            type="range"
+            min="15"
+            max="720"
+            step="15"
+            value={minutos}
+            onChange={(event) => onMinutesChange(normalizeSlotMinutes(event.target.value, minutos))}
+            className={`absolute inset-x-0 top-1/2 z-20 m-0 h-5 -translate-y-1/2 cursor-pointer border-0 bg-transparent p-0 opacity-0 shadow-none ${sliderClass}`}
+            aria-label={`Tempo de estudo para ${slot.disciplinaNome}`}
+          />
+        </div>
       </div>
     </motion.div>
   );
@@ -124,63 +152,148 @@ const DayColumn = ({
   dia,
   slots,
   selected,
+  selectedDisciplina,
   onSelect,
   onDropDisciplina,
   onRemoveSlot,
   onUpdateSlotTime,
+  disciplinasDisponiveis,
+  pickerOpen,
+  onOpenPicker,
+  onClosePicker,
+  onAddDisciplina,
 }) => {
   const minutosDia = slots.reduce((acc, slot) => acc + Number(slot.minutos || 0), 0);
   const hoje = getHoje();
   const offset = (dia.idx - hoje.getDay() + 7) % 7;
   const isHoje = offset === 0;
+  const activateDay = () => {
+    onSelect(dia.idx);
+    if (selectedDisciplina) {
+      onAddDisciplina(selectedDisciplina, dia.idx);
+      onClosePicker();
+      return;
+    }
+    onOpenPicker(dia.idx);
+  };
 
   return (
     <div
+      data-day-drop
+      data-day-idx={dia.idx}
       onDragOver={(event) => event.preventDefault()}
       onDrop={(event) => onDropDisciplina(event, dia.idx)}
-      className={`relative flex min-h-[250px] min-w-0 flex-col rounded-[16px] border p-1.5 transition-all duration-300 sm:min-h-[360px] sm:rounded-[18px] lg:min-h-[470px] xl:min-h-[520px] ${
+      onClick={activateDay}
+      className={`relative flex min-h-[330px] w-[220px] shrink-0 flex-col overflow-hidden rounded-[16px] border p-1.5 transition-all duration-300 sm:min-h-[500px] sm:w-[300px] sm:rounded-[18px] sm:p-2 lg:min-h-[520px] xl:w-[324px] xl:min-h-[560px] ${
         selected || isHoje
-          ? 'border-red-500/60 bg-white/70 shadow-md ring-1 ring-red-500/30 dark:bg-zinc-950/40'
+          ? 'border-zinc-300 bg-white/80 shadow-md ring-1 ring-zinc-300/70 dark:border-zinc-700 dark:bg-zinc-950/50 dark:ring-zinc-700/60'
           : 'border-zinc-200 bg-zinc-50/70 shadow-sm hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-950/30 dark:hover:border-zinc-700'
       }`}
     >
-      {(selected || isHoje) && <div className="absolute -left-1 top-0 bottom-0 w-1.5 rounded-l-2xl bg-red-600" />}
-
       <button
         type="button"
-        onClick={() => onSelect(dia.idx)}
-        className={`mb-2 shrink-0 rounded-xl border px-2.5 py-2 text-left shadow-sm transition-all duration-300 sm:mb-3 sm:rounded-2xl sm:px-3 sm:py-2.5 ${
-          selected || isHoje
-            ? 'border-red-500/60 bg-zinc-950 text-white dark:border-red-500/40 dark:bg-zinc-900'
-            : 'border-zinc-800 bg-zinc-900 text-white dark:border-zinc-800 dark:bg-zinc-900'
-        }`}
+        onClick={(event) => {
+          event.stopPropagation();
+          activateDay();
+        }}
+        className="mb-1.5 shrink-0 rounded-[14px] border border-zinc-800 bg-zinc-950 px-2.5 py-2 text-left shadow-sm transition-all duration-300 dark:border-zinc-800 dark:bg-zinc-900 sm:mb-3 sm:rounded-[20px] sm:px-3 sm:py-3"
       >
-        <span className="flex items-center justify-between gap-2">
-          <span className="min-w-0">
+        <span className="flex items-start justify-between gap-2 sm:gap-3">
+          <span className="min-w-0 pt-0.5">
             <span className="block truncate text-sm font-black uppercase leading-none tracking-tight text-white sm:text-base">
-              <span className="sm:hidden">{dia.curto}</span>
-              <span className="hidden sm:inline">{dia.longo}</span>
+              {dia.longo}
             </span>
           </span>
-          <span className="shrink-0 rounded-lg border border-white/10 bg-white/10 px-1.5 py-1 text-white sm:px-2">
-              <span className="flex items-center gap-1">
-                <Clock size={12} className={selected || isHoje ? 'text-white' : 'text-zinc-300'} />
-                <span className="text-[10px] font-black tabular-nums text-white sm:text-[11px]">{fmtMin(minutosDia)}</span>
+          <span className="shrink-0 rounded-lg border border-white/10 bg-white/10 px-1.5 py-1 text-white sm:px-2 sm:py-1.5">
+            <span className="flex items-center gap-1 sm:gap-1.5">
+              <Clock size={11} className="text-zinc-300 sm:h-3 sm:w-3" />
+              <span className="flex flex-col items-end leading-none">
+                <span className="text-[8px] font-black uppercase tracking-widest text-zinc-300">Tempo</span>
+                <span className="mt-0.5 text-[11px] font-black tabular-nums text-white">{fmtMin(minutosDia)}</span>
+              </span>
             </span>
           </span>
         </span>
       </button>
 
+      <button
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+          onSelect(dia.idx);
+          onOpenPicker(dia.idx);
+        }}
+        className="mb-1.5 flex h-7 shrink-0 items-center justify-center gap-1 rounded-xl border border-zinc-200 bg-white text-[8px] font-black uppercase tracking-widest text-zinc-500 shadow-sm transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400 dark:hover:border-red-900/60 dark:hover:bg-red-950/20 sm:mb-2 sm:h-9 sm:gap-1.5 sm:text-[9px]"
+      >
+        <Plus size={13} />
+        Escolher disciplina
+      </button>
+
+      {pickerOpen && (
+        <div
+          className="absolute left-2 right-2 top-[84px] z-30 max-h-[230px] overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl shadow-zinc-950/12 dark:border-zinc-800 dark:bg-zinc-950 sm:top-[92px] sm:max-h-[260px]"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="flex items-center justify-between gap-2 border-b border-zinc-100 px-3 py-2 dark:border-zinc-800">
+            <p className="text-[9px] font-black uppercase tracking-widest text-zinc-400">Adicionar em {dia.curto}</p>
+            <button
+              type="button"
+              onClick={onClosePicker}
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-zinc-400 transition hover:bg-zinc-100 hover:text-red-600 dark:hover:bg-zinc-900"
+              aria-label="Fechar lista de disciplinas"
+            >
+              <X size={14} />
+            </button>
+          </div>
+          <div className="max-h-[212px] overflow-y-auto p-1.5 custom-scrollbar">
+            {disciplinasDisponiveis.map((disciplina) => {
+              const color = getDisciplineColorForSlot({
+                disciplinaId: disciplina.id,
+                disciplinaNome: disciplina.nome,
+                cor: disciplina.cor,
+              });
+              return (
+                <button
+                  key={`${dia.idx}-${disciplina.id || disciplina.nome}`}
+                  type="button"
+                  onClick={() => {
+                    onAddDisciplina(disciplina, dia.idx);
+                    onClosePicker();
+                  }}
+                  className="flex w-full items-center gap-2 rounded-xl px-2 py-2 text-left transition hover:bg-red-50 dark:hover:bg-red-950/20"
+                >
+                  <span className="h-2.5 w-2.5 shrink-0 rounded-full shadow-sm" style={{ backgroundColor: color.hex }} />
+                  <span className="min-w-0 flex-1 truncate text-[10px] font-black uppercase tracking-wide text-zinc-700 dark:text-zinc-200">
+                    {disciplina.nome}
+                  </span>
+                  <Plus size={13} className="shrink-0 text-red-500" />
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-1 flex-col gap-2 sm:gap-3">
         {slots.length === 0 ? (
-          <div className="flex flex-1 flex-col items-center justify-center rounded-2xl border-2 border-dashed border-zinc-200 px-2 py-8 text-center opacity-40 dark:border-zinc-800 sm:rounded-3xl sm:px-3 sm:py-16">
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              activateDay();
+            }}
+            className="flex flex-1 flex-col items-center justify-center rounded-2xl border-2 border-dashed border-zinc-200 px-2 py-8 text-center opacity-45 transition hover:border-red-200 hover:opacity-100 dark:border-zinc-800 dark:hover:border-red-900/60 sm:rounded-3xl sm:px-3 sm:py-16"
+          >
             <div>
               <Moon size={20} className="mx-auto mb-2 text-zinc-400 sm:h-6 sm:w-6" />
               <p className="text-[8px] font-black uppercase tracking-widest text-zinc-400 sm:text-[10px]">
                 Solte aqui
               </p>
+              <p className="mt-2 text-[8px] font-black uppercase tracking-widest text-red-500">
+                Ou escolha
+              </p>
             </div>
-          </div>
+          </button>
         ) : (
           slots.map((slot) => (
             <SlotCard
@@ -206,6 +319,12 @@ export default function StepModoMontagem({
   onSelecaoChange,
 }) {
   const [diaSelecionado, setDiaSelecionado] = useState(1);
+  const [pickerDia, setPickerDia] = useState(null);
+  const [disciplinaToqueId, setDisciplinaToqueId] = useState(null);
+  const weekScrollRef = useRef(null);
+  const dragScrollRef = useRef({ active: false, startX: 0, scrollLeft: 0, pointerId: null, moved: false });
+  const touchDisciplinaRef = useRef({ active: false, pointerId: null, disciplina: null, startX: 0, startY: 0, moved: false });
+  const ignoreNextDisciplinaClickRef = useRef(false);
   const modo = config.modoMontagem || 'inteligente';
   const grade = config.gradePersonalizada || {};
   const disciplinaCores = config.disciplinaCoresPersonalizadas || {};
@@ -219,6 +338,10 @@ export default function StepModoMontagem({
   const totalMinutos = Object.values(grade).reduce(
     (acc, slots) => acc + (Array.isArray(slots) ? slots.reduce((sum, slot) => sum + Number(slot.minutos || 0), 0) : 0),
     0,
+  );
+  const disciplinaToque = useMemo(
+    () => disciplinasDisponiveis.find((item) => String(item.id) === String(disciplinaToqueId)) || null,
+    [disciplinasDisponiveis, disciplinaToqueId],
   );
 
   const updateGrade = (nextGrade) => {
@@ -262,6 +385,7 @@ export default function StepModoMontagem({
       ...grade,
       [diaIdx]: [...(grade[diaIdx] || []), slot],
     });
+    setDisciplinaToqueId(null);
   };
 
   const handleDragStartDisciplina = (event, disciplina) => {
@@ -326,6 +450,113 @@ export default function StepModoMontagem({
     onHorariosChange?.(gradeToHorarios(nextGrade));
   };
 
+  const shouldIgnorePan = (target) => (
+    target?.closest?.('input, select, textarea, [data-no-pan]')
+  );
+
+  const handleWeekPointerDown = (event) => {
+    if (event.button !== 0 || !weekScrollRef.current || shouldIgnorePan(event.target)) return;
+    dragScrollRef.current = {
+      active: true,
+      startX: event.clientX,
+      scrollLeft: weekScrollRef.current.scrollLeft,
+      pointerId: event.pointerId,
+      moved: false,
+    };
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    event.currentTarget.classList.add('cursor-grabbing');
+  };
+
+  const handleWeekPointerMove = (event) => {
+    const state = dragScrollRef.current;
+    if (!state.active || !weekScrollRef.current || state.pointerId !== event.pointerId) return;
+    const delta = event.clientX - state.startX;
+    if (Math.abs(delta) > 4) state.moved = true;
+    event.preventDefault();
+    weekScrollRef.current.scrollLeft = state.scrollLeft - (delta * 1.35);
+  };
+
+  const stopWeekPointerDrag = (event) => {
+    if (event?.pointerId && dragScrollRef.current.pointerId !== event.pointerId) return;
+    dragScrollRef.current.active = false;
+    dragScrollRef.current.pointerId = null;
+    weekScrollRef.current?.classList.remove('cursor-grabbing');
+  };
+
+  const handleWeekClickCapture = (event) => {
+    if (!dragScrollRef.current.moved) return;
+    event.preventDefault();
+    event.stopPropagation();
+    dragScrollRef.current.moved = false;
+  };
+
+  const isCoarsePointer = () => (
+    typeof window !== 'undefined'
+      && typeof window.matchMedia === 'function'
+      && window.matchMedia('(pointer: coarse)').matches
+  );
+
+  const selectDisciplinaForTouch = (disciplina) => {
+    if (!disciplina?.id) return;
+    setDisciplinaToqueId(disciplina.id);
+    setDiaSelecionado((diaAtual) => diaAtual ?? 1);
+    ensureSelected(disciplina);
+  };
+
+  const handleDisciplinaClick = (disciplina) => {
+    if (ignoreNextDisciplinaClickRef.current) {
+      ignoreNextDisciplinaClickRef.current = false;
+      return;
+    }
+    if (isCoarsePointer()) {
+      selectDisciplinaForTouch(disciplina);
+      return;
+    }
+    addSlot(disciplina);
+  };
+
+  const handleDisciplinaPointerDown = (event, disciplina) => {
+    if (event.pointerType === 'mouse' || event.target?.closest?.('input, button, label, [data-no-touch-drag]')) return;
+    touchDisciplinaRef.current = {
+      active: true,
+      pointerId: event.pointerId,
+      disciplina,
+      startX: event.clientX,
+      startY: event.clientY,
+      moved: false,
+    };
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    selectDisciplinaForTouch(disciplina);
+  };
+
+  const handleDisciplinaPointerMove = (event) => {
+    const state = touchDisciplinaRef.current;
+    if (!state.active || state.pointerId !== event.pointerId) return;
+    const deltaX = event.clientX - state.startX;
+    const deltaY = event.clientY - state.startY;
+    if (Math.hypot(deltaX, deltaY) > 8) {
+      state.moved = true;
+      event.preventDefault();
+    }
+  };
+
+  const finishDisciplinaPointer = (event) => {
+    const state = touchDisciplinaRef.current;
+    if (!state.active || state.pointerId !== event.pointerId) return;
+    const dropTarget = document
+      .elementFromPoint(event.clientX, event.clientY)
+      ?.closest?.('[data-day-drop]');
+    if (state.moved && dropTarget?.dataset?.dayIdx) {
+      const diaIdx = Number(dropTarget.dataset.dayIdx);
+      if (Number.isFinite(diaIdx)) {
+        setDiaSelecionado(diaIdx);
+        addSlot(state.disciplina, diaIdx);
+        ignoreNextDisciplinaClickRef.current = true;
+      }
+    }
+    touchDisciplinaRef.current = { active: false, pointerId: null, disciplina: null, startX: 0, startY: 0, moved: false };
+  };
+
   return (
     <div className="flex h-full w-full flex-col overflow-hidden">
       {modo !== 'personalizado' && (
@@ -344,10 +575,25 @@ export default function StepModoMontagem({
       )}
 
       {modo !== 'personalizado' && (
-        <div className="grid gap-3 px-1 sm:grid-cols-2 sm:px-4">
+        <div className="grid gap-4 px-1 sm:grid-cols-2 sm:px-4 lg:gap-7">
           {[
-            { id: 'inteligente', title: 'Distribuicao automatica', desc: 'O sistema equilibra disciplinas, revisoes e carga semanal.', icon: Wand2 },
-            { id: 'personalizado', title: 'Montagem personalizada', desc: 'Voce arrasta disciplinas para uma semana vazia e controla os blocos.', icon: CalendarDays },
+            {
+              id: 'inteligente',
+              title: 'Distribuicao automatica',
+              subtitle: 'Rapida e equilibrada',
+              desc: 'O sistema equilibra disciplinas, revisoes e carga semanal.',
+              icon: Wand2,
+              benefits: ['Distribuicao inteligente', 'Ajuste automatico da carga', 'Menos trabalho manual'],
+              badge: 'Recomendado',
+            },
+            {
+              id: 'personalizado',
+              title: 'Montagem personalizada',
+              subtitle: 'Controle por dia',
+              desc: 'Voce arrasta disciplinas para uma semana vazia e controla cada bloco.',
+              icon: CalendarDays,
+              benefits: ['Cards grandes por dia', 'Arraste disciplinas', 'Edite as horas por bloco'],
+            },
           ].map((option) => {
             const Icon = option.icon;
             const active = modo === option.id;
@@ -356,24 +602,64 @@ export default function StepModoMontagem({
                 key={option.id}
                 type="button"
                 onClick={() => setModo(option.id)}
-                className={`relative flex min-h-[104px] items-start gap-3 overflow-hidden rounded-2xl border p-4 text-left transition-all ${
+                className={`group relative flex min-h-[250px] w-full flex-col overflow-hidden rounded-[2.2rem] border-2 bg-white p-6 text-left shadow-xl transition-all duration-500 hover:-translate-y-1 dark:bg-zinc-900 md:p-7 ${
                   active
-                    ? 'border-red-400 bg-red-50/70 shadow-lg shadow-red-600/10 dark:border-red-900/60 dark:bg-red-950/20'
-                    : 'border-zinc-200 bg-white hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900/70 dark:hover:border-zinc-700'
+                    ? 'border-red-500 shadow-red-500/10 dark:border-red-900/50'
+                    : 'border-zinc-100 hover:border-red-600 hover:shadow-red-600/10 dark:border-zinc-800'
                 }`}
               >
-                <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${active ? 'bg-red-600 text-white' : 'bg-zinc-100 text-zinc-400 dark:bg-zinc-800'}`}>
-                  <Icon size={19} />
+                <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[2.2rem]">
+                  <Icon
+                    size={190}
+                    strokeWidth={1.5}
+                    className="absolute -bottom-5 -right-5 text-red-600 opacity-[0.05] transition-all duration-700 group-hover:-rotate-12 group-hover:scale-110 dark:text-red-500 dark:opacity-[0.08]"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-br from-red-500/[0.05] to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
+                </div>
+
+                {option.badge && (
+                  <span className="absolute right-5 top-5 rounded-full bg-red-600 px-3 py-1 text-[8px] font-black uppercase tracking-[0.15em] text-white shadow-lg">
+                    {option.badge}
+                  </span>
+                )}
+
+                <span className="relative z-10 flex h-12 w-12 items-center justify-center rounded-xl bg-red-600 text-white shadow-lg shadow-red-500/20 transition-all duration-500 group-hover:rotate-6">
+                  <Icon size={24} strokeWidth={2.5} />
                 </span>
-                <span className="min-w-0">
-                  <span className={`block text-xs font-black uppercase tracking-widest ${active ? 'text-red-700 dark:text-red-300' : 'text-zinc-800 dark:text-white'}`}>
+
+                <span className="relative z-10 mt-6 flex h-full flex-col">
+                  <span className="block text-xl font-black uppercase leading-none tracking-tighter text-zinc-900 dark:text-white md:text-2xl">
                     {option.title}
                   </span>
-                  <span className="mt-1 block text-xs font-semibold leading-relaxed text-zinc-500 dark:text-zinc-400">
+                  <span className="mt-2 block text-[9px] font-black uppercase tracking-[0.2em] text-red-600 dark:text-red-500">
+                    {option.subtitle}
+                  </span>
+                  <span className="mt-4 block text-[12px] font-medium leading-snug text-zinc-500 dark:text-zinc-400 md:text-[13px]">
                     {option.desc}
                   </span>
+
+                  <span className="mt-5 flex flex-col gap-2.5">
+                    {option.benefits.map((item) => (
+                      <span key={item} className="flex items-center gap-2.5">
+                        <span className="shrink-0 rounded-full bg-red-600/10 p-0.5 text-red-600">
+                          <CheckCircle2 size={12} strokeWidth={3} />
+                        </span>
+                        <span className="text-[11px] font-bold text-zinc-600 dark:text-zinc-300">
+                          {item}
+                        </span>
+                      </span>
+                    ))}
+                  </span>
+
+                  <span className="mt-auto pt-5 text-[10px] font-black uppercase tracking-[0.14em] text-zinc-400 transition-colors group-hover:text-red-600">
+                    Clique no card para continuar
+                  </span>
                 </span>
-                {active && <CheckCircle2 size={17} className="absolute right-3 top-3 text-red-600 dark:text-red-300" />}
+                {active && (
+                  <span className="absolute bottom-5 right-5 rounded-full bg-red-600 p-1 text-white shadow-lg shadow-red-600/20">
+                    <CheckCircle2 size={16} />
+                  </span>
+                )}
               </button>
             );
           })}
@@ -381,69 +667,96 @@ export default function StepModoMontagem({
       )}
 
       {modo === 'personalizado' && (
-        <div className="grid min-h-0 flex-1 gap-2 overflow-y-auto px-0 pb-8 custom-scrollbar lg:grid-cols-[minmax(0,1fr)_240px] xl:grid-cols-[minmax(0,1fr)_260px] sm:px-2">
-          <section className="order-2 flex min-h-[520px] min-w-0 flex-col lg:order-1">
-            <div className="mb-4 flex flex-col gap-3 px-0 sm:flex-row sm:items-end sm:justify-between">
-              <div className="min-w-0">
-                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-red-600 dark:text-red-400">Preview semanal</p>
-                <h3 className="mt-1 text-2xl font-black uppercase tracking-tight text-zinc-900 dark:text-white">Cronograma vazio</h3>
-                <p className="mt-1 text-xs font-semibold text-zinc-500 dark:text-zinc-400">
+        <div className="cronograma-personalizada-mobile-zoom grid min-h-0 flex-1 gap-2 overflow-y-auto px-0 pb-8 custom-scrollbar lg:grid-cols-[minmax(0,1fr)_240px] xl:grid-cols-[minmax(0,1fr)_260px] sm:px-2">
+          <section className="order-2 flex min-h-[420px] min-w-0 flex-col lg:order-1 lg:min-h-[520px]">
+            <div className="mb-2 flex flex-col gap-2 px-0 sm:mb-4 sm:flex-row sm:items-end sm:justify-between sm:gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="text-[8px] font-black uppercase tracking-[0.2em] text-red-600 dark:text-red-400 sm:text-[10px] sm:tracking-[0.22em]">Preview semanal</p>
+                <div className="mt-1 flex flex-row flex-wrap items-center gap-2">
+                  <h3 className="text-xl font-black uppercase tracking-tight text-zinc-900 dark:text-white sm:text-2xl">Monte seu Cronograma</h3>
+                  <div className="inline-flex w-fit items-center gap-1.5 rounded-xl border border-red-100 bg-white px-2.5 py-1.5 shadow-sm dark:border-red-900/40 dark:bg-zinc-950 sm:gap-2 sm:rounded-2xl sm:px-3.5 sm:py-2.5">
+                    <Clock size={14} className="text-red-500 sm:h-[17px] sm:w-[17px]" />
+                    <span className="text-[9px] font-black uppercase tracking-widest text-zinc-400">Total da semana</span>
+                    <span className="text-sm font-black leading-none tabular-nums text-zinc-900 dark:text-white sm:text-lg">{fmtMin(totalMinutos)}</span>
+                  </div>
+                </div>
+                <p className="mt-1 hidden text-xs font-semibold text-zinc-500 dark:text-zinc-400 sm:block">
                   Toque numa disciplina para adicionar ao dia selecionado, arraste para outro dia e ajuste cada bloco em horas de 15 em 15 minutos. {totalBlocos} blocos, {fmtMin(totalMinutos)} por semana.
                 </p>
               </div>
-              <div className="flex items-center gap-2 rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-800 dark:bg-zinc-900">
-                <CalendarDays size={15} className="text-red-500" />
-                <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400">
-                  Semana personalizada
-                </span>
-              </div>
             </div>
 
-            <div className="grid flex-1 grid-cols-2 gap-2 px-0 pb-6 sm:gap-2 lg:grid-cols-7 xl:gap-2">
+            <div
+              ref={weekScrollRef}
+              onPointerDown={handleWeekPointerDown}
+              onPointerMove={handleWeekPointerMove}
+              onPointerCancel={stopWeekPointerDrag}
+              onPointerUp={stopWeekPointerDrag}
+              onClickCapture={handleWeekClickCapture}
+              className="min-w-0 flex-1 cursor-grab touch-pan-y overflow-x-auto pb-4 select-none custom-scrollbar sm:pb-6"
+            >
+              <div className="flex min-w-max gap-2 px-0 xl:gap-3">
               {DIAS.map((dia) => (
                 <DayColumn
                   key={dia.idx}
                   dia={dia}
                   slots={grade[dia.idx] || []}
                   selected={diaSelecionado === dia.idx}
+                  selectedDisciplina={disciplinaToque}
                   onSelect={setDiaSelecionado}
                   onDropDisciplina={handleDropDisciplina}
                   onRemoveSlot={removeSlot}
                   onUpdateSlotTime={updateSlotTime}
+                  disciplinasDisponiveis={disciplinasDisponiveis}
+                  pickerOpen={pickerDia === dia.idx}
+                  onOpenPicker={setPickerDia}
+                  onClosePicker={() => setPickerDia(null)}
+                  onAddDisciplina={addSlot}
                 />
               ))}
+              </div>
             </div>
           </section>
 
-          <aside className="order-1 rounded-[22px] border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/60 lg:sticky lg:top-4 lg:order-2 lg:self-start lg:rounded-[28px] lg:p-4">
-            <div className="mb-3 flex items-center gap-3 border-b border-zinc-100 pb-3 dark:border-zinc-800 lg:mb-4 lg:pb-4">
-              <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-zinc-100 text-zinc-500 dark:bg-zinc-900 lg:h-10 lg:w-10">
-                <Layers size={18} />
+          <aside className="order-1 min-w-0 overflow-hidden rounded-xl border border-zinc-200 bg-white p-1.5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/60 sm:rounded-2xl sm:p-3 lg:sticky lg:top-4 lg:order-2 lg:self-start lg:rounded-[28px] lg:p-4">
+            <div className="mb-1.5 flex items-center gap-2 border-b border-zinc-100 pb-1.5 dark:border-zinc-800 sm:mb-3 sm:gap-3 sm:pb-3 lg:mb-4 lg:pb-4">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-zinc-100 text-zinc-500 dark:bg-zinc-900 sm:h-9 sm:w-9 sm:rounded-2xl lg:h-10 lg:w-10">
+                <Layers size={16} className="sm:h-[18px] sm:w-[18px]" />
               </div>
-              <div className="min-w-0">
-                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-zinc-400">Disciplinas</p>
-                <p className="truncate text-xs font-semibold text-zinc-500 dark:text-zinc-400">
-                  Escolha cor, toque para adicionar ou arraste para {DIAS.find((dia) => dia.idx === diaSelecionado)?.longo}.
+              <div className="min-w-0 flex-1">
+                <p className="text-[8px] font-black uppercase tracking-[0.16em] text-zinc-400 sm:text-[10px] sm:tracking-[0.22em]">Disciplinas</p>
+                <p className="truncate text-[9px] font-semibold text-zinc-500 dark:text-zinc-400 sm:text-xs">
+                  {disciplinaToque ? `Toque no dia para adicionar ${disciplinaToque.nome}.` : `Toque ou arraste para ${DIAS.find((dia) => dia.idx === diaSelecionado)?.longo}.`}
                 </p>
               </div>
             </div>
 
-            <div className="grid max-h-[220px] grid-cols-1 gap-2 overflow-y-auto pr-1 custom-scrollbar sm:grid-cols-2 lg:max-h-[560px] lg:grid-cols-1">
+            <div className="grid max-h-[112px] min-w-0 grid-cols-2 gap-1 overflow-x-hidden overflow-y-auto pr-0.5 custom-scrollbar sm:max-h-[220px] sm:gap-2 sm:pr-1 lg:max-h-[560px] lg:grid-cols-1">
               {disciplinasDisponiveis.map((disciplina) => {
                 const color = getDisciplineColorForSlot({
                   disciplinaId: disciplina.id,
                   disciplinaNome: disciplina.nome,
                   cor: disciplina.cor,
                 });
+                const activeDisciplina = String(disciplinaToqueId) === String(disciplina.id);
                 return (
                   <div
                     key={disciplina.id || disciplina.nome}
                     draggable
                     onDragStart={(event) => handleDragStartDisciplina(event, disciplina)}
-                    className="flex w-full cursor-grab items-center gap-2 rounded-2xl border border-zinc-200 bg-zinc-50 px-2.5 py-2 text-left transition hover:border-red-300 hover:bg-red-50/50 active:cursor-grabbing dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-red-900/50 dark:hover:bg-red-950/10 lg:gap-3 lg:px-3 lg:py-2.5"
+                    onPointerDown={(event) => handleDisciplinaPointerDown(event, disciplina)}
+                    onPointerMove={handleDisciplinaPointerMove}
+                    onPointerUp={finishDisciplinaPointer}
+                    onPointerCancel={finishDisciplinaPointer}
+                    onClick={() => handleDisciplinaClick(disciplina)}
+                    className={`flex min-w-0 w-full cursor-grab items-center gap-1 rounded-lg border px-1.5 py-1 text-left transition active:cursor-grabbing sm:gap-2 sm:rounded-2xl sm:px-2.5 sm:py-2 lg:gap-3 lg:px-3 lg:py-2.5 ${
+                      activeDisciplina
+                        ? 'border-red-400 bg-red-50 ring-1 ring-red-500/30 dark:border-red-900/70 dark:bg-red-950/20'
+                        : 'border-zinc-200 bg-zinc-50 hover:border-red-300 hover:bg-red-50/50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-red-900/50 dark:hover:bg-red-950/10'
+                    }`}
                   >
-                    <GripVertical size={14} className="shrink-0 text-zinc-300" />
-                    <label className="relative h-5 w-5 shrink-0 cursor-pointer rounded-full border-2 border-white shadow ring-1 ring-zinc-200 dark:border-zinc-900 dark:ring-zinc-700" style={{ backgroundColor: color.hex }} title={`Escolher cor de ${disciplina.nome}`}>
+                    <GripVertical size={12} className="hidden shrink-0 text-zinc-300 sm:block" />
+                    <label className="relative h-3.5 w-3.5 shrink-0 cursor-pointer rounded-full border-2 border-white shadow ring-1 ring-zinc-200 dark:border-zinc-900 dark:ring-zinc-700 sm:h-5 sm:w-5" style={{ backgroundColor: color.hex }} title={`Escolher cor de ${disciplina.nome}`} data-no-touch-drag>
                       <input
                         type="color"
                         value={color.hex}
@@ -453,25 +766,25 @@ export default function StepModoMontagem({
                         aria-label={`Escolher cor de ${disciplina.nome}`}
                       />
                     </label>
-                    <button
-                      type="button"
-                      onClick={() => addSlot(disciplina)}
-                      className="min-w-0 flex-1 text-left"
-                    >
-                      <span className="block truncate text-[10px] font-black uppercase tracking-wide text-zinc-700 dark:text-zinc-200 lg:text-[11px]">
+                    <span className="min-w-0 flex-1 text-left">
+                      <span className="block truncate text-[8px] font-black uppercase tracking-normal text-zinc-700 dark:text-zinc-200 sm:text-[10px] sm:tracking-wide lg:text-[11px]">
                         {disciplina.nome}
                       </span>
-                      <span className="mt-0.5 block truncate text-[9px] font-bold uppercase tracking-widest text-zinc-400">
+                      <span className="mt-0.5 hidden truncate text-[9px] font-bold uppercase tracking-widest text-zinc-400 sm:block">
                         Clique para adicionar
                       </span>
-                    </button>
+                    </span>
                     <button
                       type="button"
-                      onClick={() => addSlot(disciplina)}
-                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-white text-red-600 dark:bg-zinc-950"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        addSlot(disciplina);
+                      }}
+                      className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-white text-red-600 dark:bg-zinc-950 sm:h-7 sm:w-7 sm:rounded-xl"
                       aria-label={`Adicionar ${disciplina.nome}`}
+                      data-no-touch-drag
                     >
-                      <Plus size={14} />
+                      <Plus size={11} className="sm:h-[13px] sm:w-[13px]" />
                     </button>
                   </div>
                 );

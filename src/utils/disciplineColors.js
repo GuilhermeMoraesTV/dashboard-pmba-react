@@ -281,9 +281,10 @@ export const getDisciplineColorForSlot = (slot, colorMap = null) => {
     slot?.disc?.nome,
   ].filter(Boolean).map(getDisciplineKey);
 
+  const storedColor = getStoredDisciplineColor(slot?.cor);
   const mappedColor = colorMap && keys.map((key) => colorMap[key]).find(Boolean);
-  return mappedColor
-    || getStoredDisciplineColor(slot?.cor)
+  return storedColor
+    || mappedColor
     || getDisciplineColor(slot?.disciplinaId || slot?.disciplinaNome || slot?.disciplina || slot?.disc);
 };
 

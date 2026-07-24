@@ -107,6 +107,15 @@ const WizardShell = ({
   const isPassoMontagemPersonalizada = passo === 1 && isMontagemPersonalizada;
   const getNextPasso = (current) => (isMontagemPersonalizada && current === 1 ? 4 : current + 1);
   const getPrevPasso = (current) => (isMontagemPersonalizada && current === 4 ? 1 : current - 1);
+  const voltarParaSelecaoInicial = () => {
+    setConfirmandoVoltar(false);
+    setCronConfig(prev => (
+      prev?.modoMontagem === 'personalizado'
+        ? { ...prev, modoMontagem: 'inteligente' }
+        : prev
+    ));
+    setPasso(0);
+  };
 
   useEffect(() => {
     scrollToTopInstant(conteudoRef.current);
@@ -132,6 +141,10 @@ const WizardShell = ({
   const handleVoltar = () => {
     if (isEditMode && passo === firstVisibleStepId) {
       onClose?.();
+      return;
+    }
+    if (passo === 1 && isMontagemPersonalizada) {
+      setConfirmandoVoltar(true);
       return;
     }
     if (passo === 2 && (disciplinas.length > 0 || extraDisciplinas.length > 0)) {
@@ -249,7 +262,7 @@ const WizardShell = ({
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-transparent">
+    <div className="cronograma-wizard-shell flex flex-col min-h-screen bg-transparent">
       
       {/* ── Header Sticky ── */}
       <header className="wizard-progress-header sticky top-0 z-[60] shrink-0 px-3 pt-3 md:px-6 md:pt-4">
@@ -286,8 +299,8 @@ const WizardShell = ({
       </header>
 
       {/* ── Main Content ── */}
-      <main ref={conteudoRef} className="flex-1 overflow-y-auto px-4 py-6 pb-32 md:px-6 md:py-8 md:pb-36 custom-scrollbar">
-        <div className={isPassoEdital || isUltimoStep || isPassoMontagemPersonalizada ? 'w-full mx-auto' : 'max-w-5xl mx-auto'}>
+      <main ref={conteudoRef} className="wizard-main flex-1 overflow-y-auto px-4 py-6 pb-32 md:px-6 md:py-8 md:pb-36 custom-scrollbar">
+        <div className={`wizard-step-frame ${isPassoEdital || isUltimoStep || isPassoMontagemPersonalizada ? 'w-full mx-auto' : 'max-w-5xl mx-auto'}`}>
           <AnimatePresence mode="wait">
             <motion.div
               key={passo}
@@ -418,7 +431,7 @@ const WizardShell = ({
               <p className="text-sm text-zinc-500 mb-8">Seu progresso continua salvo, mas voce vai retornar para a selecao inicial.</p>
               <div className="grid grid-cols-2 gap-3">
                 <button onClick={() => setConfirmandoVoltar(false)} className="py-3 rounded-2xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white font-bold text-xs uppercase tracking-widest hover:bg-zinc-200 transition-all">Continuar Aqui</button>
-                <button onClick={() => { setConfirmandoVoltar(false); setPasso(0); }} className="py-3 rounded-2xl bg-red-600 text-white font-bold text-xs uppercase tracking-widest hover:bg-red-700 transition-all">Voltar</button>
+                <button onClick={voltarParaSelecaoInicial} className="py-3 rounded-2xl bg-red-600 text-white font-bold text-xs uppercase tracking-widest hover:bg-red-700 transition-all">Voltar</button>
               </div>
             </motion.div>
           </div>

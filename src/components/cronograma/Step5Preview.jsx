@@ -220,10 +220,6 @@ const SlotCard = ({ item, onDragStart, onClick, compact = false, config = {}, co
       style={cardStyle}
       className={`discipline-tinted-card ${isDone ? 'discipline-completed-card' : ''} group relative min-h-[104px] ${item.isConsolidada ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'} select-none overflow-hidden rounded-2xl border transition-all duration-200 shadow-sm ${isToday ? (isRev ? 'ring-1 ring-blue-500/45' : 'ring-1 ring-red-500/45') : ''}`}
     >
-      <div className={`absolute bottom-0 left-0 top-0 w-1.5 transition-colors duration-300 ${
-        isRev ? 'bg-blue-500' : isDone ? disciplinaColor.bg : emAndamento ? 'bg-orange-500' : disciplinaColor.bg
-      }`} />
-
       <div className="flex h-full flex-col gap-2 px-3.5 py-3">
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
@@ -613,7 +609,6 @@ const Step5_Preview = ({
                     <div className={`mb-3 shrink-0 rounded-2xl border px-4 py-3 shadow-sm transition-all duration-300 ${hoje ? 'border-red-500/60 bg-zinc-950 text-white dark:border-red-500/40 dark:bg-zinc-900' : 'border-zinc-800 bg-zinc-900 text-white dark:border-zinc-800 dark:bg-zinc-900'}`}>
                       {hoje && (
                         <>
-                          <div className="absolute -left-1 top-0 bottom-0 w-1.5 bg-red-600" />
                         </>
                       )}
                       <div className="flex items-start justify-between gap-3">
@@ -800,7 +795,6 @@ const Step5_Preview = ({
                           {hoje && (
                             <>
                               <div className="absolute top-0 right-0 px-4 py-1.5 bg-red-600 text-white text-[9px] font-black uppercase tracking-[0.2em] rounded-bl-2xl">Ponto de Partida</div>
-                              <div className="absolute -left-1 top-0 bottom-0 w-1.5 bg-red-600" />
                             </>
                           )}
 

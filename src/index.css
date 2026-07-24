@@ -856,6 +856,41 @@ body.wizard-shell-open .global-study-register-fab {
   z-index: 100060;
 }
 
+@media (max-width: 639px) {
+  body.wizard-shell-open .wizard-progress-header {
+    padding: 0.35rem 0.45rem 0;
+  }
+
+  body.wizard-shell-open .wizard-progress-header > div {
+    --wizard-header-mobile-zoom: 0.82;
+    width: calc(100% / var(--wizard-header-mobile-zoom));
+    max-width: none;
+    border-radius: 22px;
+    zoom: var(--wizard-header-mobile-zoom);
+  }
+
+  body.wizard-shell-open .wizard-main {
+    padding: 0.5rem 0.55rem calc(5.65rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  body.wizard-shell-open .wizard-step-frame {
+    --wizard-content-mobile-zoom: 0.76;
+    width: calc(100% / var(--wizard-content-mobile-zoom));
+    max-width: none;
+    zoom: var(--wizard-content-mobile-zoom);
+  }
+
+  body.wizard-shell-open .wizard-navigation-bar {
+    --wizard-footer-mobile-zoom: 0.86;
+    left: 0.5rem;
+    right: auto;
+    bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
+    width: calc((100% - 1rem) / var(--wizard-footer-mobile-zoom));
+    max-width: none;
+    zoom: var(--wizard-footer-mobile-zoom);
+  }
+}
+
 body.registro-modal-open .app-global-footer {
   display: none !important;
 }
