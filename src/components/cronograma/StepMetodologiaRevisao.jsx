@@ -71,25 +71,25 @@ const StepMetodologiaRevisao = ({ config = {}, onConfigChange = () => {} }) => {
   const tempoSelecionado = config.tempoRevisaoMinutos ?? 20;
 
   return (
-    <div className="flex flex-col items-center min-h-full py-4 max-w-2xl mx-auto px-4">
+    <div className="flex flex-col items-center min-h-full py-2 max-w-2xl mx-auto px-2 sm:px-4 sm:py-4">
 
       {/* Cabeçalho Padronizado */}
       <motion.div
         initial={{ opacity: 0, y: -12 }}
         animate={{ opacity: 1, y: 0 }}
-        className="text-center mb-8 w-full mx-auto px-4"
+        className="text-center mb-3 w-full mx-auto px-2 sm:mb-8 sm:px-4"
       >
-        <div className="w-14 h-14 rounded-2xl bg-red-600 flex items-center justify-center mx-auto mb-5 shadow-lg shadow-red-600/30">
+        <div className="w-9 h-9 rounded-xl bg-red-600 flex items-center justify-center mx-auto mb-2 shadow-lg shadow-red-600/30 sm:mb-5 sm:h-14 sm:w-14 sm:rounded-2xl">
           <Brain size={26} className="text-white" strokeWidth={2.5} />
         </div>
-        <h2 className="text-3xl sm:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tight leading-none mb-3">
+        <h2 className="text-xl sm:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tight leading-none mb-1 sm:mb-3">
           Revisão <span className="text-red-600">Espaçada</span>
         </h2>
-        <p className="text-zinc-500 dark:text-zinc-400 text-sm font-medium leading-relaxed max-w-md mx-auto">
+        <p className="hidden text-zinc-500 dark:text-zinc-400 text-sm font-medium leading-relaxed max-w-md mx-auto sm:block">
           Seu cronograma reserva automaticamente 25% do seu tempo diário para
           revisões — nos momentos exatos em que o esquecimento começa.
         </p>
-        <p className="mt-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-400">
+        <p className="mt-1 text-[8px] font-semibold uppercase tracking-[0.12em] text-zinc-400 sm:mt-3 sm:text-[11px] sm:tracking-[0.16em]">
           Este passo nao escolhe modo de revisao. Ele apenas define o tempo de cada revisao.
         </p>
       </motion.div>
@@ -99,10 +99,10 @@ const StepMetodologiaRevisao = ({ config = {}, onConfigChange = () => {} }) => {
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.08 }}
-        className="w-full mb-4"
+        className="w-full mb-2 sm:mb-4"
       >
         <SplitVisual />
-        <p className="text-[11px] text-zinc-400 text-center mt-3 leading-relaxed">
+        <p className="hidden text-[11px] text-zinc-400 text-center mt-3 leading-relaxed sm:block">
           O tempo de revisão é fluido — se não houver revisões pendentes num dia,
           aquele tempo é automaticamente devolvido ao estudo.
         </p>
@@ -187,7 +187,7 @@ const StepMetodologiaRevisao = ({ config = {}, onConfigChange = () => {} }) => {
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.44 }}
-        className="w-full bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-700 p-5 mb-4"
+        className="w-full bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-700 p-3 mb-4 sm:p-5"
       >
         <div className="flex items-center gap-2 mb-1">
           <Timer size={14} className="text-red-500" />
@@ -195,11 +195,11 @@ const StepMetodologiaRevisao = ({ config = {}, onConfigChange = () => {} }) => {
             Tempo por revisão
           </span>
         </div>
-        <p className="text-[12px] text-zinc-500 dark:text-zinc-400 mb-4">
+        <p className="hidden text-[12px] text-zinc-500 dark:text-zinc-400 mb-4 sm:block">
           Escolha quanto tempo cada revisao deve ocupar quando ela existir no dia.
         </p>
 
-        <div className="mb-4 rounded-xl bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-100 dark:border-zinc-700 px-4 py-3">
+        <div className="mb-3 hidden rounded-xl bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-100 dark:border-zinc-700 px-4 py-3 sm:block">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed">
               O sistema agenda revisoes apos o estudo e usa esse tempo apenas quando houver revisao pendente.
@@ -217,7 +217,7 @@ const StepMetodologiaRevisao = ({ config = {}, onConfigChange = () => {} }) => {
           </div>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex gap-1.5 sm:gap-2">
           {OPCOES_TEMPO.map((min) => {
             const ativo = tempoSelecionado === min;
             return (
@@ -228,7 +228,7 @@ const StepMetodologiaRevisao = ({ config = {}, onConfigChange = () => {} }) => {
                   onConfigChange((prev) => ({ ...prev, tempoRevisaoMinutos: min }))
                 }
                 className={`
-                  flex-1 py-2.5 rounded-xl text-sm font-black transition-all duration-150
+                  flex-1 py-2 rounded-xl text-xs font-black transition-all duration-150 sm:py-2.5 sm:text-sm
                   border focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50
                   ${ativo
                     ? 'bg-red-600 text-white border-red-600 shadow-md shadow-red-600/20'
@@ -242,7 +242,7 @@ const StepMetodologiaRevisao = ({ config = {}, onConfigChange = () => {} }) => {
           })}
         </div>
 
-        <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-3 leading-relaxed">
+        <p className="hidden text-[10px] text-zinc-400 dark:text-zinc-500 mt-3 leading-relaxed sm:block">
           Padrão: 20 minutos por revisão.
         </p>
       </motion.div>

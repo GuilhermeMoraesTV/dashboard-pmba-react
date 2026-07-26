@@ -380,7 +380,7 @@ const WizardShell = ({
       <AnimatePresence>
         {mostrandoRascunho && (
           <div className="fixed inset-0 z-[220] flex items-center justify-center p-4 bg-zinc-900/60 backdrop-blur-sm">
-            <motion.div initial={{ opacity: 0, scale: 0.94, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} className="bg-white dark:bg-zinc-900 p-7 rounded-[32px] border-2 border-zinc-100 dark:border-zinc-800 shadow-2xl max-w-md w-full text-center">
+            <motion.div initial={{ opacity: 0, scale: 0.94, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} className="wizard-confirm-card bg-white dark:bg-zinc-900 p-7 rounded-[32px] border-2 border-zinc-100 dark:border-zinc-800 shadow-2xl max-w-md w-full text-center">
               <div className="w-16 h-16 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center mx-auto mb-5">
                 <RefreshCw size={28} className="text-red-600" />
               </div>
@@ -414,7 +414,7 @@ const WizardShell = ({
 
         {confirmandoSaida && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-zinc-900/60 backdrop-blur-sm">
-            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="bg-white dark:bg-zinc-900 p-8 rounded-[32px] border-2 border-zinc-100 dark:border-zinc-800 shadow-2xl max-w-sm w-full text-center">
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="wizard-confirm-card bg-white dark:bg-zinc-900 p-8 rounded-[32px] border-2 border-zinc-100 dark:border-zinc-800 shadow-2xl max-w-sm w-full text-center">
               <div className="w-16 h-16 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center mx-auto mb-6"><AlertCircle size={32} className="text-red-600" /></div>
               <h3 className="text-xl font-black text-zinc-900 dark:text-white uppercase mb-2">Abandonar Edição?</h3>
               <p className="text-sm text-zinc-500 mb-8">Suas alterações não salvas serão perdidas.</p>
@@ -425,7 +425,7 @@ const WizardShell = ({
 
         {confirmandoVoltar && (
           <div className="fixed inset-0 z-[210] flex items-center justify-center p-4 bg-zinc-900/60 backdrop-blur-sm">
-            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="bg-white dark:bg-zinc-900 p-8 rounded-[32px] border-2 border-zinc-100 dark:border-zinc-800 shadow-2xl max-w-sm w-full text-center">
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="wizard-confirm-card bg-white dark:bg-zinc-900 p-8 rounded-[32px] border-2 border-zinc-100 dark:border-zinc-800 shadow-2xl max-w-sm w-full text-center">
               <div className="w-16 h-16 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center mx-auto mb-6"><AlertCircle size={32} className="text-red-600" /></div>
               <h3 className="text-xl font-black text-zinc-900 dark:text-white uppercase mb-2">Voltar para o Edital?</h3>
               <p className="text-sm text-zinc-500 mb-8">Seu progresso continua salvo, mas voce vai retornar para a selecao inicial.</p>

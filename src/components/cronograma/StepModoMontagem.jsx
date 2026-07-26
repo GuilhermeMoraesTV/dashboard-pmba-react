@@ -184,7 +184,7 @@ const DayColumn = ({
       onDragOver={(event) => event.preventDefault()}
       onDrop={(event) => onDropDisciplina(event, dia.idx)}
       onClick={activateDay}
-      className={`relative flex min-h-[330px] w-[220px] shrink-0 flex-col overflow-hidden rounded-[16px] border p-1.5 transition-all duration-300 sm:min-h-[500px] sm:w-[300px] sm:rounded-[18px] sm:p-2 lg:min-h-[520px] xl:w-[324px] xl:min-h-[560px] ${
+      className={`relative flex min-h-[300px] w-[176px] shrink-0 flex-col overflow-hidden rounded-[16px] border p-1.5 transition-all duration-300 sm:min-h-[500px] sm:w-[300px] sm:rounded-[18px] sm:p-2 lg:min-h-[520px] xl:w-[324px] xl:min-h-[560px] ${
         selected || isHoje
           ? 'border-zinc-300 bg-white/80 shadow-md ring-1 ring-zinc-300/70 dark:border-zinc-700 dark:bg-zinc-950/50 dark:ring-zinc-700/60'
           : 'border-zinc-200 bg-zinc-50/70 shadow-sm hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-950/30 dark:hover:border-zinc-700'
@@ -200,7 +200,7 @@ const DayColumn = ({
       >
         <span className="flex items-start justify-between gap-2 sm:gap-3">
           <span className="min-w-0 pt-0.5">
-            <span className="block truncate text-sm font-black uppercase leading-none tracking-tight text-white sm:text-base">
+            <span className="block truncate text-[12px] font-black uppercase leading-none tracking-tight text-white sm:text-base">
               {dia.longo}
             </span>
           </span>
@@ -208,8 +208,8 @@ const DayColumn = ({
             <span className="flex items-center gap-1 sm:gap-1.5">
               <Clock size={11} className="text-zinc-300 sm:h-3 sm:w-3" />
               <span className="flex flex-col items-end leading-none">
-                <span className="text-[8px] font-black uppercase tracking-widest text-zinc-300">Tempo</span>
-                <span className="mt-0.5 text-[11px] font-black tabular-nums text-white">{fmtMin(minutosDia)}</span>
+                <span className="hidden text-[8px] font-black uppercase tracking-widest text-zinc-300 sm:block">Tempo</span>
+                <span className="mt-0.5 text-[10px] font-black tabular-nums text-white sm:text-[11px]">{fmtMin(minutosDia)}</span>
               </span>
             </span>
           </span>
@@ -223,7 +223,7 @@ const DayColumn = ({
           onSelect(dia.idx);
           onOpenPicker(dia.idx);
         }}
-        className="mb-1.5 flex h-7 shrink-0 items-center justify-center gap-1 rounded-xl border border-zinc-200 bg-white text-[8px] font-black uppercase tracking-widest text-zinc-500 shadow-sm transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400 dark:hover:border-red-900/60 dark:hover:bg-red-950/20 sm:mb-2 sm:h-9 sm:gap-1.5 sm:text-[9px]"
+        className="mb-1.5 flex h-7 shrink-0 items-center justify-center gap-1 rounded-xl border border-zinc-200 bg-white text-[7px] font-black uppercase tracking-[0.08em] text-zinc-500 shadow-sm transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400 dark:hover:border-red-900/60 dark:hover:bg-red-950/20 sm:mb-2 sm:h-9 sm:gap-1.5 sm:text-[9px] sm:tracking-widest"
       >
         <Plus size={13} />
         Escolher disciplina
@@ -602,7 +602,7 @@ export default function StepModoMontagem({
                 key={option.id}
                 type="button"
                 onClick={() => setModo(option.id)}
-                className={`group relative flex min-h-[172px] w-full flex-col overflow-hidden rounded-2xl border-2 bg-white p-3 text-left shadow-lg transition-all duration-500 hover:-translate-y-1 dark:bg-zinc-900 sm:min-h-[250px] sm:rounded-[2.2rem] sm:p-6 sm:shadow-xl md:p-7 ${
+                className={`group relative flex min-h-[122px] w-full flex-col overflow-hidden rounded-2xl border-2 bg-white p-2.5 text-left shadow-md transition-all duration-500 hover:-translate-y-1 dark:bg-zinc-900 sm:min-h-[250px] sm:rounded-[2.2rem] sm:p-6 sm:shadow-xl md:p-7 ${
                   active
                     ? 'border-red-500 shadow-red-500/10 dark:border-red-900/50'
                     : 'border-zinc-100 hover:border-red-600 hover:shadow-red-600/10 dark:border-zinc-800'
@@ -610,7 +610,7 @@ export default function StepModoMontagem({
               >
                 <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[2.2rem]">
                   <Icon
-                    size={150}
+                    size={120}
                     strokeWidth={1.5}
                     className="absolute -bottom-8 -right-8 text-red-600 opacity-[0.05] transition-all duration-700 group-hover:-rotate-12 group-hover:scale-110 dark:text-red-500 dark:opacity-[0.08] sm:-bottom-5 sm:-right-5 sm:h-[190px] sm:w-[190px]"
                   />
@@ -623,22 +623,23 @@ export default function StepModoMontagem({
                   </span>
                 )}
 
-                <span className="relative z-10 flex h-8 w-8 items-center justify-center rounded-xl bg-red-600 text-white shadow-lg shadow-red-500/20 transition-all duration-500 group-hover:rotate-6 sm:h-12 sm:w-12">
-                  <Icon size={18} strokeWidth={2.5} className="sm:h-6 sm:w-6" />
+                  <span className="relative z-10 flex h-7 w-7 items-center justify-center rounded-xl bg-red-600 text-white shadow-lg shadow-red-500/20 transition-all duration-500 group-hover:rotate-6 sm:h-12 sm:w-12">
+                  <Icon size={16} strokeWidth={2.5} className="sm:h-6 sm:w-6" />
                 </span>
 
-                <span className="relative z-10 mt-3 flex h-full flex-col sm:mt-6">
-                  <span className="block text-sm font-black uppercase leading-none tracking-tighter text-zinc-900 dark:text-white sm:text-xl md:text-2xl">
-                    {option.title}
+                <span className="relative z-10 mt-2 flex h-full flex-col sm:mt-6">
+                  <span className="block text-[13px] font-black uppercase leading-none tracking-tighter text-zinc-900 dark:text-white sm:text-xl md:text-2xl">
+                    <span className="sm:hidden">{option.id === 'inteligente' ? 'Automatico' : 'Manual'}</span>
+                    <span className="hidden sm:inline">{option.title}</span>
                   </span>
-                  <span className="mt-1.5 block text-[7px] font-black uppercase tracking-[0.12em] text-red-600 dark:text-red-500 sm:mt-2 sm:text-[9px] sm:tracking-[0.2em]">
+                  <span className="mt-1 block text-[7px] font-black uppercase tracking-[0.1em] text-red-600 dark:text-red-500 sm:mt-2 sm:text-[9px] sm:tracking-[0.2em]">
                     {option.subtitle}
                   </span>
-                  <span className="mt-2 line-clamp-3 text-[9px] font-medium leading-snug text-zinc-500 dark:text-zinc-400 sm:mt-4 sm:block sm:text-[12px] md:text-[13px]">
+                  <span className="mt-2 hidden line-clamp-3 text-[9px] font-medium leading-snug text-zinc-500 dark:text-zinc-400 sm:mt-4 sm:block sm:text-[12px] md:text-[13px]">
                     {option.desc}
                   </span>
 
-                  <span className="mt-3 flex flex-col gap-1.5 sm:mt-5 sm:gap-2.5">
+                  <span className="mt-3 hidden flex-col gap-1.5 sm:mt-5 sm:flex sm:gap-2.5">
                     {option.benefits.map((item) => (
                       <span key={item} className="flex items-center gap-1.5 sm:gap-2.5">
                         <span className="shrink-0 rounded-full bg-red-600/10 p-0.5 text-red-600">
@@ -651,7 +652,7 @@ export default function StepModoMontagem({
                     ))}
                   </span>
 
-                  <span className="mt-auto pt-3 text-[7px] font-black uppercase tracking-[0.1em] text-zinc-400 transition-colors group-hover:text-red-600 sm:pt-5 sm:text-[10px] sm:tracking-[0.14em]">
+                  <span className="mt-auto hidden pt-3 text-[7px] font-black uppercase tracking-[0.1em] text-zinc-400 transition-colors group-hover:text-red-600 sm:block sm:pt-5 sm:text-[10px] sm:tracking-[0.14em]">
                     Clique no card para continuar
                   </span>
                 </span>

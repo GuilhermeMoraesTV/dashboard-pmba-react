@@ -206,12 +206,12 @@ const PageHeader = () => (
   <motion.div
     initial={{ opacity: 0, y: -12 }}
     animate={{ opacity: 1, y: 0 }}
-    className="text-center mb-8 max-w-2xl mx-auto px-4 shrink-0"
+    className="text-center mb-3 max-w-2xl mx-auto px-2 shrink-0 sm:mb-8 sm:px-4"
   >
-    <h2 className="text-3xl sm:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tight leading-none mb-3">
+    <h2 className="text-xl sm:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tight leading-none mb-1 sm:mb-3">
       Ajuste fino do seu<br /><span className="text-red-600">Plano</span>
     </h2>
-    <p className="text-zinc-500 dark:text-zinc-400 text-sm font-medium leading-relaxed max-w-md mx-auto">
+    <p className="hidden text-zinc-500 dark:text-zinc-400 text-sm font-medium leading-relaxed max-w-md mx-auto sm:block">
       Defina o nome, datas e como o cronograma vai se comportar no dia a dia.
     </p>
   </motion.div>
@@ -219,7 +219,7 @@ const PageHeader = () => (
 
 // ─── SELECTOR DE MODO (REFINADO) ──────────────────────────────────────────────
 const ModeSelector = ({ options, value, onChange }) => (
-  <div className={`grid grid-cols-1 gap-2 ${options.length === 3 ? '2xl:grid-cols-3' : 'xl:grid-cols-2'}`}>
+  <div className={`grid gap-2 ${options.length === 3 ? 'grid-cols-3 2xl:grid-cols-3' : 'grid-cols-2 xl:grid-cols-2'}`}>
     {options.map(opt => {
       const active = value === opt.id;
       const Icon = opt.icon;
@@ -228,7 +228,7 @@ const ModeSelector = ({ options, value, onChange }) => (
           key={opt.id}
           onClick={() => onChange(opt.id)}
           className={`
-            relative flex flex-col items-start gap-2 p-3 sm:gap-2.5 sm:p-4 rounded-2xl border-2 text-left
+            relative flex min-h-[82px] flex-col items-start gap-2 p-2 sm:min-h-0 sm:gap-2.5 sm:p-4 rounded-2xl border-2 text-left
             transition-all duration-300 group overflow-hidden
             ${active
               ? `${opt.activeBorder} ${opt.activeBg} shadow-md scale-[1.02] z-10`
@@ -240,7 +240,7 @@ const ModeSelector = ({ options, value, onChange }) => (
           <div className={`absolute top-0 left-0 right-0 h-1 transition-all ${active ? opt.activeBar : 'bg-transparent'}`} />
 
           <div className="flex items-center gap-2.5 w-full">
-            <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-all shadow-sm ${active ? opt.activeIcon : 'bg-zinc-100 dark:bg-zinc-800'}`}>
+            <div className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 transition-all shadow-sm sm:h-8 sm:w-8 ${active ? opt.activeIcon : 'bg-zinc-100 dark:bg-zinc-800'}`}>
               <Icon size={14} className={active ? 'text-white' : 'text-zinc-400'} />
             </div>
             <div className="flex flex-col">
@@ -254,7 +254,7 @@ const ModeSelector = ({ options, value, onChange }) => (
               )}
             </div>
           </div>
-          <p className={`text-[9px] leading-relaxed font-medium ${active ? opt.activeDesc : 'text-zinc-400 dark:text-zinc-500'}`}>
+          <p className={`hidden text-[9px] leading-relaxed font-medium sm:block ${active ? opt.activeDesc : 'text-zinc-400 dark:text-zinc-500'}`}>
             {opt.desc}
           </p>
         </button>
@@ -422,10 +422,10 @@ const Step4_Config = ({ config, onConfigChange, editalSelecionado, horarios = {}
     <div className="flex flex-col h-full overflow-hidden">
       <PageHeader />
 
-      <div className="flex flex-col lg:flex-row gap-6 lg:gap-8 flex-1 min-h-0 overflow-y-auto overflow-x-hidden custom-scrollbar pb-10 px-4 sm:px-0">
+      <div className="flex flex-col lg:flex-row gap-3 lg:gap-8 flex-1 min-h-0 overflow-y-auto overflow-x-hidden custom-scrollbar pb-10 px-2 sm:px-0">
 
         {/* ── Coluna Principal ──────────────────────────────────────────────── */}
-        <div className="flex-1 min-w-0 flex flex-col gap-6">
+        <div className="flex-1 min-w-0 flex flex-col gap-3 sm:gap-6">
 
           <div className={hasEdital ? 'grid grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] gap-3 lg:block' : ''}>
             {/* Edital mini (mobile) */}
@@ -810,7 +810,7 @@ const Step4_Config = ({ config, onConfigChange, editalSelecionado, horarios = {}
         </div>
 
         {/* ── Sidebar (REVISITADO) ─────────────────────────────────────────── */}
-        <div className="lg:w-80 shrink-0">
+        <div className="hidden lg:block lg:w-80 shrink-0">
           <div className="sticky top-6 self-start space-y-6">
 
             {/* Edital card (MANTIDO) */}

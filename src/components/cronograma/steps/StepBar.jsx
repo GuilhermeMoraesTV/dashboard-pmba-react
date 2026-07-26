@@ -14,7 +14,7 @@ const StepBar = ({ passo, steps, isExpresso }) => {
     <div className="w-full select-none">
       
       {/* 📱 MOBILE VIEW: Todos os passos visíveis em linha conectada */}
-      <div className="flex sm:hidden items-start justify-center w-full px-1 py-1 gap-0.5 rounded-[1.15rem] border border-zinc-200/80 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/70 backdrop-blur">
+      <div className="flex sm:hidden items-center justify-center w-full px-1 py-1 gap-0.5 rounded-xl border border-zinc-200/80 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/70 backdrop-blur">
         {steps.map((step, idx) => {
           const isDone = passo > step.id;
           const isActive = passo === step.id;
@@ -22,7 +22,7 @@ const StepBar = ({ passo, steps, isExpresso }) => {
 
           return (
             <React.Fragment key={step.id}>
-              <div className="relative flex flex-1 min-w-0 flex-col items-center pt-0.5 pb-2.5">
+              <div className="relative flex flex-1 min-w-0 flex-col items-center py-0.5">
                 <motion.div
                   initial={false}
                   animate={{
@@ -31,18 +31,18 @@ const StepBar = ({ passo, steps, isExpresso }) => {
                     scale: isActive ? 1.08 : 1
                   }}
                   className={`
-                    w-6 h-6 rounded-xl border-2 flex items-center justify-center transition-colors duration-300
+                    w-5 h-5 rounded-lg border-2 flex items-center justify-center transition-colors duration-300
                     ${isDone || isActive ? 'text-white' : 'text-zinc-300 dark:text-zinc-700'}
                   `}
                 >
                   {isDone ? (
-                    <Check size={10} strokeWidth={4} />
+                    <Check size={9} strokeWidth={4} />
                   ) : (
-                    <span className="text-[9px] font-black leading-none tabular-nums">{stepNumber}</span>
+                    <span className="text-[8px] font-black leading-none tabular-nums">{stepNumber}</span>
                   )}
                 </motion.div>
                 
-                {isActive && (
+                {false && isActive && (
                   <motion.span 
                     initial={{ opacity: 0, y: 4 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -54,7 +54,7 @@ const StepBar = ({ passo, steps, isExpresso }) => {
               </div>
 
               {idx < steps.length - 1 && (
-                <div className="mt-3.5 h-[2px] flex-1 min-w-[5px] bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+                <div className="h-[2px] flex-1 min-w-[5px] bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
                   <motion.div
                     className={`h-full ${accentBg}`}
                     initial={{ width: '0%' }}

@@ -53,14 +53,14 @@ const CardEdital = ({ dados, unico, idConfirmado, aoConfirmar }) => {
         layout
         whileHover={{ y: -4, scale: 1.02 }}
         whileTap={{ scale: 0.98 }}
-        className={`relative flex flex-col rounded-[24px] border-2 overflow-hidden cursor-pointer transition-all duration-300 w-[165px] sm:w-[190px] shrink-0 group ${
+        className={`relative flex flex-col rounded-2xl border-2 overflow-hidden cursor-pointer transition-all duration-300 w-[132px] sm:w-[190px] shrink-0 group sm:rounded-[24px] ${
           estaSelecionado
             ? 'border-red-500 bg-white dark:bg-zinc-900 shadow-[0_12px_40px_rgba(220,38,38,0.15)] ring-4 ring-red-500/5'
             : 'border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:border-red-300 dark:hover:border-red-900 shadow-sm'
         }`}
         onClick={handleClick}
       >
-        <div className={`h-32 flex items-center justify-center p-5 relative overflow-hidden ${
+        <div className={`h-20 flex items-center justify-center p-3 relative overflow-hidden sm:h-32 sm:p-5 ${
           estaSelecionado
             ? 'bg-gradient-to-br from-red-50 to-white dark:from-red-950/10 dark:to-zinc-900'
             : 'bg-zinc-50 dark:bg-zinc-800/50'
@@ -78,34 +78,34 @@ const CardEdital = ({ dados, unico, idConfirmado, aoConfirmar }) => {
           
           {estaConfirmado && (
             <motion.div initial={{ scale: 0, rotate: -45 }} animate={{ scale: 1, rotate: 0 }}
-              className="absolute top-3 left-3 w-6 h-6 bg-red-600 rounded-full flex items-center justify-center shadow-lg z-20">
-              <CheckCircle2 size={14} className="text-white" strokeWidth={3} />
+              className="absolute top-2 left-2 w-5 h-5 bg-red-600 rounded-full flex items-center justify-center shadow-lg z-20 sm:top-3 sm:left-3 sm:h-6 sm:w-6">
+              <CheckCircle2 size={12} className="text-white sm:h-[14px] sm:w-[14px]" strokeWidth={3} />
             </motion.div>
           )}
         </div>
 
-        <div className="flex-1 p-4 flex flex-col gap-2.5 relative z-10">
-          <div className="min-h-[32px]">
-            <h4 className={`text-[11px] font-black leading-snug uppercase tracking-tight line-clamp-2 transition-colors ${
+        <div className="flex-1 p-2.5 flex flex-col gap-1.5 relative z-10 sm:p-4 sm:gap-2.5">
+          <div className="min-h-[28px] sm:min-h-[32px]">
+            <h4 className={`text-[9px] font-black leading-snug uppercase tracking-tight line-clamp-2 transition-colors sm:text-[11px] ${
               estaSelecionado ? 'text-red-600 dark:text-red-400' : 'text-zinc-900 dark:text-white'
             }`}>{tituloExibicao}</h4>
           </div>
           
-          <div className="flex items-center gap-1.5">
+          <div className="hidden items-center gap-1.5 sm:flex">
              <div className="w-1 h-3 rounded-full bg-zinc-300 dark:bg-zinc-700" />
              <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider">{editalBase.banca || 'Banca a definir'}</span>
           </div>
 
-          <div className="flex items-center justify-between mt-1 pt-2 border-t border-zinc-50 dark:border-zinc-800/50">
+          <div className="hidden items-center justify-between mt-1 pt-2 border-t border-zinc-50 dark:border-zinc-800/50 sm:flex">
             <div className="flex items-center gap-1 text-[9px] font-bold text-zinc-400">
               <Layers size={10} className="text-zinc-300" />
               <span>{qtdDisc} Matérias</span>
             </div>
           </div>
 
-          <div className="mt-2">
+          <div className="mt-1.5 sm:mt-2">
               <button onClick={e => { e.stopPropagation(); handleClick(); }}
-                className={`w-full text-[9px] font-black py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all active:scale-95 ${
+                className={`w-full text-[8px] font-black py-1.5 rounded-xl flex items-center justify-center gap-1 transition-all active:scale-95 sm:gap-1.5 sm:py-2 sm:text-[9px] ${
                   estaConfirmado
                     ? 'bg-red-600 text-white shadow-lg shadow-red-500/20'
                     : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-red-600 hover:text-white dark:hover:bg-red-600 dark:hover:text-white'
@@ -279,12 +279,12 @@ const TelaEscolhaTipo = ({ onManual, onCatalogo }) => {
   return (
     <div className="flex flex-col items-center py-4 w-full max-w-4xl mx-auto">
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="relative mb-5 text-center sm:mb-10">
-        <h2 className="mb-2 text-2xl font-black uppercase leading-none tracking-tight text-zinc-900 dark:text-white sm:mb-3 sm:text-4xl">Selecione como deseja<br /><span className="text-red-600">Começar</span></h2>
-        <p className="mx-auto max-w-md text-xs font-medium leading-relaxed text-zinc-500 dark:text-zinc-400 sm:text-sm">Escolha o edital ou crie um plano personalizado</p>
+        <h2 className="mb-2 text-xl font-black uppercase leading-none tracking-tight text-zinc-900 dark:text-white sm:mb-3 sm:text-4xl">Selecione como deseja<br /><span className="text-red-600">Começar</span></h2>
+        <p className="hidden mx-auto max-w-md text-xs font-medium leading-relaxed text-zinc-500 dark:text-zinc-400 sm:block sm:text-sm">Escolha o edital ou crie um plano personalizado</p>
       </motion.div>
       <div className="grid w-full max-w-3xl grid-cols-2 gap-2 px-2 sm:gap-4 sm:px-4">
-        <motion.button whileHover={{ y: -4, scale: 1.01 }} whileTap={{ scale: 0.99 }} onClick={onCatalogo} className="group relative min-h-[160px] overflow-hidden rounded-2xl border-2 border-zinc-100 bg-white p-3 text-left shadow-lg transition-all hover:border-red-500/50 dark:border-zinc-800 dark:bg-zinc-900 sm:min-h-[250px] sm:rounded-[24px] sm:p-6"><div className="absolute right-0 top-0 h-20 w-20 -mr-6 -mt-6 rounded-bl-[50px] bg-red-600/5 sm:h-24 sm:w-24 sm:rounded-bl-[60px]" /><div className="relative z-10"><div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-red-600 text-white shadow-lg shadow-red-600/30 transition-transform group-hover:rotate-6 sm:mb-6 sm:h-12 sm:w-12 sm:rounded-2xl"><Library size={18} strokeWidth={2.5} className="sm:h-6 sm:w-6" /></div><h3 className="mb-1 text-sm font-black uppercase leading-none tracking-tighter text-zinc-900 dark:text-white sm:mb-2 sm:text-xl">Escolher Edital</h3><p className="mb-4 line-clamp-3 text-[9px] font-bold leading-relaxed text-zinc-500 dark:text-zinc-400 sm:mb-6 sm:text-[11px]">Acesse nosso arsenal de editais pré-configurados com pesos e tópicos otimizados.</p><div className="flex items-center gap-1.5 text-[8px] font-black uppercase tracking-[0.14em] text-red-600 transition-all group-hover:gap-3 sm:gap-2 sm:text-[10px] sm:tracking-[0.2em]">Explorar <ArrowRight size={11} strokeWidth={3} /></div></div></motion.button>
-        <motion.button whileHover={{ y: -4, scale: 1.01 }} whileTap={{ scale: 0.99 }} onClick={onManual} className="group relative min-h-[160px] overflow-hidden rounded-2xl border-2 border-dashed border-zinc-200 bg-zinc-50/30 p-3 text-left transition-all hover:border-zinc-400 hover:bg-white dark:border-zinc-800 dark:bg-zinc-900/30 dark:hover:bg-zinc-900 sm:min-h-[250px] sm:rounded-[24px] sm:p-6"><div className="absolute right-0 top-0 h-20 w-20 -mr-6 -mt-6 rounded-bl-[50px] bg-zinc-400/5 sm:h-24 sm:w-24 sm:rounded-bl-[60px]" /><div className="relative z-10"><div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl border border-zinc-200 bg-zinc-100 text-zinc-400 transition-transform group-hover:rotate-6 dark:bg-zinc-800 sm:mb-6 sm:h-12 sm:w-12 sm:rounded-2xl"><Plus size={18} strokeWidth={2.5} className="sm:h-6 sm:w-6" /></div><h3 className="mb-1 text-sm font-black uppercase leading-none tracking-tighter text-zinc-900 dark:text-white sm:mb-2 sm:text-xl">Plano Manual</h3><p className="mb-4 line-clamp-3 text-[9px] font-bold leading-relaxed text-zinc-500 dark:text-zinc-400 sm:mb-6 sm:text-[11px]">Crie sua própria estratégia personalizada do zero, com controle total das matérias.</p><div className="flex items-center gap-1.5 text-[8px] font-black uppercase tracking-[0.14em] text-zinc-400 transition-all group-hover:gap-3 group-hover:text-zinc-900 dark:group-hover:text-white sm:gap-2 sm:text-[10px] sm:tracking-[0.2em]">Montar do Zero <ArrowRight size={11} strokeWidth={3} /></div></div></motion.button>
+        <motion.button whileHover={{ y: -4, scale: 1.01 }} whileTap={{ scale: 0.99 }} onClick={onCatalogo} className="group relative min-h-[118px] overflow-hidden rounded-2xl border-2 border-zinc-100 bg-white p-2.5 text-left shadow-lg transition-all hover:border-red-500/50 dark:border-zinc-800 dark:bg-zinc-900 sm:min-h-[250px] sm:rounded-[24px] sm:p-6"><div className="absolute right-0 top-0 h-16 w-16 -mr-6 -mt-6 rounded-bl-[44px] bg-red-600/5 sm:h-24 sm:w-24 sm:rounded-bl-[60px]" /><div className="relative z-10"><div className="mb-2 flex h-8 w-8 items-center justify-center rounded-xl bg-red-600 text-white shadow-lg shadow-red-600/30 transition-transform group-hover:rotate-6 sm:mb-6 sm:h-12 sm:w-12 sm:rounded-2xl"><Library size={16} strokeWidth={2.5} className="sm:h-6 sm:w-6" /></div><h3 className="mb-1 text-[13px] font-black uppercase leading-none tracking-tighter text-zinc-900 dark:text-white sm:mb-2 sm:text-xl">Edital</h3><p className="mb-4 hidden line-clamp-3 text-[9px] font-bold leading-relaxed text-zinc-500 dark:text-zinc-400 sm:mb-6 sm:block sm:text-[11px]">Acesse nosso arsenal de editais pré-configurados com pesos e tópicos otimizados.</p><div className="flex items-center gap-1.5 text-[8px] font-black uppercase tracking-[0.1em] text-red-600 transition-all group-hover:gap-3 sm:gap-2 sm:text-[10px] sm:tracking-[0.2em]">Explorar <ArrowRight size={11} strokeWidth={3} /></div></div></motion.button>
+        <motion.button whileHover={{ y: -4, scale: 1.01 }} whileTap={{ scale: 0.99 }} onClick={onManual} className="group relative min-h-[118px] overflow-hidden rounded-2xl border-2 border-dashed border-zinc-200 bg-zinc-50/30 p-2.5 text-left transition-all hover:border-zinc-400 hover:bg-white dark:border-zinc-800 dark:bg-zinc-900/30 dark:hover:bg-zinc-900 sm:min-h-[250px] sm:rounded-[24px] sm:p-6"><div className="absolute right-0 top-0 h-16 w-16 -mr-6 -mt-6 rounded-bl-[44px] bg-zinc-400/5 sm:h-24 sm:w-24 sm:rounded-bl-[60px]" /><div className="relative z-10"><div className="mb-2 flex h-8 w-8 items-center justify-center rounded-xl border border-zinc-200 bg-zinc-100 text-zinc-400 transition-transform group-hover:rotate-6 dark:bg-zinc-800 sm:mb-6 sm:h-12 sm:w-12 sm:rounded-2xl"><Plus size={16} strokeWidth={2.5} className="sm:h-6 sm:w-6" /></div><h3 className="mb-1 text-[13px] font-black uppercase leading-none tracking-tighter text-zinc-900 dark:text-white sm:mb-2 sm:text-xl">Manual</h3><p className="mb-4 hidden line-clamp-3 text-[9px] font-bold leading-relaxed text-zinc-500 dark:text-zinc-400 sm:mb-6 sm:block sm:text-[11px]">Crie sua própria estratégia personalizada do zero, com controle total das matérias.</p><div className="flex items-center gap-1.5 text-[8px] font-black uppercase tracking-[0.1em] text-zinc-400 transition-all group-hover:gap-3 group-hover:text-zinc-900 dark:group-hover:text-white sm:gap-2 sm:text-[10px] sm:tracking-[0.2em]">Montar <ArrowRight size={11} strokeWidth={3} /></div></div></motion.button>
       </div>
     </div>
   );

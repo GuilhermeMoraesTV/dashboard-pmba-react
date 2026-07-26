@@ -862,7 +862,7 @@ body.wizard-shell-open .global-study-register-fab {
   }
 
   body.wizard-shell-open .wizard-progress-header > div {
-    --wizard-header-mobile-zoom: 0.74;
+    --wizard-header-mobile-zoom: 0.7;
     width: 100%;
     max-width: 100%;
     border-radius: 18px;
@@ -871,11 +871,11 @@ body.wizard-shell-open .global-study-register-fab {
 
   body.wizard-shell-open .wizard-main {
     overflow-x: hidden;
-    padding: 0.45rem 0.5rem calc(5rem + env(safe-area-inset-bottom, 0px));
+    padding: 0.35rem 0.45rem calc(4.5rem + env(safe-area-inset-bottom, 0px));
   }
 
   body.wizard-shell-open .wizard-step-frame {
-    --wizard-content-mobile-zoom: 0.82;
+    --wizard-content-mobile-zoom: 0.8;
     width: 100%;
     max-width: 100%;
     overflow-x: hidden;
@@ -883,13 +883,69 @@ body.wizard-shell-open .global-study-register-fab {
   }
 
   body.wizard-shell-open .wizard-navigation-bar {
-    --wizard-footer-mobile-zoom: 0.76;
+    --wizard-footer-mobile-zoom: 0.72;
     left: 0.5rem;
     right: 0.5rem;
     bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
     width: auto;
     max-width: calc(100% - 1rem);
     zoom: var(--wizard-footer-mobile-zoom);
+  }
+
+  body.wizard-shell-open .wizard-progress-header h1,
+  body.wizard-shell-open .wizard-progress-header h2 {
+    font-size: 0.58rem;
+    letter-spacing: 0.08em;
+  }
+
+  body.wizard-shell-open .wizard-progress-header p {
+    display: none;
+  }
+
+  body.wizard-shell-open .wizard-progress-header svg {
+    max-width: 1rem;
+    max-height: 1rem;
+  }
+
+  body.wizard-shell-open .wizard-step-frame,
+  body.wizard-shell-open .wizard-step-frame * {
+    min-width: 0;
+  }
+
+  body.wizard-shell-open .wizard-step-frame button,
+  body.wizard-shell-open .wizard-navigation-bar button,
+  body.wizard-shell-open .wizard-confirm-card button {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  body.wizard-shell-open .wizard-step-frame input,
+  body.wizard-shell-open .wizard-step-frame select,
+  body.wizard-shell-open .wizard-step-frame textarea {
+    max-width: 100%;
+  }
+
+  body.wizard-shell-open .wizard-confirm-card {
+    width: min(100%, 21rem);
+    max-width: calc(100vw - 1.5rem);
+    padding: 1.15rem !important;
+    border-radius: 1.35rem !important;
+    zoom: 0.82;
+  }
+
+  body.wizard-shell-open .wizard-confirm-card h3 {
+    font-size: 1rem;
+  }
+
+  body.wizard-shell-open .wizard-confirm-card p {
+    font-size: 0.78rem;
+    margin-bottom: 1rem;
+  }
+
+  body.wizard-shell-open .wizard-confirm-card [class*="w-16"][class*="h-16"] {
+    width: 3rem;
+    height: 3rem;
+    margin-bottom: 0.8rem;
   }
 }
 

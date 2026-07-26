@@ -64,7 +64,7 @@ const OPCOES_ASSUNTOS = [
 ];
 
 const ModeSelector = ({ options, value, onChange }) => (
-  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+  <div className="grid grid-cols-2 gap-2 sm:gap-3">
     {options.map((opt) => {
       const active = value === opt.id;
       const Icon = opt.icon;
@@ -73,7 +73,7 @@ const ModeSelector = ({ options, value, onChange }) => (
           key={opt.id}
           type="button"
           onClick={() => onChange(opt.id)}
-          className={`relative flex min-h-[112px] flex-col items-start gap-2.5 overflow-hidden rounded-2xl border-2 p-4 text-left transition-all duration-300 ${
+          className={`relative flex min-h-[86px] flex-col items-start gap-2 overflow-hidden rounded-2xl border-2 p-2.5 text-left transition-all duration-300 sm:min-h-[112px] sm:gap-2.5 sm:p-4 ${
             active
               ? `${opt.activeBorder} ${opt.activeBg} shadow-md sm:scale-[1.02]`
               : 'border-zinc-100 bg-white hover:border-zinc-200 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/50 dark:hover:border-zinc-700 dark:hover:bg-zinc-800/80'
@@ -82,7 +82,7 @@ const ModeSelector = ({ options, value, onChange }) => (
           <div className={`absolute inset-x-0 top-0 h-1 transition-all ${active ? opt.activeBar : 'bg-transparent'}`} />
 
           <div className="flex w-full items-center gap-2.5">
-            <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl shadow-sm transition-all ${active ? opt.activeIcon : 'bg-zinc-100 dark:bg-zinc-800'}`}>
+            <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-xl shadow-sm transition-all sm:h-8 sm:w-8 ${active ? opt.activeIcon : 'bg-zinc-100 dark:bg-zinc-800'}`}>
               <Icon size={14} className={active ? 'text-white' : 'text-zinc-400'} />
             </div>
             <div className="min-w-0">
@@ -97,7 +97,7 @@ const ModeSelector = ({ options, value, onChange }) => (
             </div>
           </div>
 
-          <p className={`text-[10px] font-medium leading-relaxed ${active ? opt.activeDesc : 'text-zinc-400 dark:text-zinc-500'}`}>
+          <p className={`hidden text-[10px] font-medium leading-relaxed sm:block ${active ? opt.activeDesc : 'text-zinc-400 dark:text-zinc-500'}`}>
             {opt.desc}
           </p>
         </button>
@@ -163,19 +163,19 @@ export default function StepConfig({
       <motion.div
         initial={{ opacity: 0, y: -12 }}
         animate={{ opacity: 1, y: 0 }}
-        className="mb-8 max-w-2xl mx-auto px-4 text-center shrink-0"
+        className="mb-3 max-w-2xl mx-auto px-2 text-center shrink-0 sm:mb-8 sm:px-4"
       >
-        <h2 className="mb-3 text-3xl font-black uppercase leading-none tracking-tight text-zinc-900 dark:text-white sm:text-4xl">
+        <h2 className="mb-1 text-xl font-black uppercase leading-none tracking-tight text-zinc-900 dark:text-white sm:mb-3 sm:text-4xl">
           Ajuste fino do seu<br /><span className="text-red-600">Plano</span>
         </h2>
-        <p className="mx-auto max-w-md text-sm font-medium leading-relaxed text-zinc-500 dark:text-zinc-400">
+        <p className="mx-auto hidden max-w-md text-sm font-medium leading-relaxed text-zinc-500 dark:text-zinc-400 sm:block">
           Defina o nome e como o ciclo vai se comportar no seu dia a dia.
         </p>
       </motion.div>
       <div className="px-1 sm:px-4">
         <div className="flex flex-col lg:flex-row gap-4 md:gap-6 w-full">
           <div className="flex-1 min-w-0">
-            <div className="max-w-4xl mx-auto p-5 sm:p-7 rounded-3xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/40 shadow-sm space-y-6">
+            <div className="max-w-4xl mx-auto p-3 sm:p-7 rounded-2xl sm:rounded-3xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/40 shadow-sm space-y-3 sm:space-y-6">
               <div>
                 <label className="text-xs font-black uppercase tracking-wider text-zinc-500">Nome do Ciclo</label>
                 <div className="relative mt-2">
@@ -183,7 +183,7 @@ export default function StepConfig({
                     type="text"
                     value={nomeCiclo}
                     onChange={(e) => setNomeCiclo(e.target.value)}
-                    className="w-full p-4 text-lg text-left font-bold border-2 border-zinc-200 dark:border-zinc-800 rounded-2xl bg-zinc-50 dark:bg-zinc-900 focus:border-red-500 focus:ring-4 focus:ring-red-500/10 outline-none transition-all placeholder:text-zinc-300"
+                    className="w-full p-3 text-sm text-left font-bold border-2 border-zinc-200 dark:border-zinc-800 rounded-2xl bg-zinc-50 dark:bg-zinc-900 focus:border-red-500 focus:ring-4 focus:ring-red-500/10 outline-none transition-all placeholder:text-zinc-300 sm:p-4 sm:text-lg"
                     placeholder="Ex: CFO PMBA 2025"
                   />
                   <Edit2
