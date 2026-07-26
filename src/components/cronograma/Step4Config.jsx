@@ -208,10 +208,10 @@ const PageHeader = () => (
     animate={{ opacity: 1, y: 0 }}
     className="text-center mb-3 max-w-2xl mx-auto px-2 shrink-0 sm:mb-8 sm:px-4"
   >
-    <h2 className="text-xl sm:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tight leading-none mb-1 sm:mb-3">
+    <h2 className="text-4xl sm:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-[0.95] mb-2 sm:mb-3">
       Ajuste fino do seu<br /><span className="text-red-600">Plano</span>
     </h2>
-    <p className="hidden text-zinc-500 dark:text-zinc-400 text-sm font-medium leading-relaxed max-w-md mx-auto sm:block">
+    <p className="block text-zinc-500 dark:text-zinc-400 text-base sm:text-sm font-semibold leading-relaxed max-w-md mx-auto">
       Defina o nome, datas e como o cronograma vai se comportar no dia a dia.
     </p>
   </motion.div>

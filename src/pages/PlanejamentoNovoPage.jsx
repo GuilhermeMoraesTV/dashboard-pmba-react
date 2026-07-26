@@ -52,7 +52,7 @@ const CardPlanejamento = ({
       onClick={onClick}
       variants={itemVariants}
       whileHover={{ y: -8, scale: 1.015 }}
-      className={`relative group flex min-h-[152px] flex-col rounded-2xl border-2 bg-white p-2.5 text-left shadow-md transition-all duration-500 dark:bg-zinc-900 sm:min-h-[260px] sm:p-6 md:p-7 md:rounded-[2.2rem] md:shadow-xl ${
+      className={`relative group flex min-h-[168px] flex-col rounded-2xl border-2 bg-white p-3 text-left shadow-md transition-all duration-500 dark:bg-zinc-900 sm:min-h-[260px] sm:p-6 md:p-7 md:rounded-[2.2rem] md:shadow-xl ${
         isCycle 
           ? 'border-red-100 dark:border-red-900/30 hover:border-red-500 hover:shadow-red-500/10' 
           : 'border-zinc-100 dark:border-zinc-800 hover:border-red-600 hover:shadow-red-600/10'
@@ -83,7 +83,7 @@ const CardPlanejamento = ({
           <Icone size={16} strokeWidth={2.5} className="sm:h-6 sm:w-6" />
         </div>
 
-        <h3 className="mb-1 text-[13px] font-black uppercase leading-none tracking-tighter text-zinc-900 dark:text-white sm:mb-2 sm:text-xl md:text-2xl">
+        <h3 className="mb-1 text-[15px] font-black uppercase leading-none tracking-tighter text-zinc-900 dark:text-white sm:mb-2 sm:text-xl md:text-2xl">
           <span className="sm:hidden">{tituloMobile}</span>
           <span className="hidden sm:inline">{titulo}</span>
         </h3>
@@ -92,7 +92,7 @@ const CardPlanejamento = ({
           <span className="hidden sm:inline">{subtitulo}</span>
         </p>
 
-        <p className="mt-2 line-clamp-3 text-[9px] font-semibold leading-snug text-zinc-500 dark:text-zinc-400 sm:hidden">
+        <p className="mt-2 line-clamp-3 text-[10px] font-semibold leading-snug text-zinc-500 dark:text-zinc-400 sm:hidden">
           {descricaoMobile}
         </p>
 
@@ -142,13 +142,13 @@ function PlanejamentoNovoPage({ onBack, onCriarCiclo, onCriarCronograma, hideBac
           </header>
         )}
 
-        <div className="mb-4 text-center md:mb-16">
+        <div className="mb-5 text-center md:mb-16">
           <motion.div
             variants={titleVariants}
             initial="hidden"
             animate="visible"
           >
-            <h1 className="mb-2 text-xl font-black uppercase leading-[0.95] tracking-tighter text-zinc-900 dark:text-white sm:text-2xl md:mb-4 md:text-4xl">
+            <h1 className="mb-2 text-4xl font-black uppercase leading-[0.95] tracking-tighter text-zinc-900 dark:text-white sm:text-2xl md:mb-4 md:text-4xl">
               Escolha sua <br />
               <span className="text-red-600">Estratégia de Estudo</span>
             </h1>
@@ -157,7 +157,7 @@ function PlanejamentoNovoPage({ onBack, onCriarCiclo, onCriarCronograma, hideBac
               animate={{ width: 60 }}
               className="h-1 bg-red-600 mx-auto rounded-full mb-3 sm:mb-5 shadow-[0_0_15px_rgba(220,38,38,0.2)]"
             />
-            <p className="hidden text-[10px] md:text-[11px] text-zinc-500 dark:text-zinc-400 font-black uppercase tracking-[0.25em] px-4 sm:block">
+            <p className="block px-4 text-[12px] font-black uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400 sm:text-[10px] sm:tracking-[0.25em] md:text-[11px]">
               Otimize seu tempo e domine o conteúdo
             </p>
           </motion.div>

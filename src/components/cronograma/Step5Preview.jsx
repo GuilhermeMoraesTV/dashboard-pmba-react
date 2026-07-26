@@ -491,11 +491,11 @@ const Step5_Preview = ({
         animate={{ opacity: 1, y: 0 }}
         className="text-center mb-2 w-full mx-auto px-2 sm:mb-4 sm:px-4"
       >
-        <h2 className="text-xl sm:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tight leading-none mb-2 sm:mb-3">
+        <h2 className="text-4xl sm:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-[0.95] mb-2 sm:mb-3">
           Tudo pronto para<br />
           <span className="text-red-600">Começar?</span>
         </h2>
-        <p className="text-[11px] text-zinc-500 dark:text-zinc-400 font-medium leading-relaxed max-w-md mx-auto sm:text-sm">
+        <p className="text-base text-zinc-500 dark:text-zinc-400 font-semibold leading-relaxed max-w-md mx-auto sm:text-sm">
           Revise seu plano estratégico final e faça ajustes finos se necessário antes de confirmar.
         </p>
       </motion.div>
@@ -519,7 +519,7 @@ const Step5_Preview = ({
       <div className="flex flex-col items-center justify-center gap-2 px-1 sm:flex-row sm:justify-between sm:gap-3">
         <div className="flex items-center gap-3">
           <div className="w-1.5 h-6 rounded-full bg-red-600 shadow-[0_0_10px_rgba(220,38,38,0.3)]" />
-          <h2 className="text-lg font-black uppercase tracking-widest text-zinc-900 dark:text-white leading-none">Visão do Plano</h2>
+          <h2 className="text-2xl font-black uppercase tracking-tight text-zinc-900 dark:text-white leading-none sm:text-lg sm:tracking-widest">Visão do Plano</h2>
         </div>
         <div className="mx-auto flex items-center justify-center gap-1 rounded-2xl bg-zinc-100 p-1 dark:bg-zinc-800 sm:mx-0">
           {[
@@ -611,34 +611,35 @@ const Step5_Preview = ({
                         <>
                         </>
                       )}
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
                           <p className={`hidden text-[10px] font-black uppercase tracking-widest sm:block ${hoje ? 'text-red-200 dark:text-red-600' : 'text-zinc-400 dark:text-zinc-500'}`}>
                             {MESES_FULL[data.getMonth()]}
                           </p>
-                          <h3 className="mt-0.5 truncate text-[12px] font-black uppercase leading-none tracking-tight text-white sm:text-lg">
-                            {data.toLocaleDateString('pt-BR', { weekday: 'long' })}
+                          <h3 className="mt-0.5 truncate text-[14px] font-black uppercase leading-none tracking-tight text-white sm:text-lg">
+                            <span className="sm:hidden">{diaNome}</span>
+                            <span className="hidden sm:inline">{data.toLocaleDateString('pt-BR', { weekday: 'long' })}</span>
                           </h3>
                           <div className={`mt-1 text-[9px] font-bold uppercase tracking-widest sm:text-[11px] ${hoje ? 'text-red-100 dark:text-red-600' : 'text-zinc-300 dark:text-zinc-500'}`}>
                             {data.getDate()} {data.toLocaleDateString('pt-BR', { month: 'short' })}
                           </div>
                         </div>
-                        <div className="flex flex-col items-end gap-2">
-                          <div className="rounded-lg border border-white/10 bg-white/10 px-2 py-1.5 text-white">
+                        <div className="flex shrink-0 flex-col items-end gap-1.5">
+                          <div className="rounded-lg border border-white/10 bg-white/10 px-1.5 py-1.5 text-white sm:px-2">
                             <div className="flex items-center gap-1 sm:gap-1.5">
-                              <Clock size={12} className={hoje ? 'text-white' : 'text-zinc-300'} />
+                              <Clock size={11} className={hoje ? 'text-white' : 'text-zinc-300'} />
                               <div className="flex flex-col items-end leading-none">
                                 <span className={`hidden text-[8px] font-black uppercase tracking-widest sm:block ${hoje ? 'text-red-100' : 'text-zinc-300'}`}>Tempo</span>
-                                <span className="mt-0.5 text-[10px] font-black tabular-nums text-white sm:text-[11px]">{fmtMin(totalDia)}</span>
+                                <span className="mt-0.5 whitespace-nowrap text-[10px] font-black tabular-nums text-white sm:text-[11px]">{fmtMin(totalDia)}</span>
                               </div>
                             </div>
                           </div>
                           {hoje ? (
-                            <span className="rounded bg-white px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-red-600 shadow-sm">
+                            <span className="rounded bg-white px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide text-red-600 shadow-sm sm:px-2 sm:text-[9px] sm:tracking-widest">
                               Hoje
                             </span>
                           ) : items.length > 0 ? (
-                            <div className="rounded bg-white/10 px-2 py-0.5 text-[10px] font-black text-white">
+                            <div className="rounded bg-white/10 px-1.5 py-0.5 text-[8px] font-black text-white sm:px-2 sm:text-[10px]">
                               {items.length} blocos
                             </div>
                           ) : null}

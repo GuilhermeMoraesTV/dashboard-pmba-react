@@ -15,11 +15,11 @@ const PageHeader = ({ modoManual }) => (
     animate={{ opacity: 1, y: 0 }}
     className="text-center mb-8 max-w-2xl mx-auto px-4"
   >
-    <h2 className="text-3xl sm:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tight leading-none mb-3">
+    <h2 className="text-4xl sm:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-[0.95] mb-3">
       O que você vai<br />
       <span className="text-red-600">estudar?</span>
     </h2>
-    <p className="text-zinc-500 dark:text-zinc-400 text-sm font-medium leading-relaxed max-w-md mx-auto">
+    <p className="text-zinc-500 dark:text-zinc-400 text-base sm:text-sm font-semibold leading-relaxed max-w-md mx-auto">
       {modoManual
         ? "Adicione as disciplinas e indique seu nível atual em cada uma. O sistema montará o tempo ideal de forma inteligente."
         : "Marque o que vai estudar e defina seu nível de domínio. Nossa IA dará mais tempo para suas dificuldades e menos para o que já domina."}

@@ -82,14 +82,14 @@ const StepMetodologiaRevisao = ({ config = {}, onConfigChange = () => {} }) => {
         <div className="w-9 h-9 rounded-xl bg-red-600 flex items-center justify-center mx-auto mb-2 shadow-lg shadow-red-600/30 sm:mb-5 sm:h-14 sm:w-14 sm:rounded-2xl">
           <Brain size={26} className="text-white" strokeWidth={2.5} />
         </div>
-        <h2 className="text-xl sm:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tight leading-none mb-1 sm:mb-3">
+        <h2 className="text-4xl sm:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-[0.95] mb-2 sm:mb-3">
           Revisão <span className="text-red-600">Espaçada</span>
         </h2>
-        <p className="text-[11px] text-zinc-500 dark:text-zinc-400 font-medium leading-relaxed max-w-md mx-auto sm:text-sm">
+        <p className="text-base text-zinc-500 dark:text-zinc-400 font-semibold leading-relaxed max-w-md mx-auto sm:text-sm">
           Seu cronograma reserva automaticamente 25% do seu tempo diário para
           revisões — nos momentos exatos em que o esquecimento começa.
         </p>
-        <p className="mt-2 text-[9px] font-semibold uppercase tracking-[0.12em] text-zinc-400 sm:mt-3 sm:text-[11px] sm:tracking-[0.16em]">
+        <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-zinc-400 sm:mt-3 sm:text-[11px] sm:tracking-[0.16em]">
           Este passo nao escolhe modo de revisao. Ele apenas define o tempo de cada revisao.
         </p>
       </motion.div>

@@ -238,11 +238,11 @@ const Step3_Horarios = ({ horarios, onHorariosChange, editalSelecionado, config 
         animate={{ opacity: 1, y: 0 }}
         className="text-center mb-6 md:mb-8 w-full mx-auto px-4"
       >
-        <h2 className="text-3xl sm:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tight leading-none mb-3">
+        <h2 className="text-4xl sm:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-[0.95] mb-3">
           Seus dias<br />
           <span className="text-red-600">de estudo</span>
         </h2>
-        <p className="text-zinc-500 dark:text-zinc-400 text-sm font-medium leading-relaxed max-w-md mx-auto">
+        <p className="text-zinc-500 dark:text-zinc-400 text-base sm:text-sm font-semibold leading-relaxed max-w-md mx-auto">
           Selecione os dias que você vai estudar e defina as horas disponíveis em cada um.
           Os dias não selecionados são tratados como <strong className="text-zinc-600 dark:text-zinc-400">dias de descanso</strong>.
         </p>

@@ -102,11 +102,11 @@ const SlotCard = ({ slot, onRemove, onMinutesChange }) => {
         <div className="flex min-w-0 flex-col gap-1">
           <div className="flex min-w-0 items-center gap-2">
             <span className="h-2.5 w-2.5 shrink-0 rounded-full shadow-sm" style={{ backgroundColor: color.hex }} />
-            <h4 className={`min-w-0 flex-1 truncate text-[10px] font-black uppercase tracking-wide sm:text-[11px] ${color.text}`}>
+            <h4 className={`min-w-0 flex-1 truncate text-[8px] font-black uppercase tracking-normal sm:text-[10px] ${color.text}`}>
               {slot.disciplinaNome}
             </h4>
           </div>
-          <span className="w-fit rounded-md bg-white/75 px-1.5 py-0.5 text-xs font-black leading-none tracking-tight text-zinc-700 tabular-nums dark:bg-zinc-950/60 dark:text-zinc-200 sm:text-sm">
+          <span className="w-fit rounded-md bg-white/75 px-1.5 py-0.5 text-[10px] font-black leading-none tracking-tight text-zinc-700 tabular-nums dark:bg-zinc-950/60 dark:text-zinc-200 sm:text-sm">
             {fmtMin(minutos)}
           </span>
         </div>
@@ -265,7 +265,7 @@ const DayColumn = ({
                   className="flex w-full items-center gap-2 rounded-xl px-2 py-2 text-left transition hover:bg-red-50 dark:hover:bg-red-950/20"
                 >
                   <span className="h-2.5 w-2.5 shrink-0 rounded-full shadow-sm" style={{ backgroundColor: color.hex }} />
-                  <span className="min-w-0 flex-1 truncate text-[10px] font-black uppercase tracking-wide text-zinc-700 dark:text-zinc-200">
+                  <span className="min-w-0 flex-1 truncate text-[8px] font-black uppercase tracking-normal text-zinc-700 dark:text-zinc-200 sm:text-[10px]">
                     {disciplina.nome}
                   </span>
                   <Plus size={13} className="shrink-0 text-red-500" />
@@ -565,19 +565,19 @@ export default function StepModoMontagem({
         <motion.div
           initial={{ opacity: 0, y: -12 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mx-auto mb-4 max-w-2xl px-2 text-center sm:mb-6 sm:px-4"
+          className="mx-auto mb-5 max-w-2xl px-2 text-center sm:mb-6 sm:px-4"
         >
-          <h2 className="mb-2 text-xl font-black uppercase leading-none tracking-tight text-zinc-900 dark:text-white sm:mb-3 sm:text-4xl">
+          <h2 className="mb-2 text-4xl font-black uppercase leading-[0.95] tracking-tighter text-zinc-900 dark:text-white sm:mb-3 sm:text-4xl">
             Como montar<br /><span className="text-red-600">sua semana?</span>
           </h2>
-          <p className="mx-auto max-w-lg text-xs font-medium leading-relaxed text-zinc-500 dark:text-zinc-400 sm:text-sm">
+          <p className="mx-auto max-w-lg text-[13px] font-semibold leading-relaxed text-zinc-500 dark:text-zinc-400 sm:text-sm">
             Use a distribuicao automatica ou arraste cada disciplina para montar uma agenda manual.
           </p>
         </motion.div>
       )}
 
       {modo !== 'personalizado' && (
-        <div className="my-auto grid grid-cols-2 gap-2 px-1 sm:px-4 lg:gap-7">
+        <div className="my-auto mx-auto grid w-full max-w-5xl grid-cols-2 gap-2 px-1 sm:gap-6 sm:px-4 lg:gap-10">
           {[
             {
               id: 'inteligente',
@@ -604,7 +604,7 @@ export default function StepModoMontagem({
                 key={option.id}
                 type="button"
                 onClick={() => setModo(option.id)}
-                className={`group relative flex min-h-[154px] w-full flex-col overflow-hidden rounded-2xl border-2 bg-white p-2.5 text-left shadow-md transition-all duration-500 hover:-translate-y-1 dark:bg-zinc-900 sm:min-h-[250px] sm:rounded-[2.2rem] sm:p-6 sm:shadow-xl md:p-7 ${
+                className={`group relative flex min-h-[168px] w-full flex-col overflow-hidden rounded-2xl border-2 bg-white p-3 text-left shadow-md transition-all duration-500 hover:-translate-y-1 dark:bg-zinc-900 sm:min-h-[260px] sm:rounded-[2.2rem] sm:p-6 sm:shadow-xl md:p-7 ${
                   active
                     ? 'border-red-500 shadow-red-500/10 dark:border-red-900/50'
                     : 'border-zinc-100 hover:border-red-600 hover:shadow-red-600/10 dark:border-zinc-800'
@@ -630,14 +630,14 @@ export default function StepModoMontagem({
                 </span>
 
                 <span className="relative z-10 mt-2 flex h-full flex-col sm:mt-6">
-                  <span className="block text-[13px] font-black uppercase leading-none tracking-tighter text-zinc-900 dark:text-white sm:text-xl md:text-2xl">
+                  <span className="block text-[15px] font-black uppercase leading-none tracking-tighter text-zinc-900 dark:text-white sm:text-xl md:text-2xl">
                     <span className="sm:hidden">{option.id === 'inteligente' ? 'Automatico' : 'Manual'}</span>
                     <span className="hidden sm:inline">{option.title}</span>
                   </span>
                   <span className="mt-1 block text-[7px] font-black uppercase tracking-[0.1em] text-red-600 dark:text-red-500 sm:mt-2 sm:text-[9px] sm:tracking-[0.2em]">
                     {option.subtitle}
                   </span>
-                  <span className="mt-2 line-clamp-3 text-[9px] font-semibold leading-snug text-zinc-500 dark:text-zinc-400 sm:mt-4 sm:text-[12px] md:text-[13px]">
+                  <span className="mt-2 line-clamp-3 text-[10px] font-semibold leading-snug text-zinc-500 dark:text-zinc-400 sm:mt-4 sm:text-[12px] md:text-[13px]">
                     {option.desc}
                   </span>
 
@@ -675,8 +675,8 @@ export default function StepModoMontagem({
             <div className="mb-3 flex flex-col items-center gap-2 px-0 text-center sm:mb-4 sm:gap-3">
               <div className="min-w-0 flex-1">
                 <p className="text-[8px] font-black uppercase tracking-[0.2em] text-red-600 dark:text-red-400 sm:text-[10px] sm:tracking-[0.22em]">Preview semanal</p>
-                <h3 className="mt-1 text-xl font-black uppercase tracking-tight text-zinc-900 dark:text-white sm:text-2xl">Monte seu Cronograma</h3>
-                <p className="mx-auto mt-1 max-w-xl text-[10px] font-semibold leading-relaxed text-zinc-500 dark:text-zinc-400 sm:text-xs">
+                <h3 className="mt-1 text-3xl font-black uppercase leading-none tracking-tighter text-zinc-900 dark:text-white sm:text-2xl">Monte seu Cronograma</h3>
+                <p className="mx-auto mt-2 max-w-xl text-[13px] font-semibold leading-relaxed text-zinc-500 dark:text-zinc-400 sm:text-xs">
                   Toque no dia, adicione disciplinas e ajuste o tempo de cada bloco.
                 </p>
                 <div className="mt-2 flex flex-row flex-wrap items-center justify-center gap-2">
@@ -773,7 +773,7 @@ export default function StepModoMontagem({
                       />
                     </label>
                     <span className="min-w-0 flex-1 text-left">
-                      <span className="block truncate text-[8px] font-black uppercase tracking-normal text-zinc-700 dark:text-zinc-200 sm:text-[10px] sm:tracking-wide lg:text-[11px]">
+                      <span className="block truncate text-[7px] font-black uppercase tracking-normal text-zinc-700 dark:text-zinc-200 sm:text-[9px] sm:tracking-wide lg:text-[10px]">
                         {disciplina.nome}
                       </span>
                       <span className="mt-0.5 hidden truncate text-[9px] font-bold uppercase tracking-widest text-zinc-400 sm:block">

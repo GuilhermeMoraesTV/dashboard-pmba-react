@@ -37,6 +37,11 @@ const CardEdital = ({ dados, unico, idConfirmado, aoConfirmar }) => {
   const tituloExibicao = variosCargos
     ? (editalBase.instituicao || editalBase.titulo.split(' - ')[0])
     : editalBase.titulo;
+  const cargoExibicao = itemSelecionado?.cargo || editalBase.cargo || (variosCargos ? `${dados.length} cargos` : 'Cargo padrao');
+  const descricaoExibicao = itemSelecionado?.descricao
+    || editalBase.descricao
+    || editalBase.subtitulo
+    || `${cargoExibicao} com ${editalBase.banca || 'banca a definir'}.`;
 
   const qtdDisc = itemSelecionado
     ? (itemSelecionado.disciplinas?.length || 0)
@@ -53,14 +58,14 @@ const CardEdital = ({ dados, unico, idConfirmado, aoConfirmar }) => {
         layout
         whileHover={{ y: -4, scale: 1.02 }}
         whileTap={{ scale: 0.98 }}
-        className={`relative flex flex-col rounded-2xl border-2 overflow-hidden cursor-pointer transition-all duration-300 w-[124px] sm:w-[190px] shrink-0 group sm:rounded-[24px] ${
+        className={`relative flex flex-col rounded-2xl border-2 overflow-hidden cursor-pointer transition-all duration-300 w-[154px] sm:w-[210px] shrink-0 group sm:rounded-[24px] ${
           estaSelecionado
             ? 'border-red-500 bg-white dark:bg-zinc-900 shadow-[0_12px_40px_rgba(220,38,38,0.15)] ring-4 ring-red-500/5'
             : 'border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:border-red-300 dark:hover:border-red-900 shadow-sm'
         }`}
         onClick={handleClick}
       >
-        <div className={`h-[74px] flex items-center justify-center p-2.5 relative overflow-hidden sm:h-32 sm:p-5 ${
+        <div className={`h-[92px] flex items-center justify-center p-3 relative overflow-hidden sm:h-36 sm:p-5 ${
           estaSelecionado
             ? 'bg-gradient-to-br from-red-50 to-white dark:from-red-950/10 dark:to-zinc-900'
             : 'bg-zinc-50 dark:bg-zinc-800/50'
@@ -84,19 +89,28 @@ const CardEdital = ({ dados, unico, idConfirmado, aoConfirmar }) => {
           )}
         </div>
 
-        <div className="flex-1 p-2 flex flex-col gap-1.5 relative z-10 sm:p-4 sm:gap-2.5">
-          <div className="min-h-[28px] sm:min-h-[32px]">
-            <h4 className={`text-[9px] font-black leading-snug uppercase tracking-tight line-clamp-2 transition-colors sm:text-[11px] ${
+        <div className="flex-1 p-2.5 flex flex-col gap-1.5 relative z-10 sm:p-4 sm:gap-2.5">
+          <div className="min-h-[34px] sm:min-h-[36px]">
+            <h4 className={`text-[10px] font-black leading-snug uppercase tracking-tight line-clamp-2 transition-colors sm:text-[12px] ${
               estaSelecionado ? 'text-red-600 dark:text-red-400' : 'text-zinc-900 dark:text-white'
             }`}>{tituloExibicao}</h4>
           </div>
-          
-          <div className="hidden items-center gap-1.5 sm:flex">
+
+          <div className="flex items-center gap-1.5">
+             <div className="w-1 h-3 rounded-full bg-red-300 dark:bg-red-800" />
+             <span className="truncate text-[8px] font-black uppercase tracking-wide text-red-600 dark:text-red-400 sm:text-[9px]">{cargoExibicao}</span>
+          </div>
+
+          <p className="line-clamp-2 text-[8px] font-semibold leading-snug text-zinc-500 dark:text-zinc-400 sm:text-[10px]">
+            {descricaoExibicao}
+          </p>
+
+          <div className="flex items-center gap-1.5">
              <div className="w-1 h-3 rounded-full bg-zinc-300 dark:bg-zinc-700" />
              <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider">{editalBase.banca || 'Banca a definir'}</span>
           </div>
 
-          <div className="hidden items-center justify-between mt-1 pt-2 border-t border-zinc-50 dark:border-zinc-800/50 sm:flex">
+          <div className="flex items-center justify-between mt-1 pt-2 border-t border-zinc-50 dark:border-zinc-800/50">
             <div className="flex items-center gap-1 text-[9px] font-bold text-zinc-400">
               <Layers size={10} className="text-zinc-300" />
               <span>{qtdDisc} Matérias</span>
@@ -122,8 +136,8 @@ const CardEdital = ({ dados, unico, idConfirmado, aoConfirmar }) => {
           {variosCargos && menuAberto && (
             <motion.div initial={{ opacity: 0, y: '100%' }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: '100%' }}
               className="absolute inset-0 z-30 bg-white dark:bg-zinc-950 flex flex-col rounded-[24px] overflow-hidden">
-              <div className="p-3 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between bg-zinc-50/50 dark:bg-zinc-900/50">
-                <span className="text-[9px] font-black uppercase tracking-[0.12em] text-zinc-500 flex items-center gap-2"><Briefcase size={12} /> Escolha o Cargo</span>
+              <div className="p-2.5 sm:p-3 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between bg-zinc-50/50 dark:bg-zinc-900/50">
+                <span className="text-[7px] sm:text-[9px] font-black uppercase tracking-[0.12em] text-zinc-500 flex items-center gap-2"><Briefcase size={12} /> Escolha o Cargo</span>
                 <button onClick={e => { e.stopPropagation(); setMenuAberto(false); }} className="p-1.5 hover:bg-red-50 dark:hover:bg-red-950 text-zinc-400 hover:text-red-500 rounded-lg transition-colors"><X size={14} strokeWidth={2.5} /></button>
               </div>
               <div className="flex-1 overflow-y-auto p-2 space-y-1.5 custom-scrollbar">
@@ -131,11 +145,11 @@ const CardEdital = ({ dados, unico, idConfirmado, aoConfirmar }) => {
                   const isAtivo = idConfirmado === item.id;
                   return (
                     <button key={item.id} onClick={e => { e.stopPropagation(); aoConfirmar(item); setMenuAberto(false); }}
-                      className={`w-full text-left p-3 rounded-xl border-2 transition-all active:scale-[0.98] ${
+                      className={`w-full text-left p-2 sm:p-3 rounded-xl border-2 transition-all active:scale-[0.98] ${
                         isAtivo ? 'border-red-500 bg-red-50/50 dark:bg-red-950/20' : 'border-zinc-50 dark:border-zinc-900 hover:border-red-200 dark:hover:border-red-800 bg-zinc-50/30 dark:bg-zinc-900/30'
                       }`}>
-                      <div className="text-[11px] font-black text-zinc-900 dark:text-white uppercase leading-tight truncate">{item.cargo || 'Cargo Padrão'}</div>
-                      <div className="text-[9px] font-bold text-zinc-400 mt-1 uppercase tracking-tighter flex items-center gap-1.5">
+                      <div className="text-[8px] sm:text-[9px] font-black text-zinc-900 dark:text-white uppercase leading-tight truncate">{item.cargo || 'Cargo Padrão'}</div>
+                      <div className="text-[7px] sm:text-[8px] font-bold text-zinc-400 mt-1 uppercase tracking-tighter flex items-center gap-1.5">
                          <Layers size={10} /> {item.disciplinas?.length || 0} matérias
                       </div>
                     </button>
@@ -277,14 +291,14 @@ const SecaoCategoria = ({ chave, itens, idConfirmado, onConfirmar }) => {
 
 const TelaEscolhaTipo = ({ onManual, onCatalogo }) => {
   return (
-    <div className="flex min-h-[58vh] flex-col items-center justify-center py-4 w-full max-w-4xl mx-auto">
+    <div className="flex min-h-[calc(100vh-12rem)] w-full max-w-5xl mx-auto flex-col items-center justify-center py-4">
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="relative mb-5 text-center sm:mb-10">
-        <h2 className="mb-2 text-xl font-black uppercase leading-none tracking-tight text-zinc-900 dark:text-white sm:mb-3 sm:text-4xl">Selecione como deseja<br /><span className="text-red-600">Começar</span></h2>
-        <p className="hidden mx-auto max-w-md text-xs font-medium leading-relaxed text-zinc-500 dark:text-zinc-400 sm:block sm:text-sm">Escolha o edital ou crie um plano personalizado</p>
+        <h2 className="mb-2 text-4xl font-black uppercase leading-[0.95] tracking-tighter text-zinc-900 dark:text-white sm:mb-3 sm:text-4xl">Selecione como deseja<br /><span className="text-red-600">Começar</span></h2>
+        <p className="mx-auto max-w-md px-4 text-[13px] font-semibold leading-relaxed text-zinc-500 dark:text-zinc-400 sm:text-sm">Escolha um edital pronto ou crie uma base manual para o seu plano.</p>
       </motion.div>
-      <div className="grid w-full max-w-3xl grid-cols-2 gap-2 px-2 sm:gap-4 sm:px-4">
-        <motion.button whileHover={{ y: -4, scale: 1.01 }} whileTap={{ scale: 0.99 }} onClick={onCatalogo} className="group relative min-h-[150px] overflow-hidden rounded-2xl border-2 border-zinc-100 bg-white p-2.5 text-left shadow-lg transition-all hover:border-red-500/50 dark:border-zinc-800 dark:bg-zinc-900 sm:min-h-[250px] sm:rounded-[24px] sm:p-6"><div className="absolute right-0 top-0 h-16 w-16 -mr-6 -mt-6 rounded-bl-[44px] bg-red-600/5 sm:h-24 sm:w-24 sm:rounded-bl-[60px]" /><div className="relative z-10"><div className="mb-2 flex h-8 w-8 items-center justify-center rounded-xl bg-red-600 text-white shadow-lg shadow-red-600/30 transition-transform group-hover:rotate-6 sm:mb-6 sm:h-12 sm:w-12 sm:rounded-2xl"><Library size={16} strokeWidth={2.5} className="sm:h-6 sm:w-6" /></div><h3 className="mb-1 text-[13px] font-black uppercase leading-none tracking-tighter text-zinc-900 dark:text-white sm:mb-2 sm:text-xl">Edital</h3><p className="mb-3 line-clamp-3 text-[9px] font-bold leading-snug text-zinc-500 dark:text-zinc-400 sm:mb-6 sm:text-[11px] sm:leading-relaxed">Use um edital pronto com matérias e tópicos já organizados.</p><div className="flex items-center gap-1.5 text-[8px] font-black uppercase tracking-[0.1em] text-red-600 transition-all group-hover:gap-3 sm:gap-2 sm:text-[10px] sm:tracking-[0.2em]">Explorar <ArrowRight size={11} strokeWidth={3} /></div></div></motion.button>
-        <motion.button whileHover={{ y: -4, scale: 1.01 }} whileTap={{ scale: 0.99 }} onClick={onManual} className="group relative min-h-[150px] overflow-hidden rounded-2xl border-2 border-dashed border-zinc-200 bg-zinc-50/30 p-2.5 text-left transition-all hover:border-zinc-400 hover:bg-white dark:border-zinc-800 dark:bg-zinc-900/30 dark:hover:bg-zinc-900 sm:min-h-[250px] sm:rounded-[24px] sm:p-6"><div className="absolute right-0 top-0 h-16 w-16 -mr-6 -mt-6 rounded-bl-[44px] bg-zinc-400/5 sm:h-24 sm:w-24 sm:rounded-bl-[60px]" /><div className="relative z-10"><div className="mb-2 flex h-8 w-8 items-center justify-center rounded-xl border border-zinc-200 bg-zinc-100 text-zinc-400 transition-transform group-hover:rotate-6 dark:bg-zinc-800 sm:mb-6 sm:h-12 sm:w-12 sm:rounded-2xl"><Plus size={16} strokeWidth={2.5} className="sm:h-6 sm:w-6" /></div><h3 className="mb-1 text-[13px] font-black uppercase leading-none tracking-tighter text-zinc-900 dark:text-white sm:mb-2 sm:text-xl">Manual</h3><p className="mb-3 line-clamp-3 text-[9px] font-bold leading-snug text-zinc-500 dark:text-zinc-400 sm:mb-6 sm:text-[11px] sm:leading-relaxed">Crie o plano do zero e escolha suas próprias matérias.</p><div className="flex items-center gap-1.5 text-[8px] font-black uppercase tracking-[0.1em] text-zinc-400 transition-all group-hover:gap-3 group-hover:text-zinc-900 dark:group-hover:text-white sm:gap-2 sm:text-[10px] sm:tracking-[0.2em]">Montar <ArrowRight size={11} strokeWidth={3} /></div></div></motion.button>
+      <div className="grid w-full max-w-5xl grid-cols-2 gap-2 px-1 sm:gap-6 lg:gap-10">
+        <motion.button whileHover={{ y: -4, scale: 1.01 }} whileTap={{ scale: 0.99 }} onClick={onCatalogo} className="group relative flex min-h-[168px] flex-col overflow-hidden rounded-2xl border-2 border-zinc-100 bg-white p-3 text-left shadow-md transition-all duration-500 hover:border-red-500/50 dark:border-zinc-800 dark:bg-zinc-900 sm:min-h-[260px] sm:p-6 md:rounded-[2.2rem] md:p-7 md:shadow-xl"><div className="absolute right-0 top-0 h-20 w-20 -mr-7 -mt-7 rounded-bl-[48px] bg-red-600/5 sm:h-24 sm:w-24 sm:rounded-bl-[60px]" /><div className="relative z-10 flex h-full flex-col"><div className="mb-2 flex h-7 w-7 items-center justify-center rounded-xl bg-red-600 text-white shadow-lg shadow-red-600/30 transition-transform group-hover:rotate-6 sm:mb-6 sm:h-12 sm:w-12 sm:rounded-2xl"><Library size={16} strokeWidth={2.5} className="sm:h-6 sm:w-6" /></div><h3 className="mb-1 text-[15px] font-black uppercase leading-none tracking-tighter text-zinc-900 dark:text-white sm:mb-2 sm:text-xl md:text-2xl">Edital</h3><p className="mb-1 text-[7px] font-black uppercase tracking-[0.1em] text-red-600 dark:text-red-500 sm:mb-4 sm:text-[9px] sm:tracking-[0.2em]">Pronto e organizado</p><p className="line-clamp-3 text-[10px] font-semibold leading-snug text-zinc-500 dark:text-zinc-400 sm:text-[12px] md:text-[13px]">Use um edital pronto, com matérias e tópicos já estruturados para começar mais rápido.</p><div className="mt-auto pt-3 text-[8px] font-black uppercase tracking-[0.1em] text-red-600 transition-all group-hover:tracking-[0.14em] sm:text-[10px]">Explorar <ArrowRight size={11} strokeWidth={3} className="inline" /></div></div></motion.button>
+        <motion.button whileHover={{ y: -4, scale: 1.01 }} whileTap={{ scale: 0.99 }} onClick={onManual} className="group relative flex min-h-[168px] flex-col overflow-hidden rounded-2xl border-2 border-zinc-100 bg-white p-3 text-left shadow-md transition-all duration-500 hover:border-red-500/50 dark:border-zinc-800 dark:bg-zinc-900 sm:min-h-[260px] sm:p-6 md:rounded-[2.2rem] md:p-7 md:shadow-xl"><div className="absolute right-0 top-0 h-20 w-20 -mr-7 -mt-7 rounded-bl-[48px] bg-zinc-400/5 sm:h-24 sm:w-24 sm:rounded-bl-[60px]" /><div className="relative z-10 flex h-full flex-col"><div className="mb-2 flex h-7 w-7 items-center justify-center rounded-xl border border-zinc-200 bg-zinc-100 text-zinc-500 transition-transform group-hover:rotate-6 dark:bg-zinc-800 sm:mb-6 sm:h-12 sm:w-12 sm:rounded-2xl"><Plus size={16} strokeWidth={2.5} className="sm:h-6 sm:w-6" /></div><h3 className="mb-1 text-[15px] font-black uppercase leading-none tracking-tighter text-zinc-900 dark:text-white sm:mb-2 sm:text-xl md:text-2xl">Manual</h3><p className="mb-1 text-[7px] font-black uppercase tracking-[0.1em] text-red-600 dark:text-red-500 sm:mb-4 sm:text-[9px] sm:tracking-[0.2em]">Personalizado</p><p className="line-clamp-3 text-[10px] font-semibold leading-snug text-zinc-500 dark:text-zinc-400 sm:text-[12px] md:text-[13px]">Crie a base do zero, escolha suas disciplinas e monte o plano no seu formato.</p><div className="mt-auto pt-3 text-[8px] font-black uppercase tracking-[0.1em] text-zinc-500 transition-all group-hover:text-red-600 group-hover:tracking-[0.14em] sm:text-[10px]">Montar <ArrowRight size={11} strokeWidth={3} className="inline" /></div></div></motion.button>
       </div>
     </div>
   );
@@ -324,8 +338,8 @@ const TelaCatalogo = ({ modelos, carregando, idConfirmado, onConfirmar, onAbrirS
   return (
     <div className="flex flex-col w-full px-2 sm:px-6 pb-16">
       <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-6 w-full mx-auto">
-        <h2 className="text-3xl sm:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tight leading-none mb-3">Catálogo de<br /><span className="text-red-600">Editais</span></h2>
-        <p className="text-zinc-500 dark:text-zinc-400 text-sm font-medium leading-relaxed max-w-md mx-auto mb-5">Selecione o concurso para organizar sua preparação</p>
+        <h2 className="text-4xl sm:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-[0.95] mb-3">Catálogo de<br /><span className="text-red-600">Editais</span></h2>
+        <p className="text-zinc-500 dark:text-zinc-400 text-base sm:text-sm font-semibold leading-relaxed max-w-md mx-auto mb-5">Selecione o concurso, confira cargo e descrição, e organize sua preparação.</p>
         <div className="flex items-center justify-center gap-3">
            <div className="relative w-full max-w-xl group">
               <input type="text" value={busca} onChange={e => setBusca(e.target.value)} placeholder="BUSCAR CONCURSO (EX: PMBA, PCSP, PRF...)" className="w-full px-10 py-4 bg-white dark:bg-zinc-900 border-2 border-zinc-100 dark:border-zinc-800 rounded-2xl text-xs font-black uppercase tracking-widest text-zinc-900 dark:text-white placeholder:text-zinc-400 focus:border-red-600 outline-none transition-all shadow-xl shadow-zinc-900/5 dark:shadow-none" />
