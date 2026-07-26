@@ -858,35 +858,37 @@ body.wizard-shell-open .global-study-register-fab {
 
 @media (max-width: 639px) {
   body.wizard-shell-open .wizard-progress-header {
-    padding: 0.35rem 0.45rem 0;
+    padding: 0.35rem 0.5rem 0;
   }
 
   body.wizard-shell-open .wizard-progress-header > div {
-    --wizard-header-mobile-zoom: 0.82;
-    width: calc(100% / var(--wizard-header-mobile-zoom));
-    max-width: none;
-    border-radius: 22px;
+    --wizard-header-mobile-zoom: 0.74;
+    width: 100%;
+    max-width: 100%;
+    border-radius: 18px;
     zoom: var(--wizard-header-mobile-zoom);
   }
 
   body.wizard-shell-open .wizard-main {
-    padding: 0.5rem 0.55rem calc(5.65rem + env(safe-area-inset-bottom, 0px));
+    overflow-x: hidden;
+    padding: 0.45rem 0.5rem calc(5rem + env(safe-area-inset-bottom, 0px));
   }
 
   body.wizard-shell-open .wizard-step-frame {
-    --wizard-content-mobile-zoom: 0.76;
-    width: calc(100% / var(--wizard-content-mobile-zoom));
-    max-width: none;
+    --wizard-content-mobile-zoom: 0.82;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
     zoom: var(--wizard-content-mobile-zoom);
   }
 
   body.wizard-shell-open .wizard-navigation-bar {
-    --wizard-footer-mobile-zoom: 0.86;
+    --wizard-footer-mobile-zoom: 0.76;
     left: 0.5rem;
-    right: auto;
+    right: 0.5rem;
     bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
-    width: calc((100% - 1rem) / var(--wizard-footer-mobile-zoom));
-    max-width: none;
+    width: auto;
+    max-width: calc(100% - 1rem);
     zoom: var(--wizard-footer-mobile-zoom);
   }
 }

@@ -46,7 +46,7 @@ const CardPlanejamento = ({
       onClick={onClick}
       variants={itemVariants}
       whileHover={{ y: -8, scale: 1.015 }}
-      className={`relative group flex flex-col p-6 md:p-7 rounded-[2.2rem] border-2 transition-all duration-500 shadow-xl bg-white dark:bg-zinc-900 text-left w-full ${
+      className={`relative group flex min-h-[178px] flex-col rounded-2xl border-2 bg-white p-3 text-left shadow-lg transition-all duration-500 dark:bg-zinc-900 sm:min-h-[260px] sm:p-6 md:p-7 md:rounded-[2.2rem] md:shadow-xl ${
         isCycle 
           ? 'border-red-100 dark:border-red-900/30 hover:border-red-500 hover:shadow-red-500/10' 
           : 'border-zinc-100 dark:border-zinc-800 hover:border-red-600 hover:shadow-red-600/10'
@@ -72,28 +72,28 @@ const CardPlanejamento = ({
       )}
 
       <div className="relative z-10 flex flex-col h-full">
-        <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-6 shadow-lg shadow-red-500/20 bg-red-600 text-white transition-all duration-500 group-hover:rotate-6">
-          <Icone size={24} strokeWidth={2.5} />
+        <div className="mb-3 flex h-8 w-8 items-center justify-center rounded-xl bg-red-600 text-white shadow-lg shadow-red-500/20 transition-all duration-500 group-hover:rotate-6 sm:mb-6 sm:h-12 sm:w-12">
+          <Icone size={18} strokeWidth={2.5} className="sm:h-6 sm:w-6" />
         </div>
 
-        <h3 className="text-xl md:text-2xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-none mb-2">
+        <h3 className="mb-1 text-sm font-black uppercase leading-none tracking-tighter text-zinc-900 dark:text-white sm:mb-2 sm:text-xl md:text-2xl">
           {titulo}
         </h3>
-        <p className="text-[9px] font-black uppercase tracking-[0.2em] text-red-600 dark:text-red-500 mb-4">
+        <p className="mb-2 text-[7px] font-black uppercase tracking-[0.14em] text-red-600 dark:text-red-500 sm:mb-4 sm:text-[9px] sm:tracking-[0.2em]">
           {subtitulo}
         </p>
 
-        <p className="text-[12px] md:text-[13px] text-zinc-500 dark:text-zinc-400 font-medium leading-snug mb-6">
+        <p className="mb-3 line-clamp-3 text-[9px] font-medium leading-snug text-zinc-500 dark:text-zinc-400 sm:mb-6 sm:text-[12px] md:text-[13px]">
           {descricao}
         </p>
 
-        <div className="space-y-2.5 mb-8">
+        <div className="mb-4 space-y-1.5 sm:mb-8 sm:space-y-2.5">
           {vantagens.map((item, idx) => (
-            <div key={idx} className="flex items-center gap-2.5">
+            <div key={idx} className="flex items-center gap-1.5 sm:gap-2.5">
               <div className="shrink-0 p-0.5 rounded-full bg-red-600/10 text-red-600">
-                <CheckCircle2 size={12} strokeWidth={3} />
+                <CheckCircle2 size={9} strokeWidth={3} className="sm:h-3 sm:w-3" />
               </div>
-              <span className="text-[11px] font-bold text-zinc-600 dark:text-zinc-300">
+              <span className="truncate text-[8px] font-bold text-zinc-600 dark:text-zinc-300 sm:text-[11px]">
                 {item}
               </span>
             </div>
@@ -101,7 +101,7 @@ const CardPlanejamento = ({
         </div>
 
         <div className="mt-auto pt-1">
-          <p className="text-[10px] font-black uppercase tracking-[0.14em] text-zinc-400 group-hover:text-red-600 transition-colors">
+          <p className="text-[7px] font-black uppercase tracking-[0.1em] text-zinc-400 transition-colors group-hover:text-red-600 sm:text-[10px] sm:tracking-[0.14em]">
             Clique no card para iniciar
           </p>
         </div>
@@ -129,13 +129,13 @@ function PlanejamentoNovoPage({ onBack, onCriarCiclo, onCriarCronograma, hideBac
           </header>
         )}
 
-        <div className="text-center mb-12 md:mb-16">
+        <div className="mb-6 text-center md:mb-16">
           <motion.div
             variants={titleVariants}
             initial="hidden"
             animate="visible"
           >
-            <h1 className="text-3xl md:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-[0.95] mb-4">
+            <h1 className="mb-3 text-2xl font-black uppercase leading-[0.95] tracking-tighter text-zinc-900 dark:text-white md:mb-4 md:text-4xl">
               Escolha sua <br />
               <span className="text-red-600">Estratégia de Estudo</span>
             </h1>
@@ -155,7 +155,7 @@ function PlanejamentoNovoPage({ onBack, onCriarCiclo, onCriarCronograma, hideBac
             variants={containerVariants}
             initial="hidden"
             animate="visible"
-            className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-10 w-full max-w-5xl mx-auto"
+            className="mx-auto grid w-full max-w-5xl grid-cols-2 gap-2 sm:gap-6 lg:gap-10"
           >
             <CardPlanejamento
               isCycle={true}
@@ -190,7 +190,7 @@ function PlanejamentoNovoPage({ onBack, onCriarCiclo, onCriarCronograma, hideBac
           </motion.div>
         </div>
 
-        <footer className="mt-16 text-center">
+        <footer className="mt-8 text-center sm:mt-16">
           <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}

@@ -894,8 +894,8 @@ function CicloCreateWizard({
       </div>
       </div>
 
-      <div ref={conteudoRef} className="mt-3 pb-32 md:pb-36">
-        <div className={passo === firstVisibleStep || passo === 6 ? 'w-full mx-auto' : 'max-w-5xl mx-auto'}>
+      <div ref={conteudoRef} className="wizard-main mt-3 pb-32 md:pb-36">
+        <div className={`wizard-step-frame ${passo === firstVisibleStep || passo === 6 ? 'w-full mx-auto' : 'max-w-5xl mx-auto'}`}>
           <AnimatePresence>
             {validationMessage && (
               <motion.div

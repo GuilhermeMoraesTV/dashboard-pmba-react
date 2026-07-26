@@ -563,19 +563,19 @@ export default function StepModoMontagem({
         <motion.div
           initial={{ opacity: 0, y: -12 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mx-auto mb-6 max-w-2xl px-4 text-center"
+          className="mx-auto mb-4 max-w-2xl px-2 text-center sm:mb-6 sm:px-4"
         >
-          <h2 className="mb-3 text-3xl font-black uppercase leading-none tracking-tight text-zinc-900 dark:text-white sm:text-4xl">
+          <h2 className="mb-2 text-2xl font-black uppercase leading-none tracking-tight text-zinc-900 dark:text-white sm:mb-3 sm:text-4xl">
             Como montar<br /><span className="text-red-600">sua semana?</span>
           </h2>
-          <p className="mx-auto max-w-lg text-sm font-medium leading-relaxed text-zinc-500 dark:text-zinc-400">
+          <p className="mx-auto max-w-lg text-xs font-medium leading-relaxed text-zinc-500 dark:text-zinc-400 sm:text-sm">
             Use a distribuicao automatica ou arraste cada disciplina para montar uma agenda manual.
           </p>
         </motion.div>
       )}
 
       {modo !== 'personalizado' && (
-        <div className="grid gap-4 px-1 sm:grid-cols-2 sm:px-4 lg:gap-7">
+        <div className="grid grid-cols-2 gap-2 px-1 sm:px-4 lg:gap-7">
           {[
             {
               id: 'inteligente',
@@ -602,7 +602,7 @@ export default function StepModoMontagem({
                 key={option.id}
                 type="button"
                 onClick={() => setModo(option.id)}
-                className={`group relative flex min-h-[250px] w-full flex-col overflow-hidden rounded-[2.2rem] border-2 bg-white p-6 text-left shadow-xl transition-all duration-500 hover:-translate-y-1 dark:bg-zinc-900 md:p-7 ${
+                className={`group relative flex min-h-[172px] w-full flex-col overflow-hidden rounded-2xl border-2 bg-white p-3 text-left shadow-lg transition-all duration-500 hover:-translate-y-1 dark:bg-zinc-900 sm:min-h-[250px] sm:rounded-[2.2rem] sm:p-6 sm:shadow-xl md:p-7 ${
                   active
                     ? 'border-red-500 shadow-red-500/10 dark:border-red-900/50'
                     : 'border-zinc-100 hover:border-red-600 hover:shadow-red-600/10 dark:border-zinc-800'
@@ -610,54 +610,54 @@ export default function StepModoMontagem({
               >
                 <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[2.2rem]">
                   <Icon
-                    size={190}
+                    size={150}
                     strokeWidth={1.5}
-                    className="absolute -bottom-5 -right-5 text-red-600 opacity-[0.05] transition-all duration-700 group-hover:-rotate-12 group-hover:scale-110 dark:text-red-500 dark:opacity-[0.08]"
+                    className="absolute -bottom-8 -right-8 text-red-600 opacity-[0.05] transition-all duration-700 group-hover:-rotate-12 group-hover:scale-110 dark:text-red-500 dark:opacity-[0.08] sm:-bottom-5 sm:-right-5 sm:h-[190px] sm:w-[190px]"
                   />
                   <div className="absolute inset-0 bg-gradient-to-br from-red-500/[0.05] to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
                 </div>
 
                 {option.badge && (
-                  <span className="absolute right-5 top-5 rounded-full bg-red-600 px-3 py-1 text-[8px] font-black uppercase tracking-[0.15em] text-white shadow-lg">
+                  <span className="absolute right-3 top-3 rounded-full bg-red-600 px-2 py-0.5 text-[7px] font-black uppercase tracking-[0.1em] text-white shadow-lg sm:right-5 sm:top-5 sm:px-3 sm:py-1 sm:text-[8px] sm:tracking-[0.15em]">
                     {option.badge}
                   </span>
                 )}
 
-                <span className="relative z-10 flex h-12 w-12 items-center justify-center rounded-xl bg-red-600 text-white shadow-lg shadow-red-500/20 transition-all duration-500 group-hover:rotate-6">
-                  <Icon size={24} strokeWidth={2.5} />
+                <span className="relative z-10 flex h-8 w-8 items-center justify-center rounded-xl bg-red-600 text-white shadow-lg shadow-red-500/20 transition-all duration-500 group-hover:rotate-6 sm:h-12 sm:w-12">
+                  <Icon size={18} strokeWidth={2.5} className="sm:h-6 sm:w-6" />
                 </span>
 
-                <span className="relative z-10 mt-6 flex h-full flex-col">
-                  <span className="block text-xl font-black uppercase leading-none tracking-tighter text-zinc-900 dark:text-white md:text-2xl">
+                <span className="relative z-10 mt-3 flex h-full flex-col sm:mt-6">
+                  <span className="block text-sm font-black uppercase leading-none tracking-tighter text-zinc-900 dark:text-white sm:text-xl md:text-2xl">
                     {option.title}
                   </span>
-                  <span className="mt-2 block text-[9px] font-black uppercase tracking-[0.2em] text-red-600 dark:text-red-500">
+                  <span className="mt-1.5 block text-[7px] font-black uppercase tracking-[0.12em] text-red-600 dark:text-red-500 sm:mt-2 sm:text-[9px] sm:tracking-[0.2em]">
                     {option.subtitle}
                   </span>
-                  <span className="mt-4 block text-[12px] font-medium leading-snug text-zinc-500 dark:text-zinc-400 md:text-[13px]">
+                  <span className="mt-2 line-clamp-3 text-[9px] font-medium leading-snug text-zinc-500 dark:text-zinc-400 sm:mt-4 sm:block sm:text-[12px] md:text-[13px]">
                     {option.desc}
                   </span>
 
-                  <span className="mt-5 flex flex-col gap-2.5">
+                  <span className="mt-3 flex flex-col gap-1.5 sm:mt-5 sm:gap-2.5">
                     {option.benefits.map((item) => (
-                      <span key={item} className="flex items-center gap-2.5">
+                      <span key={item} className="flex items-center gap-1.5 sm:gap-2.5">
                         <span className="shrink-0 rounded-full bg-red-600/10 p-0.5 text-red-600">
-                          <CheckCircle2 size={12} strokeWidth={3} />
+                          <CheckCircle2 size={9} strokeWidth={3} className="sm:h-3 sm:w-3" />
                         </span>
-                        <span className="text-[11px] font-bold text-zinc-600 dark:text-zinc-300">
+                        <span className="truncate text-[8px] font-bold text-zinc-600 dark:text-zinc-300 sm:text-[11px]">
                           {item}
                         </span>
                       </span>
                     ))}
                   </span>
 
-                  <span className="mt-auto pt-5 text-[10px] font-black uppercase tracking-[0.14em] text-zinc-400 transition-colors group-hover:text-red-600">
+                  <span className="mt-auto pt-3 text-[7px] font-black uppercase tracking-[0.1em] text-zinc-400 transition-colors group-hover:text-red-600 sm:pt-5 sm:text-[10px] sm:tracking-[0.14em]">
                     Clique no card para continuar
                   </span>
                 </span>
                 {active && (
-                  <span className="absolute bottom-5 right-5 rounded-full bg-red-600 p-1 text-white shadow-lg shadow-red-600/20">
-                    <CheckCircle2 size={16} />
+                  <span className="absolute bottom-3 right-3 rounded-full bg-red-600 p-1 text-white shadow-lg shadow-red-600/20 sm:bottom-5 sm:right-5">
+                    <CheckCircle2 size={13} className="sm:h-4 sm:w-4" />
                   </span>
                 )}
               </button>
@@ -667,7 +667,7 @@ export default function StepModoMontagem({
       )}
 
       {modo === 'personalizado' && (
-        <div className="cronograma-personalizada-mobile-zoom grid min-h-0 flex-1 gap-2 overflow-y-auto px-0 pb-8 custom-scrollbar lg:grid-cols-[minmax(0,1fr)_240px] xl:grid-cols-[minmax(0,1fr)_260px] sm:px-2">
+        <div className="grid min-h-0 flex-1 gap-2 overflow-y-auto px-0 pb-8 custom-scrollbar lg:grid-cols-[minmax(0,1fr)_240px] xl:grid-cols-[minmax(0,1fr)_260px] sm:px-2">
           <section className="order-2 flex min-h-[420px] min-w-0 flex-col lg:order-1 lg:min-h-[520px]">
             <div className="mb-2 flex flex-col gap-2 px-0 sm:mb-4 sm:flex-row sm:items-end sm:justify-between sm:gap-3">
               <div className="min-w-0 flex-1">
@@ -718,7 +718,7 @@ export default function StepModoMontagem({
             </div>
           </section>
 
-          <aside className="order-1 min-w-0 overflow-hidden rounded-xl border border-zinc-200 bg-white p-1.5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/60 sm:rounded-2xl sm:p-3 lg:sticky lg:top-4 lg:order-2 lg:self-start lg:rounded-[28px] lg:p-4">
+          <aside className="order-1 hidden min-w-0 overflow-hidden rounded-xl border border-zinc-200 bg-white p-1.5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/60 sm:rounded-2xl sm:p-3 lg:sticky lg:top-4 lg:order-2 lg:block lg:self-start lg:rounded-[28px] lg:p-4">
             <div className="mb-1.5 flex items-center gap-2 border-b border-zinc-100 pb-1.5 dark:border-zinc-800 sm:mb-3 sm:gap-3 sm:pb-3 lg:mb-4 lg:pb-4">
               <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-zinc-100 text-zinc-500 dark:bg-zinc-900 sm:h-9 sm:w-9 sm:rounded-2xl lg:h-10 lg:w-10">
                 <Layers size={16} className="sm:h-[18px] sm:w-[18px]" />

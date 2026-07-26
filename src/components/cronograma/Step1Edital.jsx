@@ -154,6 +154,7 @@ const CardEdital = ({ dados, unico, idConfirmado, aoConfirmar }) => {
 const SecaoCategoria = ({ chave, itens, idConfirmado, onConfirmar }) => {
   const cfg   = CATEGORIA_CONFIG[chave] || CATEGORIA_CONFIG.adm;
   const Icone = cfg.icon;
+  const [usarScrollNativo, setUsarScrollNativo] = useState(false);
 
   const grupos = useMemo(() => {
     const g = {};
@@ -169,6 +170,15 @@ const SecaoCategoria = ({ chave, itens, idConfirmado, onConfirmar }) => {
   const contentRef = useRef(null);
   const [largura, setLargura] = useState(0);
   const [arrastando, setArrastando] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return undefined;
+    const media = window.matchMedia('(max-width: 639px), (pointer: coarse)');
+    const update = () => setUsarScrollNativo(media.matches);
+    update();
+    media.addEventListener?.('change', update);
+    return () => media.removeEventListener?.('change', update);
+  }, []);
 
   useEffect(() => {
     const calcularLargura = () => {
@@ -235,21 +245,22 @@ const SecaoCategoria = ({ chave, itens, idConfirmado, onConfirmar }) => {
 
       <motion.div
         ref={scrollRef}
-        className="cursor-grab active:cursor-grabbing overflow-hidden -mx-3 px-3 py-2"
+        className="-mx-3 cursor-grab overflow-x-auto overflow-y-hidden overscroll-x-contain px-3 py-2 active:cursor-grabbing custom-scrollbar sm:overflow-hidden"
         whileTap={{ cursor: 'grabbing' }}
+        style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x' }}
       >
         <motion.div
           ref={contentRef}
-          drag="x"
+          drag={usarScrollNativo ? false : 'x'}
           dragConstraints={{ right: 0, left: -largura }}
-          dragElastic={0.06}
-          dragMomentum={false}
-          onDragStart={() => setArrastando(true)}
-          onDragEnd={() => setTimeout(() => setArrastando(false), 150)}
-          className="flex gap-3 sm:gap-4 w-max pb-3 transform-gpu will-change-transform"
+          dragElastic={usarScrollNativo ? 0 : 0.06}
+          dragMomentum={!usarScrollNativo}
+          onDragStart={() => !usarScrollNativo && setArrastando(true)}
+          onDragEnd={() => !usarScrollNativo && setTimeout(() => setArrastando(false), 150)}
+          className="flex w-max snap-x snap-mandatory gap-3 pb-3 transform-gpu will-change-transform sm:gap-4"
         >
           {grupos.map((grupo, i) => (
-            <div key={i} className="relative transform transition-transform hover:z-10" onClickCapture={(e) => { if (arrastando) e.stopPropagation(); }}>
+            <div key={i} className="relative snap-start transform transition-transform hover:z-10" onClickCapture={(e) => { if (arrastando) e.stopPropagation(); }}>
               <CardEdital
                 dados={grupo.length === 1 ? grupo[0] : grupo}
                 unico={grupo.length === 1}
@@ -267,13 +278,13 @@ const SecaoCategoria = ({ chave, itens, idConfirmado, onConfirmar }) => {
 const TelaEscolhaTipo = ({ onManual, onCatalogo }) => {
   return (
     <div className="flex flex-col items-center py-4 w-full max-w-4xl mx-auto">
-      <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-10 relative">
-        <h2 className="text-3xl sm:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tight leading-none mb-3">Selecione como deseja<br /><span className="text-red-600">Começar</span></h2>
-        <p className="text-zinc-500 dark:text-zinc-400 text-sm font-medium leading-relaxed max-w-md mx-auto">Escolha o edital ou crie um plano personalizado</p>
+      <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="relative mb-5 text-center sm:mb-10">
+        <h2 className="mb-2 text-2xl font-black uppercase leading-none tracking-tight text-zinc-900 dark:text-white sm:mb-3 sm:text-4xl">Selecione como deseja<br /><span className="text-red-600">Começar</span></h2>
+        <p className="mx-auto max-w-md text-xs font-medium leading-relaxed text-zinc-500 dark:text-zinc-400 sm:text-sm">Escolha o edital ou crie um plano personalizado</p>
       </motion.div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full px-4 max-w-3xl">
-        <motion.button whileHover={{ y: -4, scale: 1.01 }} whileTap={{ scale: 0.99 }} onClick={onCatalogo} className="relative text-left rounded-[24px] border-2 border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6 transition-all group overflow-hidden shadow-lg hover:border-red-500/50"><div className="absolute top-0 right-0 w-24 h-24 bg-red-600/5 rounded-bl-[60px] -mr-6 -mt-6" /><div className="relative z-10"><div className="w-12 h-12 rounded-2xl bg-red-600 flex items-center justify-center mb-6 text-white shadow-lg shadow-red-600/30 group-hover:rotate-6 transition-transform"><Library size={24} strokeWidth={2.5} /></div><h3 className="text-xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-none mb-2">Escolher Edital</h3><p className="text-zinc-500 dark:text-zinc-400 text-[11px] font-bold leading-relaxed mb-6">Acesse nosso arsenal de editais pré-configurados com pesos e tópicos otimizados.</p><div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-red-600 group-hover:gap-4 transition-all">Explorar <ArrowRight size={12} strokeWidth={3} /></div></div></motion.button>
-        <motion.button whileHover={{ y: -4, scale: 1.01 }} whileTap={{ scale: 0.99 }} onClick={onManual} className="relative text-left rounded-[24px] border-2 border-dashed border-zinc-200 dark:border-zinc-800 bg-zinc-50/30 dark:bg-zinc-900/30 p-6 transition-all group overflow-hidden hover:bg-white dark:hover:bg-zinc-900 hover:border-zinc-400"><div className="absolute top-0 right-0 w-24 h-24 bg-zinc-400/5 rounded-bl-[60px] -mr-6 -mt-6" /><div className="relative z-10"><div className="w-12 h-12 rounded-2xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center mb-6 text-zinc-400 group-hover:rotate-6 transition-transform border border-zinc-200"><Plus size={24} strokeWidth={2.5} /></div><h3 className="text-xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-none mb-2">Plano Manual</h3><p className="text-zinc-500 dark:text-zinc-400 text-[11px] font-bold leading-relaxed mb-6">Crie sua própria estratégia personalizada do zero, com controle total das matérias.</p><div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 group-hover:text-zinc-900 dark:group-hover:text-white group-hover:gap-4 transition-all">Montar do Zero <ArrowRight size={12} strokeWidth={3} /></div></div></motion.button>
+      <div className="grid w-full max-w-3xl grid-cols-2 gap-2 px-2 sm:gap-4 sm:px-4">
+        <motion.button whileHover={{ y: -4, scale: 1.01 }} whileTap={{ scale: 0.99 }} onClick={onCatalogo} className="group relative min-h-[160px] overflow-hidden rounded-2xl border-2 border-zinc-100 bg-white p-3 text-left shadow-lg transition-all hover:border-red-500/50 dark:border-zinc-800 dark:bg-zinc-900 sm:min-h-[250px] sm:rounded-[24px] sm:p-6"><div className="absolute right-0 top-0 h-20 w-20 -mr-6 -mt-6 rounded-bl-[50px] bg-red-600/5 sm:h-24 sm:w-24 sm:rounded-bl-[60px]" /><div className="relative z-10"><div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-red-600 text-white shadow-lg shadow-red-600/30 transition-transform group-hover:rotate-6 sm:mb-6 sm:h-12 sm:w-12 sm:rounded-2xl"><Library size={18} strokeWidth={2.5} className="sm:h-6 sm:w-6" /></div><h3 className="mb-1 text-sm font-black uppercase leading-none tracking-tighter text-zinc-900 dark:text-white sm:mb-2 sm:text-xl">Escolher Edital</h3><p className="mb-4 line-clamp-3 text-[9px] font-bold leading-relaxed text-zinc-500 dark:text-zinc-400 sm:mb-6 sm:text-[11px]">Acesse nosso arsenal de editais pré-configurados com pesos e tópicos otimizados.</p><div className="flex items-center gap-1.5 text-[8px] font-black uppercase tracking-[0.14em] text-red-600 transition-all group-hover:gap-3 sm:gap-2 sm:text-[10px] sm:tracking-[0.2em]">Explorar <ArrowRight size={11} strokeWidth={3} /></div></div></motion.button>
+        <motion.button whileHover={{ y: -4, scale: 1.01 }} whileTap={{ scale: 0.99 }} onClick={onManual} className="group relative min-h-[160px] overflow-hidden rounded-2xl border-2 border-dashed border-zinc-200 bg-zinc-50/30 p-3 text-left transition-all hover:border-zinc-400 hover:bg-white dark:border-zinc-800 dark:bg-zinc-900/30 dark:hover:bg-zinc-900 sm:min-h-[250px] sm:rounded-[24px] sm:p-6"><div className="absolute right-0 top-0 h-20 w-20 -mr-6 -mt-6 rounded-bl-[50px] bg-zinc-400/5 sm:h-24 sm:w-24 sm:rounded-bl-[60px]" /><div className="relative z-10"><div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl border border-zinc-200 bg-zinc-100 text-zinc-400 transition-transform group-hover:rotate-6 dark:bg-zinc-800 sm:mb-6 sm:h-12 sm:w-12 sm:rounded-2xl"><Plus size={18} strokeWidth={2.5} className="sm:h-6 sm:w-6" /></div><h3 className="mb-1 text-sm font-black uppercase leading-none tracking-tighter text-zinc-900 dark:text-white sm:mb-2 sm:text-xl">Plano Manual</h3><p className="mb-4 line-clamp-3 text-[9px] font-bold leading-relaxed text-zinc-500 dark:text-zinc-400 sm:mb-6 sm:text-[11px]">Crie sua própria estratégia personalizada do zero, com controle total das matérias.</p><div className="flex items-center gap-1.5 text-[8px] font-black uppercase tracking-[0.14em] text-zinc-400 transition-all group-hover:gap-3 group-hover:text-zinc-900 dark:group-hover:text-white sm:gap-2 sm:text-[10px] sm:tracking-[0.2em]">Montar do Zero <ArrowRight size={11} strokeWidth={3} /></div></div></motion.button>
       </div>
     </div>
   );
