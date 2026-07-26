@@ -483,19 +483,19 @@ const Step5_Preview = ({
   const dataFinalCronograma = resultado?.dataFim || resultado?.dataFechamento || resultado?.meta?.dataFechamento || null;
 
   return (
-    <div className="flex flex-col gap-6 pb-20 w-full max-w-full">
+    <div className="flex flex-col gap-4 pb-20 w-full max-w-full sm:gap-6">
 
       {/* ── HEADER PADRONIZADO ── */}
       <motion.div
         initial={{ opacity: 0, y: -12 }}
         animate={{ opacity: 1, y: 0 }}
-        className="text-center mb-4 w-full mx-auto px-4"
+        className="text-center mb-2 w-full mx-auto px-2 sm:mb-4 sm:px-4"
       >
-        <h2 className="text-3xl sm:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tight leading-none mb-3">
+        <h2 className="text-xl sm:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tight leading-none mb-2 sm:mb-3">
           Tudo pronto para<br />
           <span className="text-red-600">Começar?</span>
         </h2>
-        <p className="text-zinc-500 dark:text-zinc-400 text-sm font-medium leading-relaxed max-w-md mx-auto">
+        <p className="text-[11px] text-zinc-500 dark:text-zinc-400 font-medium leading-relaxed max-w-md mx-auto sm:text-sm">
           Revise seu plano estratégico final e faça ajustes finos se necessário antes de confirmar.
         </p>
       </motion.div>
@@ -516,7 +516,7 @@ const Step5_Preview = ({
         </div>
       </div>
 
-      <div className="flex flex-col items-center justify-center gap-3 px-1 sm:flex-row sm:justify-between">
+      <div className="flex flex-col items-center justify-center gap-2 px-1 sm:flex-row sm:justify-between sm:gap-3">
         <div className="flex items-center gap-3">
           <div className="w-1.5 h-6 rounded-full bg-red-600 shadow-[0_0_10px_rgba(220,38,38,0.3)]" />
           <h2 className="text-lg font-black uppercase tracking-widest text-zinc-900 dark:text-white leading-none">Visão do Plano</h2>
@@ -527,7 +527,7 @@ const Step5_Preview = ({
             { id: 'mes',    icon: LayoutGrid,   label: 'Mês' },
             { id: 'lista',  icon: LayoutList,   label: 'Lista' },
           ].map(v => (
-            <button key={v.id} onClick={() => setViewMode(v.id)} className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all duration-300 ${viewMode === v.id ? 'bg-white dark:bg-zinc-700 text-red-600 shadow-md scale-[1.02]' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}>
+            <button key={v.id} onClick={() => setViewMode(v.id)} className={`flex items-center gap-2 px-3 py-2 rounded-xl transition-all duration-300 sm:px-4 ${viewMode === v.id ? 'bg-white dark:bg-zinc-700 text-red-600 shadow-md scale-[1.02]' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}>
               <v.icon size={16} />
               <span className="text-[10px] font-black uppercase tracking-widest hidden md:inline">{v.label}</span>
             </button>
@@ -536,7 +536,7 @@ const Step5_Preview = ({
       </div>
 
       {/* ── TOOLBAR ── */}
-      <div className="relative flex flex-col items-center justify-center gap-3 px-1 bg-white dark:bg-zinc-900/50 py-3 rounded-3xl border border-zinc-100 dark:border-zinc-800/50 sm:flex-row">
+      <div className="relative flex flex-col items-center justify-center gap-2 px-1 bg-white dark:bg-zinc-900/50 py-2 rounded-2xl border border-zinc-100 dark:border-zinc-800/50 sm:flex-row sm:gap-3 sm:py-3 sm:rounded-3xl">
         <div className="flex items-center gap-3">
           <button
             onClick={() => {
@@ -591,8 +591,8 @@ const Step5_Preview = ({
               key="semana" initial={{ opacity:0, x: 20 }} animate={{ opacity:1, x:0 }} exit={{ opacity:0, x:-20 }}
               ref={scrollRef}
               onMouseDown={handleMouseDown} onMouseLeave={handleMouseLeave} onMouseUp={handleMouseUp} onMouseMove={handleMouseMove}
-              className="flex gap-3 sm:gap-4 overflow-x-auto custom-scrollbar pb-6 cursor-grab active:cursor-grabbing px-1 select-none"
-              style={{ scrollBehavior: isDraggingScroll.current ? 'auto' : 'smooth' }}
+              className="flex gap-2 sm:gap-4 overflow-x-auto custom-scrollbar pb-5 cursor-grab active:cursor-grabbing px-1 select-none sm:pb-6"
+              style={{ scrollBehavior: isDraggingScroll.current ? 'auto' : 'smooth', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y' }}
             >
               {[0, 1, 2, 3, 4, 5, 6].map((diaOffset) => {
                 const data = addDias(startDate, (semanaOffset * 7) + diaOffset);
@@ -604,32 +604,32 @@ const Step5_Preview = ({
 
                 return (
                   <div key={diaOffset} onDragOver={(e) => e.preventDefault()} onDrop={(e) => onDrop(e, key)}
-                    className={`relative flex min-h-[320px] min-w-[220px] max-w-[220px] flex-col rounded-[18px] border p-2 transition-all duration-300 sm:min-h-[420px] sm:min-w-[320px] sm:max-w-[320px] sm:rounded-[22px] ${hoje ? 'border-red-500/60 bg-white/70 shadow-md ring-1 ring-red-500/30 dark:bg-zinc-950/40' : 'border-zinc-200 bg-zinc-50/70 shadow-sm hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-950/30 dark:hover:border-zinc-700'}`}
+                    className={`relative flex min-h-[300px] min-w-[176px] max-w-[176px] flex-col rounded-[16px] border p-1.5 transition-all duration-300 sm:min-h-[500px] sm:min-w-[300px] sm:max-w-[300px] sm:rounded-[18px] sm:p-2 xl:min-w-[324px] xl:max-w-[324px] ${hoje ? 'border-red-500/60 bg-white/70 shadow-md ring-1 ring-red-500/30 dark:bg-zinc-950/40' : 'border-zinc-200 bg-zinc-50/70 shadow-sm hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-950/30 dark:hover:border-zinc-700'}`}
                   >
-                    <div className={`mb-3 shrink-0 rounded-2xl border px-4 py-3 shadow-sm transition-all duration-300 ${hoje ? 'border-red-500/60 bg-zinc-950 text-white dark:border-red-500/40 dark:bg-zinc-900' : 'border-zinc-800 bg-zinc-900 text-white dark:border-zinc-800 dark:bg-zinc-900'}`}>
+                    <div className={`mb-1.5 shrink-0 rounded-[14px] border px-2.5 py-2 shadow-sm transition-all duration-300 sm:mb-3 sm:rounded-[20px] sm:px-4 sm:py-3 ${hoje ? 'border-red-500/60 bg-zinc-950 text-white dark:border-red-500/40 dark:bg-zinc-900' : 'border-zinc-800 bg-zinc-900 text-white dark:border-zinc-800 dark:bg-zinc-900'}`}>
                       {hoje && (
                         <>
                         </>
                       )}
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className={`text-[10px] font-black uppercase tracking-widest ${hoje ? 'text-red-200 dark:text-red-600' : 'text-zinc-400 dark:text-zinc-500'}`}>
+                          <p className={`hidden text-[10px] font-black uppercase tracking-widest sm:block ${hoje ? 'text-red-200 dark:text-red-600' : 'text-zinc-400 dark:text-zinc-500'}`}>
                             {MESES_FULL[data.getMonth()]}
                           </p>
-                          <h3 className="mt-0.5 text-lg font-black uppercase leading-none tracking-tight text-white">
+                          <h3 className="mt-0.5 truncate text-[12px] font-black uppercase leading-none tracking-tight text-white sm:text-lg">
                             {data.toLocaleDateString('pt-BR', { weekday: 'long' })}
                           </h3>
-                          <div className={`mt-1 text-[11px] font-bold uppercase tracking-widest ${hoje ? 'text-red-100 dark:text-red-600' : 'text-zinc-300 dark:text-zinc-500'}`}>
+                          <div className={`mt-1 text-[9px] font-bold uppercase tracking-widest sm:text-[11px] ${hoje ? 'text-red-100 dark:text-red-600' : 'text-zinc-300 dark:text-zinc-500'}`}>
                             {data.getDate()} {data.toLocaleDateString('pt-BR', { month: 'short' })}
                           </div>
                         </div>
                         <div className="flex flex-col items-end gap-2">
                           <div className="rounded-lg border border-white/10 bg-white/10 px-2 py-1.5 text-white">
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1 sm:gap-1.5">
                               <Clock size={12} className={hoje ? 'text-white' : 'text-zinc-300'} />
                               <div className="flex flex-col items-end leading-none">
-                                <span className={`text-[8px] font-black uppercase tracking-widest ${hoje ? 'text-red-100' : 'text-zinc-300'}`}>Tempo</span>
-                                <span className="mt-0.5 text-[11px] font-black tabular-nums text-white">{fmtMin(totalDia)}</span>
+                                <span className={`hidden text-[8px] font-black uppercase tracking-widest sm:block ${hoje ? 'text-red-100' : 'text-zinc-300'}`}>Tempo</span>
+                                <span className="mt-0.5 text-[10px] font-black tabular-nums text-white sm:text-[11px]">{fmtMin(totalDia)}</span>
                               </div>
                             </div>
                           </div>
@@ -666,7 +666,7 @@ const Step5_Preview = ({
                       </div>
                       </div>
                     </div>
-                    <div className="flex flex-col gap-3">
+                    <div className="flex flex-col gap-2 sm:gap-3">
                       {items.length > 0 ? items.map((item) => (
                         <SlotCard key={item.idUnique} item={item} onDragStart={onDragStart} onClick={setModalSlot} config={config} colorMap={colorMap} isToday={hoje} />
                       )) : (

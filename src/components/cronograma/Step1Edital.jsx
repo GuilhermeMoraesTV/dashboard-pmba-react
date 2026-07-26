@@ -53,14 +53,14 @@ const CardEdital = ({ dados, unico, idConfirmado, aoConfirmar }) => {
         layout
         whileHover={{ y: -4, scale: 1.02 }}
         whileTap={{ scale: 0.98 }}
-        className={`relative flex flex-col rounded-2xl border-2 overflow-hidden cursor-pointer transition-all duration-300 w-[132px] sm:w-[190px] shrink-0 group sm:rounded-[24px] ${
+        className={`relative flex flex-col rounded-2xl border-2 overflow-hidden cursor-pointer transition-all duration-300 w-[124px] sm:w-[190px] shrink-0 group sm:rounded-[24px] ${
           estaSelecionado
             ? 'border-red-500 bg-white dark:bg-zinc-900 shadow-[0_12px_40px_rgba(220,38,38,0.15)] ring-4 ring-red-500/5'
             : 'border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:border-red-300 dark:hover:border-red-900 shadow-sm'
         }`}
         onClick={handleClick}
       >
-        <div className={`h-20 flex items-center justify-center p-3 relative overflow-hidden sm:h-32 sm:p-5 ${
+        <div className={`h-[74px] flex items-center justify-center p-2.5 relative overflow-hidden sm:h-32 sm:p-5 ${
           estaSelecionado
             ? 'bg-gradient-to-br from-red-50 to-white dark:from-red-950/10 dark:to-zinc-900'
             : 'bg-zinc-50 dark:bg-zinc-800/50'
@@ -84,7 +84,7 @@ const CardEdital = ({ dados, unico, idConfirmado, aoConfirmar }) => {
           )}
         </div>
 
-        <div className="flex-1 p-2.5 flex flex-col gap-1.5 relative z-10 sm:p-4 sm:gap-2.5">
+        <div className="flex-1 p-2 flex flex-col gap-1.5 relative z-10 sm:p-4 sm:gap-2.5">
           <div className="min-h-[28px] sm:min-h-[32px]">
             <h4 className={`text-[9px] font-black leading-snug uppercase tracking-tight line-clamp-2 transition-colors sm:text-[11px] ${
               estaSelecionado ? 'text-red-600 dark:text-red-400' : 'text-zinc-900 dark:text-white'
@@ -247,7 +247,7 @@ const SecaoCategoria = ({ chave, itens, idConfirmado, onConfirmar }) => {
         ref={scrollRef}
         className="-mx-3 cursor-grab overflow-x-auto overflow-y-hidden overscroll-x-contain px-3 py-2 active:cursor-grabbing custom-scrollbar sm:overflow-hidden"
         whileTap={{ cursor: 'grabbing' }}
-        style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x' }}
+        style={{ WebkitOverflowScrolling: 'touch', touchAction: usarScrollNativo ? 'pan-x pan-y' : 'pan-x' }}
       >
         <motion.div
           ref={contentRef}
@@ -277,14 +277,14 @@ const SecaoCategoria = ({ chave, itens, idConfirmado, onConfirmar }) => {
 
 const TelaEscolhaTipo = ({ onManual, onCatalogo }) => {
   return (
-    <div className="flex flex-col items-center py-4 w-full max-w-4xl mx-auto">
+    <div className="flex min-h-[58vh] flex-col items-center justify-center py-4 w-full max-w-4xl mx-auto">
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="relative mb-5 text-center sm:mb-10">
         <h2 className="mb-2 text-xl font-black uppercase leading-none tracking-tight text-zinc-900 dark:text-white sm:mb-3 sm:text-4xl">Selecione como deseja<br /><span className="text-red-600">Começar</span></h2>
         <p className="hidden mx-auto max-w-md text-xs font-medium leading-relaxed text-zinc-500 dark:text-zinc-400 sm:block sm:text-sm">Escolha o edital ou crie um plano personalizado</p>
       </motion.div>
       <div className="grid w-full max-w-3xl grid-cols-2 gap-2 px-2 sm:gap-4 sm:px-4">
-        <motion.button whileHover={{ y: -4, scale: 1.01 }} whileTap={{ scale: 0.99 }} onClick={onCatalogo} className="group relative min-h-[118px] overflow-hidden rounded-2xl border-2 border-zinc-100 bg-white p-2.5 text-left shadow-lg transition-all hover:border-red-500/50 dark:border-zinc-800 dark:bg-zinc-900 sm:min-h-[250px] sm:rounded-[24px] sm:p-6"><div className="absolute right-0 top-0 h-16 w-16 -mr-6 -mt-6 rounded-bl-[44px] bg-red-600/5 sm:h-24 sm:w-24 sm:rounded-bl-[60px]" /><div className="relative z-10"><div className="mb-2 flex h-8 w-8 items-center justify-center rounded-xl bg-red-600 text-white shadow-lg shadow-red-600/30 transition-transform group-hover:rotate-6 sm:mb-6 sm:h-12 sm:w-12 sm:rounded-2xl"><Library size={16} strokeWidth={2.5} className="sm:h-6 sm:w-6" /></div><h3 className="mb-1 text-[13px] font-black uppercase leading-none tracking-tighter text-zinc-900 dark:text-white sm:mb-2 sm:text-xl">Edital</h3><p className="mb-4 hidden line-clamp-3 text-[9px] font-bold leading-relaxed text-zinc-500 dark:text-zinc-400 sm:mb-6 sm:block sm:text-[11px]">Acesse nosso arsenal de editais pré-configurados com pesos e tópicos otimizados.</p><div className="flex items-center gap-1.5 text-[8px] font-black uppercase tracking-[0.1em] text-red-600 transition-all group-hover:gap-3 sm:gap-2 sm:text-[10px] sm:tracking-[0.2em]">Explorar <ArrowRight size={11} strokeWidth={3} /></div></div></motion.button>
-        <motion.button whileHover={{ y: -4, scale: 1.01 }} whileTap={{ scale: 0.99 }} onClick={onManual} className="group relative min-h-[118px] overflow-hidden rounded-2xl border-2 border-dashed border-zinc-200 bg-zinc-50/30 p-2.5 text-left transition-all hover:border-zinc-400 hover:bg-white dark:border-zinc-800 dark:bg-zinc-900/30 dark:hover:bg-zinc-900 sm:min-h-[250px] sm:rounded-[24px] sm:p-6"><div className="absolute right-0 top-0 h-16 w-16 -mr-6 -mt-6 rounded-bl-[44px] bg-zinc-400/5 sm:h-24 sm:w-24 sm:rounded-bl-[60px]" /><div className="relative z-10"><div className="mb-2 flex h-8 w-8 items-center justify-center rounded-xl border border-zinc-200 bg-zinc-100 text-zinc-400 transition-transform group-hover:rotate-6 dark:bg-zinc-800 sm:mb-6 sm:h-12 sm:w-12 sm:rounded-2xl"><Plus size={16} strokeWidth={2.5} className="sm:h-6 sm:w-6" /></div><h3 className="mb-1 text-[13px] font-black uppercase leading-none tracking-tighter text-zinc-900 dark:text-white sm:mb-2 sm:text-xl">Manual</h3><p className="mb-4 hidden line-clamp-3 text-[9px] font-bold leading-relaxed text-zinc-500 dark:text-zinc-400 sm:mb-6 sm:block sm:text-[11px]">Crie sua própria estratégia personalizada do zero, com controle total das matérias.</p><div className="flex items-center gap-1.5 text-[8px] font-black uppercase tracking-[0.1em] text-zinc-400 transition-all group-hover:gap-3 group-hover:text-zinc-900 dark:group-hover:text-white sm:gap-2 sm:text-[10px] sm:tracking-[0.2em]">Montar <ArrowRight size={11} strokeWidth={3} /></div></div></motion.button>
+        <motion.button whileHover={{ y: -4, scale: 1.01 }} whileTap={{ scale: 0.99 }} onClick={onCatalogo} className="group relative min-h-[150px] overflow-hidden rounded-2xl border-2 border-zinc-100 bg-white p-2.5 text-left shadow-lg transition-all hover:border-red-500/50 dark:border-zinc-800 dark:bg-zinc-900 sm:min-h-[250px] sm:rounded-[24px] sm:p-6"><div className="absolute right-0 top-0 h-16 w-16 -mr-6 -mt-6 rounded-bl-[44px] bg-red-600/5 sm:h-24 sm:w-24 sm:rounded-bl-[60px]" /><div className="relative z-10"><div className="mb-2 flex h-8 w-8 items-center justify-center rounded-xl bg-red-600 text-white shadow-lg shadow-red-600/30 transition-transform group-hover:rotate-6 sm:mb-6 sm:h-12 sm:w-12 sm:rounded-2xl"><Library size={16} strokeWidth={2.5} className="sm:h-6 sm:w-6" /></div><h3 className="mb-1 text-[13px] font-black uppercase leading-none tracking-tighter text-zinc-900 dark:text-white sm:mb-2 sm:text-xl">Edital</h3><p className="mb-3 line-clamp-3 text-[9px] font-bold leading-snug text-zinc-500 dark:text-zinc-400 sm:mb-6 sm:text-[11px] sm:leading-relaxed">Use um edital pronto com matérias e tópicos já organizados.</p><div className="flex items-center gap-1.5 text-[8px] font-black uppercase tracking-[0.1em] text-red-600 transition-all group-hover:gap-3 sm:gap-2 sm:text-[10px] sm:tracking-[0.2em]">Explorar <ArrowRight size={11} strokeWidth={3} /></div></div></motion.button>
+        <motion.button whileHover={{ y: -4, scale: 1.01 }} whileTap={{ scale: 0.99 }} onClick={onManual} className="group relative min-h-[150px] overflow-hidden rounded-2xl border-2 border-dashed border-zinc-200 bg-zinc-50/30 p-2.5 text-left transition-all hover:border-zinc-400 hover:bg-white dark:border-zinc-800 dark:bg-zinc-900/30 dark:hover:bg-zinc-900 sm:min-h-[250px] sm:rounded-[24px] sm:p-6"><div className="absolute right-0 top-0 h-16 w-16 -mr-6 -mt-6 rounded-bl-[44px] bg-zinc-400/5 sm:h-24 sm:w-24 sm:rounded-bl-[60px]" /><div className="relative z-10"><div className="mb-2 flex h-8 w-8 items-center justify-center rounded-xl border border-zinc-200 bg-zinc-100 text-zinc-400 transition-transform group-hover:rotate-6 dark:bg-zinc-800 sm:mb-6 sm:h-12 sm:w-12 sm:rounded-2xl"><Plus size={16} strokeWidth={2.5} className="sm:h-6 sm:w-6" /></div><h3 className="mb-1 text-[13px] font-black uppercase leading-none tracking-tighter text-zinc-900 dark:text-white sm:mb-2 sm:text-xl">Manual</h3><p className="mb-3 line-clamp-3 text-[9px] font-bold leading-snug text-zinc-500 dark:text-zinc-400 sm:mb-6 sm:text-[11px] sm:leading-relaxed">Crie o plano do zero e escolha suas próprias matérias.</p><div className="flex items-center gap-1.5 text-[8px] font-black uppercase tracking-[0.1em] text-zinc-400 transition-all group-hover:gap-3 group-hover:text-zinc-900 dark:group-hover:text-white sm:gap-2 sm:text-[10px] sm:tracking-[0.2em]">Montar <ArrowRight size={11} strokeWidth={3} /></div></div></motion.button>
       </div>
     </div>
   );

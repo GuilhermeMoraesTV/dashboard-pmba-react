@@ -42,6 +42,9 @@ const CardPlanejamento = ({
 }) => {
   const tituloMobile = isCycle ? 'Ciclo' : 'Cronograma';
   const subtituloMobile = isCycle ? 'Flexivel' : 'Agenda fixa';
+  const descricaoMobile = isCycle
+    ? 'Gire as materias no seu ritmo, sem depender de horarios fixos.'
+    : 'Monte uma semana por dias e horarios definidos.';
 
   return (
     <motion.button
@@ -49,7 +52,7 @@ const CardPlanejamento = ({
       onClick={onClick}
       variants={itemVariants}
       whileHover={{ y: -8, scale: 1.015 }}
-      className={`relative group flex min-h-[124px] flex-col rounded-2xl border-2 bg-white p-2.5 text-left shadow-md transition-all duration-500 dark:bg-zinc-900 sm:min-h-[260px] sm:p-6 md:p-7 md:rounded-[2.2rem] md:shadow-xl ${
+      className={`relative group flex min-h-[152px] flex-col rounded-2xl border-2 bg-white p-2.5 text-left shadow-md transition-all duration-500 dark:bg-zinc-900 sm:min-h-[260px] sm:p-6 md:p-7 md:rounded-[2.2rem] md:shadow-xl ${
         isCycle 
           ? 'border-red-100 dark:border-red-900/30 hover:border-red-500 hover:shadow-red-500/10' 
           : 'border-zinc-100 dark:border-zinc-800 hover:border-red-600 hover:shadow-red-600/10'
@@ -89,6 +92,10 @@ const CardPlanejamento = ({
           <span className="hidden sm:inline">{subtitulo}</span>
         </p>
 
+        <p className="mt-2 line-clamp-3 text-[9px] font-semibold leading-snug text-zinc-500 dark:text-zinc-400 sm:hidden">
+          {descricaoMobile}
+        </p>
+
         <p className="mb-3 hidden line-clamp-3 text-[9px] font-medium leading-snug text-zinc-500 dark:text-zinc-400 sm:mb-6 sm:block sm:text-[12px] md:text-[13px]">
           {descricao}
         </p>
@@ -118,7 +125,7 @@ const CardPlanejamento = ({
 
 function PlanejamentoNovoPage({ onBack, onCriarCiclo, onCriarCronograma, hideBack = false }) {
   return (
-    <div className="flex flex-col w-full relative pb-12 px-1">
+    <div className="flex min-h-[calc(100vh-9rem)] flex-col justify-center w-full relative pb-12 px-1">
       <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-red-600/[0.02] dark:bg-red-600/[0.04] blur-[120px] rounded-full pointer-events-none" />
       
       <div className="w-full relative z-10">

@@ -858,7 +858,7 @@ body.wizard-shell-open .global-study-register-fab {
 
 @media (max-width: 639px) {
   body.wizard-shell-open .wizard-progress-header {
-    padding: 0.35rem 0.5rem 0;
+    display: none;
   }
 
   body.wizard-shell-open .wizard-progress-header > div {
@@ -871,11 +871,11 @@ body.wizard-shell-open .global-study-register-fab {
 
   body.wizard-shell-open .wizard-main {
     overflow-x: hidden;
-    padding: 0.35rem 0.45rem calc(4.5rem + env(safe-area-inset-bottom, 0px));
+    padding: 0.45rem 0.45rem calc(5.25rem + env(safe-area-inset-bottom, 0px));
   }
 
   body.wizard-shell-open .wizard-step-frame {
-    --wizard-content-mobile-zoom: 0.8;
+    --wizard-content-mobile-zoom: 0.82;
     width: 100%;
     max-width: 100%;
     overflow-x: hidden;
@@ -883,13 +883,19 @@ body.wizard-shell-open .global-study-register-fab {
   }
 
   body.wizard-shell-open .wizard-navigation-bar {
-    --wizard-footer-mobile-zoom: 0.72;
+    --wizard-footer-mobile-zoom: 0.82;
     left: 0.5rem;
     right: 0.5rem;
     bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
     width: auto;
     max-width: calc(100% - 1rem);
     zoom: var(--wizard-footer-mobile-zoom);
+  }
+
+  body.wizard-shell-open .wizard-navigation-bar button {
+    min-height: 2.65rem;
+    padding-left: 1rem;
+    padding-right: 1rem;
   }
 
   body.wizard-shell-open .wizard-progress-header h1,
@@ -907,8 +913,7 @@ body.wizard-shell-open .global-study-register-fab {
     max-height: 1rem;
   }
 
-  body.wizard-shell-open .wizard-step-frame,
-  body.wizard-shell-open .wizard-step-frame * {
+  body.wizard-shell-open .wizard-step-frame {
     min-width: 0;
   }
 

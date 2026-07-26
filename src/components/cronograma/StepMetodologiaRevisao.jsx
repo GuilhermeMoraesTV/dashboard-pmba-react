@@ -85,11 +85,11 @@ const StepMetodologiaRevisao = ({ config = {}, onConfigChange = () => {} }) => {
         <h2 className="text-xl sm:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tight leading-none mb-1 sm:mb-3">
           Revisão <span className="text-red-600">Espaçada</span>
         </h2>
-        <p className="hidden text-zinc-500 dark:text-zinc-400 text-sm font-medium leading-relaxed max-w-md mx-auto sm:block">
+        <p className="text-[11px] text-zinc-500 dark:text-zinc-400 font-medium leading-relaxed max-w-md mx-auto sm:text-sm">
           Seu cronograma reserva automaticamente 25% do seu tempo diário para
           revisões — nos momentos exatos em que o esquecimento começa.
         </p>
-        <p className="mt-1 text-[8px] font-semibold uppercase tracking-[0.12em] text-zinc-400 sm:mt-3 sm:text-[11px] sm:tracking-[0.16em]">
+        <p className="mt-2 text-[9px] font-semibold uppercase tracking-[0.12em] text-zinc-400 sm:mt-3 sm:text-[11px] sm:tracking-[0.16em]">
           Este passo nao escolhe modo de revisao. Ele apenas define o tempo de cada revisao.
         </p>
       </motion.div>
@@ -102,7 +102,7 @@ const StepMetodologiaRevisao = ({ config = {}, onConfigChange = () => {} }) => {
         className="w-full mb-2 sm:mb-4"
       >
         <SplitVisual />
-        <p className="hidden text-[11px] text-zinc-400 text-center mt-3 leading-relaxed sm:block">
+        <p className="text-[10px] text-zinc-400 text-center mt-2 leading-relaxed sm:mt-3 sm:text-[11px]">
           O tempo de revisão é fluido — se não houver revisões pendentes num dia,
           aquele tempo é automaticamente devolvido ao estudo.
         </p>
@@ -195,7 +195,7 @@ const StepMetodologiaRevisao = ({ config = {}, onConfigChange = () => {} }) => {
             Tempo por revisão
           </span>
         </div>
-        <p className="hidden text-[12px] text-zinc-500 dark:text-zinc-400 mb-4 sm:block">
+        <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mb-3 sm:mb-4 sm:text-[12px]">
           Escolha quanto tempo cada revisao deve ocupar quando ela existir no dia.
         </p>
 
