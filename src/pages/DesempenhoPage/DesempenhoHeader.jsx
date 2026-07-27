@@ -75,7 +75,7 @@ const ContextSelector = ({ context }) => {
   const cronogramaLogo = getContextLogo(context.activeCronogramaData);
 
   return (
-    <div className="flex flex-col gap-0.5">
+    <div className="flex shrink-0 flex-col gap-0.5">
       <span className="text-[9px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500 px-1">
         Planejamento
       </span>
@@ -277,13 +277,11 @@ const DesempenhoHeader = ({ analytics, filters, options, context }) => {
         </div>
 
         {/* Filtros */}
-        <div className="desempenho-filter-bar flex flex-wrap items-end gap-x-3 gap-y-2">
+        <div className="desempenho-filter-bar flex flex-wrap items-end gap-x-3 gap-y-2 xl:flex-nowrap">
           <ContextSelector context={context} />
 
-          <div className="w-px h-7 bg-zinc-200 dark:bg-zinc-700/60 self-end mb-0.5 hidden sm:block" />
-
           {/* Período */}
-          <div className="desempenho-period-filter flex flex-col gap-0.5">
+          <div className="desempenho-period-filter flex shrink-0 flex-col gap-0.5">
             <span className="text-[9px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500 px-1">
               Período
             </span>
@@ -294,7 +292,7 @@ const DesempenhoHeader = ({ analytics, filters, options, context }) => {
           <div className="w-px h-7 bg-zinc-200 dark:bg-zinc-700/60 self-end mb-0.5 hidden sm:block" />
 
           {/* Disciplina */}
-          <div className="desempenho-discipline-filter flex flex-col gap-0.5">
+          <div className="desempenho-discipline-filter flex shrink-0 flex-col gap-0.5">
             <span className="text-[9px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500 px-1">
               Disciplina
             </span>

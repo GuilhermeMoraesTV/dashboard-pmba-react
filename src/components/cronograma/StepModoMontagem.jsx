@@ -185,7 +185,7 @@ const DayColumn = ({
       data-day-idx={dia.idx}
       onDragOver={(event) => event.preventDefault()}
       onDrop={(event) => onDropDisciplina(event, dia.idx)}
-      onClick={() => activateDay(false)}
+      onClick={() => activateDay(true)}
       className={`relative flex min-h-[360px] w-[216px] shrink-0 flex-col overflow-hidden rounded-[18px] border p-2 transition-all duration-300 sm:min-h-[520px] sm:w-[320px] sm:rounded-[20px] sm:p-2.5 lg:min-h-[540px] xl:w-[344px] xl:min-h-[580px] ${
         selected || isHoje
           ? 'border-zinc-300 bg-white/80 shadow-md ring-1 ring-zinc-300/70 dark:border-zinc-700 dark:bg-zinc-950/50 dark:ring-zinc-700/60'
@@ -196,7 +196,7 @@ const DayColumn = ({
         type="button"
         onClick={(event) => {
           event.stopPropagation();
-          activateDay(false);
+          activateDay(true);
         }}
         className="mb-1.5 shrink-0 rounded-[14px] border border-zinc-800 bg-zinc-950 px-2.5 py-2 text-left shadow-sm transition-all duration-300 dark:border-zinc-800 dark:bg-zinc-900 sm:mb-3 sm:rounded-[20px] sm:px-3 sm:py-3"
       >
@@ -564,7 +564,7 @@ export default function StepModoMontagem({
   return (
     <div className="flex h-full w-full flex-col overflow-hidden">
       {modo !== 'personalizado' && (
-        <div className="mx-auto flex min-h-[calc(100vh-12rem)] w-full max-w-5xl flex-col items-center justify-center py-4">
+        <div className="mx-auto flex min-h-[calc(100vh-12rem)] w-full max-w-5xl flex-col items-center justify-center py-4 md:min-h-0 md:justify-start md:pt-3">
         <motion.div
           initial={{ opacity: 0, y: -12 }}
           animate={{ opacity: 1, y: 0 }}
@@ -672,9 +672,9 @@ export default function StepModoMontagem({
       )}
 
       {modo === 'personalizado' && (
-        <div className="grid min-h-0 flex-1 gap-2 overflow-y-auto px-0 pb-8 custom-scrollbar lg:grid-cols-[minmax(0,1fr)_240px] xl:grid-cols-[minmax(0,1fr)_260px] sm:px-2">
-          <section className="order-2 flex min-h-[420px] min-w-0 flex-col lg:order-1 lg:min-h-[520px]">
-            <div className="mb-3 flex flex-col items-center gap-2 px-0 text-center sm:mb-4 sm:gap-3">
+        <div className="grid min-h-0 flex-1 gap-2 overflow-y-auto px-0 pb-8 custom-scrollbar sm:px-2">
+          <section className="flex min-h-[420px] min-w-0 flex-col lg:min-h-[520px]">
+            <div className="mb-3 flex flex-col items-center gap-2 px-0 text-center sm:mb-4 sm:gap-3 md:mb-2">
               <div className="min-w-0 flex-1">
                 <h2 className="text-4xl font-black uppercase leading-[0.95] tracking-tighter text-zinc-900 dark:text-white sm:text-4xl">
                   Montagem<br /><span className="text-red-600">Personalizada</span>
@@ -690,7 +690,7 @@ export default function StepModoMontagem({
                   </div>
                 </div>
                 <p className="mt-1 hidden text-xs font-semibold text-zinc-500 dark:text-zinc-400 sm:block">
-                  Toque numa disciplina para adicionar ao dia selecionado, arraste para outro dia e ajuste cada bloco de estudo. {totalBlocos} blocos, {fmtMin(totalMinutos)} por semana.
+                  Clique em um dia ou em escolher disciplina para abrir a lista naquele bloco. {totalBlocos} blocos, {fmtMin(totalMinutos)} por semana.
                 </p>
               </div>
             </div>
@@ -727,7 +727,7 @@ export default function StepModoMontagem({
             </div>
           </section>
 
-          <aside className="order-1 hidden min-w-0 overflow-hidden rounded-xl border border-zinc-200 bg-white p-1.5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/60 sm:rounded-2xl sm:p-3 lg:sticky lg:top-4 lg:order-2 lg:block lg:self-start lg:rounded-[28px] lg:p-4">
+          <aside className="hidden">
             <div className="mb-1.5 flex items-center gap-2 border-b border-zinc-100 pb-1.5 dark:border-zinc-800 sm:mb-3 sm:gap-3 sm:pb-3 lg:mb-4 lg:pb-4">
               <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-zinc-100 text-zinc-500 dark:bg-zinc-900 sm:h-9 sm:w-9 sm:rounded-2xl lg:h-10 lg:w-10">
                 <Layers size={16} className="sm:h-[18px] sm:w-[18px]" />
