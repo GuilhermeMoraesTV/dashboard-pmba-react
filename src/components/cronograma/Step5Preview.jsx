@@ -520,12 +520,49 @@ const Step5_Preview = ({
         </div>
       </div>
 
-      <div className="flex flex-col items-center justify-center gap-2 px-1 sm:flex-row sm:justify-between sm:gap-3">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col gap-2 px-1 lg:flex-row lg:items-center lg:justify-between lg:gap-3">
+        <div className="flex items-center justify-center gap-3 lg:justify-start">
           <div className="w-1.5 h-6 rounded-full bg-red-600 shadow-[0_0_10px_rgba(220,38,38,0.3)]" />
           <h2 className="text-2xl font-black uppercase tracking-tight text-zinc-900 dark:text-white leading-none sm:text-lg sm:tracking-widest">Visão do Plano</h2>
         </div>
-        <div className="mx-auto flex items-center justify-center gap-1 rounded-2xl bg-zinc-100 p-1 dark:bg-zinc-800 sm:mx-0">
+
+        <div className="flex flex-wrap items-center justify-center gap-2 lg:justify-end">
+          <div className="inline-flex w-fit items-center gap-2 rounded-2xl border border-zinc-100 bg-white px-2 py-1.5 shadow-sm dark:border-zinc-800/60 dark:bg-zinc-900/70">
+            <button
+              onClick={() => {
+                if (viewMode === 'mes') {
+                  setMesCursor((p) => new Date(p.getFullYear(), p.getMonth() - 1, 1, 12, 0, 0, 0));
+                } else {
+                  setSemanaOffset(p => Math.max(0, p - 1));
+                }
+              }}
+              className="p-2 rounded-xl bg-zinc-50 dark:bg-zinc-800 hover:text-red-600 transition-all active:scale-90 border border-zinc-200 dark:border-zinc-700"
+            >
+              <ChevronLeft size={18} />
+            </button>
+            <div className="flex min-w-[126px] flex-col items-center sm:min-w-[150px]">
+              <span className="mb-1 text-[8px] font-black uppercase tracking-[0.24em] text-zinc-400">Período</span>
+              <h3 className="text-xs font-black uppercase tracking-widest text-zinc-900 dark:text-white">
+                {viewMode === 'mes'
+                  ? `${MESES_FULL[mesCursor.getMonth()]} ${mesCursor.getFullYear()}`
+                  : `Semana ${semanaOffset + 1}`}
+              </h3>
+            </div>
+            <button
+              onClick={() => {
+                if (viewMode === 'mes') {
+                  setMesCursor((p) => new Date(p.getFullYear(), p.getMonth() + 1, 1, 12, 0, 0, 0));
+                } else {
+                  setSemanaOffset(p => p + 1);
+                }
+              }}
+              className="p-2 rounded-xl bg-zinc-50 dark:bg-zinc-800 hover:text-red-600 transition-all active:scale-90 border border-zinc-200 dark:border-zinc-700"
+            >
+              <ChevronRight size={18} />
+            </button>
+          </div>
+
+          <div className="flex items-center justify-center gap-1 rounded-2xl bg-zinc-100 p-1 dark:bg-zinc-800">
           {[
             { id: 'semana', icon: CalendarDays, label: 'Semana' },
             { id: 'mes',    icon: LayoutGrid,   label: 'Mês' },
@@ -536,55 +573,18 @@ const Step5_Preview = ({
               <span className="text-[10px] font-black uppercase tracking-widest hidden md:inline">{v.label}</span>
             </button>
           ))}
-        </div>
-      </div>
-
-      {/* ── TOOLBAR ── */}
-      <div className="relative flex flex-col items-center justify-center gap-2 px-1 bg-white dark:bg-zinc-900/50 py-2 rounded-2xl border border-zinc-100 dark:border-zinc-800/50 sm:flex-row sm:gap-3 sm:py-3 sm:rounded-3xl">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => {
-              if (viewMode === 'mes') {
-                setMesCursor((p) => new Date(p.getFullYear(), p.getMonth() - 1, 1, 12, 0, 0, 0));
-              } else {
-                setSemanaOffset(p => Math.max(0, p - 1));
-              }
-            }}
-            className="p-2 rounded-xl bg-zinc-50 dark:bg-zinc-800 hover:text-red-600 transition-all active:scale-90 border border-zinc-200 dark:border-zinc-700"
-          >
-            <ChevronLeft size={18} />
-          </button>
-          <div className="flex flex-col items-center min-w-[140px]">
-            <span className="text-[8px] font-black uppercase text-zinc-400 tracking-[0.3em] mb-1">Período Selecionado</span>
-            <h3 className="text-xs font-black uppercase tracking-widest text-zinc-900 dark:text-white">
-              {viewMode === 'mes'
-                ? `${MESES_FULL[mesCursor.getMonth()]} ${mesCursor.getFullYear()}`
-                : `Semana ${semanaOffset + 1}`}
-            </h3>
           </div>
-          <button
-            onClick={() => {
-              if (viewMode === 'mes') {
-                setMesCursor((p) => new Date(p.getFullYear(), p.getMonth() + 1, 1, 12, 0, 0, 0));
-              } else {
-                setSemanaOffset(p => p + 1);
-              }
-            }}
-            className="p-2 rounded-xl bg-zinc-50 dark:bg-zinc-800 hover:text-red-600 transition-all active:scale-90 border border-zinc-200 dark:border-zinc-700"
-          >
-            <ChevronRight size={18} />
-          </button>
-        </div>
 
-        {agendaOverride ? (
-          <button onClick={() => setAgendaOverride(null)} className="flex items-center gap-2 px-4 py-2 rounded-xl text-amber-600 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 text-[10px] font-black uppercase animate-pulse sm:absolute sm:right-3">
-            <RefreshCw size={14} /> Resetar Alterações
-          </button>
-        ) : (
-          <div className="hidden sm:absolute sm:right-3 sm:flex items-center gap-2 px-4 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800 text-zinc-400 text-[9px] font-black uppercase tracking-widest border border-zinc-200 dark:border-zinc-700">
-            <Info size={12} /> Design Interativo
-          </div>
-        )}
+          {agendaOverride ? (
+            <button onClick={() => setAgendaOverride(null)} className="flex items-center gap-2 px-4 py-2 rounded-xl text-amber-600 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 text-[10px] font-black uppercase animate-pulse">
+              <RefreshCw size={14} /> Resetar Alterações
+            </button>
+          ) : (
+            <div className="hidden xl:flex items-center gap-2 px-4 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800 text-zinc-400 text-[9px] font-black uppercase tracking-widest border border-zinc-200 dark:border-zinc-700">
+              <Info size={12} /> Design Interativo
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ── CONTEÚDO DINÂMICO ── */}

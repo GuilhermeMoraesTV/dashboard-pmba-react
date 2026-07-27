@@ -783,7 +783,7 @@ export default function StepModoMontagem({
                         {disciplina.nome}
                       </span>
                       <span className="mt-0.5 hidden truncate text-[9px] font-bold uppercase tracking-widest text-zinc-400 sm:block">
-                        Clique para adicionar
+                        Arrastar
                       </span>
                     </span>
                     <button
