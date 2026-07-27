@@ -104,7 +104,7 @@ const HeaderSimulado = ({
                 </div>
             </div>
 
-            <div className="flex w-full flex-wrap items-center gap-2 md:flex-nowrap xl:w-auto">
+            <div className="simulado-header-actions flex w-full flex-wrap items-center gap-2 md:flex-nowrap xl:w-auto">
                 <button
                   onClick={compareMode ? onCancelCompare : () => setCompareMode(true)}
                   className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wide transition-all border ${

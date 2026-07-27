@@ -131,12 +131,12 @@ const CicloCard = ({ ciclo, registrosEstudo = [], onOpen, onMenuToggle, isMenuOp
       <div className="absolute bottom-0 top-0 left-0 z-20 w-1 bg-transparent transition-colors duration-300 group-hover:bg-red-500" />
 
       {logo ? (
-        <div className="pointer-events-none absolute bottom-0 right-0 z-0 h-20 w-20 opacity-25 saturate-150 transition-all duration-700 ease-out group-hover:scale-110 group-hover:opacity-40 sm:h-24 sm:w-24 md:h-36 md:w-36 md:opacity-20">
+        <div className="pointer-events-none absolute bottom-0 right-0 z-0 h-32 w-32 opacity-20 saturate-150 transition-all duration-700 ease-out group-hover:scale-110 group-hover:opacity-35 sm:h-24 sm:w-24 md:h-36 md:w-36 md:opacity-20">
           <img src={logo} alt="" className="h-full w-full object-contain" onError={(event) => { event.currentTarget.style.display = 'none'; }} />
         </div>
       ) : (
         <div className="pointer-events-none absolute -bottom-6 -right-6 z-0 text-red-500/10 transition-all duration-700 ease-out group-hover:scale-125 group-hover:rotate-[-10deg] dark:text-red-500/5">
-          <RefreshCw strokeWidth={1.5} size={100} className="sm:h-[140px] sm:w-[140px]" />
+          <RefreshCw strokeWidth={1.5} size={128} className="sm:h-[140px] sm:w-[140px]" />
         </div>
       )}
 

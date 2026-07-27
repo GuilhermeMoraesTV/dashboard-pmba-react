@@ -1025,5 +1025,29 @@ body.registro-modal-open .app-global-footer {
   .mobile-page-zoom--simulados [class*="gap-6"] {
     gap: 1rem;
   }
+
+  .mobile-page-zoom--simulados .simulado-header-actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.45rem;
+    width: 100%;
+  }
+
+  .mobile-page-zoom--simulados .simulado-header-actions button {
+    min-width: 0;
+    height: 2.35rem;
+    padding: 0.45rem 0.5rem;
+    border-radius: 0.8rem;
+    font-size: 0.58rem;
+    line-height: 1;
+    letter-spacing: 0.04em;
+    white-space: normal;
+  }
+
+  .mobile-page-zoom--simulados .simulado-header-actions button svg {
+    width: 0.8rem;
+    height: 0.8rem;
+    flex-shrink: 0;
+  }
 }
 

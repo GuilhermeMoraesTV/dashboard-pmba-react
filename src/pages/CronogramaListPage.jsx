@@ -143,12 +143,12 @@ const CronogramaCard = ({ cronograma, onOpen, onMenuToggle, isMenuOpen, onAction
 
       {/* CORREÇÃO 1: logo */}
       {logo ? (
-        <div className="absolute bottom-0 right-0 w-20 h-20 sm:w-24 sm:h-24 md:w-36 md:h-36 opacity-25 md:opacity-20 transition-all duration-700 ease-out group-hover:scale-110 group-hover:opacity-40 z-0 pointer-events-none filter saturate-150">
+        <div className="absolute bottom-0 right-0 w-32 h-32 sm:w-24 sm:h-24 md:w-36 md:h-36 opacity-20 md:opacity-20 transition-all duration-700 ease-out group-hover:scale-110 group-hover:opacity-35 z-0 pointer-events-none filter saturate-150">
           <img src={logo} alt="" className="w-full h-full object-contain" onError={e => { e.target.style.display = 'none'; e.target.parentElement.style.display = 'none'; }} />
         </div>
       ) : (
         <div className="absolute -bottom-6 -right-6 text-emerald-500/10 dark:text-emerald-500/5 transition-all duration-700 ease-out group-hover:scale-125 group-hover:rotate-[-10deg] z-0 pointer-events-none">
-          <CalendarDays strokeWidth={1.5} size={100} className="sm:w-[140px] sm:h-[140px]" />
+          <CalendarDays strokeWidth={1.5} size={128} className="sm:w-[140px] sm:h-[140px]" />
         </div>
       )}
 

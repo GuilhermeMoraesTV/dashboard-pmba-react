@@ -104,7 +104,7 @@ const SimuladoTableRow = ({ item, onDeleteRequest, onEditRequest, compareMode, i
   };
 
   return (
-    <div className={`group mx-2 my-2 overflow-hidden rounded-xl border transition-all duration-200 md:mx-3 ${isSelected ? 'border-blue-300 bg-blue-50 shadow-[0_0_18px_rgba(37,99,235,0.10)] dark:border-blue-500/40 dark:bg-blue-950/20' : expanded ? 'border-red-200 bg-zinc-50 shadow-sm dark:border-red-500/25 dark:bg-zinc-900/35' : 'border-zinc-200 bg-white shadow-sm hover:-translate-y-0.5 hover:border-red-200 hover:shadow-[0_0_18px_rgba(239,68,68,0.06)] dark:border-white/10 dark:bg-zinc-950 dark:hover:border-red-500/25'}`}>
+    <div className={`group mx-2 my-3 overflow-hidden rounded-xl border border-l-4 transition-all duration-200 md:mx-3 ${isSelected ? 'border-blue-300 border-l-blue-500 bg-blue-50 shadow-[0_0_18px_rgba(37,99,235,0.10)] dark:border-blue-500/40 dark:border-l-blue-400 dark:bg-blue-950/20' : expanded ? 'border-red-200 border-l-red-500 bg-zinc-50 shadow-md dark:border-red-500/25 dark:border-l-red-500 dark:bg-zinc-900/35' : 'border-zinc-200 border-l-zinc-300 bg-white shadow-sm hover:-translate-y-0.5 hover:border-red-200 hover:border-l-red-500 hover:shadow-[0_0_18px_rgba(239,68,68,0.06)] dark:border-white/10 dark:border-l-zinc-700 dark:bg-zinc-950 dark:hover:border-red-500/25 dark:hover:border-l-red-500'}`}>
 
       {/* MOBILE - ROW PRINCIPAL */}
       <div className="md:hidden px-4 py-3 cursor-pointer select-none" onClick={onRowClick}>
@@ -267,7 +267,7 @@ const SimuladosList = ({
   };
 
   return (
-    <div className="group relative overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white shadow-soft transition-all duration-300 hover:border-accent-light/40 hover:!border-l-red-500 hover:shadow-[0_0_18px_rgba(239,68,68,0.07)] dark:border-white/10 dark:!border-l-red-500/25 dark:bg-zinc-950 dark:hover:border-accent-light/20 dark:hover:!border-l-red-500 dark:hover:shadow-[0_0_22px_rgba(239,68,68,0.08)]">
+    <div className="group relative overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-soft transition-all duration-300 hover:border-accent-light/40 hover:shadow-[0_0_18px_rgba(239,68,68,0.07)] dark:border-white/10 dark:bg-zinc-950 dark:hover:border-accent-light/20 dark:hover:shadow-[0_0_22px_rgba(239,68,68,0.08)]">
       <DeleteConfirmationModal
         isOpen={deleteModalOpen}
         onClose={() => setDeleteModalOpen(false)}
@@ -286,7 +286,7 @@ const SimuladosList = ({
         <div className="col-span-1 text-center">Detalhes</div>
       </div>
 
-      <div className="bg-zinc-50/50 py-1 dark:bg-zinc-950/40">
+      <div className="bg-zinc-50/50 py-2 dark:bg-zinc-950/40">
         {loading ? (
             <div className="py-16 text-center text-zinc-400 font-medium animate-pulse flex flex-col items-center gap-4">
             <div className="w-8 h-8 border-4 border-red-500 border-t-transparent rounded-full animate-spin" />

@@ -108,7 +108,7 @@ const InlineSelect = ({ options, value, onChange }) => {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -4, scale: 0.97 }}
             transition={{ duration: 0.12 }}
-            className="absolute z-50 top-full mt-1.5 right-0 min-w-[100px] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700/80 rounded-xl shadow-xl overflow-hidden"
+            className="absolute z-[10080] top-full mt-1.5 right-0 min-w-[100px] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700/80 rounded-xl shadow-xl overflow-hidden"
           >
             <div className="p-1">
               {options.map(opt => (
@@ -489,7 +489,8 @@ const SimuladoGrafico = ({ simulados = [], compact = false }) => {
                         content={<CustomTooltip metric={metric} />}
                         cursor={{ fill: 'transparent' }}
                         allowEscapeViewBox={{ x: true, y: true }}
-                        wrapperStyle={{ zIndex: 9999, overflow: 'visible' }}
+                        position={{ x: 10, y: 10 }}
+                        wrapperStyle={{ zIndex: 10070, overflow: 'visible' }}
                       />
                       {avgLine != null && (
                         <ReferenceLine
@@ -555,7 +556,8 @@ const SimuladoGrafico = ({ simulados = [], compact = false }) => {
                         content={<CustomTooltip metric={metric} />}
                         cursor={{ stroke: '#ef4444', strokeWidth: 1, strokeDasharray: '4 3', strokeOpacity: 0.4 }}
                         allowEscapeViewBox={{ x: true, y: true }}
-                        wrapperStyle={{ zIndex: 9999, overflow: 'visible' }}
+                        position={{ x: 10, y: 10 }}
+                        wrapperStyle={{ zIndex: 10070, overflow: 'visible' }}
                       />
                       {avgLine != null && (
                         <ReferenceLine
