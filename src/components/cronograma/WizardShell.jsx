@@ -278,7 +278,7 @@ const WizardShell = ({
     <div className="cronograma-wizard-shell flex flex-col min-h-screen bg-transparent">
       
       {/* ── Main Content ── */}
-      <main ref={conteudoRef} className="wizard-main flex-1 overflow-y-auto px-4 pt-2 pb-32 md:px-6 md:pt-4 md:pb-36 custom-scrollbar">
+      <main ref={conteudoRef} className="wizard-main flex-1 overflow-y-auto px-4 pt-2 pb-32 md:px-6 md:pt-1 md:pb-36 custom-scrollbar">
         <div className={`wizard-step-frame ${isPassoEdital || isUltimoStep || isPassoMontagemPersonalizada ? 'w-full mx-auto' : 'max-w-5xl mx-auto'}`}>
           <AnimatePresence mode="wait">
             <motion.div

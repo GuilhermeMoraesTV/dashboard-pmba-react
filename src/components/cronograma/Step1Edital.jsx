@@ -324,8 +324,8 @@ const TelaEscolhaTipo = ({ onManual, onCatalogo }) => {
   ];
 
   return (
-    <div className="flex min-h-[calc(100vh-12rem)] w-full max-w-5xl mx-auto flex-col items-center justify-center py-4 md:min-h-0 md:justify-start md:pt-3">
-      <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="relative mb-5 text-center sm:mb-10">
+    <div className="flex min-h-[calc(100vh-12rem)] w-full max-w-5xl mx-auto flex-col items-center justify-center py-4 md:min-h-0 md:justify-start md:pt-0">
+      <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="relative mb-5 text-center sm:mb-7">
         <h2 className="mb-2 text-4xl font-black uppercase leading-[0.95] tracking-tighter text-zinc-900 dark:text-white sm:mb-3 sm:text-4xl">Selecione como deseja<br /><span className="text-red-600">Começar</span></h2>
         <p className="mx-auto max-w-md px-4 text-[12px] font-black uppercase leading-relaxed tracking-[0.16em] text-zinc-500 dark:text-zinc-400 sm:text-sm sm:font-semibold sm:normal-case sm:tracking-normal">Escolha um edital pronto ou crie uma base manual para o seu plano.</p>
       </motion.div>

@@ -110,12 +110,12 @@ const CardPlanejamento = ({
 
 function PlanejamentoNovoPage({ onBack, onCriarCiclo, onCriarCronograma, hideBack = false }) {
   return (
-    <div className="mobile-page-zoom mobile-page-zoom--planejamento flex min-h-[calc(100vh-9rem)] flex-col justify-center w-full relative pb-12 px-1 md:justify-start md:pt-4">
+    <div className="mobile-page-zoom mobile-page-zoom--planejamento flex min-h-[calc(100vh-9rem)] flex-col justify-center w-full relative pb-12 px-1 md:justify-start md:pt-2">
       <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-red-600/[0.02] dark:bg-red-600/[0.04] blur-[120px] rounded-full pointer-events-none" />
       
       <div className="w-full relative z-10">
         {!hideBack && (
-          <header className="flex items-center justify-start mb-10 md:mb-12">
+          <header className="flex items-center justify-start mb-6 md:mb-4">
             <motion.button
               whileHover={{ x: -3 }}
               onClick={onBack}
@@ -127,7 +127,7 @@ function PlanejamentoNovoPage({ onBack, onCriarCiclo, onCriarCronograma, hideBac
           </header>
         )}
 
-        <div className="mb-5 text-center md:mb-16">
+        <div className="mb-5 text-center md:mb-8">
           <motion.div
             variants={titleVariants}
             initial="hidden"

@@ -455,7 +455,7 @@ export default function StepModoMontagem({
   };
 
   const shouldIgnorePan = (target) => (
-    target?.closest?.('input, select, textarea, [data-no-pan]')
+    target?.closest?.('button, a, input, select, textarea, [data-no-pan]')
   );
 
   const handleWeekPointerDown = (event) => {
@@ -564,11 +564,11 @@ export default function StepModoMontagem({
   return (
     <div className="flex h-full w-full flex-col overflow-hidden">
       {modo !== 'personalizado' && (
-        <div className="mx-auto flex min-h-[calc(100vh-12rem)] w-full max-w-5xl flex-col items-center justify-center py-4 md:min-h-0 md:justify-start md:pt-3">
+        <div className="mx-auto flex min-h-[calc(100vh-12rem)] w-full max-w-5xl flex-col items-center justify-center py-4 md:min-h-0 md:justify-start md:pt-0">
         <motion.div
           initial={{ opacity: 0, y: -12 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-5 max-w-2xl px-2 text-center sm:mb-10 sm:px-4"
+          className="mb-5 max-w-2xl px-2 text-center sm:mb-7 sm:px-4"
         >
           <h2 className="mb-2 text-4xl font-black uppercase leading-[0.95] tracking-tighter text-zinc-900 dark:text-white sm:mb-3 sm:text-4xl">
             Como montar<br /><span className="text-red-600">sua semana?</span>
@@ -606,13 +606,12 @@ export default function StepModoMontagem({
                 onClick={() => setModo(option.id)}
                 className={`group relative flex min-h-[168px] w-full flex-col overflow-hidden rounded-2xl border-2 p-3 text-left shadow-md transition-all duration-500 hover:-translate-y-2 dark:bg-zinc-900 sm:min-h-[260px] sm:rounded-[2.2rem] sm:p-6 sm:shadow-xl md:p-7 ${
                   active
-                    ? 'border-red-500 shadow-red-500/10 dark:border-red-900/50'
+                    ? 'border-red-500 bg-white shadow-red-500/10 dark:border-red-900/50'
                     : isAutomatico
-                      ? 'border-red-100 bg-gradient-to-br from-white via-red-50/45 to-white hover:border-red-500 hover:shadow-red-600/10 dark:border-red-950/50 dark:from-zinc-900 dark:via-red-950/10 dark:to-zinc-900'
-                      : 'border-dashed border-zinc-300 bg-[linear-gradient(135deg,#ffffff_0%,#fafafa_50%,#f4f4f5_100%)] hover:border-zinc-500 hover:bg-white hover:shadow-zinc-900/10 dark:border-zinc-700 dark:bg-[linear-gradient(135deg,#18181b_0%,#111113_55%,#27272a_100%)] dark:hover:border-zinc-500'
+                      ? 'border-zinc-100 bg-white hover:border-red-600 hover:shadow-red-600/10 dark:border-zinc-800'
+                      : 'border-dashed border-zinc-300 bg-zinc-50 hover:border-zinc-400 hover:bg-white hover:shadow-zinc-900/10 dark:border-zinc-700 dark:bg-zinc-900/60 dark:hover:border-zinc-500 dark:hover:bg-zinc-900'
                 }`}
               >
-                <span className={`absolute left-0 top-5 bottom-5 w-1 rounded-r-full ${isAutomatico ? 'bg-red-600' : 'bg-zinc-300 dark:bg-zinc-600'}`} />
                 <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[2.2rem]">
                   <Icon
                     size={160}
@@ -695,39 +694,39 @@ export default function StepModoMontagem({
               </div>
             </div>
 
-            <div
-              ref={weekScrollRef}
-              onPointerDown={handleWeekPointerDown}
-              onPointerMove={handleWeekPointerMove}
-              onPointerCancel={stopWeekPointerDrag}
-              onPointerUp={stopWeekPointerDrag}
-              onClickCapture={handleWeekClickCapture}
-              className="min-w-0 flex-1 cursor-grab touch-pan-y overflow-x-auto pb-4 select-none custom-scrollbar sm:pb-6"
-            >
-              <div className="flex min-w-max gap-2 px-0 xl:gap-3">
-              {DIAS.map((dia) => (
-                <DayColumn
-                  key={dia.idx}
-                  dia={dia}
-                  slots={grade[dia.idx] || []}
-                  selected={diaSelecionado === dia.idx}
-                  selectedDisciplina={disciplinaToque}
-                  onSelect={setDiaSelecionado}
-                  onDropDisciplina={handleDropDisciplina}
-                  onRemoveSlot={removeSlot}
-                  onUpdateSlotTime={updateSlotTime}
-                  disciplinasDisponiveis={disciplinasDisponiveis}
-                  pickerOpen={pickerDia === dia.idx}
-                  onOpenPicker={setPickerDia}
-                  onClosePicker={() => setPickerDia(null)}
-                  onAddDisciplina={addSlot}
-                />
-              ))}
+            <div className="grid min-h-0 flex-1 gap-2 lg:grid-cols-[minmax(0,1fr)_240px] xl:grid-cols-[minmax(0,1fr)_260px]">
+              <div
+                ref={weekScrollRef}
+                onPointerDown={handleWeekPointerDown}
+                onPointerMove={handleWeekPointerMove}
+                onPointerCancel={stopWeekPointerDrag}
+                onPointerUp={stopWeekPointerDrag}
+                onClickCapture={handleWeekClickCapture}
+                className="min-w-0 flex-1 cursor-grab touch-pan-y overflow-x-auto pb-4 select-none custom-scrollbar sm:pb-6"
+              >
+                <div className="flex min-w-max gap-2 px-0 xl:gap-3">
+                {DIAS.map((dia) => (
+                  <DayColumn
+                    key={dia.idx}
+                    dia={dia}
+                    slots={grade[dia.idx] || []}
+                    selected={diaSelecionado === dia.idx}
+                    selectedDisciplina={disciplinaToque}
+                    onSelect={setDiaSelecionado}
+                    onDropDisciplina={handleDropDisciplina}
+                    onRemoveSlot={removeSlot}
+                    onUpdateSlotTime={updateSlotTime}
+                    disciplinasDisponiveis={disciplinasDisponiveis}
+                    pickerOpen={pickerDia === dia.idx}
+                    onOpenPicker={setPickerDia}
+                    onClosePicker={() => setPickerDia(null)}
+                    onAddDisciplina={addSlot}
+                  />
+                ))}
+                </div>
               </div>
-            </div>
-          </section>
 
-          <aside className="hidden">
+              <aside className="hidden min-w-0 overflow-hidden rounded-xl border border-zinc-200 bg-white p-1.5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/60 sm:rounded-2xl sm:p-3 lg:block lg:self-start lg:rounded-[28px] lg:p-4">
             <div className="mb-1.5 flex items-center gap-2 border-b border-zinc-100 pb-1.5 dark:border-zinc-800 sm:mb-3 sm:gap-3 sm:pb-3 lg:mb-4 lg:pb-4">
               <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-zinc-100 text-zinc-500 dark:bg-zinc-900 sm:h-9 sm:w-9 sm:rounded-2xl lg:h-10 lg:w-10">
                 <Layers size={16} className="sm:h-[18px] sm:w-[18px]" />
@@ -799,7 +798,9 @@ export default function StepModoMontagem({
                 );
               })}
             </div>
-          </aside>
+              </aside>
+            </div>
+          </section>
         </div>
       )}
     </div>
