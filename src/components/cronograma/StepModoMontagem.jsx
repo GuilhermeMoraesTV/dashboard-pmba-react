@@ -169,14 +169,14 @@ const DayColumn = ({
   const hoje = getHoje();
   const offset = (dia.idx - hoje.getDay() + 7) % 7;
   const isHoje = offset === 0;
-  const activateDay = () => {
+  const activateDay = (openPicker = false) => {
     onSelect(dia.idx);
     if (selectedDisciplina) {
       onAddDisciplina(selectedDisciplina, dia.idx);
       onClosePicker();
       return;
     }
-    onOpenPicker(dia.idx);
+    if (openPicker) onOpenPicker(dia.idx);
   };
 
   return (
@@ -185,7 +185,7 @@ const DayColumn = ({
       data-day-idx={dia.idx}
       onDragOver={(event) => event.preventDefault()}
       onDrop={(event) => onDropDisciplina(event, dia.idx)}
-      onClick={activateDay}
+      onClick={() => activateDay(false)}
       className={`relative flex min-h-[360px] w-[216px] shrink-0 flex-col overflow-hidden rounded-[18px] border p-2 transition-all duration-300 sm:min-h-[520px] sm:w-[320px] sm:rounded-[20px] sm:p-2.5 lg:min-h-[540px] xl:w-[344px] xl:min-h-[580px] ${
         selected || isHoje
           ? 'border-zinc-300 bg-white/80 shadow-md ring-1 ring-zinc-300/70 dark:border-zinc-700 dark:bg-zinc-950/50 dark:ring-zinc-700/60'
@@ -196,7 +196,7 @@ const DayColumn = ({
         type="button"
         onClick={(event) => {
           event.stopPropagation();
-          activateDay();
+          activateDay(false);
         }}
         className="mb-1.5 shrink-0 rounded-[14px] border border-zinc-800 bg-zinc-950 px-2.5 py-2 text-left shadow-sm transition-all duration-300 dark:border-zinc-800 dark:bg-zinc-900 sm:mb-3 sm:rounded-[20px] sm:px-3 sm:py-3"
       >
@@ -233,7 +233,7 @@ const DayColumn = ({
 
       {pickerOpen && (
         <div
-          className="absolute left-2 right-2 top-[84px] z-30 max-h-[230px] overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl shadow-zinc-950/12 dark:border-zinc-800 dark:bg-zinc-950 sm:top-[92px] sm:max-h-[260px]"
+          className="mb-2 shrink-0 overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-lg shadow-zinc-950/10 dark:border-zinc-800 dark:bg-zinc-950"
           onClick={(event) => event.stopPropagation()}
         >
           <div className="flex items-center justify-between gap-2 border-b border-zinc-100 px-3 py-2 dark:border-zinc-800">
@@ -247,7 +247,7 @@ const DayColumn = ({
               <X size={14} />
             </button>
           </div>
-          <div className="max-h-[212px] overflow-y-auto p-1.5 custom-scrollbar">
+          <div className="max-h-[170px] overflow-y-auto p-1.5 custom-scrollbar sm:max-h-[220px]">
             {disciplinasDisponiveis.map((disciplina) => {
               const color = getDisciplineColorForSlot({
                 disciplinaId: disciplina.id,
@@ -282,7 +282,7 @@ const DayColumn = ({
             type="button"
             onClick={(event) => {
               event.stopPropagation();
-              activateDay();
+              activateDay(true);
             }}
             className="flex flex-1 flex-col items-center justify-center rounded-2xl border-2 border-dashed border-zinc-200 px-2 py-8 text-center opacity-45 transition hover:border-red-200 hover:opacity-100 dark:border-zinc-800 dark:hover:border-red-900/60 sm:rounded-3xl sm:px-3 sm:py-16"
           >
@@ -586,7 +586,6 @@ export default function StepModoMontagem({
               desc: 'O sistema equilibra disciplinas, revisoes e carga semanal.',
               icon: Wand2,
               benefits: ['Distribuicao inteligente', 'Ajuste automatico da carga', 'Menos trabalho manual'],
-              badge: 'Recomendado',
             },
             {
               id: 'personalizado',
@@ -599,45 +598,47 @@ export default function StepModoMontagem({
           ].map((option) => {
             const Icon = option.icon;
             const active = modo === option.id;
+            const isAutomatico = option.id === 'inteligente';
             return (
               <button
                 key={option.id}
                 type="button"
                 onClick={() => setModo(option.id)}
-                className={`group relative flex min-h-[168px] w-full flex-col overflow-hidden rounded-2xl border-2 bg-white p-3 text-left shadow-md transition-all duration-500 hover:-translate-y-2 dark:bg-zinc-900 sm:min-h-[260px] sm:rounded-[2.2rem] sm:p-6 sm:shadow-xl md:p-7 ${
+                className={`group relative flex min-h-[168px] w-full flex-col overflow-hidden rounded-2xl border-2 p-3 text-left shadow-md transition-all duration-500 hover:-translate-y-2 dark:bg-zinc-900 sm:min-h-[260px] sm:rounded-[2.2rem] sm:p-6 sm:shadow-xl md:p-7 ${
                   active
                     ? 'border-red-500 shadow-red-500/10 dark:border-red-900/50'
-                    : 'border-zinc-100 hover:border-red-600 hover:shadow-red-600/10 dark:border-zinc-800'
+                    : isAutomatico
+                      ? 'border-red-100 bg-gradient-to-br from-white via-red-50/45 to-white hover:border-red-500 hover:shadow-red-600/10 dark:border-red-950/50 dark:from-zinc-900 dark:via-red-950/10 dark:to-zinc-900'
+                      : 'border-dashed border-zinc-300 bg-[linear-gradient(135deg,#ffffff_0%,#fafafa_50%,#f4f4f5_100%)] hover:border-zinc-500 hover:bg-white hover:shadow-zinc-900/10 dark:border-zinc-700 dark:bg-[linear-gradient(135deg,#18181b_0%,#111113_55%,#27272a_100%)] dark:hover:border-zinc-500'
                 }`}
               >
+                <span className={`absolute left-0 top-5 bottom-5 w-1 rounded-r-full ${isAutomatico ? 'bg-red-600' : 'bg-zinc-300 dark:bg-zinc-600'}`} />
                 <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[2.2rem]">
                   <Icon
                     size={160}
                     strokeWidth={1.5}
-                    className="absolute -bottom-6 -right-6 text-red-600 opacity-[0.05] transition-all duration-700 group-hover:-rotate-12 group-hover:scale-110 dark:text-red-500 dark:opacity-[0.08]"
+                    className={`absolute -bottom-6 -right-6 opacity-[0.05] transition-all duration-700 group-hover:-rotate-12 group-hover:scale-110 dark:opacity-[0.08] ${isAutomatico ? 'text-red-600 dark:text-red-500' : 'text-zinc-500 dark:text-zinc-400'}`}
                   />
-                  <div className="absolute inset-0 bg-gradient-to-br from-red-500/[0.05] to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
+                  <div className={`absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100 ${isAutomatico ? 'bg-gradient-to-br from-red-500/[0.06] to-transparent' : 'bg-[radial-gradient(circle_at_bottom_right,rgba(113,113,122,0.12),transparent_55%)]'}`} />
                 </div>
 
-                {option.badge && (
-                  <span className="absolute right-3 top-3 rounded-full bg-red-600 px-2 py-0.5 text-[7px] font-black uppercase tracking-[0.1em] text-white shadow-lg sm:right-5 sm:top-5 sm:px-3 sm:py-1 sm:text-[8px] sm:tracking-[0.15em]">
-                    {option.badge}
-                  </span>
-                )}
-
-                  <span className="relative z-10 flex h-7 w-7 items-center justify-center rounded-xl bg-red-600 text-white shadow-lg shadow-red-500/20 transition-all duration-500 group-hover:rotate-6 sm:h-12 sm:w-12">
+                <span className={`relative z-10 flex h-7 w-7 items-center justify-center rounded-xl shadow-lg transition-all duration-500 group-hover:rotate-6 sm:h-12 sm:w-12 ${
+                  isAutomatico
+                    ? 'bg-red-600 text-white shadow-red-500/20'
+                    : 'border border-zinc-200 bg-zinc-100 text-zinc-600 shadow-zinc-900/10 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300'
+                }`}>
                   <Icon size={16} strokeWidth={2.5} className="sm:h-6 sm:w-6" />
                 </span>
 
                 <span className="relative z-10 mt-2 flex h-full flex-col sm:mt-6">
-                  <span className="block text-[20px] font-black uppercase leading-none tracking-tighter text-zinc-900 dark:text-white sm:text-xl md:text-2xl">
+                  <span className="block text-[18px] font-black uppercase leading-none tracking-tighter text-zinc-900 dark:text-white min-[390px]:text-[20px] sm:text-xl md:text-2xl">
                     <span className="sm:hidden">{option.id === 'inteligente' ? 'Automatico' : 'Personalizado'}</span>
                     <span className="hidden sm:inline">{option.title}</span>
                   </span>
-                  <span className="mt-1 block text-[7px] font-black uppercase tracking-[0.1em] text-red-600 dark:text-red-500 sm:mt-2 sm:text-[9px] sm:tracking-[0.2em]">
+                  <span className={`mt-1 block text-[7px] font-black uppercase tracking-[0.1em] sm:mt-2 sm:text-[9px] sm:tracking-[0.2em] ${isAutomatico ? 'text-red-600 dark:text-red-500' : 'text-zinc-500 dark:text-zinc-400'}`}>
                     {option.subtitle}
                   </span>
-                  <span className="mt-2 line-clamp-3 text-[12px] font-semibold leading-snug text-zinc-500 dark:text-zinc-400 sm:mt-4 sm:text-[12px] md:text-[13px]">
+                  <span className="mt-2 line-clamp-3 text-[11px] font-semibold leading-snug text-zinc-500 dark:text-zinc-400 min-[390px]:text-[12px] sm:mt-4 sm:text-[12px] md:text-[13px] lg:text-sm">
                     {option.desc}
                   </span>
 

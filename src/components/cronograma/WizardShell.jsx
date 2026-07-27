@@ -100,7 +100,6 @@ const WizardShell = ({
   const isUltimoStep  = passo === lastVisibleStepId;
   const isPassoEdital = passo === 0;
   const isPrimeiroStep = passo === firstVisibleStepId;
-  const currentTitle  = STEPS[passo];
   const ctaFinalLabel = isEditMode ? 'Salvar Alteracoes' : 'Ativar Cronograma';
   const isMontagemPersonalizada = cronConfig.modoMontagem === 'personalizado';
   const isPassoMontagemPersonalizada = passo === 1 && isMontagemPersonalizada;
@@ -278,38 +277,8 @@ const WizardShell = ({
   return (
     <div className="cronograma-wizard-shell flex flex-col min-h-screen bg-transparent">
       
-      {/* ── Header Sticky ── */}
-      <header className="wizard-progress-header sticky top-0 z-[60] shrink-0 px-3 pt-3 md:px-6 md:pt-4">
-        <div className="max-w-6xl mx-auto rounded-[28px] border border-zinc-200/80 dark:border-zinc-800 bg-white/88 dark:bg-zinc-900/88 backdrop-blur-xl shadow-[0_12px_40px_rgba(0,0,0,0.05)] px-3 py-3 md:px-5">
-          <div className="flex flex-wrap items-center justify-between gap-3 md:gap-4">
-            <div className="flex items-center gap-3 min-w-0 flex-1">
-              <div className="w-10 h-10 rounded-[1.1rem] bg-red-600 flex items-center justify-center text-white shadow-lg shadow-red-500/20 shrink-0">
-                <currentTitle.icon size={20} strokeWidth={2.5} />
-              </div>
-              <div className="min-w-0">
-                <h2 className="text-[12px] md:text-[13px] font-black uppercase tracking-[0.14em] text-zinc-900 dark:text-white leading-none truncate">
-                  {currentTitle.title}
-                </h2>
-                <p className="text-[10px] text-zinc-400 font-bold truncate mt-1">
-                  {currentTitle.sub}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex justify-end">
-              <button
-                onClick={() => setConfirmandoSaida(true)}
-                className="p-2 rounded-xl text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-all"
-              >
-                <X size={20} />
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
-
       {/* ── Main Content ── */}
-      <main ref={conteudoRef} className="wizard-main flex-1 overflow-y-auto px-4 py-6 pb-32 md:px-6 md:py-8 md:pb-36 custom-scrollbar">
+      <main ref={conteudoRef} className="wizard-main flex-1 overflow-y-auto px-4 pt-2 pb-32 md:px-6 md:pt-4 md:pb-36 custom-scrollbar">
         <div className={`wizard-step-frame ${isPassoEdital || isUltimoStep || isPassoMontagemPersonalizada ? 'w-full mx-auto' : 'max-w-5xl mx-auto'}`}>
           <AnimatePresence mode="wait">
             <motion.div
@@ -352,6 +321,15 @@ const WizardShell = ({
                 <span className="hidden xs:inline">Voltar</span>
               </button>
             )}
+            <button
+              type="button"
+              onClick={() => setConfirmandoSaida(true)}
+              className="flex items-center gap-2 rounded-2xl border border-zinc-200 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-zinc-400 transition-all hover:border-red-200 hover:bg-red-50 hover:text-red-600 active:scale-95 dark:border-zinc-800 dark:hover:border-red-900/60 dark:hover:bg-red-950/20 sm:px-4 sm:py-3 sm:text-[11px]"
+              aria-label="Fechar criação"
+            >
+              <X size={16} strokeWidth={3} />
+              <span className="hidden sm:inline">Fechar</span>
+            </button>
           </div>
 
           <div className="flex items-center gap-3">

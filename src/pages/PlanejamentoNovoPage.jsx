@@ -37,7 +37,6 @@ const CardPlanejamento = ({
   vantagens, 
   icone: Icone, 
   onClick, 
-  badge,
   isCycle
 }) => {
   const tituloMobile = isCycle ? 'Ciclo' : 'Cronograma';
@@ -64,26 +63,12 @@ const CardPlanejamento = ({
         </div>
         <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-gradient-to-br from-red-500/[0.05] to-transparent" />
       </div>
-
-      {badge && (
-        <div className="absolute top-2 right-2 z-10 sm:top-5 sm:right-5">
-          <motion.span 
-            animate={{ scale: [1, 1.05, 1] }}
-            transition={{ repeat: Infinity, duration: 3 }}
-            className="px-2 py-0.5 rounded-full text-[6px] font-black uppercase tracking-[0.08em] bg-red-600 text-white shadow-lg sm:px-3 sm:py-1 sm:text-[8px] sm:tracking-[0.15em]"
-          >
-            <span className="sm:hidden">Top</span>
-            <span className="hidden sm:inline">{badge}</span>
-          </motion.span>
-        </div>
-      )}
-
       <div className="relative z-10 flex flex-col h-full">
         <div className="mb-2 flex h-7 w-7 items-center justify-center rounded-xl bg-red-600 text-white shadow-lg shadow-red-500/20 transition-all duration-500 group-hover:rotate-6 sm:mb-6 sm:h-12 sm:w-12">
           <Icone size={16} strokeWidth={2.5} className="sm:h-6 sm:w-6" />
         </div>
 
-        <h3 className="mb-1 text-[20px] font-black uppercase leading-none tracking-tighter text-zinc-900 dark:text-white sm:mb-2 sm:text-xl md:text-2xl">
+        <h3 className="mb-1 text-[18px] font-black uppercase leading-none tracking-tighter text-zinc-900 dark:text-white min-[390px]:text-[20px] sm:mb-2 sm:text-xl md:text-2xl">
           <span className="sm:hidden">{tituloMobile}</span>
           <span className="hidden sm:inline">{titulo}</span>
         </h3>
@@ -92,11 +77,11 @@ const CardPlanejamento = ({
           <span className="hidden sm:inline">{subtitulo}</span>
         </p>
 
-        <p className="mt-2 line-clamp-3 text-[12px] font-semibold leading-snug text-zinc-500 dark:text-zinc-400 sm:hidden">
+        <p className="mt-2 line-clamp-3 text-[11px] font-semibold leading-snug text-zinc-500 dark:text-zinc-400 min-[390px]:text-[12px] sm:hidden">
           {descricaoMobile}
         </p>
 
-        <p className="mb-3 hidden line-clamp-3 text-[9px] font-medium leading-snug text-zinc-500 dark:text-zinc-400 sm:mb-6 sm:block sm:text-[12px] md:text-[13px]">
+        <p className="mb-3 hidden line-clamp-3 text-[9px] font-medium leading-snug text-zinc-500 dark:text-zinc-400 sm:mb-6 sm:block sm:text-[12px] md:text-[13px] lg:text-sm">
           {descricao}
         </p>
 
@@ -175,7 +160,6 @@ function PlanejamentoNovoPage({ onBack, onCriarCiclo, onCriarCronograma, hideBac
               icone={RefreshCw}
               titulo="Ciclo de Estudos"
               subtitulo="Adaptável & Fluido"
-              badge="RECOMENDADO"
               descricao="Método dinâmico focado em progresso contínuo. Você segue uma sequência de matérias e avança no seu ritmo, sem a pressão de datas fixas."
               vantagens={[
                 "Estude no seu ritmo disponível",

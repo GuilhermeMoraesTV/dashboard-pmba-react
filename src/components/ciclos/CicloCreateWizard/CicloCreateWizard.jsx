@@ -710,9 +710,6 @@ function CicloCreateWizard({
     }
   };
 
-  const currentStep = visibleSteps[visibleStepIndex] || visibleSteps[0];
-  const StepIcon = currentStep.icon || Target;
-
   const podeAvancar = useMemo(() => {
     if (passo === 1) return editalConfirmado && !mostrarModalModelo;
     if (passo === 2) return selecaoValidaDisciplinas;
@@ -854,41 +851,7 @@ function CicloCreateWizard({
 
   return (
     <div className="flex flex-col min-h-screen pb-6">
-      <div className="wizard-progress-header shrink-0 sticky top-0 z-[60] px-3 pt-3 md:px-6 md:pt-4">
-        <div className="max-w-6xl mx-auto rounded-[28px] border border-zinc-200/80 dark:border-zinc-800 bg-white/88 dark:bg-zinc-900/88 backdrop-blur-xl shadow-[0_12px_40px_rgba(0,0,0,0.05)] px-3 py-3 md:px-5">
-          <div className="flex flex-wrap items-center justify-between gap-3 md:gap-4">
-            <div className="flex items-center gap-3 min-w-0 flex-1">
-            <motion.div
-              key={passo}
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="w-10 h-10 rounded-[1.1rem] flex items-center justify-center shadow-lg shadow-red-500/10 text-white shrink-0 bg-red-600 relative overflow-hidden"
-            >
-              <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent opacity-50" />
-              <StepIcon size={18} strokeWidth={2.5} className="relative z-10" />
-            </motion.div>
-            <div className="min-w-0">
-              <h1 className="text-[12px] md:text-[13px] font-black uppercase tracking-[0.14em] text-zinc-900 dark:text-white leading-none truncate">
-                {currentStep.title}
-              </h1>
-              <p className="text-[10px] text-zinc-400 dark:text-zinc-500 font-bold truncate mt-1">{currentStep.sub}</p>
-            </div>
-          </div>
-
-          <button
-            onClick={() => {
-              if (!isEditMode) salvarRascunhoAtual();
-              onClose?.();
-            }}
-            className="p-1.5 rounded-lg text-zinc-400 hover:text-red-500 transition-all border border-zinc-200 dark:border-zinc-700 shrink-0"
-          >
-            <X size={16} />
-          </button>
-        </div>
-      </div>
-      </div>
-
-      <div ref={conteudoRef} className="wizard-main mt-3 pb-32 md:pb-36">
+      <div ref={conteudoRef} className="wizard-main pb-32 pt-2 md:pb-36 md:pt-4">
         <div className={`wizard-step-frame ${passo === firstVisibleStep || passo === 6 ? 'w-full mx-auto' : 'max-w-5xl mx-auto'}`}>
           <AnimatePresence>
             {validationMessage && (
@@ -952,6 +915,18 @@ function CicloCreateWizard({
                 <span className="hidden xs:inline">{onBackToSelector ? 'Metodos' : 'Cancelar'}</span>
               </button>
             )}
+            <button
+              type="button"
+              onClick={() => {
+                if (!isEditMode) salvarRascunhoAtual();
+                onClose?.();
+              }}
+              className="flex items-center gap-2 rounded-2xl border border-zinc-200 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-zinc-400 transition-all hover:border-red-200 hover:bg-red-50 hover:text-red-600 active:scale-95 dark:border-zinc-800 dark:hover:border-red-900/60 dark:hover:bg-red-950/20 sm:px-4 sm:py-2.5"
+              aria-label="Fechar criação"
+            >
+              <X size={14} strokeWidth={3} />
+              <span className="hidden sm:inline">Fechar</span>
+            </button>
           </div>
 
           <div className="flex items-center gap-3">

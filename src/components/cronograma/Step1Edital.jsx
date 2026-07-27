@@ -357,13 +357,13 @@ const TelaEscolhaTipo = ({ onManual, onCatalogo }) => {
                 <Icon size={16} strokeWidth={2.5} className="sm:h-6 sm:w-6" />
               </div>
               <div className="relative z-10 flex h-full flex-col">
-                <h3 className="mb-1 text-[20px] font-black uppercase leading-none tracking-tighter text-zinc-900 dark:text-white sm:mb-2 sm:text-xl md:text-2xl">
+                <h3 className="mb-1 text-[18px] font-black uppercase leading-none tracking-tighter text-zinc-900 dark:text-white min-[390px]:text-[20px] sm:mb-2 sm:text-xl md:text-2xl">
                   {opcao.title}
                 </h3>
                 <p className={`mb-1 text-[7px] font-black uppercase tracking-[0.1em] sm:mb-4 sm:text-[9px] sm:tracking-[0.2em] ${isRed ? 'text-red-600 dark:text-red-500' : 'text-zinc-500 dark:text-zinc-400'}`}>
                   {opcao.subtitle}
                 </p>
-                <p className="line-clamp-3 text-[12px] font-semibold leading-snug text-zinc-500 dark:text-zinc-400 sm:text-[12px] md:text-[13px]">
+                <p className="line-clamp-3 text-[11px] font-semibold leading-snug text-zinc-500 dark:text-zinc-400 min-[390px]:text-[12px] sm:text-[12px] md:text-[13px] lg:text-sm">
                   {opcao.desc}
                 </p>
                 <div className={`mt-auto pt-3 text-[8px] font-black uppercase tracking-[0.1em] transition-all group-hover:text-red-600 group-hover:tracking-[0.14em] sm:text-[10px] ${isRed ? 'text-red-600' : 'text-zinc-500'}`}>
