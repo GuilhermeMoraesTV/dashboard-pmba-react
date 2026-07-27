@@ -410,6 +410,7 @@ const SimuladoCreationModal = ({ isOpen, onClose, onSave, disciplinasSugestivas,
         transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
         onClick={(e) => e.stopPropagation()}
         className={`
+          simulado-modal-mobile-zoom simulado-modal-mobile-zoom--dense
           bg-white dark:bg-zinc-950 rounded-3xl shadow-2xl border border-zinc-200 dark:border-zinc-800
           w-full max-w-[95%] sm:max-w-2xl md:max-w-4xl lg:max-w-5xl
           h-auto max-h-[85vh]

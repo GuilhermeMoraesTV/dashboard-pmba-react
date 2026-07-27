@@ -224,6 +224,7 @@ const SimuladoComparisonModal = ({ simuladosSelecionados, onClose }) => {
         exit={{ opacity: 0, scale: 0.95 }}
         onClick={(e) => e.stopPropagation()}
         className={`
+            simulado-modal-mobile-zoom simulado-modal-mobile-zoom--dense
             bg-white dark:bg-zinc-950
             w-full max-w-[96vw] sm:max-w-xl md:max-w-3xl lg:max-w-4xl
             h-auto max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-2.5rem)] md:max-h-[calc(100dvh-3.5rem)]

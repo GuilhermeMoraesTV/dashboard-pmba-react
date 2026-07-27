@@ -50,7 +50,7 @@ const StartSimuladoModal = ({ isOpen, onClose, onStart }) => {
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.9, opacity: 0, y: 20 }}
         transition={{ type: "spring", duration: 0.5 }}
-        className="bg-white dark:bg-zinc-950 rounded-3xl shadow-2xl border border-zinc-200 dark:border-zinc-800 w-full max-w-md overflow-hidden relative"
+        className="simulado-modal-mobile-zoom bg-white dark:bg-zinc-950 rounded-3xl shadow-2xl border border-zinc-200 dark:border-zinc-800 w-full max-w-md overflow-hidden relative"
       >
         {/* Header Vermelho */}
         <div className="relative bg-red-600 pt-8 pb-8 px-6 overflow-hidden">
