@@ -22,7 +22,7 @@ import Step4_Config from './Step4Config';
 import Step5_Preview from './Step5Preview';
 import StepBar from './steps/StepBar';
 
-import { useCronogramaWizard } from '../../hooks/useCronogramaWizard';
+import { defaultHorarios, useCronogramaWizard } from '../../hooks/useCronogramaWizard';
 
 const STEPS_LEGACY = [
   { id: 0, label: 'Edital',      icon: Target,       title: 'Seleção de Edital', sub: 'Escolha sua base' },
@@ -161,6 +161,9 @@ const WizardShell = ({
     if (nextPasso === 6) {
       resetResultado();
       setErroGeracao(null);
+    }
+    if (passo === 2 && nextPasso === 3) {
+      setHorarios({ ...defaultHorarios });
     }
     setPasso(nextPasso);
   };

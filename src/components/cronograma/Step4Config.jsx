@@ -339,7 +339,7 @@ const Step4_Config = ({ config, onConfigChange, editalSelecionado, horarios = {}
       id: 'guiado',
       label: 'Guiado',
       icon: LayoutList,
-      desc: 'Assuntos distribuídos automaticamente pelo algoritmo.',
+      desc: 'Mostra exatamente quais topicos estudar em cada bloco. Bom para seguir o edital sem decidir o assunto na hora.',
       activeBorder: 'border-red-500/50',
       activeBg: 'bg-red-50/30 dark:bg-red-950/10',
       activeBar: 'bg-red-500',
@@ -352,7 +352,7 @@ const Step4_Config = ({ config, onConfigChange, editalSelecionado, horarios = {}
       id: 'livre',
       label: 'Livre',
       icon: Shuffle,
-      desc: 'Só a disciplina é exibida. Você escolhe o assunto.',
+      desc: 'Mostra apenas a disciplina no cronograma. Voce escolhe o topico no momento do estudo.',
       activeBorder: 'border-amber-400/50',
       activeBg: 'bg-amber-50/30 dark:bg-amber-950/10',
       activeBar: 'bg-amber-400',
@@ -369,7 +369,7 @@ const Step4_Config = ({ config, onConfigChange, editalSelecionado, horarios = {}
       id: 'detalhado',
       label: 'Detalhado',
       icon: Timer,
-      desc: 'Tempo por slot calculado e exibido no cronograma.',
+      desc: 'Mostra o tempo de cada bloco e ajuda a acompanhar quanto estudar em cada materia.',
       activeBorder: 'border-blue-500/50',
       activeBg: 'bg-blue-50/30 dark:bg-blue-950/10',
       activeBar: 'bg-blue-500',
@@ -382,7 +382,7 @@ const Step4_Config = ({ config, onConfigChange, editalSelecionado, horarios = {}
       id: 'total',
       label: 'Só Total',
       icon: Clock,
-      desc: 'Apenas o tempo total do dia. Sem divisão.',
+      desc: 'Mostra somente a carga total do dia, deixando os cards mais limpos.',
       activeBorder: 'border-violet-500/50',
       activeBg: 'bg-violet-50/30 dark:bg-violet-950/10',
       activeBar: 'bg-violet-500',
@@ -395,7 +395,7 @@ const Step4_Config = ({ config, onConfigChange, editalSelecionado, horarios = {}
       id: 'nenhum',
       label: 'Ocultar',
       icon: EyeOff,
-      desc: 'Sem tempo. Foco total no conteúdo.',
+      desc: 'Esconde horarios e duracoes para deixar a rotina focada apenas no conteudo.',
       activeBorder: 'border-zinc-400/50',
       activeBg: 'bg-zinc-50/50 dark:bg-zinc-800/50',
       activeBar: 'bg-zinc-400',
@@ -684,7 +684,7 @@ const Step4_Config = ({ config, onConfigChange, editalSelecionado, horarios = {}
                     Foco do Conteúdo
                   </h4>
                   <p className="text-[11px] text-zinc-500 font-medium mt-0.5">
-                    Como os tópicos serão exibidos no seu dia a dia?
+                    Escolha se o cronograma deve mostrar o assunto exato de cada bloco ou deixar essa escolha para voce na hora do estudo.
                   </p>
                 </div>
               </div>
@@ -711,7 +711,7 @@ const Step4_Config = ({ config, onConfigChange, editalSelecionado, horarios = {}
                     Gestão do Tempo
                   </h4>
                   <p className="text-[11px] text-zinc-500 font-medium mt-0.5">
-                    Defina o nível de detalhamento do cronômetro.
+                    Escolha quanto detalhe de tempo aparece nos cards: por bloco, total do dia ou sem horas visiveis.
                   </p>
                 </div>
               </div>

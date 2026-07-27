@@ -37,11 +37,11 @@ const CardEdital = ({ dados, unico, idConfirmado, aoConfirmar }) => {
   const tituloExibicao = variosCargos
     ? (editalBase.instituicao || editalBase.titulo.split(' - ')[0])
     : editalBase.titulo;
-  const cargoExibicao = itemSelecionado?.cargo || editalBase.cargo || (variosCargos ? `${dados.length} cargos` : 'Cargo padrao');
+  const cargoExibicao = variosCargos && itemSelecionado?.cargo ? itemSelecionado.cargo : '';
   const descricaoExibicao = itemSelecionado?.descricao
     || editalBase.descricao
     || editalBase.subtitulo
-    || `${cargoExibicao} com ${editalBase.banca || 'banca a definir'}.`;
+    || 'Edital pronto com materias, topicos e estrutura para montar seu plano.';
 
   const qtdDisc = itemSelecionado
     ? (itemSelecionado.disciplinas?.length || 0)
@@ -96,10 +96,12 @@ const CardEdital = ({ dados, unico, idConfirmado, aoConfirmar }) => {
             }`}>{tituloExibicao}</h4>
           </div>
 
+          {cargoExibicao && (
           <div className="flex items-center gap-1.5">
              <div className="w-1 h-3 rounded-full bg-red-300 dark:bg-red-800" />
              <span className="truncate text-[8px] font-black uppercase tracking-wide text-red-600 dark:text-red-400 sm:text-[9px]">{cargoExibicao}</span>
           </div>
+          )}
 
           <p className="line-clamp-2 text-[8px] font-semibold leading-snug text-zinc-500 dark:text-zinc-400 sm:text-[10px]">
             {descricaoExibicao}
@@ -290,6 +292,29 @@ const SecaoCategoria = ({ chave, itens, idConfirmado, onConfirmar }) => {
 };
 
 const TelaEscolhaTipo = ({ onManual, onCatalogo }) => {
+  const opcoes = [
+    {
+      id: 'edital',
+      title: 'Edital',
+      subtitle: 'Pronto e organizado',
+      desc: 'Use um edital pronto, com materias e topicos ja estruturados para comecar mais rapido.',
+      icon: Library,
+      action: 'Explorar',
+      onClick: onCatalogo,
+      tone: 'red',
+    },
+    {
+      id: 'manual',
+      title: 'Manual',
+      subtitle: 'Personalizado',
+      desc: 'Crie a base do zero, escolha suas disciplinas e monte o plano no seu formato.',
+      icon: Plus,
+      action: 'Montar',
+      onClick: onManual,
+      tone: 'zinc',
+    },
+  ];
+
   return (
     <div className="flex min-h-[calc(100vh-12rem)] w-full max-w-5xl mx-auto flex-col items-center justify-center py-4">
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="relative mb-5 text-center sm:mb-10">
@@ -297,8 +322,45 @@ const TelaEscolhaTipo = ({ onManual, onCatalogo }) => {
         <p className="mx-auto max-w-md px-4 text-[13px] font-semibold leading-relaxed text-zinc-500 dark:text-zinc-400 sm:text-sm">Escolha um edital pronto ou crie uma base manual para o seu plano.</p>
       </motion.div>
       <div className="grid w-full max-w-5xl grid-cols-2 gap-2 px-1 sm:gap-6 lg:gap-10">
-        <motion.button whileHover={{ y: -4, scale: 1.01 }} whileTap={{ scale: 0.99 }} onClick={onCatalogo} className="group relative flex min-h-[168px] flex-col overflow-hidden rounded-2xl border-2 border-zinc-100 bg-white p-3 text-left shadow-md transition-all duration-500 hover:border-red-500/50 dark:border-zinc-800 dark:bg-zinc-900 sm:min-h-[260px] sm:p-6 md:rounded-[2.2rem] md:p-7 md:shadow-xl"><div className="absolute right-0 top-0 h-20 w-20 -mr-7 -mt-7 rounded-bl-[48px] bg-red-600/5 sm:h-24 sm:w-24 sm:rounded-bl-[60px]" /><div className="relative z-10 flex h-full flex-col"><div className="mb-2 flex h-7 w-7 items-center justify-center rounded-xl bg-red-600 text-white shadow-lg shadow-red-600/30 transition-transform group-hover:rotate-6 sm:mb-6 sm:h-12 sm:w-12 sm:rounded-2xl"><Library size={16} strokeWidth={2.5} className="sm:h-6 sm:w-6" /></div><h3 className="mb-1 text-[15px] font-black uppercase leading-none tracking-tighter text-zinc-900 dark:text-white sm:mb-2 sm:text-xl md:text-2xl">Edital</h3><p className="mb-1 text-[7px] font-black uppercase tracking-[0.1em] text-red-600 dark:text-red-500 sm:mb-4 sm:text-[9px] sm:tracking-[0.2em]">Pronto e organizado</p><p className="line-clamp-3 text-[10px] font-semibold leading-snug text-zinc-500 dark:text-zinc-400 sm:text-[12px] md:text-[13px]">Use um edital pronto, com matérias e tópicos já estruturados para começar mais rápido.</p><div className="mt-auto pt-3 text-[8px] font-black uppercase tracking-[0.1em] text-red-600 transition-all group-hover:tracking-[0.14em] sm:text-[10px]">Explorar <ArrowRight size={11} strokeWidth={3} className="inline" /></div></div></motion.button>
-        <motion.button whileHover={{ y: -4, scale: 1.01 }} whileTap={{ scale: 0.99 }} onClick={onManual} className="group relative flex min-h-[168px] flex-col overflow-hidden rounded-2xl border-2 border-zinc-100 bg-white p-3 text-left shadow-md transition-all duration-500 hover:border-red-500/50 dark:border-zinc-800 dark:bg-zinc-900 sm:min-h-[260px] sm:p-6 md:rounded-[2.2rem] md:p-7 md:shadow-xl"><div className="absolute right-0 top-0 h-20 w-20 -mr-7 -mt-7 rounded-bl-[48px] bg-zinc-400/5 sm:h-24 sm:w-24 sm:rounded-bl-[60px]" /><div className="relative z-10 flex h-full flex-col"><div className="mb-2 flex h-7 w-7 items-center justify-center rounded-xl border border-zinc-200 bg-zinc-100 text-zinc-500 transition-transform group-hover:rotate-6 dark:bg-zinc-800 sm:mb-6 sm:h-12 sm:w-12 sm:rounded-2xl"><Plus size={16} strokeWidth={2.5} className="sm:h-6 sm:w-6" /></div><h3 className="mb-1 text-[15px] font-black uppercase leading-none tracking-tighter text-zinc-900 dark:text-white sm:mb-2 sm:text-xl md:text-2xl">Manual</h3><p className="mb-1 text-[7px] font-black uppercase tracking-[0.1em] text-red-600 dark:text-red-500 sm:mb-4 sm:text-[9px] sm:tracking-[0.2em]">Personalizado</p><p className="line-clamp-3 text-[10px] font-semibold leading-snug text-zinc-500 dark:text-zinc-400 sm:text-[12px] md:text-[13px]">Crie a base do zero, escolha suas disciplinas e monte o plano no seu formato.</p><div className="mt-auto pt-3 text-[8px] font-black uppercase tracking-[0.1em] text-zinc-500 transition-all group-hover:text-red-600 group-hover:tracking-[0.14em] sm:text-[10px]">Montar <ArrowRight size={11} strokeWidth={3} className="inline" /></div></div></motion.button>
+        {opcoes.map((opcao) => {
+          const Icon = opcao.icon;
+          const isRed = opcao.tone === 'red';
+          return (
+            <motion.button
+              key={opcao.id}
+              whileHover={{ y: -8, scale: 1.015 }}
+              whileTap={{ scale: 0.99 }}
+              onClick={opcao.onClick}
+              className="group relative flex min-h-[168px] flex-col overflow-hidden rounded-2xl border-2 border-zinc-100 bg-white p-3 text-left shadow-md transition-all duration-500 hover:border-red-600 hover:shadow-red-600/10 dark:border-zinc-800 dark:bg-zinc-900 sm:min-h-[260px] sm:p-6 md:rounded-[2.2rem] md:p-7 md:shadow-xl"
+            >
+              <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[2.2rem]">
+                <Icon
+                  size={220}
+                  strokeWidth={1.5}
+                  className="absolute -bottom-6 -right-6 text-red-600 opacity-[0.05] transition-all duration-700 group-hover:-rotate-12 group-hover:scale-110 dark:text-red-500 dark:opacity-[0.08]"
+                />
+                <div className="absolute inset-0 bg-gradient-to-br from-red-500/[0.05] to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
+              </div>
+              <div className={`relative z-10 mb-2 flex h-7 w-7 items-center justify-center rounded-xl shadow-lg transition-all duration-500 group-hover:rotate-6 sm:mb-6 sm:h-12 sm:w-12 ${isRed ? 'bg-red-600 text-white shadow-red-500/20' : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800'}`}>
+                <Icon size={16} strokeWidth={2.5} className="sm:h-6 sm:w-6" />
+              </div>
+              <div className="relative z-10 flex h-full flex-col">
+                <h3 className="mb-1 text-[15px] font-black uppercase leading-none tracking-tighter text-zinc-900 dark:text-white sm:mb-2 sm:text-xl md:text-2xl">
+                  {opcao.title}
+                </h3>
+                <p className="mb-1 text-[7px] font-black uppercase tracking-[0.1em] text-red-600 dark:text-red-500 sm:mb-4 sm:text-[9px] sm:tracking-[0.2em]">
+                  {opcao.subtitle}
+                </p>
+                <p className="line-clamp-3 text-[10px] font-semibold leading-snug text-zinc-500 dark:text-zinc-400 sm:text-[12px] md:text-[13px]">
+                  {opcao.desc}
+                </p>
+                <div className={`mt-auto pt-3 text-[8px] font-black uppercase tracking-[0.1em] transition-all group-hover:text-red-600 group-hover:tracking-[0.14em] sm:text-[10px] ${isRed ? 'text-red-600' : 'text-zinc-500'}`}>
+                  {opcao.action} <ArrowRight size={11} strokeWidth={3} className="inline" />
+                </div>
+              </div>
+            </motion.button>
+          );
+        })}
       </div>
     </div>
   );

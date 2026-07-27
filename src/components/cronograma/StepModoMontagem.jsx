@@ -186,7 +186,7 @@ const DayColumn = ({
       onDragOver={(event) => event.preventDefault()}
       onDrop={(event) => onDropDisciplina(event, dia.idx)}
       onClick={activateDay}
-      className={`relative flex min-h-[300px] w-[176px] shrink-0 flex-col overflow-hidden rounded-[16px] border p-1.5 transition-all duration-300 sm:min-h-[500px] sm:w-[300px] sm:rounded-[18px] sm:p-2 lg:min-h-[520px] xl:w-[324px] xl:min-h-[560px] ${
+      className={`relative flex min-h-[360px] w-[216px] shrink-0 flex-col overflow-hidden rounded-[18px] border p-2 transition-all duration-300 sm:min-h-[520px] sm:w-[320px] sm:rounded-[20px] sm:p-2.5 lg:min-h-[540px] xl:w-[344px] xl:min-h-[580px] ${
         selected || isHoje
           ? 'border-zinc-300 bg-white/80 shadow-md ring-1 ring-zinc-300/70 dark:border-zinc-700 dark:bg-zinc-950/50 dark:ring-zinc-700/60'
           : 'border-zinc-200 bg-zinc-50/70 shadow-sm hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-950/30 dark:hover:border-zinc-700'
@@ -562,10 +562,11 @@ export default function StepModoMontagem({
   return (
     <div className="flex h-full w-full flex-col overflow-hidden">
       {modo !== 'personalizado' && (
+        <div className="mx-auto flex min-h-[calc(100vh-12rem)] w-full max-w-5xl flex-col items-center justify-center py-4">
         <motion.div
           initial={{ opacity: 0, y: -12 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mx-auto mb-5 max-w-2xl px-2 text-center sm:mb-6 sm:px-4"
+          className="mb-5 max-w-2xl px-2 text-center sm:mb-10 sm:px-4"
         >
           <h2 className="mb-2 text-4xl font-black uppercase leading-[0.95] tracking-tighter text-zinc-900 dark:text-white sm:mb-3 sm:text-4xl">
             Como montar<br /><span className="text-red-600">sua semana?</span>
@@ -574,10 +575,7 @@ export default function StepModoMontagem({
             Use a distribuicao automatica ou arraste cada disciplina para montar uma agenda manual.
           </p>
         </motion.div>
-      )}
-
-      {modo !== 'personalizado' && (
-        <div className="my-auto mx-auto grid w-full max-w-5xl grid-cols-2 gap-2 px-1 sm:gap-6 sm:px-4 lg:gap-10">
+        <div className="grid w-full max-w-5xl grid-cols-2 gap-2 px-1 sm:gap-6 sm:px-4 lg:gap-10">
           {[
             {
               id: 'inteligente',
@@ -667,6 +665,7 @@ export default function StepModoMontagem({
             );
           })}
         </div>
+        </div>
       )}
 
       {modo === 'personalizado' && (
@@ -674,10 +673,11 @@ export default function StepModoMontagem({
           <section className="order-2 flex min-h-[420px] min-w-0 flex-col lg:order-1 lg:min-h-[520px]">
             <div className="mb-3 flex flex-col items-center gap-2 px-0 text-center sm:mb-4 sm:gap-3">
               <div className="min-w-0 flex-1">
-                <p className="text-[8px] font-black uppercase tracking-[0.2em] text-red-600 dark:text-red-400 sm:text-[10px] sm:tracking-[0.22em]">Preview semanal</p>
-                <h3 className="mt-1 text-3xl font-black uppercase leading-none tracking-tighter text-zinc-900 dark:text-white sm:text-2xl">Monte seu Cronograma</h3>
-                <p className="mx-auto mt-2 max-w-xl text-[13px] font-semibold leading-relaxed text-zinc-500 dark:text-zinc-400 sm:text-xs">
-                  Toque no dia, adicione disciplinas e ajuste o tempo de cada bloco.
+                <h2 className="text-4xl font-black uppercase leading-[0.95] tracking-tighter text-zinc-900 dark:text-white sm:text-4xl">
+                  Montagem<br /><span className="text-red-600">Personalizada</span>
+                </h2>
+                <p className="mx-auto mt-3 max-w-2xl text-base font-semibold leading-relaxed text-zinc-500 dark:text-zinc-400 sm:text-sm">
+                  Monte sua semana manualmente: escolha um dia, adicione as disciplinas que quer estudar e ajuste a duração de cada bloco em intervalos de 15 minutos.
                 </p>
                 <div className="mt-2 flex flex-row flex-wrap items-center justify-center gap-2">
                   <div className="inline-flex w-fit items-center gap-1.5 rounded-xl border border-red-100 bg-white px-2.5 py-1.5 shadow-sm dark:border-red-900/40 dark:bg-zinc-950 sm:gap-2 sm:rounded-2xl sm:px-3.5 sm:py-2.5">

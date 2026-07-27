@@ -957,7 +957,7 @@ const AILoadingState = ({ statusMsg, percent = 0 }) => {
   }, [percent]);
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center min-h-[500px] w-full py-12 relative overflow-hidden">
+    <div className="flex min-h-[calc(100vh-9rem)] w-full flex-col items-center justify-center overflow-hidden px-4 py-0 relative">
       {/* Background Animated Elements */}
       <div className="absolute inset-0 pointer-events-none">
         <motion.div
@@ -971,10 +971,10 @@ const AILoadingState = ({ statusMsg, percent = 0 }) => {
         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-[0.02] dark:opacity-[0.05]" />
       </div>
 
-      <div className="relative z-10 flex flex-col items-center text-center max-w-lg w-full px-6">
+      <div className="relative z-10 flex w-full max-w-lg flex-col items-center justify-center text-center">
         {/* Main Scanner Circle */}
         <div className="relative mb-12">
-          <div className="absolute inset-0 rounded-full bg-red-500/10 blur-2xl animate-pulse" />
+          <div className="absolute inset-6 rounded-full bg-red-500/10 blur-2xl animate-pulse" />
 
           {/* Progress Ring */}
           <svg viewBox="0 0 200 200" className="w-48 h-48 sm:w-56 sm:h-56 transform -rotate-90 relative z-10 overflow-visible">
@@ -984,12 +984,6 @@ const AILoadingState = ({ statusMsg, percent = 0 }) => {
                 <stop offset="100%" stopColor="#b91c1c" />
               </linearGradient>
             </defs>
-            <circle
-              cx="100" cy="100" r="88"
-              stroke="currentColor" strokeWidth="4"
-              fill="transparent"
-              className="text-zinc-100 dark:text-zinc-800/50"
-            />
             <motion.circle
               cx="100" cy="100" r="88"
               stroke="url(#grad-red)" strokeWidth="6"
@@ -1012,7 +1006,7 @@ const AILoadingState = ({ statusMsg, percent = 0 }) => {
                 animate={{ scale: 1, opacity: 1, y: 0 }}
                 exit={{ scale: 1.2, opacity: 0, y: -10 }}
                 transition={{ type: "spring", damping: 15 }}
-                className="mb-1 p-4 rounded-3xl bg-white dark:bg-zinc-900 shadow-xl border border-zinc-100 dark:border-zinc-800"
+                className="mb-1 rounded-3xl bg-white/90 p-4 shadow-xl shadow-red-500/10 dark:bg-zinc-900/90"
               >
                 {React.cloneElement(fases[faseIdx].icon, { size: 32 })}
               </motion.div>
