@@ -60,7 +60,7 @@ const CardPlanejamento = ({
     >
       <div className="absolute inset-0 rounded-[2.2rem] overflow-hidden pointer-events-none">
         <div className="absolute -right-6 -bottom-6 opacity-[0.05] dark:opacity-[0.08] transition-all duration-700 group-hover:scale-110 group-hover:-rotate-12">
-          <Icone size={220} strokeWidth={1.5} className="text-red-600 dark:text-red-500" />
+          <Icone size={160} strokeWidth={1.5} className="text-red-600 dark:text-red-500" />
         </div>
         <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-gradient-to-br from-red-500/[0.05] to-transparent" />
       </div>
@@ -83,7 +83,7 @@ const CardPlanejamento = ({
           <Icone size={16} strokeWidth={2.5} className="sm:h-6 sm:w-6" />
         </div>
 
-        <h3 className="mb-1 text-[15px] font-black uppercase leading-none tracking-tighter text-zinc-900 dark:text-white sm:mb-2 sm:text-xl md:text-2xl">
+        <h3 className="mb-1 text-[20px] font-black uppercase leading-none tracking-tighter text-zinc-900 dark:text-white sm:mb-2 sm:text-xl md:text-2xl">
           <span className="sm:hidden">{tituloMobile}</span>
           <span className="hidden sm:inline">{titulo}</span>
         </h3>

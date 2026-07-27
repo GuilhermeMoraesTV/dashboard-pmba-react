@@ -958,25 +958,12 @@ const AILoadingState = ({ statusMsg, percent = 0 }) => {
 
   return (
     <div className="flex min-h-[calc(100vh-9rem)] w-full flex-col items-center justify-center overflow-hidden px-4 py-0 relative">
-      {/* Background Animated Elements */}
-      <div className="absolute inset-0 pointer-events-none">
-        <motion.div
-          animate={{
-            scale: [1, 1.2, 1],
-            opacity: [0.03, 0.08, 0.03],
-          }}
-          transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-red-500 rounded-full blur-[120px]"
-        />
-        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-[0.02] dark:opacity-[0.05]" />
-      </div>
-
       <div className="relative z-10 flex w-full max-w-lg flex-col items-center justify-center text-center">
         {/* Main Scanner Circle */}
         <div className="relative mb-12 flex h-48 w-48 items-center justify-center sm:h-56 sm:w-56">
 
           {/* Progress Ring */}
-          <svg viewBox="0 0 200 200" className="hidden">
+          <svg viewBox="0 0 200 200" className="h-full w-full -rotate-90 overflow-visible">
             <defs>
               <linearGradient id="grad-red" x1="0%" y1="0%" x2="100%" y2="0%">
                 <stop offset="0%" stopColor="#ef4444" />
@@ -1005,7 +992,7 @@ const AILoadingState = ({ statusMsg, percent = 0 }) => {
                 animate={{ scale: 1, opacity: 1, y: 0 }}
                 exit={{ scale: 1.2, opacity: 0, y: -10 }}
                 transition={{ type: "spring", damping: 15 }}
-                className="mb-1 rounded-3xl bg-white/90 p-4 shadow-xl shadow-red-500/10 dark:bg-zinc-900/90"
+                className="mb-1 rounded-3xl p-4"
               >
                 {React.cloneElement(fases[faseIdx].icon, { size: 32 })}
               </motion.div>

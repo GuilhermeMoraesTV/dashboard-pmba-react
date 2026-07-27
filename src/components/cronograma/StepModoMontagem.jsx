@@ -573,7 +573,7 @@ export default function StepModoMontagem({
           <h2 className="mb-2 text-4xl font-black uppercase leading-[0.95] tracking-tighter text-zinc-900 dark:text-white sm:mb-3 sm:text-4xl">
             Como montar<br /><span className="text-red-600">sua semana?</span>
           </h2>
-          <p className="mx-auto max-w-lg text-[13px] font-semibold leading-relaxed text-zinc-500 dark:text-zinc-400 sm:text-sm">
+          <p className="mx-auto max-w-lg text-[12px] font-black uppercase leading-relaxed tracking-[0.16em] text-zinc-500 dark:text-zinc-400 sm:text-sm sm:font-semibold sm:normal-case sm:tracking-normal">
             Use a distribuicao automatica ou arraste cada disciplina para montar uma agenda manual.
           </p>
         </motion.div>
@@ -612,7 +612,7 @@ export default function StepModoMontagem({
               >
                 <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[2.2rem]">
                   <Icon
-                    size={220}
+                    size={160}
                     strokeWidth={1.5}
                     className="absolute -bottom-6 -right-6 text-red-600 opacity-[0.05] transition-all duration-700 group-hover:-rotate-12 group-hover:scale-110 dark:text-red-500 dark:opacity-[0.08]"
                   />
@@ -630,8 +630,8 @@ export default function StepModoMontagem({
                 </span>
 
                 <span className="relative z-10 mt-2 flex h-full flex-col sm:mt-6">
-                  <span className="block text-[15px] font-black uppercase leading-none tracking-tighter text-zinc-900 dark:text-white sm:text-xl md:text-2xl">
-                    <span className="sm:hidden">{option.id === 'inteligente' ? 'Automatico' : 'Manual'}</span>
+                  <span className="block text-[20px] font-black uppercase leading-none tracking-tighter text-zinc-900 dark:text-white sm:text-xl md:text-2xl">
+                    <span className="sm:hidden">{option.id === 'inteligente' ? 'Automatico' : 'Personalizado'}</span>
                     <span className="hidden sm:inline">{option.title}</span>
                   </span>
                   <span className="mt-1 block text-[7px] font-black uppercase tracking-[0.1em] text-red-600 dark:text-red-500 sm:mt-2 sm:text-[9px] sm:tracking-[0.2em]">

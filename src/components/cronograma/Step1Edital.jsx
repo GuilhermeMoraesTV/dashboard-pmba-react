@@ -319,7 +319,7 @@ const TelaEscolhaTipo = ({ onManual, onCatalogo }) => {
       icon: Plus,
       action: 'Montar',
       onClick: onManual,
-      tone: 'red',
+      tone: 'zinc',
     },
   ];
 
@@ -327,7 +327,7 @@ const TelaEscolhaTipo = ({ onManual, onCatalogo }) => {
     <div className="flex min-h-[calc(100vh-12rem)] w-full max-w-5xl mx-auto flex-col items-center justify-center py-4">
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="relative mb-5 text-center sm:mb-10">
         <h2 className="mb-2 text-4xl font-black uppercase leading-[0.95] tracking-tighter text-zinc-900 dark:text-white sm:mb-3 sm:text-4xl">Selecione como deseja<br /><span className="text-red-600">Começar</span></h2>
-        <p className="mx-auto max-w-md px-4 text-[13px] font-semibold leading-relaxed text-zinc-500 dark:text-zinc-400 sm:text-sm">Escolha um edital pronto ou crie uma base manual para o seu plano.</p>
+        <p className="mx-auto max-w-md px-4 text-[12px] font-black uppercase leading-relaxed tracking-[0.16em] text-zinc-500 dark:text-zinc-400 sm:text-sm sm:font-semibold sm:normal-case sm:tracking-normal">Escolha um edital pronto ou crie uma base manual para o seu plano.</p>
       </motion.div>
       <div className="grid w-full max-w-5xl grid-cols-2 gap-2 px-1 sm:gap-6 lg:gap-10">
         {opcoes.map((opcao) => {
@@ -343,20 +343,20 @@ const TelaEscolhaTipo = ({ onManual, onCatalogo }) => {
             >
               <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[2.2rem]">
                 <Icon
-                  size={220}
+                  size={160}
                   strokeWidth={1.5}
                   className="absolute -bottom-6 -right-6 text-red-600 opacity-[0.05] transition-all duration-700 group-hover:-rotate-12 group-hover:scale-110 dark:text-red-500 dark:opacity-[0.08]"
                 />
                 <div className="absolute inset-0 bg-gradient-to-br from-red-500/[0.05] to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
               </div>
-              <div className={`relative z-10 mb-2 flex h-7 w-7 items-center justify-center rounded-xl shadow-lg transition-all duration-500 group-hover:rotate-6 sm:mb-6 sm:h-12 sm:w-12 ${isRed ? 'bg-red-600 text-white shadow-red-500/20' : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800'}`}>
+              <div className={`relative z-10 mb-2 flex h-7 w-7 items-center justify-center rounded-xl shadow-lg transition-all duration-500 group-hover:rotate-6 sm:mb-6 sm:h-12 sm:w-12 ${isRed ? 'bg-red-600 text-white shadow-red-500/20' : 'border border-zinc-200 bg-zinc-100 text-zinc-500 shadow-zinc-500/10 dark:border-zinc-700 dark:bg-zinc-800'}`}>
                 <Icon size={16} strokeWidth={2.5} className="sm:h-6 sm:w-6" />
               </div>
               <div className="relative z-10 flex h-full flex-col">
-                <h3 className="mb-1 text-[15px] font-black uppercase leading-none tracking-tighter text-zinc-900 dark:text-white sm:mb-2 sm:text-xl md:text-2xl">
+                <h3 className="mb-1 text-[20px] font-black uppercase leading-none tracking-tighter text-zinc-900 dark:text-white sm:mb-2 sm:text-xl md:text-2xl">
                   {opcao.title}
                 </h3>
-                <p className="mb-1 text-[7px] font-black uppercase tracking-[0.1em] text-red-600 dark:text-red-500 sm:mb-4 sm:text-[9px] sm:tracking-[0.2em]">
+                <p className={`mb-1 text-[7px] font-black uppercase tracking-[0.1em] sm:mb-4 sm:text-[9px] sm:tracking-[0.2em] ${isRed ? 'text-red-600 dark:text-red-500' : 'text-zinc-500 dark:text-zinc-400'}`}>
                   {opcao.subtitle}
                 </p>
                 <p className="line-clamp-3 text-[10px] font-semibold leading-snug text-zinc-500 dark:text-zinc-400 sm:text-[12px] md:text-[13px]">
@@ -452,7 +452,6 @@ const Step1_Edital = ({ editalSelecionado, modelos = [], carregando, onSelect, o
 
   const handleConfirmar = (edital) => {
     onSelect(edital);
-    onEscolhaCompleta?.();
   };
   const handleManual = () => {
     onSelect({ id: 'manual', titulo: 'Manual', disciplinas: [] });
