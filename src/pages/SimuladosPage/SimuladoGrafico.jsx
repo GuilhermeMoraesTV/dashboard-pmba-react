@@ -89,7 +89,7 @@ const InlineSelect = ({ options, value, onChange }) => {
   const selected = options.find(o => o.value === value);
 
   return (
-    <div className="relative" ref={ref}>
+    <div className="simulado-chart-filter relative" ref={ref}>
       <button
         onClick={() => setOpen(v => !v)}
         className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wide border transition-all duration-150 select-none
@@ -108,7 +108,7 @@ const InlineSelect = ({ options, value, onChange }) => {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -4, scale: 0.97 }}
             transition={{ duration: 0.12 }}
-            className="absolute z-[10080] top-full mt-1.5 right-0 min-w-[100px] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700/80 rounded-xl shadow-xl overflow-hidden"
+            className="simulado-chart-filter-menu absolute z-[10080] top-full mt-1.5 right-0 min-w-[100px] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700/80 rounded-xl shadow-xl overflow-hidden"
           >
             <div className="p-1">
               {options.map(opt => (
