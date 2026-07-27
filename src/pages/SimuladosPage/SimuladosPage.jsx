@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   collection, query, orderBy, onSnapshot, doc, Timestamp, updateDoc, addDoc, deleteDoc
 } from 'firebase/firestore';
@@ -33,6 +33,7 @@ const SimuladosPage = ({ user, activeCycleDisciplines, onStartSimulado, initialD
   const [compareMode, setCompareMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
   const [showArena, setShowArena] = useState(false);
+  const simuladosListRef = useRef(null);
 
   const [finishedSimuladoData, setFinishedSimuladoData] = useState(null);
   const [toast, setToast] = useState(null);
@@ -134,6 +135,16 @@ const SimuladosPage = ({ user, activeCycleDisciplines, onStartSimulado, initialD
     return selectedIds.map(id => map.get(id)).filter(Boolean);
   }, [selectedIds, simulados]);
 
+  const handleEnterCompareMode = () => {
+    setCompareMode(true);
+
+    if (window.matchMedia('(max-width: 639px)').matches) {
+      window.setTimeout(() => {
+        simuladosListRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 90);
+    }
+  };
+
   return (
     <div className="pb-20 animate-fade-in min-h-screen text-zinc-800 dark:text-zinc-200">
       <AnimatePresence>
@@ -191,7 +202,7 @@ const SimuladosPage = ({ user, activeCycleDisciplines, onStartSimulado, initialD
         searchTerm={searchTerm}
         setSearchTerm={setSearchTerm}
         compareMode={compareMode}
-        setCompareMode={setCompareMode}
+        setCompareMode={handleEnterCompareMode}
         selectedIds={selectedIds}
         onCompareClick={() => setShowArena(true)}
         onStartClick={() => setIsStartModalOpen(true)}
@@ -205,6 +216,7 @@ const SimuladosPage = ({ user, activeCycleDisciplines, onStartSimulado, initialD
         }}
       />
 
+      <div ref={simuladosListRef} className="scroll-mt-3">
       {simulados.length === 0 && !loading ? (
         <div className="flex w-full items-center justify-center px-4 py-10">
           <motion.div
@@ -270,6 +282,7 @@ const SimuladosPage = ({ user, activeCycleDisciplines, onStartSimulado, initialD
             toggleSelection={toggleSelection}
         />
       )}
+      </div>
       </div>
     </div>
   );
