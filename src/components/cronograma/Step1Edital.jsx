@@ -339,15 +339,19 @@ const TelaEscolhaTipo = ({ onManual, onCatalogo }) => {
               whileHover={{ y: -8, scale: 1.015 }}
               whileTap={{ scale: 0.99 }}
               onClick={opcao.onClick}
-              className="group relative flex min-h-[168px] flex-col overflow-hidden rounded-2xl border-2 border-zinc-100 bg-white p-3 text-left shadow-md transition-all duration-500 hover:border-red-600 hover:shadow-red-600/10 dark:border-zinc-800 dark:bg-zinc-900 sm:min-h-[260px] sm:p-6 md:rounded-[2.2rem] md:p-7 md:shadow-xl"
+              className={`group relative flex min-h-[168px] flex-col overflow-hidden rounded-2xl border-2 p-3 text-left shadow-md transition-all duration-500 dark:bg-zinc-900 sm:min-h-[260px] sm:p-6 md:rounded-[2.2rem] md:p-7 md:shadow-xl ${
+                isRed
+                  ? 'border-zinc-100 bg-white hover:border-red-600 hover:shadow-red-600/10 dark:border-zinc-800'
+                  : 'border-dashed border-zinc-300 bg-zinc-50 hover:border-zinc-400 hover:bg-white hover:shadow-zinc-900/10 dark:border-zinc-700 dark:bg-zinc-900/60 dark:hover:border-zinc-500 dark:hover:bg-zinc-900'
+              }`}
             >
               <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[2.2rem]">
                 <Icon
                   size={160}
                   strokeWidth={1.5}
-                  className="absolute -bottom-6 -right-6 text-red-600 opacity-[0.05] transition-all duration-700 group-hover:-rotate-12 group-hover:scale-110 dark:text-red-500 dark:opacity-[0.08]"
+                  className={`absolute -bottom-6 -right-6 opacity-[0.05] transition-all duration-700 group-hover:-rotate-12 group-hover:scale-110 dark:opacity-[0.08] ${isRed ? 'text-red-600 dark:text-red-500' : 'text-zinc-500 dark:text-zinc-400'}`}
                 />
-                <div className="absolute inset-0 bg-gradient-to-br from-red-500/[0.05] to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
+                <div className={`absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100 ${isRed ? 'bg-gradient-to-br from-red-500/[0.05] to-transparent' : 'bg-[radial-gradient(circle_at_bottom_right,rgba(113,113,122,0.10),transparent_55%)]'}`} />
               </div>
               <div className={`relative z-10 mb-2 flex h-7 w-7 items-center justify-center rounded-xl shadow-lg transition-all duration-500 group-hover:rotate-6 sm:mb-6 sm:h-12 sm:w-12 ${isRed ? 'bg-red-600 text-white shadow-red-500/20' : 'border border-zinc-200 bg-zinc-100 text-zinc-500 shadow-zinc-500/10 dark:border-zinc-700 dark:bg-zinc-800'}`}>
                 <Icon size={16} strokeWidth={2.5} className="sm:h-6 sm:w-6" />
@@ -359,7 +363,7 @@ const TelaEscolhaTipo = ({ onManual, onCatalogo }) => {
                 <p className={`mb-1 text-[7px] font-black uppercase tracking-[0.1em] sm:mb-4 sm:text-[9px] sm:tracking-[0.2em] ${isRed ? 'text-red-600 dark:text-red-500' : 'text-zinc-500 dark:text-zinc-400'}`}>
                   {opcao.subtitle}
                 </p>
-                <p className="line-clamp-3 text-[10px] font-semibold leading-snug text-zinc-500 dark:text-zinc-400 sm:text-[12px] md:text-[13px]">
+                <p className="line-clamp-3 text-[12px] font-semibold leading-snug text-zinc-500 dark:text-zinc-400 sm:text-[12px] md:text-[13px]">
                   {opcao.desc}
                 </p>
                 <div className={`mt-auto pt-3 text-[8px] font-black uppercase tracking-[0.1em] transition-all group-hover:text-red-600 group-hover:tracking-[0.14em] sm:text-[10px] ${isRed ? 'text-red-600' : 'text-zinc-500'}`}>

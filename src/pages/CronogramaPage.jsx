@@ -2185,6 +2185,33 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
     setTimeout(() => setToast(null), 2800);
   }, []);
 
+  const handleCronogramaCriado = useCallback(async (cronogramaId) => {
+    setShowWizard(false);
+    if (!cronogramaId || !user?.uid) {
+      setLoadingPage(false);
+      return;
+    }
+
+    try {
+      const snap = await getDoc(doc(db, 'users', user.uid, 'cronogramas', cronogramaId));
+      if (!snap.exists()) {
+        setLoadingPage(false);
+        return;
+      }
+
+      const novoCronograma = { id: snap.id, ref: snap.ref, ...snap.data() };
+      setCronograma(novoCronograma);
+      setWeekOffset(getCurrentWeekOffset(novoCronograma.dataInicio));
+      didInitWeekOffsetRef.current = true;
+      setDominiosLocal(novoCronograma.progresso?.dominios || {});
+      setLoadingPage(false);
+      showToast('✅ Cronograma criado!');
+    } catch (error) {
+      console.error('[CronogramaPage] Falha ao abrir cronograma criado:', error);
+      setLoadingPage(false);
+    }
+  }, [getCurrentWeekOffset, showToast, user?.uid]);
+
   const adiarCronograma = async (cronogramaId, cronogramaAtual) => {
     try {
       const dataAtual = new Date(cronogramaAtual.dataInicio + 'T12:00:00');
@@ -2709,7 +2736,7 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
     <CronogramaCreateWizard
       user={user}
       onClose={() => setShowWizard(false)}
-      onCronogramaCriado={() => setShowWizard(false)}
+      onCronogramaCriado={handleCronogramaCriado}
     />
   );
 

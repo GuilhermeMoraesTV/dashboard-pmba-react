@@ -92,7 +92,7 @@ const CardPlanejamento = ({
           <span className="hidden sm:inline">{subtitulo}</span>
         </p>
 
-        <p className="mt-2 line-clamp-3 text-[10px] font-semibold leading-snug text-zinc-500 dark:text-zinc-400 sm:hidden">
+        <p className="mt-2 line-clamp-3 text-[12px] font-semibold leading-snug text-zinc-500 dark:text-zinc-400 sm:hidden">
           {descricaoMobile}
         </p>
 

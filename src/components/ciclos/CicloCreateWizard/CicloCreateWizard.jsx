@@ -6,7 +6,6 @@ import { collection, getDocs } from 'firebase/firestore';
 import { calcularDistribuicao, gerarOrdemSessoes, useCiclos } from '../../../hooks/useCiclos';
 import { db } from '../../../firebaseConfig';
 import { CATALOGO_EDITAIS } from '../../../pages/AdminPage/EditaisManager';
-import StepBar from '../../cronograma/steps/StepBar';
 import StepEdital from './steps/StepEdital';
 import StepDisciplinas from './steps/StepDisciplinas';
 import StepHorarios from './steps/StepHorarios';
@@ -713,7 +712,6 @@ function CicloCreateWizard({
 
   const currentStep = visibleSteps[visibleStepIndex] || visibleSteps[0];
   const StepIcon = currentStep.icon || Target;
-  const stepBarPasso = currentStep?.id ?? 0;
 
   const podeAvancar = useMemo(() => {
     if (passo === 1) return editalConfirmado && !mostrarModalModelo;
@@ -886,10 +884,6 @@ function CicloCreateWizard({
           >
             <X size={16} />
           </button>
-
-          <div className="basis-full">
-            <StepBar passo={stepBarPasso} steps={visibleSteps} isExpresso={false} />
-          </div>
         </div>
       </div>
       </div>

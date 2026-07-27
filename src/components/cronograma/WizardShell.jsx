@@ -20,7 +20,6 @@ import Step3_Horarios from './Step3Horarios';
 import StepMetodologiaRevisao from './StepMetodologiaRevisao';
 import Step4_Config from './Step4Config';
 import Step5_Preview from './Step5Preview';
-import StepBar from './steps/StepBar';
 
 import { defaultHorarios, useCronogramaWizard } from '../../hooks/useCronogramaWizard';
 
@@ -304,10 +303,6 @@ const WizardShell = ({
               >
                 <X size={20} />
               </button>
-            </div>
-
-            <div className="basis-full">
-              <StepBar passo={passo} steps={visibleSteps} />
             </div>
           </div>
         </div>

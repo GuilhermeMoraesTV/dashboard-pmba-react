@@ -637,7 +637,7 @@ export default function StepModoMontagem({
                   <span className="mt-1 block text-[7px] font-black uppercase tracking-[0.1em] text-red-600 dark:text-red-500 sm:mt-2 sm:text-[9px] sm:tracking-[0.2em]">
                     {option.subtitle}
                   </span>
-                  <span className="mt-2 line-clamp-3 text-[10px] font-semibold leading-snug text-zinc-500 dark:text-zinc-400 sm:mt-4 sm:text-[12px] md:text-[13px]">
+                  <span className="mt-2 line-clamp-3 text-[12px] font-semibold leading-snug text-zinc-500 dark:text-zinc-400 sm:mt-4 sm:text-[12px] md:text-[13px]">
                     {option.desc}
                   </span>
 
