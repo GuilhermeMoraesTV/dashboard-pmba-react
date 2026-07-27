@@ -282,7 +282,7 @@ const DesempenhoPage = ({
   // Permite renderizar se for ALL_TIME (mesmo sem contexto ativo)
   if (!hasContext && timeRange !== 'ALL_TIME') {
     return (
-      <div className="flex min-h-[calc(100vh-120px)] w-full items-center justify-center px-4 py-10">
+      <div className="mobile-page-zoom mobile-page-zoom--desempenho flex min-h-[calc(100vh-120px)] w-full items-center justify-center px-4 py-10">
         <motion.div
           initial={{ opacity: 0, y: 30, scale: 0.95 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -331,13 +331,13 @@ const DesempenhoPage = ({
   }
 
   if (!analytics) return (
-    <div className="p-10 text-center text-zinc-500" style={{ touchAction: 'pan-y', overscrollBehavior: 'auto' }}>
+    <div className="mobile-page-zoom mobile-page-zoom--desempenho p-10 text-center text-zinc-500" style={{ touchAction: 'pan-y', overscrollBehavior: 'auto' }}>
       Carregando análise...
     </div>
   );
 
   return (
-    <div className="w-full pb-20 space-y-6" style={{ touchAction: 'pan-y', overscrollBehavior: 'auto' }}>
+    <div className="mobile-page-zoom mobile-page-zoom--desempenho w-full pb-20 space-y-6" style={{ touchAction: 'pan-y', overscrollBehavior: 'auto' }}>
       <DesempenhoHeader
         analytics={analytics}
         filters={{ timeRange, setTimeRange, selectedDiscipline, setSelectedDiscipline, selectedTopic, setSelectedTopic }}

@@ -38,10 +38,16 @@ const CardEdital = ({ dados, unico, idConfirmado, aoConfirmar }) => {
     ? (editalBase.instituicao || editalBase.titulo.split(' - ')[0])
     : editalBase.titulo;
   const cargoExibicao = variosCargos && itemSelecionado?.cargo ? itemSelecionado.cargo : '';
-  const descricaoExibicao = itemSelecionado?.descricao
-    || editalBase.descricao
-    || editalBase.subtitulo
-    || 'Edital pronto com materias, topicos e estrutura para montar seu plano.';
+  const rawDescricaoExibicao = itemSelecionado?.descricao || editalBase.descricao || editalBase.subtitulo || '';
+  const descricaoExibicao = (() => {
+    const texto = String(rawDescricaoExibicao || '').trim();
+    const cargo = String(itemSelecionado?.cargo || editalBase.cargo || '').trim().toLowerCase();
+    const banca = String(itemSelecionado?.banca || editalBase.banca || '').trim().toLowerCase();
+    if (!texto) return '';
+    const normalizado = texto.toLowerCase();
+    if (cargo && banca && normalizado === `${cargo} com ${banca}`) return '';
+    return texto;
+  })();
 
   const qtdDisc = itemSelecionado
     ? (itemSelecionado.disciplinas?.length || 0)
@@ -103,9 +109,11 @@ const CardEdital = ({ dados, unico, idConfirmado, aoConfirmar }) => {
           </div>
           )}
 
+          {descricaoExibicao && (
           <p className="line-clamp-2 text-[8px] font-semibold leading-snug text-zinc-500 dark:text-zinc-400 sm:text-[10px]">
             {descricaoExibicao}
           </p>
+          )}
 
           <div className="flex items-center gap-1.5">
              <div className="w-1 h-3 rounded-full bg-zinc-300 dark:bg-zinc-700" />
@@ -311,7 +319,7 @@ const TelaEscolhaTipo = ({ onManual, onCatalogo }) => {
       icon: Plus,
       action: 'Montar',
       onClick: onManual,
-      tone: 'zinc',
+      tone: 'red',
     },
   ];
 
@@ -438,15 +446,17 @@ const TelaCatalogo = ({ modelos, carregando, idConfirmado, onConfirmar, onAbrirS
 };
 
 // ─── COMPONENTE PRINCIPAL ─────────────────────────────────────────────────────
-const Step1_Edital = ({ editalSelecionado, modelos = [], carregando, onSelect, onAbrirSuporte }) => {
+const Step1_Edital = ({ editalSelecionado, modelos = [], carregando, onSelect, onAbrirSuporte, onEscolhaCompleta }) => {
   const [tela, setTela] = useState('escolha');
   const idConfirmado = editalSelecionado?.id || null;
 
   const handleConfirmar = (edital) => {
     onSelect(edital);
+    onEscolhaCompleta?.();
   };
   const handleManual = () => {
     onSelect({ id: 'manual', titulo: 'Manual', disciplinas: [] });
+    onEscolhaCompleta?.();
   };
 
   return (

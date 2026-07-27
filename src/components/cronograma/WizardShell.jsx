@@ -168,6 +168,16 @@ const WizardShell = ({
     setPasso(nextPasso);
   };
 
+  const avancarDepoisDoEdital = () => {
+    setPasso(1);
+  };
+
+  const handleModoMontagemEscolhido = (modoSelecionado) => {
+    if (modoSelecionado === 'inteligente') {
+      setPasso(2);
+    }
+  };
+
   const onAbrirSuporte = () => onOpenFeedback?.({ initialView: 'new', initialType: 'edital' });
 
   const renderStep = () => {
@@ -179,6 +189,7 @@ const WizardShell = ({
           carregando={carregandoModelos}
           onSelect={handleSelectEdital}
           onAbrirSuporte={onAbrirSuporte}
+          onEscolhaCompleta={avancarDepoisDoEdital}
         />
       );
       case 1: return (
@@ -190,6 +201,7 @@ const WizardShell = ({
           onHorariosChange={setHorarios}
           selecao={selecao}
           onSelecaoChange={setSelecao}
+          onModoEscolhido={handleModoMontagemEscolhido}
         />
       );
       case 2: return (

@@ -973,11 +973,10 @@ const AILoadingState = ({ statusMsg, percent = 0 }) => {
 
       <div className="relative z-10 flex w-full max-w-lg flex-col items-center justify-center text-center">
         {/* Main Scanner Circle */}
-        <div className="relative mb-12">
-          <div className="absolute inset-6 rounded-full bg-red-500/10 blur-2xl animate-pulse" />
+        <div className="relative mb-12 flex h-48 w-48 items-center justify-center sm:h-56 sm:w-56">
 
           {/* Progress Ring */}
-          <svg viewBox="0 0 200 200" className="w-48 h-48 sm:w-56 sm:h-56 transform -rotate-90 relative z-10 overflow-visible">
+          <svg viewBox="0 0 200 200" className="hidden">
             <defs>
               <linearGradient id="grad-red" x1="0%" y1="0%" x2="100%" y2="0%">
                 <stop offset="0%" stopColor="#ef4444" />

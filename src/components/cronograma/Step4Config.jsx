@@ -228,7 +228,7 @@ const ModeSelector = ({ options, value, onChange }) => (
           key={opt.id}
           onClick={() => onChange(opt.id)}
           className={`
-            relative flex min-h-[82px] flex-col items-start gap-2 p-2 sm:min-h-0 sm:gap-2.5 sm:p-4 rounded-2xl border-2 text-left
+            relative flex min-h-[64px] flex-col justify-center gap-1.5 p-2 sm:min-h-0 sm:items-start sm:gap-2.5 sm:p-4 rounded-2xl border-2 text-left
             transition-all duration-300 group overflow-hidden
             ${active
               ? `${opt.activeBorder} ${opt.activeBg} shadow-md scale-[1.02] z-10`
@@ -239,16 +239,16 @@ const ModeSelector = ({ options, value, onChange }) => (
           {/* Faixa superior colorida quando ativo */}
           <div className={`absolute top-0 left-0 right-0 h-1 transition-all ${active ? opt.activeBar : 'bg-transparent'}`} />
 
-          <div className="flex items-center gap-2.5 w-full">
-            <div className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 transition-all shadow-sm sm:h-8 sm:w-8 ${active ? opt.activeIcon : 'bg-zinc-100 dark:bg-zinc-800'}`}>
-              <Icon size={14} className={active ? 'text-white' : 'text-zinc-400'} />
+          <div className="flex w-full items-center gap-2">
+            <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg shadow-sm transition-all sm:h-8 sm:w-8 sm:rounded-xl ${active ? opt.activeIcon : 'bg-zinc-100 dark:bg-zinc-800'}`}>
+              <Icon size={13} className={active ? 'text-white' : 'text-zinc-400'} />
             </div>
-            <div className="flex flex-col">
-              <span className={`text-[10px] font-black uppercase tracking-wider ${active ? opt.activeText : 'text-zinc-500 dark:text-zinc-400'}`}>
+            <div className="flex min-w-0 flex-col">
+              <span className={`break-words text-[8px] font-black uppercase leading-tight tracking-wide sm:text-[10px] sm:tracking-wider ${active ? opt.activeText : 'text-zinc-500 dark:text-zinc-400'}`}>
                 {opt.label}
               </span>
               {active && (
-                <div className={`w-fit text-[7px] font-black px-1.5 py-0.5 rounded-full mt-0.5 ${opt.activeBadge}`}>
+                <div className={`mt-0.5 w-fit rounded-full px-1.5 py-0.5 text-[6px] font-black sm:text-[7px] ${opt.activeBadge}`}>
                   ATIVO
                 </div>
               )}

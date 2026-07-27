@@ -1192,7 +1192,7 @@ function RegistroEstudoModal({
             <motion.div
               animate={{ rotate: [0, -4, 4, 0], scale: [1, 1.03, 1] }}
               transition={{ duration: 4.5, repeat: Infinity, ease: 'easeInOut' }}
-              className="relative flex h-8 w-8 md:h-9 md:w-9 items-center justify-center rounded-xl bg-red-600 text-white shadow-lg shadow-red-500/25"
+              className="relative flex h-8 w-8 md:h-9 md:w-9 items-center justify-center rounded-xl bg-red-600 text-white shadow-lg shadow-red-500/25"n
             >
               <Save size={17} strokeWidth={1.8} />
             </motion.div>

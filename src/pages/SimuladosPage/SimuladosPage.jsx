@@ -135,7 +135,7 @@ const SimuladosPage = ({ user, activeCycleDisciplines, onStartSimulado, initialD
   }, [selectedIds, simulados]);
 
   return (
-    <div className="space-y-6 md:space-y-8 pb-20 animate-fade-in min-h-screen text-zinc-800 dark:text-zinc-200">
+    <div className="pb-20 animate-fade-in min-h-screen text-zinc-800 dark:text-zinc-200">
       <AnimatePresence>
         {toast && (
           <motion.div
@@ -184,6 +184,7 @@ const SimuladosPage = ({ user, activeCycleDisciplines, onStartSimulado, initialD
         />
       )}
 
+      <div className="mobile-page-zoom mobile-page-zoom--simulados space-y-6 md:space-y-8">
       <HeaderSimulado
         kpis={kpis}
         simulados={simulados}
@@ -269,6 +270,7 @@ const SimuladosPage = ({ user, activeCycleDisciplines, onStartSimulado, initialD
             toggleSelection={toggleSelection}
         />
       )}
+      </div>
     </div>
   );
 };

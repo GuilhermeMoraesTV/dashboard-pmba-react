@@ -319,6 +319,7 @@ export default function StepModoMontagem({
   onHorariosChange,
   selecao = {},
   onSelecaoChange,
+  onModoEscolhido,
 }) {
   const [diaSelecionado, setDiaSelecionado] = useState(1);
   const [pickerDia, setPickerDia] = useState(null);
@@ -358,6 +359,7 @@ export default function StepModoMontagem({
 
   const setModo = (nextMode) => {
     onConfigChange?.({ ...config, modoMontagem: nextMode });
+    onModoEscolhido?.(nextMode);
   };
 
   const ensureSelected = (disciplina) => {
@@ -602,7 +604,7 @@ export default function StepModoMontagem({
                 key={option.id}
                 type="button"
                 onClick={() => setModo(option.id)}
-                className={`group relative flex min-h-[168px] w-full flex-col overflow-hidden rounded-2xl border-2 bg-white p-3 text-left shadow-md transition-all duration-500 hover:-translate-y-1 dark:bg-zinc-900 sm:min-h-[260px] sm:rounded-[2.2rem] sm:p-6 sm:shadow-xl md:p-7 ${
+                className={`group relative flex min-h-[168px] w-full flex-col overflow-hidden rounded-2xl border-2 bg-white p-3 text-left shadow-md transition-all duration-500 hover:-translate-y-2 dark:bg-zinc-900 sm:min-h-[260px] sm:rounded-[2.2rem] sm:p-6 sm:shadow-xl md:p-7 ${
                   active
                     ? 'border-red-500 shadow-red-500/10 dark:border-red-900/50'
                     : 'border-zinc-100 hover:border-red-600 hover:shadow-red-600/10 dark:border-zinc-800'
@@ -610,9 +612,9 @@ export default function StepModoMontagem({
               >
                 <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[2.2rem]">
                   <Icon
-                    size={120}
+                    size={220}
                     strokeWidth={1.5}
-                    className="absolute -bottom-8 -right-8 text-red-600 opacity-[0.05] transition-all duration-700 group-hover:-rotate-12 group-hover:scale-110 dark:text-red-500 dark:opacity-[0.08] sm:-bottom-5 sm:-right-5 sm:h-[190px] sm:w-[190px]"
+                    className="absolute -bottom-6 -right-6 text-red-600 opacity-[0.05] transition-all duration-700 group-hover:-rotate-12 group-hover:scale-110 dark:text-red-500 dark:opacity-[0.08]"
                   />
                   <div className="absolute inset-0 bg-gradient-to-br from-red-500/[0.05] to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
                 </div>
@@ -677,7 +679,7 @@ export default function StepModoMontagem({
                   Montagem<br /><span className="text-red-600">Personalizada</span>
                 </h2>
                 <p className="mx-auto mt-3 max-w-2xl text-base font-semibold leading-relaxed text-zinc-500 dark:text-zinc-400 sm:text-sm">
-                  Monte sua semana manualmente: escolha um dia, adicione as disciplinas que quer estudar e ajuste a duração de cada bloco em intervalos de 15 minutos.
+                  Monte sua semana manualmente: escolha um dia, adicione as disciplinas que quer estudar e ajuste a duração de cada bloco.
                 </p>
                 <div className="mt-2 flex flex-row flex-wrap items-center justify-center gap-2">
                   <div className="inline-flex w-fit items-center gap-1.5 rounded-xl border border-red-100 bg-white px-2.5 py-1.5 shadow-sm dark:border-red-900/40 dark:bg-zinc-950 sm:gap-2 sm:rounded-2xl sm:px-3.5 sm:py-2.5">
@@ -687,7 +689,7 @@ export default function StepModoMontagem({
                   </div>
                 </div>
                 <p className="mt-1 hidden text-xs font-semibold text-zinc-500 dark:text-zinc-400 sm:block">
-                  Toque numa disciplina para adicionar ao dia selecionado, arraste para outro dia e ajuste cada bloco em horas de 15 em 15 minutos. {totalBlocos} blocos, {fmtMin(totalMinutos)} por semana.
+                  Toque numa disciplina para adicionar ao dia selecionado, arraste para outro dia e ajuste cada bloco de estudo. {totalBlocos} blocos, {fmtMin(totalMinutos)} por semana.
                 </p>
               </div>
             </div>
