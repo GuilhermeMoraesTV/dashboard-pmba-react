@@ -24,7 +24,7 @@ import {
   Clock, Target, Calendar, Sparkles,
   CheckCircle2, Brain, AlertCircle, CalendarDays,
   X, List, GripVertical, Moon, Sun, Zap,
-  Shield, Check, LayoutGrid, Info, LayoutList, Flame,
+  Shield, Check, LayoutGrid, LayoutList, Flame,
   ArrowDownCircle, Flag, MapPin, Cpu, Bot, Loader2
 } from 'lucide-react';
 
@@ -520,13 +520,13 @@ const Step5_Preview = ({
         </div>
       </div>
 
-      <div className="flex flex-col gap-2 px-1 lg:flex-row lg:items-center lg:justify-between lg:gap-3">
+      <div className="grid gap-2 px-1 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:items-center lg:gap-4">
         <div className="flex items-center justify-center gap-3 lg:justify-start">
           <div className="w-1.5 h-6 rounded-full bg-red-600 shadow-[0_0_10px_rgba(220,38,38,0.3)]" />
           <h2 className="text-2xl font-black uppercase tracking-tight text-zinc-900 dark:text-white leading-none sm:text-lg sm:tracking-widest">Visão do Plano</h2>
         </div>
 
-        <div className="flex flex-wrap items-center justify-center gap-2 lg:justify-end">
+        <div className="flex justify-center">
           <div className="inline-flex w-fit items-center gap-2 rounded-2xl border border-zinc-100 bg-white px-2 py-1.5 shadow-sm dark:border-zinc-800/60 dark:bg-zinc-900/70">
             <button
               onClick={() => {
@@ -561,31 +561,34 @@ const Step5_Preview = ({
               <ChevronRight size={18} />
             </button>
           </div>
+        </div>
 
+        <div className="flex flex-col items-center gap-1.5 lg:items-end">
+          <span className="text-[8px] font-black uppercase tracking-[0.22em] text-zinc-400 dark:text-zinc-500">
+            Modos de visualização
+          </span>
           <div className="flex items-center justify-center gap-1 rounded-2xl bg-zinc-100 p-1 dark:bg-zinc-800">
-          {[
-            { id: 'semana', icon: CalendarDays, label: 'Semana' },
-            { id: 'mes',    icon: LayoutGrid,   label: 'Mês' },
-            { id: 'lista',  icon: LayoutList,   label: 'Lista' },
-          ].map(v => (
-            <button key={v.id} onClick={() => setViewMode(v.id)} className={`flex items-center gap-2 px-3 py-2 rounded-xl transition-all duration-300 sm:px-4 ${viewMode === v.id ? 'bg-white dark:bg-zinc-700 text-red-600 shadow-md scale-[1.02]' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}>
-              <v.icon size={16} />
-              <span className="text-[10px] font-black uppercase tracking-widest hidden md:inline">{v.label}</span>
-            </button>
-          ))}
+            {[
+              { id: 'semana', icon: CalendarDays, label: 'Semana' },
+              { id: 'mes',    icon: LayoutGrid,   label: 'Mês' },
+              { id: 'lista',  icon: LayoutList,   label: 'Lista' },
+            ].map(v => (
+              <button key={v.id} onClick={() => setViewMode(v.id)} className={`flex items-center gap-2 px-3 py-2 rounded-xl transition-all duration-300 sm:px-4 ${viewMode === v.id ? 'bg-white dark:bg-zinc-700 text-red-600 shadow-md scale-[1.02]' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}>
+                <v.icon size={16} />
+                <span className="text-[10px] font-black uppercase tracking-widest hidden md:inline">{v.label}</span>
+              </button>
+            ))}
           </div>
-
-          {agendaOverride ? (
-            <button onClick={() => setAgendaOverride(null)} className="flex items-center gap-2 px-4 py-2 rounded-xl text-amber-600 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 text-[10px] font-black uppercase animate-pulse">
-              <RefreshCw size={14} /> Resetar Alterações
-            </button>
-          ) : (
-            <div className="hidden xl:flex items-center gap-2 px-4 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800 text-zinc-400 text-[9px] font-black uppercase tracking-widest border border-zinc-200 dark:border-zinc-700">
-              <Info size={12} /> Design Interativo
-            </div>
-          )}
         </div>
       </div>
+
+      {agendaOverride && (
+        <div className="flex justify-center lg:justify-end">
+          <button onClick={() => setAgendaOverride(null)} className="flex items-center gap-2 px-4 py-2 rounded-xl text-amber-600 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 text-[10px] font-black uppercase animate-pulse">
+            <RefreshCw size={14} /> Resetar Alterações
+          </button>
+        </div>
+      )}
 
       {/* ── CONTEÚDO DINÂMICO ── */}
       <div className="w-full">

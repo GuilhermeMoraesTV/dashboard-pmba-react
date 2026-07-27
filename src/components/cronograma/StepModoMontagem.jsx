@@ -738,7 +738,7 @@ export default function StepModoMontagem({
               <div className="min-w-0 flex-1">
                 <p className="text-[8px] font-black uppercase tracking-[0.16em] text-zinc-400 sm:text-[10px] sm:tracking-[0.22em]">Disciplinas</p>
                 <p className="truncate text-[9px] font-semibold text-zinc-500 dark:text-zinc-400 sm:text-xs">
-                  {disciplinaToque ? `Toque no dia para adicionar ${disciplinaToque.nome}.` : `Toque ou arraste para ${DIAS.find((dia) => dia.idx === diaSelecionado)?.longo}.`}
+                  {disciplinaToque ? `Arraste para o dia desejado ou use o botão +.` : 'Arraste a disciplina para o dia desejado.'}
                 </p>
               </div>
             </div>
@@ -783,7 +783,7 @@ export default function StepModoMontagem({
                         {disciplina.nome}
                       </span>
                       <span className="mt-0.5 hidden truncate text-[9px] font-bold uppercase tracking-widest text-zinc-400 sm:block">
-                        Arrastar
+                        Arraste para o dia desejado
                       </span>
                     </span>
                     <button
