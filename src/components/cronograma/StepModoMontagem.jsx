@@ -38,25 +38,29 @@ const getHoje = () => {
   return d;
 };
 
-const gradeToHorarios = (grade) => {
-  const next = {};
-  DIAS.forEach((dia) => {
-    const minutos = (grade?.[dia.idx] || []).reduce((acc, slot) => acc + Number(slot.minutos || 0), 0);
-    next[dia.idx] = Math.round((minutos / 60) * 100) / 100;
-  });
-  return next;
-};
-
 const normalizeSlotMinutes = (value, fallback = 60) => {
   const minutes = Number(value);
   if (!Number.isFinite(minutes)) return fallback;
   return Math.max(15, Math.min(720, Math.round(minutes / 15) * 15));
 };
 
+const getSlotMinutes = (slot, fallback = 60) => (
+  normalizeSlotMinutes(slot?.minutos ?? slot?.tempoMinutos ?? slot?.minutosEstudo, fallback)
+);
+
+const gradeToHorarios = (grade) => {
+  const next = {};
+  DIAS.forEach((dia) => {
+    const minutos = (grade?.[dia.idx] || []).reduce((acc, slot) => acc + getSlotMinutes(slot, 0), 0);
+    next[dia.idx] = Math.round((minutos / 60) * 100) / 100;
+  });
+  return next;
+};
+
 const SlotCard = ({ slot, onRemove, onMinutesChange }) => {
   const color = getDisciplineColorForSlot(slot);
   const cardStyle = getDisciplineCardVars(color);
-  const minutos = normalizeSlotMinutes(slot.minutos, 60);
+  const minutos = getSlotMinutes(slot, 60);
   const percent = Math.min(100, (minutos / 720) * 100);
   const sliderClass = `slider-slot-${String(slot.id || '').replace(/[^a-zA-Z0-9_-]/g, '-')}`;
   const sliderStyle = `
@@ -102,7 +106,7 @@ const SlotCard = ({ slot, onRemove, onMinutesChange }) => {
         <div className="flex min-w-0 flex-col gap-1">
           <div className="flex min-w-0 items-center gap-2">
             <span className="h-2.5 w-2.5 shrink-0 rounded-full shadow-sm" style={{ backgroundColor: color.hex }} />
-            <h4 className={`min-w-0 flex-1 truncate text-[8px] font-black uppercase tracking-normal sm:text-[10px] ${color.text}`}>
+            <h4 className={`min-w-0 flex-1 line-clamp-2 text-[8px] font-black uppercase leading-tight tracking-normal sm:text-[10px] ${color.text}`}>
               {slot.disciplinaNome}
             </h4>
           </div>
@@ -165,7 +169,7 @@ const DayColumn = ({
   onClosePicker,
   onAddDisciplina,
 }) => {
-  const minutosDia = slots.reduce((acc, slot) => acc + Number(slot.minutos || 0), 0);
+  const minutosDia = slots.reduce((acc, slot) => acc + getSlotMinutes(slot, 0), 0);
   const hoje = getHoje();
   const offset = (dia.idx - hoje.getDay() + 7) % 7;
   const isHoje = offset === 0;
@@ -186,7 +190,7 @@ const DayColumn = ({
       onDragOver={(event) => event.preventDefault()}
       onDrop={(event) => onDropDisciplina(event, dia.idx)}
       onClick={() => activateDay(true)}
-      className={`relative flex min-h-[360px] w-[216px] shrink-0 flex-col overflow-hidden rounded-[18px] border p-2 transition-all duration-300 sm:min-h-[520px] sm:w-[320px] sm:rounded-[20px] sm:p-2.5 lg:min-h-[540px] xl:w-[344px] xl:min-h-[580px] ${
+      className={`relative flex min-h-[340px] w-[216px] shrink-0 flex-col overflow-hidden rounded-[18px] border p-2 transition-all duration-300 sm:min-h-[480px] sm:w-[300px] sm:rounded-[20px] sm:p-2.5 lg:min-h-[470px] lg:w-[264px] xl:min-h-[500px] xl:w-[280px] ${
         selected || isHoje
           ? 'border-zinc-300 bg-white/80 shadow-md ring-1 ring-zinc-300/70 dark:border-zinc-700 dark:bg-zinc-950/50 dark:ring-zinc-700/60'
           : 'border-zinc-200 bg-zinc-50/70 shadow-sm hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-950/30 dark:hover:border-zinc-700'
@@ -339,7 +343,7 @@ export default function StepModoMontagem({
   ), [disciplinas, extraDisciplinas, disciplinaCores]);
   const totalBlocos = Object.values(grade).reduce((acc, slots) => acc + (Array.isArray(slots) ? slots.length : 0), 0);
   const totalMinutos = Object.values(grade).reduce(
-    (acc, slots) => acc + (Array.isArray(slots) ? slots.reduce((sum, slot) => sum + Number(slot.minutos || 0), 0) : 0),
+    (acc, slots) => acc + (Array.isArray(slots) ? slots.reduce((sum, slot) => sum + getSlotMinutes(slot, 0), 0) : 0),
     0,
   );
   const disciplinaToque = useMemo(
@@ -591,9 +595,9 @@ export default function StepModoMontagem({
               id: 'personalizado',
               title: 'Montagem personalizada',
               subtitle: 'Controle por dia',
-              desc: 'Voce arrasta disciplinas para uma semana vazia e controla cada bloco.',
+              desc: 'Ideal para quem ja tem um cronograma pronto em outro lugar e quer adicionar na plataforma.',
               icon: CalendarDays,
-              benefits: ['Cards grandes por dia', 'Arraste disciplinas', 'Edite as horas por bloco'],
+              benefits: ['Agenda pronta externa', 'Arraste disciplinas', 'Edite as horas por bloco'],
             },
           ].map((option) => {
             const Icon = option.icon;
@@ -694,7 +698,7 @@ export default function StepModoMontagem({
               </div>
             </div>
 
-            <div className="grid min-h-0 flex-1 gap-2 lg:grid-cols-[minmax(0,1fr)_240px] xl:grid-cols-[minmax(0,1fr)_260px]">
+            <div className="grid min-h-0 flex-1 gap-2 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_360px]">
               <div
                 ref={weekScrollRef}
                 onPointerDown={handleWeekPointerDown}
@@ -775,7 +779,7 @@ export default function StepModoMontagem({
                       />
                     </label>
                     <span className="min-w-0 flex-1 text-left">
-                      <span className="block truncate text-[7px] font-black uppercase tracking-normal text-zinc-700 dark:text-zinc-200 sm:text-[9px] sm:tracking-wide lg:text-[10px]">
+                      <span className="block line-clamp-2 text-[7px] font-black uppercase leading-tight tracking-normal text-zinc-700 dark:text-zinc-200 sm:text-[9px] sm:tracking-wide lg:text-[10px]">
                         {disciplina.nome}
                       </span>
                       <span className="mt-0.5 hidden truncate text-[9px] font-bold uppercase tracking-widest text-zinc-400 sm:block">

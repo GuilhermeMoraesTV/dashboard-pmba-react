@@ -414,25 +414,22 @@ const TelaCatalogo = ({ modelos, carregando, idConfirmado, onConfirmar, onAbrirS
       <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-6 w-full mx-auto">
         <h2 className="text-4xl sm:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-[0.95] mb-3">Catálogo de<br /><span className="text-red-600">Editais</span></h2>
         <p className="text-zinc-500 dark:text-zinc-400 text-base sm:text-sm font-semibold leading-relaxed max-w-md mx-auto mb-5">Selecione o concurso, confira cargo e descrição, e organize sua preparação.</p>
-        <div className="flex items-center justify-center gap-3">
-           <div className="relative w-full max-w-xl group">
+        <div className="mx-auto flex w-full max-w-4xl flex-col items-stretch justify-center gap-3 px-1 lg:flex-row lg:items-center">
+           <div className="relative w-full min-w-0 flex-1 group">
               <input type="text" value={busca} onChange={e => setBusca(e.target.value)} placeholder="BUSCAR CONCURSO (EX: PMBA, PCSP, PRF...)" className="w-full px-10 py-4 bg-white dark:bg-zinc-900 border-2 border-zinc-100 dark:border-zinc-800 rounded-2xl text-xs font-black uppercase tracking-widest text-zinc-900 dark:text-white placeholder:text-zinc-400 focus:border-red-600 outline-none transition-all shadow-xl shadow-zinc-900/5 dark:shadow-none" />
               {busca && <button onClick={() => setBusca('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-red-600"><X size={16} strokeWidth={3} /></button>}
            </div>
+          <button
+            onClick={onAbrirSuporte}
+            className="inline-flex h-[52px] items-center justify-center gap-2.5 rounded-2xl bg-zinc-900 px-4 text-white shadow-lg shadow-zinc-900/20 transition-all active:scale-95 dark:bg-zinc-100 dark:text-zinc-900 border border-white/10 dark:border-zinc-300 group lg:w-auto lg:shrink-0"
+          >
+            <div className="w-6 h-6 rounded-full bg-red-600 flex items-center justify-center shrink-0 shadow-lg shadow-red-600/30 group-hover:rotate-12 transition-transform">
+              <MessageSquare size={12} strokeWidth={3} className="text-white" />
+            </div>
+            <p className="text-[9px] font-black uppercase tracking-[0.12em] whitespace-nowrap">Edital não listado? <span className="text-red-500 ml-1">Fale conosco</span></p>
+            <ChevronRight size={12} strokeWidth={3} className="text-zinc-400 dark:text-zinc-600 group-hover:translate-x-1 transition-transform" />
+          </button>
         </div>
-      </motion.div>
-
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-7 flex justify-center px-1">
-        <button
-          onClick={onAbrirSuporte}
-          className="inline-flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 shadow-lg shadow-zinc-900/20 active:scale-95 transition-all border border-white/10 dark:border-zinc-300 group"
-        >
-          <div className="w-6 h-6 rounded-full bg-red-600 flex items-center justify-center shrink-0 shadow-lg shadow-red-600/30 group-hover:rotate-12 transition-transform">
-            <MessageSquare size={12} strokeWidth={3} className="text-white" />
-          </div>
-          <p className="text-[9px] font-black uppercase tracking-[0.12em] whitespace-nowrap">Edital não listado? <span className="text-red-500 ml-1">Fale conosco</span></p>
-          <ChevronRight size={12} strokeWidth={3} className="text-zinc-400 dark:text-zinc-600 group-hover:translate-x-1 transition-transform" />
-        </button>
       </motion.div>
       <div className="space-y-4">
         {carregando ? (

@@ -124,6 +124,10 @@ function getLabelTipo(item) {
 }
 
 const isReviewSlot = (item) => Boolean(item?.isRevisao || item?.isRevisaoAuto || item?.isConsolidada);
+const getStudyItems = (items = []) => items.filter((item) => !isReviewSlot(item));
+const getStudyMinutesTotal = (items = []) => (
+  getStudyItems(items).reduce((acc, item) => acc + Number(item.tempoMinutos || item.minutosEstudo || 0), 0)
+);
 
 const topicosFromReviewSlot = (item) => {
   const dadosSlot = {
@@ -600,11 +604,12 @@ const Step5_Preview = ({
                 const key  = isoKey(data);
                 const items = displayAgenda[key] || [];
                 const hoje = isoKey(new Date()) === key;
-                const totalDia = items.reduce((acc, i) => acc + (i.tempoMinutos || 0), 0);
+                const totalDia = getStudyMinutesTotal(items);
+                const totalBlocosEstudo = getStudyItems(items).length;
 
                 return (
                   <div key={diaOffset} onDragOver={(e) => e.preventDefault()} onDrop={(e) => onDrop(e, key)}
-                    className={`relative flex min-h-[300px] min-w-[176px] max-w-[176px] flex-col rounded-[16px] border p-1.5 transition-all duration-300 sm:min-h-[500px] sm:min-w-[300px] sm:max-w-[300px] sm:rounded-[18px] sm:p-2 xl:min-w-[324px] xl:max-w-[324px] ${hoje ? 'border-red-500/60 bg-white/70 shadow-md ring-1 ring-red-500/30 dark:bg-zinc-950/40' : 'border-zinc-200 bg-zinc-50/70 shadow-sm hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-950/30 dark:hover:border-zinc-700'}`}
+                    className={`relative flex min-h-[280px] min-w-[168px] max-w-[168px] flex-col rounded-[16px] border p-1.5 transition-all duration-300 sm:min-h-[440px] sm:min-w-[260px] sm:max-w-[260px] sm:rounded-[18px] sm:p-2 xl:min-w-[284px] xl:max-w-[284px] ${hoje ? 'border-red-500/60 bg-white/70 shadow-md ring-1 ring-red-500/30 dark:bg-zinc-950/40' : 'border-zinc-200 bg-zinc-50/70 shadow-sm hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-950/30 dark:hover:border-zinc-700'}`}
                   >
                     <div className={`mb-1.5 shrink-0 rounded-[14px] border px-2.5 py-2 shadow-sm transition-all duration-300 sm:mb-3 sm:rounded-[20px] sm:px-4 sm:py-3 ${hoje ? 'border-red-500/60 bg-zinc-950 text-white dark:border-red-500/40 dark:bg-zinc-900' : 'border-zinc-800 bg-zinc-900 text-white dark:border-zinc-800 dark:bg-zinc-900'}`}>
                       {hoje && (
@@ -638,9 +643,9 @@ const Step5_Preview = ({
                             <span className="rounded bg-white px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide text-red-600 shadow-sm sm:px-2 sm:text-[9px] sm:tracking-widest">
                               Hoje
                             </span>
-                          ) : items.length > 0 ? (
+                          ) : totalBlocosEstudo > 0 ? (
                             <div className="rounded bg-white/10 px-1.5 py-0.5 text-[8px] font-black text-white sm:px-2 sm:text-[10px]">
-                              {items.length} blocos
+                              {totalBlocosEstudo} blocos
                             </div>
                           ) : null}
                         </div>
@@ -693,7 +698,7 @@ const Step5_Preview = ({
                 const isMesAtual = dayObj.type === 'current';
                 const hoje = isoKey(new Date()) === key;
                 const diaNome = DIAS_CURTO[data.getDay()];
-                const totalDia = items.reduce((acc, i) => acc + (i.tempoMinutos || 0), 0);
+                const totalDia = getStudyMinutesTotal(items);
                 const resumoPorDiscMap = {};
                 items.forEach((item) => {
                   const nome = getNomeDisc(item);
@@ -805,7 +810,7 @@ const Step5_Preview = ({
                             </h4>
                             {items.length > 0 && config?.modoExibirTempo !== 'nenhum' && (
                               <div className="text-[10px] font-black bg-zinc-50 dark:bg-zinc-800 px-2 py-1 rounded-lg text-zinc-600 dark:text-zinc-300 border border-zinc-100 dark:border-zinc-700">
-                                Total: {fmtMin(items.reduce((a, b) => a + (b.tempoMinutos || 0), 0))}
+                                Total: {fmtMin(getStudyMinutesTotal(items))}
                               </div>
                             )}
                           </div>
