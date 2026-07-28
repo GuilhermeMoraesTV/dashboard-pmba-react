@@ -140,6 +140,7 @@ export async function syncRegistroEstudoWithCronograma({
   let minutosAbatidos = 0;
   const updates = {};
   const pendenciasTeoria = cronograma?.pendenciasTeoria || {};
+  let lastTouchedSlot = null;
 
   for (const slot of slotsOrdenados) {
     if (!shouldForceComplete && minutosRestantes <= 0) break;
@@ -150,11 +151,41 @@ export async function syncRegistroEstudoWithCronograma({
     const minutosPlanejados = Number(slot.tempoMinutos ?? slot.minutosEstudo ?? 0);
     if (minutosPlanejados <= 0) continue;
 
-    const wasDone = progressoW[slotKey] === true;
-    const progressoAtual = Number(progressoMinutosW[slotKey] || 0);
+    const wasDone = Boolean(
+      progressoW[slotKey] === true ||
+      progressoW[slot.slotId] === true ||
+      (slot.slotIdBase && progressoW[slot.slotIdBase] === true)
+    );
+    const progressoAtual = Math.max(
+      Number(progressoMinutosW[slotKey] || 0),
+      Number(slot.slotId ? progressoMinutosW[slot.slotId] || 0 : 0),
+      Number(slot.slotIdBase ? progressoMinutosW[slot.slotIdBase] || 0 : 0),
+      Number(slot.progressoMinutos || 0)
+    );
     const progressoBase = wasDone ? Math.max(progressoAtual, minutosPlanejados) : progressoAtual;
     const faltantes = Math.max(0, minutosPlanejados - progressoBase);
-    if (faltantes <= 0) continue;
+    if (faltantes <= 0) {
+      if (!shouldForceComplete && minutosRestantes > 0) {
+        const nextProgress = progressoBase + minutosRestantes;
+        updates[`progressoMinutos.${semKey}.${slotKey}`] = nextProgress;
+        updates[`progresso.${semKey}.${slotKey}`] = true;
+        if (slot.slotId && slot.slotId !== slotKey) {
+          updates[`progressoMinutos.${semKey}.${slot.slotId}`] = nextProgress;
+          updates[`progresso.${semKey}.${slot.slotId}`] = true;
+        }
+        lastTouchedSlot = { slot, slotKey };
+        minutosAbatidos += minutosRestantes;
+        minutosRestantes = 0;
+        break;
+      }
+      if (!wasDone && progressoBase >= minutosPlanejados) {
+        updates[`progresso.${semKey}.${slotKey}`] = true;
+        if (slot.slotId && slot.slotId !== slotKey) {
+          updates[`progresso.${semKey}.${slot.slotId}`] = true;
+        }
+      }
+      continue;
+    }
 
     const incremento = shouldForceComplete ? faltantes : Math.min(faltantes, minutosRestantes);
     const novoProgresso = progressoBase + incremento;
@@ -162,6 +193,7 @@ export async function syncRegistroEstudoWithCronograma({
 
     updates[`progressoMinutos.${semKey}.${slotKey}`] = novoProgresso;
     updates[`progresso.${semKey}.${slotKey}`] = concluiu;
+    lastTouchedSlot = { slot, slotKey };
     if (slot.slotId && slot.slotId !== slotKey) {
       updates[`progressoMinutos.${semKey}.${slot.slotId}`] = novoProgresso;
       updates[`progresso.${semKey}.${slot.slotId}`] = concluiu;
@@ -176,6 +208,18 @@ export async function syncRegistroEstudoWithCronograma({
 
     if (!shouldForceComplete) minutosRestantes -= incremento;
     minutosAbatidos += incremento;
+  }
+
+  if (!shouldForceComplete && minutosRestantes > 0 && lastTouchedSlot) {
+    const { slot, slotKey } = lastTouchedSlot;
+    const currentProgress = Number(updates[`progressoMinutos.${semKey}.${slotKey}`] || progressoMinutosW[slotKey] || 0);
+    const nextProgress = currentProgress + minutosRestantes;
+    updates[`progressoMinutos.${semKey}.${slotKey}`] = nextProgress;
+    if (slot.slotId && slot.slotId !== slotKey) {
+      updates[`progressoMinutos.${semKey}.${slot.slotId}`] = nextProgress;
+    }
+    minutosAbatidos += minutosRestantes;
+    minutosRestantes = 0;
   }
 
   if (!Object.keys(updates).length) return { synced: false, reason: 'nothing-to-update' };

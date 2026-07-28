@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   ChevronLeft, ChevronRight, Play, CheckCircle2, Hourglass,
   Layers, Bookmark, Plus, Zap, Map as MapIcon, CalendarDays, Shield,
@@ -19,7 +19,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import {
   collection, query, where, onSnapshot,
-  writeBatch, doc, updateDoc, getDoc,
+  writeBatch, doc, updateDoc, getDoc, getDocs, limit,
   deleteDoc,
 } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
@@ -30,15 +30,27 @@ import HistoricoModal from '../components/dashboard/HistoricoModal';
 import { useCronogramaSystem, getAgendaSemana, chaveAssuntoDominado } from '../hooks/useCronogramaSystem';
 import { buildCompletionRegistro } from '../utils/completionRegistro';
 import { getDisciplineCardVars, getDisciplineColor, getDisciplineColorForSlot } from '../utils/disciplineColors';
+import { openCronogramaWeekPdf } from './CronogramaWeekPdf';
+import { resolveLogoUrl } from '../components/admin/config/editalAssets';
+import DailyGoalCompletedModal from '../components/shared/DailyGoalCompletedModal.jsx';
+import { getCronogramaSlotRecordedMinutes } from '../utils/studyDayStatus';
 
-// ─── CONSTANTES ───────────────────────────────────────────────────────────────
+// --- CONSTANTES ---------------------------------------------------------------
 const MESES_PT   = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const MESES_FULL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 const DIAS_CURTO = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 const DIAS_LONGO = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
 const INTERVALOS_REVISAO = [1, 7, 30];
+const getCronogramaTemplateId = (cronograma) => (
+  cronograma?.editalId
+  || cronograma?.templateId
+  || cronograma?.templateOrigem
+  || cronograma?.templateOrigemId
+  || cronograma?.editalBaseId
+  || null
+);
 
-// ─── UTILITÁRIOS ──────────────────────────────────────────────────────────────
+// --- UTILITÁRIOS --------------------------------------------------------------
 const getCalendarDays = (year, month) => {
   const first    = new Date(year, month, 1);
   const last     = new Date(year, month + 1, 0);
@@ -73,6 +85,14 @@ const dateToYMDLocal = (date) => {
   const d = new Date(date);
   d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
   return d.toISOString().split('T')[0];
+};
+
+const getRegistroDateKey = (registro) => {
+  if (registro?.data) return registro.data;
+  if (registro?.dataRegistro) return registro.dataRegistro;
+  if (registro?.timestamp?.toDate) return dateToYMDLocal(registro.timestamp.toDate());
+  if (registro?.createdAt?.toDate) return dateToYMDLocal(registro.createdAt.toDate());
+  return null;
 };
 
 const formatarDataHeader = (data) => {
@@ -140,32 +160,6 @@ const calcularDataFimConteudoCronograma = (cronograma) => {
   return ultimaData ? dateToYMDLocal(ultimaData) : null;
 };
 
-const CronogramaDiaConcluidoCard = ({ className = '', title = 'Cronograma do dia finalizado' }) => (
-  <motion.div
-    initial={{ opacity: 0, y: -8 }}
-    animate={{ opacity: 1, y: 0 }}
-    className={`relative overflow-hidden rounded-2xl border border-emerald-300/70 bg-gradient-to-br from-emerald-500 via-green-500 to-teal-500 p-4 text-center text-white shadow-xl shadow-emerald-500/20 sm:p-5 ${className}`}
-  >
-    <motion.div
-      className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.35),transparent_36%)]"
-      animate={{ opacity: [0.45, 0.75, 0.45] }}
-      transition={{ duration: 2.4, repeat: Infinity }}
-    />
-    <motion.div
-      className="relative mx-auto mb-2.5 flex h-11 w-11 items-center justify-center rounded-full bg-white text-emerald-600 shadow-lg"
-      animate={{ scale: [1, 1.08, 1], rotate: [0, -3, 3, 0] }}
-      transition={{ duration: 1.9, repeat: Infinity }}
-    >
-      <Trophy size={22} />
-    </motion.div>
-    <p className="relative text-[9px] font-black uppercase tracking-[0.24em] text-white/80">Meta do dia completa</p>
-    <h3 className="relative mt-1 text-base font-black uppercase tracking-tight">{title}</h3>
-    <p className="relative mt-1.5 text-[11px] font-semibold uppercase tracking-wider text-white/75">
-      Estudo e revisao foram finalizados.
-    </p>
-  </motion.div>
-);
-
 const getNomeDisc = (item) => {
   if (item?.isConsolidada) return 'Revisão Consolidada';
   if (item?.isRevisao || item?.isRevisaoAuto) return item?.disciplinaNome || 'Revisão';
@@ -221,6 +215,45 @@ const cronogramaCollisionDetection = (args) => {
   return closestCorners(args);
 };
 
+const getTaskPlannedMinutes = (tarefa) => Number(
+  tarefa?.tempoPlanejadoMinutos ?? tarefa?.tempoMinutos ?? tarefa?.minutosEstudo ?? 0
+);
+
+const getTaskProgressMinutes = (tarefa) => {
+  const tempo = getTaskPlannedMinutes(tarefa);
+  const progressoRaw = Number(tarefa?.progressoMinutos || 0);
+  if (tarefa?.concluido) return Math.max(progressoRaw, tempo);
+  return Math.min(progressoRaw, tempo || progressoRaw);
+};
+
+const getDayStudySummary = (date, tarefas = []) => {
+  const total = tarefas.length;
+  const concluidos = tarefas.filter((tarefa) => tarefa.concluido).length;
+  const totalMinutos = tarefas.reduce((acc, tarefa) => acc + getTaskPlannedMinutes(tarefa), 0);
+  const progressoMinutos = tarefas.reduce((acc, tarefa) => acc + getTaskProgressMinutes(tarefa), 0);
+  const progresso = totalMinutos > 0 ? Math.round((progressoMinutos / totalMinutos) * 100) : (total > 0 ? Math.round((concluidos / total) * 100) : 0);
+  const todoConcluido = total > 0 && concluidos === total;
+  const dayDate = new Date(date);
+  dayDate.setHours(0, 0, 0, 0);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const isPast = dayDate.getTime() < today.getTime();
+  const status = todoConcluido ? 'done' : total > 0 && isPast ? 'late' : total > 0 ? 'pending' : 'empty';
+  const label = status === 'done' ? 'Concluido' : status === 'late' ? 'Atrasado' : status === 'pending' ? 'Pendente' : 'Livre';
+
+  return {
+    total,
+    concluidos,
+    totalMinutos,
+    progressoMinutos,
+    progresso,
+    todoConcluido,
+    isPast,
+    status,
+    label,
+  };
+};
+
 const formatarDataCurta = (data) => {
   if (!data) return 'Data não definida';
   const d = typeof data === 'string' ? new Date(`${data}T12:00:00`) : new Date(data);
@@ -244,7 +277,7 @@ const somarDias = (data, dias) => {
   return nova;
 };
 
-// ─── MODAL DE CONFIRMAÇÃO ──────────────────────────────────────────────────────
+// --- MODAL DE CONFIRMAÇÃO ------------------------------------------------------
 const ModalConfirm = ({ msg, onConfirm, onCancel, loading, title = 'Confirmar ação', confirmLabel = 'Confirmar', confirmIcon: ConfirmIcon = Trash2, tone = 'red' }) => (
   <motion.div
     initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -270,7 +303,7 @@ const ModalConfirm = ({ msg, onConfirm, onCancel, loading, title = 'Confirmar a�
   </motion.div>
 );
 
-// ─── ESTADO VAZIO ──────────────────────────────────────────────────────────────
+// --- ESTADO VAZIO --------------------------------------------------------------
 const EstadoVazio = ({ onNovo }) => (
   <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col items-center justify-center min-h-[60vh] p-8 text-center">
     <div className="relative mb-8">
@@ -289,7 +322,7 @@ const EstadoVazio = ({ onNovo }) => (
   </motion.div>
 );
 
-// ─── MODAL DE REVISÃO CONSOLIDADA ─────────────────────────────────────────────
+// --- MODAL DE REVISÃO CONSOLIDADA ---------------------------------------------
 const ModalRevisaoConsolidada = ({ slot, onClose, onDominar, onStart, onToggle, dominiosLocal, toggleLoadingId, optimisticDone = {} }) => {
   if (!slot?.isConsolidada) return null;
 
@@ -434,7 +467,7 @@ const ModalRevisaoConsolidada = ({ slot, onClose, onDominar, onStart, onToggle, 
   );
 };
 
-// ─── CARD DE TAREFA ARRASTÁVEL ─────────────────────────────────────────────────
+// --- CARD DE TAREFA ARRASTÁVEL -------------------------------------------------
 const TarefaCardDraggable = ({
   tarefa,
   onToggle,
@@ -471,6 +504,9 @@ const TarefaCardDraggable = ({
   const tempoPlanejadoMinutos = Number(tarefa.tempoPlanejadoMinutos ?? tarefa.tempoMinutos ?? tarefa.minutosEstudo ?? 0);
   const progressoAtualMinutos = Number(tarefa.progressoMinutos || 0);
   const progressoLimitado = Math.min(progressoAtualMinutos, tempoPlanejadoMinutos || progressoAtualMinutos);
+  const progressoExibidoMinutos = tarefa.concluido
+    ? Math.max(progressoAtualMinutos, tempoPlanejadoMinutos)
+    : progressoLimitado;
   const progressoPercentual = tempoPlanejadoMinutos > 0
     ? Math.min(100, Math.round((progressoLimitado / tempoPlanejadoMinutos) * 100))
     : (tarefa.concluido ? 100 : 0);
@@ -569,7 +605,7 @@ const TarefaCardDraggable = ({
             <div className="min-w-0 flex-1">
               <div className="mb-1 flex items-center justify-between gap-2 text-[10px] font-bold text-zinc-500 dark:text-zinc-400">
                 <span className="font-black tabular-nums">
-                  {formatarDuracao(tarefa.concluido ? tempoPlanejadoMinutos : progressoLimitado)} / {formatarDuracao(tempoPlanejadoMinutos)}
+                  {formatarDuracao(progressoExibidoMinutos)} / {formatarDuracao(tempoPlanejadoMinutos)}
                 </span>
                 <span className="text-[11px] font-black tabular-nums">
                   {tarefa.concluido ? 100 : progressoPercentual}%
@@ -657,9 +693,10 @@ const ModalDetalhesCronograma = ({ slot, cronograma, onClose, onStart, onToggle,
   const accentProgressClass = useDisciplineTheme ? disciplinaColor.progress : 'bg-blue-500';
   const isToggleLoading = toggleLoadingId === (slot.slotIdBase || slot.slotId);
   const tempoPlanejado = Number(slot.tempoPlanejadoMinutos ?? slot.tempoMinutos ?? slot.minutosEstudo ?? 0);
+  const progressoRaw = Number(slot.progressoMinutos || 0);
   const progressoMinutos = slotAtual.concluido
-    ? tempoPlanejado
-    : Math.min(Number(slot.progressoMinutos || 0), tempoPlanejado || Number(slot.progressoMinutos || 0));
+    ? Math.max(progressoRaw, tempoPlanejado)
+    : Math.min(progressoRaw, tempoPlanejado || progressoRaw);
   const progressoPercentual = tempoPlanejado > 0
     ? Math.min(100, Math.round((progressoMinutos / tempoPlanejado) * 100))
     : (slotAtual.concluido ? 100 : 0);
@@ -925,7 +962,8 @@ const SortableTarefaCard = ({ tarefa, diaSemanaIdx, ...props }) => {
 
   const style = {
     transform: CSS.Transform.toString(sortable.transform),
-    transition: sortable.transition,
+    transition: sortable.isDragging ? undefined : sortable.transition,
+    willChange: sortable.isDragging ? 'transform' : undefined,
   };
 
   return (
@@ -1031,19 +1069,16 @@ const RevisoesAgrupadasCard = ({ revisoes = [], onOpenConsolidada }) => {
 const DayDropZone = ({
   diaSemanaIdx, date, tarefas, isHoje,
   onToggle, onMarkPendencia, onStart,
-  onDominar, onOpenConsolidada, onOpenDetails, cronograma, toggleLoadingId
+  onDominar, onOpenConsolidada, onOpenDetails, onOpenCompletion, cronograma, toggleLoadingId
 }) => {
-  const concluidos    = tarefas.filter(t => t.concluido).length;
-  const total         = tarefas.length;
-  const totalMinutosDia = tarefas.reduce((acc, tarefa) => (
-    acc + Number(tarefa.tempoMinutos ?? tarefa.tempoPlanejadoMinutos ?? tarefa.minutosEstudo ?? 0)
-  ), 0);
-  const progressoMinutosDia = tarefas.reduce((acc, tarefa) => {
-    const tempo = Number(tarefa.tempoMinutos ?? tarefa.tempoPlanejadoMinutos ?? tarefa.minutosEstudo ?? 0);
-    const progresso = tarefa.concluido ? tempo : Math.min(Number(tarefa.progressoMinutos || 0), tempo || Number(tarefa.progressoMinutos || 0));
-    return acc + progresso;
-  }, 0);
-  const todoConcluido = total > 0 && concluidos === total;
+  const resumoDia = getDayStudySummary(date, tarefas);
+  const {
+    concluidos,
+    total,
+    totalMinutos: totalMinutosDia,
+    progresso,
+    todoConcluido,
+  } = resumoDia;
   const { isOver, setNodeRef } = useDroppable({
     id: `day-${diaSemanaIdx}`,
     data: {
@@ -1052,7 +1087,6 @@ const DayDropZone = ({
     },
   });
   const draggablesNoDia = tarefas.filter(isMovableTask).map(getDragTaskId);
-  const progresso = totalMinutosDia > 0 ? Math.round((progressoMinutosDia / totalMinutosDia) * 100) : 0;
   const revisoesAgrupadas = tarefas.filter((tarefa) => tarefa.isRevisao || tarefa.isRevisaoAuto || tarefa.isConsolidada);
   const tarefasVisiveis = tarefas.filter((tarefa) => !(tarefa.isRevisao || tarefa.isRevisaoAuto || tarefa.isConsolidada));
 
@@ -1077,7 +1111,10 @@ const DayDropZone = ({
         }`} />
       )}
       {/* Header do dia */}
-      <div className={`mb-3 shrink-0 rounded-2xl px-4 py-3 transition-all duration-300 border shadow-sm
+      <div
+        onClick={() => todoConcluido && onOpenCompletion?.({ date, tarefas })}
+        title={todoConcluido ? 'Ver resumo da meta concluida' : undefined}
+        className={`mb-3 shrink-0 rounded-2xl px-4 py-3 transition-all duration-300 border shadow-sm ${todoConcluido ? 'cursor-pointer hover:shadow-emerald-500/20' : ''}
         ${todoConcluido
           ? isHoje
             ? 'bg-emerald-700 text-white border-emerald-400/50 dark:bg-emerald-900 dark:text-white dark:border-emerald-500/40'
@@ -1101,6 +1138,12 @@ const DayDropZone = ({
             </div>
 
           <div className="flex flex-col items-end gap-2">
+            {todoConcluido && (
+              <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-100 px-2 py-1 text-[9px] font-black uppercase tracking-widest text-emerald-700 shadow-sm dark:bg-emerald-500/20 dark:text-emerald-200">
+                <CheckCircle2 size={12} />
+                Concluido
+              </span>
+            )}
             <div className={`rounded-lg border px-2 py-1.5 ${
               isHoje
                 ? 'border-white/20 bg-white/10 text-white dark:border-white/10 dark:bg-white/10 dark:text-white'
@@ -1122,14 +1165,6 @@ const DayDropZone = ({
                 </div>
               </div>
             </div>
-            {todoConcluido && !isHoje && (
-              <motion.div
-                initial={{ scale: 0 }} animate={{ scale: 1 }}
-                className="w-6 h-6 rounded-full bg-emerald-100 dark:bg-emerald-500/20 flex items-center justify-center"
-              >
-                <CheckCircle2 size={14} className="text-emerald-600 dark:text-emerald-400"/>
-              </motion.div>
-            )}
             {total > 0 && !todoConcluido && (
               <div className="rounded bg-white/10 px-2 py-0.5 text-[10px] font-black text-white">
                 {concluidos}/{total}
@@ -1163,13 +1198,6 @@ const DayDropZone = ({
         ) : (
           <SortableContext items={draggablesNoDia} strategy={verticalListSortingStrategy}>
             <AnimatePresence>
-              {todoConcluido && (
-                <CronogramaDiaConcluidoCard
-                  key={`completed-${diaSemanaIdx}`}
-                  className="mb-3"
-                  title="cronograma finalizado"
-                />
-              )}
               {revisoesAgrupadas.length > 0 && (
                 <RevisoesAgrupadasCard
                   key={`reviews-${diaSemanaIdx}`}
@@ -1232,13 +1260,15 @@ const DayDropZone = ({
   );
 };
 
-// ─── VISUALIZAÇÃO MENSAL ───────────────────────────────────────────────────────
+// --- VISUALIZAÇÃO MENSAL -------------------------------------------------------
 const VisualizacaoMensal = ({ cronograma, dataInicio, onStart }) => {
   const [mesAtual, setMesAtual] = useState(() => new Date());
   const [diaSelecionado, setDiaSelecionado] = useState(null);
 
   const days = useMemo(() => getCalendarDays(mesAtual.getFullYear(), mesAtual.getMonth()), [mesAtual]);
-  const hoje = new Date().toDateString();
+  const hojeDate = new Date();
+  hojeDate.setHours(0, 0, 0, 0);
+  const hoje = hojeDate.toDateString();
 
   const corPorDisciplina = useMemo(() => {
     const mapa = {};
@@ -1388,7 +1418,12 @@ const VisualizacaoMensal = ({ cronograma, dataInicio, onStart }) => {
               const totalMinutosDia = slots.reduce((acc, slot) => acc + Number(slot.tempoMinutos ?? slot.minutosEstudo ?? 0), 0);
               const temRevisao = agendaMes.revisoesPorData.has(dataKey) && isMesAtual;
               const concluidos = slots.filter((slot) => slot.concluido).length;
-              const diaCompleto = slots.length > 0 && concluidos === slots.length;
+              const resumoDia = getDayStudySummary(item.date, slots);
+              const diaCompleto = resumoDia.todoConcluido;
+              const diaAtrasado = resumoDia.status === 'late';
+              const diaPendente = resumoDia.status === 'pending' && isHoje;
+              const statusLabel = resumoDia.label;
+              const statusColor = diaCompleto ? 'emerald' : diaAtrasado ? 'red' : diaPendente ? 'amber' : 'zinc';
               const resumoPorDiscMap = {};
 
               slots.forEach((slot) => {
@@ -1418,6 +1453,10 @@ const VisualizacaoMensal = ({ cronograma, dataInicio, onStart }) => {
                   className={`group relative min-h-[92px] overflow-hidden rounded-xl border p-1.5 text-left transition-all sm:min-h-[150px] sm:p-2 ${
                     diaCompleto
                       ? 'border-emerald-300 bg-emerald-50/70 shadow-sm dark:border-emerald-900/45 dark:bg-emerald-950/15'
+                      : diaAtrasado
+                      ? 'border-red-300 bg-red-50/80 shadow-sm dark:border-red-900/45 dark:bg-red-950/15'
+                      : diaPendente
+                      ? 'border-amber-300 bg-amber-50/80 shadow-sm dark:border-amber-900/45 dark:bg-amber-950/15'
                       : isHoje
                       ? 'border-red-500 bg-red-50 shadow-sm ring-1 ring-red-500/30 dark:bg-red-500/10'
                       : isMesAtual
@@ -1425,14 +1464,20 @@ const VisualizacaoMensal = ({ cronograma, dataInicio, onStart }) => {
                       : 'border-transparent bg-zinc-50 opacity-35 dark:bg-zinc-950'
                   } ${isSelected ? 'ring-2 ring-red-500 ring-offset-2 ring-offset-zinc-50 dark:ring-red-500 dark:ring-offset-zinc-950' : ''}`}
                 >
-                  {(isHoje || diaCompleto) && (
-                    <div className={`pointer-events-none absolute inset-x-2 top-0 h-1 rounded-b-full ${diaCompleto ? 'bg-emerald-500' : 'bg-red-600'}`} />
+                  {(isHoje || diaCompleto || diaAtrasado || diaPendente) && (
+                    <div className={`pointer-events-none absolute inset-x-2 top-0 h-1 rounded-b-full ${
+                      statusColor === 'emerald' ? 'bg-emerald-500' : statusColor === 'red' ? 'bg-red-600' : statusColor === 'amber' ? 'bg-amber-500' : 'bg-zinc-500'
+                    }`} />
                   )}
 
                   <div className="relative z-10 mb-2 flex items-start justify-between gap-2">
                     <span className={`flex h-7 w-7 items-center justify-center rounded-lg text-sm font-black ${
                       diaCompleto
                         ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-600/20'
+                        : diaAtrasado
+                        ? 'bg-red-600 text-white shadow-sm shadow-red-600/20'
+                        : diaPendente
+                        ? 'bg-amber-500 text-white shadow-sm shadow-amber-500/20'
                         : isHoje
                         ? 'bg-red-600 text-white shadow-sm shadow-red-600/20'
                         : isMesAtual
@@ -1449,9 +1494,26 @@ const VisualizacaoMensal = ({ cronograma, dataInicio, onStart }) => {
                             {formatarDuracao(totalMinutosDia)}
                           </span>
                           <span className={`rounded-md px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide ${
-                            diaCompleto ? 'bg-emerald-600 text-white' : 'bg-zinc-900 text-white dark:bg-zinc-700'
+                            diaCompleto
+                              ? 'bg-emerald-600 text-white'
+                              : diaAtrasado
+                              ? 'bg-red-600 text-white'
+                              : diaPendente
+                              ? 'bg-amber-500 text-white'
+                              : 'bg-zinc-900 text-white dark:bg-zinc-700'
                           }`}>
                             {concluidos}/{slots.length}
+                          </span>
+                          <span className={`rounded-md px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide ${
+                            diaCompleto
+                              ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'
+                              : diaAtrasado
+                              ? 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300'
+                              : diaPendente
+                              ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300'
+                              : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400'
+                          }`}>
+                            {statusLabel}
                           </span>
                         </>
                       ) : isMesAtual ? (
@@ -1609,7 +1671,7 @@ const VisualizacaoMensal = ({ cronograma, dataInicio, onStart }) => {
   );
 };
 
-const VisualizacaoLista = ({ cronograma, weekDates, tarefasPorDia, onStart, onOpenConsolidada, onToggle, onMarkPendencia, onDominar, toggleLoadingId }) => {
+const VisualizacaoLista = ({ cronograma, weekDates, tarefasPorDia, onStart, onOpenConsolidada, onOpenCompletion, onToggle, onMarkPendencia, onDominar, toggleLoadingId }) => {
   const hojeDate = new Date();
   hojeDate.setHours(0, 0, 0, 0);
   const hojeStr = hojeDate.toDateString();
@@ -1646,7 +1708,7 @@ const VisualizacaoLista = ({ cronograma, weekDates, tarefasPorDia, onStart, onOp
   const totalProgresso = tarefasTimeline.reduce((acc, item) => {
     const tempo = Number(item.tarefa.tempoPlanejadoMinutos ?? item.tarefa.tempoMinutos ?? item.tarefa.minutosEstudo ?? 0);
     const progresso = item.tarefa.concluido
-      ? tempo
+      ? Math.max(Number(item.tarefa.progressoMinutos || 0), tempo)
       : Math.min(Number(item.tarefa.progressoMinutos || 0), tempo || Number(item.tarefa.progressoMinutos || 0));
     return acc + progresso;
   }, 0);
@@ -1731,7 +1793,8 @@ const VisualizacaoLista = ({ cronograma, weekDates, tarefasPorDia, onStart, onOp
         <div className="space-y-5 pb-6 sm:space-y-6 sm:pb-8">
           {diasComIndice.map(({ date, dia, tarefas, inicio, totalMinutos, concluidos, revisoes }) => {
             const hojeDia = date.toDateString() === hojeStr;
-            const diaCompleto = tarefas.length > 0 && concluidos === tarefas.length;
+            const resumoDia = getDayStudySummary(date, tarefas);
+            const diaCompleto = resumoDia.todoConcluido;
 
             return (
               <section
@@ -1744,7 +1807,10 @@ const VisualizacaoLista = ({ cronograma, weekDates, tarefasPorDia, onStart, onOp
                       : 'border-zinc-200 bg-white/70 dark:border-zinc-800 dark:bg-zinc-950/40'
                 }`}
               >
-                <div className={`flex flex-col gap-3 border-b px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5 ${
+                <div
+                  onClick={() => diaCompleto && onOpenCompletion?.({ date, tarefas })}
+                  title={diaCompleto ? 'Ver resumo da meta concluida' : undefined}
+                  className={`flex flex-col gap-3 border-b px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5 ${diaCompleto ? 'cursor-pointer' : ''} ${
                   diaCompleto
                       ? 'border-emerald-100 bg-emerald-50/70 dark:border-emerald-900/30 dark:bg-emerald-950/10'
                     : hojeDia
@@ -1765,6 +1831,12 @@ const VisualizacaoLista = ({ cronograma, weekDates, tarefasPorDia, onStart, onOp
                         {hojeDia && (
                           <span className="rounded-md bg-red-600 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-white">
                             Hoje
+                          </span>
+                        )}
+                        {diaCompleto && (
+                          <span className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-white">
+                            <CheckCircle2 size={11} />
+                            Concluido
                           </span>
                         )}
                       </div>
@@ -1801,16 +1873,10 @@ const VisualizacaoLista = ({ cronograma, weekDates, tarefasPorDia, onStart, onOp
                   </div>
                 </div>
 
-                <div className="relative px-3 py-4 sm:px-5">
+                  <div className="relative px-3 py-4 sm:px-5">
                   <div className="absolute bottom-4 left-[31px] top-4 w-0.5 bg-zinc-200 dark:bg-zinc-800 sm:left-[47px]" />
 
                   <div className="relative z-10 space-y-3 sm:space-y-4">
-                    {diaCompleto && (
-                      <CronogramaDiaConcluidoCard
-                        className="mb-4 ml-0 sm:ml-16"
-                        title="Cronograma finalizado"
-                      />
-                    )}
                     {tarefas.length === 0 && (
                       <div className="ml-0 rounded-2xl border border-dashed border-zinc-200 bg-white/70 px-4 py-4 text-sm font-semibold text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-400 sm:ml-16">
                         Hoje está livre no seu cronograma. Os próximos blocos aparecem abaixo.
@@ -1824,9 +1890,10 @@ const VisualizacaoLista = ({ cronograma, weekDates, tarefasPorDia, onStart, onOp
               const isCompleted = tarefa.concluido;
               const isActive = idx === activeIndex;
               const tempo = Number(tarefa.tempoPlanejadoMinutos ?? tarefa.tempoMinutos ?? tarefa.minutosEstudo ?? 0);
+              const progressoRaw = Number(tarefa.progressoMinutos || 0);
               const progressoMinutos = isCompleted
-                ? tempo
-                : Math.min(Number(tarefa.progressoMinutos || 0), tempo || Number(tarefa.progressoMinutos || 0));
+                ? Math.max(progressoRaw, tempo)
+                : Math.min(progressoRaw, tempo || progressoRaw);
               const progressoPercentual = tempo > 0
                 ? Math.min(100, Math.round((progressoMinutos / tempo) * 100))
                 : (isCompleted ? 100 : 0);
@@ -2098,10 +2165,7 @@ const SemanaHojeHero = ({ date, tarefas }) => {
           </div>
         </div>
 
-        {diaConcluido ? (
-          <CronogramaDiaConcluidoCard className="min-h-[136px] flex flex-col items-center justify-center" />
-        ) : (
-          <div className="relative flex min-h-[180px] items-center justify-center overflow-hidden rounded-3xl bg-zinc-950 p-5 text-white dark:bg-zinc-950">
+        <div className="relative flex min-h-[180px] items-center justify-center overflow-hidden rounded-3xl bg-zinc-950 p-5 text-white dark:bg-zinc-950">
             <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(127,29,29,0.92),rgba(24,24,27,0.98)_48%,rgba(9,9,11,1))]" />
             <div className="relative z-10 flex flex-col items-center text-center">
               <div className="relative mb-3 h-28 w-28">
@@ -2113,7 +2177,7 @@ const SemanaHojeHero = ({ date, tarefas }) => {
                     r="48"
                     fill="none"
                     stroke="currentColor"
-                    className="text-red-500"
+                    className={diaConcluido ? 'text-emerald-400' : 'text-red-500'}
                     strokeWidth="8"
                     strokeLinecap="round"
                     strokeDasharray={2 * Math.PI * 48}
@@ -2124,21 +2188,22 @@ const SemanaHojeHero = ({ date, tarefas }) => {
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
                   <span className="text-3xl font-black">{progresso}%</span>
-                  <span className="text-[9px] font-black uppercase tracking-widest text-white/50">Hoje</span>
+                  <span className="text-[9px] font-black uppercase tracking-widest text-white/50">
+                    {diaConcluido ? 'Concluido' : 'Hoje'}
+                  </span>
                 </div>
               </div>
-              <p className="text-xs font-black uppercase tracking-widest text-white/70">
+              <p className={`text-xs font-black uppercase tracking-widest ${diaConcluido ? 'text-emerald-200' : 'text-white/70'}`}>
                 {concluidos}/{total || 0} concluídos
               </p>
             </div>
-          </div>
-        )}
+        </div>
       </div>
     </motion.div>
   );
 };
 
-// ─── PÁGINA PRINCIPAL ──────────────────────────────────────────────────────────
+// --- PÁGINA PRINCIPAL ----------------------------------------------------------
 const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletionRegistro, registrosEstudo = [], onDeleteRegistro, onGoToEdital }) => {
   const [cronograma,        setCronograma]        = useState(null);
   const [loadingPage,       setLoadingPage]       = useState(true);
@@ -2161,14 +2226,16 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
   const [optimisticDone,    setOptimisticDone]    = useState({});
   const [configMenuOpen,    setConfigMenuOpen]    = useState(false);
   const [editInitialMode,   setEditInitialMode]   = useState('simple');
+  const [completionModalData, setCompletionModalData] = useState(null);
+  const [editalTemplateData, setEditalTemplateData] = useState(null);
 
   const weekScrollRef = useRef(null);
   const configMenuRef = useRef(null);
-  const weekPanRef = useRef({ active: false, startX: 0, scrollLeft: 0, pointerId: null });
+  const weekPanRef = useRef({ active: false, moved: false, startX: 0, currentX: 0, scrollLeft: 0, pointerId: null, rafId: null });
   const didInitWeekOffsetRef = useRef(false);
   const dragSensors = useSensors(useSensor(PointerSensor, {
     activationConstraint: {
-      distance: 8,
+      distance: 6,
     },
   }));
 
@@ -2205,7 +2272,7 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
       didInitWeekOffsetRef.current = true;
       setDominiosLocal(novoCronograma.progresso?.dominios || {});
       setLoadingPage(false);
-      showToast('✅ Cronograma criado!');
+      showToast('? Cronograma criado!');
     } catch (error) {
       console.error('[CronogramaPage] Falha ao abrir cronograma criado:', error);
       setLoadingPage(false);
@@ -2220,9 +2287,9 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
       const novaData = dataAtual.toISOString().split('T')[0];
       await updateDoc(doc(db, 'users', user.uid, 'cronogramas', cronogramaId), { dataInicio: novaData });
       setUndoDelayData({ cronogramaId, previousDate: dataAnterior, nextDate: novaData });
-      showToast('📅 Cronograma adiado em 1 semana!');
+      showToast('?? Cronograma adiado em 1 semana!');
     } catch (e) {
-      showToast('❌ Erro ao adiar. Tente novamente.');
+      showToast('? Erro ao adiar. Tente novamente.');
     }
   };
 
@@ -2232,9 +2299,9 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
     try {
       await updateDoc(doc(db, 'users', user.uid, 'cronogramas', undoDelayData.cronogramaId), { dataInicio: undoDelayData.previousDate });
       setUndoDelayData(null);
-      showToast('↩️ Adiamento revertido!');
+      showToast('?? Adiamento revertido!');
     } catch (e) {
-      showToast('❌ Erro ao reverter adiamento.');
+      showToast('? Erro ao reverter adiamento.');
     } finally {
       setLoadingAction(false);
     }
@@ -2264,9 +2331,59 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
       setDominiosLocal(maisRecente.progresso?.dominios || {});
     });
   }, [user]);
+  useEffect(() => {
+    let cancelado = false;
+
+    const carregarTemplateDoEdital = async () => {
+      setEditalTemplateData(null);
+      if (!cronograma) return;
+
+      const templateId = getCronogramaTemplateId(cronograma);
+      const aplicarTemplate = (data) => {
+        if (!cancelado && data) setEditalTemplateData(data);
+      };
+
+      try {
+        if (templateId && templateId !== 'manual') {
+          const templateSnap = await getDoc(doc(db, 'editais_templates', templateId));
+          if (templateSnap.exists()) {
+            aplicarTemplate({ id: templateSnap.id, ...templateSnap.data() });
+            return;
+          }
+        }
+
+        const editalNome = cronograma.editalNome || cronograma.titulo || cronograma.nome;
+        if (editalNome) {
+          const templateQuery = query(
+            collection(db, 'editais_templates'),
+            where('titulo', '==', editalNome),
+            limit(1),
+          );
+          const templateSnap = await getDocs(templateQuery);
+          const primeiro = templateSnap.docs[0];
+          if (primeiro) aplicarTemplate({ id: primeiro.id, ...primeiro.data() });
+        }
+      } catch (error) {
+        console.warn('[CronogramaPage] Nao foi possivel carregar logo do edital para PDF:', error);
+      }
+    };
+
+    carregarTemplateDoEdital();
+    return () => { cancelado = true; };
+  }, [
+    cronograma?.id,
+    cronograma?.editalId,
+    cronograma?.templateId,
+    cronograma?.templateOrigem,
+    cronograma?.templateOrigemId,
+    cronograma?.editalBaseId,
+    cronograma?.editalNome,
+    cronograma?.titulo,
+    cronograma?.nome,
+  ]);
 
   // Cálculos derivados
-  const dynamicLogo = cronograma?.logoUrl || cronograma?.editalLogoUrl || null;
+  const dynamicLogo = editalTemplateData?.logoUrl || editalTemplateData?.logo || cronograma?.editalLogoUrl || cronograma?.logoUrl || cronograma?.logo || resolveLogoUrl({ ciclo: cronograma }) || null;
 
   const weekDates = useMemo(() => {
     if (!cronograma?.dataInicio) return [];
@@ -2294,10 +2411,27 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
       const chave = chaveAssuntoDominado(slot.disciplinaId, slot.assunto);
       const slotIdNoProgresso = slot.slotIdBase || slot.slotId;
       const tempoPlanejadoMinutos = Number(slot.tempoMinutos ?? slot.minutosEstudo ?? 0);
+      const progressoRegistrado = getCronogramaSlotRecordedMinutes({
+        cronograma,
+        slot,
+        registrosEstudo,
+        dateKey: slot.dataSlot,
+      });
+      const progressoCru = Math.max(
+        Number(progressoMinutosW[slotIdNoProgresso] || 0),
+        Number(slot.slotId ? progressoMinutosW[slot.slotId] || 0 : 0),
+        Number(slot.slotIdBase ? progressoMinutosW[slot.slotIdBase] || 0 : 0),
+        Number(slot.progressoMinutos || 0),
+        progressoRegistrado
+      );
       const concluido = slot.isRevisaoAuto
         ? Boolean(slot.concluido || progressoW[slot.slotId] === true)
-        : (progressoW[slotIdNoProgresso] === true || progressoW[slot.slotId] === true || slot.concluido === true);
-      const progressoCru = Number(progressoMinutosW[slotIdNoProgresso] || slot.progressoMinutos || 0);
+        : (
+          progressoW[slotIdNoProgresso] === true ||
+          progressoW[slot.slotId] === true ||
+          slot.concluido === true ||
+          (tempoPlanejadoMinutos > 0 && progressoCru >= tempoPlanejadoMinutos)
+        );
       const progressoMinutos = concluido ? Math.max(progressoCru, tempoPlanejadoMinutos) : progressoCru;
       const tarefaMontada = {
         ...slot,
@@ -2315,7 +2449,7 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
       );
     });
     return mapa;
-  }, [agendaSemana, dominiosLocal, cronograma, optimisticDone, weekOffset]);
+  }, [agendaSemana, dominiosLocal, cronograma, optimisticDone, registrosEstudo, weekOffset]);
 
   const progressoGeral = useMemo(() => {
     const todos = Object.values(tarefasPorDia).flat();
@@ -2323,101 +2457,52 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
     return Math.round((todos.filter(t => t.concluido).length / todos.length) * 100);
   }, [tarefasPorDia]);
 
+  const buildCompletionModalData = useCallback(({ date, tarefas }) => {
+    if (!date || !Array.isArray(tarefas) || tarefas.length === 0) return null;
+    const resumo = getDayStudySummary(date, tarefas);
+    if (!resumo.todoConcluido) return null;
+
+    const dateKey = dateToYMDLocal(date);
+    const registrosDoDia = (registrosEstudo || []).filter((registro) => (
+      getRegistroDateKey(registro) === dateKey
+      && (!cronograma?.id || registro.cronogramaId === cronograma.id)
+    ));
+    const questions = registrosDoDia.reduce((acc, registro) => acc + Number(registro.questoesFeitas || 0), 0);
+    const correct = registrosDoDia.reduce((acc, registro) => acc + Number(registro.acertos || 0), 0);
+
+    return {
+      contextLabel: 'Cronograma do dia',
+      planName: cronograma?.nome || 'Cronograma ativo',
+      editalName: cronograma?.editalNome || cronograma?.titulo || cronograma?.nome || 'Edital ativo',
+      editalLogo: dynamicLogo,
+      minutes: resumo.progressoMinutos,
+      plannedMinutes: resumo.totalMinutos,
+      questions,
+      correct,
+    };
+  }, [cronograma, dynamicLogo, registrosEstudo]);
+
+  const openCompletionForDay = useCallback(({ date, tarefas }) => {
+    const data = buildCompletionModalData({ date, tarefas });
+    if (data) setCompletionModalData(data);
+  }, [buildCompletionModalData]);
+
   const handlePrintWeek = useCallback(() => {
-    if (!cronograma || weekDates.length === 0) return;
-
-    const escapeHtml = (value) => String(value ?? '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
-
-    const weekLabel = `Semana ${weekOffset + 1}`;
-    const periodo = `${weekDates[0].getDate()} ${MESES_PT[weekDates[0].getMonth()]} - ${weekDates[6].getDate()} ${MESES_PT[weekDates[6].getMonth()]}`;
-    const diasHtml = weekDates.map((date) => {
-      const dia = date.getDay();
-      const tarefas = tarefasPorDia[dia] || [];
-      const itens = tarefas.length > 0
-        ? tarefas.map((tarefa) => {
-            const color = tarefa.cor?.hex || tarefa.cor || getDisciplineColorForSlot(tarefa).hex || '#71717a';
-            const titulo = tarefa.disciplinaNome || tarefa.disc?.nome || tarefa.titulo || 'Disciplina';
-            const assunto = tarefa.assunto || tarefa.assuntoOriginal || (tarefa.isRevisaoAuto ? 'Revisao' : 'Estudo');
-            const tempo = formatarDuracao(tarefa.tempoPlanejadoMinutos || tarefa.tempoMinutos || tarefa.minutosEstudo || 0);
-            return `
-              <div class="task" style="border-left-color:${escapeHtml(color)}">
-                <div class="task-head">
-                  <strong>${escapeHtml(titulo)}</strong>
-                  <span>${escapeHtml(tempo)}</span>
-                </div>
-                <p>${escapeHtml(assunto)}</p>
-              </div>
-            `;
-          }).join('')
-        : '<div class="empty">Sem blocos</div>';
-
-      return `
-        <section class="day">
-          <div class="day-head">
-            <strong>${escapeHtml(DIAS_LONGO[dia])}</strong>
-            <span>${date.getDate()} ${escapeHtml(MESES_PT[date.getMonth()])}</span>
-          </div>
-          ${itens}
-        </section>
-      `;
-    }).join('');
-
-    const printWindow = window.open('', '_blank', 'width=1280,height=900');
-    if (!printWindow) {
-      showToast('Nao foi possivel abrir a janela de impressao.');
-      return;
-    }
-
-    printWindow.document.write(`
-      <!doctype html>
-      <html>
-        <head>
-          <title>${escapeHtml(cronograma.nome || 'Cronograma')} - ${escapeHtml(weekLabel)}</title>
-          <style>
-            @page { size: A4 landscape; margin: 10mm; }
-            * { box-sizing: border-box; }
-            body { margin: 0; font-family: Inter, Arial, sans-serif; color: #18181b; background: #fff; }
-            .header { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 14px; border-bottom: 2px solid #e4e4e7; padding-bottom: 12px; }
-            .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
-            .logo { width: 54px; height: 54px; object-fit: contain; border: 1px solid #e4e4e7; border-radius: 10px; padding: 5px; }
-            h1 { margin: 0; font-size: 20px; line-height: 1.05; text-transform: uppercase; }
-            .meta { margin-top: 4px; font-size: 11px; font-weight: 800; color: #71717a; text-transform: uppercase; letter-spacing: .08em; }
-            .pill { border: 1px solid #fecaca; background: #fef2f2; color: #b91c1c; border-radius: 999px; padding: 8px 12px; font-size: 11px; font-weight: 900; text-transform: uppercase; white-space: nowrap; }
-            .week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 7px; align-items: stretch; }
-            .day { min-height: 470px; border: 1px solid #e4e4e7; border-radius: 10px; padding: 8px; background: #fafafa; }
-            .day-head { display: flex; justify-content: space-between; gap: 6px; align-items: baseline; margin-bottom: 8px; border-bottom: 1px solid #e4e4e7; padding-bottom: 6px; }
-            .day-head strong { font-size: 11px; text-transform: uppercase; }
-            .day-head span { font-size: 9px; color: #71717a; font-weight: 800; text-transform: uppercase; }
-            .task { border-left: 4px solid #71717a; border-radius: 8px; background: #fff; padding: 7px; margin-bottom: 6px; box-shadow: 0 1px 2px rgba(15,23,42,.08); break-inside: avoid; }
-            .task-head { display: flex; justify-content: space-between; gap: 6px; margin-bottom: 4px; }
-            .task-head strong { font-size: 9px; text-transform: uppercase; line-height: 1.2; }
-            .task-head span { font-size: 8px; font-weight: 900; color: #dc2626; white-space: nowrap; }
-            .task p { margin: 0; font-size: 8.5px; line-height: 1.25; color: #52525b; font-weight: 700; }
-            .empty { display: grid; min-height: 84px; place-items: center; border: 1px dashed #d4d4d8; border-radius: 8px; color: #a1a1aa; font-size: 9px; font-weight: 900; text-transform: uppercase; }
-          </style>
-        </head>
-        <body>
-          <header class="header">
-            <div class="brand">
-              ${dynamicLogo ? `<img class="logo" src="${escapeHtml(dynamicLogo)}" alt="">` : ''}
-              <div>
-                <h1>${escapeHtml(cronograma.nome || 'Cronograma')}</h1>
-                <div class="meta">${escapeHtml(cronograma.editalNome || 'Plano de estudos')}</div>
-              </div>
-            </div>
-            <div class="pill">${escapeHtml(weekLabel)} - ${escapeHtml(periodo)}</div>
-          </header>
-          <main class="week">${diasHtml}</main>
-          <script>window.onload = () => { window.focus(); window.print(); };</script>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
+    openCronogramaWeekPdf({
+      cronograma,
+      weekDates,
+      weekOffset,
+      tarefasPorDia,
+      dynamicLogo,
+      showToast,
+      formatarDuracao,
+      getDisciplineColorForSlot,
+      getNomeDisc,
+      getTextoAssunto,
+      getLabelTipo,
+      meses: MESES_PT,
+      diasLongo: DIAS_LONGO,
+    });
   }, [cronograma, weekDates, weekOffset, tarefasPorDia, dynamicLogo, showToast]);
 
   const progressoMinutosHeader = useMemo(() => {
@@ -2425,7 +2510,7 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
     return todos.reduce((acc, tarefa) => {
       const tempo = Number(tarefa.tempoPlanejadoMinutos ?? tarefa.tempoMinutos ?? tarefa.minutosEstudo ?? 0);
       const progresso = tarefa.concluido
-        ? tempo
+        ? Math.max(Number(tarefa.progressoMinutos || 0), tempo)
         : Math.min(Number(tarefa.progressoMinutos || 0), tempo || Number(tarefa.progressoMinutos || 0));
       return {
         totalMeta: acc.totalMeta + tempo,
@@ -2503,6 +2588,16 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
       addRegistroEstudo(completionRegistro).catch(console.error);
     } else if (previousDone && deleteCompletionRegistro) {
       deleteCompletionRegistro(completionRegistro).catch(console.error);
+    }
+    if (ok && !previousDone) {
+      const diaSemana = Number(tarefa.dia);
+      const date = tarefa.dataSlot
+        ? new Date(`${tarefa.dataSlot}T12:00:00`)
+        : weekDates.find((item) => item.getDay() === diaSemana);
+      const tarefasDoDia = (tarefasPorDia[diaSemana] || []).map((item) => (
+        getCompletionKey(item) === optimisticKey ? applyCompletionOverride(item, true) : item
+      ));
+      openCompletionForDay({ date, tarefas: tarefasDoDia });
     }
     setToggleLoadingId(null);
     showToast(ok
@@ -2645,7 +2740,7 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
     }
 
     const ok = await persistTemplateReorder(ordersByDay);
-    showToast(ok ? '🔄 Cronograma reorganizado com sucesso!' : '❌ Erro ao mover tarefa.');
+    showToast(ok ? '?? Cronograma reorganizado com sucesso!' : '? Erro ao mover tarefa.');
   }, [cronograma, persistTemplateReorder, showToast]);
 
   const handleWeekPanStart = useCallback((event) => {
@@ -2655,9 +2750,12 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
 
     weekPanRef.current = {
       active: true,
+      moved: false,
       startX: event.clientX,
+      currentX: event.clientX,
       scrollLeft: node.scrollLeft,
       pointerId: event.pointerId,
+      rafId: null,
     };
     node.setPointerCapture?.(event.pointerId);
   }, []);
@@ -2667,16 +2765,34 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
     const node = weekScrollRef.current;
     if (!pan.active || !node) return;
 
+    pan.currentX = event.clientX;
+    const delta = pan.currentX - pan.startX;
+    if (!pan.moved && Math.abs(delta) < 4) return;
+    pan.moved = true;
     event.preventDefault();
-    node.scrollLeft = pan.scrollLeft - (event.clientX - pan.startX);
+    if (pan.rafId) return;
+    pan.rafId = requestAnimationFrame(() => {
+      const latest = weekPanRef.current;
+      node.scrollLeft = latest.scrollLeft - (latest.currentX - latest.startX);
+      latest.rafId = null;
+    });
   }, []);
 
-  const handleWeekPanEnd = useCallback((event) => {
+  const handleWeekPanEnd = useCallback(() => {
     const node = weekScrollRef.current;
+    const pan = weekPanRef.current;
+    if (pan.rafId) cancelAnimationFrame(pan.rafId);
     if (node && weekPanRef.current.pointerId !== null) {
       node.releasePointerCapture?.(weekPanRef.current.pointerId);
     }
-    weekPanRef.current = { active: false, startX: 0, scrollLeft: 0, pointerId: null };
+    weekPanRef.current = { active: false, moved: false, startX: 0, currentX: 0, scrollLeft: 0, pointerId: null, rafId: null };
+  }, []);
+
+  const handleWeekWheel = useCallback((event) => {
+    const node = weekScrollRef.current;
+    if (!node || Math.abs(event.deltaX) >= Math.abs(event.deltaY)) return;
+    if (!event.shiftKey && event.deltaY < 24) return;
+    node.scrollLeft += event.deltaY;
   }, []);
 
   useEffect(() => {
@@ -2709,11 +2825,11 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
     const chave = chaveAssuntoDominado(tarefa.disciplinaId, tarefa.assunto);
     const dominadoAtual = !!(dominiosLocal[chave]);
     setDominiosLocal(prev => ({ ...prev, [chave]: !dominadoAtual }));
-    showToast(dominadoAtual ? '↩️ Domínio removido — revisões reativadas' : '⭐ Assunto dominado!');
+    showToast(dominadoAtual ? '?? Domínio removido — revisões reativadas' : '? Assunto dominado!');
     const resultado = await toggleAssuntoDominado(cronograma.id, tarefa.disciplinaId, tarefa.assunto, dominadoAtual);
     if (resultado === null) {
       setDominiosLocal(prev => ({ ...prev, [chave]: dominadoAtual }));
-      showToast('❌ Erro ao salvar. Tente novamente.');
+      showToast('? Erro ao salvar. Tente novamente.');
     }
   }, [cronograma, dominiosLocal, toggleAssuntoDominado, showToast]);
 
@@ -2721,11 +2837,11 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
     if (!cronograma) return;
     const chave = chaveAssuntoDominado(disciplinaId, assunto);
     setDominiosLocal(prev => ({ ...prev, [chave]: !dominadoAtual }));
-    showToast(!dominadoAtual ? '⭐ Assunto dominado!' : '↩️ Domínio removido');
+    showToast(!dominadoAtual ? '? Assunto dominado!' : '?? Domínio removido');
     const resultado = await toggleAssuntoDominado(cronograma.id, disciplinaId, assunto, dominadoAtual);
     if (resultado === null) {
       setDominiosLocal(prev => ({ ...prev, [chave]: dominadoAtual }));
-      showToast('❌ Erro ao salvar. Tente novamente.');
+      showToast('? Erro ao salvar. Tente novamente.');
     }
   }, [cronograma, dominiosLocal, toggleAssuntoDominado, showToast]);
 
@@ -2750,17 +2866,17 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
         onFechar={() => setMostrandoEditar(false)}
         onCronogramaAtualizado={() => {
           setMostrandoEditar(false);
-          showToast('✅ Cronograma atualizado!');
+          showToast('? Cronograma atualizado!');
         }}
         initialMode={editInitialMode}
       />
     );
   }
 
-  // ─── RENDER PRINCIPAL ──────────────────────────────────────────────────────
+  // --- RENDER PRINCIPAL ------------------------------------------------------
   return (
     <div className="relative flex min-h-[calc(100vh-120px)] min-w-0 flex-col animate-fade-in">
-      {/* ── MODAIS ── */}
+      {/* -- MODAIS -- */}
       <AnimatePresence>
         {recordToDelete && (
           <ModalConfirm
@@ -2858,7 +2974,7 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
         )}
       </AnimatePresence>
 
-      {/* ── HEADER (MESMO ENVELOPE DO CICLO) ── */}
+      {/* -- HEADER (MESMO ENVELOPE DO CICLO) -- */}
       <div className="mb-3">
 
         {/* Card principal do cronograma */}
@@ -2979,7 +3095,7 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
           </div>
         </div>
 
-        {/* ── BARRA DE FERRAMENTAS ── */}
+        {/* -- BARRA DE FERRAMENTAS -- */}
         <div className="mt-4 mb-2 px-1 sm:px-2">
           <div className="flex flex-col items-center gap-2 lg:grid lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:items-center">
           <div className="flex w-full items-start justify-between gap-2 lg:contents">
@@ -3160,7 +3276,7 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
           </div>
         </div>
 
-      {/* ── ÁREA PRINCIPAL ── */}
+      {/* -- ÁREA PRINCIPAL -- */}
       <div className="-mx-2 min-h-0 flex-grow pb-8 pt-0 sm:-mx-4 md:-mx-6 lg:-mx-8">
         {viewMode === 'week' ? (
           <div className="px-2 sm:px-4 md:px-6 lg:px-8">
@@ -3176,7 +3292,8 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
                 onPointerUp={handleWeekPanEnd}
                 onPointerCancel={handleWeekPanEnd}
                 onPointerLeave={handleWeekPanEnd}
-                className="flex cursor-grab gap-4 overflow-x-auto overflow-y-hidden pb-5 active:cursor-grabbing [scrollbar-width:thin] [scrollbar-color:rgb(220_38_38)_transparent]"
+                onWheel={handleWeekWheel}
+                className="flex cursor-grab select-none gap-4 overflow-x-auto overflow-y-hidden overscroll-x-contain scroll-smooth pb-5 active:cursor-grabbing [scrollbar-width:thin] [scrollbar-color:rgb(220_38_38)_transparent]"
               >
                 {weekDates.map((date) => {
                   const diaReal = date.getDay();
@@ -3198,6 +3315,7 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
                         onDominar={handleDominar}
                         onOpenConsolidada={slot => setSlotConsolidado(slot)}
                         onOpenDetails={setSlotDetalhes}
+                        onOpenCompletion={openCompletionForDay}
                         cronograma={cronograma}
                         toggleLoadingId={toggleLoadingId}
                       />
@@ -3234,6 +3352,7 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
               tarefasPorDia={tarefasPorDia}
               onStart={handleStart}
               onOpenConsolidada={(slot) => setSlotConsolidado(slot)}
+              onOpenCompletion={openCompletionForDay}
               onToggle={handleToggle}
               onMarkPendencia={handleMarkPendencia}
               onDominar={handleDominar}
@@ -3256,6 +3375,11 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
           </motion.div>
         )}
       </div>
+      <DailyGoalCompletedModal
+        open={Boolean(completionModalData)}
+        onClose={() => setCompletionModalData(null)}
+        {...(completionModalData || {})}
+      />
       <TimerSettingsModal
         isOpen={showTimerSettings}
         onClose={() => setShowTimerSettings(false)}

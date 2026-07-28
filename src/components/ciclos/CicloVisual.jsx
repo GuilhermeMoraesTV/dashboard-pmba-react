@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle, BookOpen, Play, Clock, Target, Trophy, CheckCircle2, Sparkles, RotateCw } from 'lucide-react';
-import { getCycleAssuntoForSession } from '../../utils/studyDayStatus';
+import { getCycleAssuntoForSession, getCycleSessionRecordedMinutes } from '../../utils/studyDayStatus';
 import { getDisciplineColorForSlot } from '../../utils/disciplineColors';
 
 // --- HELPER: Formatador Inteligente de Horas ---
@@ -29,6 +29,79 @@ const formatVisualHours = (minutes) => {
 };
 
 const CICLO_CONCLUIDO_COLOR = '#10b981';
+
+// AJUSTES MANUAIS DO MIOLO DO CICLO VISUAL.
+// Cada item fica em uma faixa horizontal dentro de um circulo real.
+// top move para baixo/cima; x move para direita/esquerda.
+const CYCLE_CENTER_MANUAL_LAYOUT = {
+  circle: { size: 66, center: 33, radius: 31, safePadding: 2.2 },
+  disciplina: { x: 0, top: 10.8, height: 10.2, maxWidth: 49, fontSize: 3.8, lineHeight: 1.12, maxLines: 2, topPadding: 1.2, bottomPadding: 0.4 },
+  bloco: { x: 0, top: 20, height: 3.5, maxWidth: 44, fontSize: 2.25 },
+  assunto: { x: 0, top: 25.2, height: 9.2, maxWidth: 53, fontSize: 2.7, lineHeight: 1.2, maxLines: 2, topPadding: 0.8, bottomPadding: 0.1 },
+  tempo: { x: 0, top: 35.5, height: 8.4, maxWidth: 42, valueFontSize: 6.15, totalFontSize: 2.6 },
+  actions: { x: 0, top: 43.8, height: 7, maxWidth: 46, gap: 1, buttonHeight: 6.4, startWidth: 19.5, endWidth: 21, singleWidth: 24, fontSize: 2.5, radius: 3.2 },
+};
+
+// TAMANHO DO CICLO VISUAL.
+// Aumente desktopMax para deixar o radar maior em telas grandes.
+// Diminua desktopViewportOffset se quiser usar mais altura da tela no desktop.
+const CYCLE_VISUAL_SIZE = {
+  desktopMax: 840,
+  desktopViewportOffset: 140,
+  parentOffset: 20,
+  viewportWidth: 92,
+};
+
+const centerClampStyle = ({ maxLines, fontSize, lineHeight, topPadding = 0, bottomPadding = 0 } = {}) => {
+  const lineBox = Number(fontSize || 0) * Number(lineHeight || 1);
+  const clampHeight = (lineBox * Number(maxLines || 1)) + Number(topPadding || 0) + Number(bottomPadding || 0);
+
+  return {
+    display: '-webkit-box',
+    WebkitBoxOrient: 'vertical',
+    WebkitLineClamp: maxLines,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    overflowWrap: 'anywhere',
+    wordBreak: 'break-word',
+    whiteSpace: 'normal',
+    paddingTop: `${topPadding}px`,
+    paddingBottom: `${bottomPadding}px`,
+    boxSizing: 'border-box',
+    height: `${clampHeight}px`,
+    maxHeight: `${clampHeight}px`,
+  };
+};
+
+const getCenterChordWidth = (slot) => {
+  const { center, radius, safePadding } = CYCLE_CENTER_MANUAL_LAYOUT.circle;
+  const slotMiddle = Number(slot.top || 0) + Number(slot.height || 0) / 2;
+  const distanceFromCenter = Math.abs(slotMiddle - center);
+  const chord = 2 * Math.sqrt(Math.max(0, radius ** 2 - distanceFromCenter ** 2));
+  return Math.max(0, chord - safePadding * 2);
+};
+
+const centerCircularSlotStyle = (slot) => {
+  const safeWidth = getCenterChordWidth(slot);
+  const width = Math.min(Number(slot.maxWidth || safeWidth), safeWidth);
+
+  return {
+    position: 'absolute',
+    top: `${slot.top}px`,
+    left: '50%',
+    width: `${width}px`,
+    height: `${slot.height}px`,
+    overflow: 'hidden',
+    transform: `translateX(-50%) translateX(${slot.x || 0}px)`,
+  };
+};
+
+const centerButtonStyle = (width) => ({
+  width: `${width}px`,
+  height: `${CYCLE_CENTER_MANUAL_LAYOUT.actions.buttonHeight}px`,
+  borderRadius: `${CYCLE_CENTER_MANUAL_LAYOUT.actions.radius}px`,
+  fontSize: `${CYCLE_CENTER_MANUAL_LAYOUT.actions.fontSize}px`,
+});
 
 // --- COMPONENTE DE SEGMENTO (BLOCO) ---
 const CicloSegment = ({
@@ -473,10 +546,19 @@ function CicloVisual({
       const disciplina = disciplinas.find(d => d.id === sessao.disciplinaId);
       if (!disciplina) return null;
 
-      const progressoMinutos = Number(progressoSessoes?.[globalIndex] || progressoSessoes?.[String(globalIndex)] || 0);
+      const progressoPersistido = Number(progressoSessoes?.[globalIndex] || progressoSessoes?.[String(globalIndex)] || 0);
+      const progressoRegistrado = getCycleSessionRecordedMinutes({
+        ciclo,
+        session: sessao,
+        globalIndex,
+        registrosEstudo,
+        disciplina,
+        allowLooseMatch: false,
+      });
+      const progressoMinutos = Math.max(progressoPersistido, progressoRegistrado);
       const concluida = sessoesConcluidasSet.has(globalIndex) || progressoMinutos >= tempoSessao;
       const corBase = coresDisciplinas[disciplina.id] || '#71717a';
-      const percentage = tempoSessao > 0 ? Math.min(100, Math.round(((concluida ? tempoSessao : progressoMinutos) / tempoSessao) * 100)) : 0;
+      const percentage = tempoSessao > 0 ? Math.min(100, Math.round((progressoMinutos / tempoSessao) * 100)) : 0;
       const color = concluida ? CICLO_CONCLUIDO_COLOR : progressoMinutos > 0 ? '#f59e0b' : corBase;
 
       const segmentData = {
@@ -490,7 +572,7 @@ function CicloVisual({
         color,
         corBase,
         metaMinutos: tempoSessao,
-        progressMinutos: concluida ? Math.max(progressoMinutos, tempoSessao) : progressoMinutos,
+        progressMinutos: progressoMinutos,
         percentage,
         ...getCycleAssuntoForSession(ciclo, { ...sessao, globalIndex }, disciplina),
       };
@@ -498,7 +580,7 @@ function CicloVisual({
       currentAngle += anguloPorSessao;
       return segmentData;
     }).filter(Boolean);
-  }, [disciplinas, ciclo, coresDisciplinas]);
+  }, [disciplinas, ciclo, coresDisciplinas, registrosEstudo]);
 
   const dataViewAtual = useMemo(() => {
     if (!isModoCicloSessoes) return dataLegado;
@@ -670,8 +752,8 @@ function CicloVisual({
           <div
             className="aspect-square max-h-full max-w-full shrink-0"
             style={{
-              height: 'min(calc(100% - 46px), calc(100vh - 230px), 86vw, 720px)',
-              width: 'min(calc(100% - 46px), calc(100vh - 230px), 86vw, 720px)',
+              height: `min(calc(100% - ${CYCLE_VISUAL_SIZE.parentOffset}px), calc(100vh - ${CYCLE_VISUAL_SIZE.desktopViewportOffset}px), ${CYCLE_VISUAL_SIZE.viewportWidth}vw, ${CYCLE_VISUAL_SIZE.desktopMax}px)`,
+              width: `min(calc(100% - ${CYCLE_VISUAL_SIZE.parentOffset}px), calc(100vh - ${CYCLE_VISUAL_SIZE.desktopViewportOffset}px), ${CYCLE_VISUAL_SIZE.viewportWidth}vw, ${CYCLE_VISUAL_SIZE.desktopMax}px)`,
             }}
           >
             <svg viewBox="0 0 100 100" className="w-full h-full overflow-visible drop-shadow-lg">
@@ -789,65 +871,91 @@ function CicloVisual({
                             initial={{ opacity: 0, scale: 0.95 }}
                             animate={{ opacity: 1, scale: 1 }}
                             exit={{ opacity: 0, scale: 0.95 }}
-                            className="flex h-full w-full flex-col items-center justify-center rounded-full px-2"
+                            className="relative h-full w-full rounded-full"
                           >
-                            <div className="mb-[0.8px] flex items-center justify-center">
-                              <span
-                                className="h-[2.2px] w-[2.2px] rounded-full"
-                                style={{ backgroundColor: activeDisciplina.corBase || activeDisciplina.color }}
-                              />
-                            </div>
-
                             <span
-                              className="line-clamp-2 max-w-[56px] text-center text-[3.8px] font-extrabold normal-case leading-[1.08] tracking-normal text-zinc-950 dark:text-white"
-                              style={shouldUseDisciplineColors ? { color: activeDisciplina.corBase || activeDisciplina.color } : undefined}
+                              className="text-center font-extrabold normal-case tracking-normal text-zinc-950 dark:text-white"
+                              style={{
+                                ...centerCircularSlotStyle(CYCLE_CENTER_MANUAL_LAYOUT.disciplina),
+                                ...centerClampStyle(CYCLE_CENTER_MANUAL_LAYOUT.disciplina),
+                                fontSize: `${CYCLE_CENTER_MANUAL_LAYOUT.disciplina.fontSize}px`,
+                                lineHeight: CYCLE_CENTER_MANUAL_LAYOUT.disciplina.lineHeight,
+                                ...(shouldUseDisciplineColors ? { color: activeDisciplina.corBase || activeDisciplina.color } : {}),
+                              }}
                             >
                               {activeDisciplina.disciplina.nome}
                             </span>
 
                             {isModoCicloSessoes && !activeDisciplina.isDisciplinaAgregada && (
-                              <span className="mt-[1px] text-[2.65px] font-black uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-300">
+                              <span
+                                className="flex items-center justify-center text-center font-black uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-300"
+                                style={{
+                                  ...centerCircularSlotStyle(CYCLE_CENTER_MANUAL_LAYOUT.bloco),
+                                  fontSize: `${CYCLE_CENTER_MANUAL_LAYOUT.bloco.fontSize}px`,
+                                }}
+                              >
                                 Bloco {(Number(activeDisciplina.sessaoIndex) || 0) + 1}
                               </span>
                             )}
 
                             {shouldShowAssuntos && !activeDisciplina.isDisciplinaAgregada && activeDisciplina.assuntoSugerido?.nome && (
-                              <span className="mt-[1.35px] line-clamp-3 max-w-[46px] text-center text-[2.55px] font-extrabold leading-[1.08] text-zinc-600 dark:text-zinc-200">
-                                {activeDisciplina.assuntoSugerido.nome}
-                              </span>
+                              <div
+                                className="text-center"
+                                style={centerCircularSlotStyle(CYCLE_CENTER_MANUAL_LAYOUT.assunto)}
+                                title={activeDisciplina.assuntoSugerido.nome}
+                              >
+                                <span
+                                  className="font-extrabold text-zinc-600 dark:text-zinc-200"
+                                  style={{
+                                    ...centerClampStyle(CYCLE_CENTER_MANUAL_LAYOUT.assunto),
+                                    width: '100%',
+                                    fontSize: `${CYCLE_CENTER_MANUAL_LAYOUT.assunto.fontSize}px`,
+                                    lineHeight: CYCLE_CENTER_MANUAL_LAYOUT.assunto.lineHeight,
+                                  }}
+                                >
+                                  {activeDisciplina.assuntoSugerido.nome}
+                                </span>
+                              </div>
                             )}
 
-                            <div className="mt-[1.6px] flex items-baseline justify-center gap-[1px]">
-                              <span className="text-[6.25px] font-black leading-none text-zinc-900 dark:text-white">
+                            <div
+                              className="flex items-baseline justify-center gap-[1px]"
+                              style={centerCircularSlotStyle(CYCLE_CENTER_MANUAL_LAYOUT.tempo)}
+                            >
+                              <span
+                                className="font-black leading-none text-zinc-900 dark:text-white"
+                                style={{ fontSize: `${CYCLE_CENTER_MANUAL_LAYOUT.tempo.valueFontSize}px` }}
+                              >
                                 {formatVisualHours(activeDisciplina.progressMinutos)}
                               </span>
-                              <span className="text-[2.65px] font-black text-zinc-500 dark:text-zinc-300">
+                              <span
+                                className="font-black text-zinc-500 dark:text-zinc-300"
+                                style={{ fontSize: `${CYCLE_CENTER_MANUAL_LAYOUT.tempo.totalFontSize}px` }}
+                              >
                                 / {formatVisualHours(activeDisciplina.metaMinutos)}
                               </span>
                             </div>
 
-                            <div className="mt-[2px] h-[1.7px] w-[34px] overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
-                              <motion.div
-                                className="h-full rounded-full"
-                                style={{ backgroundColor: activeDisciplina.concluida ? CICLO_CONCLUIDO_COLOR : activeDisciplina.color }}
-                                initial={false}
-                                animate={{ width: `${Math.min(activeDisciplina.percentage, 100)}%` }}
-                                transition={{ duration: 0.35, ease: 'easeOut' }}
-                              />
-                            </div>
-
                             {!hideActionButtons && isModoCicloSessoes && activeDisciplina.isDisciplinaAgregada ? (
-                              <div className="mt-[2.8px] flex w-full max-w-[50px] items-center justify-center gap-[1.1px] overflow-visible">
+                              <div
+                                className="flex w-full items-center justify-center overflow-visible"
+                                style={{
+                                  ...centerCircularSlotStyle(CYCLE_CENTER_MANUAL_LAYOUT.actions),
+                                  gap: `${CYCLE_CENTER_MANUAL_LAYOUT.actions.gap}px`,
+                                }}
+                              >
                                 <button
                                   onClick={() => onStartStudy(activeDisciplina.disciplina, null, { defaultContext: 'ciclo' })}
-                                  className="pointer-events-auto inline-flex h-[7.6px] w-[23px] items-center justify-center rounded-[3.8px] bg-red-600 px-[2.2px] text-[2.25px] font-black uppercase leading-none tracking-[0.02em] text-white shadow-[0_1.5px_5px_rgba(220,38,38,0.18)] transition hover:bg-red-700 active:scale-95"
+                                  className="pointer-events-auto inline-flex items-center justify-center bg-red-600 px-[2px] font-black uppercase leading-none tracking-[0.02em] text-white shadow-[0_1.5px_5px_rgba(220,38,38,0.18)] transition hover:bg-red-700 active:scale-95"
+                                  style={centerButtonStyle(CYCLE_CENTER_MANUAL_LAYOUT.actions.startWidth)}
                                 >
                                   Iniciar
                                 </button>
                                 <button
                                   onClick={() => handleConcluirDisciplinaAgregada(activeDisciplina.disciplina.id)}
                                   disabled={cicloActionLoading || !getNextPendingSessionForDisciplina(activeDisciplina.disciplina.id)}
-                                  className="pointer-events-auto inline-flex h-[7.6px] w-[24px] items-center justify-center rounded-[3.8px] bg-emerald-600 px-[2.2px] text-[2.25px] font-black uppercase leading-none tracking-[0.02em] text-white shadow-[0_1.5px_5px_rgba(5,150,105,0.18)] transition hover:bg-emerald-700 active:scale-95 disabled:opacity-50"
+                                  className="pointer-events-auto inline-flex items-center justify-center bg-emerald-600 px-[2px] font-black uppercase leading-none tracking-[0.02em] text-white shadow-[0_1.5px_5px_rgba(5,150,105,0.18)] transition hover:bg-emerald-700 active:scale-95 disabled:opacity-50"
+                                  style={centerButtonStyle(CYCLE_CENTER_MANUAL_LAYOUT.actions.endWidth)}
                                 >
                                   Concluir
                                 </button>
@@ -856,19 +964,30 @@ function CicloVisual({
                               <button
                                 onClick={() => onMarcarSessao?.(activeDisciplina.globalIndex, activeDisciplina)}
                                 disabled={cicloActionLoading}
-                                className="pointer-events-auto mt-[2.8px] inline-flex h-[7.6px] min-w-[28px] items-center justify-center rounded-[3.8px] border border-emerald-500/40 bg-emerald-500/10 px-[5.2px] text-[2.3px] font-black uppercase leading-none tracking-[0.03em] text-emerald-600 disabled:opacity-60 dark:text-emerald-300"
+                                className="pointer-events-auto inline-flex items-center justify-center border border-emerald-500/40 bg-emerald-500/10 px-[4.4px] font-black uppercase leading-none tracking-[0.03em] text-emerald-600 disabled:opacity-60 dark:text-emerald-300"
+                                style={{
+                                  ...centerCircularSlotStyle(CYCLE_CENTER_MANUAL_LAYOUT.actions),
+                                  ...centerButtonStyle(CYCLE_CENTER_MANUAL_LAYOUT.actions.singleWidth),
+                                }}
                               >
                                 Concluída
                               </button>
                             ) : !hideActionButtons ? (
-                              <div className="mt-[2.8px] flex w-full max-w-[47px] items-center justify-center gap-[1.2px] overflow-visible">
+                              <div
+                                className="flex w-full items-center justify-center overflow-visible"
+                                style={{
+                                  ...centerCircularSlotStyle(CYCLE_CENTER_MANUAL_LAYOUT.actions),
+                                  gap: `${CYCLE_CENTER_MANUAL_LAYOUT.actions.gap}px`,
+                                }}
+                              >
                                 <button
                                   onClick={() => onStartStudy(
                                     activeDisciplina.disciplina,
                                     shouldShowAssuntos ? activeDisciplina.assuntoSugerido?.nome || null : null,
                                     isModoCicloSessoes ? { defaultContext: 'ciclo', sessaoGlobalIndex: activeDisciplina.globalIndex } : { defaultContext: 'ciclo' }
                                   )}
-                                  className="pointer-events-auto inline-flex h-[7.6px] w-[22px] items-center justify-center rounded-[3.8px] bg-red-600 px-[2.6px] text-[2.35px] font-black uppercase leading-none tracking-[0.03em] text-white shadow-[0_1.5px_5px_rgba(220,38,38,0.22)] transition hover:bg-red-700 active:scale-95"
+                                  className="pointer-events-auto inline-flex items-center justify-center bg-red-600 px-[2px] font-black uppercase leading-none tracking-[0.03em] text-white shadow-[0_1.5px_5px_rgba(220,38,38,0.22)] transition hover:bg-red-700 active:scale-95"
+                                  style={centerButtonStyle(CYCLE_CENTER_MANUAL_LAYOUT.actions.startWidth)}
                                 >
                                   Iniciar
                                 </button>
@@ -876,14 +995,16 @@ function CicloVisual({
                                   <button
                                     onClick={() => onMarcarSessao?.(activeDisciplina.globalIndex, activeDisciplina)}
                                     disabled={cicloActionLoading}
-                                    className="pointer-events-auto inline-flex h-[7.6px] w-[23.5px] items-center justify-center rounded-[3.8px] bg-emerald-600 px-[2.6px] text-[2.35px] font-black uppercase leading-none tracking-[0.03em] text-white shadow-[0_1.5px_5px_rgba(5,150,105,0.24)] transition hover:bg-emerald-700 active:scale-95 disabled:opacity-60"
+                                    className="pointer-events-auto inline-flex items-center justify-center bg-emerald-600 px-[2px] font-black uppercase leading-none tracking-[0.03em] text-white shadow-[0_1.5px_5px_rgba(5,150,105,0.24)] transition hover:bg-emerald-700 active:scale-95 disabled:opacity-60"
+                                    style={centerButtonStyle(CYCLE_CENTER_MANUAL_LAYOUT.actions.endWidth)}
                                   >
                                     Concluir
                                   </button>
                                 ) : (
                                   <button
                                     onClick={() => onViewDetails(activeDisciplina.disciplina)}
-                                    className="pointer-events-auto inline-flex h-[7.6px] w-[23.5px] items-center justify-center rounded-[3.8px] bg-emerald-600 px-[2.6px] text-[2.35px] font-black uppercase leading-none tracking-[0.03em] text-white shadow-[0_1.5px_5px_rgba(5,150,105,0.24)] transition hover:bg-emerald-700 active:scale-95"
+                                    className="pointer-events-auto inline-flex items-center justify-center bg-emerald-600 px-[2px] font-black uppercase leading-none tracking-[0.03em] text-white shadow-[0_1.5px_5px_rgba(5,150,105,0.24)] transition hover:bg-emerald-700 active:scale-95"
+                                    style={centerButtonStyle(CYCLE_CENTER_MANUAL_LAYOUT.actions.endWidth)}
                                   >
                                     Detalhes
                                   </button>

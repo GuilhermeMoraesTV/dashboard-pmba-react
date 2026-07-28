@@ -235,9 +235,13 @@ export const useCronogramaSystem = (user) => {
         fieldEntries.push([['progresso', semKey, slot.slotId], novoEstado]);
       }
       if (minutosPlanejados > 0) {
-        fieldEntries.push([['progressoMinutos', semKey, slotIdNoProgresso], novoEstado ? minutosPlanejados : 0]);
+        const progressoAtual = Number(slot.progressoMinutos || 0);
+        const proximoProgresso = novoEstado
+          ? Math.max(progressoAtual, minutosPlanejados)
+          : progressoAtual;
+        fieldEntries.push([['progressoMinutos', semKey, slotIdNoProgresso], proximoProgresso]);
         if (slot.slotId && slot.slotId !== slotIdNoProgresso) {
-          fieldEntries.push([['progressoMinutos', semKey, slot.slotId], novoEstado ? minutosPlanejados : 0]);
+          fieldEntries.push([['progressoMinutos', semKey, slot.slotId], proximoProgresso]);
         }
       }
       if (novoEstado && slot.isPendenciaTeoria) {

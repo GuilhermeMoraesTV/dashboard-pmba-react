@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   CheckCircle2, XCircle, Target, Save, Clock,
@@ -55,6 +56,44 @@ const resolveIntervaloRevisao = (topic) => {
     return Number.isFinite(dias) && dias >= 1 ? Math.floor(dias) : null;
   }
   return topic?.revisaoEscolhida;
+};
+
+const usePortalDropdownPosition = (isOpen, anchorRef, maxHeight = 224) => {
+  const [position, setPosition] = useState(null);
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+
+    const updatePosition = () => {
+      const rect = anchorRef.current?.getBoundingClientRect();
+      if (!rect) return;
+
+      const margin = 8;
+      const gap = 6;
+      const availableBelow = window.innerHeight - rect.bottom - margin;
+      const availableAbove = rect.top - margin;
+      const openUp = availableBelow < 150 && availableAbove > availableBelow;
+      const available = Math.max(128, Math.min(maxHeight, openUp ? availableAbove - gap : availableBelow - gap));
+
+      setPosition({
+        left: Math.max(margin, Math.min(rect.left, window.innerWidth - rect.width - margin)),
+        top: openUp ? Math.max(margin, rect.top - available - gap) : Math.min(rect.bottom + gap, window.innerHeight - available - margin),
+        width: rect.width,
+        maxHeight: available,
+        transformOrigin: openUp ? 'bottom center' : 'top center',
+      });
+    };
+
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+    };
+  }, [anchorRef, isOpen, maxHeight]);
+
+  return position;
 };
 
 // =======================================================
@@ -121,6 +160,8 @@ const ComboBox = ({
   const [focused, setFocused] = useState(false);
   const containerRef = useRef(null);
   const inputRef = useRef(null);
+  const menuRef = useRef(null);
+  const dropdownPosition = usePortalDropdownPosition(isOpen, containerRef, 240);
 
   useEffect(() => {
     if (!focused) {
@@ -131,7 +172,9 @@ const ComboBox = ({
 
   useEffect(() => {
     const h = (e) => {
-      if (containerRef.current && !containerRef.current.contains(e.target)) {
+      const insideAnchor = containerRef.current?.contains(e.target);
+      const insideMenu = menuRef.current?.contains(e.target);
+      if (!insideAnchor && !insideMenu) {
         setIsOpen(false);
         setFocused(false);
         const selected = options.find(o => o.value === value);
@@ -226,15 +269,17 @@ const ComboBox = ({
         </div>
       </div>
 
-      <AnimatePresence>
-        {isOpen && !disabled && (
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+        {isOpen && !disabled && dropdownPosition && (
           <motion.div
+            ref={menuRef}
             initial={{ opacity: 0, y: -5 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -5 }}
             transition={{ duration: 0.12 }}
-          className="absolute z-[220] w-full mt-1 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-2xl max-h-48 overflow-y-auto custom-scrollbar"
-            style={{ '--scrollbar-thumb': '#e4e4e7' }}
+            className="fixed z-[100300] bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-2xl overflow-y-auto custom-scrollbar"
+            style={{ ...dropdownPosition, '--scrollbar-thumb': '#e4e4e7' }}
           >
             <div className="p-1">
               {showCreateOption && (
@@ -273,7 +318,9 @@ const ComboBox = ({
             </div>
           </motion.div>
         )}
-      </AnimatePresence>
+        </AnimatePresence>,
+        document.body
+      )}
     </div>
   );
 };

@@ -172,6 +172,7 @@ function PlanejamentoPage({
   onOpenFeedback,
   abrirDiretoSeletor = false,
   onSeletorDiretoAberto,
+  onRegistroModalOpenChange,
 }) {
   const [aba, setAba] = useState('todos');
   const [telaCriacao, setTelaCriacao] = useState('lista'); // 'lista' | 'seletor'
@@ -237,6 +238,7 @@ function PlanejamentoPage({
         addRegistroEstudo={addRegistroEstudo}
         onStartStudy={onStartStudy}
         onGoToEdital={onGoToEdital}
+        onRegistroModalOpenChange={onRegistroModalOpenChange}
       />
     );
   }

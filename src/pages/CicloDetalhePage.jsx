@@ -8,6 +8,7 @@ import CicloVisual from '../components/ciclos/CicloVisual';
 import RegistroEstudoModal from '../components/ciclos/RegistroEstudoModal';
 import DisciplinaDetalheModal from '../components/ciclos/DisciplinaDetalheModal';
 import ModalConclusaoCiclo from '../components/ciclos/ModalConclusaoCiclo';
+import DailyGoalCompletedModal from '../components/shared/DailyGoalCompletedModal';
 import HistoricoModal from '../components/dashboard/HistoricoModal';
 import CicloEditModal from '../components/ciclos/CicloEditModal';
 import TimerSettingsModal from '../components/ciclos/StudyTimer/TimerSettingsModal';
@@ -16,6 +17,7 @@ import { useCicloRevisoes } from '../hooks/useCicloRevisoes';
 import CardSessoesCicloHoje from '../components/ciclos/CardSessoesCicloHoje';
 import { formatDateKeyLocal } from '../services/scheduling/review';
 import { buildCompletionRegistro } from '../utils/completionRegistro';
+import { getCycleDailyGuide, getRegistroDateKey } from '../utils/studyDayStatus';
 import { DEFAULT_LEGACY_CYCLE_STUDY_DAYS, isCicloLegacyForGuide } from '../utils/cicloLegacyUpgrade';
 import { REVISAO_MODO_FLEXIVEL, REVISAO_MODO_SUGESTAO, normalizeRevisaoModoCiclo } from '../utils/cicloReviewMode';
 
@@ -581,7 +583,7 @@ const CicloRevisoesOperacionaisCard = ({
 };
 
 // --- PÁGINA PRINCIPAL DO CICLO ---
-export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, deleteCompletionRegistro, onDeleteRegistro, onStartStudy, onGoToEdital, onCreateNewCycle }) {
+export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, deleteCompletionRegistro, onDeleteRegistro, onStartStudy, onGoToEdital, onCreateNewCycle, onRegistroModalOpenChange }) {
   const [ciclo, setCiclo] = useState(null);
   const [disciplinas, setDisciplinas] = useState([]);
   const [allRegistrosEstudo, setAllRegistrosEstudo] = useState([]);
@@ -591,6 +593,8 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
   const [disciplinaEmDetalhe, setDisciplinaEmDetalhe] = useState(null);
   const [selectedDisciplinaId, setSelectedDisciplinaId] = useState(null);
   const [showConclusaoModal, setShowConclusaoModal] = useState(false);
+  const [dailyGoalModalData, setDailyGoalModalData] = useState(null);
+  const [pendingDailyGoalModalData, setPendingDailyGoalModalData] = useState(null);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showUpgradeWizard, setShowUpgradeWizard] = useState(false);
@@ -600,12 +604,29 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
   const [acaoRevisaoCiclo, setAcaoRevisaoCiclo] = useState(null);
   const [cicloResetAnimation, setCicloResetAnimation] = useState(false);
   const [optimisticReviewDone, setOptimisticReviewDone] = useState({});
+  const previousDailyGoalDoneRef = useRef(null);
+  const dailyGoalShownRef = useRef(new Set());
   const revisoesSectionRef = useRef(null);
   const configMenuRef = useRef(null);
+
+  useEffect(() => {
+    onRegistroModalOpenChange?.(showRegistroModal);
+    return () => onRegistroModalOpenChange?.(false);
+  }, [onRegistroModalOpenChange, showRegistroModal]);
   // ESTADO DA LOGO DINÃ‚MICA
   const [dynamicLogo, setDynamicLogo] = useState(null);
 
   const [recordToDelete, setRecordToDelete] = useState(null);
+  const hasBlockingModalOpen = Boolean(
+    showConclusaoModal
+    || showRegistroModal
+    || disciplinaEmDetalhe
+    || showHistoryModal
+    || showUpgradeModal
+    || showUpgradeWizard
+    || showTimerSettings
+    || recordToDelete
+  );
 
   const {
     concluirCicloSemanal,
@@ -753,6 +774,65 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
   ), [optimisticReviewDone, revisoesAtrasadasCiclo]);
   const { totalEstudado, totalMeta, progressoGeral, registrosPorDisciplina } = useMemo(() => { if (!disciplinas.length) return { totalEstudado: 0, totalMeta: 0, progressoGeral: 0, registrosPorDisciplina: {} }; const totalMetaRaw = disciplinas.reduce((acc, d) => acc + Number(d.tempoAlocadoSemanalMinutos || 0), 0); const totalMetaCalc = Math.round(totalMetaRaw); const registrosPorDisciplina = {}; let totalEstudadoCalc = 0; registrosAtivosDaSemana.forEach(reg => { const minutos = Number(reg.tempoEstudadoMinutos); totalEstudadoCalc += minutos; const discId = reg.disciplinaId; if (discId) registrosPorDisciplina[discId] = (registrosPorDisciplina[discId] || 0) + minutos; }); const prog = totalMetaCalc > 0 ? (totalEstudadoCalc / totalMetaCalc) * 100 : 0; return { totalEstudado: Math.round(totalEstudadoCalc), totalMeta: totalMetaCalc, progressoGeral: prog, registrosPorDisciplina }; }, [disciplinas, registrosAtivosDaSemana]);
   const isAllDisciplinesMet = useMemo(() => { if (!ciclo?.ativo || !disciplinas.length || totalMeta === 0) return false; return disciplinas.every(d => { const meta = Number(d.tempoAlocadoSemanalMinutos || 0); const feito = registrosPorDisciplina[d.id] || 0; return meta > 0 ? feito >= meta : true; }); }, [disciplinas, registrosPorDisciplina, ciclo?.ativo, totalMeta]);
+  const hojeKey = useMemo(() => formatDateKeyLocal(new Date()), []);
+  const cicloGuideHoje = useMemo(() => {
+    if (!ciclo?.id) return { sessions: [], plannedMinutes: 0, isRestDay: false };
+    return getCycleDailyGuide({ ...ciclo, disciplinas }, new Date(), allRegistrosEstudo);
+  }, [allRegistrosEstudo, ciclo, disciplinas]);
+  const estudosDiaConcluidos = useMemo(() => (
+    !cicloGuideHoje.isRestDay
+    && cicloGuideHoje.sessions?.length > 0
+    && cicloGuideHoje.sessions.every((sessao) => sessao.concluida)
+  ), [cicloGuideHoje]);
+  const registrosHojeCiclo = useMemo(() => (
+    allRegistrosEstudo.filter((registro) => (
+      getRegistroDateKey(registro) === hojeKey
+      && String(registro.cicloId || '') === String(cicloId || '')
+      && !registro.cronogramaId
+    ))
+  ), [allRegistrosEstudo, cicloId, hojeKey]);
+
+  useEffect(() => {
+    if (loading || !ciclo?.id) return;
+    const modalKey = `ciclo:${ciclo.id}:${hojeKey}`;
+    const wasDone = previousDailyGoalDoneRef.current;
+    previousDailyGoalDoneRef.current = estudosDiaConcluidos;
+    if (wasDone === null || !estudosDiaConcluidos || wasDone === true || dailyGoalShownRef.current.has(modalKey)) return;
+
+    dailyGoalShownRef.current.add(modalKey);
+    const plannedMinutes = (cicloGuideHoje.sessions || []).reduce(
+      (acc, sessao) => acc + Number(sessao.tempoPlanejadoMinutos || ciclo?.tempoSessaoMinutos || 50),
+      0
+    );
+    const minutes = (cicloGuideHoje.sessions || []).reduce(
+      (acc, sessao) => acc + Number(sessao.progressoMinutos || 0),
+      0
+    );
+    const questions = registrosHojeCiclo.reduce((acc, registro) => acc + Number(registro.questoesFeitas || 0), 0);
+    const correct = registrosHojeCiclo.reduce((acc, registro) => acc + Number(registro.acertos || registro.questoesAcertadas || 0), 0);
+
+    const nextModalData = {
+      contextLabel: 'Ciclo do dia',
+      planName: ciclo.nome || 'Ciclo ativo',
+      editalName: ciclo.editalNome || ciclo.titulo || ciclo.nome || 'Ciclo ativo',
+      editalLogo: dynamicLogo || ciclo.logoUrl || ciclo.logo || null,
+      minutes,
+      plannedMinutes,
+      questions,
+      correct,
+    };
+    if (hasBlockingModalOpen) {
+      setPendingDailyGoalModalData(nextModalData);
+      return;
+    }
+    setDailyGoalModalData(nextModalData);
+  }, [ciclo, cicloGuideHoje, dynamicLogo, estudosDiaConcluidos, hasBlockingModalOpen, hojeKey, loading, registrosHojeCiclo]);
+
+  useEffect(() => {
+    if (!pendingDailyGoalModalData || hasBlockingModalOpen || dailyGoalModalData) return;
+    setDailyGoalModalData(pendingDailyGoalModalData);
+    setPendingDailyGoalModalData(null);
+  }, [dailyGoalModalData, hasBlockingModalOpen, pendingDailyGoalModalData]);
 
   const applyLocalSessionCompletion = (sessaoGlobalIndex, done) => {
     setCiclo((prev) => {
@@ -1264,8 +1344,8 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
               <div className={`grid min-h-0 grid-cols-1 items-start gap-4 ${showAssuntosCiclo ? 'xl:grid-cols-[minmax(0,1fr)_minmax(0,0.64fr)] 2xl:grid-cols-[minmax(0,1.06fr)_minmax(360px,0.66fr)]' : 'justify-items-center xl:grid-cols-1'}`}>
                   <section className={`relative flex flex-col rounded-2xl border border-zinc-200/70 bg-white/80 px-2.5 py-2.5 shadow-lg shadow-zinc-200/30 backdrop-blur-xl dark:border-zinc-800/70 dark:bg-zinc-950/35 dark:shadow-none sm:px-4 sm:py-3 ${
                       showAssuntosCiclo
-                          ? 'w-full overflow-hidden sm:min-h-[620px] lg:min-h-[690px] xl:min-h-[700px]'
-                          : 'mx-auto w-full max-w-[980px] overflow-hidden sm:min-h-[620px] lg:min-h-[660px] xl:min-h-[690px]'
+                          ? 'w-full overflow-hidden sm:min-h-[620px] lg:min-h-[730px] xl:min-h-[760px]'
+                          : 'mx-auto w-full max-w-[1080px] overflow-hidden sm:min-h-[620px] lg:min-h-[720px] xl:min-h-[760px]'
                   }`}>
                       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-red-500/40 to-transparent" />
                       <div className="relative mb-2 flex flex-wrap items-center justify-between gap-2 px-1 sm:px-2">
@@ -1280,8 +1360,8 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
 
                       <div className={`relative flex flex-1 items-stretch justify-center ${
                           showAssuntosCiclo
-                              ? 'h-[500px] sm:h-auto sm:min-h-[580px] xl:min-h-[610px]'
-                              : 'h-[500px] sm:h-auto sm:min-h-[560px] xl:min-h-[600px]'
+                              ? 'h-[500px] sm:h-auto sm:min-h-[610px] lg:min-h-[660px] xl:min-h-[690px]'
+                              : 'h-[500px] sm:h-auto sm:min-h-[600px] lg:min-h-[650px] xl:min-h-[690px]'
                       }`}>
                           <CicloVisual
                               selectedDisciplinaId={selectedDisciplinaId}
@@ -1325,6 +1405,7 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
                             loadingSessionId={loadingCicloSessao}
                             variant="cycle"
                             showAssuntos={showAssuntosCiclo}
+                            registrosEstudo={allRegistrosEstudo}
                         />
                         </div>
                   </div>
@@ -1413,6 +1494,11 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
 
         {recordToDelete && <DeleteConfirmationModal isOpen={!!recordToDelete} onClose={() => setRecordToDelete(null)} onConfirm={handleConfirmDeleteRegistro} />}
       </AnimatePresence>
+      <DailyGoalCompletedModal
+        open={Boolean(dailyGoalModalData)}
+        onClose={() => setDailyGoalModalData(null)}
+        {...(dailyGoalModalData || {})}
+      />
       <TimerSettingsModal
         isOpen={showTimerSettings}
         onClose={() => setShowTimerSettings(false)}

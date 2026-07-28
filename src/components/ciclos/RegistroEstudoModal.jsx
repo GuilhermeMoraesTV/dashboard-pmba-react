@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { serverTimestamp, doc, getDoc, addDoc, collection, query, where, getDocs, writeBatch, setDoc, updateDoc, arrayUnion } from 'firebase/firestore';
+import { createPortal } from 'react-dom';
+import { serverTimestamp, doc, getDoc, addDoc, collection, query, where, getDocs, setDoc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
 import {
   X, Save, Clock, Target, AlertTriangle, ChevronDown, CheckSquare,
@@ -205,6 +206,44 @@ const normalizeDisciplina = (disciplina) => {
   };
 };
 
+const usePortalDropdownPosition = (isOpen, anchorRef, maxHeight = 224) => {
+  const [position, setPosition] = useState(null);
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+
+    const updatePosition = () => {
+      const rect = anchorRef.current?.getBoundingClientRect();
+      if (!rect) return;
+
+      const margin = 8;
+      const gap = 6;
+      const availableBelow = window.innerHeight - rect.bottom - margin;
+      const availableAbove = rect.top - margin;
+      const openUp = availableBelow < 150 && availableAbove > availableBelow;
+      const available = Math.max(128, Math.min(maxHeight, openUp ? availableAbove - gap : availableBelow - gap));
+
+      setPosition({
+        left: Math.max(margin, Math.min(rect.left, window.innerWidth - rect.width - margin)),
+        top: openUp ? Math.max(margin, rect.top - available - gap) : Math.min(rect.bottom + gap, window.innerHeight - available - margin),
+        width: rect.width,
+        maxHeight: available,
+        transformOrigin: openUp ? 'bottom center' : 'top center',
+      });
+    };
+
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+    };
+  }, [anchorRef, isOpen, maxHeight]);
+
+  return position;
+};
+
 // --- SUB-COMPONENTES ---
 
 // 1. Modal de Confirmação ao Sair
@@ -280,10 +319,14 @@ const CustomSelect = ({
   const [search, setSearch] = useState('');
   const [creating, setCreating] = useState(false);
   const dropdownRef = useRef(null);
+  const menuRef = useRef(null);
+  const dropdownPosition = usePortalDropdownPosition(isOpen, dropdownRef, 240);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) setIsOpen(false);
+      const insideAnchor = dropdownRef.current?.contains(event.target);
+      const insideMenu = menuRef.current?.contains(event.target);
+      if (!insideAnchor && !insideMenu) setIsOpen(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -336,14 +379,17 @@ const CustomSelect = ({
         </div>
       </div>
 
-      <AnimatePresence>
-        {isOpen && !disabled && (
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+        {isOpen && !disabled && dropdownPosition && (
           <motion.div
+            ref={menuRef}
             initial={{ opacity: 0, y: -6, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -4, scale: 0.98 }}
             transition={{ duration: 0.12 }}
-            className="absolute z-[220] w-full mt-1 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-2xl max-h-48 overflow-y-auto custom-scrollbar"
+            className="fixed z-[100300] bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-2xl overflow-y-auto custom-scrollbar"
+            style={dropdownPosition}
           >
             <div className="p-1 space-y-0.5">
               {allowCreate && (
@@ -401,7 +447,9 @@ const CustomSelect = ({
             </div>
           </motion.div>
         )}
-      </AnimatePresence>
+        </AnimatePresence>,
+        document.body
+      )}
     </div>
   );
 };
@@ -1051,6 +1099,7 @@ function RegistroEstudoModal({
   };
 
   const handleSaveAll = async () => {
+    if (loading) return;
     setLoading(true);
     setErrorMessage('');
     let itemsToSave = [...queue];
@@ -1079,7 +1128,7 @@ function RegistroEstudoModal({
 
     try {
       let totalXP = 0;
-      const batch = writeBatch(db);
+      const postSaveTasks = [];
       for (const item of itemsToSave) {
         await addRegistroEstudo({
           contextoRegistro: item.contextoRegistro || selectedContext,
@@ -1106,6 +1155,7 @@ function RegistroEstudoModal({
         totalXP += itemXP;
 
         if ((item.contextoRegistro || selectedContext) === 'ciclo' && item.markAsFinished) {
+          postSaveTasks.push((async () => {
           const q = query(
             collection(db, 'users', userId, 'registrosEstudo'),
             where('cicloId', '==', item.contextId || selectedContextId),
@@ -1123,13 +1173,22 @@ function RegistroEstudoModal({
               tipoEstudo: 'check_manual', obs: 'Concluído via Registro Manual'
             });
           }
+          })());
         }
       }
 
-      if (totalXP > 0) await addXP(totalXP, 'Sessão de Estudos');
-      await checkAndAwardMilestone('FIRST_STUDY');
+      const rewardTasks = [
+        ...(totalXP > 0 ? [addXP(totalXP, 'Sessão de Estudos')] : []),
+        checkAndAwardMilestone('FIRST_STUDY'),
+      ];
+      Promise.allSettled([...postSaveTasks, ...rewardTasks]).then((results) => {
+        results.forEach((result) => {
+          if (result.status === 'rejected') console.error('[RegistroEstudoModal] Erro em pos-registro:', result.reason);
+        });
+      });
       setShowSuccess(true);
-      setTimeout(() => { setLoading(false); onClose(); }, 1500);
+      setLoading(false);
+      onClose();
     } catch (error) {
       console.error(error);
       setErrorMessage('Erro ao salvar.');
@@ -1192,7 +1251,7 @@ function RegistroEstudoModal({
             <motion.div
               animate={{ rotate: [0, -4, 4, 0], scale: [1, 1.03, 1] }}
               transition={{ duration: 4.5, repeat: Infinity, ease: 'easeInOut' }}
-              className="relative flex h-8 w-8 md:h-9 md:w-9 items-center justify-center rounded-xl bg-red-600 text-white shadow-lg shadow-red-500/25"n
+              className="relative flex h-8 w-8 md:h-9 md:w-9 items-center justify-center rounded-xl bg-red-600 text-white shadow-lg shadow-red-500/25"
             >
               <Save size={17} strokeWidth={1.8} />
             </motion.div>
