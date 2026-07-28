@@ -320,6 +320,7 @@ function HomePage({
   addRegistroEstudo,
   deleteCompletionRegistro,
   user,
+  dailyGoalModalBlocked = false,
 }) {
   useForceUnlock();
   const [selectedDate, setSelectedDate] = useState(null);
@@ -610,8 +611,10 @@ function HomePage({
             onGoToRevisao={onGoToRevisao}
             addRegistroEstudo={addRegistroEstudo}
             deleteCompletionRegistro={deleteCompletionRegistro}
+            registrosEstudo={globalRegistrosEstudo}
             preferredContext={homeContextPreferred}
             onPreferredContextChange={updateHomeContextPreferred}
+            dailyGoalModalBlocked={dailyGoalModalBlocked}
           />
 
           <StudyHistoryTimelineCard

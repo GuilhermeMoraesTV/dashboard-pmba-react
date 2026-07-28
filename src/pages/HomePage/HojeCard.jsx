@@ -1,18 +1,20 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
-  Target, BookOpen, Check, Play, ChevronRight,
+  Target, BookOpen, Check, CheckCircle2, Play, ChevronRight,
   Sword, Flame, ShieldAlert, Trophy,
   ListTodo, Clock, Loader2, CalendarPlus
 } from 'lucide-react';
 import { formatDateKeyLocal, getAgendaSemana, getCronogramaReviewBuckets, getWeekOffsetFromDate } from '../../services/scheduling/review';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection, deleteField, doc, onSnapshot, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
 import { useCicloRevisoes } from '../../hooks/useCicloRevisoes';
 import { useCiclos } from '../../hooks/useCiclos';
 import { useCronogramaSystem } from '../../hooks/useCronogramaSystem';
+import { resolveLogoUrl } from '../../components/admin/config/editalAssets';
+import DailyGoalCompletedModal from '../../components/shared/DailyGoalCompletedModal.jsx';
 import { buildCompletionRegistro } from '../../utils/completionRegistro';
-import { getCycleDailyGuide } from '../../utils/studyDayStatus';
+import { getCronogramaSlotRecordedMinutes, getCycleDailyGuide } from '../../utils/studyDayStatus';
 import { getDisciplineCardVars, getDisciplineColorForSlot } from '../../utils/disciplineColors';
 import HomeEmptyState from './HomeEmptyState.jsx';
 
@@ -63,13 +65,31 @@ const getOptimisticKey = (sourceMode, slot) => {
 
 const applyOptimisticDone = (slot, done) => {
   const tempo = Number(slot?.tempoPlanejadoMinutos ?? slot?.tempoMinutos ?? 0);
+  const progressoAtual = Number(slot?.progressoMinutos || 0);
   return {
     ...slot,
     concluido: done,
     concluida: done,
-    progressoMinutos: done ? Math.max(Number(slot?.progressoMinutos || 0), tempo) : slot?.progressoMinutos,
+    progressoMinutos: done ? Math.max(progressoAtual, tempo) : progressoAtual,
   };
 };
+
+const removeOptimisticKey = (state, key) => {
+  if (!key || !Object.prototype.hasOwnProperty.call(state, key)) return state;
+  const next = { ...state };
+  delete next[key];
+  return next;
+};
+
+const getRegistroDateKey = (registro) => {
+  if (registro?.data) return registro.data;
+  if (registro?.dataRegistro) return registro.dataRegistro;
+  if (registro?.timestamp?.toDate) return formatDateKeyLocal(registro.timestamp.toDate());
+  if (registro?.createdAt?.toDate) return formatDateKeyLocal(registro.createdAt.toDate());
+  return null;
+};
+
+const isInteractiveClick = (target) => Boolean(target?.closest?.('button, a, input, textarea, select, [role="button"]'));
 
 // --- Slot de Missão ---
 function MissionSlot({ slot, isDone, onToggle, onMarkPending, onPlay, variant, sourceMode = 'cronograma', isLoading = false }) {
@@ -77,28 +97,30 @@ function MissionSlot({ slot, isDone, onToggle, onMarkPending, onPlay, variant, s
   const isCycle = sourceMode === 'ciclo';
   const tempoPlanejado = Number(slot.tempoPlanejadoMinutos ?? slot.tempoMinutos ?? 0);
   const progressoAtual = Number(slot.progressoMinutos || 0);
-  const progressoLimitado = Math.min(progressoAtual, tempoPlanejado || progressoAtual);
-  const progressoPercentual = tempoPlanejado > 0
-    ? Math.min(100, Math.round((progressoLimitado / tempoPlanejado) * 100))
-    : (isDone ? 100 : 0);
-  const emAndamento = !isDone && progressoLimitado > 0 && progressoPercentual < 100;
+  const effectiveDone = Boolean(isDone) || (tempoPlanejado > 0 && progressoAtual >= tempoPlanejado);
+  const progressoPercentualReal = tempoPlanejado > 0
+    ? Math.round((progressoAtual / tempoPlanejado) * 100)
+    : (effectiveDone ? 100 : 0);
+  const progressoPercentual = Math.min(100, progressoPercentualReal);
+  const emAndamento = !effectiveDone && progressoAtual > 0 && progressoPercentual < 100;
   const disciplinaColor = getDisciplineColorForSlot(slot);
   const useDisciplineColor = isEstudo && !emAndamento;
-  const progressoExibido = isDone ? 100 : progressoPercentual;
-  const progressoMinutosExibido = isDone ? tempoPlanejado : progressoLimitado;
+  const progressoExibido = effectiveDone ? Math.max(100, progressoPercentualReal) : progressoPercentualReal;
+  const progressoBarra = Math.min(100, Math.max(0, progressoExibido));
+  const progressoMinutosExibido = effectiveDone ? Math.max(progressoAtual, tempoPlanejado) : progressoAtual;
+  const desmarcarBloqueado = effectiveDone && isCycle && Boolean(slot.bloqueiaDesmarcarConclusao);
+  const toggleTitle = desmarcarBloqueado
+    ? 'Conclusao protegida por registro de estudo'
+    : effectiveDone ? 'Marcar como pendente' : 'Marcar como concluido';
 
 return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      whileHover={{ y: -2, scale: 1.01 }}
+    <div
       className={`group relative min-h-[92px] overflow-hidden border transition-all duration-200 ${
         isCycle ? 'rounded-[22px]' : 'rounded-2xl'
       } ${
         useDisciplineColor ? 'discipline-tinted-card' : ''
       } ${
-        isDone
+        effectiveDone
           ? 'discipline-completed-card'
         : emAndamento
           ? 'bg-orange-50/80 dark:bg-orange-500/5 border-orange-200 dark:border-orange-500/20'
@@ -109,7 +131,7 @@ return (
       style={useDisciplineColor ? getDisciplineCardVars(disciplinaColor) : undefined}
     >
       <div className={`absolute bottom-0 left-0 top-0 w-1.5 transition-colors duration-300 ${
-        isDone ? 'bg-emerald-500/45'
+        effectiveDone ? 'bg-emerald-500/45'
         : emAndamento ? 'bg-orange-500'
         : useDisciplineColor ? 'bg-[rgba(var(--discipline-rgb),0.35)]'
         : isEstudo ? disciplinaColor.bg
@@ -119,22 +141,23 @@ return (
       <div className="flex h-full flex-col gap-2 px-3 py-2.5">
         <div className="flex min-w-0 items-start justify-between gap-2 pr-1">
           <div className="flex min-w-0 flex-1 items-start gap-2">
-            <motion.button
-              whileHover={{ scale: 1.05, y: -1 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => onToggle(slot)}
-              disabled={isLoading}
+            <button
+              onClick={() => {
+                if (desmarcarBloqueado) return;
+                onToggle(slot);
+              }}
+              disabled={isLoading || desmarcarBloqueado}
               className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border shadow-sm transition-all disabled:opacity-60 ${
-                isDone
+                effectiveDone
                   ? 'border-emerald-500 bg-emerald-500 text-white shadow-emerald-500/20'
                   : 'border-emerald-200 bg-white text-emerald-600 shadow-emerald-500/10 hover:border-emerald-300 hover:bg-emerald-50 dark:border-emerald-900/40 dark:bg-white/10 dark:text-emerald-300 dark:hover:bg-emerald-900/35'
-              }`}
-              title={isDone ? 'Marcar como pendente' : 'Marcar como concluido'}
+              } ${desmarcarBloqueado ? 'cursor-not-allowed' : ''}`}
+              title={toggleTitle}
             >
-              {isLoading ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} strokeWidth={3.5} />}
-            </motion.button>
+              <Check size={15} strokeWidth={3.5} />
+            </button>
             <h4 className={`min-w-0 flex-1 truncate text-[11px] sm:text-xs font-black uppercase tracking-wide leading-tight ${
-              isDone ? `${disciplinaColor.text} line-through opacity-75`
+              effectiveDone ? `${disciplinaColor.text} line-through opacity-75`
               : emAndamento ? 'text-orange-700 dark:text-orange-400'
               : useDisciplineColor ? disciplinaColor.text
               : 'text-zinc-900 dark:text-zinc-100'
@@ -151,7 +174,7 @@ return (
         </div>
 
         <div className="flex items-center gap-2">
-          <p className={`truncate text-[10px] sm:text-[11px] font-bold leading-snug tracking-tight text-zinc-500 dark:text-zinc-300 ${isDone ? 'line-through decoration-emerald-500/60' : ''}`}>
+          <p className={`truncate text-[10px] sm:text-[11px] font-bold leading-snug tracking-tight text-zinc-500 dark:text-zinc-300 ${effectiveDone ? 'line-through decoration-emerald-500/60' : ''}`}>
             {slot.assunto || (isEstudo ? 'Teoria e Base' : 'Revisão de Elite')}
           </p>
         </div>
@@ -168,12 +191,10 @@ return (
               </span>
             </div>
             <div className="h-1 overflow-hidden rounded-full bg-white/55 dark:bg-black/25">
-              <motion.div
-                initial={false}
-                animate={{ width: `${progressoExibido}%` }}
-                transition={{ duration: 0.25 }}
+              <div
+                style={{ width: `${progressoBarra}%` }}
                 className={`h-full rounded-full ${
-                  isDone
+                  effectiveDone
                     ? disciplinaColor.progress
                     : emAndamento
                     ? 'bg-orange-500'
@@ -184,7 +205,7 @@ return (
               />
             </div>
             </div>
-            {!isDone && (
+            {!effectiveDone && (
               <button
                 onClick={() => onPlay?.(slot)}
                 title="Iniciar estudo"
@@ -202,10 +223,8 @@ return (
       </div>
 
       <div className="hidden">
-        {!isDone && (
-          <motion.button
-            whileHover={{ scale: 1.05, y: -1 }}
-            whileTap={{ scale: 0.95 }}
+        {!effectiveDone && (
+          <button
             onClick={() => onPlay?.(slot)}
             className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all shadow-sm border ${
               isEstudo 
@@ -215,12 +234,10 @@ return (
             title="Iniciar Estudo"
           >
             <Play size={14} fill="currentColor" />
-          </motion.button>
+          </button>
         )}
 
-        <motion.button
-          whileHover={{ scale: 1.05, y: -1 }}
-          whileTap={{ scale: 0.95 }}
+        <button
           onClick={() => onToggle(slot)}
           className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border shadow-sm transition-all ${
             isDone
@@ -230,49 +247,19 @@ return (
           title={isDone ? 'Concluido' : 'Marcar como concluido'}
         >
           {isLoading ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} strokeWidth={3.5} />}
-        </motion.button>
+        </button>
 
         {false && (
-          <motion.button
-            whileHover={{ scale: 1.05, y: -1 }}
-            whileTap={{ scale: 0.95 }}
+          <button
             onClick={() => onMarkPending(slot)}
             className="w-9 h-9 rounded-xl flex items-center justify-center bg-amber-50 dark:bg-amber-900/20 text-amber-600 hover:bg-amber-500 hover:text-white transition-all shadow-sm border border-amber-100 dark:border-amber-900/30"
             title="Ainda não concluída"
           >
             <CalendarPlus size={14} />
-          </motion.button>
+          </button>
         )}
       </div>
-    </motion.div>
-  );
-}
-
-function CompletedTodayCelebration({ label = 'Tudo concluido' }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.96 }}
-      animate={{ opacity: 1, scale: 1 }}
-      className="relative flex min-h-[220px] flex-col items-center justify-center overflow-hidden rounded-[28px] border border-emerald-200/70 bg-gradient-to-br from-white via-emerald-50 to-teal-50 p-6 text-center text-emerald-900 shadow-2xl shadow-emerald-500/10 dark:border-emerald-900/40 dark:from-zinc-950 dark:via-emerald-950/30 dark:to-zinc-900 dark:text-emerald-100"
-    >
-      <motion.div
-        className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-emerald-400 via-green-500 to-teal-400"
-        animate={{ opacity: [0.65, 1, 0.65] }}
-        transition={{ duration: 2.4, repeat: Infinity }}
-      />
-      <motion.div
-        className="relative mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-600 text-white shadow-xl shadow-emerald-600/20"
-        animate={{ scale: [1, 1.08, 1], rotate: [0, -3, 3, 0] }}
-        transition={{ duration: 1.9, repeat: Infinity }}
-      >
-        <Trophy size={30} />
-      </motion.div>
-      <p className="relative text-[11px] font-black uppercase tracking-[0.32em] text-emerald-600 dark:text-emerald-300">Meta do dia completa</p>
-      <h4 className="relative mt-2 text-xl font-black uppercase tracking-tight">{label}</h4>
-      <p className="relative mt-2 max-w-xs text-xs font-semibold uppercase tracking-wider text-emerald-700/70 dark:text-emerald-200/70">
-        Estudo e revisao do dia estao fechados.
-      </p>
-    </motion.div>
+    </div>
   );
 }
 
@@ -289,8 +276,10 @@ function HojeCard({
   onGoToRevisao,
   addRegistroEstudo,
   deleteCompletionRegistro,
+  registrosEstudo = [],
   preferredContext,
   onPreferredContextChange,
+  dailyGoalModalBlocked = false,
 }) {
   const [loading, setLoading] = useState(null);
   const loadingRef = useRef(null);
@@ -304,11 +293,17 @@ function HojeCard({
   });
   const [activePanel, setActivePanel] = useState('estudo');
   const [optimisticDone, setOptimisticDone] = useState({});
+  const lastCycleStudySlotsRef = useRef([]);
+  const lastCycleReviewSlotsRef = useRef([]);
+  const [completionModalOpen, setCompletionModalOpen] = useState(false);
+  const [pendingCompletionModal, setPendingCompletionModal] = useState(false);
+  const completionStateRef = useRef({ initialized: false, wasDone: false });
+  const cycleToggleInFlightRef = useRef(new Set());
 
   const hasCronograma = !!activeCronogramaData?.id;
   const hasCiclo = !!activeCicloData?.id;
   const modoCicloAtivo = hasCiclo && (!hasCronograma || modoPreferido === 'ciclo');
-  const { marcarSessaoConcluida, salvarPendenciaTeoriaCiclo, limparPendenciaTeoriaCiclo } = useCiclos(user);
+  const { salvarPendenciaTeoriaCiclo, limparPendenciaTeoriaCiclo } = useCiclos(user);
   const { toggleSlotConcluido, concluirRevisaoCronograma, marcarTeoriaAindaNaoConcluida } = useCronogramaSystem(user);
 
   const hojeIdx = useMemo(() => new Date().getDay(), []);
@@ -373,8 +368,23 @@ function HojeCard({
       .map((slot) => {
         const slotIdNoProgresso = slot.slotIdBase || slot.slotId;
         const tempoPlanejadoMinutos = Number(slot.tempoMinutos ?? slot.minutosEstudo ?? 0);
-        const progressoCru = Number(progressoMinutosW[slotIdNoProgresso] || slot.progressoMinutos || 0);
-        const concluido = progressoW[slotIdNoProgresso] === true || progressoW[slot.slotId] === true || slot.concluido === true;
+        const progressoRegistrado = getCronogramaSlotRecordedMinutes({
+          cronograma: activeCronogramaData,
+          slot,
+          registrosEstudo,
+          dateKey: formatDateKeyLocal(hoje),
+        });
+        const progressoCru = Math.max(
+          Number(progressoMinutosW[slotIdNoProgresso] || 0),
+          Number(slot.slotId ? progressoMinutosW[slot.slotId] || 0 : 0),
+          Number(slot.slotIdBase ? progressoMinutosW[slot.slotIdBase] || 0 : 0),
+          Number(slot.progressoMinutos || 0),
+          progressoRegistrado
+        );
+        const concluido = progressoW[slotIdNoProgresso] === true
+          || progressoW[slot.slotId] === true
+          || slot.concluido === true
+          || (tempoPlanejadoMinutos > 0 && progressoCru >= tempoPlanejadoMinutos);
         const progressoMinutos = concluido ? Math.max(progressoCru, tempoPlanejadoMinutos) : progressoCru;
         return { ...slot, slotIdNoProgresso, concluido, tempoPlanejadoMinutos, progressoMinutos };
       });
@@ -387,20 +397,19 @@ function HojeCard({
       })
       .map((slot) => ({ ...slot, concluido: Boolean(slot.concluido) }));
     return { slotsEstudo: estudo, slotsRevisao: revisao };
-  }, [activeCronogramaData, hojeIdx]);
+  }, [activeCronogramaData, hojeIdx, registrosEstudo]);
 
   const cicloGuide = useMemo(() => {
     if (!activeCicloData?.id) return { sessions: [], isRestDay: false, plannedMinutes: 0 };
-    return getCycleDailyGuide({ ...activeCicloData, disciplinas: disciplinasCiclo });
-  }, [activeCicloData, disciplinasCiclo]);
+    return getCycleDailyGuide({ ...activeCicloData, disciplinas: disciplinasCiclo }, new Date(), registrosEstudo);
+  }, [activeCicloData, disciplinasCiclo, registrosEstudo]);
 
   const cicloSlotsEstudo = useMemo(() => {
     const tempoSessao = Math.max(1, Number(activeCicloData?.tempoSessaoMinutos || 50));
     return (cicloGuide.sessions || []).map((sessao) => {
       const disc = disciplinasCiclo.find((d) => d.id === sessao.disciplinaId);
-      const progressoMinutos = sessao.concluida
-        ? tempoSessao
-        : Math.min(Number(sessao.progressoMinutos || 0), tempoSessao);
+      const progressoRaw = Number(sessao.progressoMinutos || 0);
+      const concluidoPorProgresso = tempoSessao > 0 && progressoRaw >= tempoSessao;
       return {
         ...sessao,
         slotId: `ciclo-${sessao.globalIndex}`,
@@ -410,8 +419,8 @@ function HojeCard({
         cor: disc?.cor,
         assunto: sessao.assuntoSugerido?.nome || sessao.assuntoSugerido || '',
         tempoPlanejadoMinutos: tempoSessao,
-        progressoMinutos,
-        concluido: Boolean(sessao.concluida),
+        progressoMinutos: progressoRaw,
+        concluido: Boolean(sessao.concluida) || concluidoPorProgresso,
         isRevisaoAuto: false,
       };
     });
@@ -430,8 +439,76 @@ function HojeCard({
     intervaloLabel: intervaloLabel(rev.intervaloDias),
   })), [revisoesHoje]);
 
-  const estudosVisiveisBase = modoCicloAtivo ? cicloSlotsEstudo : slotsEstudo;
-  const revisoesVisiveisBase = modoCicloAtivo ? cicloSlotsRevisao : slotsRevisao;
+  useEffect(() => {
+    if (modoCicloAtivo && cicloSlotsEstudo.length > 0) {
+      lastCycleStudySlotsRef.current = cicloSlotsEstudo;
+    }
+  }, [cicloSlotsEstudo, modoCicloAtivo]);
+
+  useEffect(() => {
+    if (modoCicloAtivo && cicloSlotsRevisao.length > 0) {
+      lastCycleReviewSlotsRef.current = cicloSlotsRevisao;
+    }
+  }, [cicloSlotsRevisao, modoCicloAtivo]);
+
+  useEffect(() => {
+    if (!modoCicloAtivo) return;
+    setOptimisticDone((prev) => {
+      let next = prev;
+
+      cicloSlotsEstudo.forEach((slot) => {
+        const key = getOptimisticKey('ciclo', slot);
+        if (key && Object.prototype.hasOwnProperty.call(next, key) && Boolean(slot.concluido) === Boolean(next[key])) {
+          next = removeOptimisticKey(next, key);
+        }
+      });
+
+      cicloSlotsRevisao.forEach((slot) => {
+        const key = getOptimisticKey('ciclo', slot);
+        if (key && Object.prototype.hasOwnProperty.call(next, key) && Boolean(slot.concluido) === Boolean(next[key])) {
+          next = removeOptimisticKey(next, key);
+        }
+      });
+
+      return next;
+    });
+  }, [cicloSlotsEstudo, cicloSlotsRevisao, modoCicloAtivo]);
+
+  const estudosVisiveisBase = useMemo(() => {
+    if (!modoCicloAtivo) return slotsEstudo;
+    const optimisticKeys = Object.keys(optimisticDone).filter((key) => key.startsWith('ciclo:estudo:'));
+    if (!optimisticKeys.length) return cicloSlotsEstudo;
+
+    const keepKeys = new Set(optimisticKeys);
+    const byKey = new Map();
+    cicloSlotsEstudo.forEach((slot) => {
+      const key = getOptimisticKey('ciclo', slot);
+      if (key) byKey.set(key, slot);
+    });
+    lastCycleStudySlotsRef.current.forEach((slot) => {
+      const key = getOptimisticKey('ciclo', slot);
+      if (key && keepKeys.has(key) && !byKey.has(key)) byKey.set(key, slot);
+    });
+    return Array.from(byKey.values()).sort((a, b) => Number(a.globalIndex || 0) - Number(b.globalIndex || 0));
+  }, [cicloSlotsEstudo, modoCicloAtivo, optimisticDone, slotsEstudo]);
+
+  const revisoesVisiveisBase = useMemo(() => {
+    if (!modoCicloAtivo) return slotsRevisao;
+    const optimisticKeys = Object.keys(optimisticDone).filter((key) => key.startsWith('ciclo:revisao:'));
+    if (!optimisticKeys.length) return cicloSlotsRevisao;
+
+    const keepKeys = new Set(optimisticKeys);
+    const byKey = new Map();
+    cicloSlotsRevisao.forEach((slot) => {
+      const key = getOptimisticKey('ciclo', slot);
+      if (key) byKey.set(key, slot);
+    });
+    lastCycleReviewSlotsRef.current.forEach((slot) => {
+      const key = getOptimisticKey('ciclo', slot);
+      if (key && keepKeys.has(key) && !byKey.has(key)) byKey.set(key, slot);
+    });
+    return Array.from(byKey.values()).sort((a, b) => String(a.id || a.slotId || '').localeCompare(String(b.id || b.slotId || '')));
+  }, [cicloSlotsRevisao, modoCicloAtivo, optimisticDone, slotsRevisao]);
   const estudosVisiveis = useMemo(() => {
     const sourceMode = modoCicloAtivo ? 'ciclo' : 'cronograma';
     return estudosVisiveisBase.map((slot) => {
@@ -456,7 +533,7 @@ function HojeCard({
     const total = itens.reduce((acc, item) => acc + Number(item.tempoPlanejadoMinutos ?? item.tempoMinutos ?? 0), 0);
     const feito = itens.reduce((acc, item) => {
       const tempo = Number(item.tempoPlanejadoMinutos ?? item.tempoMinutos ?? 0);
-      if (item.concluido) return acc + tempo;
+      if (item.concluido) return acc + Math.max(Number(item.progressoMinutos || 0), tempo);
       return acc + Math.min(Number(item.progressoMinutos || 0), tempo || Number(item.progressoMinutos || 0));
     }, 0);
     const pct = total > 0 ? Math.min(100, Math.round((feito / total) * 100)) : 0;
@@ -467,6 +544,64 @@ function HojeCard({
   const totalConcluidosDia = estudosVisiveis.filter((s) => s.concluido).length + revisoesVisiveis.filter((s) => s.concluido).length;
   const diaTodoConcluido = totalItensDia > 0 && totalConcluidosDia === totalItensDia;
   const completionGlowActive = diaTodoConcluido && totalItensDia > 0;
+  const itensDoDia = useMemo(() => [...estudosVisiveis, ...revisoesVisiveis], [estudosVisiveis, revisoesVisiveis]);
+  const progressoDiaResumo = useMemo(() => {
+    const total = itensDoDia.reduce((acc, item) => acc + Number(item.tempoPlanejadoMinutos ?? item.tempoMinutos ?? 0), 0);
+    const feito = itensDoDia.reduce((acc, item) => {
+      const tempo = Number(item.tempoPlanejadoMinutos ?? item.tempoMinutos ?? 0);
+      if (item.concluido) return acc + Math.max(Number(item.progressoMinutos || 0), tempo);
+      return acc + Math.min(Number(item.progressoMinutos || 0), tempo || Number(item.progressoMinutos || 0));
+    }, 0);
+    return { total, feito };
+  }, [itensDoDia]);
+  const hojeKey = useMemo(() => formatDateKeyLocal(new Date()), []);
+  const registrosHoje = useMemo(() => {
+    const source = Array.isArray(registrosEstudo) ? registrosEstudo : [];
+    return source.filter((registro) => {
+      if (getRegistroDateKey(registro) !== hojeKey) return false;
+      if (modoCicloAtivo) return registro.cicloId === activeCicloData?.id && !registro.cronogramaId;
+      return registro.cronogramaId === activeCronogramaData?.id;
+    });
+  }, [activeCicloData?.id, activeCronogramaData?.id, hojeKey, modoCicloAtivo, registrosEstudo]);
+  const questoesHoje = registrosHoje.reduce((acc, registro) => acc + Number(registro.questoesFeitas || 0), 0);
+  const acertosHoje = registrosHoje.reduce((acc, registro) => acc + Number(registro.acertos || 0), 0);
+  const activePlanForModal = modoCicloAtivo ? activeCicloData : activeCronogramaData;
+  const editalLogo = activePlanForModal?.logoUrl
+    || activePlanForModal?.logo
+    || activePlanForModal?.editalLogoUrl
+    || resolveLogoUrl({ ciclo: activePlanForModal });
+  const editalName = activePlanForModal?.editalNome
+    || activePlanForModal?.titulo
+    || activePlanForModal?.nome
+    || (modoCicloAtivo ? 'Ciclo ativo' : 'Cronograma ativo');
+
+  useEffect(() => {
+    if (totalItensDia === 0) return;
+    const state = completionStateRef.current;
+    if (state.initialized && !state.wasDone && diaTodoConcluido) {
+      if (dailyGoalModalBlocked) {
+        setPendingCompletionModal(true);
+      } else {
+        setCompletionModalOpen(true);
+      }
+    }
+    completionStateRef.current = { initialized: true, wasDone: diaTodoConcluido };
+  }, [dailyGoalModalBlocked, diaTodoConcluido, totalItensDia]);
+
+  useEffect(() => {
+    if (!pendingCompletionModal || dailyGoalModalBlocked) return;
+    setCompletionModalOpen(true);
+    setPendingCompletionModal(false);
+  }, [dailyGoalModalBlocked, pendingCompletionModal]);
+
+  const openCompletionModal = useCallback(() => {
+    if (!diaTodoConcluido) return;
+    if (dailyGoalModalBlocked) {
+      setPendingCompletionModal(true);
+      return;
+    }
+    setCompletionModalOpen(true);
+  }, [dailyGoalModalBlocked, diaTodoConcluido]);
 
   const handleToggle = useCallback(async (slot) => {
     const loadingId = slot.slotIdBase || slot.slotId;
@@ -547,42 +682,60 @@ function HojeCard({
     else setActiveTab('ciclos');
   };
 
-  const handleToggleSessaoCiclo = useCallback(async (sessao) => {
-    if (!activeCicloData?.id || loadingCicloSessao === sessao.globalIndex) return;
+  const handleToggleSessaoCiclo = useCallback((sessao) => {
+    if (!activeCicloData?.id || !user?.uid) return;
+    const sessaoIndex = Number(sessao.globalIndex);
+    if (!Number.isFinite(sessaoIndex) || cycleToggleInFlightRef.current.has(sessaoIndex)) return;
+    const tempoSessao = Number(sessao.tempoPlanejadoMinutos || activeCicloData?.tempoSessaoMinutos || 50);
+    const progressoSessao = Number(sessao.progressoMinutos || 0);
+    const previousDone = Boolean(sessao.concluido || sessao.concluida) || (tempoSessao > 0 && progressoSessao >= tempoSessao);
+    if (previousDone && sessao.bloqueiaDesmarcarConclusao) return;
     const optimisticKey = getOptimisticKey('ciclo', sessao);
-    const previousDone = Boolean(sessao.concluido || sessao.concluida);
     const nextDone = !previousDone;
-    setLoadingCicloSessao(sessao.globalIndex);
     if (optimisticKey) {
       setOptimisticDone((prev) => ({ ...prev, [optimisticKey]: nextDone }));
     }
-    try {
-      const ok = await marcarSessaoConcluida(activeCicloData.id, sessao.globalIndex);
-      if (!ok && optimisticKey) {
-        setOptimisticDone((prev) => ({ ...prev, [optimisticKey]: previousDone }));
-        return;
+
+    cycleToggleInFlightRef.current.add(sessaoIndex);
+    (async () => {
+      try {
+        const concluidas = Array.isArray(activeCicloData.sessoesConcluidas)
+          ? activeCicloData.sessoesConcluidas.map(Number).filter(Number.isFinite)
+          : [];
+        const proximasConcluidas = nextDone
+          ? [...new Set([...concluidas, sessaoIndex])]
+          : concluidas.filter((index) => index !== sessaoIndex);
+
+        await updateDoc(doc(db, 'users', user.uid, 'ciclos', activeCicloData.id), {
+          sessoesConcluidas: proximasConcluidas,
+          [`progressoSessoes.${sessaoIndex}`]: nextDone ? Math.max(1, tempoSessao) : 0,
+          [`sessoesConcluidasDetalhes.${sessaoIndex}`]: nextDone
+            ? { concluidaEm: formatDateKeyLocal(new Date()), atualizadoEm: serverTimestamp() }
+            : deleteField(),
+        });
+
+        limparPendenciaTeoriaCiclo(activeCicloData.id, sessao.disciplinaId).catch(console.error);
+        const completionRegistro = buildCompletionRegistro({
+          context: 'ciclo',
+          item: sessao,
+          ciclo: { ...activeCicloData, disciplinas: disciplinasCiclo },
+          fallbackMinutes: activeCicloData?.tempoSessaoMinutos || 50,
+        });
+        if (!previousDone && addRegistroEstudo) {
+          addRegistroEstudo(completionRegistro).catch(console.error);
+        } else if (previousDone && deleteCompletionRegistro) {
+          deleteCompletionRegistro(completionRegistro).catch(console.error);
+        }
+      } catch (error) {
+        if (optimisticKey) {
+          setOptimisticDone((prev) => ({ ...prev, [optimisticKey]: previousDone }));
+        }
+        console.error(error);
+      } finally {
+        cycleToggleInFlightRef.current.delete(sessaoIndex);
       }
-      limparPendenciaTeoriaCiclo(activeCicloData.id, sessao.disciplinaId).catch(console.error);
-      const completionRegistro = buildCompletionRegistro({
-        context: 'ciclo',
-        item: sessao,
-        ciclo: { ...activeCicloData, disciplinas: disciplinasCiclo },
-        fallbackMinutes: activeCicloData?.tempoSessaoMinutos || 50,
-      });
-      if (ok && !previousDone && addRegistroEstudo) {
-        addRegistroEstudo(completionRegistro).catch(console.error);
-      } else if (ok && previousDone && deleteCompletionRegistro) {
-        deleteCompletionRegistro(completionRegistro).catch(console.error);
-      }
-    } catch (error) {
-      if (optimisticKey) {
-        setOptimisticDone((prev) => ({ ...prev, [optimisticKey]: previousDone }));
-      }
-      console.error(error);
-    } finally {
-      setLoadingCicloSessao(null);
-    }
-  }, [activeCicloData, addRegistroEstudo, deleteCompletionRegistro, disciplinasCiclo, loadingCicloSessao, limparPendenciaTeoriaCiclo, marcarSessaoConcluida]);
+    })();
+  }, [activeCicloData, addRegistroEstudo, deleteCompletionRegistro, disciplinasCiclo, limparPendenciaTeoriaCiclo, user?.uid]);
 
   const handleMarcarPendenciaCiclo = useCallback(async (sessao) => {
     const assuntoAtual = sessao?.assuntoSugerido?.nome || '';
@@ -748,10 +901,14 @@ function HojeCard({
 
   return (
     <motion.div
+      onClick={(event) => {
+        if (!completionGlowActive || isInteractiveClick(event.target)) return;
+        openCompletionModal();
+      }}
       animate={completionGlowActive ? { boxShadow: ['0 24px 70px rgba(16,185,129,0.16)', '0 28px 90px rgba(16,185,129,0.28)', '0 24px 70px rgba(16,185,129,0.16)'] } : undefined}
       transition={completionGlowActive ? { duration: 2.4, repeat: Infinity, ease: 'easeInOut' } : undefined}
       className={`group relative z-20 flex min-h-[400px] flex-col overflow-hidden rounded-xl border-2 border-l-4 !border-l-red-500/20 bg-white p-6 transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/50 hover:!border-l-red-500 hover:shadow-glow dark:!border-l-red-500/25 dark:bg-[#09090b] dark:shadow-[0_0_24px_rgba(239,68,68,0.1)] dark:hover:border-accent-light/30 dark:hover:!border-l-red-500 dark:hover:shadow-[0_0_36px_rgba(239,68,68,0.16)] ${className} ${
-        completionGlowActive ? 'border-emerald-500/30' : 'border-zinc-200 dark:border-white/10'
+        completionGlowActive ? 'cursor-pointer border-emerald-500/30' : 'border-zinc-200 dark:border-white/10'
       }`}
     >
       <div className="pointer-events-none absolute inset-0 z-0 bg-white dark:bg-[#09090b]" />
@@ -784,7 +941,7 @@ function HojeCard({
                     ? 'bg-red-600 shadow-red-600/25'
                     : 'bg-blue-600 shadow-blue-600/25'
               }`}>
-                {activePanel === 'estudo' ? <BookOpen size={20} className="sm:h-6 sm:w-6" /> : <Target size={20} className="sm:h-6 sm:w-6" />}
+                {completionGlowActive ? <CheckCircle2 size={20} className="sm:h-6 sm:w-6" /> : activePanel === 'estudo' ? <BookOpen size={20} className="sm:h-6 sm:w-6" /> : <Target size={20} className="sm:h-6 sm:w-6" />}
               </div>
               <div className="min-w-0">
                 <p className={`text-[8px] font-black uppercase tracking-[0.24em] sm:text-[9px] ${
@@ -793,13 +950,24 @@ function HojeCard({
                   Estudo do dia
                 </p>
                 <h2 className="mt-0.5 text-base font-black uppercase leading-none tracking-tight text-zinc-900 dark:text-white sm:text-xl">
-                  {activePanel === 'estudo' ? 'Sessoes' : 'Revisoes'} <span className={activePanel === 'estudo' ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}>ativas</span>
+                  {completionGlowActive ? (
+                    <>Meta do dia <span className="text-emerald-600 dark:text-emerald-400">batida</span></>
+                  ) : (
+                    <>{activePanel === 'estudo' ? 'Sessoes' : 'Revisoes'} <span className={activePanel === 'estudo' ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}>ativas</span></>
+                  )}
                 </h2>
+                {completionGlowActive && (
+                  <p className="mt-1 text-[9px] font-black uppercase tracking-widest text-emerald-600/80 dark:text-emerald-300/80">
+                    {fmtMin(progressoDiaResumo.feito)} estudados
+                  </p>
+                )}
               </div>
             </div>
 
             <div className="shrink-0 text-right">
-              <p className="text-[8px] font-black uppercase tracking-widest text-zinc-400">Meta de hoje</p>
+              <p className="text-[8px] font-black uppercase tracking-widest text-zinc-400">
+                {completionGlowActive ? 'Tempo' : 'Meta de hoje'}
+              </p>
               <div className="mt-1 flex items-center justify-end gap-1.5">
                 <Clock size={13} className={completionGlowActive ? 'text-emerald-500' : activePanel === 'estudo' ? 'text-red-500' : 'text-blue-500'} />
                 <span className="text-base font-black tabular-nums text-zinc-900 dark:text-white sm:text-xl">
@@ -809,7 +977,7 @@ function HojeCard({
                 </span>
               </div>
               <p className={`mt-1 text-[9px] font-black uppercase tracking-widest ${completionGlowActive ? 'text-emerald-600 dark:text-emerald-400' : activePanel === 'estudo' ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}`}>
-                {progressoCard.pct}% concluido
+                {completionGlowActive ? 'Meta batida' : `${progressoCard.pct}% concluido`}
               </p>
             </div>
           </div>
@@ -817,7 +985,9 @@ function HojeCard({
           <div className="mt-3">
             <div className="mb-1.5 flex items-center justify-between gap-3">
               <span className="min-w-0 truncate text-[8px] font-black uppercase tracking-widest text-zinc-500">
-                {modoCicloAtivo ? 'Modo ciclo' : 'Cronograma'} - {progressoCard.concluidos} de {progressoCard.itens} concluidos
+                {completionGlowActive
+                  ? `Tempo do dia - ${fmtMin(progressoDiaResumo.feito)}`
+                  : `${modoCicloAtivo ? 'Modo ciclo' : 'Cronograma'} - ${progressoCard.concluidos} de ${progressoCard.itens} concluidos`}
               </span>
               <div className="flex shrink-0 items-center rounded-xl border border-zinc-100 bg-zinc-50 p-0.5 dark:border-white/5 dark:bg-white/5">
                 <button
@@ -946,9 +1116,7 @@ function HojeCard({
             </span>
           </div>
         </div>
-        {completionGlowActive ? (
-          <CompletedTodayCelebration label={modoCicloAtivo ? 'Ciclo do dia finalizado' : 'Cronograma do dia finalizado'} />
-        ) : activePanel === 'estudo' ? (
+        {activePanel === 'estudo' ? (
           <div className="study-guide-scroll custom-scrollbar min-h-0 flex-1 space-y-4 overflow-y-auto pr-2">
             {estudosVisiveis.length > 0 ? estudosVisiveis.map((s) => {
               const key = s.slotIdBase || s.slotId || s.globalIndex;
@@ -1033,6 +1201,18 @@ function HojeCard({
           </button>
         </div>
       </div>
+      <DailyGoalCompletedModal
+        open={completionModalOpen}
+        onClose={() => setCompletionModalOpen(false)}
+        contextLabel={modoCicloAtivo ? 'Ciclo do dia' : 'Cronograma do dia'}
+        planName={activePlanForModal?.nome || (modoCicloAtivo ? 'Ciclo ativo' : 'Cronograma ativo')}
+        editalName={editalName}
+        editalLogo={editalLogo}
+        minutes={progressoDiaResumo.feito}
+        plannedMinutes={progressoDiaResumo.total}
+        questions={questoesHoje}
+        correct={acertosHoje}
+      />
 
     </motion.div>
   );

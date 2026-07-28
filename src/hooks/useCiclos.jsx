@@ -584,8 +584,11 @@ export const useCiclos = (user) => {
       const sessaoIndex = Number(sessaoGlobalIndex);
       const completionDate = dateToYMDLocal(options.concluidaEm || new Date());
       const tempoSessaoMinutos = Math.max(1, Number(data.tempoSessaoMinutos || 50));
+      const progressoSessoes = data.progressoSessoes || {};
+      const progressoAtual = Number(progressoSessoes?.[sessaoIndex] || progressoSessoes?.[String(sessaoIndex)] || 0);
+      const jaConcluida = concluidas.includes(sessaoIndex) || progressoAtual >= tempoSessaoMinutos;
 
-      if (concluidas.includes(sessaoIndex)) {
+      if (jaConcluida) {
         await updateDoc(cicloRef, {
           sessoesConcluidas: concluidas.filter(i => i !== sessaoIndex),
           [`sessoesConcluidasDetalhes.${sessaoIndex}`]: deleteField(),
