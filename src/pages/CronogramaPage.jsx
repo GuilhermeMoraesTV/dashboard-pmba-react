@@ -2673,6 +2673,17 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
     }
   };
 
+  const handleHistoryDeleteRegistro = async (registro) => {
+    if (!registro) return;
+    setLoadingAction(true);
+    try {
+      if (onDeleteRegistro) await onDeleteRegistro(registro.id);
+      else await deleteDoc(doc(db, 'users', user.uid, 'registrosEstudo', registro.id));
+    } finally {
+      setLoadingAction(false);
+    }
+  };
+
   const handleUpdateRegistro = async (id, data) => {
     await updateDoc(doc(db, 'users', user.uid, 'registrosEstudo', id), data);
   };
@@ -2969,9 +2980,11 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
             isOpen={showHistoryModal}
             onClose={() => setShowHistoryModal(false)}
             registros={registrosHistoricoCronograma}
-            onDeleteRequest={(registro) => setRecordToDelete(registro)}
+            onDeleteRequest={handleHistoryDeleteRegistro}
             onUpdateRecord={handleUpdateRegistro}
             title="Histórico do Cronograma"
+            confirmDeleteInModal
+            deleteLoading={loadingAction}
           />
         )}
 

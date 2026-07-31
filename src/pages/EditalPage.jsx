@@ -899,7 +899,7 @@ function EditalPage({
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="mobile-page-zoom mobile-page-zoom--edital w-full space-y-5 animate-fade-in pb-24">
+    <div className="mobile-page-zoom mobile-page-zoom--edital w-full space-y-4 animate-fade-in pb-24">
       <AnimatePresence>
         {toastMessage && (
           <motion.div
@@ -1087,7 +1087,7 @@ function EditalPage({
       )}
 
       {/* ── LISTA DE DISCIPLINAS ── */}
-      <div className="space-y-4 px-4 md:px-0">
+      <div className="space-y-3 px-4 md:px-0">
         {editalAtivo.length === 0 && !semDadosCrono && (
           <EmptyStateCard
             icon={Search}
@@ -1131,19 +1131,19 @@ function EditalPage({
                   </div>
                 )}
 
-                <div onClick={() => toggleDisciplina(disc.nome)} className="flex-1 flex items-center gap-5 p-5 text-left cursor-pointer group">
+                <div onClick={() => toggleDisciplina(disc.nome)} className="flex-1 flex items-center gap-4 p-4 text-left cursor-pointer group">
                   <div className="relative flex-shrink-0">
-                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center border transition-colors ${disc.progresso === 100 ? 'bg-emerald-100 dark:bg-emerald-900/20 text-emerald-600 border-emerald-200 dark:border-emerald-500/30' : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-500 border-zinc-200 dark:border-white/10 group-hover:text-red-500'}`}>
-                      {disc.progresso === 100 ? <CheckCircle2 size={22} /> : <LayoutGrid size={22} />}
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center border transition-colors ${disc.progresso === 100 ? 'bg-emerald-100 dark:bg-emerald-900/20 text-emerald-600 border-emerald-200 dark:border-emerald-500/30' : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-500 border-zinc-200 dark:border-white/10 group-hover:text-red-500'}`}>
+                      {disc.progresso === 100 ? <CheckCircle2 size={20} /> : <LayoutGrid size={20} />}
                     </div>
-                    <svg className="absolute -top-1 -left-1 w-14 h-14 pointer-events-none" viewBox="0 0 100 100">
+                    <svg className="absolute -top-1 -left-1 w-12 h-12 pointer-events-none" viewBox="0 0 100 100">
                       <circle cx="50" cy="50" r="48" fill="none" stroke="currentColor" className="text-zinc-200 dark:text-zinc-800" strokeWidth="2" />
                       <circle cx="50" cy="50" r="48" fill="none" stroke={disc.progresso === 100 ? '#10b981' : '#dc2626'} strokeWidth="2" strokeDasharray="301.59" strokeDashoffset={301.59 * (1 - disc.progresso / 100)} transform="rotate(-90 50 50)" className="transition-all duration-1000 ease-out" />
                     </svg>
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="font-bold text-base md:text-lg truncate transition-colors text-zinc-900 dark:text-white group-hover:text-red-600 dark:group-hover:text-red-400">{disc.nome}</h3>
+                      <h3 className="font-bold text-sm md:text-base truncate transition-colors text-zinc-900 dark:text-white group-hover:text-red-600 dark:group-hover:text-red-400">{disc.nome}</h3>
                       <NewBadge isNew={disc.isNew} />
                       {Number(disc.peso) >= 3 && (
                         <div className="hidden sm:flex items-center gap-1 px-2 py-0.5 bg-orange-100 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 rounded-full border border-orange-200 dark:border-orange-900/30 animate-pulse">
@@ -1166,7 +1166,7 @@ function EditalPage({
                   <ChevronDown size={20} className={`text-zinc-400 transition-transform flex-shrink-0 ${expandedDisciplinas[disc.nome] ? 'rotate-180' : ''}`} />
                 </div>
 
-                <div className="hidden md:flex items-center justify-end gap-3 p-5 border-l border-zinc-100 dark:border-white/10 bg-zinc-50/70 dark:bg-zinc-900/55">
+                <div className="hidden md:flex items-center justify-end gap-3 p-4 border-l border-zinc-100 dark:border-white/10 bg-zinc-50/70 dark:bg-zinc-900/55">
                   <div className="flex flex-col items-end mr-2">
                     <span className="text-[10px] font-bold text-zinc-400 uppercase">Último Estudo</span>
                     <span className="text-xs font-mono text-zinc-700 dark:text-zinc-300">{formatDateRelative(disc.stats.ultimaData)}</span>

@@ -636,9 +636,10 @@ const TimelineDayGroup = ({ dateStr, records, onEdit, onDelete }) => {
 };
 
 // --- COMPONENTE PRINCIPAL MODAL ---
-const HistoricoModal = ({ isOpen, onClose, registros, onDeleteRequest, onUpdateRecord, title = "Linha do Tempo" }) => {
+const HistoricoModal = ({ isOpen, onClose, registros, onDeleteRequest, onUpdateRecord, title = "Linha do Tempo", confirmDeleteInModal = false, deleteLoading = false }) => {
     const [selectedDate, setSelectedDate] = useState(null);
     const [recordToEdit, setRecordToEdit] = useState(null);
+    const [recordToDelete, setRecordToDelete] = useState(null);
     const [activeMobileTab, setActiveMobileTab] = useState('timeline');
 
     const { groupedRecords, stats } = useMemo(() => {
@@ -668,6 +669,20 @@ const HistoricoModal = ({ isOpen, onClose, registros, onDeleteRequest, onUpdateR
         if (window.innerWidth < 768) {
             setActiveMobileTab('timeline');
         }
+    };
+
+    const handleDeleteClick = (record) => {
+        if (confirmDeleteInModal) {
+            setRecordToDelete(record);
+            return;
+        }
+        onDeleteRequest?.(record);
+    };
+
+    const handleConfirmDelete = async () => {
+        if (!recordToDelete || !onDeleteRequest) return;
+        await onDeleteRequest(recordToDelete);
+        setRecordToDelete(null);
     };
 
     if (!isOpen) return null;
@@ -791,7 +806,7 @@ const HistoricoModal = ({ isOpen, onClose, registros, onDeleteRequest, onUpdateR
                                         dateStr={group.date}
                                         records={group.records}
                                         onEdit={(r) => setRecordToEdit(r)}
-                                        onDelete={onDeleteRequest}
+                                        onDelete={handleDeleteClick}
                                     />
                                 ))}
                                 <div className="text-center pt-8 pb-4">
@@ -805,6 +820,46 @@ const HistoricoModal = ({ isOpen, onClose, registros, onDeleteRequest, onUpdateR
 
             {/* Modal de Edição Interno */}
             <AnimatePresence>
+                {recordToDelete && (
+                    <div className="fixed inset-0 z-[100130] flex items-center justify-center bg-zinc-950/75 p-4 backdrop-blur-sm">
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.94, y: 12 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.94, y: 12 }}
+                            className="w-full max-w-sm overflow-hidden rounded-3xl border border-red-200 bg-white shadow-2xl dark:border-red-900/40 dark:bg-zinc-950"
+                        >
+                            <div className="border-b border-red-100 bg-red-50 p-6 text-center dark:border-red-900/30 dark:bg-red-950/20">
+                                <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-red-600 text-white shadow-lg shadow-red-600/25">
+                                    <Trash2 size={26} />
+                                </div>
+                                <h3 className="text-base font-black uppercase text-zinc-900 dark:text-white">Excluir registro?</h3>
+                                <p className="mt-2 text-sm font-medium leading-relaxed text-zinc-600 dark:text-zinc-400">
+                                    Isso remove este estudo do histórico e atualiza o progresso relacionado.
+                                </p>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3 p-5">
+                                <button
+                                    type="button"
+                                    onClick={() => setRecordToDelete(null)}
+                                    disabled={deleteLoading}
+                                    className="rounded-2xl bg-zinc-100 px-4 py-3 text-xs font-black uppercase tracking-wider text-zinc-700 transition-colors hover:bg-zinc-200 disabled:opacity-60 dark:bg-zinc-800 dark:text-zinc-200"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleConfirmDelete}
+                                    disabled={deleteLoading}
+                                    className="flex items-center justify-center gap-2 rounded-2xl bg-red-600 px-4 py-3 text-xs font-black uppercase tracking-wider text-white shadow-lg shadow-red-600/25 transition-colors hover:bg-red-700 disabled:opacity-60"
+                                >
+                                    {deleteLoading ? <span className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" /> : <Trash2 size={14} />}
+                                    Excluir
+                                </button>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+
                 {recordToEdit && (
                     <QuickEditRecordModal
                         record={recordToEdit}
