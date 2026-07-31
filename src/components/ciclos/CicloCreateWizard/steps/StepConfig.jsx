@@ -63,6 +63,8 @@ const OPCOES_ASSUNTOS = [
   },
 ];
 
+const CORES_RAPIDAS = ['#dc2626', '#ea580c', '#ca8a04', '#16a34a', '#0891b2', '#2563eb', '#7c3aed', '#be185d', '#52525b'];
+
 const ModeSelector = ({ options, value, onChange }) => (
   <div className="grid grid-cols-2 gap-2 sm:gap-3">
     {options.map((opt) => {
@@ -147,6 +149,11 @@ export default function StepConfig({
   }, [disciplinasPreview]);
 
   const handleDraftColorChange = (disciplina, color) => {
+    if (!/^#[0-9a-fA-F]{6}$/.test(color || '')) {
+      const id = disciplina.id || disciplina.nome;
+      setColorDrafts((current) => ({ ...current, [id]: color }));
+      return;
+    }
     const id = disciplina.id || disciplina.nome;
     setColorDrafts((current) => ({ ...current, [id]: color }));
     onDisciplinaCorChange?.(disciplina.id, color);
@@ -241,7 +248,7 @@ export default function StepConfig({
                 </div>
 
                 {coresDisciplinasAtivas ? (
-                  <div className="grid max-h-56 grid-cols-1 gap-2 overflow-y-auto pr-1 custom-scrollbar sm:grid-cols-2">
+                  <div className="grid max-h-[22rem] grid-cols-1 gap-2 overflow-y-auto pr-1 custom-scrollbar sm:max-h-56 sm:grid-cols-2">
                     {disciplinasPreview.map((disciplina) => {
                       const draftId = disciplina.id || disciplina.nome;
                       const draftColor = colorDrafts[draftId] || disciplina.cor || '#71717a';
@@ -250,32 +257,63 @@ export default function StepConfig({
                       return (
                         <div
                           key={draftId}
-                          className="flex min-w-0 items-center gap-2 rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-800 dark:bg-zinc-950"
+                          className="min-w-0 rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-800 dark:bg-zinc-950"
                         >
-                          <label className="relative h-9 w-9 shrink-0 cursor-pointer overflow-hidden rounded-xl border border-zinc-200 shadow-inner dark:border-zinc-700" style={{ backgroundColor: draftColor }}>
+                          <div className="flex min-w-0 items-center gap-2">
+                            <label className="relative h-10 w-10 shrink-0 cursor-pointer overflow-hidden rounded-xl border border-zinc-200 shadow-inner dark:border-zinc-700" style={{ backgroundColor: /^#[0-9a-fA-F]{6}$/.test(draftColor) ? draftColor : '#71717a' }}>
+                              <input
+                                type="color"
+                                value={/^#[0-9a-fA-F]{6}$/.test(draftColor) ? draftColor : '#71717a'}
+                                onChange={(event) => handleDraftColorChange(disciplina, event.target.value)}
+                                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                                aria-label={`Cor de ${disciplina.nome}`}
+                              />
+                            </label>
+                            <span className="min-w-0 flex-1 text-[11px] font-black uppercase leading-tight text-zinc-700 line-clamp-2 dark:text-zinc-200">
+                              {disciplina.nome}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleApplyColor(disciplina)}
+                              className={`inline-flex h-8 shrink-0 items-center justify-center gap-1 rounded-xl px-2 text-[9px] font-black uppercase tracking-wider transition-all ${
+                                isApplied
+                                  ? 'bg-emerald-50 text-emerald-600 ring-1 ring-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-300 dark:ring-emerald-900/40'
+                                  : 'bg-red-600 text-white shadow-md shadow-red-600/20 hover:bg-red-700'
+                              }`}
+                            >
+                              <Check size={12} />
+                              {isApplied ? 'OK' : 'Aplicar'}
+                            </button>
+                          </div>
+                          <div className="mt-2 grid grid-cols-[auto_1fr] items-center gap-2 sm:hidden">
                             <input
                               type="color"
+                              value={/^#[0-9a-fA-F]{6}$/.test(draftColor) ? draftColor : '#71717a'}
+                              onChange={(event) => handleDraftColorChange(disciplina, event.target.value)}
+                              className="h-9 w-12 cursor-pointer rounded-xl border border-zinc-200 bg-white p-1 dark:border-zinc-700 dark:bg-zinc-900"
+                              aria-label={`Escolher qualquer cor para ${disciplina.nome}`}
+                            />
+                            <input
+                              type="text"
                               value={draftColor}
                               onChange={(event) => handleDraftColorChange(disciplina, event.target.value)}
-                              className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-                              aria-label={`Cor de ${disciplina.nome}`}
+                              onBlur={() => /^#[0-9a-fA-F]{6}$/.test(draftColor) && handleApplyColor(disciplina)}
+                              placeholder="#DC2626"
+                              className="h-9 w-full rounded-xl border border-zinc-200 bg-white px-3 text-[11px] font-black uppercase tracking-wider text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
                             />
-                          </label>
-                          <span className="min-w-0 flex-1 text-[11px] font-black uppercase leading-tight text-zinc-700 line-clamp-2 dark:text-zinc-200">
-                            {disciplina.nome}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => handleApplyColor(disciplina)}
-                            className={`inline-flex h-8 shrink-0 items-center justify-center gap-1 rounded-xl px-2 text-[9px] font-black uppercase tracking-wider transition-all ${
-                              isApplied
-                                ? 'bg-emerald-50 text-emerald-600 ring-1 ring-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-300 dark:ring-emerald-900/40'
-                                : 'bg-red-600 text-white shadow-md shadow-red-600/20 hover:bg-red-700'
-                            }`}
-                          >
-                            <Check size={12} />
-                            {isApplied ? 'OK' : 'Aplicar'}
-                          </button>
+                            <div className="col-span-2 flex flex-wrap gap-1.5">
+                              {CORES_RAPIDAS.map((cor) => (
+                                <button
+                                  key={cor}
+                                  type="button"
+                                  onClick={() => handleDraftColorChange(disciplina, cor)}
+                                  className={`h-6 w-6 rounded-lg border-2 transition-transform active:scale-95 ${draftColor.toLowerCase() === cor.toLowerCase() ? 'border-zinc-900 dark:border-white' : 'border-white dark:border-zinc-800'}`}
+                                  style={{ backgroundColor: cor }}
+                                  aria-label={`Usar cor ${cor}`}
+                                />
+                              ))}
+                            </div>
+                          </div>
                         </div>
                       );
                     })}

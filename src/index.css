@@ -897,6 +897,10 @@ body.wizard-shell-open .global-study-register-fab {
     --wizard-content-mobile-zoom: var(--zoom-mobile-wizard-step-edital);
   }
 
+  body.wizard-shell-open .wizard-step-frame[data-wizard-step="edital-manual"] {
+    --wizard-content-mobile-zoom: var(--zoom-mobile-wizard-step-edital-manual);
+  }
+
   body.wizard-shell-open .wizard-step-frame[data-wizard-step="disciplinas"] {
     --wizard-content-mobile-zoom: var(--zoom-mobile-wizard-step-disciplinas);
   }
@@ -907,6 +911,14 @@ body.wizard-shell-open .global-study-register-fab {
 
   body.wizard-shell-open .wizard-step-frame[data-wizard-step="cronograma-montagem"] {
     --wizard-content-mobile-zoom: var(--zoom-mobile-wizard-step-cronograma-montagem);
+  }
+
+  body.wizard-shell-open .wizard-step-frame[data-wizard-step="cronograma-modo-montagem"] {
+    --wizard-content-mobile-zoom: var(--zoom-mobile-wizard-step-cronograma-modo-montagem);
+  }
+
+  body.wizard-shell-open .wizard-step-frame[data-wizard-step="cronograma-montagem-manual"] {
+    --wizard-content-mobile-zoom: var(--zoom-mobile-wizard-step-cronograma-montagem-manual);
   }
 
   body.wizard-shell-open .wizard-step-frame[data-wizard-step="cronograma-revisao"] {
@@ -1018,7 +1030,7 @@ body.registro-modal-open .app-global-footer {
   --zoom-desktop-ciclo: 0.86;
   --zoom-desktop-edital: 0.82;
   --zoom-desktop-cronograma: 0.88;
-  --zoom-desktop-calendar: 1;
+  --zoom-desktop-calendar: 0.90;
   --zoom-desktop-revisoes: 1;
   --zoom-desktop-profile: 0.92;
   --zoom-desktop-noticias: 1;
@@ -1026,9 +1038,13 @@ body.registro-modal-open .app-global-footer {
   --zoom-desktop-home: 0.90;
   --zoom-desktop-simulados: 0.90;
   --zoom-desktop-desempenho: 0.90;
+  --zoom-desktop-planejamento: 0.85;
+  --zoom-desktop-planejamento-selector: 0.85;
 
   --zoom-desktop-modal-historico-estudo: 0.90;
   --zoom-desktop-modal-cronograma-detalhes: 0.92;
+  --zoom-desktop-modal-simulado-novo: 0.80;
+  --zoom-desktop-modal-simulado-iniciar: 0.85;
   --zoom-desktop-modal-admin-frases: 0.90;
   --zoom-desktop-modal-admin-broadcast: 0.80;
   --zoom-desktop-modal-admin-ocorrencias: 0.90;
@@ -1039,10 +1055,13 @@ body.registro-modal-open .app-global-footer {
   --zoom-desktop-sidebar: 0.85;
   --zoom-desktop-desempenho-discipline-card: 0.94;
 
-  --zoom-desktop-wizard-step-edital: 0.92;
-  --zoom-desktop-wizard-step-disciplinas: 0.90;
+  --zoom-desktop-wizard-step-edital: 0.85;
+  --zoom-desktop-wizard-step-edital-manual: var(--zoom-desktop-wizard-step-edital);
+  --zoom-desktop-wizard-step-disciplinas: 0.85;
   --zoom-desktop-wizard-step-horarios: 0.90;
-  --zoom-desktop-wizard-step-cronograma-montagem: 0.90;
+  --zoom-desktop-wizard-step-cronograma-modo-montagem: 0.90;
+  --zoom-desktop-wizard-step-cronograma-montagem: 0.85;
+  --zoom-desktop-wizard-step-cronograma-montagem-manual: var(--zoom-desktop-wizard-step-cronograma-montagem);
   --zoom-desktop-wizard-step-cronograma-revisao: 0.90;
   --zoom-desktop-wizard-step-cronograma-config: 0.90;
   --zoom-desktop-wizard-step-cronograma-preview: 0.88;
@@ -1053,11 +1072,12 @@ body.registro-modal-open .app-global-footer {
 
   --zoom-mobile-default: 0.88;
   --zoom-mobile-planejamento: 0.86;
+  --zoom-mobile-planejamento-selector: 0.84;
   --zoom-mobile-simulados: 0.84;
   --zoom-mobile-desempenho: 0.84;
   --zoom-mobile-home: 0.84;
   --zoom-mobile-edital: 0.68;
-  --zoom-mobile-calendar: 1;
+  --zoom-mobile-calendar: 0.86;
   --zoom-mobile-revisoes: 1;
   --zoom-mobile-profile: 0.86;
   --zoom-mobile-noticias: 1;
@@ -1066,6 +1086,8 @@ body.registro-modal-open .app-global-footer {
 
   --zoom-mobile-modal-historico-estudo: 0.74;
   --zoom-mobile-modal-cronograma-detalhes: 0.86;
+  --zoom-mobile-modal-simulado-novo: 0.80;
+  --zoom-mobile-modal-simulado-iniciar: 0.80;
   --zoom-mobile-modal-admin-frases: 0.70;
   --zoom-mobile-modal-admin-broadcast: 0.74;
   --zoom-mobile-modal-admin-ocorrencias: 0.84;
@@ -1078,12 +1100,15 @@ body.registro-modal-open .app-global-footer {
 
   --zoom-mobile-wizard-header: 0.70;
   --zoom-mobile-wizard-step-edital: 0.82;
+  --zoom-mobile-wizard-step-edital-manual: var(--zoom-mobile-wizard-step-edital);
   --zoom-mobile-wizard-step-disciplinas: 0.80;
   --zoom-mobile-wizard-step-horarios: 0.80;
+  --zoom-mobile-wizard-step-cronograma-modo-montagem: 0.80;
   --zoom-mobile-wizard-step-cronograma-montagem: 0.80;
+  --zoom-mobile-wizard-step-cronograma-montagem-manual: var(--zoom-mobile-wizard-step-cronograma-montagem);
   --zoom-mobile-wizard-step-cronograma-revisao: 0.80;
   --zoom-mobile-wizard-step-cronograma-config: 0.80;
-  --zoom-mobile-wizard-step-cronograma-preview: 0.78;
+  --zoom-mobile-wizard-step-cronograma-preview: 0.85;
   --zoom-mobile-wizard-step-ciclo-revisao: 0.80;
   --zoom-mobile-wizard-step-ciclo-config: 0.80;
   --zoom-mobile-wizard-step-ciclo-preview: 0.78;
@@ -1101,6 +1126,10 @@ body.registro-modal-open .app-global-footer {
     --wizard-step-desktop-zoom: var(--zoom-desktop-wizard-step-edital);
   }
 
+  body.wizard-shell-open .wizard-step-frame[data-wizard-step="edital-manual"] {
+    --wizard-step-desktop-zoom: var(--zoom-desktop-wizard-step-edital-manual);
+  }
+
   body.wizard-shell-open .wizard-step-frame[data-wizard-step="disciplinas"] {
     --wizard-step-desktop-zoom: var(--zoom-desktop-wizard-step-disciplinas);
   }
@@ -1111,6 +1140,14 @@ body.registro-modal-open .app-global-footer {
 
   body.wizard-shell-open .wizard-step-frame[data-wizard-step="cronograma-montagem"] {
     --wizard-step-desktop-zoom: var(--zoom-desktop-wizard-step-cronograma-montagem);
+  }
+
+  body.wizard-shell-open .wizard-step-frame[data-wizard-step="cronograma-modo-montagem"] {
+    --wizard-step-desktop-zoom: var(--zoom-desktop-wizard-step-cronograma-modo-montagem);
+  }
+
+  body.wizard-shell-open .wizard-step-frame[data-wizard-step="cronograma-montagem-manual"] {
+    --wizard-step-desktop-zoom: var(--zoom-desktop-wizard-step-cronograma-montagem-manual);
   }
 
   body.wizard-shell-open .wizard-step-frame[data-wizard-step="cronograma-revisao"] {
@@ -1191,6 +1228,12 @@ body.registro-modal-open .app-global-footer {
   .desktop-page-zoom--desempenho {
       --page-desktop-zoom: var(--zoom-desktop-desempenho);
   }
+  .desktop-page-zoom--planejamento {
+      --page-desktop-zoom: var(--zoom-desktop-planejamento);
+  }
+  .desktop-page-zoom--planejamento-selector {
+      --page-desktop-zoom: var(--zoom-desktop-planejamento-selector);
+  }
 
   .modal-zoom {
     --modal-desktop-zoom: 1;
@@ -1200,6 +1243,8 @@ body.registro-modal-open .app-global-footer {
 
   .modal-zoom--historico-estudo { --modal-desktop-zoom: var(--zoom-desktop-modal-historico-estudo); }
   .modal-zoom--cronograma-detalhes { --modal-desktop-zoom: var(--zoom-desktop-modal-cronograma-detalhes); }
+  .modal-zoom--simulado-novo { --modal-desktop-zoom: var(--zoom-desktop-modal-simulado-novo); }
+  .modal-zoom--simulado-iniciar { --modal-desktop-zoom: var(--zoom-desktop-modal-simulado-iniciar); }
   .modal-zoom--admin-frases { --modal-desktop-zoom: var(--zoom-desktop-modal-admin-frases); }
   .modal-zoom--admin-broadcast { --modal-desktop-zoom: var(--zoom-desktop-modal-admin-broadcast); }
   .modal-zoom--admin-ocorrencias { --modal-desktop-zoom: var(--zoom-desktop-modal-admin-ocorrencias); }
@@ -1236,6 +1281,11 @@ body.registro-modal-open .app-global-footer {
 
   .mobile-page-zoom--planejamento {
     --page-mobile-zoom: var(--zoom-mobile-planejamento);
+    padding-bottom: 1.5rem;
+  }
+
+  .mobile-page-zoom--planejamento-selector {
+    --page-mobile-zoom: var(--zoom-mobile-planejamento-selector);
     padding-bottom: 1.5rem;
   }
 
@@ -1440,17 +1490,18 @@ body.registro-modal-open .app-global-footer {
   }
 
   .simulado-modal-mobile-zoom {
-    --simulado-modal-mobile-zoom: 0.84;
-    width: calc(100% / var(--simulado-modal-mobile-zoom));
-    max-width: calc(96vw / var(--simulado-modal-mobile-zoom));
-    max-height: calc(96dvh / var(--simulado-modal-mobile-zoom));
+    --simulado-modal-mobile-zoom: var(--zoom-mobile-modal-simulado-iniciar);
+    width: 100%;
+    max-width: 96vw;
+    max-height: 96dvh;
     zoom: var(--simulado-modal-mobile-zoom);
+    transform-origin: top center;
   }
 
   .simulado-modal-mobile-zoom--dense {
-    --simulado-modal-mobile-zoom: 0.8;
-    max-width: calc(98vw / var(--simulado-modal-mobile-zoom));
-    max-height: calc(98dvh / var(--simulado-modal-mobile-zoom));
+    --simulado-modal-mobile-zoom: var(--zoom-mobile-modal-simulado-novo);
+    max-width: 98vw;
+    max-height: 98dvh;
   }
 
   .registro-modal-mobile-zoom {
@@ -1468,6 +1519,8 @@ body.registro-modal-open .app-global-footer {
 
   .modal-zoom--historico-estudo { --modal-mobile-zoom: var(--zoom-mobile-modal-historico-estudo); }
   .modal-zoom--cronograma-detalhes { --modal-mobile-zoom: var(--zoom-mobile-modal-cronograma-detalhes); }
+  .modal-zoom--simulado-novo { --modal-mobile-zoom: var(--zoom-mobile-modal-simulado-novo); }
+  .modal-zoom--simulado-iniciar { --modal-mobile-zoom: var(--zoom-mobile-modal-simulado-iniciar); }
   .modal-zoom--admin-frases { --modal-mobile-zoom: var(--zoom-mobile-modal-admin-frases); }
   .modal-zoom--admin-broadcast { --modal-mobile-zoom: var(--zoom-mobile-modal-admin-broadcast); }
   .modal-zoom--admin-ocorrencias { --modal-mobile-zoom: var(--zoom-mobile-modal-admin-ocorrencias); }

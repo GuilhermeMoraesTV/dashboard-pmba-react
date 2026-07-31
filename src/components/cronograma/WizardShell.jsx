@@ -104,8 +104,8 @@ const WizardShell = ({
   const isMontagemPersonalizada = cronConfig.modoMontagem === 'personalizado';
   const isPassoMontagemPersonalizada = passo === 1 && isMontagemPersonalizada;
   const currentStepZoomKey = {
-    0: 'edital',
-    1: 'cronograma-montagem',
+    0: 'edital-manual',
+    1: isMontagemPersonalizada ? 'cronograma-montagem-manual' : 'cronograma-modo-montagem',
     2: 'disciplinas',
     3: 'horarios',
     4: 'cronograma-revisao',

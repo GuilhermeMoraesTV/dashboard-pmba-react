@@ -410,17 +410,17 @@ const SimuladoCreationModal = ({ isOpen, onClose, onSave, disciplinasSugestivas,
         transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
         onClick={(e) => e.stopPropagation()}
         className={`
-          simulado-modal-mobile-zoom simulado-modal-mobile-zoom--dense
+          modal-zoom modal-zoom--simulado-novo simulado-modal-mobile-zoom simulado-modal-mobile-zoom--dense
           bg-white dark:bg-zinc-950 rounded-3xl shadow-2xl border border-zinc-200 dark:border-zinc-800
           w-full max-w-[95%] sm:max-w-2xl md:max-w-4xl lg:max-w-5xl
-          h-auto max-h-[85vh]
+          h-[92dvh] max-h-[92dvh]
           flex flex-col overflow-hidden relative
       `}>
 
         {/* HEADER VERMELHO */}
-        <div className="relative bg-red-600 pt-6 pb-6 px-6 overflow-hidden shrink-0">
-          <div className="absolute -right-6 -bottom-8 opacity-20 transform -rotate-12 pointer-events-none">
-            <ClipboardList size={140} className="text-white" />
+        <div className="relative bg-red-600 px-4 py-3 overflow-hidden shrink-0 sm:px-6 sm:py-4">
+          <div className="absolute -right-5 -bottom-9 opacity-15 transform -rotate-12 pointer-events-none">
+            <ClipboardList size={112} className="text-white" />
           </div>
           <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-white/10 to-transparent pointer-events-none" />
 
@@ -447,10 +447,10 @@ const SimuladoCreationModal = ({ isOpen, onClose, onSave, disciplinasSugestivas,
                    </div>
                 )}
               </div>
-              <h3 className="text-2xl font-black text-white tracking-tight">
+              <h3 className="text-xl font-black text-white tracking-tight sm:text-2xl">
                 {initialData ? 'Concluir Simulado' : 'Registrar Simulado'}
               </h3>
-              <p className="text-red-100 text-xs font-medium mt-1 max-w-[85%] md:max-w-full">
+              <p className="hidden text-red-100 text-xs font-medium mt-1 max-w-[85%] md:block md:max-w-full">
                 {initialData ? 'Preencha os resultados da sua prova.' : 'Adicione manualmente suas notas e questões.'}
               </p>
             </div>
@@ -481,7 +481,7 @@ const SimuladoCreationModal = ({ isOpen, onClose, onSave, disciplinasSugestivas,
         <div className="flex border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 shrink-0">
             <button
               onClick={() => setActiveTab('details')}
-              className={`flex-1 py-3 text-xs md:text-sm font-bold border-b-2 transition-colors flex items-center justify-center gap-2 relative ${
+              className={`flex-1 py-2.5 text-xs md:text-sm font-bold border-b-2 transition-colors flex items-center justify-center gap-2 relative ${
                 activeTab === 'details' ? 'border-red-600 text-red-600 bg-red-50/50 dark:bg-red-900/10' : 'border-transparent text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-800'
               } ${(fieldErrors.titulo || fieldErrors.data) ? 'text-red-500' : ''}`}
             >
@@ -490,7 +490,7 @@ const SimuladoCreationModal = ({ isOpen, onClose, onSave, disciplinasSugestivas,
             </button>
             <button
               onClick={() => setActiveTab('subjects')}
-              className={`flex-1 py-3 text-xs md:text-sm font-bold border-b-2 transition-colors flex items-center justify-center gap-2 relative ${
+              className={`flex-1 py-2.5 text-xs md:text-sm font-bold border-b-2 transition-colors flex items-center justify-center gap-2 relative ${
                 activeTab === 'subjects' ? 'border-red-600 text-red-600 bg-red-50/50 dark:bg-red-900/10' : 'border-transparent text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-800'
               } ${fieldErrors.disciplinas ? 'text-red-500' : ''}`}
             >
@@ -500,7 +500,7 @@ const SimuladoCreationModal = ({ isOpen, onClose, onSave, disciplinasSugestivas,
         </div>
 
         {/* BODY */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 bg-white dark:bg-zinc-950 custom-scrollbar">
+        <div className="min-h-0 flex-1 overflow-y-auto p-3 md:p-5 bg-white dark:bg-zinc-950 custom-scrollbar">
 
           {activeTab === 'details' && (
             <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} className="space-y-5">
@@ -864,26 +864,26 @@ const SimuladoCreationModal = ({ isOpen, onClose, onSave, disciplinasSugestivas,
         </div>
 
         {/* FOOTER - TOTAIS E AÇÕES */}
-        <div className="bg-white dark:bg-zinc-950 border-t border-zinc-200 dark:border-zinc-800 p-4 md:p-6 relative z-20 shrink-0">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6 mb-4 md:mb-5">
-            <div className="text-center bg-zinc-50 dark:bg-zinc-900/50 rounded-xl py-2">
+        <div className="bg-white dark:bg-zinc-950 border-t border-zinc-200 dark:border-zinc-800 p-3 md:p-4 relative z-20 shrink-0">
+          <div className="grid grid-cols-3 md:grid-cols-4 gap-2 md:gap-3 mb-3">
+            <div className="text-center bg-zinc-50 dark:bg-zinc-900/50 rounded-xl py-1.5">
                 <span className="text-[9px] md:text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Total</span>
-                <p className="text-lg md:text-xl font-bold text-zinc-700 dark:text-white">{totais.tQuestoes}</p>
+                <p className="text-base md:text-lg font-bold text-zinc-700 dark:text-white">{totais.tQuestoes}</p>
             </div>
 
-            <div className="text-center bg-emerald-50 dark:bg-emerald-900/10 rounded-xl py-2">
+            <div className="text-center bg-emerald-50 dark:bg-emerald-900/10 rounded-xl py-1.5">
                 <span className="text-[9px] md:text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Acertos</span>
-                <p className="text-lg md:text-xl font-bold text-emerald-600">{totais.tAcertos}</p>
+                <p className="text-base md:text-lg font-bold text-emerald-600">{totais.tAcertos}</p>
             </div>
 
-            <div className="hidden md:block text-center bg-zinc-50 dark:bg-zinc-900/50 rounded-xl py-2">
+            <div className="hidden md:block text-center bg-zinc-50 dark:bg-zinc-900/50 rounded-xl py-1.5">
                 <span className="text-[9px] md:text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Pontos Máx</span>
-                <p className="text-lg md:text-xl font-bold text-zinc-500">{totais.tPontosPossiveis}</p>
+                <p className="text-base md:text-lg font-bold text-zinc-500">{totais.tPontosPossiveis}</p>
             </div>
 
-            <div className="text-center bg-zinc-900 dark:bg-zinc-100 rounded-xl flex flex-col justify-center shadow-lg py-2">
+            <div className="text-center bg-zinc-900 dark:bg-zinc-100 rounded-xl flex flex-col justify-center shadow-lg py-1.5">
                 <span className="text-[9px] md:text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">Nota Final</span>
-                <p className="text-xl md:text-2xl font-black text-white dark:text-zinc-900">{totais.tPontosObtidos.toFixed(1)}</p>
+                <p className="text-lg md:text-xl font-black text-white dark:text-zinc-900">{totais.tPontosObtidos.toFixed(1)}</p>
             </div>
           </div>
 
@@ -891,7 +891,7 @@ const SimuladoCreationModal = ({ isOpen, onClose, onSave, disciplinasSugestivas,
             <button
                 onClick={requestClose}
                 disabled={loading}
-                className="flex-1 py-3.5 rounded-xl font-bold text-sm text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                className="flex-1 py-2.5 rounded-xl font-bold text-xs md:text-sm text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
             >
                 Cancelar
             </button>
@@ -899,7 +899,7 @@ const SimuladoCreationModal = ({ isOpen, onClose, onSave, disciplinasSugestivas,
             <button
               onClick={handleSave}
               disabled={loading}
-              className="flex-[2] py-3.5 rounded-xl font-bold text-sm text-white bg-red-600 hover:bg-red-700 shadow-xl shadow-red-600/20 hover:shadow-red-600/30 transition-all flex items-center justify-center gap-2"
+              className="flex-[2] py-2.5 rounded-xl font-bold text-xs md:text-sm text-white bg-red-600 hover:bg-red-700 shadow-xl shadow-red-600/20 hover:shadow-red-600/30 transition-all flex items-center justify-center gap-2"
             >
               {loading
                 ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />

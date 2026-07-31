@@ -14,18 +14,18 @@ const formatarHoras = (horasDecimais) => {
 };
 
 const EditalSidebarCard = ({ editalSelecionado, nomeCiclo }) => (
-  <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl sm:rounded-3xl p-2.5 sm:p-5 flex flex-col sm:flex-row items-center sm:items-start gap-2 sm:gap-4 text-center sm:text-left relative overflow-hidden shadow-[0_8px_30px_rgba(239,68,68,0.15)] dark:shadow-[0_8px_30px_rgba(239,68,68,0.08)] min-h-[118px] sm:min-h-[140px]">
+  <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl sm:rounded-3xl p-2.5 sm:p-5 flex items-center sm:items-start gap-2 sm:gap-4 text-left relative overflow-hidden shadow-[0_8px_30px_rgba(239,68,68,0.15)] dark:shadow-[0_8px_30px_rgba(239,68,68,0.08)] min-h-0 sm:min-h-[140px]">
     <div className="absolute top-0 inset-x-0 h-20 bg-gradient-to-b from-red-50 dark:from-red-900/10 to-transparent pointer-events-none" />
     <span className="absolute top-2 left-2 sm:top-4 sm:left-4 z-10 inline-block px-2 py-0.5 sm:px-2.5 sm:py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-[8px] sm:text-[9px] font-black uppercase tracking-widest rounded-lg">
       {editalSelecionado ? 'Edital Alvo' : 'Ciclo Manual'}
     </span>
-    <div className="relative z-10 w-16 h-16 sm:w-28 sm:h-28 shrink-0 rounded-xl sm:rounded-2xl bg-white dark:bg-zinc-800 border-2 border-red-100 dark:border-red-900/30 flex items-center justify-center p-1 sm:p-2 mt-5 sm:mt-6 shadow-lg shadow-red-500/20">
+    <div className="relative z-10 mt-5 flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border-2 border-red-100 bg-white p-1 shadow-lg shadow-red-500/20 dark:border-red-900/30 dark:bg-zinc-800 sm:mt-6 sm:h-28 sm:w-28 sm:rounded-2xl sm:p-2">
       {editalSelecionado?.logo || editalSelecionado?.logoUrl ? (
         <img src={editalSelecionado.logo || editalSelecionado.logoUrl} alt="Logo Edital" className="w-full h-full object-contain" />
       ) : <Target size={36} className="text-red-500" />}
     </div>
-    <div className="relative z-10 w-full pt-0 sm:pt-8">
-      <h3 className="text-[10px] sm:text-base font-black text-zinc-900 dark:text-white uppercase leading-tight line-clamp-2">
+    <div className="relative z-10 min-w-0 flex-1 pt-5 sm:w-full sm:pt-8">
+      <h3 className="text-[10px] font-black uppercase leading-tight text-zinc-900 line-clamp-3 dark:text-white sm:text-base sm:line-clamp-2">
         {nomeCiclo || editalSelecionado?.titulo || editalSelecionado?.nome || 'Novo Ciclo'}
       </h3>
       {(editalSelecionado?.cargo || editalSelecionado?.titulo || editalSelecionado?.nome) && (
@@ -80,8 +80,8 @@ export default function StepPreview({
       </div>
 
       <div className="w-full px-2 sm:px-4 lg:px-8 overflow-y-auto custom-scrollbar pb-10">
-        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_340px] gap-4 md:gap-5 items-start">
-          <div className="order-2 xl:order-1 h-[410px] sm:h-auto rounded-[24px] border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/70 shadow-sm p-1.5 sm:p-3 lg:p-4 sm:min-h-[600px]">
+        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-4 md:gap-5 items-start">
+          <div className="order-2 xl:order-1 h-[520px] sm:h-auto rounded-[24px] border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/70 shadow-sm p-1.5 sm:p-3 lg:p-4 sm:min-h-[740px] xl:min-h-[780px]">
             <CicloVisual
               selectedDisciplinaId={selectedDisciplinaId}
               onSelectDisciplina={setSelectedDisciplinaId}
@@ -101,28 +101,28 @@ export default function StepPreview({
             />
           </div>
 
-          <div className="order-1 xl:order-2 grid grid-cols-2 gap-2 sm:gap-4 xl:block xl:space-y-4">
+          <div className="order-1 grid grid-cols-[minmax(0,0.78fr)_minmax(0,1.22fr)] items-start gap-2 sm:grid-cols-2 sm:gap-4 xl:order-2 xl:block xl:space-y-4">
             <EditalSidebarCard editalSelecionado={editalSelecionado} nomeCiclo={nomeCiclo} />
 
-            <div className="min-h-[118px] overflow-hidden rounded-2xl sm:rounded-3xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm xl:max-h-[476px]">
-              <div className="bg-gradient-to-br from-zinc-950 via-zinc-900 to-red-950 p-3 text-white sm:p-4">
+            <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:rounded-3xl xl:max-h-[560px]">
+              <div className="bg-gradient-to-br from-zinc-950 via-zinc-900 to-red-950 p-2.5 text-white sm:p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.18em] text-red-300">Distribuicao prevista</p>
                     <p className="mt-1 text-xl font-black sm:text-2xl">{formatarHoras(totalPlanejadoMinutos / 60)}</p>
                     <p className="text-[9px] font-bold text-zinc-400">{totalSessoesPreview} blocos de {tempoSessaoMinutos} min</p>
                   </div>
-                  <div className="grid h-14 w-14 place-items-center rounded-2xl border border-white/10 bg-white/10 shadow-inner">
+                  <div className="hidden h-14 w-14 place-items-center rounded-2xl border border-white/10 bg-white/10 shadow-inner sm:grid">
                     <Layers3 size={22} className="text-red-400" />
                   </div>
                 </div>
 
-                <div className="mt-3 grid grid-cols-2 gap-2">
-                  <div className="rounded-xl border border-white/10 bg-white/5 px-2.5 py-2">
+                <div className="mt-2 grid grid-cols-2 gap-1.5 sm:mt-3 sm:gap-2">
+                  <div className="rounded-xl border border-white/10 bg-white/5 px-2 py-1.5 sm:px-2.5 sm:py-2">
                     <p className="flex items-center gap-1 text-[7px] font-black uppercase tracking-widest text-zinc-400"><Clock3 size={9} /> Disponivel</p>
                     <p className="mt-1 text-xs font-black">{formatarHoras(horasTotais)}</p>
                   </div>
-                  <div className="rounded-xl border border-white/10 bg-white/5 px-2.5 py-2">
+                  <div className="rounded-xl border border-white/10 bg-white/5 px-2 py-1.5 sm:px-2.5 sm:py-2">
                     <p className="text-[7px] font-black uppercase tracking-widest text-zinc-400">Fora dos blocos</p>
                     <p className="mt-1 text-xs font-black">{formatarHoras(minutosLivres / 60)}</p>
                   </div>
@@ -130,7 +130,7 @@ export default function StepPreview({
               </div>
 
               <div className="p-2.5 sm:p-4">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between mb-3">
+              <div className="mb-2 flex flex-col gap-1 sm:mb-3 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <p className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest text-zinc-400">Peso por dificuldade</p>
                   <p className="text-[10px] sm:text-[11px] font-bold text-zinc-500 dark:text-zinc-400 mt-1">
@@ -138,7 +138,7 @@ export default function StepPreview({
                   </p>
                 </div>
               </div>
-              <div className="grid max-h-[92px] grid-cols-1 gap-1.5 overflow-y-auto pr-1 custom-scrollbar sm:max-h-[238px] sm:grid-cols-2 sm:gap-2 xl:max-h-[250px] xl:grid-cols-1">
+              <div className="grid max-h-[176px] grid-cols-1 gap-1.5 overflow-y-auto pr-1 custom-scrollbar sm:max-h-[238px] sm:grid-cols-2 sm:gap-2 xl:max-h-[340px] xl:grid-cols-1">
                 {disciplinasPreview.map((disciplina) => (
                   <div key={disciplina.id} className="rounded-lg sm:rounded-xl bg-zinc-50 dark:bg-zinc-800/60 px-2 py-1.5 sm:px-3 sm:py-2 border border-zinc-100 dark:border-zinc-800">
                     <div className="flex items-center justify-between gap-2">

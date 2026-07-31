@@ -850,7 +850,7 @@ function CicloCreateWizard({
   };
 
   const currentStepZoomKey = {
-    1: 'edital',
+    1: 'edital-manual',
     2: 'disciplinas',
     3: 'horarios',
     4: 'ciclo-revisao',

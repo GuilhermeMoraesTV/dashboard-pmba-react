@@ -765,7 +765,7 @@ const ModalDetalhesCronograma = ({ slot, cronograma, onClose, onStart, onToggle,
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       onClick={onClose}
-      className="fixed inset-0 z-[100090] flex items-start justify-center overflow-y-auto bg-zinc-950/80 px-3 pb-4 pt-5 backdrop-blur-sm sm:px-4 sm:pt-8"
+      className="fixed inset-0 z-[100090] flex items-center justify-center overflow-y-auto bg-zinc-950/80 px-3 py-4 backdrop-blur-sm sm:px-4"
     >
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 20 }}

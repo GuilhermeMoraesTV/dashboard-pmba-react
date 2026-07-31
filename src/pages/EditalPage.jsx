@@ -1028,16 +1028,16 @@ function EditalPage({
       </AnimatePresence>
 
       {/* ── HEADER ── */}
-      <div className={`${systemCardClass} p-3 md:p-4 flex flex-col md:flex-row items-center md:items-start gap-3 text-center md:text-left`}>
+      <div className={`${systemCardClass} p-3 md:p-4 flex flex-row items-start gap-3 text-left`}>
 
         {/* Logo + toggle posicionado embaixo */}
-        <div className="flex flex-col items-center gap-2 flex-shrink-0 relative z-10">
-          <div className="flex h-[4rem] w-[4rem] items-center justify-center rounded-full border-4 border-white bg-zinc-50 shadow-xl dark:border-white/10 dark:bg-zinc-900 md:h-20 md:w-20 relative">
+        <div className="flex w-16 flex-col items-center gap-2 flex-shrink-0 relative z-10 md:w-20">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full border-4 border-white bg-zinc-50 shadow-xl dark:border-white/10 dark:bg-zinc-900 md:h-20 md:w-20 relative">
             {logoAtivo
-              ? <img src={logoAtivo} alt="Logo" className="h-11 w-11 object-contain md:h-12 md:w-12" />
+              ? <img src={logoAtivo} alt="Logo" className="h-9 w-9 object-contain md:h-12 md:w-12" />
               : <GraduationCap size={40} className="text-zinc-300 dark:text-zinc-600" />
             }
-            <div className="absolute -bottom-2 px-2 py-0.5 bg-emerald-500 text-white text-[9px] font-bold uppercase tracking-widest rounded-full shadow-md border-2 border-white dark:border-zinc-950">Ativo</div>
+            <div className="absolute -bottom-2 px-1.5 py-0.5 bg-emerald-500 text-white text-[7px] md:text-[9px] font-bold uppercase tracking-widest rounded-full shadow-md border-2 border-white dark:border-zinc-950">Ativo</div>
           </div>
 
           {/* Botão de toggle — aparece só quando ambos existem */}
@@ -1055,31 +1055,31 @@ function EditalPage({
           )}
         </div>
 
-        <div className="flex-1 z-10 w-full">
-          <div className="flex items-start justify-between w-full mb-2">
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-red-50 dark:bg-red-500/10 rounded-full text-[13px] font-bold uppercase tracking-wider border border-red-100 dark:border-red-500/20 text-red-600 dark:text-red-400">
+        <div className="flex-1 z-10 min-w-0 w-full">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between w-full mb-2">
+            <div className="inline-flex w-fit items-center gap-1.5 px-2.5 py-1 bg-red-50 dark:bg-red-500/10 rounded-full text-[10px] md:text-[13px] font-bold uppercase tracking-wider border border-red-100 dark:border-red-500/20 text-red-600 dark:text-red-400">
               <CheckCircle2 size={17} /> Edital Verticalizado
             </div>
             {/* Botão de navegação: ciclo → Painel do Ciclo | cronograma → Cronograma */}
             {isCronoView
               ? (onGoToCronograma && (
-                  <button onClick={onGoToCronograma} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-50 hover:bg-red-50 border border-zinc-200 hover:border-red-200 dark:bg-zinc-900 dark:hover:bg-red-500/10 dark:border-white/10 text-zinc-600 hover:text-red-700 dark:text-zinc-300 text-[11px] font-bold uppercase tracking-wide transition-all shadow-sm z-20">
+                  <button onClick={onGoToCronograma} className="flex min-w-0 items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-zinc-50 hover:bg-red-50 border border-zinc-200 hover:border-red-200 dark:bg-zinc-900 dark:hover:bg-red-500/10 dark:border-white/10 text-zinc-600 hover:text-red-700 dark:text-zinc-300 text-[10px] md:text-[11px] font-bold uppercase tracking-wide transition-all shadow-sm z-20">
                     <CalendarDays size={14} className="text-red-600 dark:text-red-500" />
-                    <span className="hidden sm:inline">Painel do Cronograma</span>
+                    <span className="max-w-[9rem] truncate sm:max-w-none">Cronograma: {cronograma?.nome || nomeAtivo}</span>
                     <ChevronRight size={12} className="opacity-60" />
                   </button>
                 ))
               : (onBack && (
-                  <button onClick={onBack} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-50 hover:bg-red-50 border border-zinc-200 hover:border-red-200 dark:bg-zinc-900 dark:hover:bg-red-500/10 dark:border-white/10 text-zinc-600 hover:text-red-700 dark:text-zinc-300 text-[11px] font-bold uppercase tracking-wide transition-all shadow-sm z-20">
+                  <button onClick={onBack} className="flex min-w-0 items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-zinc-50 hover:bg-red-50 border border-zinc-200 hover:border-red-200 dark:bg-zinc-900 dark:hover:bg-red-500/10 dark:border-white/10 text-zinc-600 hover:text-red-700 dark:text-zinc-300 text-[10px] md:text-[11px] font-bold uppercase tracking-wide transition-all shadow-sm z-20">
                     <LayoutDashboard size={14} className="text-red-600 dark:text-red-500" />
-                    <span className="hidden sm:inline">Painel do Ciclo</span>
+                    <span className="max-w-[9rem] truncate sm:max-w-none">Ciclo: {ciclo?.nome || nomeAtivo}</span>
                     <ChevronRight size={12} className="opacity-60" />
                   </button>
                 ))
             }
           </div>
 
-          <h1 className="mb-2 text-xl font-black uppercase leading-none tracking-tight text-zinc-900 dark:text-white md:text-2xl">{nomeAtivo}</h1>
+          <h1 className="mb-2 text-base font-black uppercase leading-tight tracking-tight text-zinc-900 dark:text-white md:text-2xl">{nomeAtivo}</h1>
 
           <div className="mt-3 w-full">
             <div className="flex justify-between items-end mb-2">

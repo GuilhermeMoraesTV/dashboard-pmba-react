@@ -415,9 +415,9 @@ const ModalConfirmacaoExclusaoCiclo = ({ ciclo, onClose, onConfirm, loading }) =
 };
 
 const StatCard = ({ icon: Icon, label, value, subtext, colorClass, delay }) => (
-  <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay }} className="relative overflow-hidden bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 rounded-2xl shadow-sm group hover:border-zinc-300 dark:hover:border-zinc-700 transition-all">
-    <div className={`absolute -right-4 -bottom-4 opacity-10 group-hover:opacity-20 transition-opacity ${colorClass} rotate-12`}><Icon size={100} /></div>
-    <div className="relative z-10"><div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 ${colorClass.replace('text-', 'bg-').replace('600', '100').replace('500', '100')} dark:bg-opacity-10`}><Icon size={24} className={colorClass} /></div><h4 className="text-3xl font-black text-zinc-900 dark:text-white tracking-tight">{value}</h4><p className="text-xs font-bold text-zinc-500 uppercase tracking-wide mt-1">{label}</p>{subtext && <p className="text-[10px] text-zinc-400 mt-2 font-medium">{subtext}</p>}</div>
+  <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay }} className="relative min-h-[128px] overflow-hidden bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 md:p-6 rounded-2xl shadow-sm group hover:border-zinc-300 dark:hover:border-zinc-700 transition-all">
+    <div className={`absolute -right-4 -bottom-4 opacity-10 group-hover:opacity-20 transition-opacity ${colorClass} rotate-12`}><Icon size={92} /></div>
+    <div className="relative z-10"><div className={`w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center mb-3 md:mb-4 ${colorClass.replace('text-', 'bg-').replace('600', '100').replace('500', '100')} dark:bg-opacity-10`}><Icon size={20} className={colorClass} /></div><h4 className="text-xl md:text-3xl font-black text-zinc-900 dark:text-white tracking-tight leading-none">{value}</h4><p className="text-[10px] md:text-xs font-bold text-zinc-500 uppercase tracking-wide mt-1">{label}</p>{subtext && <p className="text-[9px] md:text-[10px] text-zinc-400 mt-1.5 md:mt-2 font-medium">{subtext}</p>}</div>
   </motion.div>
 );
 
@@ -506,6 +506,7 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
 
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showArchivesModal, setShowArchivesModal] = useState(false);
+  const [archiveFilter, setArchiveFilter] = useState('todos');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
 
@@ -546,6 +547,11 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
       ...ciclosArquivados.map(ciclo => ({ ...ciclo, archiveType: 'ciclo' })),
       ...cronogramasArquivados.map(cronograma => ({ ...cronograma, archiveType: 'cronograma' })),
   ], [ciclosArquivados, cronogramasArquivados]);
+  const planosArquivadosFiltrados = useMemo(() => (
+      archiveFilter === 'todos'
+        ? planosArquivados
+        : planosArquivados.filter((plano) => plano.archiveType === archiveFilter)
+  ), [archiveFilter, planosArquivados]);
 
   useEffect(() => {
     if (!user) return;
@@ -792,11 +798,11 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
 
       <AnimatePresence>{message.text && (<motion.div initial={{opacity: 0, y: -20}} animate={{opacity: 1, y: 0}} exit={{opacity: 0}} className="fixed top-6 right-6 z-[100]"><div className={`px-4 py-3 rounded-xl border shadow-2xl flex items-center gap-3 backdrop-blur-md ${message.type === 'success' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 'bg-red-500/10 border-red-500/20 text-red-600 dark:text-red-400'}`}>{message.type === 'success' ? <CheckSquare size={18}/> : <AlertTriangle size={18}/>}<span className="font-bold text-sm">{message.text}</span><button onClick={() => setMessage({type:'', text:''})} className="ml-2 hover:opacity-50"><X size={14}/></button></div></motion.div>)}</AnimatePresence>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-2 md:gap-4 lg:grid-cols-4">
           <StatCard icon={Clock} label="Tempo Total" value={`${stats.horasTotais}h ${stats.minutosRestantes}m`} subtext="Acumulado" colorClass="text-emerald-600" delay={0.1} />
           <StatCard icon={CheckSquare} label="Registros" value={stats.totalRegistros} subtext="Estudos" colorClass="text-indigo-600" delay={0.2} />
           <StatCard icon={CalendarIcon} label="Dias Ativo" value={stats.diasAtivos} subtext="Desde cadastro" colorClass="text-amber-600" delay={0.3} />
-           <motion.button initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} onClick={() => { setShowHistoryModal(true); setSelectedCycleId(null); setSelectedDate(dateToYMD(new Date())); }} className="relative overflow-hidden bg-zinc-900 dark:bg-white border border-zinc-900 dark:border-white p-6 rounded-2xl shadow-sm group hover:shadow-xl transition-all text-left flex flex-col justify-between min-h-[140px]">
+           <motion.button initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} onClick={() => { setShowHistoryModal(true); setSelectedCycleId(null); setSelectedDate(dateToYMD(new Date())); }} className="relative min-h-[128px] overflow-hidden bg-zinc-900 dark:bg-white border border-zinc-900 dark:border-white p-4 md:p-6 rounded-2xl shadow-sm group hover:shadow-xl transition-all text-left flex flex-col justify-between md:min-h-[140px]">
                 <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><LayoutDashboard size={80} className="text-white dark:text-zinc-900" /></div>
                 <div className="relative z-10">
                     <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 bg-white/20 dark:bg-zinc-900/10"><LayoutDashboard size={24} className="text-white dark:text-zinc-900" /></div>
@@ -931,8 +937,28 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
                     </div>
                 }
             >
-              <div className="p-6 bg-zinc-50 dark:bg-zinc-950/50 min-h-[400px]">
-                {planosArquivados.length === 0 ? (
+              <div className="p-4 sm:p-6 bg-zinc-50 dark:bg-zinc-950/50 min-h-[400px]">
+                <div className="mb-4 grid grid-cols-3 gap-2 rounded-2xl border border-zinc-200 bg-white p-1.5 dark:border-zinc-800 dark:bg-zinc-900">
+                    {[
+                      { id: 'todos', label: 'Todos', count: planosArquivados.length },
+                      { id: 'ciclo', label: 'Ciclos', count: ciclosArquivados.length },
+                      { id: 'cronograma', label: 'Cronogramas', count: cronogramasArquivados.length },
+                    ].map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => setArchiveFilter(item.id)}
+                        className={`rounded-xl px-2 py-2 text-[10px] font-black uppercase tracking-wider transition-all ${
+                          archiveFilter === item.id
+                            ? 'bg-zinc-900 text-white shadow-lg dark:bg-white dark:text-zinc-900'
+                            : 'text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'
+                        }`}
+                      >
+                        {item.label} <span className="opacity-60">({item.count})</span>
+                      </button>
+                    ))}
+                </div>
+                {planosArquivadosFiltrados.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-64 text-zinc-400 border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-3xl m-4">
                         <div className="p-4 bg-zinc-100 dark:bg-zinc-900 rounded-full mb-4">
                             <History size={32} className="opacity-50"/>
@@ -942,7 +968,7 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {planosArquivados.map((ciclo, idx) => {
+                        {planosArquivadosFiltrados.map((ciclo, idx) => {
                             // Calcula as horas do plano arquivado.
                             const isCronogramaArquivado = ciclo.archiveType === 'cronograma';
                             const registrosDoCiclo = allRegistrosEstudo.filter(r => isCronogramaArquivado ? r.cronogramaId === ciclo.id : r.cicloId === ciclo.id);

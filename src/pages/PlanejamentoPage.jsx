@@ -320,7 +320,7 @@ function PlanejamentoPage({
     );
   }
   return (
-    <div className="mobile-page-zoom mobile-page-zoom--planejamento mx-auto w-full max-w-7xl p-0 min-h-[50vh] animate-fade-in pb-12">
+    <div className="desktop-page-zoom desktop-page-zoom--planejamento mobile-page-zoom mobile-page-zoom--planejamento mx-auto w-full max-w-7xl p-0 min-h-[50vh] animate-fade-in pb-12">
       <section className="mb-5 w-full">
         <div className="group relative overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white p-4 shadow-soft transition-all duration-300 hover:border-accent-light/40 hover:!border-l-red-500 hover:shadow-[0_0_18px_rgba(239,68,68,0.07)] dark:border-white/10 dark:!border-l-red-500/25 dark:bg-zinc-950 dark:hover:border-accent-light/20 dark:hover:!border-l-red-500 dark:hover:shadow-[0_0_22px_rgba(239,68,68,0.08)]">
           <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-red-500/5 blur-[80px] transition-all duration-700 group-hover:bg-red-500/10" />

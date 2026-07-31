@@ -135,7 +135,7 @@ const InlineSelect = ({ options, value, onChange, placeholder, disabled }) => {
   const selected = options.find(o => o.value === value);
 
   return (
-    <div className="relative" ref={ref}>
+    <div className="relative z-[220]" ref={ref}>
       <button
         ref={btnRef}
         onClick={handleOpen}
@@ -169,11 +169,11 @@ const InlineSelect = ({ options, value, onChange, placeholder, disabled }) => {
             exit={{ opacity: 0, y: -4, scale: 0.97 }}
             transition={{ duration: 0.12 }}
             className={`
-              absolute z-[999] top-full mt-1.5
+              absolute z-[10050] top-full mt-1.5
               min-w-[180px] max-w-[min(240px,80vw)]
               bg-white dark:bg-zinc-950
               border border-zinc-200 dark:border-zinc-700/80
-              rounded-xl shadow-xl shadow-black/10 dark:shadow-black/40
+              rounded-xl shadow-2xl shadow-black/20 dark:shadow-black/50
               overflow-hidden
               ${openLeft ? 'right-0' : 'left-0'}
             `}
@@ -292,7 +292,7 @@ const DesempenhoHeader = ({ analytics, filters, options, context }) => {
           <div className="w-px h-7 bg-zinc-200 dark:bg-zinc-700/60 self-end mb-0.5 hidden sm:block" />
 
           {/* Disciplina */}
-          <div className="desempenho-discipline-filter desempenho-discipline-filter-zoom relative z-30 flex shrink-0 flex-col gap-0.5">
+          <div className="desempenho-discipline-filter desempenho-discipline-filter-zoom relative z-[240] flex shrink-0 flex-col gap-0.5">
             <span className="text-[9px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500 px-1">
               Disciplina
             </span>
