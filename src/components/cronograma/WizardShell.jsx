@@ -103,6 +103,15 @@ const WizardShell = ({
   const ctaFinalLabel = isEditMode ? 'Salvar Alteracoes' : 'Ativar Cronograma';
   const isMontagemPersonalizada = cronConfig.modoMontagem === 'personalizado';
   const isPassoMontagemPersonalizada = passo === 1 && isMontagemPersonalizada;
+  const currentStepZoomKey = {
+    0: 'edital',
+    1: 'cronograma-montagem',
+    2: 'disciplinas',
+    3: 'horarios',
+    4: 'cronograma-revisao',
+    5: 'cronograma-config',
+    6: 'cronograma-preview',
+  }[passo] || 'cronograma-step';
   const getNextPasso = (current) => (isMontagemPersonalizada && current === 1 ? 4 : current + 1);
   const getPrevPasso = (current) => (isMontagemPersonalizada && current === 4 ? 1 : current - 1);
   const voltarParaSelecaoInicial = () => {
@@ -279,7 +288,11 @@ const WizardShell = ({
       
       {/* ── Main Content ── */}
       <main ref={conteudoRef} className="wizard-main flex-1 overflow-y-auto px-4 pt-2 pb-32 md:px-6 md:pt-1 md:pb-36 custom-scrollbar">
-        <div className={`wizard-step-frame ${isPassoEdital || isUltimoStep || isPassoMontagemPersonalizada ? 'w-full mx-auto' : 'max-w-5xl mx-auto'}`}>
+        <div
+          data-wizard-type="cronograma"
+          data-wizard-step={currentStepZoomKey}
+          className={`wizard-step-frame ${isPassoEdital || isUltimoStep || isPassoMontagemPersonalizada ? 'w-full mx-auto' : 'max-w-5xl mx-auto'}`}
+        >
           <AnimatePresence mode="wait">
             <motion.div
               key={passo}

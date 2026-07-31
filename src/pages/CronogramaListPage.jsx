@@ -2,13 +2,13 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../firebaseConfig';
 import {
   collection, query, onSnapshot, doc,
-  writeBatch, getDoc,
+  writeBatch, getDoc, updateDoc,
 } from 'firebase/firestore';
 import {
   Plus, CalendarDays, Target, ArrowRight,
   MoreVertical, Zap, Trash2, AlertOctagon,
   TrendingUp, CalendarClock, SkipForward, Calendar, PauseCircle,
-  FilePenLine,
+  FilePenLine, Archive,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import CronogramaCreateWizard from '../components/cronograma/WizardShell';
@@ -170,6 +170,7 @@ const CronogramaCard = ({ cronograma, onOpen, onMenuToggle, isMenuOpen, onAction
                 <motion.div initial={{ opacity: 0, y: 5, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} onClick={e => e.stopPropagation()} className="absolute top-8 right-0 w-44 sm:w-52 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xl py-1 z-50 overflow-hidden ring-1 ring-black/5">
                   {cronograma.ativo && <button onClick={e => onAction(e, 'desativar', cronograma)} className="w-full text-left px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/60 flex items-center gap-2 transition-colors"><PauseCircle size={14} /> Desativar</button>}
                   <button onClick={e => onAction(e, 'adiar', cronograma)} className="w-full text-left px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-amber-600 dark:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/10 flex items-center gap-2 transition-colors"><SkipForward size={14} /> Adiar semana</button>
+                  <button onClick={e => onAction(e, 'arquivar', cronograma)} className="w-full text-left px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/60 flex items-center gap-2 transition-colors"><Archive size={14} /> Arquivar</button>
                   <div className="h-px bg-zinc-100 dark:bg-zinc-800 my-1" />
                   <button onClick={e => onAction(e, 'excluir', cronograma)} className="w-full text-left px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-red-600 dark:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 flex items-center gap-2 transition-colors"><Trash2 size={14} /> Excluir</button>
                 </motion.div>
@@ -334,7 +335,9 @@ function CronogramaListPage({
     setLoadingList(true);
     const q = query(collection(db, 'users', user.uid, 'cronogramas'));
     return onSnapshot(q, snapshot => {
-      const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      const docs = snapshot.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .filter((cronograma) => !cronograma.arquivado);
       docs.sort((a, b) => {
         const getTs = (x) => {
           const ts = x.criadoEm || x.dataCriacao;
@@ -368,6 +371,21 @@ function CronogramaListPage({
       else onRequestEdit(cronograma);
     }
     else if (action === 'adiar') { setActionLoading(true); await adiarCronograma(cronograma.id, cronograma); setActionLoading(false); }
+    else if (action === 'arquivar') {
+      setActionLoading(true);
+      try {
+        await updateDoc(doc(db, 'users', user.uid, 'cronogramas', cronograma.id), {
+          arquivado: true,
+          ativo: false,
+          dataArquivamento: new Date(),
+        });
+      } catch (err) {
+        console.error('Erro ao arquivar cronograma:', err);
+        setActionError('Erro ao arquivar cronograma. Tente novamente.');
+      } finally {
+        setActionLoading(false);
+      }
+    }
     else if (action === 'excluir') { setCronogramaParaExcluir(cronograma); }
   };
 

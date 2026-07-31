@@ -305,7 +305,7 @@ export const useCronogramaSystem = (user) => {
         throw new Error('pendencia-dados-invalidos');
       }
 
-      const assuntoPendencia = slot.assunto || slot.assuntoOriginal || 'Estudo de Conteudo';
+      const assuntoPendencia = slot.assunto || slot.assuntoOriginal || slot.disciplinaNome || slot.disciplina || 'Disciplina';
       const nowIso = new Date().toISOString();
       const pendenciaPayload = {
         assunto: assuntoPendencia,

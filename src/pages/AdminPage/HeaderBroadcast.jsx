@@ -38,7 +38,7 @@ const ExpandedModal = ({ isOpen, onClose, title, children }) => {
         initial={{ scale: 0.95, opacity: 0, y: 20 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.95, opacity: 0, y: 20 }}
-        className="bg-zinc-100 dark:bg-zinc-900 w-full h-[calc(100dvh-1.5rem)] sm:h-[calc(100dvh-2.5rem)] md:w-[90vw] md:max-w-5xl md:h-[calc(100dvh-3.5rem)] lg:h-[78dvh] rounded-2xl md:rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-2xl flex flex-col overflow-hidden relative"
+        className="modal-zoom modal-zoom--admin-broadcast bg-zinc-100 dark:bg-zinc-900 w-full h-[calc(100dvh-1.5rem)] sm:h-[calc(100dvh-2.5rem)] md:w-[90vw] md:max-w-5xl md:h-[calc(100dvh-3.5rem)] lg:h-[78dvh] rounded-2xl md:rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-2xl flex flex-col overflow-hidden relative"
       >
         <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800 flex justify-between items-center bg-white dark:bg-zinc-950 shadow-sm z-50">
           <h3 className="text-xl font-black text-zinc-900 dark:text-white flex items-center gap-2 tracking-tight">
@@ -215,10 +215,10 @@ const HeaderBroadcast = ({ isOpen, onClose, segmentDraft = null }) => {
   return (
     <>
     <ExpandedModal isOpen={isOpen} onClose={onClose} title="Estúdio de Transmissão">
-      <div className="flex flex-col h-full bg-zinc-50 dark:bg-zinc-950 w-full">
+      <div className="admin-broadcast-modal-content flex flex-col h-full bg-zinc-50 dark:bg-zinc-950 w-full">
 
         {/* --- ABAS --- */}
-        <div className="flex items-center gap-6 px-8 py-4 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shrink-0">
+        <div className="admin-modal-tabs flex items-center gap-6 px-8 py-4 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shrink-0">
           <button onClick={() => setActiveTab('create')} className={`flex items-center gap-2 text-xs font-bold uppercase tracking-wide pb-1 border-b-2 transition-all ${activeTab === 'create' ? 'border-red-600 text-red-600' : 'border-transparent text-zinc-400'}`}>
             <Layout size={14} /> Estúdio
           </button>
@@ -228,10 +228,10 @@ const HeaderBroadcast = ({ isOpen, onClose, segmentDraft = null }) => {
         </div>
 
         {activeTab === 'create' ? (
-          <div className="flex flex-col lg:flex-row flex-1 overflow-hidden">
+          <div className="admin-broadcast-create flex flex-col lg:flex-row flex-1 overflow-hidden">
 
             {/* --- EDITOR (ESQUERDA) --- */}
-            <div className="flex-1 p-6 lg:p-10 overflow-y-auto space-y-8 custom-scrollbar bg-white dark:bg-zinc-950">
+            <div className="admin-broadcast-editor flex-1 p-6 lg:p-10 overflow-y-auto space-y-8 custom-scrollbar bg-white dark:bg-zinc-950">
 
               {/* Seletor de Categoria (Só se não tiver imagens) */}
               {images.length === 0 && (
@@ -336,7 +336,7 @@ const HeaderBroadcast = ({ isOpen, onClose, segmentDraft = null }) => {
             </div>
 
             {/* --- LIVE PREVIEW (DIREITA) --- */}
-            <div className="flex-1 bg-zinc-950/90 border-l border-zinc-800 p-8 flex flex-col items-center justify-center relative overflow-hidden">
+            <div className="admin-broadcast-preview flex-1 bg-zinc-950/90 border-l border-zinc-800 p-8 flex flex-col items-center justify-center relative overflow-hidden">
               <div className="absolute top-6 right-6 flex bg-zinc-900 rounded-lg p-1 shadow-sm border border-zinc-800 z-10">
                 <button onClick={() => setPreviewMode('mobile')} className={`p-2 rounded-md transition-all ${previewMode === 'mobile' ? 'bg-red-600 text-white' : 'text-zinc-500 hover:text-white'}`}><Smartphone size={16} /></button>
                 <button onClick={() => setPreviewMode('desktop')} className={`p-2 rounded-md transition-all ${previewMode === 'desktop' ? 'bg-red-600 text-white' : 'text-zinc-500 hover:text-white'}`}><Monitor size={16} /></button>
@@ -451,7 +451,7 @@ const HeaderBroadcast = ({ isOpen, onClose, segmentDraft = null }) => {
             </div>
           </div>
         ) : (
-          <div className="flex-1 overflow-y-auto custom-scrollbar p-6 lg:p-10 bg-white dark:bg-zinc-950">
+          <div className="admin-modal-scroll flex-1 overflow-y-auto custom-scrollbar p-6 lg:p-10 bg-white dark:bg-zinc-950">
             <div className="max-w-4xl mx-auto w-full space-y-4">
               {history.length === 0 && <div className="text-center py-20 opacity-50"><p>Nenhum broadcast enviado.</p></div>}
               {history.map((msg) => (

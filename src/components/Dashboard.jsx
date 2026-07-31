@@ -382,6 +382,8 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   const [activeCicloLoaded, setActiveCicloLoaded] = useState(false);
   const [activeCronogramaLoaded, setActiveCronogramaLoaded] = useState(false);
   const [targetOpenCicloId, setTargetOpenCicloId] = useState(null);
+  const [editalInitialSource, setEditalInitialSource] = useState(null);
+  const [targetCronogramaEditMode, setTargetCronogramaEditMode] = useState(null);
   const [allRegistrosEstudo, setAllRegistrosEstudo] = useState([]);
   const [allSimulados, setAllSimulados]           = useState([]);
   const [registrosLoaded, setRegistrosLoaded]     = useState(false);
@@ -1973,12 +1975,17 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     if (ENABLE_ONBOARDING_TOUR && user) { const seen = localStorage.getItem(`onboarding_seen_${user.uid}_cycle_visual`); if (!seen) setTourState({ isActive:true, type:'cycle_visual' }); }
   };
 
-  const handleCronogramaCreation = () => {
+  const handleCronogramaCreation = (options = {}) => {
     setPreferredHomeContext('cronograma');
+    if (options?.initialEditMode) setTargetCronogramaEditMode(options.initialEditMode);
     setActiveTab('cronograma');
   };
 
   const handleGoToActiveCycle = () => { if (activeCicloId) handleCicloCreationOrActivation(activeCicloId); else setActiveTab('planejamento'); };
+  const handleGoToEditalSource = useCallback((source = 'ciclo') => {
+    setEditalInitialSource(source);
+    setActiveTab('edital');
+  }, [setActiveTab]);
   const handleCreateNewCycleFromLegacy = useCallback(() => {
     setForcePlanejamentoSelector(false);
     setActiveTab('planejamento');
@@ -2151,7 +2158,17 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     const q = query(collection(db,'users',user.uid,'cronogramas'), where('ativo','==',true));
     return onSnapshot(q, (snap) => {
       if (snap.empty) setActiveCronogramaData(null);
-      else setActiveCronogramaData({ id:snap.docs[0].id, ...snap.docs[0].data() });
+      else {
+        const cronogramasAtivos = snap.docs
+          .map((d) => ({ id: d.id, ...d.data() }))
+          .filter((crono) => crono.arquivado !== true)
+          .sort((a, b) => {
+            const tA = a.criadoEm?.seconds || a.dataCriacao?.seconds || a.createdAt?.seconds || 0;
+            const tB = b.criadoEm?.seconds || b.dataCriacao?.seconds || b.createdAt?.seconds || 0;
+            return tB - tA;
+          });
+        setActiveCronogramaData(cronogramasAtivos[0] || null);
+      }
       setActiveCronogramaLoaded(true);
     }, (error) => {
       console.error('[Dashboard] Erro ao sincronizar cronograma ativo:', error);
@@ -2190,43 +2207,45 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       case 'home':
         return <Home registrosEstudo={mergedActiveRegistrosEstudo} allRegistrosEstudo={mergedAllRegistrosEstudo} goalsHistory={goalsHistory} setActiveTab={handleGoToActiveCycle} activeCicloData={activeCicloData} activeCronogramaData={activeCronogramaData} activeCycleDisciplines={activeCycleDisciplines} onGoToCronograma={() => handleCronogramaCreation(activeCronogramaData?.id)} onGoToRevisao={() => setActiveTab('revisoes')} onStartStudy={handleStartStudy} addRegistroEstudo={addRegistroEstudo} deleteCompletionRegistro={deleteCompletionRegistro} user={user} dailyGoalModalBlocked={Boolean(showGlobalRegistroModal || finishModalData || isLocalRegistroModalOpen)} />;
       case 'calendar':
-        return <CalendarTab registrosEstudo={mergedAllRegistrosEstudo} goalsHistory={goalsHistory} onDeleteRegistro={deleteRegistro} activeCicloData={activeCicloData} activeCronogramaData={activeCronogramaData}/>;
+        return <div className="mobile-page-zoom mobile-page-zoom--calendar desktop-page-zoom desktop-page-zoom--calendar"><CalendarTab registrosEstudo={mergedAllRegistrosEstudo} goalsHistory={goalsHistory} onDeleteRegistro={deleteRegistro} activeCicloData={activeCicloData} activeCronogramaData={activeCronogramaData}/></div>;
       case 'ciclos':
-        return <CiclosPage user={user} onStartStudy={handleStartStudy} onCicloAtivado={handleCicloCreationOrActivation} addRegistroEstudo={addRegistroEstudo} deleteCompletionRegistro={deleteCompletionRegistro} onDeleteRegistro={deleteRegistro} activeCicloId={activeCicloId} forceOpenVisual={forceOpenVisual} targetOpenCicloId={targetOpenCicloId} onTargetOpenHandled={() => setTargetOpenCicloId(null)} onGoToEdital={() => setActiveTab('edital')} onGoToRevisao={() => setActiveTab('revisoes')} onCreateNewCycle={handleCreateNewCycleFromLegacy} registrosEstudo={mergedAllRegistrosEstudo} isTimerActive={!!(activeStudySession||activeSimuladoSession)} onRegistroModalOpenChange={setIsLocalRegistroModalOpen}/>;
+        return <CiclosPage user={user} onStartStudy={handleStartStudy} onCicloAtivado={handleCicloCreationOrActivation} addRegistroEstudo={addRegistroEstudo} deleteCompletionRegistro={deleteCompletionRegistro} onDeleteRegistro={deleteRegistro} activeCicloId={activeCicloId} forceOpenVisual={forceOpenVisual} targetOpenCicloId={targetOpenCicloId} onTargetOpenHandled={() => setTargetOpenCicloId(null)} onGoToEdital={() => handleGoToEditalSource('ciclo')} onGoToRevisao={() => setActiveTab('revisoes')} onCreateNewCycle={handleCreateNewCycleFromLegacy} registrosEstudo={mergedAllRegistrosEstudo} isTimerActive={!!(activeStudySession||activeSimuladoSession)} onRegistroModalOpenChange={setIsLocalRegistroModalOpen}/>;
       case 'planejamento':
-        return <PlanejamentoPage user={user} addRegistroEstudo={addRegistroEstudo} onStartStudy={handleStartStudy} onGoToEdital={() => setActiveTab('edital')} onGoToRevisao={() => setActiveTab('revisoes')} registrosEstudo={mergedAllRegistrosEstudo} isTimerActive={!!(activeStudySession||activeSimuladoSession)} onGoToCronograma={handleCronogramaCreation} onCicloAtivado={handleCicloCreationOrActivation} activeCicloId={activeCicloId} abrirDiretoSeletor={isNovoUsuarioPlanejamento || forcePlanejamentoSelector} onSeletorDiretoAberto={handleSeletorDiretoAberto} onOpenFeedback={handleOpenFeedback} onRegistroModalOpenChange={setIsLocalRegistroModalOpen} />;
+        return <PlanejamentoPage user={user} addRegistroEstudo={addRegistroEstudo} onStartStudy={handleStartStudy} onGoToEdital={() => handleGoToEditalSource('ciclo')} onGoToRevisao={() => setActiveTab('revisoes')} registrosEstudo={mergedAllRegistrosEstudo} isTimerActive={!!(activeStudySession||activeSimuladoSession)} onGoToCronograma={handleCronogramaCreation} onCicloAtivado={handleCicloCreationOrActivation} activeCicloId={activeCicloId} abrirDiretoSeletor={isNovoUsuarioPlanejamento || forcePlanejamentoSelector} onSeletorDiretoAberto={handleSeletorDiretoAberto} onOpenFeedback={handleOpenFeedback} onRegistroModalOpenChange={setIsLocalRegistroModalOpen} />;
       case 'cronograma':
-        return <CronogramaPage user={user} onStartStudy={handleStartStudy} addRegistroEstudo={addRegistroEstudo} deleteCompletionRegistro={deleteCompletionRegistro} registrosEstudo={mergedAllRegistrosEstudo} onDeleteRegistro={deleteRegistro} onGoToEdital={() => setActiveTab('edital')} onGoToRevisao={() => setActiveTab('revisoes')}/>;
+        return <CronogramaPage user={user} onStartStudy={handleStartStudy} addRegistroEstudo={addRegistroEstudo} deleteCompletionRegistro={deleteCompletionRegistro} registrosEstudo={mergedAllRegistrosEstudo} onDeleteRegistro={deleteRegistro} onGoToEdital={() => handleGoToEditalSource('cronograma')} onGoToRevisao={() => setActiveTab('revisoes')} initialEditMode={targetCronogramaEditMode} onInitialEditModeHandled={() => setTargetCronogramaEditMode(null)}/>;
       case 'cronogramas':
-        return <PlanejamentoPage user={user} addRegistroEstudo={addRegistroEstudo} onStartStudy={handleStartStudy} onGoToEdital={() => setActiveTab('edital')} onGoToRevisao={() => setActiveTab('revisoes')} registrosEstudo={mergedAllRegistrosEstudo} isTimerActive={!!(activeStudySession||activeSimuladoSession)} onGoToCronograma={handleCronogramaCreation} onCicloAtivado={handleCicloCreationOrActivation} activeCicloId={activeCicloId} abrirDiretoSeletor={isNovoUsuarioPlanejamento || forcePlanejamentoSelector} onSeletorDiretoAberto={handleSeletorDiretoAberto} onOpenFeedback={handleOpenFeedback} onRegistroModalOpenChange={setIsLocalRegistroModalOpen} />;
+        return <PlanejamentoPage user={user} addRegistroEstudo={addRegistroEstudo} onStartStudy={handleStartStudy} onGoToEdital={() => handleGoToEditalSource('ciclo')} onGoToRevisao={() => setActiveTab('revisoes')} registrosEstudo={mergedAllRegistrosEstudo} isTimerActive={!!(activeStudySession||activeSimuladoSession)} onGoToCronograma={handleCronogramaCreation} onCicloAtivado={handleCicloCreationOrActivation} activeCicloId={activeCicloId} abrirDiretoSeletor={isNovoUsuarioPlanejamento || forcePlanejamentoSelector} onSeletorDiretoAberto={handleSeletorDiretoAberto} onOpenFeedback={handleOpenFeedback} onRegistroModalOpenChange={setIsLocalRegistroModalOpen} />;
       case 'edital':
         return (
           <EditalPage
             user={user}
             activeCicloId={activeCicloId}
+            activeCronogramaId={activeCronogramaData?.id || null}
+            initialViewSource={editalInitialSource}
             onStartStudy={handleStartStudy}
             onBack={handleGoToActiveCycle}
             editalUpdates={editalUpdates}
             onApplyEditalUpdate={applyEditalUpdate}
             onDismissEditalUpdate={dismissEditalUpdate}
             loadingEditalUpdate={loadingNotif}
-            onGoToCronograma={() => handleCronogramaCreation(activeCronogramaData?.id)}
+            onGoToCronograma={handleCronogramaCreation}
           />
         );
       case 'revisoes':
-        return <RevisaoPage user={user} onStartStudy={handleStartStudy} addRegistroEstudo={addRegistroEstudo} deleteCompletionRegistro={deleteCompletionRegistro} onChoosePlan={handleChoosePlanFromRevisao} />;
+        return <div className="mobile-page-zoom mobile-page-zoom--revisoes desktop-page-zoom desktop-page-zoom--revisoes"><RevisaoPage user={user} onStartStudy={handleStartStudy} addRegistroEstudo={addRegistroEstudo} deleteCompletionRegistro={deleteCompletionRegistro} onChoosePlan={handleChoosePlanFromRevisao} /></div>;
       case 'stats':
         return <Desempenho registrosEstudo={mergedAllRegistrosEstudo} disciplinasDoCiclo={activeCycleDisciplines} activeCicloId={activeCicloId} activeCronogramaId={activeCronogramaData?.id||null} activeCicloData={activeCicloData} activeCronogramaData={activeCronogramaData} metas={goalsHistory} onCreateCycle={() => setActiveTab('planejamento')}/>;
       case 'simulados':
         return <SimuladosPage user={user} activeCycleDisciplines={activeCycleDisciplines} onStartSimulado={handleStartSimulado} initialData={finishedSimuladoData} onClearInitialData={handleClearSimuladoData}/>;
       case 'profile':
-        return <ProfilePage user={user} allRegistrosEstudo={mergedAllRegistrosEstudo} onDeleteRegistro={deleteRegistro}/>;
+        return <div className="mobile-page-zoom mobile-page-zoom--profile desktop-page-zoom desktop-page-zoom--profile"><ProfilePage user={user} allRegistrosEstudo={mergedAllRegistrosEstudo} onDeleteRegistro={deleteRegistro}/></div>;
       case 'noticias':
-        return <NoticiasPage/>;
+        return <div className="mobile-page-zoom mobile-page-zoom--noticias desktop-page-zoom desktop-page-zoom--noticias"><NoticiasPage/></div>;
       case 'admin':
         if (userAccess.isLoading) return <SectionLoader minHeight="20rem" />;
-        if (userAccess.permissions.adminPanel) return <AdminPage onRecalculateStats={recalculateAllStats} userAccess={userAccess} />;
-        return <div className="p-8 text-center text-red-500 font-bold">Acesso Negado</div>;
+        if (userAccess.permissions.adminPanel) return <div className="mobile-page-zoom mobile-page-zoom--admin desktop-page-zoom desktop-page-zoom--admin"><AdminPage onRecalculateStats={recalculateAllStats} userAccess={userAccess} /></div>;
+        return <div className="mobile-page-zoom mobile-page-zoom--admin desktop-page-zoom desktop-page-zoom--admin p-8 text-center text-red-500 font-bold">Acesso Negado</div>;
       default:
         return null;
     }
@@ -2323,7 +2342,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
           if (isSidebarExpanded) setIsSidebarExpanded(false);
           if (isMobileOpen) setIsMobileOpen(false);
         }}
-        className={`dashboard-main-content relative z-10 min-w-0 flex-1 transition-all duration-300 pt-[80px] px-4 md:px-8 lg:pt-[90px] pb-10 ${isSidebarExpanded ? 'lg:ml-[260px]' : 'lg:ml-[80px]'}`}
+        className={`dashboard-main-content relative z-10 min-w-0 flex-1 transition-all duration-300 pt-[80px] px-4 md:px-8 lg:pt-[90px] pb-10 ${isSidebarExpanded ? 'lg:ml-[252px]' : 'lg:ml-[72px]'}`}
       >
         <Header user={user} activeTab={activeTab}/>
         <main className={`mt-2 min-w-0 animate-fade-in ${['home', 'ciclos', 'cronograma', 'planejamento'].includes(activeTab) ? 'w-full' : 'max-w-7xl mx-auto'}`}>

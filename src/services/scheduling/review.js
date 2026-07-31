@@ -534,15 +534,8 @@ export function getAgendaSemana(
     const topicIdx  = weekOffset * (slot.totalSlotsParaDisc || 1) + (slot.slotIndexParaDisc || 0);
     if (topicIdx >= assuntos.length) return null;
 
-    // Suporte ao modoExibirAssuntos: se false (Modo Livre), não exibe o assunto específico
-    const modoExibirAssuntos = cronograma.modoExibirAssuntos !== false;
-
-    let assunto;
-    if (!modoExibirAssuntos) {
-      assunto = 'Estudo de Conteúdo';
-    } else {
-      assunto = assuntos[topicIdx] ?? `Tópico ${topicIdx + 1}`;
-    }
+    // Mantem o assunto real no dado; a UI decide se exibe ou oculta.
+    const assunto = assuntos[topicIdx] ?? `Tópico ${topicIdx + 1}`;
 
     const progressoDisc = assuntos.length
       ? Math.min(100, Math.round((Math.min(topicIdx, assuntos.length) / assuntos.length) * 100))

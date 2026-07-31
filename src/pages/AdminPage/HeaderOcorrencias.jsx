@@ -35,7 +35,7 @@ const ExpandedModal = ({ isOpen, onClose, title, children }) => {
         initial={{ scale: 0.95, opacity: 0, y: 20 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.95, opacity: 0, y: 20 }}
-        className="bg-zinc-100 dark:bg-zinc-900 w-full h-[calc(100dvh-1.5rem)] sm:h-[calc(100dvh-2.5rem)] md:w-[90vw] md:max-w-5xl md:h-[calc(100dvh-3.5rem)] lg:h-[78dvh] rounded-2xl md:rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-2xl flex flex-col overflow-hidden relative"
+        className="modal-zoom modal-zoom--admin-ocorrencias bg-zinc-100 dark:bg-zinc-900 w-full h-[calc(100dvh-1.5rem)] sm:h-[calc(100dvh-2.5rem)] md:w-[90vw] md:max-w-5xl md:h-[calc(100dvh-3.5rem)] lg:h-[78dvh] rounded-2xl md:rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-2xl flex flex-col overflow-hidden relative"
       >
         <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800 flex justify-between items-center bg-white dark:bg-zinc-950 shadow-sm z-50">
           <h3 className="text-xl font-black text-zinc-900 dark:text-white flex items-center gap-2 tracking-tight">
@@ -195,8 +195,8 @@ const HeaderOcorrencias = ({ isOpen, onClose }) => {
   return (
     <>
     <ExpandedModal isOpen={isOpen} onClose={onClose} title="Central de Ocorrências">
-      <div className="flex w-full h-full overflow-hidden bg-zinc-50 dark:bg-zinc-950">
-        <div className={`flex flex-col w-full md:w-80 lg:w-[400px] border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 z-20 absolute md:relative inset-0 transition-transform duration-300 ease-in-out ${activeTicketId ? '-translate-x-full md:translate-x-0' : 'translate-x-0'}`}>
+      <div className="admin-ocorrencias-modal-content flex w-full h-full overflow-hidden bg-zinc-50 dark:bg-zinc-950">
+        <div className={`admin-ocorrencias-list flex flex-col w-full md:w-80 lg:w-[400px] border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 z-20 absolute md:relative inset-0 transition-transform duration-300 ease-in-out ${activeTicketId ? '-translate-x-full md:translate-x-0' : 'translate-x-0'}`}>
           <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 space-y-3 bg-white dark:bg-zinc-950 z-10">
             <div className="relative group">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within:text-red-500 transition-colors" />
@@ -230,7 +230,7 @@ const HeaderOcorrencias = ({ isOpen, onClose }) => {
             ))}
           </div>
         </div>
-        <div className={`flex flex-col flex-1 bg-white dark:bg-zinc-950 z-10 absolute md:relative inset-0 transition-transform duration-300 ${activeTicketId ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}`}>
+        <div className={`admin-ocorrencias-chat flex flex-col flex-1 bg-white dark:bg-zinc-950 z-10 absolute md:relative inset-0 transition-transform duration-300 ${activeTicketId ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}`}>
           {activeTicket ? (
             <>
               <div className="px-6 py-4 border-b border-zinc-100 dark:border-zinc-800 bg-white/90 dark:bg-zinc-950/90 backdrop-blur-md flex justify-between items-center z-20">

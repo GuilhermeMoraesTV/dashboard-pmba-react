@@ -356,7 +356,7 @@ const MiniCicloCard = ({ ciclo, onClick, registros }) => {
 };
 
 // --- COMPONENTE MODAL ATUALIZADO (COM PORTAL) ---
-const Modal = ({ isOpen, onClose, title, children, maxWidth = "max-w-2xl", headerContent }) => {
+const Modal = ({ isOpen, onClose, title, children, maxWidth = "max-w-2xl", headerContent, zoomClassName = "" }) => {
   if (!isOpen) return null;
 
   return (
@@ -366,7 +366,7 @@ const Modal = ({ isOpen, onClose, title, children, maxWidth = "max-w-2xl", heade
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className={`bg-white dark:bg-zinc-950 rounded-3xl shadow-2xl w-full ${maxWidth} border border-zinc-200 dark:border-zinc-800 flex flex-col max-h-[90vh] overflow-hidden relative`}
+            className={`modal-zoom ${zoomClassName} bg-white dark:bg-zinc-950 rounded-3xl shadow-2xl w-full ${maxWidth} border border-zinc-200 dark:border-zinc-800 flex flex-col max-h-[90vh] overflow-hidden relative`}
             onClick={(e) => e.stopPropagation()}
         >
             {headerContent ? (
@@ -399,7 +399,7 @@ const ModalConfirmacaoExclusaoCiclo = ({ ciclo, onClose, onConfirm, loading }) =
             <div className="bg-red-500/10 p-6 flex flex-col items-center border-b border-red-500/20"><div className="w-16 h-16 bg-red-500/20 text-red-600 dark:text-red-500 rounded-full flex items-center justify-center mb-4 shadow-[0_0_15px_rgba(239,68,68,0.4)]"><Trash2 size={32} /></div><h2 className="text-xl font-black text-zinc-900 dark:text-white uppercase tracking-tight">Excluir Tudo?</h2></div>
             <div className="p-6 text-center">
                 <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-6">
-                    O ciclo <strong className="text-red-600 dark:text-red-400 font-bold">"{ciclo.nome}"</strong> e <strong className="text-red-600">todos os seus registros de estudo</strong> serão apagados permanentemente do sistema.
+                    O plano <strong className="text-red-600 dark:text-red-400 font-bold">"{ciclo.nome}"</strong> e <strong className="text-red-600">todos os seus registros de estudo</strong> serao apagados permanentemente do sistema.
                     <br/><br/>
                     <span className="text-xs bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300 px-2 py-1 rounded border border-red-200 dark:border-red-900">Isso reduzirá seu tempo total acumulado.</span>
                 </p>
@@ -422,7 +422,7 @@ const StatCard = ({ icon: Icon, label, value, subtext, colorClass, delay }) => (
 );
 
 // --- NOVO CARD DE CICLO ARQUIVADO (LAYOUT ESTILO MINI CICLO CARD) ---
-const ArchivedCycleCard = ({ ciclo, hours, onRestore, onDelete, loading }) => {
+const ArchivedCycleCard = ({ ciclo, hours, onRestore, onDelete, loading, type = 'ciclo' }) => {
     const logo = getLogo(ciclo);
     const dataReferencia = ciclo.dataArquivamento || ciclo.dataCriacao || new Date();
 
@@ -443,7 +443,7 @@ const ArchivedCycleCard = ({ ciclo, hours, onRestore, onDelete, loading }) => {
                 {/* Header Badge */}
                 <div className="flex justify-between items-start mb-2">
                      <div className="px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider border flex items-center gap-1 bg-zinc-100 text-zinc-500 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700">
-                        Arquivado
+                        {type === 'cronograma' ? 'Cronograma' : 'Ciclo'} Arquivado
                      </div>
                 </div>
 
@@ -469,7 +469,7 @@ const ArchivedCycleCard = ({ ciclo, hours, onRestore, onDelete, loading }) => {
                 {/* Actions (Buttons) */}
                 <div className="flex gap-2 mt-auto">
                     <button
-                        onClick={() => onRestore(ciclo.id)}
+                        onClick={() => onRestore(ciclo.id, type)}
                         className="flex-1 py-2 bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-800 text-emerald-600 dark:text-emerald-400 rounded-lg text-xs font-bold uppercase tracking-wide hover:bg-emerald-100 dark:hover:bg-emerald-900/30 transition-colors flex items-center justify-center gap-1"
                     >
                         <ArchiveRestore size={14}/> Restaurar
@@ -513,6 +513,7 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
   const [recordToEdit, setRecordToEdit] = useState(null);
 
   const [todosCiclos, setTodosCiclos] = useState([]);
+  const [todosCronogramas, setTodosCronogramas] = useState([]);
   const [selectedCycleId, setSelectedCycleId] = useState(null);
   const [historySearch, setHistorySearch] = useState('');
 
@@ -536,10 +537,34 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
   useEffect(() => {
     if (!user) return;
     const q = query(collection(db, 'users', user.uid, 'ciclos'), orderBy('dataCriacao', 'desc'));
-    onSnapshot(q, (snap) => setTodosCiclos(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
+    return onSnapshot(q, (snap) => setTodosCiclos(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
   }, [user]);
 
   const ciclosArquivados = useMemo(() => todosCiclos.filter(c => c.arquivado === true), [todosCiclos]);
+  const cronogramasArquivados = useMemo(() => todosCronogramas.filter(c => c.arquivado === true), [todosCronogramas]);
+  const planosArquivados = useMemo(() => [
+      ...ciclosArquivados.map(ciclo => ({ ...ciclo, archiveType: 'ciclo' })),
+      ...cronogramasArquivados.map(cronograma => ({ ...cronograma, archiveType: 'cronograma' })),
+  ], [ciclosArquivados, cronogramasArquivados]);
+
+  useEffect(() => {
+    if (!user) return;
+    return onSnapshot(collection(db, 'users', user.uid, 'cronogramas'), (snap) => {
+      const list = snap.docs
+        .map(doc => ({ id: doc.id, ...doc.data() }))
+        .sort((a, b) => {
+          const getTs = (item) => {
+            const value = item.dataCriacao || item.criadoEm || item.dataArquivamento;
+            if (!value) return 0;
+            if (value?.toDate) return value.toDate().getTime();
+            if (value?.seconds) return value.seconds * 1000;
+            return new Date(value).getTime() || 0;
+          };
+          return getTs(b) - getTs(a);
+        });
+      setTodosCronogramas(list);
+    });
+  }, [user]);
 
   const groupedHistory = useMemo(() => {
       const groups = {};
@@ -664,20 +689,24 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
         } catch (e) { setMessage({type: 'error', text: 'Senha incorreta.'}); }
     };
 
-    const handleUnarchive = async (id) => { await updateDoc(doc(db, 'users', user.uid, 'ciclos', id), { arquivado: false }); };
+    const handleUnarchive = async (id, type = 'ciclo') => {
+      const collectionName = type === 'cronograma' ? 'cronogramas' : 'ciclos';
+      await updateDoc(doc(db, 'users', user.uid, collectionName, id), { arquivado: false });
+    };
     const handleDeletePermanent = (ciclo) => { setCicloParaExcluir(ciclo); setShowDeleteCycleConfirm(true); };
 
     // --- NOVA LÓGICA DE EXCLUSÃO PROFUNDA ---
     const handleConfirmPermanentDelete = async () => {
         if (!cicloParaExcluir || cicloActionLoading) return;
-        const { id, nome } = cicloParaExcluir;
+        const { id, nome, archiveType = 'ciclo' } = cicloParaExcluir;
+        const isCronograma = archiveType === 'cronograma';
         setCicloActionLoading(true);
 
         try {
-            // 1. Buscar todos os registros vinculados a este ciclo
+            // 1. Buscar todos os registros vinculados a este plano
             const registrosQuery = query(
                 collection(db, 'users', user.uid, 'registrosEstudo'),
-                where('cicloId', '==', id)
+                where(isCronograma ? 'cronogramaId' : 'cicloId', '==', id)
             );
             const snapshot = await getDocs(registrosQuery);
 
@@ -688,17 +717,17 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
                 batch.delete(docRef.ref);
             });
 
-            // 3. Deletar o documento do ciclo
-            const cicloRef = doc(db, 'users', user.uid, 'ciclos', id);
-            batch.delete(cicloRef);
+            // 3. Deletar o documento do plano
+            const planoRef = doc(db, 'users', user.uid, isCronograma ? 'cronogramas' : 'ciclos', id);
+            batch.delete(planoRef);
 
             // 4. Executar o batch
             await batch.commit();
 
-            setMessage({ type: 'success', text: `Ciclo "${nome}" e registros excluídos.` });
+            setMessage({ type: 'success', text: `${isCronograma ? 'Cronograma' : 'Ciclo'} "${nome}" e registros excluidos.` });
         } catch (error) {
-            console.error("Erro ao excluir ciclo completo:", error);
-            setMessage({ type: 'error', text: `Falha ao excluir ciclo.` });
+            console.error("Erro ao excluir plano completo:", error);
+            setMessage({ type: 'error', text: `Falha ao excluir ${isCronograma ? 'cronograma' : 'ciclo'}.` });
         } finally {
             setCicloActionLoading(false);
             setShowDeleteCycleConfirm(false);
@@ -803,7 +832,7 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
           <div className="space-y-6">
                 <div className="bg-zinc-900 text-white rounded-3xl p-6 shadow-xl relative overflow-hidden group">
                     <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform duration-500"><Archive size={120}/></div>
-                    <div className="relative z-10"><h4 className="text-2xl font-black mb-1">{ciclosArquivados.length}</h4><p className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-6">Ciclos Arquivados</p><button onClick={() => setShowArchivesModal(true)} className="w-full py-3 bg-white/10 hover:bg-white/20 border border-white/10 rounded-xl text-xs font-bold uppercase tracking-wide flex items-center justify-center gap-2 backdrop-blur-sm transition-colors"><Archive size={14}/> Acessar Arquivo</button></div>
+                    <div className="relative z-10"><h4 className="text-2xl font-black mb-1">{planosArquivados.length}</h4><p className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-6">Planos Arquivados</p><button onClick={() => setShowArchivesModal(true)} className="w-full py-3 bg-white/10 hover:bg-white/20 border border-white/10 rounded-xl text-xs font-bold uppercase tracking-wide flex items-center justify-center gap-2 backdrop-blur-sm transition-colors"><Archive size={14}/> Acessar Arquivo</button></div>
                 </div>
                 <div className="bg-red-50 dark:bg-red-900/5 border border-red-100 dark:border-red-900/20 rounded-3xl overflow-hidden transition-all duration-300">
                     <button onClick={() => setShowDangerZone(!showDangerZone)} className="w-full flex items-center justify-between p-6 text-left group">
@@ -815,7 +844,7 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
       </div>
 
       {/* --- MODAL HISTÓRICO AVANÇADO --- */}
-      <Modal isOpen={showHistoryModal} onClose={() => { setShowHistoryModal(false); setSelectedCycleId(null); }} title={selectedCycleId ? `Histórico: ${activeCycleData?.cicloInfo?.nome}` : "Selecione o Ciclo"} maxWidth="max-w-5xl">
+      <Modal isOpen={showHistoryModal} onClose={() => { setShowHistoryModal(false); setSelectedCycleId(null); }} title={selectedCycleId ? `Histórico: ${activeCycleData?.cicloInfo?.nome}` : "Selecione o Ciclo"} maxWidth="max-w-5xl" zoomClassName="modal-zoom--profile-history">
           <div className="p-4 bg-zinc-100 dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 sticky top-0 z-20 flex items-center gap-3">
               {selectedCycleId && <button onClick={() => { setSelectedCycleId(null); setHistorySearch(''); }} className="p-2 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-lg transition-colors"><ArrowLeft size={20} className="text-zinc-500"/></button>}
               <div className="flex-1 relative">
@@ -886,6 +915,7 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
                 onClose={() => setShowArchivesModal(false)}
                 title="Arquivo Morto"
                 maxWidth="max-w-5xl"
+                zoomClassName="modal-zoom--archive"
                 headerContent={
                     <div className="p-8 bg-gradient-to-r from-zinc-900 to-zinc-800 text-white relative overflow-hidden">
                         <div className="absolute right-0 top-0 p-4 opacity-10"><Archive size={140}/></div>
@@ -895,26 +925,27 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
                             </div>
                             <div>
                                 <h2 className="text-2xl font-black uppercase tracking-tight">Arquivo Morto</h2>
-                                <p className="text-zinc-400 text-sm mt-1 font-medium">Ciclos finalizados ou descontinuados.</p>
+                                <p className="text-zinc-400 text-sm mt-1 font-medium">Ciclos e cronogramas finalizados ou descontinuados.</p>
                             </div>
                         </div>
                     </div>
                 }
             >
               <div className="p-6 bg-zinc-50 dark:bg-zinc-950/50 min-h-[400px]">
-                {ciclosArquivados.length === 0 ? (
+                {planosArquivados.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-64 text-zinc-400 border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-3xl m-4">
                         <div className="p-4 bg-zinc-100 dark:bg-zinc-900 rounded-full mb-4">
                             <History size={32} className="opacity-50"/>
                         </div>
-                        <p className="text-sm font-bold uppercase tracking-wide">Nenhum ciclo arquivado</p>
-                        <p className="text-xs mt-1 opacity-60">Seus ciclos antigos aparecerão aqui.</p>
+                        <p className="text-sm font-bold uppercase tracking-wide">Nenhum plano arquivado</p>
+                        <p className="text-xs mt-1 opacity-60">Seus ciclos e cronogramas antigos aparecerão aqui.</p>
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {ciclosArquivados.map((ciclo, idx) => {
-                            // Calcula as horas deste ciclo específico
-                            const registrosDoCiclo = allRegistrosEstudo.filter(r => r.cicloId === ciclo.id);
+                        {planosArquivados.map((ciclo, idx) => {
+                            // Calcula as horas do plano arquivado.
+                            const isCronogramaArquivado = ciclo.archiveType === 'cronograma';
+                            const registrosDoCiclo = allRegistrosEstudo.filter(r => isCronogramaArquivado ? r.cronogramaId === ciclo.id : r.cicloId === ciclo.id);
                             const min = registrosDoCiclo.reduce((acc, r) => acc + (r.tempoEstudadoMinutos || 0), 0);
                             const horas = Math.round(min / 60 * 10) / 10;
 
@@ -926,6 +957,7 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
                                     onRestore={handleUnarchive}
                                     onDelete={handleDeletePermanent}
                                     loading={cicloActionLoading}
+                                    type={ciclo.archiveType}
                                 />
                             );
                         })}

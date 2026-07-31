@@ -75,7 +75,7 @@ const ContextSelector = ({ context }) => {
   const cronogramaLogo = getContextLogo(context.activeCronogramaData);
 
   return (
-    <div className="flex shrink-0 flex-col gap-0.5">
+    <div className="desempenho-context-filter flex shrink-0 flex-col gap-0.5">
       <span className="text-[9px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500 px-1">
         Planejamento
       </span>
@@ -141,13 +141,13 @@ const InlineSelect = ({ options, value, onChange, placeholder, disabled }) => {
         onClick={handleOpen}
         disabled={disabled}
         className={`
-          flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wide
+          flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[11px] font-bold uppercase tracking-wide shadow-sm
           transition-all duration-150 select-none whitespace-nowrap
           ${disabled
-            ? 'text-zinc-400 dark:text-zinc-600 cursor-not-allowed opacity-50'
+            ? 'border-zinc-200 bg-white text-zinc-400 opacity-50 cursor-not-allowed dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-600'
             : isOpen
-              ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
-              : 'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/70 hover:text-zinc-900 dark:hover:text-white'
+              ? 'border-red-200 bg-red-50 text-red-600 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-400'
+              : 'border-zinc-200 bg-white text-zinc-600 hover:border-zinc-300 hover:bg-zinc-50 hover:text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-white'
           }
         `}
       >
@@ -171,7 +171,7 @@ const InlineSelect = ({ options, value, onChange, placeholder, disabled }) => {
             className={`
               absolute z-[999] top-full mt-1.5
               min-w-[180px] max-w-[min(240px,80vw)]
-              bg-white dark:bg-zinc-900
+              bg-white dark:bg-zinc-950
               border border-zinc-200 dark:border-zinc-700/80
               rounded-xl shadow-xl shadow-black/10 dark:shadow-black/40
               overflow-hidden
@@ -253,7 +253,7 @@ const DesempenhoHeader = ({ analytics, filters, options, context }) => {
     <div className="flex flex-col gap-5">
 
       {/* ── TÍTULO + FILTROS ─────────────────────────────────────────────── */}
-      <div className="group relative overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white p-4 shadow-soft transition-all duration-300 hover:border-accent-light/40 hover:!border-l-red-500 hover:shadow-[0_0_18px_rgba(239,68,68,0.07)] dark:border-white/10 dark:!border-l-red-500/25 dark:bg-zinc-950 dark:hover:border-accent-light/20 dark:hover:!border-l-red-500 dark:hover:shadow-[0_0_22px_rgba(239,68,68,0.08)]">
+      <div className="group relative overflow-visible rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white p-4 shadow-soft transition-all duration-300 hover:border-accent-light/40 hover:!border-l-red-500 hover:shadow-[0_0_18px_rgba(239,68,68,0.07)] dark:border-white/10 dark:!border-l-red-500/25 dark:bg-zinc-950 dark:hover:border-accent-light/20 dark:hover:!border-l-red-500 dark:hover:shadow-[0_0_22px_rgba(239,68,68,0.08)]">
         <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-red-500/5 blur-[80px] transition-all duration-700 group-hover:bg-red-500/10" />
         <div className="pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-zinc-500/5 blur-[80px]" />
         <div className="relative z-10 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
@@ -292,7 +292,7 @@ const DesempenhoHeader = ({ analytics, filters, options, context }) => {
           <div className="w-px h-7 bg-zinc-200 dark:bg-zinc-700/60 self-end mb-0.5 hidden sm:block" />
 
           {/* Disciplina */}
-          <div className="desempenho-discipline-filter flex shrink-0 flex-col gap-0.5">
+          <div className="desempenho-discipline-filter desempenho-discipline-filter-zoom relative z-30 flex shrink-0 flex-col gap-0.5">
             <span className="text-[9px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500 px-1">
               Disciplina
             </span>

@@ -116,7 +116,7 @@ const getDisciplinasDoCronograma = (cronograma) => {
       peso: Number(d.peso) || 1,
       assuntos: Array.isArray(d.assuntos) ? d.assuntos : [],
       index: d.index ?? idx,
-      inCiclo: true,
+      inCiclo: d.inCiclo !== false,
     }));
   }
 
@@ -378,6 +378,7 @@ function EditalPage({
   onStartStudy,
   onBack,              // navega para Painel do Ciclo
   onGoToCronograma,    // navega para página do Cronograma (novo)
+  initialViewSource,
   editalUpdates,
   onApplyEditalUpdate,
   onDismissEditalUpdate,
@@ -408,10 +409,11 @@ function EditalPage({
   const [isSavingOrder,         setIsSavingOrder]         = useState(false);
   const [showInactive,          setShowInactive]          = useState(false);
   const [disciplinaParaExcluir, setDisciplinaParaExcluir] = useState(null);
+  const [disciplinaParaRestaurar, setDisciplinaParaRestaurar] = useState(null);
   const [toastMessage,          setToastMessage]          = useState('');
 
   // ── Fonte de visualização: 'ciclo' | 'cronograma' ────────────────────────
-  const [viewSource, setViewSource] = useState('ciclo');
+  const [viewSource, setViewSource] = useState(initialViewSource === 'cronograma' ? 'cronograma' : 'ciclo');
 
   const dragIdRef = useRef(null);
 
@@ -484,12 +486,13 @@ function EditalPage({
       );
       unsubCrono = onSnapshot(q, (snap) => {
         if (snap.empty) { setCronograma(null); return; }
-        const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const docs = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(d => d.arquivado !== true);
         const maisRecente = docs.sort((a, b) => {
-          const tA = a.criadoEm?.seconds || a.dataCriacao?.seconds || 0;
-          const tB = b.criadoEm?.seconds || b.dataCriacao?.seconds || 0;
+          const tA = a.criadoEm?.seconds || a.dataCriacao?.seconds || a.createdAt?.seconds || 0;
+          const tB = b.criadoEm?.seconds || b.dataCriacao?.seconds || b.createdAt?.seconds || 0;
           return tB - tA;
         })[0];
+        if (!maisRecente) { setCronograma(null); return; }
         setCronograma({ ...maisRecente, computedLogo: getCronogramaLogo(maisRecente) });
       });
     }
@@ -520,6 +523,11 @@ function EditalPage({
     else if (activeCicloId && !cronograma) setViewSource('ciclo');
   }, [activeCicloId, cronograma]);
 
+  useEffect(() => {
+    if (initialViewSource === 'cronograma' && cronograma) setViewSource('cronograma');
+    else if (initialViewSource === 'ciclo' && ciclo) setViewSource('ciclo');
+  }, [initialViewSource, cronograma?.id, ciclo?.id]);
+
   // ── Dados derivados do CRONOGRAMA ─────────────────────────────────────────
   const disciplinasCronograma = useMemo(() => {
     return getDisciplinasDoCronograma(cronograma);
@@ -531,11 +539,7 @@ function EditalPage({
   const registrosCronoFiltrados = useMemo(() => {
     if (!cronograma) return [];
     const cronoId = cronograma.id;
-    // Prioriza registros marcados explicitamente com o cronogramaId
-    const comCrono = registrosCronograma.filter(r => r.cronogramaId === cronoId);
-    if (comCrono.length > 0) return comCrono;
-    // Fallback: registros sem cicloId específico (estudos avulsos)
-    return registrosCronograma.filter(r => !r.cicloId);
+    return registrosCronograma.filter(r => String(r.cronogramaId || '') === String(cronoId || ''));
   }, [registrosCronograma, cronograma]);
 
   // ── useMemo: processa edital do CICLO ─────────────────────────────────────
@@ -610,8 +614,8 @@ function EditalPage({
   }, [disciplinas, registros, searchTerm, optimisticChecks, pendingUpdate]);
 
   // ── useMemo: processa edital do CRONOGRAMA ────────────────────────────────
-  const { editalProcessado: editalCrono, statsGlobal: statsCrono } = useMemo(() => {
-    if (!disciplinasCronograma.length) return { editalProcessado: [], statsGlobal: { total: 0, concluidos: 0, percentual: 0 } };
+  const { editalProcessado: editalCrono, inactiveDisciplines: inactiveCrono, statsGlobal: statsCrono } = useMemo(() => {
+    if (!disciplinasCronograma.length) return { editalProcessado: [], inactiveDisciplines: [], statsGlobal: { total: 0, concluidos: 0, percentual: 0 } };
 
     const mapaDetalhado = {}; const statsPorDisc = {};
 
@@ -668,13 +672,17 @@ function EditalPage({
         });
 
       const total = assuntosProc.length; const concl = assuntosProc.filter(a => a.estudado).length;
-      totalTopicosG += total; totalConcluidosG += concl;
+      const inCiclo = disc.inCiclo !== false;
+      if (inCiclo) {
+        totalTopicosG += total;
+        totalConcluidosG += concl;
+      }
 
       return {
         ...disc, assuntos: assuntosProc,
         progresso: total > 0 ? (concl / total) * 100 : 0,
         totalAssuntos: total, concluidos: concl,
-        inCiclo: true, isNew: false,
+        inCiclo, isNew: false,
         stats: { desempenho, questoes: sd.questoes, ultimaData: sd.lastDate, minutos: sd.minutes },
       };
     }).filter(d => {
@@ -683,7 +691,8 @@ function EditalPage({
     });
 
     return {
-      editalProcessado: listaCompleta,
+      editalProcessado: listaCompleta.filter(d => d.inCiclo),
+      inactiveDisciplines: listaCompleta.filter(d => !d.inCiclo),
       statsGlobal: { total: totalTopicosG, concluidos: totalConcluidosG, percentual: totalTopicosG > 0 ? (totalConcluidosG / totalTopicosG) * 100 : 0 }
     };
   }, [disciplinasCronograma, registrosCronoFiltrados, searchTerm, optimisticChecks, cronograma]);
@@ -692,10 +701,7 @@ function EditalPage({
   const isCronoView   = viewSource === 'cronograma';
   const editalAtivo   = isCronoView ? editalCrono   : editalCiclo;
   const statsAtivos   = isCronoView ? statsCrono     : statsCiclo;
-  const inativeAtivos = isCronoView ? []             : inactiveCiclo;
-
-  // ID do contexto de estudo para o toggle check
-  const contextoId = isCronoView ? cronograma?.id : activeCicloId;
+  const inativeAtivos = isCronoView ? inactiveCrono  : inactiveCiclo;
 
   // Logo e nome do header
   const logoAtivo = isCronoView ? cronograma?.computedLogo : ciclo?.computedLogo;
@@ -744,11 +750,33 @@ function EditalPage({
     if (pendingUpdate && onDismissEditalUpdate) onDismissEditalUpdate(pendingUpdate.cicloId, pendingUpdate.versionKey);
   };
 
-  const handleRestoreDisciplina = async (discId) => {
-    if (!user || !activeCicloId) return;
+  const handleConfirmRestoreDisciplina = async () => {
+    const disc = disciplinaParaRestaurar;
+    if (!user || !disc) return;
     try {
-      await updateDoc(doc(db, 'users', user.uid, 'ciclos', activeCicloId, 'disciplinas', discId), { inCiclo: true });
-    } catch (err) { console.error("Erro ao restaurar disciplina", err); }
+      if (isCronoView) {
+        if (!cronograma?.id || !Array.isArray(cronograma.disciplinasSnapshot)) return;
+        const disciplinasSnapshot = cronograma.disciplinasSnapshot.map((item, idx) => {
+          const itemId = item.id || `crono-disc-${idx}`;
+          const sameId = String(itemId) === String(disc.id);
+          const sameName = normalize(item.nome || item.disciplinaNome) === normalize(disc.nome);
+          return sameId || sameName ? { ...item, inCiclo: true } : item;
+        });
+        await updateDoc(doc(db, 'users', user.uid, 'cronogramas', cronograma.id), { disciplinasSnapshot });
+        setDisciplinaParaRestaurar(null);
+        setShowInactive(false);
+        setToastMessage('Disciplina restaurada. Recalcule o cronograma para incluir na rotina.');
+        onGoToCronograma?.({ initialEditMode: 'recalculate' });
+        return;
+      }
+
+      if (!activeCicloId) return;
+      await updateDoc(doc(db, 'users', user.uid, 'ciclos', activeCicloId, 'disciplinas', disc.id), { inCiclo: true });
+      setDisciplinaParaRestaurar(null);
+    } catch (err) {
+      console.error("Erro ao restaurar disciplina", err);
+      setToastMessage('Erro ao restaurar disciplina. Tente novamente.');
+    }
   };
 
   const handleHardDeleteDisciplina = async (disc) => {
@@ -895,7 +923,7 @@ function EditalPage({
 
   // Se está em view cronograma mas não tem dados relevantes no edital
   // (cronograma sem disciplinasSnapshot nem semanaTemplate), mostra aviso
-  const semDadosCrono = isCronoView && editalCrono.length === 0 && !searchTerm;
+  const semDadosCrono = isCronoView && editalCrono.length === 0 && inactiveCrono.length === 0 && !searchTerm;
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -938,6 +966,36 @@ function EditalPage({
                 </button>
                 <button onClick={() => handleHardDeleteDisciplina(disciplinaParaExcluir)} className="rounded-2xl bg-red-600 px-4 py-3 text-xs font-black uppercase tracking-wider text-white shadow-lg shadow-red-600/25 hover:bg-red-700">
                   Excluir
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {disciplinaParaRestaurar && (
+          <div className="fixed inset-0 z-[95] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={() => setDisciplinaParaRestaurar(null)}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.94, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.94, y: 12 }}
+              className="w-full max-w-md overflow-hidden rounded-3xl border border-amber-200 bg-white shadow-2xl dark:border-amber-900/40 dark:bg-zinc-950"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="border-b border-amber-100 bg-amber-50 p-6 text-center dark:border-amber-900/30 dark:bg-amber-950/20">
+                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-500 text-white shadow-lg shadow-amber-600/25">
+                  <RefreshCw size={28} />
+                </div>
+                <h3 className="text-lg font-black uppercase text-zinc-900 dark:text-white">Restaurar disciplina?</h3>
+                <p className="mt-2 text-sm font-medium text-zinc-600 dark:text-zinc-400">
+                  Restaurar "{disciplinaParaRestaurar.nome}" impacta o {isCronoView ? 'cronograma' : 'ciclo'} atual. Para entrar na rotina, o planejamento precisa ser recalculado.
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-3 p-5">
+                <button onClick={() => setDisciplinaParaRestaurar(null)} className="rounded-2xl bg-zinc-100 px-4 py-3 text-xs font-black uppercase tracking-wider text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-200">
+                  Cancelar
+                </button>
+                <button onClick={handleConfirmRestoreDisciplina} className="rounded-2xl bg-amber-500 px-4 py-3 text-xs font-black uppercase tracking-wider text-white shadow-lg shadow-amber-600/25 hover:bg-amber-600">
+                  {isCronoView ? 'Restaurar e recalcular' : 'Restaurar'}
                 </button>
               </div>
             </motion.div>
@@ -1251,8 +1309,8 @@ function EditalPage({
           );
         })}
 
-        {/* DISCIPLINAS INATIVAS (apenas no ciclo) */}
-        {!isCronoView && inativeAtivos.length > 0 && (
+        {/* DISCIPLINAS INATIVAS */}
+        {inativeAtivos.length > 0 && (
           <div className={`${systemCardClass} mt-8`}>
             <button
               onClick={() => setShowInactive(!showInactive)}
@@ -1261,7 +1319,7 @@ function EditalPage({
               <div className="flex items-center gap-2">
                 <Ban size={16} className="text-zinc-500" />
                 <span className="text-sm font-bold text-zinc-600 dark:text-zinc-300 uppercase tracking-wide">
-                  Disciplinas Fora do Ciclo ({inativeAtivos.length})
+                  Disciplinas Fora do {isCronoView ? 'Cronograma' : 'Ciclo'} ({inativeAtivos.length})
                 </span>
               </div>
               {showInactive ? <ChevronUp size={18} className="text-zinc-500" /> : <ChevronDown size={18} className="text-zinc-500" />}
@@ -1277,16 +1335,18 @@ function EditalPage({
                         </div>
                         <div>
                           <h4 className="text-sm font-bold text-zinc-500 dark:text-zinc-400 line-through">{disc.nome}</h4>
-                          <p className="text-[10px] text-zinc-400 mt-0.5">Removida do ciclo atual</p>
+                          <p className="text-[10px] text-zinc-400 mt-0.5">Removida do {isCronoView ? 'cronograma' : 'ciclo'} atual</p>
                         </div>
                       </div>
                       <div className="flex gap-2">
-                        <button onClick={() => handleRestoreDisciplina(disc.id)} className="px-3 py-2 bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-lg text-xs font-bold uppercase hover:bg-emerald-100 transition-colors flex items-center gap-1.5">
+                        <button onClick={() => setDisciplinaParaRestaurar(disc)} className="px-3 py-2 bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-lg text-xs font-bold uppercase hover:bg-emerald-100 transition-colors flex items-center gap-1.5">
                           <Undo2 size={14} /> Restaurar
                         </button>
-                        <button onClick={() => setDisciplinaParaExcluir(disc)} className="px-3 py-2 bg-red-50 text-red-600 border border-red-200 rounded-lg text-xs font-bold uppercase hover:bg-red-100 transition-colors flex items-center gap-1.5">
-                          <Trash2 size={14} /> Excluir
-                        </button>
+                        {!isCronoView && (
+                          <button onClick={() => setDisciplinaParaExcluir(disc)} className="px-3 py-2 bg-red-50 text-red-600 border border-red-200 rounded-lg text-xs font-bold uppercase hover:bg-red-100 transition-colors flex items-center gap-1.5">
+                            <Trash2 size={14} /> Excluir
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))}

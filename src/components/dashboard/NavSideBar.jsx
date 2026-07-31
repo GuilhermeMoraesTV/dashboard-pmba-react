@@ -762,7 +762,7 @@ function NavSideBar({
       </span>
 
       {/* Label */}
-      <span className={`ml-3 ${NAV_LABEL_SIZE} font-black uppercase tracking-widest transition-all duration-300 ${isFullyExpanded ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4 w-0'}`}>
+      <span className={`${isFullyExpanded ? 'ml-3 opacity-100 translate-x-0' : 'ml-0 opacity-0 -translate-x-4 w-0'} ${NAV_LABEL_SIZE} font-black uppercase tracking-widest transition-all duration-300`}>
         {label}
       </span>
 
@@ -806,8 +806,8 @@ function NavSideBar({
         fixed top-0 right-0 h-[60px] z-[60]
         bg-white/70 dark:bg-zinc-950/70 backdrop-blur-xl border-b border-white/60 dark:border-white/10
         flex items-center justify-between px-2 sm:px-4 shadow-sm shadow-black/5 dark:shadow-black/30 transition-all duration-300
-        left-0 lg:left-[72px]
-        ${isExpanded ? 'lg:left-[240px]' : 'lg:left-[72px]'}
+        left-0 lg:left-[64px]
+        ${isExpanded ? 'lg:left-[240px]' : 'lg:left-[64px]'}
       `}
     >
       <div className="flex items-center z-20">
@@ -982,12 +982,12 @@ function NavSideBar({
           bg-white dark:bg-zinc-950 border-r border-zinc-200 dark:border-white/10
           transition-all duration-300 shadow-2xl lg:shadow-none
           ${isMobileOpen ? 'translate-x-0 w-[260px]' : '-translate-x-full lg:translate-x-0'}
-          lg:left-0 ${isExpanded ? 'lg:w-[240px]' : 'lg:w-[72px]'}
+          lg:left-0 ${isExpanded ? 'lg:w-[240px]' : 'lg:w-[64px]'}
         `}
         onMouseEnter={() => !isMobileOpen && setExpanded(true)}
         onMouseLeave={() => !isMobileOpen && setExpanded(false)}
       >
-        <div className="flex-shrink-0 flex items-center justify-between lg:justify-center h-[60px] px-4 border-b border-white/60 dark:border-white/10 lg:border-none">
+        <div className="nav-sidebar-content-zoom flex-shrink-0 flex items-center justify-between lg:justify-center h-[60px] px-4 border-b border-white/60 dark:border-white/10 lg:border-none">
           <div onClick={handleLogoClick} className="cursor-pointer flex items-center justify-center">
             <img src="/logoModoQAP.png" alt="Logo" className="h-9 w-auto object-contain drop-shadow-sm"/>
           </div>
@@ -996,7 +996,7 @@ function NavSideBar({
           </button>
         </div>
 
-        <div className={`flex-1 py-3 px-2.5 ${NAV_GAP} overflow-y-auto`} style={{scrollbarWidth:'none'}}>
+        <div className={`nav-sidebar-content-zoom flex-1 py-3 px-2.5 ${NAV_GAP} overflow-y-auto`} style={{scrollbarWidth:'none'}}>
           <AnimatePresence>
             {hasCicloAtivo && (
               <motion.div key="atalho-ciclo" initial={{ opacity:0, height:0 }} animate={{ opacity:1, height:'auto' }} exit={{ opacity:0, height:0 }} transition={{ duration:0.2 }} className="mb-0.5">
@@ -1090,7 +1090,7 @@ function NavSideBar({
                       <span className={`flex-shrink-0 transition-transform duration-300 ${isActiveParent ? 'scale-110' : 'group-hover:scale-110'}`}>
                         {item.icon}
                       </span>
-                      <span className={`ml-3 ${NAV_LABEL_SIZE} font-black uppercase tracking-widest transition-all duration-300 ${isFullyExpanded ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4 w-0'}`}>
+                      <span className={`${isFullyExpanded ? 'ml-3 opacity-100 translate-x-0' : 'ml-0 opacity-0 -translate-x-4 w-0'} ${NAV_LABEL_SIZE} font-black uppercase tracking-widest transition-all duration-300`}>
                         {item.label}
                       </span>
                     </div>
@@ -1128,7 +1128,7 @@ function NavSideBar({
                               <span className={`flex-shrink-0 transition-transform duration-300 ${isSubActive ? 'scale-110' : 'group-hover:scale-110'}`}>
                                 {sub.icon}
                               </span>
-                              <span className={`ml-3 ${NAV_LABEL_SIZE} font-black uppercase tracking-widest transition-all duration-300 ${isFullyExpanded ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4 w-0'}`}>
+                              <span className={`${isFullyExpanded ? 'ml-3 opacity-100 translate-x-0' : 'ml-0 opacity-0 -translate-x-4 w-0'} ${NAV_LABEL_SIZE} font-black uppercase tracking-widest transition-all duration-300`}>
                                 {sub.label}
                               </span>
                               {isSubActive && !isFullyExpanded && !isMobileOpen && (
@@ -1166,7 +1166,7 @@ function NavSideBar({
           })}
         </div>
 
-        <div className="flex-shrink-0 border-t border-zinc-100 p-2.5 dark:border-zinc-800">
+        <div className="nav-sidebar-content-zoom flex-shrink-0 border-t border-zinc-100 p-2.5 dark:border-zinc-800">
           <button
             type="button"
             onClick={() => {

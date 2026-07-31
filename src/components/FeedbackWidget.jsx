@@ -228,7 +228,7 @@ const FeedbackWidget = ({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ type: 'spring', stiffness: 350, damping: 25 }}
-            className="pointer-events-auto w-[90vw] max-w-[350px] h-[550px] bg-zinc-50 dark:bg-black rounded-[24px] shadow-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden flex flex-col ring-1 ring-black/5 relative"
+            className="support-card-zoom pointer-events-auto w-[90vw] max-w-[350px] h-[550px] bg-zinc-50 dark:bg-black rounded-[24px] shadow-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden flex flex-col ring-1 ring-black/5 relative"
           >
             {/* ── HEADER ── */}
             <div className="flex-none px-5 py-4 bg-white dark:bg-zinc-900 border-b border-zinc-100 dark:border-zinc-800 flex justify-between items-center z-20 shadow-sm">

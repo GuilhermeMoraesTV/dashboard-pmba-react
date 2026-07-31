@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import {
   AlertOctagon,
   ArrowRight,
+  Archive,
   BookOpen,
   Calendar,
   FilePenLine,
@@ -22,6 +23,7 @@ import {
   getDocs,
   onSnapshot,
   query,
+  updateDoc,
   where,
   writeBatch,
 } from 'firebase/firestore';
@@ -159,7 +161,7 @@ const CicloCard = ({ ciclo, registrosEstudo = [], onOpen, onMenuToggle, isMenuOp
               {isMenuOpen && (
                 <motion.div initial={{ opacity: 0, y: 5, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} onClick={(event) => event.stopPropagation()} className="absolute right-0 top-8 z-50 w-44 overflow-hidden rounded-xl border border-zinc-200 bg-white py-1 shadow-xl ring-1 ring-black/5 dark:border-zinc-800 dark:bg-zinc-950 sm:w-52">
                   {ciclo.ativo && <button type="button" onClick={(event) => onAction(event, 'desativar', ciclo)} className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-zinc-500 transition-colors hover:bg-zinc-50 dark:text-zinc-400 dark:hover:bg-zinc-800/60"><PauseCircle size={14} /> Desativar</button>}
-                  <button type="button" onClick={(event) => onAction(event, 'editar', ciclo)} className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-zinc-500 transition-colors hover:bg-zinc-50 dark:text-zinc-400 dark:hover:bg-zinc-800/60"><FilePenLine size={14} /> Editar</button>
+                  <button type="button" onClick={(event) => onAction(event, 'arquivar', ciclo)} className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-zinc-500 transition-colors hover:bg-zinc-50 dark:text-zinc-400 dark:hover:bg-zinc-800/60"><Archive size={14} /> Arquivar</button>
                   <div className="my-1 h-px bg-zinc-100 dark:bg-zinc-800" />
                   <button type="button" onClick={(event) => onAction(event, 'excluir', ciclo)} className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-red-600 transition-colors hover:bg-red-50 dark:text-red-500 dark:hover:bg-red-900/10"><Trash2 size={14} /> Excluir</button>
                 </motion.div>
@@ -309,6 +311,20 @@ export default function CiclosList({
     if (action === 'editar') {
       if (canUseInlineEdit) setCicloParaEditar(ciclo);
       else onRequestEdit(ciclo);
+      return;
+    }
+
+    if (action === 'arquivar') {
+      try {
+        await updateDoc(doc(db, 'users', user.uid, 'ciclos', ciclo.id), {
+          arquivado: true,
+          ativo: false,
+          dataArquivamento: new Date(),
+        });
+      } catch (err) {
+        console.error('Erro ao arquivar ciclo:', err);
+        setActionError('Erro ao arquivar ciclo. Tente novamente.');
+      }
       return;
     }
 

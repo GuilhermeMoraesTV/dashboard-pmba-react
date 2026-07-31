@@ -195,7 +195,7 @@ const SimuladosPage = ({ user, activeCycleDisciplines, onStartSimulado, initialD
         />
       )}
 
-      <div className="mobile-page-zoom mobile-page-zoom--simulados space-y-6 md:space-y-8">
+      <div className="desktop-page-zoom desktop-page-zoom--simulados mobile-page-zoom mobile-page-zoom--simulados space-y-6 md:space-y-8">
       <HeaderSimulado
         kpis={kpis}
         simulados={simulados}

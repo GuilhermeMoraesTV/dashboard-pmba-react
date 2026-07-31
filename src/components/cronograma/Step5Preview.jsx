@@ -96,7 +96,7 @@ function getNomeDisc(item) {
  * Retorna o texto do assunto para um slot.
  * Para revisões individuais: mostra o assunto original que está sendo revisado.
  * Para revisões consolidadas: mostra a lista compacta de tópicos.
- * Para estudo: mostra o assunto ou 'Estudo de Conteúdo'.
+ * Para estudo: mostra o assunto ou a disciplina quando os assuntos estao ocultos.
  */
 function getTextoAssunto(item, config) {
   if (item.isConsolidada) {
@@ -111,7 +111,7 @@ function getTextoAssunto(item, config) {
   // Estudo normal
   return config?.modoExibirAssuntos !== false
     ? (item.assunto || 'Tópico inicial')
-    : 'Estudo de Conteúdo';
+    : (item.disciplinaNome || item.disciplina || 'Disciplina');
 }
 
 /**
@@ -125,9 +125,8 @@ function getLabelTipo(item) {
 
 const isReviewSlot = (item) => Boolean(item?.isRevisao || item?.isRevisaoAuto || item?.isConsolidada);
 const getStudyItems = (items = []) => items.filter((item) => !isReviewSlot(item));
-const getStudyMinutesTotal = (items = []) => (
-  getStudyItems(items).reduce((acc, item) => acc + Number(item.tempoMinutos || item.minutosEstudo || 0), 0)
-);
+const getItemMinutes = (item) => Number(item?.tempoMinutos ?? item?.minutosEstudo ?? item?.tempoPlanejadoMinutos ?? 0) || 0;
+const getDayMinutesTotal = (items = []) => items.reduce((acc, item) => acc + getItemMinutes(item), 0);
 
 const topicosFromReviewSlot = (item) => {
   const dadosSlot = {
@@ -465,6 +464,33 @@ const Step5_Preview = ({
     );
   }, [agendaOverride, agendaBase]);
 
+  // Preview budget guard
+  useEffect(() => {
+    if (!import.meta.env?.DEV || !displayAgenda) return;
+
+    Object.entries(displayAgenda).forEach(([key, items]) => {
+      if (!items?.length) return;
+      const data = new Date(`${key}T12:00:00`);
+      const diaSemana = data.getDay();
+      const minutosConfigurados = Math.round(Number(horarios?.[diaSemana] ?? horarios?.[String(diaSemana)] ?? 0) * 60);
+      if (minutosConfigurados <= 0) return;
+
+      const totalRenderizado = getDayMinutesTotal(items);
+      if (totalRenderizado > minutosConfigurados + 5) {
+        console.warn('[Step5Preview] Total diario acima do configurado no preview.', {
+          data: key,
+          totalRenderizado,
+          minutosConfigurados,
+          itens: items.map((item) => ({
+            slotId: item.slotId,
+            tipo: isReviewSlot(item) ? 'revisao' : 'estudo',
+            minutos: getItemMinutes(item),
+          })),
+        });
+      }
+    });
+  }, [displayAgenda, horarios]);
+
   // ── Drag and Drop ──────────────────────────────────────────────────────────
   const onDragStart = (e, item) => { e.dataTransfer.setData('text/plain', JSON.stringify(item)); };
   const onDrop = (e, targetDayKey) => {
@@ -607,8 +633,8 @@ const Step5_Preview = ({
                 const key  = isoKey(data);
                 const items = displayAgenda[key] || [];
                 const hoje = isoKey(new Date()) === key;
-                const totalDia = getStudyMinutesTotal(items);
-                const totalBlocosEstudo = getStudyItems(items).length;
+                const totalDia = getDayMinutesTotal(items);
+                const totalBlocos = items.length;
 
                 return (
                   <div key={diaOffset} onDragOver={(e) => e.preventDefault()} onDrop={(e) => onDrop(e, key)}
@@ -646,9 +672,9 @@ const Step5_Preview = ({
                             <span className="rounded bg-white px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide text-red-600 shadow-sm sm:px-2 sm:text-[9px] sm:tracking-widest">
                               Hoje
                             </span>
-                          ) : totalBlocosEstudo > 0 ? (
+                          ) : totalBlocos > 0 ? (
                             <div className="rounded bg-white/10 px-1.5 py-0.5 text-[8px] font-black text-white sm:px-2 sm:text-[10px]">
-                              {totalBlocosEstudo} blocos
+                              {totalBlocos} blocos
                             </div>
                           ) : null}
                         </div>
@@ -701,7 +727,7 @@ const Step5_Preview = ({
                 const isMesAtual = dayObj.type === 'current';
                 const hoje = isoKey(new Date()) === key;
                 const diaNome = DIAS_CURTO[data.getDay()];
-                const totalDia = getStudyMinutesTotal(items);
+                const totalDia = getDayMinutesTotal(items);
                 const resumoPorDiscMap = {};
                 items.forEach((item) => {
                   const nome = getNomeDisc(item);
@@ -813,7 +839,7 @@ const Step5_Preview = ({
                             </h4>
                             {items.length > 0 && config?.modoExibirTempo !== 'nenhum' && (
                               <div className="text-[10px] font-black bg-zinc-50 dark:bg-zinc-800 px-2 py-1 rounded-lg text-zinc-600 dark:text-zinc-300 border border-zinc-100 dark:border-zinc-700">
-                                Total: {fmtMin(getStudyMinutesTotal(items))}
+                                Total: {fmtMin(getDayMinutesTotal(items))}
                               </div>
                             )}
                           </div>

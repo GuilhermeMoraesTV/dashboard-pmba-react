@@ -780,7 +780,7 @@ function HomePage({
   }, [globalRegistrosEstudo]);
 
   return (
-    <div className="mobile-page-zoom mobile-page-zoom--home animate-slide-up pb-8 relative w-full max-w-7xl mx-auto">
+    <div className="desktop-page-zoom desktop-page-zoom--home mobile-page-zoom mobile-page-zoom--home animate-slide-up pb-8 relative w-full max-w-7xl mx-auto">
       {/* ① STAT CARDS — 4 cards compactos no topo */}
       {/* ② STREAK + GRÁFICO SEMANAL — logo abaixo dos stats */}
       {/* Ambos gerenciados por HomeSessao1 */}

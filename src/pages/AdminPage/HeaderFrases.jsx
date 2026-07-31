@@ -126,7 +126,7 @@ const ExpandedModal = ({ isOpen, onClose, title, children }) => {
         initial={{ scale: 0.95, opacity: 0, y: 20 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.95, opacity: 0, y: 20 }}
-        className="bg-zinc-100 dark:bg-zinc-900 w-full h-[calc(100dvh-1.5rem)] sm:h-[calc(100dvh-2.5rem)] md:w-[90vw] md:max-w-5xl md:h-[calc(100dvh-3.5rem)] lg:h-[78dvh] rounded-2xl md:rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-2xl flex flex-col overflow-hidden relative"
+        className="modal-zoom modal-zoom--admin-frases bg-zinc-100 dark:bg-zinc-900 w-full h-[calc(100dvh-1.5rem)] sm:h-[calc(100dvh-2.5rem)] md:w-[90vw] md:max-w-5xl md:h-[calc(100dvh-3.5rem)] lg:h-[78dvh] rounded-2xl md:rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-2xl flex flex-col overflow-hidden relative"
       >
         <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800 flex justify-between items-center bg-white dark:bg-zinc-950 shadow-sm z-50">
           <h3 className="text-xl font-black text-zinc-900 dark:text-white flex items-center gap-2 tracking-tight">
@@ -488,8 +488,8 @@ const HeaderFrases = ({ isOpen, onClose }) => {
   return (
     <>
     <ExpandedModal isOpen={isOpen} onClose={onClose} title="Gerenciar Frases">
-      <div className="flex flex-col w-full h-full overflow-hidden">
-        <div className="flex items-center justify-between px-6 pt-4 pb-0 bg-white dark:bg-zinc-950 border-b border-zinc-100 dark:border-zinc-800 shrink-0 gap-4">
+      <div className="admin-frases-modal-content flex flex-col w-full h-full overflow-hidden">
+        <div className="admin-modal-tabs flex items-center justify-between px-6 pt-4 pb-0 bg-white dark:bg-zinc-950 border-b border-zinc-100 dark:border-zinc-800 shrink-0 gap-4">
           <div className="flex gap-1 overflow-x-auto">
             {tabs.map(t => (
               <button key={t.key} onClick={() => setActiveTab(t.key)} className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold uppercase tracking-wide border-b-2 transition-all -mb-px whitespace-nowrap ${activeTab === t.key ? 'border-red-500 text-red-600 dark:text-red-400' : 'border-transparent text-zinc-400 hover:text-zinc-700'}`}>
@@ -506,7 +506,7 @@ const HeaderFrases = ({ isOpen, onClose }) => {
           )}
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+        <div className="admin-modal-scroll flex-1 overflow-y-auto p-6 space-y-4">
           {activeTab === 'all' && (
             <>
               {featuredConfig?.featuredText && (

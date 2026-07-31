@@ -258,7 +258,7 @@ const QuickEditRecordModal = ({ record, isOpen, onClose, onSave }) => {
                 initial={{ opacity: 0, scale: 0.9, y: 30 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.9, y: 30 }}
-                className="bg-white dark:bg-zinc-950 w-full max-w-md rounded-[32px] shadow-2xl border border-white/20 dark:border-zinc-800 overflow-hidden flex flex-col max-h-[90vh]"
+                className="modal-zoom modal-zoom--historico-estudo bg-white dark:bg-zinc-950 w-full max-w-md rounded-[32px] shadow-2xl border border-white/20 dark:border-zinc-800 overflow-hidden flex flex-col max-h-[90vh]"
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Header Clean */}
@@ -695,7 +695,7 @@ const HistoricoModal = ({ isOpen, onClose, registros, onDeleteRequest, onUpdateR
                 initial={{ opacity: 0, scale: 0.95, y: 20 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                className="bg-zinc-50 dark:bg-zinc-950 rounded-[32px] shadow-2xl w-full max-w-6xl border border-white/20 dark:border-zinc-800 flex flex-col h-[calc(100dvh-1.5rem)] sm:h-[calc(100dvh-2rem)] lg:h-[90dvh] max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-2rem)] overflow-hidden relative"
+                className="modal-zoom modal-zoom--historico-estudo bg-zinc-50 dark:bg-zinc-950 rounded-[32px] shadow-2xl w-full max-w-6xl border border-white/20 dark:border-zinc-800 flex flex-col h-[calc(100dvh-1.5rem)] sm:h-[calc(100dvh-2rem)] lg:h-[90dvh] max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-2rem)] overflow-hidden relative"
             >
                 {/* Header do Modal */}
                 <div className="px-6 py-5 border-b border-zinc-200 dark:border-zinc-800 flex flex-col md:flex-row justify-between items-center bg-white dark:bg-zinc-900 sticky top-0 z-50 gap-4 md:gap-0">

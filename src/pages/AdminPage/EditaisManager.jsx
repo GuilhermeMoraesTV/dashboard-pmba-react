@@ -361,7 +361,7 @@ const CustomEditalModal = ({ onClose, editalToEdit, showToast, allEditais }) => 
 
   return (
     <div className="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-      <div className={`bg-white dark:bg-zinc-950 w-full rounded-3xl shadow-2xl border border-zinc-200 dark:border-zinc-800 flex overflow-hidden transition-all duration-500 ${showSidebar ? 'max-w-6xl' : 'max-w-3xl'} h-[92vh]`}>
+      <div className={`modal-zoom modal-zoom--admin-editais bg-white dark:bg-zinc-950 w-full rounded-3xl shadow-2xl border border-zinc-200 dark:border-zinc-800 flex overflow-hidden transition-all duration-500 ${showSidebar ? 'max-w-6xl' : 'max-w-3xl'} h-[92vh]`}>
         <div className="flex-1 flex flex-col min-w-0">
 
           <div className="px-6 py-4 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 flex items-center justify-between">
@@ -779,7 +779,7 @@ const EditaisManagerModal = ({ isOpen, onClose }) => {
       <AnimatePresence>{showCustomModal && <CustomEditalModal onClose={() => { setShowCustomModal(false); setEditalToEdit(null); }} editalToEdit={editalToEdit} showToast={triggerToast} allEditais={allEditais} />}</AnimatePresence>
 
       <motion.div initial={{ scale: 0.95, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }}
-        className="bg-zinc-50 dark:bg-zinc-950 w-full max-w-6xl h-[calc(100dvh-1.5rem)] sm:h-[calc(100dvh-2.5rem)] md:h-[calc(100dvh-3.5rem)] lg:h-[82dvh] rounded-2xl md:rounded-[2.5rem] border border-zinc-200 dark:border-zinc-800 shadow-2xl flex flex-col overflow-hidden">
+        className="modal-zoom modal-zoom--admin-editais bg-zinc-50 dark:bg-zinc-950 w-full max-w-6xl h-[calc(100dvh-1.5rem)] sm:h-[calc(100dvh-2.5rem)] md:h-[calc(100dvh-3.5rem)] lg:h-[82dvh] rounded-2xl md:rounded-[2.5rem] border border-zinc-200 dark:border-zinc-800 shadow-2xl flex flex-col overflow-hidden">
 
         <div className="px-8 py-6 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 flex flex-col md:flex-row justify-between items-center gap-6 z-10 shadow-sm">
           <div className="flex items-center gap-4">

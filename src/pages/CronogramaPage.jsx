@@ -177,7 +177,7 @@ const getTextoAssunto = (item, cronograma = {}) => {
     return topicos.slice(0, 2).map((t) => t.assunto).join(' · ') + (topicos.length > 2 ? ` +${topicos.length - 2}` : '');
   }
   if (item?.isRevisao || item?.isRevisaoAuto) return item?.assunto || item?.assuntoOriginal || 'Revisão espaçada';
-  if (cronograma?.modoExibirAssuntos === false) return 'Estudo de conteúdo';
+  if (cronograma?.modoExibirAssuntos === false) return getNomeDisc(item);
   return item?.assunto || 'Tópico de estudo';
 };
 
@@ -557,7 +557,7 @@ const TarefaCardDraggable = ({
 
   const assuntoTexto = tarefa.isRevisaoAuto
     ? (tarefa.assunto || 'Revisão Geral do Conteúdo')
-    : (modoExibirAssuntos ? (tarefa.assunto || 'Tópico de Estudo') : 'Estudo de Conteúdo');
+    : (modoExibirAssuntos ? (tarefa.assunto || 'Tópico de Estudo') : getNomeDisc(tarefa));
 
   const tempoPlanejadoMinutos = Number(tarefa.tempoPlanejadoMinutos ?? tarefa.tempoMinutos ?? tarefa.minutosEstudo ?? 0);
   const progressoAtualMinutos = Number(tarefa.progressoMinutos || 0);
@@ -759,13 +759,13 @@ const ModalDetalhesCronograma = ({ slot, cronograma, onClose, onStart, onToggle,
     ? INTERVALOS_REVISAO.map((dias) => ({ dias, data: somarDias(dataSlot, dias) }))
     : [];
 
-  return (
+  return createPortal(
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       onClick={onClose}
-      className="fixed inset-0 z-[260] flex items-start justify-center overflow-hidden bg-zinc-950/80 px-3 pb-3 pt-16 backdrop-blur-sm sm:px-4 sm:pt-20"
+      className="fixed inset-0 z-[100090] flex items-start justify-center overflow-y-auto bg-zinc-950/80 px-3 pb-4 pt-5 backdrop-blur-sm sm:px-4 sm:pt-8"
     >
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -773,7 +773,7 @@ const ModalDetalhesCronograma = ({ slot, cronograma, onClose, onStart, onToggle,
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
         transition={{ type: 'spring', stiffness: 350, damping: 30 }}
         onClick={e => e.stopPropagation()}
-        className="w-full max-w-2xl overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-900"
+        className="modal-zoom modal-zoom--cronograma-detalhes w-full max-w-2xl overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-900"
       >
         <div className={`h-2 w-full ${accentBgClass}`} />
 
@@ -998,7 +998,8 @@ const ModalDetalhesCronograma = ({ slot, cronograma, onClose, onStart, onToggle,
           </div>
         </div>
       </motion.div>
-    </motion.div>
+    </motion.div>,
+    document.body
   );
 };
 
@@ -2259,7 +2260,7 @@ const SemanaHojeHero = ({ date, tarefas }) => {
 };
 
 // --- PÁGINA PRINCIPAL ----------------------------------------------------------
-const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletionRegistro, registrosEstudo = [], onDeleteRegistro, onGoToEdital }) => {
+const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletionRegistro, registrosEstudo = [], onDeleteRegistro, onGoToEdital, initialEditMode = null, onInitialEditModeHandled }) => {
   const [cronograma,        setCronograma]        = useState(null);
   const [loadingPage,       setLoadingPage]       = useState(true);
   const [showWizard,        setShowWizard]        = useState(false);
@@ -2453,6 +2454,13 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
     cronograma?.titulo,
     cronograma?.nome,
   ]);
+
+  useEffect(() => {
+    if (!cronograma || !initialEditMode) return;
+    setEditInitialMode(initialEditMode === 'recalculate' ? 'recalculate' : 'simple');
+    setMostrandoEditar(true);
+    onInitialEditModeHandled?.();
+  }, [cronograma?.id, initialEditMode, onInitialEditModeHandled]);
 
   // Cálculos derivados
   const dynamicLogo = editalTemplateData?.logoUrl || editalTemplateData?.logo || cronograma?.editalLogoUrl || cronograma?.logoUrl || cronograma?.logo || resolveLogoUrl({ ciclo: cronograma }) || null;

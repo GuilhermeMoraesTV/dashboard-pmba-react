@@ -849,10 +849,23 @@ function CicloCreateWizard({
     );
   };
 
+  const currentStepZoomKey = {
+    1: 'edital',
+    2: 'disciplinas',
+    3: 'horarios',
+    4: 'ciclo-revisao',
+    5: 'ciclo-config',
+    6: 'ciclo-preview',
+  }[passo] || 'ciclo-step';
+
   return (
     <div className="flex flex-col min-h-screen pb-6">
       <div ref={conteudoRef} className="wizard-main pb-32 pt-2 md:pb-36 md:pt-4">
-        <div className={`wizard-step-frame ${passo === firstVisibleStep || passo === 6 ? 'w-full mx-auto' : 'max-w-5xl mx-auto'}`}>
+        <div
+          data-wizard-type="ciclo"
+          data-wizard-step={currentStepZoomKey}
+          className={`wizard-step-frame ${passo === firstVisibleStep || passo === 6 ? 'w-full mx-auto' : 'max-w-5xl mx-auto'}`}
+        >
           <AnimatePresence>
             {validationMessage && (
               <motion.div
