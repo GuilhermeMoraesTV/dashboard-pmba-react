@@ -968,31 +968,51 @@ body.registro-modal-open .app-global-footer {
   display: none !important;
 }
 
+/*
+  CONTROLES DE ZOOM DAS PAGINAS
+  Menor valor = interface menor. Maior valor = interface maior.
+  Use 1 para tamanho normal, 0.9 para 90%, 0.8 para 80%, etc.
+*/
+:root {
+  --zoom-desktop-ciclo: 0.86;
+  --zoom-desktop-edital: 0.82;
+  --zoom-desktop-cronograma: 0.88;
+
+  --zoom-mobile-default: 0.88;
+  --zoom-mobile-planejamento: 0.86;
+  --zoom-mobile-simulados: 0.84;
+  --zoom-mobile-desempenho: 0.84;
+  --zoom-mobile-home: 0.84;
+  --zoom-mobile-edital: 0.68;
+  --zoom-mobile-cronograma-blocos: 0.78;
+}
+
 @media (min-width: 768px) {
   .desktop-page-zoom {
     --page-desktop-zoom: 0.9;
-    width: calc(100% / var(--page-desktop-zoom));
-    max-width: calc(100% / var(--page-desktop-zoom));
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
     transform-origin: top left;
     zoom: var(--page-desktop-zoom);
   }
 
   .desktop-page-zoom--ciclo {
-    --page-desktop-zoom: 0.86;
+    --page-desktop-zoom: var(--zoom-desktop-ciclo);
   }
 
   .desktop-page-zoom--edital {
-    --page-desktop-zoom: 0.82;
+    --page-desktop-zoom: var(--zoom-desktop-edital);
   }
 
   .desktop-page-zoom--cronograma {
-    --page-desktop-zoom: 0.88;
+    --page-desktop-zoom: var(--zoom-desktop-cronograma);
   }
 }
 
 @media (max-width: 639px) {
   .mobile-page-zoom {
-    --page-mobile-zoom: 0.88;
+    --page-mobile-zoom: var(--zoom-mobile-default);
     width: 100%;
     max-width: 100%;
     min-width: 0;
@@ -1001,34 +1021,35 @@ body.registro-modal-open .app-global-footer {
   }
 
   .mobile-page-zoom--planejamento {
-    --page-mobile-zoom: 0.86;
+    --page-mobile-zoom: var(--zoom-mobile-planejamento);
     padding-bottom: 1.5rem;
   }
 
   .mobile-page-zoom--simulados {
-    --page-mobile-zoom: 0.84;
+    --page-mobile-zoom: var(--zoom-mobile-simulados);
     padding-bottom: 3rem;
   }
 
   .mobile-page-zoom--desempenho {
-    --page-mobile-zoom: 0.84;
+    --page-mobile-zoom: var(--zoom-mobile-desempenho);
     padding-bottom: 3rem;
   }
 
   .mobile-page-zoom--home {
-    --page-mobile-zoom: 0.84;
+    --page-mobile-zoom: var(--zoom-mobile-home);
     padding-bottom: 3rem;
   }
 
   .mobile-page-zoom--edital {
-    --page-mobile-zoom: 0.68;
+    --page-mobile-zoom: var(--zoom-mobile-edital);
     padding-bottom: 3rem;
   }
 
   .cronograma-blocks-mobile-zoom {
-    --cronograma-blocks-mobile-zoom: 0.78;
-    width: calc(100% / var(--cronograma-blocks-mobile-zoom));
-    max-width: calc(100% / var(--cronograma-blocks-mobile-zoom));
+    --cronograma-blocks-mobile-zoom: var(--zoom-mobile-cronograma-blocos);
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
     transform-origin: top left;
     zoom: var(--cronograma-blocks-mobile-zoom);
   }
