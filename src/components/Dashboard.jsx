@@ -85,6 +85,7 @@ import { resolveLogoUrl } from './admin/config/editalAssets';
 import { isCicloLegacyForGuide } from '../utils/cicloLegacyUpgrade';
 import {
   buildStudyDaysMap,
+  getCronogramaSlotRecordedMinutes,
   getDailyStudyStatus,
 } from '../utils/studyDayStatus';
 import {
@@ -181,6 +182,21 @@ const getRegistroDateKey = (registro) => {
   if (registro?.createdAt?.toDate) return dateToYMD(registro.createdAt.toDate());
   return null;
 };
+
+const getRegistroChronologyValue = (registro) => {
+  if (registro?.timestamp?.toDate) return registro.timestamp.toDate().getTime();
+  if (registro?.timestamp instanceof Date) return registro.timestamp.getTime();
+  if (registro?.timestamp?.seconds) return Number(registro.timestamp.seconds) * 1000;
+  if (registro?.createdAt?.toDate) return registro.createdAt.toDate().getTime();
+  const dateKey = getRegistroDateKey(registro);
+  return dateKey ? ymdToDateLocal(dateKey).getTime() : 0;
+};
+
+const sortRegistrosChronologically = (items = []) => [...items].sort((a, b) => {
+  const diff = getRegistroChronologyValue(a) - getRegistroChronologyValue(b);
+  if (diff !== 0) return diff;
+  return String(a.id || '').localeCompare(String(b.id || ''));
+});
 
 const getDisciplinaOrderValue = (disciplina, fallbackIndex = 9999) => {
   const value = disciplina?.index ?? disciplina?.ordem ?? disciplina?.position ?? disciplina?.posicao ?? disciplina?.ordemDisciplina;
@@ -1429,14 +1445,299 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     if (Object.keys(updates).length) await updateDoc(cronogramaRef, updates);
   };
 
-  const rollbackDeletedRegistroProgress = async (registro) => {
+  const fetchAllRegistrosEstudoSnapshot = async () => {
+    const snap = await getDocs(collection(db, 'users', user.uid, 'registrosEstudo'));
+    return sortRegistrosEstudo(snap.docs.map(normalizeRegistroEstudo));
+  };
+
+  const syncStatsFromRegistrosSnapshot = async (registrosSnapshot) => {
+    const totalRegistros = (registrosSnapshot || []).reduce((acc, item) => ({
+      minutos: acc.minutos + Number(item.tempoEstudadoMinutos || 0),
+      questoes: acc.questoes + Number(item.questoesFeitas || 0),
+      acertos: acc.acertos + Number(item.acertos || 0),
+    }), { minutos: 0, questoes: 0, acertos: 0 });
+
+    const simSnap = await getDocs(collection(db, 'users', user.uid, 'simulados'));
+    const totalSimulados = simSnap.docs.reduce((acc, document) => {
+      const item = document.data() || {};
+      return {
+        minutos: acc.minutos + Number(item.durationMinutes || 0),
+        questoes: acc.questoes + Number(item.resumo?.totalQuestoes || 0),
+        acertos: acc.acertos + Number(item.resumo?.totalAcertos || 0),
+      };
+    }, { minutos: 0, questoes: 0, acertos: 0 });
+
+    const totals = {
+      totalHorasMinutos: totalRegistros.minutos + totalSimulados.minutos,
+      totalQuestoes: totalRegistros.questoes + totalSimulados.questoes,
+      totalAcertos: totalRegistros.acertos + totalSimulados.acertos,
+    };
+    statsSyncKeyRef.current = `${totals.totalHorasMinutos}|${totals.totalQuestoes}|${totals.totalAcertos}`;
+    await setDoc(doc(db, 'users', user.uid, 'stats', 'geral'), {
+      ...totals,
+      lastUpdated: Timestamp.now(),
+    }, { merge: true });
+  };
+
+  const recalculateCycleStudyProgressFromRegistros = async (cicloId, registrosSnapshot) => {
+    if (!cicloId) return;
+    const cicloRef = doc(db, 'users', user.uid, 'ciclos', cicloId);
+    const cicloSnap = await getDoc(cicloRef);
+    if (!cicloSnap.exists()) return;
+
+    const cicloData = cicloSnap.data() || {};
+    const ordemSessoes = Array.isArray(cicloData.ordemSessoes) ? cicloData.ordemSessoes : [];
+    if (!ordemSessoes.length) return;
+
+    const disciplinasFonte = Array.isArray(activeCycleDisciplines) && activeCycleDisciplines.length && String(activeCicloId || '') === String(cicloId)
+      ? activeCycleDisciplines
+      : (await getDocs(collection(db, 'users', user.uid, 'ciclos', cicloId, 'disciplinas')))
+        .docs.map((document, __sourceOrder) => ({ id: document.id, __sourceOrder, ...document.data() }));
+    const tempoSessaoMinutos = Math.max(1, Number(cicloData.tempoSessaoMinutos || 50));
+    const sessoes = ordemSessoes.map((sessao, globalIndex) => ({ ...sessao, globalIndex }));
+    const progressoSessoes = {};
+    const sessoesConcluidas = [];
+    const sessoesConcluidasDetalhes = {};
+
+    const markProgress = (index, minutes, registro, forceComplete = false) => {
+      if (!Number.isFinite(Number(index))) return;
+      const normalizedIndex = Number(index);
+      const current = Number(progressoSessoes[normalizedIndex] || 0);
+      const next = forceComplete ? Math.max(current + Number(minutes || 0), tempoSessaoMinutos) : current + Number(minutes || 0);
+      progressoSessoes[normalizedIndex] = Math.max(0, next);
+      if (progressoSessoes[normalizedIndex] >= tempoSessaoMinutos && !sessoesConcluidas.includes(normalizedIndex)) {
+        sessoesConcluidas.push(normalizedIndex);
+        sessoesConcluidasDetalhes[normalizedIndex] = {
+          concluidaEm: getRegistroDateKey(registro) || dateToYMD(new Date()),
+          atualizadoEm: Timestamp.now(),
+          origem: registro?.origemConclusao || registro?.origem || 'registro_manual',
+        };
+      }
+    };
+
+    const registrosCiclo = sortRegistrosChronologically((registrosSnapshot || []).filter((registro) => (
+      String(registro?.cicloId || '') === String(cicloId)
+      && getRegistroContext(registro) === 'ciclo'
+      && !isRegistroRevisaoPayload(registro)
+      && Number(registro.tempoEstudadoMinutos || registro.duracaoMinutos || 0) >= 0
+    )));
+
+    registrosCiclo.forEach((registro) => {
+      const minutos = Math.max(0, Number(registro.tempoEstudadoMinutos || registro.duracaoMinutos || 0));
+      const completionSourceId = parseCompletionSourceId(registro);
+      const explicitIndex = Number.isFinite(Number(registro.sessaoGlobalIndex))
+        ? Number(registro.sessaoGlobalIndex)
+        : Number.isFinite(Number(completionSourceId))
+          ? Number(completionSourceId)
+          : null;
+
+      if (explicitIndex !== null) {
+        markProgress(explicitIndex, minutos, registro, registro.origemConclusao === 'botao_concluir' || minutos <= 0);
+        return;
+      }
+
+      const disciplinaIdRegistro = String(registro.disciplinaId || '').trim();
+      const assuntoRegistroNorm = normalizeRegistroText(registro.assunto);
+      const candidatosBase = sessoes
+        .filter((sessao) => {
+          if (disciplinaIdRegistro && String(sessao.disciplinaId || '') !== disciplinaIdRegistro) return false;
+          if (!assuntoRegistroNorm) return true;
+          const assuntoSessao = getAssuntoCicloPorSessao(cicloData, disciplinasFonte, sessao);
+          return !assuntoSessao || normalizeRegistroText(assuntoSessao) === assuntoRegistroNorm;
+        })
+        .sort((a, b) => Number(a.globalIndex) - Number(b.globalIndex));
+
+      let minutosRestantes = minutos;
+      let lastTouchedIndex = null;
+      for (const sessao of candidatosBase) {
+        if (minutosRestantes <= 0) break;
+        const index = Number(sessao.globalIndex);
+        const current = Number(progressoSessoes[index] || 0);
+        const faltantes = Math.max(0, tempoSessaoMinutos - current);
+        if (faltantes <= 0) continue;
+        const applied = Math.min(faltantes, minutosRestantes);
+        markProgress(index, applied, registro);
+        lastTouchedIndex = index;
+        minutosRestantes -= applied;
+      }
+
+      if (minutosRestantes > 0 && lastTouchedIndex !== null) {
+        markProgress(lastTouchedIndex, minutosRestantes, registro);
+      }
+    });
+
+    await updateDoc(cicloRef, {
+      progressoSessoes,
+      sessoesConcluidas: sessoesConcluidas.sort((a, b) => a - b),
+      sessoesConcluidasDetalhes,
+      updatedAt: Timestamp.now(),
+    });
+  };
+
+  const recalculateCycleReviewProgressFromRegistros = async (cicloId, registrosSnapshot) => {
+    if (!cicloId) return;
+    const revisoesRef = collection(db, 'users', user.uid, 'revisoesCiclo');
+    const snap = await getDocs(query(revisoesRef, where('cicloId', '==', cicloId)));
+    const revisoes = snap.docs
+      .map((document) => ({ id: document.id, ...document.data() }))
+      .sort((a, b) => String(a.dataAgendada || '').localeCompare(String(b.dataAgendada || '')));
+    if (!revisoes.length) return;
+
+    const stateById = revisoes.reduce((acc, rev) => {
+      acc[rev.id] = { progressoMinutos: 0, concluida: false, concluidaEm: null };
+      return acc;
+    }, {});
+    const registrosRevisao = sortRegistrosChronologically((registrosSnapshot || []).filter((registro) => (
+      String(registro?.cicloId || '') === String(cicloId)
+      && getRegistroContext(registro) === 'ciclo'
+      && isRegistroRevisaoPayload(registro)
+      && Number(registro.tempoEstudadoMinutos || registro.duracaoMinutos || 0) > 0
+    )));
+
+    registrosRevisao.forEach((registro) => {
+      let minutosRestantes = Math.max(0, Number(registro.tempoEstudadoMinutos || registro.duracaoMinutos || 0));
+      const disciplinaIdRegistro = String(registro.disciplinaId || '').trim();
+      const assuntoRegistroNorm = normalizeRegistroText(registro.assunto);
+      const dataRegistro = String(getRegistroDateKey(registro) || '');
+      const candidatas = revisoes.filter((rev) => {
+        if (stateById[rev.id]?.concluida) return false;
+        if (disciplinaIdRegistro && String(rev.disciplinaId || '') !== disciplinaIdRegistro) return false;
+        if (assuntoRegistroNorm && normalizeRegistroText(rev.assunto) !== assuntoRegistroNorm) return false;
+        if (dataRegistro && rev.dataAgendada && String(rev.dataAgendada) > dataRegistro) return false;
+        return true;
+      });
+
+      for (const rev of candidatas) {
+        if (minutosRestantes <= 0) break;
+        const planned = getReviewPlannedMinutes(rev, 20);
+        const current = Number(stateById[rev.id]?.progressoMinutos || 0);
+        const {
+          appliedMinutes,
+          nextProgress,
+          done,
+        } = applyReviewProgress({
+          currentMinutes: current,
+          plannedMinutes: planned,
+          addedMinutes: minutosRestantes,
+          wasDone: stateById[rev.id]?.concluida,
+        });
+        if (appliedMinutes <= 0) continue;
+        stateById[rev.id] = {
+          progressoMinutos: nextProgress,
+          concluida: done,
+          concluidaEm: done ? (getRegistroDateKey(registro) || dateToYMD(new Date())) : null,
+        };
+        minutosRestantes -= appliedMinutes;
+      }
+    });
+
+    await Promise.all(revisoes.map((rev) => {
+      const nextState = stateById[rev.id] || { progressoMinutos: 0, concluida: false, concluidaEm: null };
+      const done = Boolean(nextState.concluida);
+      return updateDoc(doc(revisoesRef, rev.id), {
+        progressoMinutos: Number(nextState.progressoMinutos || 0),
+        tempoMinutos: getReviewPlannedMinutes(rev, 20),
+        concluida: done,
+        concluidaEm: done ? Timestamp.now() : null,
+        bloqueiaDesmarcar: done,
+        origemConclusao: done ? 'registro_manual' : null,
+        atualizadaEm: Timestamp.now(),
+      });
+    }));
+  };
+
+  const getCronogramaReviewSlotRecordedMinutes = ({ cronograma, slot, registrosSnapshot }) => {
+    if (!cronograma?.id || !slot) return 0;
+    const slotDateKey = slot.dataSlot || null;
+    const disciplinaId = String(slot.disciplinaId || '').trim();
+    const disciplinaNomeNorm = normalizeRegistroText(slot.disciplinaNome || slot.disciplina);
+    const assuntoNorm = normalizeRegistroText(slot.assunto || slot.assuntoOriginal);
+    return (registrosSnapshot || []).reduce((acc, registro) => {
+      if (!isRegistroRevisaoPayload(registro)) return acc;
+      if (String(registro?.cronogramaId || '') !== String(cronograma.id || '')) return acc;
+      if (getRegistroContext(registro) !== 'cronograma') return acc;
+      if (slotDateKey && getRegistroDateKey(registro) !== slotDateKey) return acc;
+      const sameId = disciplinaId && String(registro.disciplinaId || '') === disciplinaId;
+      const sameNome = disciplinaNomeNorm && normalizeRegistroText(registro.disciplinaNome) === disciplinaNomeNorm;
+      if (!sameId && !sameNome) return acc;
+      const registroAssuntoNorm = normalizeRegistroText(registro.assunto);
+      if (assuntoNorm && registroAssuntoNorm && registroAssuntoNorm !== assuntoNorm) return acc;
+      return acc + Math.max(0, Number(registro.tempoEstudadoMinutos || registro.duracaoMinutos || 0));
+    }, 0);
+  };
+
+  const recalculateCronogramaWeekProgressFromRegistros = async (registroExcluido, registrosSnapshot) => {
+    if (!registroExcluido?.cronogramaId) return;
+    const cronogramaRef = doc(db, 'users', user.uid, 'cronogramas', registroExcluido.cronogramaId);
+    const cronogramaSnap = await getDoc(cronogramaRef);
+    if (!cronogramaSnap.exists()) return;
+
+    const cronograma = { id: cronogramaSnap.id, ...cronogramaSnap.data() };
+    if (!cronograma.dataInicio) return;
+    const weekOffset = getWeekOffsetFromDate(cronograma.dataInicio, registroExcluido.data || new Date());
+    if (!Number.isFinite(Number(weekOffset))) return;
+
+    const semKey = `w${weekOffset}`;
+    const agenda = getAgendaSemana(cronograma, weekOffset) || [];
+    const nextWeekMinutes = { ...(cronograma.progressoMinutos?.[semKey] || {}) };
+    const nextWeekProgress = { ...(cronograma.progresso?.[semKey] || {}) };
+    const nextReviewMinutes = { ...(cronograma.progressoRevisoesMinutos || {}) };
+    const nextHistoricoRevisoes = { ...(cronograma.historicoRevisoes || {}) };
+
+    agenda.forEach((slot) => {
+      if (!slot) return;
+      if (slot.isRevisaoAuto) {
+        const slotKey = slot.slotId;
+        if (!slotKey) return;
+        const planned = getReviewPlannedMinutes(slot, 20);
+        const minutes = getCronogramaReviewSlotRecordedMinutes({ cronograma, slot, registrosSnapshot });
+        nextReviewMinutes[slotKey] = minutes;
+        nextWeekProgress[slotKey] = minutes >= planned;
+        if (minutes >= planned) {
+          nextHistoricoRevisoes[slotKey] = nextHistoricoRevisoes[slotKey] || {
+            dataConclusao: slot.dataSlot || registroExcluido.data || dateToYMD(new Date()),
+            origem: 'registro_manual',
+          };
+        } else {
+          delete nextHistoricoRevisoes[slotKey];
+        }
+        return;
+      }
+
+      const slotKey = slot.slotIdBase || slot.slotId;
+      if (!slotKey) return;
+      const planned = Math.max(1, Number(slot.tempoMinutos ?? slot.minutosEstudo ?? 0) || 0);
+      const minutes = getCronogramaSlotRecordedMinutes({
+        cronograma,
+        slot,
+        registrosEstudo: registrosSnapshot,
+        dateKey: slot.dataSlot,
+      });
+      nextWeekMinutes[slotKey] = minutes;
+      nextWeekProgress[slotKey] = minutes >= planned;
+      if (slot.slotId && slot.slotId !== slotKey) {
+        nextWeekMinutes[slot.slotId] = minutes;
+        nextWeekProgress[slot.slotId] = minutes >= planned;
+      }
+    });
+
+    await updateDoc(cronogramaRef, {
+      [`progressoMinutos.${semKey}`]: nextWeekMinutes,
+      [`progresso.${semKey}`]: nextWeekProgress,
+      progressoRevisoesMinutos: nextReviewMinutes,
+      historicoRevisoes: nextHistoricoRevisoes,
+      atualizadoEm: Timestamp.now(),
+    });
+  };
+
+  const rollbackDeletedRegistroProgress = async (registro, registrosSnapshot) => {
     try {
       const context = getRegistroContext(registro);
       if (context === 'ciclo') {
-        await rollbackCycleStudyProgress(registro);
-        await rollbackCycleReviewProgress(registro);
+        await recalculateCycleStudyProgressFromRegistros(registro.cicloId, registrosSnapshot);
+        await recalculateCycleReviewProgressFromRegistros(registro.cicloId, registrosSnapshot);
       } else if (context === 'cronograma') {
-        await rollbackCronogramaProgress(registro);
+        await recalculateCronogramaWeekProgressFromRegistros(registro, registrosSnapshot);
       }
     } catch (error) {
       console.error('[Dashboard] Erro ao sincronizar exclusao de registro com progresso:', error);
@@ -1449,11 +1750,14 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       const snap = await getDoc(ref);
       if (snap.exists()) {
         const data = snap.data();
+        const deletedRegistro = normalizeRegistroPayload(id, data);
         await deleteDoc(ref);
-        setAllRegistrosEstudo((prev) => prev.filter((item) => item.id !== id));
-        await rollbackDeletedRegistroProgress({ id, ...data, data: data.data?.toDate ? dateToYMD(data.data.toDate()) : data.data });
-        const statsRef = doc(db,'users',user.uid,'stats','geral');
-        try { await updateDoc(statsRef, { totalHorasMinutos:increment(-(data.tempoEstudadoMinutos||0)), totalQuestoes:increment(-(data.questoesFeitas||0)), totalAcertos:increment(-(data.acertos||0)) }); } catch {}
+        const registrosSnapshot = await fetchAllRegistrosEstudoSnapshot();
+        setAllRegistrosEstudo(registrosSnapshot);
+        setDailyGoalModalData(null);
+        setPendingDailyGoalModalData(null);
+        await rollbackDeletedRegistroProgress(deletedRegistro, registrosSnapshot);
+        await syncStatsFromRegistrosSnapshot(registrosSnapshot);
       }
     } catch (e) { console.error(e); }
   };

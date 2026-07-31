@@ -2941,7 +2941,7 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
 
   // --- RENDER PRINCIPAL ------------------------------------------------------
   return (
-    <div className="relative flex min-h-[calc(100vh-120px)] min-w-0 flex-col animate-fade-in">
+    <div className="desktop-page-zoom desktop-page-zoom--cronograma relative flex min-h-[calc(100vh-120px)] min-w-0 flex-col animate-fade-in">
       {/* -- MODAIS -- */}
       <AnimatePresence>
         {recordToDelete && typeof document !== 'undefined' && createPortal(
@@ -3346,7 +3346,7 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
         </div>
 
       {/* -- ÁREA PRINCIPAL -- */}
-      <div className="-mx-2 min-h-0 flex-grow pb-8 pt-0 sm:-mx-4 md:-mx-6 lg:-mx-8">
+      <div className="cronograma-blocks-mobile-zoom -mx-2 min-h-0 flex-grow pb-8 pt-0 sm:-mx-4 md:-mx-6 lg:-mx-8">
         {viewMode === 'week' ? (
           <div className="px-2 sm:px-4 md:px-6 lg:px-8">
             <DndContext sensors={dragSensors} collisionDetection={cronogramaCollisionDetection} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={() => setActiveDragTask(null)}>
@@ -3362,7 +3362,7 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
                 onPointerCancel={handleWeekPanEnd}
                 onPointerLeave={handleWeekPanEnd}
                 onWheel={handleWeekWheel}
-                className="flex cursor-grab select-none gap-4 overflow-x-auto overflow-y-hidden overscroll-x-contain scroll-smooth pb-5 active:cursor-grabbing [scrollbar-width:thin] [scrollbar-color:rgb(220_38_38)_transparent]"
+                className="flex cursor-grab select-none gap-3 overflow-x-auto overflow-y-hidden overscroll-x-contain scroll-smooth pb-5 active:cursor-grabbing sm:gap-4 [scrollbar-width:thin] [scrollbar-color:rgb(220_38_38)_transparent]"
               >
                 {weekDates.map((date) => {
                   const diaReal = date.getDay();
@@ -3371,7 +3371,7 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
                     <div
                       key={date.getTime()}
                       data-week-today={isHoje ? 'true' : undefined}
-                      className={`w-[252px] min-w-[252px] self-start scroll-mx-4 sm:w-[276px] sm:min-w-[276px] xl:w-[292px] xl:min-w-[292px] ${isHoje ? 'relative z-10' : ''}`}
+                      className={`w-[226px] min-w-[226px] self-start scroll-mx-3 sm:w-[258px] sm:min-w-[258px] xl:w-[268px] xl:min-w-[268px] ${isHoje ? 'relative z-10' : ''}`}
                     >
                       <DayDropZone
                         diaSemanaIdx={diaReal}

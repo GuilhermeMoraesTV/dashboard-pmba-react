@@ -38,18 +38,18 @@ const CYCLE_CENTER_MANUAL_LAYOUT = {
   disciplina: { x: 0, top: 10.8, height: 10.2, maxWidth: 49, fontSize: 3.8, lineHeight: 1.12, maxLines: 2, topPadding: 1.2, bottomPadding: 0.4 },
   bloco: { x: 0, top: 20, height: 3.5, maxWidth: 44, fontSize: 2.25 },
   assunto: { x: 0, top: 25.2, height: 9.2, maxWidth: 53, fontSize: 2.7, lineHeight: 1.2, maxLines: 2, topPadding: 0.8, bottomPadding: 0.1 },
-  tempo: { x: 0, top: 35.5, height: 8.4, maxWidth: 42, valueFontSize: 6.15, totalFontSize: 2.6 },
-  actions: { x: 0, top: 43.8, height: 7, maxWidth: 46, gap: 1, buttonHeight: 6.4, startWidth: 19.5, endWidth: 21, singleWidth: 24, fontSize: 2.5, radius: 3.2 },
+  tempo: { x: 0, top: 35.4, height: 7.8, maxWidth: 40, valueFontSize: 5.55, totalFontSize: 2.35 },
+  actions: { x: 0, top: 43.4, height: 5.8, maxWidth: 39, gap: 0.75, buttonHeight: 5.15, startWidth: 16.5, endWidth: 17.8, singleWidth: 20.5, fontSize: 2.05, radius: 2.6 },
 };
 
 // TAMANHO DO CICLO VISUAL.
 // Aumente desktopMax para deixar o radar maior em telas grandes.
 // Diminua desktopViewportOffset se quiser usar mais altura da tela no desktop.
 const CYCLE_VISUAL_SIZE = {
-  desktopMax: 710,
-  desktopViewportOffset: 195,
+  desktopMax: 560,
+  desktopViewportOffset: 285,
   parentOffset: 20,
-  viewportWidth: 80,
+  viewportWidth: 64,
 };
 
 const centerClampStyle = ({ maxLines, fontSize, lineHeight, topPadding = 0, bottomPadding = 0 } = {}) => {

@@ -1077,7 +1077,7 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
 
   // --- RENDERIZAÇÃO ---
   return (
-    <div className="relative flex min-h-[calc(100vh-120px)] flex-col animate-fade-in">
+    <div className="desktop-page-zoom desktop-page-zoom--ciclo relative flex min-h-[calc(100vh-120px)] flex-col animate-fade-in">
       <div className="mb-4">
           {/* HEADER SUPERIOR — botão "Concluir Missão" removido daqui, agora está no CicloVisual */}
           <div className="flex items-center justify-between mb-4">
@@ -1376,11 +1376,11 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
 
       {!showEmptyMessage && (
           <div className="-mx-2 min-h-0 flex-grow sm:-mx-4 md:-mx-6 lg:-mx-8">
-              <div className={`grid min-h-0 grid-cols-1 items-start gap-4 ${showAssuntosCiclo ? 'xl:grid-cols-[minmax(0,1fr)_minmax(0,0.64fr)] 2xl:grid-cols-[minmax(0,1.06fr)_minmax(360px,0.66fr)]' : 'justify-items-center xl:grid-cols-1'}`}>
+              <div className={`grid min-h-0 grid-cols-1 items-start gap-3 ${showAssuntosCiclo ? 'xl:grid-cols-[minmax(0,0.92fr)_minmax(0,0.58fr)] 2xl:grid-cols-[minmax(0,0.98fr)_minmax(340px,0.62fr)]' : 'justify-items-center xl:grid-cols-1'}`}>
                   <section className={`relative flex flex-col rounded-2xl border border-zinc-200/70 bg-white/80 px-2.5 py-2.5 shadow-lg shadow-zinc-200/30 backdrop-blur-xl dark:border-zinc-800/70 dark:bg-zinc-950/35 dark:shadow-none sm:px-4 sm:py-3 ${
                       showAssuntosCiclo
-                          ? 'w-full overflow-hidden sm:min-h-[620px] lg:min-h-[730px] xl:min-h-[760px]'
-                          : 'mx-auto w-full max-w-[1080px] overflow-hidden sm:min-h-[620px] lg:min-h-[720px] xl:min-h-[760px]'
+                          ? 'w-full overflow-hidden sm:min-h-[560px] lg:min-h-[610px] xl:min-h-[640px]'
+                          : 'mx-auto w-full max-w-[880px] overflow-hidden sm:min-h-[540px] lg:min-h-[600px] xl:min-h-[630px]'
                   }`}>
                       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-red-500/40 to-transparent" />
                       <div className="relative mb-2 flex flex-wrap items-center justify-between gap-2 px-1 sm:px-2">
@@ -1395,8 +1395,8 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
 
                       <div className={`relative flex flex-1 items-stretch justify-center ${
                           showAssuntosCiclo
-                              ? 'h-[500px] sm:h-auto sm:min-h-[610px] lg:min-h-[660px] xl:min-h-[690px]'
-                              : 'h-[500px] sm:h-auto sm:min-h-[600px] lg:min-h-[650px] xl:min-h-[690px]'
+                              ? 'h-[430px] sm:h-auto sm:min-h-[500px] lg:min-h-[540px] xl:min-h-[570px]'
+                              : 'h-[430px] sm:h-auto sm:min-h-[490px] lg:min-h-[530px] xl:min-h-[560px]'
                       }`}>
                           <CicloVisual
                               selectedDisciplinaId={selectedDisciplinaId}

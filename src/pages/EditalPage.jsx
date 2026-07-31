@@ -899,7 +899,7 @@ function EditalPage({
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="mobile-page-zoom mobile-page-zoom--edital w-full space-y-4 animate-fade-in pb-24">
+    <div className="mobile-page-zoom mobile-page-zoom--edital desktop-page-zoom desktop-page-zoom--edital w-full space-y-3 animate-fade-in pb-24">
       <AnimatePresence>
         {toastMessage && (
           <motion.div
@@ -970,13 +970,13 @@ function EditalPage({
       </AnimatePresence>
 
       {/* ── HEADER ── */}
-      <div className={`${systemCardClass} p-4 md:p-5 flex flex-col md:flex-row items-center md:items-start gap-4 text-center md:text-left`}>
+      <div className={`${systemCardClass} p-3 md:p-4 flex flex-col md:flex-row items-center md:items-start gap-3 text-center md:text-left`}>
 
         {/* Logo + toggle posicionado embaixo */}
         <div className="flex flex-col items-center gap-2 flex-shrink-0 relative z-10">
-          <div className="flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-full border-4 border-white bg-zinc-50 shadow-xl dark:border-white/10 dark:bg-zinc-900 md:h-24 md:w-24 relative">
+          <div className="flex h-[4rem] w-[4rem] items-center justify-center rounded-full border-4 border-white bg-zinc-50 shadow-xl dark:border-white/10 dark:bg-zinc-900 md:h-20 md:w-20 relative">
             {logoAtivo
-              ? <img src={logoAtivo} alt="Logo" className="h-12 w-12 object-contain md:h-14 md:w-14" />
+              ? <img src={logoAtivo} alt="Logo" className="h-11 w-11 object-contain md:h-12 md:w-12" />
               : <GraduationCap size={40} className="text-zinc-300 dark:text-zinc-600" />
             }
             <div className="absolute -bottom-2 px-2 py-0.5 bg-emerald-500 text-white text-[9px] font-bold uppercase tracking-widest rounded-full shadow-md border-2 border-white dark:border-zinc-950">Ativo</div>
@@ -1021,9 +1021,9 @@ function EditalPage({
             }
           </div>
 
-          <h1 className="mb-2 text-2xl font-black uppercase leading-none tracking-tight text-zinc-900 dark:text-white md:text-3xl">{nomeAtivo}</h1>
+          <h1 className="mb-2 text-xl font-black uppercase leading-none tracking-tight text-zinc-900 dark:text-white md:text-2xl">{nomeAtivo}</h1>
 
-          <div className="mt-4 w-full">
+          <div className="mt-3 w-full">
             <div className="flex justify-between items-end mb-2">
               <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Cobertura Global</span>
               <div className="flex items-baseline gap-1"><span className="text-2xl font-black text-red-600 dark:text-red-500">{statsAtivos.percentual.toFixed(0)}</span><span className="text-sm font-bold text-zinc-400">%</span></div>
@@ -1087,7 +1087,7 @@ function EditalPage({
       )}
 
       {/* ── LISTA DE DISCIPLINAS ── */}
-      <div className="space-y-3 px-4 md:px-0">
+      <div className="space-y-2 px-3 md:px-0">
         {editalAtivo.length === 0 && !semDadosCrono && (
           <EmptyStateCard
             icon={Search}
@@ -1131,7 +1131,7 @@ function EditalPage({
                   </div>
                 )}
 
-                <div onClick={() => toggleDisciplina(disc.nome)} className="flex-1 flex items-center gap-4 p-4 text-left cursor-pointer group">
+                <div onClick={() => toggleDisciplina(disc.nome)} className="flex-1 flex items-center gap-3 p-3 text-left cursor-pointer group">
                   <div className="relative flex-shrink-0">
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center border transition-colors ${disc.progresso === 100 ? 'bg-emerald-100 dark:bg-emerald-900/20 text-emerald-600 border-emerald-200 dark:border-emerald-500/30' : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-500 border-zinc-200 dark:border-white/10 group-hover:text-red-500'}`}>
                       {disc.progresso === 100 ? <CheckCircle2 size={20} /> : <LayoutGrid size={20} />}
@@ -1166,7 +1166,7 @@ function EditalPage({
                   <ChevronDown size={20} className={`text-zinc-400 transition-transform flex-shrink-0 ${expandedDisciplinas[disc.nome] ? 'rotate-180' : ''}`} />
                 </div>
 
-                <div className="hidden md:flex items-center justify-end gap-3 p-4 border-l border-zinc-100 dark:border-white/10 bg-zinc-50/70 dark:bg-zinc-900/55">
+                <div className="hidden md:flex items-center justify-end gap-2.5 p-3 border-l border-zinc-100 dark:border-white/10 bg-zinc-50/70 dark:bg-zinc-900/55">
                   <div className="flex flex-col items-end mr-2">
                     <span className="text-[10px] font-bold text-zinc-400 uppercase">Último Estudo</span>
                     <span className="text-xs font-mono text-zinc-700 dark:text-zinc-300">{formatDateRelative(disc.stats.ultimaData)}</span>
@@ -1195,8 +1195,8 @@ function EditalPage({
                           : `${disc.nome}-${assunto.nome}`.toLowerCase().trim();
 
                         return (
-                          <div key={i} className={`flex flex-col md:flex-row md:items-center p-4 sm:px-6 transition-all gap-4 hover:bg-white/80 dark:hover:bg-zinc-900 ${assunto.estudado ? 'bg-emerald-50/40 dark:bg-emerald-500/10' : ''} ${assunto.isNew ? 'bg-emerald-50/60 dark:bg-emerald-500/10 border-l-2 border-emerald-400' : ''}`}>
-                            <div className="flex items-start gap-4 flex-1">
+                          <div key={i} className={`flex flex-col md:flex-row md:items-center p-3 sm:px-4 transition-all gap-3 hover:bg-white/80 dark:hover:bg-zinc-900 ${assunto.estudado ? 'bg-emerald-50/40 dark:bg-emerald-500/10' : ''} ${assunto.isNew ? 'bg-emerald-50/60 dark:bg-emerald-500/10 border-l-2 border-emerald-400' : ''}`}>
+                            <div className="flex items-start gap-3 flex-1">
                               <button
                                 onClick={() => handleToggleCheck(disc.id, disc.nome, assunto.nome, assunto.estudado)}
                                 disabled={loadingCheck[ckKey]}
