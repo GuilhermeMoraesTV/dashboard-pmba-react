@@ -552,20 +552,22 @@ const TimelineCard = ({ record, onEdit, onDelete }) => {
                         </div>
                     </div>
 
-                    <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-all duration-200 translate-x-2 group-hover:translate-x-0">
+                    <div className="flex shrink-0 flex-col gap-1.5 opacity-100 transition-all duration-200 sm:flex-row">
                         <button
                             onClick={(e) => { e.stopPropagation(); onEdit(record); }}
-                            className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 dark:hover:bg-zinc-700 rounded-lg transition-colors shadow-sm"
+                            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-2.5 py-2 text-[10px] font-black uppercase tracking-wider text-zinc-700 shadow-sm transition-colors hover:border-zinc-300 hover:bg-zinc-900 hover:text-white dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
                             title="Editar"
                         >
                             <Edit2 size={14} />
+                            <span>Editar</span>
                         </button>
                         <button
                             onClick={(e) => { e.stopPropagation(); onDelete(record); }}
-                            className="p-2 text-zinc-400 hover:text-white hover:bg-red-500 rounded-lg transition-colors shadow-sm"
+                            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-2.5 py-2 text-[10px] font-black uppercase tracking-wider text-red-700 shadow-sm transition-colors hover:bg-red-600 hover:text-white dark:border-red-900/45 dark:bg-red-950/25 dark:text-red-300"
                             title="Excluir"
                         >
                             <Trash2 size={14} />
+                            <span>Excluir</span>
                         </button>
                     </div>
                 </div>

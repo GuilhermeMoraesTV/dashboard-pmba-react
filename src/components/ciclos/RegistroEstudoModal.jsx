@@ -206,6 +206,36 @@ const normalizeDisciplina = (disciplina) => {
   };
 };
 
+const formatDisciplineDisplayName = (value) => {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  const letters = text.replace(/[^A-Za-zÀ-ÖØ-öø-ÿ]/g, '');
+  const hasLowercase = /[a-zà-öø-ÿ]/.test(text);
+  if (!letters || hasLowercase) return text;
+
+  const smallWords = new Set(['a', 'as', 'ao', 'aos', 'com', 'da', 'das', 'de', 'do', 'dos', 'e', 'em', 'na', 'nas', 'no', 'nos', 'para', 'por']);
+  return text.toLocaleLowerCase('pt-BR').replace(/[A-Za-zÀ-ÖØ-öø-ÿ]+/g, (word, offset) => {
+    if (word.length <= 4 && !smallWords.has(word)) return word.toLocaleUpperCase('pt-BR');
+    if (offset > 0 && smallWords.has(word)) return word;
+    return word.charAt(0).toLocaleUpperCase('pt-BR') + word.slice(1);
+  });
+};
+
+const getDisciplinaOrderValue = (disciplina, fallbackIndex = 9999) => {
+  const value = disciplina?.index ?? disciplina?.ordem ?? disciplina?.position ?? disciplina?.posicao ?? disciplina?.ordemDisciplina;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : fallbackIndex;
+};
+
+const sortDisciplinasByEditalOrder = (disciplinas = []) => (
+  [...disciplinas].sort((a, b) => {
+    const orderA = getDisciplinaOrderValue(a, a.__sourceOrder ?? 9999);
+    const orderB = getDisciplinaOrderValue(b, b.__sourceOrder ?? 9999);
+    if (orderA !== orderB) return orderA - orderB;
+    return Number(a.__sourceOrder ?? 9999) - Number(b.__sourceOrder ?? 9999);
+  }).map(({ __sourceOrder, ...disciplina }) => disciplina)
+);
+
 const usePortalDropdownPosition = (isOpen, anchorRef, maxHeight = 224) => {
   const [position, setPosition] = useState(null);
 
@@ -368,7 +398,7 @@ const CustomSelect = ({
         onClick={() => !disabled && setIsOpen(!isOpen)}
         className={`w-full pl-3 pr-8 py-2 bg-white dark:bg-zinc-950 border ${isOpen ? 'border-red-500' : 'border-zinc-300 dark:border-zinc-700'} rounded-xl flex items-center justify-between cursor-pointer transition-all ${disabled ? 'opacity-50 cursor-not-allowed' : 'hover:border-zinc-400 dark:hover:border-zinc-500'}`}
       >
-        <span className={`text-sm truncate ${selectedOption ? 'text-zinc-800 dark:text-white font-medium' : 'text-zinc-400 dark:text-zinc-500'}`}>
+        <span className={`truncate text-sm normal-case ${selectedOption ? 'text-zinc-800 dark:text-white font-medium' : 'text-zinc-400 dark:text-zinc-500'}`}>
           {selectedOption ? selectedOption.label : (loading ? 'Carregando...' : placeholder)}
         </span>
         <div className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none">
@@ -421,7 +451,7 @@ const CustomSelect = ({
                       : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-900'
                     }`}
                   >
-                    <span className="truncate">{opt.label}</span>
+                    <span className="truncate normal-case">{opt.label}</span>
                     {value === opt.value && <CheckCircle2 size={13} className="shrink-0" />}
                   </div>
                 ))
@@ -765,13 +795,18 @@ function RegistroEstudoModal({
     const source = Array.isArray(selectedContextMeta?.disciplinas) && selectedContextMeta.disciplinas.length > 0
       ? selectedContextMeta.disciplinas
       : (selectedContext === 'ciclo' ? disciplinasDoCiclo : []);
-    const normalized = (source || []).map(normalizeDisciplina).filter(d => d && d.inCiclo !== false);
+    const normalized = (source || [])
+      .map((disciplina, sourceOrder) => {
+        const normalizedDisciplina = normalizeDisciplina(disciplina);
+        return normalizedDisciplina ? { ...normalizedDisciplina, __sourceOrder: sourceOrder } : null;
+      })
+      .filter(d => d && d.inCiclo !== false);
     const existingKeys = new Set(normalized.flatMap(d => [String(d.id), normalizeTextKey(d.nome)]));
     const extras = disciplinasCriadas
       .filter(d => d.contextType === selectedContext && d.contextId === selectedContextMeta?.id)
       .map(normalizeDisciplina)
       .filter(d => d && !existingKeys.has(String(d.id)) && !existingKeys.has(normalizeTextKey(d.nome)));
-    return [...normalized, ...extras];
+    return sortDisciplinasByEditalOrder([...normalized, ...extras]);
   }, [disciplinasCriadas, disciplinasDoCiclo, selectedContext, selectedContextMeta]);
 
   const selectedContextId = selectedContextMeta?.id || (selectedContext === 'ciclo' ? cicloId : null);
@@ -1196,7 +1231,7 @@ function RegistroEstudoModal({
     }
   };
 
-  const disciplinaOptions = disciplinasAtivas.map(d => ({ value: d.id, label: d.nome }));
+  const disciplinaOptions = disciplinasAtivas.map(d => ({ value: d.id, label: formatDisciplineDisplayName(d.nome) }));
   const assuntoOptions = useMemo(() => {
     const base = assuntosDisponiveis.map(a => ({ value: typeof a === 'object' ? a.nome : a, label: typeof a === 'object' ? a.nome : a }));
     const unique = base.filter((item, index, arr) =>
@@ -1240,7 +1275,7 @@ function RegistroEstudoModal({
         exit={{ opacity: 0, scale: 0.96, y: 8 }}
         transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
         style={{ maxHeight: finalHeight, width: '100%', maxWidth: `${modalMaxWidth}px` }}
-        className="group relative bg-[#e6e6e8] dark:bg-[#070707] rounded-[26px] shadow-[0_28px_90px_rgba(0,0,0,0.42)] border border-zinc-300/80 dark:border-zinc-800 overflow-hidden flex flex-col"
+        className="registro-modal-mobile-zoom group relative bg-[#e6e6e8] dark:bg-[#070707] rounded-[26px] shadow-[0_28px_90px_rgba(0,0,0,0.42)] border border-zinc-300/80 dark:border-zinc-800 overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="registro-flow-strip h-1 w-full shrink-0" />

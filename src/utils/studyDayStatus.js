@@ -616,7 +616,7 @@ export const getCronogramaDayStatus = (activeCronogramaData, dateToCheck, getAge
   const semKey = `w${weekOffset}`;
   const progressoW = activeCronogramaData?.progresso?.[semKey] || {};
   const agenda = getAgendaSemana(activeCronogramaData, weekOffset) || [];
-  const slotsDoDia = agenda.filter((slot) => slot.dataSlot === dateStr && !slot.isRevisaoAuto);
+  const slotsDoDia = agenda.filter((slot) => slot.dataSlot === dateStr);
 
   if (slotsDoDia.length === 0) {
     return { isRestDay: true, totalSlots: 0, completedSlots: 0 };
@@ -720,8 +720,9 @@ export const getDailyStudyStatus = ({
   if (totalSlots > 0) {
     const allDone = completedSlots === totalSlots;
     const started = completedSlots > 0 || hasStudyData;
+    const isPastDay = dayDate.getTime() < todayDate.getTime();
     return {
-      status: allDone ? 'goal-met-both' : started ? 'goal-met-one' : 'goal-not-met',
+      status: allDone ? 'goal-met-both' : started || !isPastDay ? 'goal-met-one' : 'goal-not-met',
       goalMet: allDone,
       hasData: started,
       isRestDay: false,

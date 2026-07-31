@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Clock, BookOpen, Target,
 } from 'lucide-react';
+import HomeCardTitle from './HomeCardTitle.jsx';
 import HomeEmptyState from './HomeEmptyState.jsx';
 
 const customScrollbarClass = "overflow-y-auto pr-1 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-zinc-200 dark:[&::-webkit-scrollbar-thumb]:bg-zinc-700 [&::-webkit-scrollbar-thumb]:rounded-full";
@@ -225,24 +226,13 @@ const TodayChart = ({ registrosEstudo, wide = false, compact = false, expandedVi
 
       {/* Header */}
       <div className={`relative z-10 flex items-center justify-between border-b border-zinc-100 dark:border-white/5 bg-zinc-50/30 dark:bg-transparent ${expandedView ? 'px-6 py-5' : compact ? 'px-4 py-3' : 'px-5 py-3.5'}`}>
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <div className={`absolute inset-0 animate-ping rounded-full opacity-20 duration-[3s] bg-gradient-to-br ${metricConfig.gradient}`} />
-            <div className={`relative flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br ${metricConfig.gradient} text-white shadow-xl ${metricConfig.shadow}`}>
-              <Clock size={18} strokeWidth={2.2} />
-            </div>
-          </div>
-          <div>
-            <h3 className="text-lg font-black uppercase tracking-tight text-zinc-900 dark:text-white leading-tight">
-              Estudo <span className={`bg-gradient-to-r ${metricConfig.gradient} bg-clip-text text-transparent`}>de Hoje</span>
-            </h3>
-            {expandedView && (
-              <p className="mt-1 text-[10px] font-black uppercase tracking-[0.22em] text-zinc-400">
-                Resumo para compartilhar
-              </p>
-            )}
-          </div>
-        </div>
+        <HomeCardTitle icon={Clock} eyebrow="Estudo de Hoje">
+          {expandedView && (
+            <p className="mt-1 text-[10px] font-black uppercase tracking-[0.22em] text-zinc-400">
+              Resumo para compartilhar
+            </p>
+          )}
+        </HomeCardTitle>
       </div>
 
       <div className={`relative z-10 flex-1 flex flex-col min-h-0 ${expandedView ? '' : 'overflow-hidden'}`}>

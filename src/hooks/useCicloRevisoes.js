@@ -3,6 +3,10 @@ import { db } from '../firebaseConfig';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { formatDateKeyLocal } from '../services/scheduling/review.js';
 import { concluirGrupoCicloRevisao, dedupeCicloRevisoesInMemory, reagendarGrupoCicloRevisao } from '../services/cicloRevisoes';
+import {
+  REGISTRO_PROGRESS_OPTIMISTIC_EVENT,
+  applyCicloRevisaoRegistroProgress,
+} from '../services/reviewOptimisticUpdates';
 
 export const useCicloRevisoes = (user, cicloId) => {
   const [revisoes, setRevisoes] = useState([]);
@@ -35,6 +39,17 @@ export const useCicloRevisoes = (user, cicloId) => {
     return () => unsub();
   }, [user, cicloId]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const onOptimisticProgress = (event) => {
+      const registro = event?.detail || {};
+      if (cicloId && String(registro?.cicloId || '') !== String(cicloId)) return;
+      setRevisoes((prev) => dedupeCicloRevisoesInMemory(applyCicloRevisaoRegistroProgress(prev, registro)));
+    };
+    window.addEventListener(REGISTRO_PROGRESS_OPTIMISTIC_EVENT, onOptimisticProgress);
+    return () => window.removeEventListener(REGISTRO_PROGRESS_OPTIMISTIC_EVENT, onOptimisticProgress);
+  }, [cicloId]);
+
   // Revisoes de hoje, incluindo atrasadas.
   const revisoesHoje = useMemo(() => {
     const hoje = formatDateKeyLocal(new Date());
@@ -44,11 +59,13 @@ export const useCicloRevisoes = (user, cicloId) => {
   const totalPendentes = revisoesHoje.filter((r) => r.concluida !== true).length;
 
   // Conclui a revisao exibida e qualquer duplicata legada da mesma chave funcional.
-  const concluirRevisao = useCallback(async (revisaoId) => {
+  const concluirRevisao = useCallback(async (revisaoId, concluida = true) => {
     if (!user || !revisaoId) return;
     const revisao = revisoes.find((item) => item.id === revisaoId);
     if (!revisao) return;
-    await concluirGrupoCicloRevisao(db, user.uid, revisao);
+    if (concluida === false && revisao.bloqueiaDesmarcar) return false;
+    await concluirGrupoCicloRevisao(db, user.uid, revisao, concluida);
+    return true;
   }, [revisoes, user]);
 
   const reagendarRevisao = useCallback(async (revisaoId, novaData = new Date()) => {

@@ -43,10 +43,28 @@ const formatVisualNumber = (minutes) => {
 };
 
 // --- MODAL DE CONFIRMAÇÃO DE EXCLUSÃO ---
+const getDisciplinaOrderValue = (disciplina, fallbackIndex = 9999) => {
+  const value = disciplina?.index ?? disciplina?.ordem ?? disciplina?.position ?? disciplina?.posicao ?? disciplina?.ordemDisciplina;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : fallbackIndex;
+};
+
+const sortDisciplinasByEditalOrder = (disciplinas = []) => (
+  [...disciplinas].sort((a, b) => {
+    const orderA = getDisciplinaOrderValue(a, a.__sourceOrder ?? 9999);
+    const orderB = getDisciplinaOrderValue(b, b.__sourceOrder ?? 9999);
+    if (orderA !== orderB) return orderA - orderB;
+    const sourceA = Number(a.__sourceOrder ?? 9999);
+    const sourceB = Number(b.__sourceOrder ?? 9999);
+    if (sourceA !== sourceB) return sourceA - sourceB;
+    return (a.nome || '').localeCompare(b.nome || '');
+  }).map(({ __sourceOrder, ...disciplina }) => disciplina)
+);
+
 const DeleteConfirmationModal = ({ isOpen, onClose, onConfirm, loading }) => {
-    if (!isOpen) return null;
-    return (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+    if (!isOpen || typeof document === 'undefined') return null;
+    return createPortal(
+        <div className="fixed inset-0 z-[100120] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
             <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
@@ -65,7 +83,8 @@ const DeleteConfirmationModal = ({ isOpen, onClose, onConfirm, loading }) => {
                     <button onClick={onConfirm} disabled={loading} className="flex-1 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-[10px] uppercase tracking-wide shadow-md flex items-center justify-center gap-1.5">{loading ? "..." : <><Trash2 size={12} /> Excluir</>}</button>
                 </div>
             </motion.div>
-        </div>
+        </div>,
+        document.body
     );
 };
 
@@ -498,6 +517,10 @@ const CicloRevisoesOperacionaisCard = ({
                 const isAtrasada = rev._bucket === 'atrasada';
                 const isConcluirLoading = acaoRevisao?.id === rev.id && acaoRevisao?.tipo === 'concluir';
                 const isReagendarLoading = acaoRevisao?.id === rev.id && acaoRevisao?.tipo === 'reagendar';
+                const tempoPlanejado = Number(rev.tempoMinutos || rev.tempoPlanejadoMinutos || 20);
+                const tempoFeitoRaw = Number(rev.progressoMinutos || 0);
+                const tempoFeito = rev.concluida || rev.concluido ? Math.max(tempoFeitoRaw, tempoPlanejado) : tempoFeitoRaw;
+                const desmarcarBloqueado = (rev.concluida || rev.concluido) && Boolean(rev.bloqueiaDesmarcar || rev.bloqueiaDesmarcarConclusao);
 
                 return (
                   <div
@@ -525,6 +548,10 @@ const CicloRevisoesOperacionaisCard = ({
                         <BookOpen size={10} className="opacity-70" />
                         {rev.assunto || 'Revisão geral'} <span className="opacity-50">•</span> {intervaloLabel(rev.intervaloDias)} <span className="opacity-50">•</span> {formatReviewDateLabel(rev.dataAgendada)}
                       </p>
+                      <p className="mt-1 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wide text-blue-600 dark:text-blue-300">
+                        <Clock3 size={10} />
+                        {formatVisualNumber(tempoFeito)} / {formatVisualNumber(tempoPlanejado)}
+                      </p>
                     </div>
 
                     <div className="flex shrink-0 flex-wrap items-center gap-1.5 md:justify-end">
@@ -550,13 +577,16 @@ const CicloRevisoesOperacionaisCard = ({
 
                       <button
                         type="button"
-                        onClick={() => onConcluir?.(rev)}
-                        disabled={Boolean(acaoRevisao)}
-                        className="flex h-8 items-center gap-1.5 rounded-xl bg-zinc-900 px-3 text-[10px] font-black uppercase tracking-wider text-white shadow-md transition-all hover:bg-emerald-500 disabled:opacity-60 dark:bg-white dark:text-zinc-900 dark:hover:bg-emerald-400"
+                        onClick={() => {
+                          if (desmarcarBloqueado) return;
+                          onConcluir?.(rev);
+                        }}
+                        disabled={Boolean(acaoRevisao) || desmarcarBloqueado}
+                        className={`flex h-8 items-center gap-1.5 rounded-xl px-3 text-[10px] font-black uppercase tracking-wider text-white shadow-md transition-all disabled:opacity-60 dark:bg-white dark:text-zinc-900 ${desmarcarBloqueado ? 'cursor-not-allowed bg-emerald-600' : 'bg-zinc-900 hover:bg-emerald-500 dark:hover:bg-emerald-400'}`}
                         title="Concluir revisão"
                       >
                         {isConcluirLoading ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} strokeWidth={3} />}
-                        Concluir
+                        {desmarcarBloqueado ? 'Registrada' : 'Concluir'}
                       </button>
                     </div>
                   </div>
@@ -583,7 +613,7 @@ const CicloRevisoesOperacionaisCard = ({
 };
 
 // --- PÁGINA PRINCIPAL DO CICLO ---
-export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, deleteCompletionRegistro, onDeleteRegistro, onStartStudy, onGoToEdital, onCreateNewCycle, onRegistroModalOpenChange }) {
+export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, deleteCompletionRegistro, onDeleteRegistro, onStartStudy, onGoToEdital, onGoToRevisao, onCreateNewCycle, onRegistroModalOpenChange }) {
   const [ciclo, setCiclo] = useState(null);
   const [disciplinas, setDisciplinas] = useState([]);
   const [allRegistrosEstudo, setAllRegistrosEstudo] = useState([]);
@@ -695,7 +725,7 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
   // === CONTROLE DA POSIÇÃO DO TIMER ===
   // UseEffects de carregamento de dados
   useEffect(() => { if (!user || !cicloId) return; const cicloRef = doc(db, 'users', user.uid, 'ciclos', cicloId); const unsubscribe = onSnapshot(cicloRef, (docSnap) => { if (docSnap.exists()) { const data = docSnap.data(); const rawDate = (data.ultimaConclusao?.toDate) ? data.ultimaConclusao.toDate() : (data.dataCriacao?.toDate ? data.dataCriacao.toDate() : new Date()); const cicloCompleto = { id: docSnap.id, ...data, cargaHorariaSemanalTotal: Number(data.cargaHorariaSemanalTotal || 0), conclusoes: Number(data.conclusoes || 0), dataInicioAtual: rawDate }; setCiclo(cicloCompleto); setCicloLoaded(true); } else { setCiclo(null); setCicloLoaded(true); } }, (error) => { console.error("Erro no snapshot do ciclo:", error); setCicloLoaded(true); }); return () => unsubscribe(); }, [user, cicloId]);
-  useEffect(() => { if (!user || !cicloId) return; const q = query(collection(db, 'users', user.uid, 'ciclos', cicloId, 'disciplinas'), orderBy('nome')); const unsubscribe = onSnapshot(q, (snap) => { setDisciplinas(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))); setDisciplinasLoaded(true); }, (error) => { console.error(error); setDisciplinasLoaded(true); }); return () => unsubscribe(); }, [user, cicloId]);
+  useEffect(() => { if (!user || !cicloId) return; const q = query(collection(db, 'users', user.uid, 'ciclos', cicloId, 'disciplinas')); const unsubscribe = onSnapshot(q, (snap) => { setDisciplinas(sortDisciplinasByEditalOrder(snap.docs.map((doc, __sourceOrder) => ({ id: doc.id, ...doc.data(), __sourceOrder })))); setDisciplinasLoaded(true); }, (error) => { console.error(error); setDisciplinasLoaded(true); }); return () => unsubscribe(); }, [user, cicloId]);
   useEffect(() => { if (!user) return; const q = query(collection(db, 'users', user.uid, 'registrosEstudo'), orderBy('timestamp', 'desc')); const unsubscribe = onSnapshot(q, (snap) => { setAllRegistrosEstudo(snap.docs.map(doc => { const data = doc.data(); let finalDataStr = data.data; return { id: doc.id, ...data, tempoEstudadoMinutos: Number(data.tempoEstudadoMinutos || 0), questoesFeitas: Number(data.questoesFeitas || 0), acertos: Number(data.acertos || 0), data: finalDataStr, timestamp: (data.timestamp && typeof data.timestamp.toDate === 'function') ? data.timestamp.toDate() : new Date(0) }; })); setRegistrosLoaded(true); }, (error) => { console.error(error); setRegistrosLoaded(true); }); return () => unsubscribe(); }, [user]);
   useEffect(() => { if (cicloLoaded && disciplinasLoaded && registrosLoaded) setLoading(false); }, [cicloLoaded, disciplinasLoaded, registrosLoaded]);
   useEffect(() => {
@@ -886,9 +916,9 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
         fallbackMinutes: ciclo?.tempoSessaoMinutos || 50,
       }) : null;
     if (ok && sessao && !wasDone && addRegistroEstudo) {
-      addRegistroEstudo(completionRegistro).catch(console.error);
+      await addRegistroEstudo(completionRegistro);
     } else if (ok && wasDone && deleteCompletionRegistro) {
-      deleteCompletionRegistro(completionRegistro).catch(console.error);
+      await deleteCompletionRegistro(completionRegistro);
     }
   };
   const handleIniciarSessaoSugerida = (disciplina, globalIndex, sessao = null) => {
@@ -915,9 +945,9 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
           fallbackMinutes: ciclo?.tempoSessaoMinutos || 50,
         });
       if (ok && !wasDone && addRegistroEstudo) {
-        addRegistroEstudo(completionRegistro).catch(console.error);
+        await addRegistroEstudo(completionRegistro);
       } else if (ok && wasDone && deleteCompletionRegistro) {
-        deleteCompletionRegistro(completionRegistro).catch(console.error);
+        await deleteCompletionRegistro(completionRegistro);
       }
     } finally {
       setLoadingCicloSessao(null);
@@ -957,16 +987,17 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
     onStartStudy(
       { id: revisao.disciplinaId || revisao.id || revisao.revisaoKey, nome: revisao.disciplinaNome || 'Disciplina' },
       revisao.assunto || null,
-      { defaultContext: 'ciclo' }
+      { defaultContext: 'ciclo', tipoRegistro: 'revisao' }
     );
   };
   const handleConcluirRevisaoCiclo = async (revisao) => {
     if (!revisao?.id || acaoRevisaoCiclo) return;
     const wasDone = Boolean(revisao.concluida || revisao.concluido);
+    if (wasDone && revisao.bloqueiaDesmarcar) return;
     setOptimisticReviewDone(prev => ({ ...prev, [revisao.id]: !wasDone }));
     setAcaoRevisaoCiclo({ id: revisao.id, tipo: 'concluir' });
     try {
-      await concluirRevisaoCiclo(revisao.id);
+      await concluirRevisaoCiclo(revisao.id, !wasDone);
       const completionRegistro = buildCompletionRegistro({
           context: 'ciclo',
           item: revisao,
@@ -975,9 +1006,9 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
           fallbackMinutes: 20,
         });
       if (!wasDone && addRegistroEstudo) {
-        addRegistroEstudo(completionRegistro).catch(console.error);
+        await addRegistroEstudo(completionRegistro);
       } else if (wasDone && deleteCompletionRegistro) {
-        deleteCompletionRegistro(completionRegistro).catch(console.error);
+        await deleteCompletionRegistro(completionRegistro);
       }
     } catch (error) {
       setOptimisticReviewDone(prev => ({ ...prev, [revisao.id]: wasDone }));
@@ -1000,6 +1031,10 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
     }
   };
   const handleGoToRevisoesCiclo = () => {
+    if (totalPendentesRevisoesCiclo <= 0) {
+      onGoToRevisao?.();
+      return;
+    }
     revisoesSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
@@ -1455,10 +1490,16 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
             onConfirm={handleConcluirCiclo}
             loading={cicloActionLoading}
             progressoGeral={progressoGeral}
+            disciplinas={disciplinas}
+            registrosSemana={registrosAtivosDaSemana}
+            totalEstudado={totalEstudado}
+            totalMeta={totalMeta}
             revisoesPendentes={revisoesPendentesCiclo.length}
             revisoesAtrasadas={revisoesAtrasadasCiclo.length}
             revisoesHoje={revisoesDoDiaCiclo.length}
             revisoesProgramadas={revisoesProgramadasCiclo.length}
+            editalLogo={dynamicLogo || ciclo?.logoUrl || ciclo?.logo || null}
+            editalName={ciclo?.editalNome || ciclo?.titulo || ciclo?.nome || 'Ciclo ativo'}
           />
         )}
         {disciplinaEmDetalhe && <DisciplinaDetalheModal disciplina={disciplinaEmDetalhe} registrosEstudo={registrosAtivosDaSemana} cicloId={cicloId} user={user.uid} onClose={() => { setDisciplinaEmDetalhe(null); setSelectedDisciplinaId(null); }} onQuickAddTopic={openRegistroModalWithTopic} />}

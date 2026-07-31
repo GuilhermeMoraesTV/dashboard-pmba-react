@@ -899,7 +899,7 @@ function EditalPage({
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="w-full space-y-6 animate-fade-in pb-24">
+    <div className="mobile-page-zoom mobile-page-zoom--edital w-full space-y-5 animate-fade-in pb-24">
       <AnimatePresence>
         {toastMessage && (
           <motion.div
@@ -970,13 +970,13 @@ function EditalPage({
       </AnimatePresence>
 
       {/* ── HEADER ── */}
-      <div className={`${systemCardClass} p-5 md:p-7 flex flex-col md:flex-row items-center md:items-start gap-6 text-center md:text-left`}>
+      <div className={`${systemCardClass} p-4 md:p-5 flex flex-col md:flex-row items-center md:items-start gap-4 text-center md:text-left`}>
 
         {/* Logo + toggle posicionado embaixo */}
         <div className="flex flex-col items-center gap-2 flex-shrink-0 relative z-10">
-          <div className="w-20 h-20 md:w-28 md:h-28 bg-zinc-50 dark:bg-zinc-900 rounded-full border-4 border-white dark:border-white/10 shadow-xl flex items-center justify-center relative">
+          <div className="flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-full border-4 border-white bg-zinc-50 shadow-xl dark:border-white/10 dark:bg-zinc-900 md:h-24 md:w-24 relative">
             {logoAtivo
-              ? <img src={logoAtivo} alt="Logo" className="w-14 h-14 md:w-16 md:h-16 object-contain" />
+              ? <img src={logoAtivo} alt="Logo" className="h-12 w-12 object-contain md:h-14 md:w-14" />
               : <GraduationCap size={40} className="text-zinc-300 dark:text-zinc-600" />
             }
             <div className="absolute -bottom-2 px-2 py-0.5 bg-emerald-500 text-white text-[9px] font-bold uppercase tracking-widest rounded-full shadow-md border-2 border-white dark:border-zinc-950">Ativo</div>
@@ -1021,14 +1021,14 @@ function EditalPage({
             }
           </div>
 
-          <h1 className="text-2xl md:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tight leading-none mb-3">{nomeAtivo}</h1>
+          <h1 className="mb-2 text-2xl font-black uppercase leading-none tracking-tight text-zinc-900 dark:text-white md:text-3xl">{nomeAtivo}</h1>
 
-          <div className="mt-6 w-full">
+          <div className="mt-4 w-full">
             <div className="flex justify-between items-end mb-2">
               <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Cobertura Global</span>
               <div className="flex items-baseline gap-1"><span className="text-2xl font-black text-red-600 dark:text-red-500">{statsAtivos.percentual.toFixed(0)}</span><span className="text-sm font-bold text-zinc-400">%</span></div>
             </div>
-            <div className="flex gap-1 h-2.5 w-full">
+            <div className="flex h-2 w-full gap-1">
               {Array.from({ length: 30 }).map((_, i) => (
                 <div key={i} className={`flex-1 rounded-sm transition-all duration-700 ${i < (statsAtivos.percentual / 3.33) ? 'bg-red-600 dark:bg-red-500' : 'bg-zinc-100 dark:bg-zinc-900'}`} />
               ))}

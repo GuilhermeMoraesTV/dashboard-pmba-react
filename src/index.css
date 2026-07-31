@@ -800,6 +800,16 @@
   box-shadow: none;
 }
 
+.home-mission-slot.discipline-completed-card::before {
+  display: none;
+}
+
+.home-mission-slot.discipline-completed-card,
+.home-mission-slot.discipline-completed-card:hover {
+  box-shadow: none !important;
+  filter: none !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
@@ -983,6 +993,31 @@ body.registro-modal-open .app-global-footer {
     padding-bottom: 3rem;
   }
 
+  .mobile-page-zoom--home {
+    --page-mobile-zoom: 0.84;
+    padding-bottom: 3rem;
+  }
+
+  .mobile-page-zoom--edital {
+    --page-mobile-zoom: 0.82;
+    padding-bottom: 3rem;
+  }
+
+  .mobile-page-zoom--home .home-discipline-performance-card {
+    padding: 0.78rem;
+  }
+
+  .mobile-page-zoom--home .home-discipline-performance-card .home-discipline-performance-table-wrap {
+    margin-left: -0.12rem;
+    margin-right: -0.12rem;
+  }
+
+  .mobile-page-zoom--home .home-discipline-performance-table {
+    --discipline-table-mobile-zoom: 0.88;
+    width: calc(100% / var(--discipline-table-mobile-zoom));
+    zoom: var(--discipline-table-mobile-zoom);
+  }
+
   .mobile-page-zoom > *,
   .mobile-page-zoom article,
   .mobile-page-zoom section {
@@ -1127,6 +1162,13 @@ body.registro-modal-open .app-global-footer {
     --simulado-modal-mobile-zoom: 0.8;
     max-width: calc(98vw / var(--simulado-modal-mobile-zoom));
     max-height: calc(98dvh / var(--simulado-modal-mobile-zoom));
+  }
+
+  .registro-modal-mobile-zoom {
+    --registro-modal-mobile-zoom: 0.84;
+    max-width: calc(96vw / var(--registro-modal-mobile-zoom)) !important;
+    max-height: calc(96dvh / var(--registro-modal-mobile-zoom)) !important;
+    zoom: var(--registro-modal-mobile-zoom);
   }
 }
 

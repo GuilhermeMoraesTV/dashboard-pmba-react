@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 import DesempenhoHeader from './DesempenhoHeader';
 import DesempenhoResumo from './DesempenhoResumo';
 import DesempenhoDetalhado from './DesempenhoDetalhado';
+import DesempenhoDisciplinaCard from './DesempenhoDisciplinaCard';
 import { useForceUnlock } from '../../hooks/useForceUnlock';
 
 // ============================================================================
@@ -268,6 +269,89 @@ const DesempenhoPage = ({
     setSelectedTopic('ALL');
   }, [effectiveContext]);
 
+  const disciplinePerformance = useMemo(() => {
+    const normalizeKey = (value) => String(value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .trim();
+    const getDisciplinaName = (disciplina) => (
+      disciplina?.nome || disciplina?.disciplinaNome || disciplina?.disciplina || disciplina?.label || disciplina?.titulo || ''
+    );
+    const map = new Map();
+    const ensureItem = ({ key, id, name, planIndex = 9999 }) => {
+      const normalizedKey = normalizeKey(key || id || name);
+      if (!normalizedKey) return null;
+      const current = map.get(normalizedKey);
+      if (current) {
+        current.name = current.name || name || 'Disciplina';
+        current.planIndex = Math.min(current.planIndex, planIndex);
+        return current;
+      }
+      const item = {
+        key: normalizedKey,
+        id: id || null,
+        name: name || 'Disciplina',
+        minutes: 0,
+        questions: 0,
+        correct: 0,
+        wrong: 0,
+        accuracy: 0,
+        planIndex,
+        hasActivity: false,
+      };
+      map.set(normalizedKey, item);
+      return item;
+    };
+
+    (disciplinasDoContexto || []).filter(d => d.inCiclo !== false).forEach((disciplina, index) => {
+      const name = getDisciplinaName(disciplina);
+      const id = disciplina?.id || disciplina?.disciplinaId || name;
+      ensureItem({ key: id || name, id, name, planIndex: index });
+    });
+
+    (analytics?.filteredRecords || []).forEach((registro) => {
+      const name = registro.disciplinaNome || registro.disciplinaDisplay || registro.disciplina || 'Geral';
+      const id = registro.disciplinaId || name;
+      const item = ensureItem({ key: id || name, id, name });
+      if (!item) return;
+      item.minutes += Number(registro.tempoEstudadoMinutos ?? registro.duracaoMinutos) || 0;
+      item.questions += Number(registro.questoesFeitas) || 0;
+      item.correct += Number(registro.acertos ?? registro.questoesAcertadas) || 0;
+    });
+
+    const items = Array.from(map.values()).map((item) => {
+      const questions = Math.max(0, item.questions);
+      const correct = Math.max(0, item.correct);
+      const wrong = Math.max(0, questions - correct);
+      return {
+        ...item,
+        questions,
+        correct,
+        wrong,
+        accuracy: questions > 0 ? Math.round((correct / questions) * 100) : 0,
+        hasActivity: item.minutes > 0 || questions > 0,
+      };
+    }).sort((a, b) => {
+      if (a.hasActivity !== b.hasActivity) return a.hasActivity ? -1 : 1;
+      if (b.minutes !== a.minutes) return b.minutes - a.minutes;
+      if (b.questions !== a.questions) return b.questions - a.questions;
+      if (a.planIndex !== b.planIndex) return a.planIndex - b.planIndex;
+      return a.name.localeCompare(b.name, 'pt-BR');
+    });
+
+    const totals = items.reduce((acc, item) => {
+      acc.minutes += item.minutes;
+      acc.questions += item.questions;
+      acc.correct += item.correct;
+      acc.wrong += item.wrong;
+      return acc;
+    }, { minutes: 0, questions: 0, correct: 0, wrong: 0, accuracy: 0 });
+    totals.accuracy = totals.questions > 0 ? Math.round((totals.correct / totals.questions) * 100) : 0;
+
+    return { items, totals };
+  }, [analytics?.filteredRecords, disciplinasDoContexto]);
+
   const handleContextChange = (value) => {
     setSelectedContext(value);
     try {
@@ -363,6 +447,11 @@ const DesempenhoPage = ({
           evolutionData={analytics.evolutionData}
         />
       </div>
+
+      <DesempenhoDisciplinaCard
+        items={disciplinePerformance.items}
+        totals={disciplinePerformance.totals}
+      />
     </div>
   );
 };

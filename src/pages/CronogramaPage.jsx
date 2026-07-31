@@ -34,6 +34,10 @@ import { openCronogramaWeekPdf } from './CronogramaWeekPdf';
 import { resolveLogoUrl } from '../components/admin/config/editalAssets';
 import DailyGoalCompletedModal from '../components/shared/DailyGoalCompletedModal.jsx';
 import { getCronogramaSlotRecordedMinutes } from '../utils/studyDayStatus';
+import {
+  REGISTRO_PROGRESS_OPTIMISTIC_EVENT,
+  applyCronogramaRegistroProgress,
+} from '../services/reviewOptimisticUpdates';
 
 // --- CONSTANTES ---------------------------------------------------------------
 const MESES_PT   = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
@@ -191,11 +195,58 @@ const getCompletionKey = (slot) => String(slot?.slotIdNoProgresso || slot?.slotI
 
 const applyCompletionOverride = (slot, done) => {
   const tempo = Number(slot?.tempoPlanejadoMinutos ?? slot?.tempoMinutos ?? slot?.minutosEstudo ?? 0);
+  const progressoAtual = Number(slot?.progressoMinutos || 0);
   return {
     ...slot,
     concluido: done,
-    progressoMinutos: done ? Math.max(Number(slot?.progressoMinutos || 0), tempo) : 0,
+    progressoMinutos: done ? Math.max(progressoAtual, tempo) : progressoAtual,
   };
+};
+
+const buildCronogramaTaskState = ({
+  cronograma,
+  slot,
+  weekOffset = 0,
+  registrosEstudo = [],
+  optimisticDone = {},
+}) => {
+  const semKey = `w${weekOffset}`;
+  const progressoW = cronograma?.progresso?.[semKey] || {};
+  const progressoMinutosW = cronograma?.progressoMinutos?.[semKey] || {};
+  const slotIdNoProgresso = slot?.slotIdBase || slot?.slotId;
+  const tempoPlanejadoMinutos = Number(slot?.tempoMinutos ?? slot?.minutosEstudo ?? 0);
+  const progressoRegistrado = getCronogramaSlotRecordedMinutes({
+    cronograma,
+    slot,
+    registrosEstudo,
+    dateKey: slot?.dataSlot,
+  });
+  const progressoCru = Math.max(
+    Number(progressoMinutosW[slotIdNoProgresso] || 0),
+    Number(slot?.slotId ? progressoMinutosW[slot.slotId] || 0 : 0),
+    Number(slot?.slotIdBase ? progressoMinutosW[slot.slotIdBase] || 0 : 0),
+    Number(slot?.progressoMinutos || 0),
+    progressoRegistrado
+  );
+  const concluido = slot?.isRevisaoAuto
+    ? Boolean(slot?.concluido || progressoW[slot?.slotId] === true)
+    : Boolean(
+      progressoW[slotIdNoProgresso] === true ||
+      progressoW[slot?.slotId] === true ||
+      slot?.concluido === true ||
+      (tempoPlanejadoMinutos > 0 && progressoCru >= tempoPlanejadoMinutos)
+    );
+  const tarefaMontada = {
+    ...slot,
+    slotIdNoProgresso,
+    tempoPlanejadoMinutos,
+    progressoMinutos: concluido ? Math.max(progressoCru, tempoPlanejadoMinutos) : progressoCru,
+    concluido,
+  };
+  const optimisticKey = getCompletionKey(tarefaMontada);
+  return optimisticKey && Object.prototype.hasOwnProperty.call(optimisticDone, optimisticKey)
+    ? applyCompletionOverride(tarefaMontada, optimisticDone[optimisticKey])
+    : tarefaMontada;
 };
 
 const isWeekPanIgnoredTarget = (target) => {
@@ -281,7 +332,7 @@ const somarDias = (data, dias) => {
 const ModalConfirm = ({ msg, onConfirm, onCancel, loading, title = 'Confirmar ação', confirmLabel = 'Confirmar', confirmIcon: ConfirmIcon = Trash2, tone = 'red' }) => (
   <motion.div
     initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-    className="fixed inset-0 bg-zinc-950/70 backdrop-blur-sm z-[200] flex items-center justify-center p-4"
+    className="fixed inset-0 z-[100120] flex items-center justify-center bg-zinc-950/70 p-4 backdrop-blur-sm"
   >
     <motion.div
       initial={{ scale: 0.95, y: 10 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 10 }}
@@ -339,6 +390,8 @@ const ModalRevisaoConsolidada = ({ slot, onClose, onDominar, onStart, onToggle, 
     concluido: Boolean(topico.concluido),
     tempoMinutos: topico.tempoMinutos ?? topico.tempoPlanejadoMinutos ?? slot.tempoMinutos,
     tempoPlanejadoMinutos: topico.tempoPlanejadoMinutos ?? topico.tempoMinutos ?? slot.tempoPlanejadoMinutos,
+    progressoMinutos: topico.progressoMinutos ?? slot.progressoMinutos,
+    bloqueiaDesmarcar: Boolean(topico.bloqueiaDesmarcar || slot.bloqueiaDesmarcar),
   });
 
   return (
@@ -380,6 +433,9 @@ const ModalRevisaoConsolidada = ({ slot, onClose, onDominar, onStart, onToggle, 
             const isDone = Boolean(revisaoTask.concluido);
             const isLoading = toggleLoadingId === (revisaoTask.slotIdBase || revisaoTask.slotId);
             const tempoRevisao = Number(revisaoTask.tempoPlanejadoMinutos ?? revisaoTask.tempoMinutos ?? 0);
+            const progressoRevisaoRaw = Number(revisaoTask.progressoMinutos || 0);
+            const progressoRevisao = isDone ? Math.max(progressoRevisaoRaw, tempoRevisao) : progressoRevisaoRaw;
+            const desmarcarBloqueado = isDone && Boolean(revisaoTask.bloqueiaDesmarcar);
             return (
               <div key={`${revisaoTask.slotId || idx}-${idx}`} className="px-4 py-3">
                 <div className={`group rounded-2xl border p-3 transition-all ${isDone ? 'border-blue-200 bg-blue-50/80 dark:border-blue-900/40 dark:bg-blue-950/20' : 'border-blue-100 bg-white hover:border-blue-200 hover:bg-blue-50/60 dark:border-blue-900/30 dark:bg-zinc-900/70 dark:hover:bg-blue-950/20'}`}>
@@ -388,14 +444,17 @@ const ModalRevisaoConsolidada = ({ slot, onClose, onDominar, onStart, onToggle, 
                       <motion.button
                         whileHover={{ scale: 1.05, y: -1 }}
                         whileTap={{ scale: 0.95 }}
-                        onClick={() => onToggle?.(revisaoTask)}
-                        disabled={isLoading}
+                        onClick={() => {
+                          if (desmarcarBloqueado) return;
+                          onToggle?.(revisaoTask);
+                        }}
+                        disabled={isLoading || desmarcarBloqueado}
                         className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border shadow-sm transition-all disabled:opacity-60 ${
                           isDone
                             ? 'border-emerald-500 bg-emerald-500 text-white shadow-emerald-500/20'
                             : 'border-emerald-200 bg-white text-emerald-600 shadow-emerald-500/10 hover:border-emerald-300 hover:bg-emerald-50 dark:border-emerald-900/40 dark:bg-white/10 dark:text-emerald-300 dark:hover:bg-emerald-900/35'
                         }`}
-                        title={isDone ? 'Revisao concluida' : 'Marcar revisao como concluida'}
+                        title={desmarcarBloqueado ? 'Conclusao protegida por registro de revisao' : isDone ? 'Revisao concluida' : 'Marcar revisao como concluida'}
                       >
                         {isLoading ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} strokeWidth={3.5} />}
                       </motion.button>
@@ -413,7 +472,7 @@ const ModalRevisaoConsolidada = ({ slot, onClose, onDominar, onStart, onToggle, 
                     <div className="min-w-0 flex-1">
                       <div className="mb-1 flex items-center justify-between gap-2 text-[8px] font-black uppercase tracking-wide text-blue-500 dark:text-blue-300">
                         <span>{isDone ? 'Revisao concluida' : 'Revisao agendada'}</span>
-                        {tempoRevisao > 0 && <span>{formatarDuracao(tempoRevisao)}</span>}
+                        {tempoRevisao > 0 && <span>{formatarDuracao(progressoRevisao)} / {formatarDuracao(tempoRevisao)}</span>}
                       </div>
                       <div className="h-1 overflow-hidden rounded-full bg-blue-100 dark:bg-blue-950/50">
                         <motion.div
@@ -477,7 +536,6 @@ const TarefaCardDraggable = ({
   onOpenConsolidada,
   onOpenDetails,
   cronograma,
-  isToggling = false,
   dragAttributes = {},
   dragListeners = {},
   dragRef = null,
@@ -511,6 +569,7 @@ const TarefaCardDraggable = ({
     ? Math.min(100, Math.round((progressoLimitado / tempoPlanejadoMinutos) * 100))
     : (tarefa.concluido ? 100 : 0);
   const emAndamento = !tarefa.concluido && !tarefa.isRevisaoAuto && progressoLimitado > 0 && progressoPercentual < 100;
+  const desmarcarBloqueado = tarefa.concluido && Boolean(tarefa.bloqueiaDesmarcar);
   const disciplinaColor = getDisciplineColorForSlot(tarefa);
   const useDisciplineColor = !isDominado && !emAndamento && !tarefa.isRevisao && !tarefa.isRevisaoAuto;
   const cardStyle = useDisciplineColor
@@ -524,13 +583,12 @@ const TarefaCardDraggable = ({
       style={cardStyle}
       {...dragAttributes}
       {...dragListeners}
-      layout
-      initial={{ opacity: 0, y: 8, scale: 0.97 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.95, y: -4 }}
-      whileHover={!isDragging ? { y: -2, scale: 1.01 } : {}}
+      layout={isSortable ? 'position' : false}
+      initial={false}
+      animate={false}
+      exit={false}
       onClick={!isDragging ? () => onOpenDetails?.(tarefa) : undefined}
-      className={`relative min-h-[104px] rounded-2xl border overflow-hidden transition-all duration-200 group mb-2.5 select-none
+      className={`relative min-h-[104px] rounded-2xl border overflow-hidden group mb-2.5 select-none
         ${isSortable ? 'cursor-grab active:cursor-grabbing' : onOpenDetails ? 'cursor-pointer' : 'cursor-default'}
         ${isDragging ? 'opacity-80 scale-100 rotate-1 shadow-2xl z-20' : ''}
         ${useDisciplineColor ? 'discipline-tinted-card' : ''}
@@ -544,7 +602,7 @@ const TarefaCardDraggable = ({
         }`}
     >
       {/* Linha lateral tática */}
-      <div className={`absolute left-0 top-0 bottom-0 w-1.5 transition-colors duration-300 ${
+      <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${
         tarefa.concluido   ? disciplinaColor.bg
         : isDominado       ? 'bg-amber-500'
         : tarefa.isRevisao ? 'bg-blue-500'
@@ -555,23 +613,22 @@ const TarefaCardDraggable = ({
       <div className="flex h-full flex-col gap-2 px-3.5 py-3">
         <div className="flex min-w-0 items-start justify-between gap-2 pr-1">
           <div className="flex min-w-0 flex-1 items-start gap-2">
-            <motion.button
-              whileHover={{ scale: 1.05, y: -1 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={(e) => { e.stopPropagation(); onToggle(tarefa); }}
-              disabled={isToggling}
-              title={tarefa.concluido ? 'Marcar como pendente' : 'Marcar como concluido'}
-              className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border shadow-sm transition-all disabled:opacity-60 ${
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (desmarcarBloqueado) return;
+                onToggle(tarefa);
+              }}
+              disabled={desmarcarBloqueado}
+              title={desmarcarBloqueado ? 'Conclusao protegida por registro de revisao' : tarefa.concluido ? 'Marcar como pendente' : 'Marcar como concluido'}
+              className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border shadow-sm disabled:cursor-not-allowed ${
                 tarefa.concluido
                   ? 'border-emerald-500 bg-emerald-500 text-white shadow-emerald-500/20'
                   : 'border-emerald-200 bg-white text-emerald-600 shadow-emerald-500/10 hover:border-emerald-300 hover:bg-emerald-50 dark:border-emerald-900/40 dark:bg-white/10 dark:text-emerald-300 dark:hover:bg-emerald-900/35'
               }`}
             >
-              {isToggling
-                ? <Loader2 size={15} className="animate-spin" />
-                : <Check size={15} strokeWidth={3.5} />
-              }
-            </motion.button>
+              <Check size={15} strokeWidth={3.5} />
+            </button>
             <h4 className={`min-w-0 flex-1 truncate text-[11px] font-black uppercase tracking-wide leading-tight ${
               tarefa.concluido ? `${disciplinaColor.text} line-through opacity-75`
               : isDominado     ? 'text-amber-700 dark:text-amber-400'
@@ -612,10 +669,8 @@ const TarefaCardDraggable = ({
                 </span>
               </div>
               <div className="h-1 overflow-hidden rounded-full bg-white/55 dark:bg-black/25">
-                <motion.div
-                  initial={false}
-                  animate={{ width: `${tarefa.concluido ? 100 : progressoPercentual}%` }}
-                  transition={{ duration: 0.25 }}
+                <div
+                  style={{ width: `${tarefa.concluido ? 100 : progressoPercentual}%` }}
                   className={`h-full rounded-full ${tarefa.concluido ? disciplinaColor.progress : emAndamento ? 'bg-orange-500' : disciplinaColor.progress}`}
                 />
               </div>
@@ -663,9 +718,8 @@ const TarefaCardDraggable = ({
           {canMarkPendencia && (
             <button
               onClick={(e) => { e.stopPropagation(); onMarkPendencia(tarefa); }}
-              disabled={isToggling}
               title="Pendente: mova este assunto para retomar depois sem marcar como concluido."
-                className="inline-flex h-8 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg bg-white/65 px-2 text-[9px] font-black uppercase tracking-wide text-amber-700 transition-colors hover:bg-amber-100 active:scale-95 disabled:opacity-60 dark:bg-white/10 dark:text-amber-300 dark:hover:bg-amber-950/30"
+                className="inline-flex h-8 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg bg-white/65 px-2 text-[9px] font-black uppercase tracking-wide text-amber-700 hover:bg-amber-100 dark:bg-white/10 dark:text-amber-300 dark:hover:bg-amber-950/30"
             >
               <SkipForward size={15}/>
               Pendente
@@ -678,7 +732,7 @@ const TarefaCardDraggable = ({
   );
 };
 
-const ModalDetalhesCronograma = ({ slot, cronograma, onClose, onStart, onToggle, toggleLoadingId, optimisticDone = {} }) => {
+const ModalDetalhesCronograma = ({ slot, cronograma, onClose, onStart, onToggle, optimisticDone = {} }) => {
   if (!slot) return null;
 
   const optimisticKey = getCompletionKey(slot);
@@ -691,7 +745,6 @@ const ModalDetalhesCronograma = ({ slot, cronograma, onClose, onStart, onToggle,
   const accentBgClass = useDisciplineTheme ? disciplinaColor.bg : 'bg-blue-600';
   const accentTextClass = useDisciplineTheme ? disciplinaColor.text : 'text-blue-600 dark:text-blue-500';
   const accentProgressClass = useDisciplineTheme ? disciplinaColor.progress : 'bg-blue-500';
-  const isToggleLoading = toggleLoadingId === (slot.slotIdBase || slot.slotId);
   const tempoPlanejado = Number(slot.tempoPlanejadoMinutos ?? slot.tempoMinutos ?? slot.minutosEstudo ?? 0);
   const progressoRaw = Number(slot.progressoMinutos || 0);
   const progressoMinutos = slotAtual.concluido
@@ -774,10 +827,8 @@ const ModalDetalhesCronograma = ({ slot, cronograma, onClose, onStart, onToggle,
                         <span className="text-zinc-400">{progressoPercentual}%</span>
                       </div>
                       <div className="mt-1 h-1 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800 sm:h-1.5">
-                        <motion.div
-                          initial={false}
-                          animate={{ width: `${progressoPercentual}%` }}
-                          transition={{ duration: 0.25 }}
+                        <div
+                          style={{ width: `${progressoPercentual}%` }}
                           className={`h-full rounded-full ${slotAtual.concluido ? 'bg-emerald-500' : progressoMinutos > 0 ? 'bg-orange-500' : accentProgressClass}`}
                         />
                       </div>
@@ -900,12 +951,11 @@ const ModalDetalhesCronograma = ({ slot, cronograma, onClose, onStart, onToggle,
                 {onToggle && (
                   <button
                     onClick={() => onToggle(slot)}
-                    disabled={isToggleLoading}
-                    className={`inline-flex h-10 items-center justify-center gap-2 rounded-xl px-3 text-[10px] font-black uppercase tracking-widest text-white transition-all disabled:opacity-70 ${
+                    className={`inline-flex h-10 items-center justify-center gap-2 rounded-xl px-3 text-[10px] font-black uppercase tracking-widest text-white ${
                       slotAtual.concluido ? 'bg-zinc-700 hover:bg-zinc-800 dark:bg-zinc-700 dark:hover:bg-zinc-600' : 'bg-emerald-600 hover:bg-emerald-700'
                     }`}
                   >
-                    {isToggleLoading ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={15} />}
+                    <CheckCircle2 size={15} />
                     {slotAtual.concluido ? 'Marcar como pendente' : 'Marcar como concluido'}
                   </button>
                 )}
@@ -921,11 +971,13 @@ const ModalDetalhesCronograma = ({ slot, cronograma, onClose, onStart, onToggle,
           <div className="mt-2 grid grid-cols-2 gap-2 sm:hidden">
             <button
               onClick={() => onToggle?.(slot)}
-              disabled={!onToggle || isToggleLoading}
-              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-3 text-[10px] font-black uppercase tracking-widest text-white disabled:opacity-70"
+              disabled={!onToggle}
+              className={`inline-flex h-9 items-center justify-center gap-1.5 rounded-xl px-3 text-[10px] font-black uppercase tracking-widest text-white disabled:opacity-70 ${
+                slotAtual.concluido ? 'bg-zinc-700' : 'bg-emerald-600'
+              }`}
             >
-              {isToggleLoading ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={14} />}
-              Concluir
+              <CheckCircle2 size={14} />
+              {slotAtual.concluido ? 'Pendente' : 'Concluir'}
             </button>
             {!isRevisao && onStart && !slotAtual.concluido ? (
               <button
@@ -987,6 +1039,11 @@ const RevisoesAgrupadasCard = ({ revisoes = [], onOpenConsolidada }) => {
   const totalMinutos = revisoes.reduce((acc, tarefa) => (
     acc + Number(tarefa.tempoMinutos ?? tarefa.tempoPlanejadoMinutos ?? tarefa.minutosEstudo ?? 0)
   ), 0);
+  const totalFeito = revisoes.reduce((acc, tarefa) => {
+    const planned = Number(tarefa.tempoMinutos ?? tarefa.tempoPlanejadoMinutos ?? tarefa.minutosEstudo ?? 0);
+    const done = Number(tarefa.progressoMinutos || 0);
+    return acc + (tarefa.concluido ? Math.max(done, planned) : done);
+  }, 0);
   const topicosRevisao = revisoes.flatMap((tarefa) => {
     const dadosSlot = {
       slotId: tarefa.slotId,
@@ -996,6 +1053,8 @@ const RevisoesAgrupadasCard = ({ revisoes = [], onOpenConsolidada }) => {
       concluido: tarefa.concluido,
       tempoMinutos: tarefa.tempoMinutos,
       tempoPlanejadoMinutos: tarefa.tempoPlanejadoMinutos,
+      progressoMinutos: tarefa.progressoMinutos,
+      bloqueiaDesmarcar: tarefa.bloqueiaDesmarcar,
       isRevisaoAuto: true,
     };
     if (Array.isArray(tarefa.topicosRevisao) && tarefa.topicosRevisao.length > 0) {
@@ -1053,7 +1112,7 @@ const RevisoesAgrupadasCard = ({ revisoes = [], onOpenConsolidada }) => {
           {totalMinutos > 0 && (
             <span className="inline-flex items-center gap-1 rounded bg-white/80 px-1.5 py-0.5 text-[9px] font-black text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
               <Clock size={10} />
-              {formatarDuracao(totalMinutos)}
+              {formatarDuracao(totalFeito)} / {formatarDuracao(totalMinutos)}
             </span>
           )}
           <span className="text-[9px] font-black uppercase tracking-wide text-blue-500">
@@ -1069,7 +1128,7 @@ const RevisoesAgrupadasCard = ({ revisoes = [], onOpenConsolidada }) => {
 const DayDropZone = ({
   diaSemanaIdx, date, tarefas, isHoje,
   onToggle, onMarkPendencia, onStart,
-  onDominar, onOpenConsolidada, onOpenDetails, onOpenCompletion, cronograma, toggleLoadingId
+  onDominar, onOpenConsolidada, onOpenDetails, onOpenCompletion, cronograma
 }) => {
   const resumoDia = getDayStudySummary(date, tarefas);
   const {
@@ -1218,7 +1277,6 @@ const DayDropZone = ({
                     onOpenConsolidada={onOpenConsolidada}
                     onOpenDetails={onOpenDetails}
                     cronograma={cronograma}
-                    isToggling={toggleLoadingId === (t.slotIdBase || t.slotId)}
                   />
                 ) : (
                   <TarefaCardDraggable
@@ -1231,7 +1289,6 @@ const DayDropZone = ({
                     onOpenConsolidada={onOpenConsolidada}
                     onOpenDetails={onOpenDetails}
                     cronograma={cronograma}
-                    isToggling={toggleLoadingId === (t.slotIdBase || t.slotId)}
                   />
                 )
               ))}
@@ -1261,7 +1318,7 @@ const DayDropZone = ({
 };
 
 // --- VISUALIZAÇÃO MENSAL -------------------------------------------------------
-const VisualizacaoMensal = ({ cronograma, dataInicio, onStart }) => {
+const VisualizacaoMensal = ({ cronograma, dataInicio, onStart, registrosEstudo = [], optimisticDone = {} }) => {
   const [mesAtual, setMesAtual] = useState(() => new Date());
   const [diaSelecionado, setDiaSelecionado] = useState(null);
 
@@ -1306,9 +1363,16 @@ const VisualizacaoMensal = ({ cronograma, dataInicio, onStart }) => {
         const dataKey = slot.dataSlot;
         if (!dataKey) return;
         if (!slotsPorData[dataKey]) slotsPorData[dataKey] = [];
-        const tempoMinutos = Number(slot.tempoMinutos ?? slot.minutosEstudo ?? 0);
-        slotsPorData[dataKey].push({ ...slot, tempoMinutos });
-        if (slot.isRevisaoAuto) revisoesPorData.add(dataKey);
+        const tarefa = buildCronogramaTaskState({
+          cronograma,
+          slot,
+          weekOffset: week,
+          registrosEstudo,
+          optimisticDone,
+        });
+        const tempoMinutos = Number(tarefa.tempoMinutos ?? tarefa.minutosEstudo ?? tarefa.tempoPlanejadoMinutos ?? 0);
+        slotsPorData[dataKey].push({ ...tarefa, tempoMinutos });
+        if (tarefa.isRevisaoAuto) revisoesPorData.add(dataKey);
       });
     }
 
@@ -1320,7 +1384,7 @@ const VisualizacaoMensal = ({ cronograma, dataInicio, onStart }) => {
     });
 
     return { slotsPorData, revisoesPorData, metricas };
-  }, [cronograma, dataInicio, days]);
+  }, [cronograma, dataInicio, days, optimisticDone, registrosEstudo]);
 
   const getSlotsEstudo = useCallback((item) => {
     if (item.type !== 'current') return [];
@@ -1671,7 +1735,7 @@ const VisualizacaoMensal = ({ cronograma, dataInicio, onStart }) => {
   );
 };
 
-const VisualizacaoLista = ({ cronograma, weekDates, tarefasPorDia, onStart, onOpenConsolidada, onOpenCompletion, onToggle, onMarkPendencia, onDominar, toggleLoadingId }) => {
+const VisualizacaoLista = ({ cronograma, weekDates, tarefasPorDia, onStart, onOpenConsolidada, onOpenCompletion, onToggle, onMarkPendencia, onDominar }) => {
   const hojeDate = new Date();
   hojeDate.setHours(0, 0, 0, 0);
   const hojeStr = hojeDate.toDateString();
@@ -1899,7 +1963,6 @@ const VisualizacaoLista = ({ cronograma, weekDates, tarefasPorDia, onStart, onOp
                 : (isCompleted ? 100 : 0);
               const emAndamento = !isCompleted && progressoMinutos > 0 && progressoPercentual < 100;
               const canStart = !tarefa.isRevisaoAuto && !isCompleted;
-              const isLoading = toggleLoadingId === (tarefa.slotIdBase || tarefa.slotId);
 
                       return (
                 <div key={`${date.getTime()}-${tarefa.slotId || idx}`} className="group flex items-start gap-3 sm:gap-8">
@@ -1924,9 +1987,8 @@ const VisualizacaoLista = ({ cronograma, weekDates, tarefasPorDia, onStart, onOp
                     )}
                   </div>
 
-                  <motion.div
-                    whileHover={{ x: 4 }}
-                    className={`flex-1 overflow-hidden rounded-2xl border transition-all sm:rounded-3xl ${
+                  <div
+                    className={`flex-1 overflow-hidden rounded-2xl border sm:rounded-3xl ${
                       isActive
                         ? isRevisao
                           ? 'border-blue-500/35 bg-blue-50/70 shadow-2xl shadow-blue-500/10 dark:border-blue-900/50 dark:bg-blue-950/10'
@@ -1943,20 +2005,17 @@ const VisualizacaoLista = ({ cronograma, weekDates, tarefasPorDia, onStart, onOp
                     <div className="p-3 sm:p-4">
                       <div className="flex items-start justify-between gap-2 sm:gap-3">
                         <div className="flex min-w-0 items-start gap-2">
-                          <motion.button
-                            whileHover={{ scale: 1.05, y: -1 }}
-                            whileTap={{ scale: 0.95 }}
+                          <button
                             onClick={() => onToggle(tarefa)}
-                            disabled={isLoading}
                             title={isCompleted ? 'Marcar como pendente' : 'Marcar como concluido'}
-                            className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border shadow-sm transition-all disabled:opacity-60 ${
+                            className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border shadow-sm ${
                               isCompleted
                                 ? 'border-emerald-500 bg-emerald-500 text-white shadow-emerald-500/20'
                                 : 'border-emerald-200 bg-white text-emerald-600 shadow-emerald-500/10 hover:border-emerald-300 hover:bg-emerald-50 dark:border-emerald-900/40 dark:bg-white/10 dark:text-emerald-300 dark:hover:bg-emerald-900/35'
                             }`}
                           >
-                            {isLoading ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} strokeWidth={3.5} />}
-                          </motion.button>
+                            <Check size={15} strokeWidth={3.5} />
+                          </button>
                           <div className="min-w-0">
                           <h3 className={`text-sm font-black uppercase leading-tight tracking-tight sm:text-base ${
                             isCompleted ? 'text-emerald-800 dark:text-emerald-200' : 'text-zinc-900 dark:text-white'
@@ -2006,10 +2065,8 @@ const VisualizacaoLista = ({ cronograma, weekDates, tarefasPorDia, onStart, onOp
                               <span className="text-[11px] text-zinc-400">{progressoPercentual}%</span>
                             </div>
                             <div className="h-1 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
-                              <motion.div
-                                initial={false}
-                                animate={{ width: `${progressoPercentual}%` }}
-                                transition={{ duration: 0.25 }}
+                              <div
+                                style={{ width: `${progressoPercentual}%` }}
                                 className={`h-full rounded-full ${isCompleted ? 'bg-emerald-500' : emAndamento ? 'bg-orange-500' : isRevisao ? 'bg-blue-500' : 'bg-red-500'}`}
                               />
                             </div>
@@ -2059,9 +2116,8 @@ const VisualizacaoLista = ({ cronograma, weekDates, tarefasPorDia, onStart, onOp
                           {!isRevisao && (
                             <button
                               onClick={() => onMarkPendencia(tarefa)}
-                              disabled={isLoading}
                               title="Pendente: mova este assunto para retomar depois sem marcar como concluido."
-                              className="flex h-8 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg bg-amber-50 px-3 text-[9px] font-black uppercase tracking-wide text-amber-700 transition-colors hover:bg-amber-100 disabled:opacity-60 dark:bg-amber-950/20 dark:text-amber-300 dark:hover:bg-amber-950/30"
+                              className="flex h-8 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg bg-amber-50 px-3 text-[9px] font-black uppercase tracking-wide text-amber-700 transition-colors hover:bg-amber-100 dark:bg-amber-950/20 dark:text-amber-300 dark:hover:bg-amber-950/30"
                             >
                               <SkipForward size={14} />
                               Pendente
@@ -2078,16 +2134,15 @@ const VisualizacaoLista = ({ cronograma, weekDates, tarefasPorDia, onStart, onOp
                           </div>
                           <button
                             onClick={() => onToggle(tarefa)}
-                            disabled={isLoading}
-                            className="flex h-8 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl bg-white/70 px-3 text-[9px] font-black uppercase tracking-wider text-zinc-500 transition-colors hover:text-zinc-800 disabled:opacity-60 dark:bg-zinc-900/50 dark:hover:text-white"
+                            className="flex h-8 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl bg-white/70 px-3 text-[9px] font-black uppercase tracking-wider text-zinc-500 transition-colors hover:text-zinc-800 dark:bg-zinc-900/50 dark:hover:text-white"
                           >
-                            {isLoading ? <Loader2 size={14} className="animate-spin" /> : <MoreHorizontal size={14} />}
+                            <MoreHorizontal size={14} />
                             Alterar
                           </button>
                         </div>
                       )}
                     </div>
-                  </motion.div>
+                  </div>
                 </div>
               );
                     })}
@@ -2233,6 +2288,8 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
   const configMenuRef = useRef(null);
   const weekPanRef = useRef({ active: false, moved: false, startX: 0, currentX: 0, scrollLeft: 0, pointerId: null, rafId: null });
   const didInitWeekOffsetRef = useRef(false);
+  const toggleQueueRef = useRef({});
+  const toggleIntentRef = useRef({});
   const dragSensors = useSensors(useSensor(PointerSensor, {
     activationConstraint: {
       distance: 6,
@@ -2331,6 +2388,21 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
       setDominiosLocal(maisRecente.progresso?.dominios || {});
     });
   }, [user]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const onOptimisticProgress = (event) => {
+      const registro = event?.detail || {};
+      if (registro?.contextoRegistro !== 'cronograma') return;
+      setCronograma((prev) => (
+        prev?.id === registro.cronogramaId
+          ? applyCronogramaRegistroProgress(prev, registro)
+          : prev
+      ));
+    };
+    window.addEventListener(REGISTRO_PROGRESS_OPTIMISTIC_EVENT, onOptimisticProgress);
+    return () => window.removeEventListener(REGISTRO_PROGRESS_OPTIMISTIC_EVENT, onOptimisticProgress);
+  }, []);
   useEffect(() => {
     let cancelado = false;
 
@@ -2404,49 +2476,16 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
 
   const tarefasPorDia = useMemo(() => {
     const mapa = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] };
-    const semKey = `w${weekOffset}`;
-    const progressoW = cronograma?.progresso?.[semKey] || {};
-    const progressoMinutosW = cronograma?.progressoMinutos?.[semKey] || {};
     agendaSemana.forEach(slot => {
       const chave = chaveAssuntoDominado(slot.disciplinaId, slot.assunto);
-      const slotIdNoProgresso = slot.slotIdBase || slot.slotId;
-      const tempoPlanejadoMinutos = Number(slot.tempoMinutos ?? slot.minutosEstudo ?? 0);
-      const progressoRegistrado = getCronogramaSlotRecordedMinutes({
+      const tarefaMontada = buildCronogramaTaskState({
         cronograma,
         slot,
+        weekOffset,
         registrosEstudo,
-        dateKey: slot.dataSlot,
+        optimisticDone,
       });
-      const progressoCru = Math.max(
-        Number(progressoMinutosW[slotIdNoProgresso] || 0),
-        Number(slot.slotId ? progressoMinutosW[slot.slotId] || 0 : 0),
-        Number(slot.slotIdBase ? progressoMinutosW[slot.slotIdBase] || 0 : 0),
-        Number(slot.progressoMinutos || 0),
-        progressoRegistrado
-      );
-      const concluido = slot.isRevisaoAuto
-        ? Boolean(slot.concluido || progressoW[slot.slotId] === true)
-        : (
-          progressoW[slotIdNoProgresso] === true ||
-          progressoW[slot.slotId] === true ||
-          slot.concluido === true ||
-          (tempoPlanejadoMinutos > 0 && progressoCru >= tempoPlanejadoMinutos)
-        );
-      const progressoMinutos = concluido ? Math.max(progressoCru, tempoPlanejadoMinutos) : progressoCru;
-      const tarefaMontada = {
-        ...slot,
-        slotIdNoProgresso,
-        tempoPlanejadoMinutos,
-        progressoMinutos,
-        dominado: !!(dominiosLocal[chave]),
-        concluido,
-      };
-      const optimisticKey = getCompletionKey(tarefaMontada);
-      mapa[slot.dia]?.push(
-        optimisticKey && Object.prototype.hasOwnProperty.call(optimisticDone, optimisticKey)
-          ? applyCompletionOverride(tarefaMontada, optimisticDone[optimisticKey])
-          : tarefaMontada
-      );
+      mapa[slot.dia]?.push({ ...tarefaMontada, dominado: !!(dominiosLocal[chave]) });
     });
     return mapa;
   }, [agendaSemana, dominiosLocal, cronograma, optimisticDone, registrosEstudo, weekOffset]);
@@ -2565,31 +2604,34 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
   }
 
   // Handlers
-  const handleToggle = async (tarefa) => {
+  const handleToggle = (tarefa) => {
     if (!cronograma) return;
     const toggleId = tarefa.slotIdBase || tarefa.slotId;
-    if (toggleLoadingId === toggleId) return;
+    if (!toggleId) return;
     const optimisticKey = getCompletionKey(tarefa);
     const previousDone = Boolean(tarefa.concluido);
     const nextDone = !previousDone;
     if (optimisticKey) setOptimisticDone(prev => ({ ...prev, [optimisticKey]: nextDone }));
-    setToggleLoadingId(toggleId);
+    toggleIntentRef.current[toggleId] = (toggleIntentRef.current[toggleId] || 0) + 1;
+    const intentVersion = toggleIntentRef.current[toggleId];
     const semanaDoSlot = Number.isFinite(Number(tarefa.weekOffset)) ? Number(tarefa.weekOffset) : weekOffset;
-    const ok = await toggleSlotConcluido(cronograma.id, tarefa, semanaDoSlot);
     const completionRegistro = buildCompletionRegistro({
       context: 'cronograma',
       item: tarefa,
       cronograma,
       isReview: !!tarefa.isRevisaoAuto,
     });
+    const persistToggle = async () => {
+      const ok = await toggleSlotConcluido(cronograma.id, tarefa, semanaDoSlot);
+      const isLatestIntent = toggleIntentRef.current[toggleId] === intentVersion;
     if (!ok) {
-      if (optimisticKey) setOptimisticDone(prev => ({ ...prev, [optimisticKey]: previousDone }));
+      if (optimisticKey && isLatestIntent) setOptimisticDone(prev => ({ ...prev, [optimisticKey]: previousDone }));
     } else if (!previousDone && addRegistroEstudo) {
-      addRegistroEstudo(completionRegistro).catch(console.error);
+      await addRegistroEstudo(completionRegistro);
     } else if (previousDone && deleteCompletionRegistro) {
-      deleteCompletionRegistro(completionRegistro).catch(console.error);
+      await deleteCompletionRegistro(completionRegistro);
     }
-    if (ok && !previousDone) {
+    if (ok && !previousDone && isLatestIntent) {
       const diaSemana = Number(tarefa.dia);
       const date = tarefa.dataSlot
         ? new Date(`${tarefa.dataSlot}T12:00:00`)
@@ -2599,11 +2641,24 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
       ));
       openCompletionForDay({ date, tarefas: tarefasDoDia });
     }
-    setToggleLoadingId(null);
+    if (isLatestIntent) {
     showToast(ok
       ? (previousDone ? 'Marcado como pendente' : 'Concluído com sucesso')
       : 'Erro ao salvar. Tente novamente.'
     );
+    }
+    };
+
+    const previousQueue = toggleQueueRef.current[toggleId] || Promise.resolve();
+    toggleQueueRef.current[toggleId] = previousQueue
+      .catch(() => {})
+      .then(persistToggle)
+      .finally(() => {
+        if (toggleIntentRef.current[toggleId] === intentVersion) {
+          delete toggleQueueRef.current[toggleId];
+          delete toggleIntentRef.current[toggleId];
+        }
+      });
   };
 
   const handleConfirmDeleteRegistro = async () => {
@@ -2878,16 +2933,17 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
     <div className="relative flex min-h-[calc(100vh-120px)] min-w-0 flex-col animate-fade-in">
       {/* -- MODAIS -- */}
       <AnimatePresence>
-        {recordToDelete && (
+        {recordToDelete && typeof document !== 'undefined' && createPortal(
           <ModalConfirm
             msg="Deseja excluir este registro de estudo? As estatísticas serão atualizadas automaticamente."
             onConfirm={handleConfirmDeleteRegistro}
             onCancel={() => setRecordToDelete(null)}
             loading={loadingAction}
-          />
+          />,
+          document.body
         )}
 
-        {delayConfirmation && (
+        {delayConfirmation && typeof document !== 'undefined' && createPortal(
           <ModalConfirm
             title="Adiar semana"
             msg="Deseja empurrar o cronograma uma semana para frente? Depois da confirmação, você poderá desfazer e voltar para a data atual."
@@ -2904,7 +2960,8 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
             }}
             onCancel={() => setDelayConfirmation(null)}
             loading={loadingAction}
-          />
+          />,
+          document.body
         )}
 
         {showHistoryModal && (
@@ -2926,7 +2983,6 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
             onStart={handleStart}
             onToggle={handleToggle}
             dominiosLocal={dominiosLocal}
-            toggleLoadingId={toggleLoadingId}
             optimisticDone={optimisticDone}
           />
         )}
@@ -3317,7 +3373,6 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
                         onOpenDetails={setSlotDetalhes}
                         onOpenCompletion={openCompletionForDay}
                         cronograma={cronograma}
-                        toggleLoadingId={toggleLoadingId}
                       />
                     </div>
                   );
@@ -3356,7 +3411,6 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
               onToggle={handleToggle}
               onMarkPendencia={handleMarkPendencia}
               onDominar={handleDominar}
-              toggleLoadingId={toggleLoadingId}
             />
           </div>
         ) : (
@@ -3371,6 +3425,8 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
               cronograma={cronograma}
               dataInicio={cronograma.dataInicio}
               onStart={handleStart}
+              registrosEstudo={registrosEstudo}
+              optimisticDone={optimisticDone}
             />
           </motion.div>
         )}

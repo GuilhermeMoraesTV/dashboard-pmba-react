@@ -3,7 +3,7 @@ import { ArrowRight, Layers, Plus } from 'lucide-react';
 import { CicloDetalhePage } from './CicloDetalhePage';
 
 // AQUI: Recebe 'registrosEstudo' do Dashboard
-function CiclosPage({ user, addRegistroEstudo, deleteCompletionRegistro, onDeleteRegistro, onCicloAtivado, onStartStudy, activeCicloId, forceOpenVisual, targetOpenCicloId, onTargetOpenHandled, onGoToEdital, onCreateNewCycle, registrosEstudo, isTimerActive, onRegistroModalOpenChange }) {
+function CiclosPage({ user, addRegistroEstudo, deleteCompletionRegistro, onDeleteRegistro, onCicloAtivado, onStartStudy, activeCicloId, forceOpenVisual, targetOpenCicloId, onTargetOpenHandled, onGoToEdital, onGoToRevisao, onCreateNewCycle, registrosEstudo, isTimerActive, onRegistroModalOpenChange }) {
   const [selectedCicloId, setSelectedCicloId] = useState(null);
 
   useEffect(() => {
@@ -27,6 +27,7 @@ function CiclosPage({ user, addRegistroEstudo, deleteCompletionRegistro, onDelet
         onDeleteRegistro={onDeleteRegistro}
         onStartStudy={onStartStudy}
         onGoToEdital={onGoToEdital}
+        onGoToRevisao={onGoToRevisao}
         onCreateNewCycle={onCreateNewCycle}
         onRegistroModalOpenChange={onRegistroModalOpenChange}
       />

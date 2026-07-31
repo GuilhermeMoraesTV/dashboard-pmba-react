@@ -201,6 +201,13 @@ export const useCronogramaSystem = (user) => {
       if (slot.isRevisaoAuto) {
         const dataFormatada = slot.dataSlot || formatDateKeyLocal(new Date());
         const fieldEntries = [];
+        const minutosRevisao = Number(slot.tempoMinutos ?? slot.tempoPlanejadoMinutos ?? slot.minutosEstudo ?? 15) || 15;
+        const progressoAtualRevisao = Math.max(0, Number(slot.progressoMinutos || 0));
+        const progressoAoMarcar = Math.max(progressoAtualRevisao, minutosRevisao);
+
+        if (!novoEstado && slot.bloqueiaDesmarcar) {
+          return false;
+        }
 
         if (novoEstado) {
           // Marca como concluída → salva no historicoRevisoes
@@ -210,13 +217,16 @@ export const useCronogramaSystem = (user) => {
             assunto:       slot.assunto,
             dataConclusao: dataFormatada,
             intervaloDias: slot.intervaloDias ?? 0,
-            tempoMinutos: Number(slot.tempoMinutos ?? slot.tempoPlanejadoMinutos ?? slot.minutosEstudo ?? 15) || 15,
+            tempoMinutos: minutosRevisao,
             weekOffset: resolvedWeekOffset,
           }]);
           fieldEntries.push([['revisoesReagendadas', slot.slotId], null]);
+          fieldEntries.push([['revisoesDesmarcadas', slot.slotId], null]);
+          fieldEntries.push([['progressoRevisoesMinutos', slot.slotId], progressoAoMarcar]);
         } else {
           // Desmarca → remove do historicoRevisoes
           fieldEntries.push([['historicoRevisoes', slot.slotId], null]);
+          fieldEntries.push([['revisoesDesmarcadas', slot.slotId], true]);
         }
 
         fieldEntries.push([['progresso', semKey, slot.slotId], novoEstado ? true : null]);
@@ -238,7 +248,7 @@ export const useCronogramaSystem = (user) => {
         const progressoAtual = Number(slot.progressoMinutos || 0);
         const proximoProgresso = novoEstado
           ? Math.max(progressoAtual, minutosPlanejados)
-          : progressoAtual;
+          : 0;
         fieldEntries.push([['progressoMinutos', semKey, slotIdNoProgresso], proximoProgresso]);
         if (slot.slotId && slot.slotId !== slotIdNoProgresso) {
           fieldEntries.push([['progressoMinutos', semKey, slot.slotId], proximoProgresso]);

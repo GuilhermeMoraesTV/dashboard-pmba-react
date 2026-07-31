@@ -32,6 +32,10 @@ import { useCronogramaSystem } from "../hooks/useCronogramaSystem";
 import { formatDateKeyLocal, getCronogramaReviewBuckets } from "../services/scheduling/review.js";
 import { useCicloRevisoes } from "../hooks/useCicloRevisoes";
 import { buildCompletionRegistro } from "../utils/completionRegistro";
+import {
+  REGISTRO_PROGRESS_OPTIMISTIC_EVENT,
+  applyCronogramaRegistroProgress,
+} from "../services/reviewOptimisticUpdates";
 const cx = (...classes) => classes.filter(Boolean).join(" ");
 
 const getContextLogo = (item) => {
@@ -225,6 +229,9 @@ const ReviewTimelineItem = ({
   const isDominado = !!item.dominado;
   const diasAtraso = item.diasAtraso ?? 0;
   const tempo = item.tempoMinutos || item.duracao || 20;
+  const tempoFeitoRaw = Number(item.progressoMinutos || 0);
+  const tempoFeito = concluido ? Math.max(tempoFeitoRaw, Number(tempo || 0)) : tempoFeitoRaw;
+  const desmarcarBloqueado = concluido && Boolean(item.bloqueiaDesmarcar || item.bloqueiaDesmarcarConclusao);
 
   return (
     <div className="group flex items-start gap-3 sm:gap-6">
@@ -289,7 +296,7 @@ const ReviewTimelineItem = ({
             <div className="flex flex-wrap items-center gap-2 lg:justify-end">
               <span className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-zinc-100 px-3 text-xs font-black text-zinc-600 ring-1 ring-zinc-200 dark:bg-white/[0.07] dark:text-zinc-300 dark:ring-white/10">
                 <Clock size={13} />
-                {fmtMin(tempo)}
+                {fmtMin(tempoFeito)} / {fmtMin(tempo)}
               </span>
               <span className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-zinc-100 px-3 text-xs font-black text-zinc-600 ring-1 ring-zinc-200 dark:bg-white/[0.07] dark:text-zinc-300 dark:ring-white/10">
                 <CalendarDays size={13} />
@@ -312,15 +319,19 @@ const ReviewTimelineItem = ({
 
             <button
               type="button"
-              onClick={() => onConcluir(item)}
-              disabled={disabled}
+              onClick={() => {
+                if (desmarcarBloqueado) return;
+                onConcluir(item);
+              }}
+              disabled={disabled || desmarcarBloqueado}
               className={cx(
                 "inline-flex h-9 items-center justify-center gap-1.5 rounded-xl px-3 text-[9px] font-black uppercase tracking-wider text-white shadow-sm transition-all disabled:opacity-60",
-                concluido ? "bg-emerald-600 hover:bg-emerald-700" : "bg-blue-600 hover:bg-blue-700"
+                desmarcarBloqueado ? "cursor-not-allowed bg-emerald-600" : concluido ? "bg-emerald-600 hover:bg-emerald-700" : "bg-blue-600 hover:bg-blue-700"
               )}
+              title={desmarcarBloqueado ? "Conclusao protegida por registro de revisao" : undefined}
             >
               {isLoading ? <RefreshCw size={13} className="animate-spin" /> : <Check size={13} strokeWidth={3} />}
-              {concluido ? "Alterar" : "Concluir"}
+              {desmarcarBloqueado ? "Registrada" : concluido ? "Alterar" : "Concluir"}
             </button>
 
             {onDominar && tipo === "cronograma" && !concluido && (
@@ -370,6 +381,11 @@ const RevisaoListaTimeline = ({
   const total = items.length;
   const concluidas = items.filter((item) => item.concluido || item.concluida).length;
   const totalMinutos = items.reduce((acc, item) => acc + Number(item.tempoMinutos || item.duracao || 20), 0);
+  const totalFeito = items.reduce((acc, item) => {
+    const planned = Number(item.tempoMinutos || item.duracao || 20);
+    const done = Number(item.progressoMinutos || 0);
+    return acc + ((item.concluido || item.concluida) ? Math.max(done, planned) : done);
+  }, 0);
   const progresso = total > 0 ? Math.round((concluidas / total) * 100) : 0;
   const activeIndex = items.findIndex((item) => !(item.concluido || item.concluida) && !item.dominado);
   const grupos = items.reduce((acc, item) => {
@@ -408,7 +424,7 @@ const RevisaoListaTimeline = ({
           <div className="shrink-0 text-right">
             <div className="flex items-center justify-end gap-1.5">
               <Clock size={14} className="text-blue-500 sm:h-4 sm:w-4" />
-              <span className="text-sm font-black tabular-nums text-zinc-900 dark:text-white sm:text-xl">{fmtMin(totalMinutos)}</span>
+              <span className="text-sm font-black tabular-nums text-zinc-900 dark:text-white sm:text-xl">{fmtMin(totalFeito)} / {fmtMin(totalMinutos)}</span>
             </div>
             <p className="text-[8px] font-black uppercase tracking-widest text-zinc-400 sm:text-[10px]">{concluidas}/{total} feitas</p>
           </div>
@@ -552,6 +568,21 @@ export function RevisaoPage({ user, onStartStudy, addRegistroEstudo, deleteCompl
   }, [user?.uid]);
 
   useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const onOptimisticProgress = (event) => {
+      const registro = event?.detail || {};
+      if (registro?.contextoRegistro !== "cronograma") return;
+      setCronograma((prev) => (
+        prev?.id === registro.cronogramaId
+          ? applyCronogramaRegistroProgress(prev, registro)
+          : prev
+      ));
+    };
+    window.addEventListener(REGISTRO_PROGRESS_OPTIMISTIC_EVENT, onOptimisticProgress);
+    return () => window.removeEventListener(REGISTRO_PROGRESS_OPTIMISTIC_EVENT, onOptimisticProgress);
+  }, []);
+
+  useEffect(() => {
     if (!user?.uid) return undefined;
     const q = query(collection(db, "users", user.uid, "ciclos"), where("ativo", "==", true));
     return onSnapshot(q, (snap) => {
@@ -629,7 +660,8 @@ export function RevisaoPage({ user, onStartStudy, addRegistroEstudo, deleteCompl
     setActionLoading({ id: actionId, type: "concluir" });
     try {
       if (item._fonte === "ciclo") {
-        await concluirRevisaoCiclo(item.id);
+        const wasDone = Boolean(item.concluida || item.concluido);
+        await concluirRevisaoCiclo(item.id, !wasDone);
         const completionRegistro = buildCompletionRegistro({
           context: "ciclo",
           item,
@@ -637,7 +669,6 @@ export function RevisaoPage({ user, onStartStudy, addRegistroEstudo, deleteCompl
           isReview: true,
           fallbackMinutes: 20,
         });
-        const wasDone = Boolean(item.concluida || item.concluido);
         if (!wasDone && addRegistroEstudo) {
           await addRegistroEstudo(completionRegistro);
         } else if (wasDone && deleteCompletionRegistro) {
@@ -674,7 +705,7 @@ export function RevisaoPage({ user, onStartStudy, addRegistroEstudo, deleteCompl
     onStartStudy?.(
       { id: s.disciplinaId, nome: s.disciplinaNome || s.disciplina },
       s.assunto || s.topico || null,
-      { defaultContext: s._fonte === "cronograma" ? "cronograma" : "ciclo" }
+      { defaultContext: s._fonte === "cronograma" ? "cronograma" : "ciclo", tipoRegistro: "revisao" }
     );
 
   const handleDominar = async (s) => {

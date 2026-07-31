@@ -1,5 +1,10 @@
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { FieldPath, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { getAgendaSemana } from './scheduling/review';
+import {
+  applyReviewProgress,
+  getReviewPlannedMinutes,
+  normalizeReviewText,
+} from './reviewProgressRules';
 
 const normalize = (value) =>
   String(value || '')
@@ -37,6 +42,15 @@ const calculateWeekOffset = (dataInicio, dataRegistroYmd) => {
 
 const getSlotProgressKey = (slot) => slot.slotIdBase || slot.slotId;
 const getPendenciaDisciplinaKey = (disciplinaId) => String(disciplinaId || '').trim();
+
+const updateDocFieldEntries = async (docRef, entries = []) => {
+  const args = entries.flatMap(([segments, value]) => [
+    new FieldPath(...segments.map((segment) => String(segment))),
+    value,
+  ]);
+  if (!args.length) return;
+  await updateDoc(docRef, ...args);
+};
 
 export async function marcarPendenciaTeoriaPorRegistro({
   db,
@@ -110,8 +124,8 @@ export async function syncRegistroEstudoWithCronograma({
   if (!slotsDia.length) return { synced: false, reason: 'no-slots-for-day' };
 
   const disciplinaIdRegistro = String(registro.disciplinaId || '').trim();
-  const disciplinaNomeRegistroNorm = normalize(registro.disciplinaNome);
-  const assuntoRegistroNorm = normalize(registro.assunto);
+  const disciplinaNomeRegistroNorm = normalizeReviewText(registro.disciplinaNome);
+  const assuntoRegistroNorm = normalizeReviewText(registro.assunto);
 
   const candidatesByDisciplina = slotsDia.filter((slot) => {
     const sameId = disciplinaIdRegistro && String(slot.disciplinaId || '') === disciplinaIdRegistro;
@@ -268,19 +282,19 @@ export async function syncRegistroRevisaoWithCronograma({
   if (!revisoesDia.length) return { synced: false, reason: 'no-review-slots-for-day' };
 
   const disciplinaIdRegistro = String(registro.disciplinaId || '').trim();
-  const disciplinaNomeRegistroNorm = normalize(registro.disciplinaNome);
-  const assuntoRegistroNorm = normalize(registro.assunto);
+  const disciplinaNomeRegistroNorm = normalizeReviewText(registro.disciplinaNome);
+  const assuntoRegistroNorm = normalizeReviewText(registro.assunto);
 
   const candidatesByDisciplina = revisoesDia.filter((slot) => {
     const sameId = disciplinaIdRegistro && String(slot.disciplinaId || '') === disciplinaIdRegistro;
-    const sameNome = disciplinaNomeRegistroNorm && normalize(slot.disciplinaNome || slot.disciplina) === disciplinaNomeRegistroNorm;
+    const sameNome = disciplinaNomeRegistroNorm && normalizeReviewText(slot.disciplinaNome || slot.disciplina) === disciplinaNomeRegistroNorm;
     return sameId || sameNome;
   });
 
   if (!candidatesByDisciplina.length) return { synced: false, reason: 'no-review-discipline-match' };
 
   const candidates = assuntoRegistroNorm
-    ? candidatesByDisciplina.filter((slot) => normalize(slot.assunto) === assuntoRegistroNorm)
+    ? candidatesByDisciplina.filter((slot) => normalizeReviewText(slot.assunto) === assuntoRegistroNorm)
     : candidatesByDisciplina;
 
   const slotsOrdenados = (candidates.length ? candidates : candidatesByDisciplina)
@@ -289,9 +303,10 @@ export async function syncRegistroRevisaoWithCronograma({
 
   const progressoRevisoes = cronograma?.progressoRevisoesMinutos || {};
   const historicoRevisoes = cronograma?.historicoRevisoes || {};
+  const revisoesDesmarcadas = cronograma?.revisoesDesmarcadas || {};
   let minutosRestantes = minutosRegistrados;
   let minutosAbatidos = 0;
-  const updates = {};
+  const fieldEntries = [];
 
   for (const slot of slotsOrdenados) {
     if (minutosRestantes <= 0) break;
@@ -299,23 +314,30 @@ export async function syncRegistroRevisaoWithCronograma({
     const slotKey = slot.slotId;
     if (!slotKey) continue;
 
-    const minutosPlanejados = Number(slot.tempoMinutos ?? slot.minutosEstudo ?? 0);
+    const minutosPlanejados = getReviewPlannedMinutes(slot, 20);
     if (minutosPlanejados <= 0) continue;
 
-    const wasDone = Boolean(historicoRevisoes?.[slotKey]?.dataConclusao || slot.concluido);
+    const wasDone = revisoesDesmarcadas?.[slotKey] === true
+      ? false
+      : Boolean(historicoRevisoes?.[slotKey]?.dataConclusao || slot.concluido);
     const progressoAtual = Number(progressoRevisoes?.[slotKey] || slot.progressoMinutos || 0);
-    const progressoBase = wasDone ? Math.max(progressoAtual, minutosPlanejados) : progressoAtual;
-    const faltantes = Math.max(0, minutosPlanejados - progressoBase);
-    if (faltantes <= 0) continue;
+    const {
+      appliedMinutes,
+      nextProgress: novoProgresso,
+      done: concluiu,
+    } = applyReviewProgress({
+      currentMinutes: progressoAtual,
+      plannedMinutes: minutosPlanejados,
+      addedMinutes: minutosRestantes,
+      wasDone,
+    });
+    if (appliedMinutes <= 0) continue;
 
-    const incremento = Math.min(faltantes, minutosRestantes);
-    const novoProgresso = progressoBase + incremento;
-    const concluiu = novoProgresso >= minutosPlanejados;
-
-    updates[`progressoRevisoesMinutos.${slotKey}`] = novoProgresso;
-    updates[`progresso.${semKey}.${slotKey}`] = concluiu ? true : false;
+    fieldEntries.push([['progressoRevisoesMinutos', slotKey], novoProgresso]);
+    fieldEntries.push([['progresso', semKey, slotKey], concluiu ? true : false]);
+    fieldEntries.push([['revisoesDesmarcadas', slotKey], null]);
     if (concluiu) {
-      updates[`historicoRevisoes.${slotKey}`] = {
+      fieldEntries.push([['historicoRevisoes', slotKey], {
         disciplinaId: slot.disciplinaId || registro.disciplinaId || null,
         disciplinaNome: slot.disciplinaNome || slot.disciplina || registro.disciplinaNome || null,
         assunto: slot.assunto || registro.assunto || null,
@@ -324,16 +346,16 @@ export async function syncRegistroRevisaoWithCronograma({
         tempoMinutos: minutosPlanejados,
         weekOffset,
         origem: 'registro_manual',
-      };
+      }]);
     }
 
-    minutosRestantes -= incremento;
-    minutosAbatidos += incremento;
+    minutosRestantes -= appliedMinutes;
+    minutosAbatidos += appliedMinutes;
   }
 
-  if (!Object.keys(updates).length) return { synced: false, reason: 'nothing-to-update' };
+  if (!fieldEntries.length) return { synced: false, reason: 'nothing-to-update' };
 
-  await updateDoc(cronogramaRef, updates);
+  await updateDocFieldEntries(cronogramaRef, fieldEntries);
 
   return {
     synced: true,

@@ -554,6 +554,7 @@ function TimerFinishModal({
   onCancel,
   onDiscard,
   initialAssunto,
+  initialTipoRegistro = 'estudo',
   activeCicloData,
   sessaoGlobalIndex = null,
 }) {
@@ -592,7 +593,7 @@ function TimerFinishModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccessToast, setShowSuccessToast] = useState(false);
   const [revisaoModoCiclo, setRevisaoModoCiclo] = useState(REVISAO_MODO_FLEXIVEL);
-  const [tipoRegistro, setTipoRegistro] = useState('estudo');
+  const [tipoRegistro, setTipoRegistro] = useState(initialTipoRegistro === 'revisao' ? 'revisao' : 'estudo');
   const contextTypes = useMemo(
     () => availableContexts.map((context) => context?.type).filter(Boolean),
     [availableContexts]

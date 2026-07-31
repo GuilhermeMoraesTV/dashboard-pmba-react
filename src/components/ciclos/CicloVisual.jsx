@@ -46,10 +46,10 @@ const CYCLE_CENTER_MANUAL_LAYOUT = {
 // Aumente desktopMax para deixar o radar maior em telas grandes.
 // Diminua desktopViewportOffset se quiser usar mais altura da tela no desktop.
 const CYCLE_VISUAL_SIZE = {
-  desktopMax: 840,
-  desktopViewportOffset: 140,
+  desktopMax: 760,
+  desktopViewportOffset: 165,
   parentOffset: 20,
-  viewportWidth: 92,
+  viewportWidth: 86,
 };
 
 const centerClampStyle = ({ maxLines, fontSize, lineHeight, topPadding = 0, bottomPadding = 0 } = {}) => {

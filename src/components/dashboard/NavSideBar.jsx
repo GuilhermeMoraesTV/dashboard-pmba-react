@@ -803,7 +803,7 @@ function NavSideBar({
   const TopBar = () => (
     <div
       className={`
-        fixed top-0 right-0 h-[70px] z-[60]
+        fixed top-0 right-0 h-[60px] z-[60]
         bg-white/70 dark:bg-zinc-950/70 backdrop-blur-xl border-b border-white/60 dark:border-white/10
         flex items-center justify-between px-2 sm:px-4 shadow-sm shadow-black/5 dark:shadow-black/30 transition-all duration-300
         left-0 lg:left-[72px]
@@ -823,7 +823,7 @@ function NavSideBar({
         onClick={handleLogoClick}
         className="absolute left-1/2 -translate-x-1/2 cursor-pointer z-0 group select-none"
       >
-        <h1 className="text-red-600 font-black tracking-[0.14em] sm:tracking-[0.2em] uppercase text-lg sm:text-2xl whitespace-nowrap transition-all duration-300 group-hover:scale-105 group-active:scale-95 drop-shadow-sm">
+        <h1 className="text-red-600 font-black tracking-[0.12em] sm:tracking-[0.18em] uppercase text-base sm:text-xl whitespace-nowrap transition-all duration-300 group-hover:scale-105 group-active:scale-95 drop-shadow-sm">
           MODOQAP
         </h1>
       </div>
@@ -987,9 +987,9 @@ function NavSideBar({
         onMouseEnter={() => !isMobileOpen && setExpanded(true)}
         onMouseLeave={() => !isMobileOpen && setExpanded(false)}
       >
-        <div className="flex-shrink-0 flex items-center justify-between lg:justify-center h-[70px] px-4 border-b border-white/60 dark:border-white/10 lg:border-none">
+        <div className="flex-shrink-0 flex items-center justify-between lg:justify-center h-[60px] px-4 border-b border-white/60 dark:border-white/10 lg:border-none">
           <div onClick={handleLogoClick} className="cursor-pointer flex items-center justify-center">
-            <img src="/logoModoQAP.png" alt="Logo" className="h-11 w-auto object-contain drop-shadow-sm"/>
+            <img src="/logoModoQAP.png" alt="Logo" className="h-9 w-auto object-contain drop-shadow-sm"/>
           </div>
           <button onClick={() => setMobileOpen(false)} className="lg:hidden p-1.5 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg">
             <X size={18}/>

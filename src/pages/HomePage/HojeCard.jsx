@@ -26,22 +26,10 @@ const fmtMin = (min) => {
   return m > 0 ? `${h}h${String(m).padStart(2, '0')}` : `${h}h`;
 };
 
-const XRayScanline = ({ colorClass = 'via-red-500' }) => (
-  <div className="absolute inset-0 z-10 pointer-events-none overflow-hidden">
-    <motion.div
-      className={`absolute inset-x-0 h-[3px] opacity-40 ${colorClass} bg-gradient-to-r from-transparent via-current to-transparent`}
-      animate={{ top: ['-5%', '105%'] }}
-      transition={{ duration: 4, repeat: Infinity, ease: 'linear' }}
-    >
-      <div className={`absolute inset-0 blur-[6px] opacity-60 ${colorClass.replace('via-', 'bg-')}`} />
-    </motion.div>
-  </div>
-);
-
 const TechBackground = ({ activePanel, diaTodoConcluido }) => (
   <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
     <div className={`absolute inset-0 opacity-[0.04] transition-colors duration-1000 ${
-      diaTodoConcluido ? 'bg-emerald-500' : activePanel === 'estudo' ? 'bg-red-500' : 'bg-blue-500'
+      diaTodoConcluido ? 'bg-red-500' : activePanel === 'estudo' ? 'bg-red-500' : 'bg-blue-500'
     }`} />
     <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] rounded-full blur-[100px] bg-current opacity-[0.03]" />
     <div className="absolute -bottom-[10%] -right-[10%] w-[40%] h-[40%] rounded-full blur-[100px] bg-current opacity-[0.03]" />
@@ -108,14 +96,14 @@ function MissionSlot({ slot, isDone, onToggle, onMarkPending, onPlay, variant, s
   const progressoExibido = effectiveDone ? Math.max(100, progressoPercentualReal) : progressoPercentualReal;
   const progressoBarra = Math.min(100, Math.max(0, progressoExibido));
   const progressoMinutosExibido = effectiveDone ? Math.max(progressoAtual, tempoPlanejado) : progressoAtual;
-  const desmarcarBloqueado = effectiveDone && isCycle && Boolean(slot.bloqueiaDesmarcarConclusao);
+  const desmarcarBloqueado = effectiveDone && Boolean(slot.bloqueiaDesmarcar || slot.bloqueiaDesmarcarConclusao);
   const toggleTitle = desmarcarBloqueado
     ? 'Conclusao protegida por registro de estudo'
     : effectiveDone ? 'Marcar como pendente' : 'Marcar como concluido';
 
 return (
     <div
-      className={`group relative min-h-[92px] overflow-hidden border transition-all duration-200 ${
+      className={`home-mission-slot group relative min-h-[92px] overflow-hidden border transition-all duration-200 ${
         isCycle ? 'rounded-[22px]' : 'rounded-2xl'
       } ${
         useDisciplineColor ? 'discipline-tinted-card' : ''
@@ -139,8 +127,7 @@ return (
       }`} />
 
       <div className="flex h-full flex-col gap-2 px-3 py-2.5">
-        <div className="flex min-w-0 items-start justify-between gap-2 pr-1">
-          <div className="flex min-w-0 flex-1 items-start gap-2">
+        <div className="grid min-w-0 grid-cols-[2rem_minmax(0,1fr)_auto] items-start gap-2 pr-1">
             <button
               onClick={() => {
                 if (desmarcarBloqueado) return;
@@ -149,8 +136,8 @@ return (
               disabled={isLoading || desmarcarBloqueado}
               className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border shadow-sm transition-all disabled:opacity-60 ${
                 effectiveDone
-                  ? 'border-emerald-500 bg-emerald-500 text-white shadow-emerald-500/20'
-                  : 'border-emerald-200 bg-white text-emerald-600 shadow-emerald-500/10 hover:border-emerald-300 hover:bg-emerald-50 dark:border-emerald-900/40 dark:bg-white/10 dark:text-emerald-300 dark:hover:bg-emerald-900/35'
+                  ? 'border-emerald-500 bg-emerald-500 text-white shadow-none'
+                  : 'border-emerald-200 bg-white text-emerald-600 shadow-none hover:border-emerald-300 hover:bg-emerald-50 dark:border-emerald-900/40 dark:bg-white/10 dark:text-emerald-300 dark:hover:bg-emerald-900/35'
               } ${desmarcarBloqueado ? 'cursor-not-allowed' : ''}`}
               title={toggleTitle}
             >
@@ -164,9 +151,8 @@ return (
             }`}>
               {slot.disciplinaNome || slot.disciplina}
             </h4>
-          </div>
           {tempoPlanejado > 0 && (
-            <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-white/70 bg-white/85 px-2 py-0.5 text-[10px] font-black tabular-nums text-zinc-800 shadow-sm dark:border-white/15 dark:bg-white/15 dark:text-white">
+            <span className="inline-flex min-w-[3.75rem] shrink-0 items-center justify-center gap-1 rounded-full border border-white/70 bg-white/85 px-2 py-0.5 text-[10px] font-black tabular-nums text-zinc-800 shadow-sm dark:border-white/15 dark:bg-white/15 dark:text-white">
               <Clock size={12} className="text-zinc-600 dark:text-zinc-200" />
               {fmtMin(tempoPlanejado)}
             </span>
@@ -241,8 +227,8 @@ return (
           onClick={() => onToggle(slot)}
           className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border shadow-sm transition-all ${
             isDone
-              ? 'border-emerald-500 bg-emerald-500 text-white shadow-emerald-500/20'
-              : 'border-emerald-200 bg-white text-emerald-600 shadow-emerald-500/10 hover:border-emerald-300 hover:bg-emerald-50 dark:border-emerald-900/40 dark:bg-white/10 dark:text-emerald-300 dark:hover:bg-emerald-900/35'
+              ? 'border-emerald-500 bg-emerald-500 text-white shadow-none'
+              : 'border-emerald-200 bg-white text-emerald-600 shadow-none hover:border-emerald-300 hover:bg-emerald-50 dark:border-emerald-900/40 dark:bg-white/10 dark:text-emerald-300 dark:hover:bg-emerald-900/35'
           }`}
           title={isDone ? 'Concluido' : 'Marcar como concluido'}
         >
@@ -426,18 +412,24 @@ function HojeCard({
     });
   }, [activeCicloData?.tempoSessaoMinutos, cicloGuide.sessions, disciplinasCiclo]);
 
-  const cicloSlotsRevisao = useMemo(() => revisoesHoje.map((rev) => ({
-    ...rev,
-    slotId: `revisao-ciclo-${rev.id}`,
-    disciplinaNome: rev.disciplinaNome || 'Disciplina',
-    disciplina: rev.disciplinaNome || 'Disciplina',
-    assunto: rev.assunto || 'Revisao geral',
-    tempoPlanejadoMinutos: Number(rev.tempoPlanejadoMinutos || rev.tempoMinutos || 20),
-    progressoMinutos: rev.concluida ? Number(rev.tempoPlanejadoMinutos || rev.tempoMinutos || 20) : 0,
-    concluido: Boolean(rev.concluida),
-    isRevisaoAuto: true,
-    intervaloLabel: intervaloLabel(rev.intervaloDias),
-  })), [revisoesHoje]);
+  const cicloSlotsRevisao = useMemo(() => revisoesHoje.map((rev) => {
+    const tempoPlanejadoMinutos = Number(rev.tempoPlanejadoMinutos || rev.tempoMinutos || 20);
+    const progressoMinutos = Boolean(rev.concluida)
+      ? tempoPlanejadoMinutos
+      : Number(rev.progressoMinutos || 0);
+    return {
+      ...rev,
+      slotId: `revisao-ciclo-${rev.id}`,
+      disciplinaNome: rev.disciplinaNome || 'Disciplina',
+      disciplina: rev.disciplinaNome || 'Disciplina',
+      assunto: rev.assunto || 'Revisao geral',
+      tempoPlanejadoMinutos,
+      progressoMinutos,
+      concluido: Boolean(rev.concluida) || (tempoPlanejadoMinutos > 0 && progressoMinutos >= tempoPlanejadoMinutos),
+      isRevisaoAuto: true,
+      intervaloLabel: intervaloLabel(rev.intervaloDias),
+    };
+  }), [revisoesHoje]);
 
   useEffect(() => {
     if (modoCicloAtivo && cicloSlotsEstudo.length > 0) {
@@ -527,6 +519,10 @@ function HojeCard({
         : slot;
     });
   }, [modoCicloAtivo, optimisticDone, revisoesVisiveisBase]);
+  const revisoesPendentesCount = useMemo(
+    () => revisoesVisiveis.filter((slot) => !slot.concluido).length,
+    [revisoesVisiveis]
+  );
 
   const progressoCard = useMemo(() => {
     const itens = activePanel === 'estudo' ? estudosVisiveis : revisoesVisiveis;
@@ -632,9 +628,9 @@ function HojeCard({
         isReview: !!slot.isRevisaoAuto,
       });
       if (ok && !slot.concluido && addRegistroEstudo) {
-        addRegistroEstudo(completionRegistro).catch(console.error);
+        await addRegistroEstudo(completionRegistro);
       } else if (ok && slot.concluido && deleteCompletionRegistro) {
-        deleteCompletionRegistro(completionRegistro).catch(console.error);
+        await deleteCompletionRegistro(completionRegistro);
       }
     } catch (error) {
       if (optimisticKey) {
@@ -714,7 +710,9 @@ function HojeCard({
             : deleteField(),
         });
 
-        limparPendenciaTeoriaCiclo(activeCicloData.id, sessao.disciplinaId).catch(console.error);
+        if (nextDone) {
+          limparPendenciaTeoriaCiclo(activeCicloData.id, sessao.disciplinaId).catch(console.error);
+        }
         const completionRegistro = buildCompletionRegistro({
           context: 'ciclo',
           item: sessao,
@@ -722,9 +720,9 @@ function HojeCard({
           fallbackMinutes: activeCicloData?.tempoSessaoMinutos || 50,
         });
         if (!previousDone && addRegistroEstudo) {
-          addRegistroEstudo(completionRegistro).catch(console.error);
+          await addRegistroEstudo(completionRegistro);
         } else if (previousDone && deleteCompletionRegistro) {
-          deleteCompletionRegistro(completionRegistro).catch(console.error);
+          await deleteCompletionRegistro(completionRegistro);
         }
       } catch (error) {
         if (optimisticKey) {
@@ -768,7 +766,8 @@ function HojeCard({
     if (onGoToStudySession) {
       onGoToStudySession(
         { id: rev.disciplinaId || rev.id || rev.revisaoKey, nome: rev.disciplinaNome || 'Disciplina' },
-        rev.assunto || null
+        rev.assunto || null,
+        { defaultContext: 'ciclo', tipoRegistro: 'revisao' }
       );
       return;
     }
@@ -785,7 +784,7 @@ function HojeCard({
     }
     setAcaoRevisaoCiclo({ id: rev.id, tipo: 'concluir' });
     try {
-      await concluirRevisao(rev.id);
+      await concluirRevisao(rev.id, !wasDone);
       const completionRegistro = buildCompletionRegistro({
           context: 'ciclo',
           item: rev,
@@ -794,9 +793,9 @@ function HojeCard({
           fallbackMinutes: 20,
         });
       if (!wasDone && addRegistroEstudo) {
-        addRegistroEstudo(completionRegistro).catch(console.error);
+        await addRegistroEstudo(completionRegistro);
       } else if (wasDone && deleteCompletionRegistro) {
-        deleteCompletionRegistro(completionRegistro).catch(console.error);
+        await deleteCompletionRegistro(completionRegistro);
       }
       marcarSucessoRevisaoCiclo(rev.id, 'concluir');
     } catch (error) {
@@ -835,7 +834,6 @@ function HojeCard({
         className={`group relative z-20 flex min-h-[400px] flex-col overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white p-6 transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/50 hover:!border-l-red-500 hover:shadow-glow dark:border-white/10 dark:!border-l-red-500/25 dark:bg-[#09090b] dark:shadow-[0_0_24px_rgba(239,68,68,0.1)] dark:hover:border-accent-light/30 dark:hover:!border-l-red-500 dark:hover:shadow-[0_0_36px_rgba(239,68,68,0.16)] ${className}`}
       >
         <div className="pointer-events-none absolute inset-0 z-0 bg-white dark:bg-[#09090b]" />
-        <XRayScanline colorClass="via-red-500" />
 
         <div className="pointer-events-none absolute -right-24 -top-24 h-56 w-56 rounded-full bg-gradient-to-br from-red-600 to-rose-700 opacity-10 blur-[90px] transition-all duration-700 group-hover:opacity-20" />
         <div className="pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-zinc-500/5 opacity-40 blur-[80px] transition-all duration-700" />
@@ -905,29 +903,19 @@ function HojeCard({
         if (!completionGlowActive || isInteractiveClick(event.target)) return;
         openCompletionModal();
       }}
-      animate={completionGlowActive ? { boxShadow: ['0 24px 70px rgba(16,185,129,0.16)', '0 28px 90px rgba(16,185,129,0.28)', '0 24px 70px rgba(16,185,129,0.16)'] } : undefined}
-      transition={completionGlowActive ? { duration: 2.4, repeat: Infinity, ease: 'easeInOut' } : undefined}
-      className={`group relative z-20 flex min-h-[400px] flex-col overflow-hidden rounded-xl border-2 border-l-4 !border-l-red-500/20 bg-white p-6 transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/50 hover:!border-l-red-500 hover:shadow-glow dark:!border-l-red-500/25 dark:bg-[#09090b] dark:shadow-[0_0_24px_rgba(239,68,68,0.1)] dark:hover:border-accent-light/30 dark:hover:!border-l-red-500 dark:hover:shadow-[0_0_36px_rgba(239,68,68,0.16)] ${className} ${
-        completionGlowActive ? 'cursor-pointer border-emerald-500/30' : 'border-zinc-200 dark:border-white/10'
-      }`}
+      className={`group relative z-20 flex min-h-[400px] flex-col overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white p-6 transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/50 hover:!border-l-red-500 hover:shadow-glow dark:border-white/10 dark:!border-l-red-500/25 dark:bg-[#09090b] dark:shadow-[0_0_24px_rgba(239,68,68,0.1)] dark:hover:border-accent-light/30 dark:hover:!border-l-red-500 dark:hover:shadow-[0_0_36px_rgba(239,68,68,0.16)] ${completionGlowActive ? 'cursor-pointer' : ''} ${className}`}
     >
       <div className="pointer-events-none absolute inset-0 z-0 bg-white dark:bg-[#09090b]" />
 
-      {!completionGlowActive && (
-        <XRayScanline colorClass={activePanel === 'estudo' ? 'via-red-500' : 'via-blue-500'} />
-      )}
-
       <div className={`pointer-events-none absolute -right-24 -top-24 h-56 w-56 rounded-full opacity-10 blur-[90px] transition-all duration-700 group-hover:opacity-20 ${
-        completionGlowActive ? 'bg-emerald-500/10' : activePanel === 'estudo' ? 'bg-gradient-to-br from-red-600 to-rose-700' : 'bg-gradient-to-br from-blue-600 to-indigo-700'
+        activePanel === 'estudo' ? 'bg-gradient-to-br from-red-600 to-rose-700' : 'bg-gradient-to-br from-blue-600 to-indigo-700'
       }`} />
-      <div className={`pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full opacity-40 blur-[80px] transition-all duration-700 ${
-        completionGlowActive ? 'bg-teal-500/5' : 'bg-zinc-500/5'
-      }`} />
+      <div className="pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-zinc-500/5 opacity-40 blur-[80px] transition-all duration-700" />
 
       <div className="relative z-20 flex h-full w-full min-h-0 flex-col">
         <div className={`mb-4 shrink-0 overflow-hidden rounded-2xl border p-3 shadow-md backdrop-blur-xl transition-all duration-500 dark:border-zinc-800 dark:bg-zinc-950/85 ${
           completionGlowActive
-            ? 'border-emerald-300/70 bg-emerald-50/90 shadow-emerald-500/20'
+            ? 'border-zinc-200/80 bg-white/90 shadow-red-500/10 dark:shadow-red-950/20'
             : activePanel === 'estudo'
               ? 'border-zinc-200/80 bg-white/90 shadow-red-500/10 dark:shadow-red-950/20'
               : 'border-zinc-200/80 bg-white/90 shadow-blue-500/10 dark:shadow-blue-950/20'
@@ -936,7 +924,7 @@ function HojeCard({
             <div className="flex min-w-0 items-center gap-3">
               <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white shadow-lg sm:h-12 sm:w-12 ${
                 completionGlowActive
-                  ? 'bg-emerald-600 shadow-emerald-600/25'
+                  ? 'bg-red-600 shadow-red-600/25'
                   : activePanel === 'estudo'
                     ? 'bg-red-600 shadow-red-600/25'
                     : 'bg-blue-600 shadow-blue-600/25'
@@ -945,19 +933,19 @@ function HojeCard({
               </div>
               <div className="min-w-0">
                 <p className={`text-[8px] font-black uppercase tracking-[0.24em] sm:text-[9px] ${
-                  completionGlowActive ? 'text-emerald-600 dark:text-emerald-400' : activePanel === 'estudo' ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'
+                  completionGlowActive ? 'text-red-600 dark:text-red-400' : activePanel === 'estudo' ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'
                 }`}>
                   Estudo do dia
                 </p>
                 <h2 className="mt-0.5 text-base font-black uppercase leading-none tracking-tight text-zinc-900 dark:text-white sm:text-xl">
                   {completionGlowActive ? (
-                    <>Meta do dia <span className="text-emerald-600 dark:text-emerald-400">batida</span></>
+                    <>Meta do dia <span className="text-red-600 dark:text-red-400">batida</span></>
                   ) : (
                     <>{activePanel === 'estudo' ? 'Sessoes' : 'Revisoes'} <span className={activePanel === 'estudo' ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}>ativas</span></>
                   )}
                 </h2>
                 {completionGlowActive && (
-                  <p className="mt-1 text-[9px] font-black uppercase tracking-widest text-emerald-600/80 dark:text-emerald-300/80">
+                  <p className="mt-1 text-[9px] font-black uppercase tracking-widest text-red-600/80 dark:text-red-300/80">
                     {fmtMin(progressoDiaResumo.feito)} estudados
                   </p>
                 )}
@@ -969,14 +957,14 @@ function HojeCard({
                 {completionGlowActive ? 'Tempo' : 'Meta de hoje'}
               </p>
               <div className="mt-1 flex items-center justify-end gap-1.5">
-                <Clock size={13} className={completionGlowActive ? 'text-emerald-500' : activePanel === 'estudo' ? 'text-red-500' : 'text-blue-500'} />
+                <Clock size={13} className={completionGlowActive ? 'text-red-500' : activePanel === 'estudo' ? 'text-red-500' : 'text-blue-500'} />
                 <span className="text-base font-black tabular-nums text-zinc-900 dark:text-white sm:text-xl">
                   {fmtMin(progressoCard.feito)}
                   <span className="mx-1 text-xs font-medium text-zinc-400">/</span>
                   {fmtMin(progressoCard.total)}
                 </span>
               </div>
-              <p className={`mt-1 text-[9px] font-black uppercase tracking-widest ${completionGlowActive ? 'text-emerald-600 dark:text-emerald-400' : activePanel === 'estudo' ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}`}>
+              <p className={`mt-1 text-[9px] font-black uppercase tracking-widest ${completionGlowActive ? 'text-red-600 dark:text-red-400' : activePanel === 'estudo' ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}`}>
                 {completionGlowActive ? 'Meta batida' : `${progressoCard.pct}% concluido`}
               </p>
             </div>
@@ -1004,13 +992,18 @@ function HojeCard({
                 <button
                   type="button"
                   onClick={() => setActivePanel('revisao')}
-                  className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[8px] font-black uppercase tracking-wider transition-all duration-300 ${
+                  className={`relative flex items-center gap-1 rounded-lg px-2 py-1 text-[8px] font-black uppercase tracking-wider transition-all duration-300 ${
                     activePanel === 'revisao'
                       ? 'bg-white text-zinc-950 shadow-sm dark:bg-zinc-800 dark:text-white'
                       : 'text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300'
                   }`}
                 >
                   <Target size={10} className={activePanel === 'revisao' ? 'text-blue-500' : ''} /> Revisao
+                  {revisoesPendentesCount > 0 && (
+                    <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full border-2 border-white bg-red-600 px-1 text-[8px] font-black leading-none text-white shadow-md shadow-red-600/25 dark:border-zinc-900">
+                      {revisoesPendentesCount > 9 ? '9+' : revisoesPendentesCount}
+                    </span>
+                  )}
                 </button>
               </div>
             </div>
@@ -1020,7 +1013,7 @@ function HojeCard({
                 animate={{ width: `${progressoCard.pct}%` }}
                 transition={{ duration: 0.35, ease: 'easeOut' }}
                 className={`h-full rounded-full ${
-                  completionGlowActive ? 'bg-gradient-to-r from-emerald-500 via-green-500 to-teal-500' : activePanel === 'estudo' ? 'bg-gradient-to-r from-red-600 via-rose-500 to-orange-500' : 'bg-gradient-to-r from-blue-600 via-sky-500 to-cyan-500'
+                  completionGlowActive ? 'bg-gradient-to-r from-red-600 via-rose-500 to-orange-500' : activePanel === 'estudo' ? 'bg-gradient-to-r from-red-600 via-rose-500 to-orange-500' : 'bg-gradient-to-r from-blue-600 via-sky-500 to-cyan-500'
                 }`}
               />
             </div>
@@ -1030,12 +1023,12 @@ function HojeCard({
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <p className={`text-[9px] font-black uppercase tracking-[0.22em] ${
-                  completionGlowActive ? 'text-emerald-500' : activePanel === 'estudo' ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'
+                  completionGlowActive ? 'text-red-600 dark:text-red-400' : activePanel === 'estudo' ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'
                 }`}>
                   Estudo do Dia
                 </p>
                 <div className={`h-1.5 w-1.5 rounded-full animate-pulse ${
-                  completionGlowActive ? 'bg-emerald-500' : activePanel === 'estudo' ? 'bg-red-500' : 'bg-blue-500'
+                  completionGlowActive ? 'bg-red-500' : activePanel === 'estudo' ? 'bg-red-500' : 'bg-blue-500'
                 }`} />
               </div>
               <h2 className="mt-0.5 text-xl font-black uppercase leading-none tracking-tight text-zinc-900 dark:text-white">
@@ -1045,7 +1038,7 @@ function HojeCard({
                   {modoCicloAtivo ? 'Modo Ciclo' : 'Cronograma'}
                 </span>
                 <span className="opacity-30">|</span>
-                <span className={completionGlowActive ? 'text-emerald-500' : ''}>{progressoCard.concluidos} de {progressoCard.itens} concluidos</span>
+                <span className={completionGlowActive ? 'text-red-500' : ''}>{progressoCard.concluidos} de {progressoCard.itens} concluidos</span>
               </div>
             </div>
             <div className="flex flex-col items-end">
@@ -1188,7 +1181,7 @@ function HojeCard({
             }}
             className={`group/btn relative flex w-full items-center justify-center gap-3 overflow-hidden rounded-2xl py-4 text-[10px] font-black uppercase tracking-[0.2em] text-white shadow-xl transition-all ${
               completionGlowActive
-                ? 'bg-emerald-600 hover:bg-emerald-700'
+                ? 'bg-zinc-950 hover:bg-red-600 dark:bg-white dark:text-zinc-950 dark:hover:bg-red-600 dark:hover:text-white'
                 : activePanel === 'estudo'
                   ? 'bg-zinc-950 hover:bg-red-600 dark:bg-white dark:text-zinc-950 dark:hover:bg-red-600 dark:hover:text-white'
                   : 'bg-zinc-950 hover:bg-blue-600 dark:bg-white dark:text-zinc-950 dark:hover:bg-blue-600 dark:hover:text-white'

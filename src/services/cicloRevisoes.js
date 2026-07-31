@@ -147,7 +147,7 @@ export async function upsertCicloRevisao(db, userId, revisao = {}) {
   return revisaoRef.id;
 }
 
-export async function concluirGrupoCicloRevisao(db, userId, revisao = {}) {
+export async function concluirGrupoCicloRevisao(db, userId, revisao = {}, concluida = true) {
   if (!db || !userId) return;
 
   const duplicateIds = Array.from(new Set([
@@ -161,8 +161,8 @@ export async function concluirGrupoCicloRevisao(db, userId, revisao = {}) {
   for (const revisaoId of duplicateIds) {
     const revisaoRef = doc(collection(db, 'users', userId, 'revisoesCiclo'), revisaoId);
     batch.set(revisaoRef, {
-      concluida: true,
-      concluidaEm: serverTimestamp(),
+      concluida,
+      concluidaEm: concluida ? serverTimestamp() : null,
     }, { merge: true });
   }
   await batch.commit();

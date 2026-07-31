@@ -32,6 +32,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { resolveLogoUrl } from '../../components/admin/config/editalAssets';
+import HomeCardTitle from './HomeCardTitle.jsx';
 import HomeEmptyState from './HomeEmptyState.jsx';
 
 const PT_DAYS_SHORT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab'];
@@ -387,17 +388,11 @@ export const WeeklyBarChart = ({ registrosEstudo, compact = false }) => {
       <div className={`pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full blur-[80px] opacity-10 transition-all duration-700 group-hover:opacity-16 bg-gradient-to-br ${metricConfig.gradient}`} />
       <div className="pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-zinc-500/5 blur-[80px] opacity-40 transition-all duration-700" />
       <div className={`relative z-10 flex gap-2 border-b border-zinc-100 dark:border-white/5 bg-zinc-50/30 dark:bg-transparent ${compact ? 'items-start justify-between p-4' : 'items-center justify-between px-5 py-4'}`}>
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="relative">
-            <div className={`absolute inset-0 animate-ping rounded-full opacity-20 duration-[3s] bg-gradient-to-br ${metricConfig.gradient}`} />
-            <div className={`relative flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br ${metricConfig.gradient} text-white shadow-xl ${metricConfig.shadow}`}>
-              <TrendingUp size={20} strokeWidth={2.2} />
-            </div>
-          </div>
-          <div className="min-w-0">
-            <h3 className="whitespace-nowrap text-lg font-black uppercase tracking-tight text-zinc-900 dark:text-white leading-tight">
-              Estudo <span className={`bg-gradient-to-r ${metricConfig.gradient} bg-clip-text text-transparent`}>Semanal</span>
-            </h3>
+        <div className="flex min-w-0 items-start gap-3">
+          <HomeCardTitle
+            icon={TrendingUp}
+            eyebrow="Estudo Semanal"
+          >
             <div className="flex items-center gap-2 mt-1">
               <button type="button" onClick={() => setWeekOffset((value) => value - 1)} className="w-5 h-5 rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/5 hover:bg-zinc-50 dark:hover:bg-zinc-800 flex items-center justify-center transition-all text-zinc-500 shadow-sm">
                 <ChevronLeft size={12} strokeWidth={3} />
@@ -407,7 +402,7 @@ export const WeeklyBarChart = ({ registrosEstudo, compact = false }) => {
                 <ChevronRight size={12} strokeWidth={3} />
               </button>
             </div>
-          </div>
+          </HomeCardTitle>
         </div>
         
         <div className="flex shrink-0 items-center gap-2">
@@ -589,17 +584,26 @@ export default function HomeSessao1({
 
         <div className="flex items-start gap-3 w-full relative pointer-events-none z-10">
           <div
-            className="relative p-2.5 rounded-xl shadow-lg shadow-orange-500/25 bg-gradient-to-tr from-orange-600 via-orange-500 to-amber-500 text-white transform group-hover/card:scale-105 transition-all duration-500 pointer-events-auto cursor-help shrink-0 mt-0.5"
+            className="relative pointer-events-auto cursor-help shrink-0"
             onMouseEnter={() => setIsHoveringMultiplier(true)}
             onMouseLeave={() => setIsHoveringMultiplier(false)}
           >
+                <div className="absolute inset-0 animate-ping rounded-full bg-orange-500/20 opacity-35 duration-[3s]" />
+                <div className="relative flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-600 via-orange-500 to-amber-500 text-white shadow-lg shadow-orange-500/20 transition-all duration-500 group-hover/card:scale-105">
                 <AnimatedStreakFlame active={homeStats.streak > 0} compact={compact} />
+                </div>
                 <AnimatePresence mode="wait">
                   {badgeConfig && (
-                    <motion.div key={homeStats.multiplier} initial={{ opacity: 0, scale: 0.8, rotate: -10 }} animate={{ opacity: 1, scale: 1, rotate: 6 }} exit={{ opacity: 0, scale: 0.8, rotate: 10 }} className="absolute -top-3 -right-8 z-50">
+                    <motion.div
+                      key={homeStats.multiplier}
+                      initial={{ opacity: 0, scale: 0.8, rotate: 10 }}
+                      animate={{ opacity: 1, scale: 1, rotate: -8 }}
+                      exit={{ opacity: 0, scale: 0.8, rotate: -10 }}
+                      className="absolute -left-3 -top-3 z-50"
+                    >
                       <div className={`${badgeConfig.bg} ${badgeConfig.text} border-2 ${badgeConfig.border} px-2 py-0.5 rounded-full shadow-lg flex items-center gap-1 min-w-max`}>
                         <badgeConfig.icon size={13} fill="currentColor" strokeWidth={3} />
-                        <span className="text-[11px] font-black leading-none ml-0.5">{formatMultiplierText(homeStats.multiplier)}</span>
+                        <span className="ml-0.5 text-[11px] font-black leading-none">{formatMultiplierText(homeStats.multiplier)}</span>
                       </div>
                     </motion.div>
                   )}
@@ -614,9 +618,9 @@ export default function HomeSessao1({
                 </AnimatePresence>
           </div>
 
-          <div className="flex-1 pointer-events-auto w-full">
-            <div className="flex items-center gap-2 mb-1">
-              <h3 className="text-[10px] font-black uppercase tracking-[0.16em] bg-gradient-to-r from-orange-600 to-amber-600 dark:from-orange-400 dark:to-amber-400 bg-clip-text text-transparent">
+          <div className="min-w-0 flex-1 pointer-events-auto w-full">
+            <div className="mb-1 flex items-center gap-2">
+              <h3 className="bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-[10px] font-black uppercase tracking-[0.16em] text-transparent dark:from-orange-400 dark:to-amber-400">
                 Sequência de Estudo
               </h3>
             </div>

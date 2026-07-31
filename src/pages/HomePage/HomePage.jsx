@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Activity, Award, BarChart3, CalendarDays, Clock3, Target, TrendingUp } from 'lucide-react';
+import { Activity, Award, BarChart3, BookOpen, CalendarDays, CheckCircle2, Clock3, Target, TrendingUp, XCircle } from 'lucide-react';
 import { db } from '../../firebaseConfig';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import DayDetailsModal from '../../components/dashboard/DayDetailsModal.jsx';
 import HomeSessao1, { WeeklyBarChart } from './HomeSessao1.jsx';
 import HomeSessao2 from './HomeSessao2.jsx';
 import HojeCard from './HojeCard.jsx';
-import HomeInsightsCards from './HomeInsightsCards.jsx';
+import HomeCardTitle from './HomeCardTitle.jsx';
 import HomeEmptyState from './HomeEmptyState.jsx';
 import { useForceUnlock } from '../../hooks/useForceUnlock';
 import { getAgendaSemana } from '../../services/scheduling/review';
@@ -53,6 +53,165 @@ const formatShortDate = (dateKey) => {
   return day && month ? `${day}/${month}` : '--/--';
 };
 
+const normalizeDisciplineKey = (value) => (
+  String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+);
+
+const formatDisciplineDisplayName = (value) => {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  const letters = text.replace(/[^A-Za-zÀ-ÖØ-öø-ÿ]/g, '');
+  const hasLowercase = /[a-zà-öø-ÿ]/.test(text);
+  if (!letters || hasLowercase) return text;
+
+  const smallWords = new Set(['a', 'as', 'ao', 'aos', 'com', 'da', 'das', 'de', 'do', 'dos', 'e', 'em', 'na', 'nas', 'no', 'nos', 'para', 'por']);
+  return text.toLocaleLowerCase('pt-BR').replace(/[A-Za-zÀ-ÖØ-öø-ÿ]+/g, (word, offset) => {
+    if (word.length <= 4 && !smallWords.has(word)) return word.toLocaleUpperCase('pt-BR');
+    if (offset > 0 && smallWords.has(word)) return word;
+    return word.charAt(0).toLocaleUpperCase('pt-BR') + word.slice(1);
+  });
+};
+
+const getDisciplinaDisplayName = (disciplina) => (
+  formatDisciplineDisplayName(
+    disciplina?.nome
+    || disciplina?.disciplinaNome
+    || disciplina?.disciplina
+    || disciplina?.label
+    || disciplina?.titulo
+    || ''
+  )
+);
+
+const getPlanDisciplines = ({ effectiveHomeContext, activeCronogramaData, activeCicloData, activeCycleDisciplines }) => {
+  if (effectiveHomeContext === 'cronograma' && activeCronogramaData?.id) {
+    if (Array.isArray(activeCronogramaData.disciplinasSnapshot) && activeCronogramaData.disciplinasSnapshot.length > 0) {
+      return activeCronogramaData.disciplinasSnapshot;
+    }
+
+    const template = Array.isArray(activeCronogramaData.semanaTemplate) ? activeCronogramaData.semanaTemplate : [];
+    return Object.values(template.reduce((acc, slot) => {
+      const id = slot?.disciplinaId || slot?.id || slot?.disciplinaNome || slot?.disciplina;
+      const nome = slot?.disciplinaNome || slot?.disciplina || slot?.nome;
+      if (!id && !nome) return acc;
+      const key = String(id || nome);
+      if (!acc[key]) acc[key] = { id: key, nome: nome || 'Disciplina' };
+      return acc;
+    }, {}));
+  }
+
+  if (effectiveHomeContext === 'ciclo' && activeCicloData?.id) {
+    if (Array.isArray(activeCycleDisciplines) && activeCycleDisciplines.length > 0) return activeCycleDisciplines;
+    if (Array.isArray(activeCicloData.disciplinas) && activeCicloData.disciplinas.length > 0) return activeCicloData.disciplinas;
+  }
+
+  return [];
+};
+
+function DisciplinePerformanceCard({ items, totals, className = '' }) {
+  const hasItems = items.length > 0;
+
+  return (
+    <div className={`home-discipline-performance-card group relative flex flex-col overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white p-4 transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/50 hover:!border-l-red-500 hover:shadow-glow dark:border-white/10 dark:!border-l-red-500/25 dark:hover:border-accent-light/30 dark:hover:!border-l-red-500 dark:bg-zinc-950 ${className}`}>
+      <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-red-500/5 blur-[80px] opacity-70 transition-all duration-700 group-hover:opacity-100" />
+      <div className="pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-zinc-500/5 blur-[80px] opacity-60 transition-all duration-700" />
+
+      <div className="relative z-10 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <HomeCardTitle
+          icon={BookOpen}
+          eyebrow="Desempenho por Disciplinas"
+          className="text-sm lg:text-sm"
+        />
+
+        <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-5 lg:w-[410px] xl:w-[430px]">
+          {[
+            { label: 'Horas', value: formatHoursMinutes(totals.minutes), icon: Clock3, tone: 'text-red-500' },
+            { label: 'Questoes', value: totals.questions, icon: Target, tone: 'text-indigo-500' },
+            { label: 'Acertos', value: totals.correct, icon: CheckCircle2, tone: 'text-emerald-500' },
+            { label: 'Erros', value: totals.wrong, icon: XCircle, tone: 'text-rose-500' },
+            { label: 'Precisao', value: `${totals.accuracy}%`, icon: BarChart3, tone: 'text-amber-500' },
+          ].map(({ label, value, icon: Icon, tone }) => (
+            <div key={label} className="min-w-0 rounded-lg border border-zinc-100 bg-zinc-50/60 px-2 py-1.5 dark:border-white/5 dark:bg-white/5">
+              <p className="flex items-center gap-1 text-[7px] font-black uppercase tracking-wider text-zinc-400">
+                <Icon size={10} className={tone} />
+                {label}
+              </p>
+              <p className="mt-0.5 truncate text-xs font-black tabular-nums text-zinc-900 dark:text-white">{value}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="relative z-10 mt-4 min-h-0">
+        {hasItems ? (
+          <div className="home-discipline-performance-table-wrap overflow-x-auto rounded-xl border border-zinc-100 dark:border-white/5">
+            <div className="home-discipline-performance-table min-w-[560px]">
+              <div className="grid grid-cols-[minmax(180px,1fr)_70px_72px_62px_56px_72px] gap-2 border-b border-zinc-100 bg-zinc-50/80 px-3 py-2 text-[8px] font-black uppercase tracking-widest text-zinc-400 dark:border-white/5 dark:bg-white/5 md:grid-cols-[minmax(260px,1fr)_82px_76px_68px_62px_82px] md:gap-3">
+                <span>Disciplina</span>
+                <span className="text-right">Horas</span>
+                <span className="text-right">Questoes</span>
+                <span className="text-right">Acertos</span>
+                <span className="text-right">Erros</span>
+                <span className="text-right">Precisao</span>
+              </div>
+              <div className="max-h-[420px] overflow-y-auto divide-y divide-zinc-100 pr-1 dark:divide-white/5 [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-200 dark:[&::-webkit-scrollbar-thumb]:bg-zinc-700">
+                {items.map((item) => {
+                  const accuracyTone = item.questions === 0
+                    ? 'text-zinc-400'
+                    : item.accuracy >= 80
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : item.accuracy >= 60
+                        ? 'text-amber-600 dark:text-amber-400'
+                        : 'text-zinc-600 dark:text-zinc-300';
+
+                  return (
+                    <div key={item.key} className="group/discipline-row grid cursor-default grid-cols-[minmax(180px,1fr)_70px_72px_62px_56px_72px] items-center gap-2 px-3 py-2.5 transition-all hover:bg-red-50/70 active:bg-red-50 dark:hover:bg-red-500/10 dark:active:bg-red-500/15 md:grid-cols-[minmax(260px,1fr)_82px_76px_68px_62px_82px] md:gap-3 md:py-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="min-w-0 truncate text-[11px] font-bold normal-case leading-tight text-zinc-900 transition-colors group-hover/discipline-row:text-red-600 dark:text-white dark:group-hover/discipline-row:text-red-400 md:text-xs" title={item.name}>
+                          {item.name}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="text-right">
+                        <p className="text-xs font-black tabular-nums text-zinc-900 dark:text-white">{formatHoursMinutes(item.minutes)}</p>
+                      </div>
+                    <div className="text-right">
+                        <p className="text-xs font-black tabular-nums text-zinc-900 dark:text-white">{item.questions}</p>
+                      </div>
+                    <div className="text-right">
+                        <p className="text-xs font-black tabular-nums text-emerald-600 dark:text-emerald-400">{item.correct}</p>
+                      </div>
+                    <div className="text-right">
+                        <p className="text-xs font-black tabular-nums text-rose-600 dark:text-rose-400">{item.wrong}</p>
+                      </div>
+                    <div className="text-right">
+                        <p className={`text-xs font-black tabular-nums ${accuracyTone}`}>{item.questions > 0 ? `${item.accuracy}%` : '-'}</p>
+                      </div>
+                  </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <HomeEmptyState
+            icon={BookOpen}
+            title="Sem disciplinas mapeadas"
+            description="Quando houver disciplinas no planejamento ou registros de estudo, a lista aparece aqui."
+            className="min-h-[220px]"
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
 function WeeklySummaryCard({ data, className = '' }) {
   const activePct = Math.round((data.activeDays / 7) * 100);
   const maxDayMinutes = Math.max(1, ...data.days.map((day) => day.minutes));
@@ -68,19 +227,10 @@ function WeeklySummaryCard({ data, className = '' }) {
       <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-red-500/0 via-red-500/50 to-red-500/0" />
 
       <div className="relative z-10 flex items-start justify-between gap-3">
-        <div className="min-w-0 flex items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-500 text-white shadow-lg shadow-red-500/20">
-            <Activity size={19} strokeWidth={2.5} />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-red-600 dark:text-red-400">
-              Resumo da Semana
-            </p>
-            <h3 className="mt-1 truncate text-lg font-black leading-none text-zinc-900 dark:text-white">
-              {status}
-            </h3>
-          </div>
-        </div>
+        <HomeCardTitle
+          icon={Activity}
+          eyebrow="Resumo da Semana"
+        />
 
         <div
           className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-full"
@@ -236,20 +386,7 @@ function StudyHistoryTimelineCard({ data, className = '' }) {
       <div className="pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-zinc-500/5 blur-[80px] transition-all duration-700 group-hover:bg-zinc-500/10" />
 
       <div className="relative z-10 flex items-start justify-between gap-4">
-        <div className="flex items-start gap-3">
-          <div className="relative">
-            <div className="absolute inset-0 animate-ping rounded-full bg-red-500/20 opacity-40 duration-[3s]" />
-            <div className="relative flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-red-600 to-rose-700 text-white shadow-xl shadow-red-500/20">
-              <BarChart3 size={20} strokeWidth={1.7} />
-            </div>
-          </div>
-          <div>
-            <h3 className="text-lg font-black uppercase tracking-tight text-zinc-900 dark:text-white leading-tight">
-              Historico <span className="bg-gradient-to-r from-red-600 to-rose-700 bg-clip-text text-transparent">Semanal</span>
-            </h3>
-          </div>
-        </div>
-
+        <HomeCardTitle icon={BarChart3} eyebrow="Historico Semanal" />
       </div>
 
 
@@ -320,6 +457,7 @@ function HomePage({
   addRegistroEstudo,
   deleteCompletionRegistro,
   user,
+  activeCycleDisciplines = [],
   dailyGoalModalBlocked = false,
 }) {
   useForceUnlock();
@@ -517,6 +655,92 @@ function HomePage({
     }
   }, [contextRegistrosEstudo, globalRegistrosEstudo, goalsHistory, activeCronogramaData, activeCicloData, effectiveHomeContext]);
 
+  const disciplinePerformance = useMemo(() => {
+    const planDisciplines = getPlanDisciplines({
+      effectiveHomeContext,
+      activeCronogramaData,
+      activeCicloData,
+      activeCycleDisciplines,
+    });
+
+    const map = new Map();
+    const ensureItem = ({ key, name, id, planIndex = 9999 }) => {
+      const normalizedKey = normalizeDisciplineKey(key || id || name);
+      if (!normalizedKey) return null;
+
+      const current = map.get(normalizedKey);
+      if (current) {
+        current.name = current.name || name || 'Disciplina';
+        current.planIndex = Math.min(current.planIndex, planIndex);
+        if (!current.id && id) current.id = id;
+        return current;
+      }
+
+      const item = {
+        key: normalizedKey,
+        id: id || null,
+        name: name || 'Disciplina',
+        minutes: 0,
+        questions: 0,
+        correct: 0,
+        wrong: 0,
+        accuracy: 0,
+        planIndex,
+        hasActivity: false,
+      };
+      map.set(normalizedKey, item);
+      return item;
+    };
+
+    planDisciplines.forEach((disciplina, index) => {
+      const name = getDisciplinaDisplayName(disciplina);
+      const id = disciplina?.id || disciplina?.disciplinaId || name;
+      ensureItem({ key: id || name, name, id, planIndex: index });
+    });
+
+    (contextRegistrosEstudo || []).forEach((registro) => {
+      const name = formatDisciplineDisplayName(registro.disciplinaNome || registro.disciplinaDisplay || registro.disciplina || 'Geral');
+      const id = registro.disciplinaId || name;
+      const item = ensureItem({ key: id || name, name, id });
+      if (!item) return;
+
+      item.minutes += Number(registro.tempoEstudadoMinutos ?? registro.duracaoMinutos) || 0;
+      item.questions += Number(registro.questoesFeitas) || 0;
+      item.correct += Number(registro.acertos ?? registro.questoesAcertadas) || 0;
+    });
+
+    const items = Array.from(map.values()).map((item) => {
+      const questions = Math.max(0, item.questions);
+      const correct = Math.max(0, item.correct);
+      const wrong = Math.max(0, questions - correct);
+      return {
+        ...item,
+        questions,
+        correct,
+        wrong,
+        accuracy: questions > 0 ? Math.round((correct / questions) * 100) : 0,
+        hasActivity: item.minutes > 0 || questions > 0,
+      };
+    }).sort((a, b) => {
+      if (a.hasActivity !== b.hasActivity) return a.hasActivity ? -1 : 1;
+      if (b.minutes !== a.minutes) return b.minutes - a.minutes;
+      if (b.questions !== a.questions) return b.questions - a.questions;
+      if (a.planIndex !== b.planIndex) return a.planIndex - b.planIndex;
+      return a.name.localeCompare(b.name, 'pt-BR');
+    });
+
+    const totals = items.reduce((acc, item) => {
+      acc.minutes += item.minutes;
+      acc.questions += item.questions;
+      acc.correct += item.correct;
+      acc.wrong += item.wrong;
+      return acc;
+    }, { minutes: 0, questions: 0, correct: 0, wrong: 0, accuracy: 0 });
+    totals.accuracy = totals.questions > 0 ? Math.round((totals.correct / totals.questions) * 100) : 0;
+
+    return { items, totals };
+  }, [activeCronogramaData, activeCicloData, activeCycleDisciplines, contextRegistrosEstudo, effectiveHomeContext]);
+
   const studyHistory = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -556,7 +780,7 @@ function HomePage({
   }, [globalRegistrosEstudo]);
 
   return (
-    <div className="animate-slide-up pb-8 relative w-full max-w-7xl mx-auto">
+    <div className="mobile-page-zoom mobile-page-zoom--home animate-slide-up pb-8 relative w-full max-w-7xl mx-auto">
       {/* ① STAT CARDS — 4 cards compactos no topo */}
       {/* ② STREAK + GRÁFICO SEMANAL — logo abaixo dos stats */}
       {/* Ambos gerenciados por HomeSessao1 */}
@@ -617,22 +841,12 @@ function HomePage({
             dailyGoalModalBlocked={dailyGoalModalBlocked}
           />
 
-          <StudyHistoryTimelineCard
-            data={studyHistory}
-            className="order-8 md:col-span-2 xl:order-none xl:col-span-1 xl:col-start-1 xl:row-start-4 xl:h-full"
+          <DisciplinePerformanceCard
+            items={disciplinePerformance.items}
+            totals={disciplinePerformance.totals}
+            className="order-7 md:col-span-2 xl:order-none xl:col-start-1 xl:col-span-3 xl:row-start-4 xl:h-full"
           />
 
-          <HomeInsightsCards
-            className="order-6 grid grid-cols-1 gap-4 md:col-span-2 md:grid-cols-2 md:gap-5 xl:contents xl:order-none"
-            weakPointClassName="xl:col-start-2 xl:row-start-4 xl:h-full"
-            loadClassName="xl:col-start-3 xl:row-start-4 xl:h-full"
-            registrosEstudo={globalRegistrosEstudo}
-            onStartStudy={(disciplina, assunto) => onStartStudy?.(
-              disciplina,
-              assunto,
-              { defaultContext: effectiveHomeContext === 'ciclo' ? 'ciclo' : 'cronograma' },
-            )}
-          />
         </div>
       </div>
 

@@ -164,6 +164,7 @@ function PlanejamentoPage({
   addRegistroEstudo,
   onStartStudy,
   onGoToEdital,
+  onGoToRevisao,
   registrosEstudo,
   isTimerActive,
   onGoToCronograma,
@@ -238,6 +239,7 @@ function PlanejamentoPage({
         addRegistroEstudo={addRegistroEstudo}
         onStartStudy={onStartStudy}
         onGoToEdital={onGoToEdital}
+        onGoToRevisao={onGoToRevisao}
         onRegistroModalOpenChange={onRegistroModalOpenChange}
       />
     );

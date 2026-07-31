@@ -491,6 +491,7 @@ export function getAgendaSemana(
   const progressoW = progresso?.[semKey] || {};
   const progressoMinutosW = cronograma?.progressoMinutos?.[semKey] || {};
   const progressoRevisoesMinutos = cronograma?.progressoRevisoesMinutos || {};
+  const revisoesDesmarcadas = cronograma?.revisoesDesmarcadas || {};
 
   // ── Assuntos dominados ─────────────────────────────────────────────────────
   const dominados = dominadosOpcional instanceof Set
@@ -697,13 +698,21 @@ export function getAgendaSemana(
       dominados,
       isDiaDisponivelRevisao,
       revisoesReagendadas
-    ).map((r) => ({
-      ...r,
-      progressoMinutos: Number(progressoRevisoesMinutos?.[r.slotId] || 0),
-      concluido: progressoW[r.slotId] === true || Boolean(historicoRevisoesMap?.[r.slotId]?.dataConclusao),
-      dataSlot:  dataSlotStr,
-      weekOffset,
-    }));
+    ).map((r) => {
+      const progressoRevisao = Number(progressoRevisoesMinutos?.[r.slotId] || 0);
+      const tempoPlanejado = Number(r.tempoMinutos || r.minutosEstudo || tempoRevisaoMinutos || 0);
+      const historicoRevisao = historicoRevisoesMap?.[r.slotId] || null;
+      return {
+        ...r,
+        progressoMinutos: progressoRevisao,
+        bloqueiaDesmarcar: historicoRevisao?.origem === 'registro_manual' && tempoPlanejado > 0 && progressoRevisao >= tempoPlanejado,
+        concluido: revisoesDesmarcadas?.[r.slotId] === true
+          ? false
+          : progressoW[r.slotId] === true || Boolean(historicoRevisao?.dataConclusao),
+        dataSlot:  dataSlotStr,
+        weekOffset,
+      };
+    });
 
     if (slotsEstudoDia.length === 0 && revisoesDoDia.length === 0) {
       continue;
@@ -725,11 +734,17 @@ export function getAgendaSemana(
     ).map((s) => {
       const progressoRevisao = s.isRevisaoAuto ? Number(progressoRevisoesMinutos?.[s.slotId] || s.progressoMinutos || 0) : 0;
       const tempoPlanejado = Number(s.tempoMinutos || s.minutosEstudo || 0);
+      const revisaoFoiDesmarcada = s.isRevisaoAuto && revisoesDesmarcadas?.[s.slotId] === true;
+      const bloqueiaDesmarcar = s.isRevisaoAuto && (
+        s.bloqueiaDesmarcar
+        || (historicoRevisoesMap?.[s.slotId]?.origem === 'registro_manual' && tempoPlanejado > 0 && progressoRevisao >= tempoPlanejado)
+      );
       return {
         ...s,
         ...(s.isRevisaoAuto ? {
-          progressoMinutos: s.concluido ? Math.max(progressoRevisao, tempoPlanejado) : progressoRevisao,
-          concluido: s.concluido || (tempoPlanejado > 0 && progressoRevisao >= tempoPlanejado),
+          progressoMinutos: revisaoFoiDesmarcada ? progressoRevisao : (s.concluido ? Math.max(progressoRevisao, tempoPlanejado) : progressoRevisao),
+          concluido: revisaoFoiDesmarcada ? false : (s.concluido || (tempoPlanejado > 0 && progressoRevisao >= tempoPlanejado)),
+          bloqueiaDesmarcar,
         } : {}),
         dataSlot: s.dataSlot || dataSlotStr,
         weekOffset,
@@ -942,6 +957,7 @@ export function getRevisoesAtrasadas(cronograma, dataHoje = null) {
   } = cronograma;
   const revisoesReagendadas = cronograma?.revisoesReagendadas || {};
   const historicoRevisoesMap = cronograma?.historicoRevisoes || {};
+  const revisoesDesmarcadas = cronograma?.revisoesDesmarcadas || {};
 
   const dominados = new Set(Object.keys(progresso?.dominios || {}));
   const isDiaDisponivelRevisao = criarVerificadorDisponibilidade(semanaTemplate);
@@ -1000,7 +1016,9 @@ export function getRevisoesAtrasadas(cronograma, dataHoje = null) {
       if (dataEstudoOrig && dataEstudoOrig > diaAlvo) continue;
 
       const diasAtraso = Math.round((hoje.getTime() - diaAlvo.getTime()) / 86400000);
-      const concluido = concluidosGlobal.has(rev.slotId) || Boolean(historicoRevisoesMap?.[rev.slotId]?.dataConclusao);
+      const concluido = revisoesDesmarcadas?.[rev.slotId] === true
+        ? false
+        : concluidosGlobal.has(rev.slotId) || Boolean(historicoRevisoesMap?.[rev.slotId]?.dataConclusao);
 
       atrasadasRaw.push({
         ...rev,
