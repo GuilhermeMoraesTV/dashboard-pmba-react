@@ -167,6 +167,7 @@ export const useCiclos = (user) => {
         tempoSessaoMinutos,
         revisaoModo: normalizeRevisaoModoCiclo(cicloData.revisaoModo),
         modoExibirAssuntos: cicloData.modoExibirAssuntos !== false,
+        modoExibirTempo: cicloData.modoExibirTempo || 'detalhado',
         coresDisciplinasAtivas: cicloData.coresDisciplinasAtivas !== false,
         totalSessoesCiclo,
         ordemSessoes: gerarOrdemSessoes(disciplinasAtivas, 0, {
@@ -489,6 +490,7 @@ export const useCiclos = (user) => {
         diasEstudo,
         tempoSessaoMinutos,
         modoExibirAssuntos: config.modoExibirAssuntos !== false,
+        modoExibirTempo: config.modoExibirTempo || 'detalhado',
         coresDisciplinasAtivas: config.coresDisciplinasAtivas !== false,
         revisaoModo: normalizeRevisaoModoCiclo(config.revisaoModo),
         versaoCiclo: CICLO_GUIDE_VERSION,

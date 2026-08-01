@@ -2,6 +2,18 @@
 @tailwind components;
 @tailwind utilities;
 
+.ciclo-visual-size-box {
+  height: var(--ciclo-visual-size-mobile);
+  width: var(--ciclo-visual-size-mobile);
+}
+
+@media (min-width: 640px) {
+  .ciclo-visual-size-box {
+    height: var(--ciclo-visual-size-desktop);
+    width: var(--ciclo-visual-size-desktop);
+  }
+}
+
 @layer base {
   :root {
     color-scheme: light dark;

@@ -228,6 +228,7 @@ function CicloCreateWizard({
   const [mostrarModalModelo, setMostrarModalModelo] = useState(false);
   const [revisaoModo, setRevisaoModo] = useState(REVISAO_MODO_FLEXIVEL);
   const [modoExibirAssuntos, setModoExibirAssuntos] = useState(true);
+  const [modoExibirTempo, setModoExibirTempo] = useState('detalhado');
   const [coresDisciplinasAtivas, setCoresDisciplinasAtivas] = useState(true);
   const [disciplinaTodosDiasId, setDisciplinaTodosDiasId] = useState(null);
   const [mostrandoRascunho, setMostrandoRascunho] = useState(false);
@@ -268,6 +269,7 @@ function CicloCreateWizard({
     );
     setRevisaoModo(normalizeRevisaoModoCiclo(state.revisaoModo));
     setModoExibirAssuntos(state.modoExibirAssuntos !== false);
+    setModoExibirTempo(state.modoExibirTempo || 'detalhado');
     setCoresDisciplinasAtivas(state.coresDisciplinasAtivas !== false);
     setDisciplinaTodosDiasId(state.disciplinaTodosDiasId || null);
   };
@@ -287,6 +289,7 @@ function CicloCreateWizard({
       selecaoDisciplinas: serializarSelecaoDisciplinas(selecaoDisciplinas),
       revisaoModo: normalizeRevisaoModoCiclo(revisaoModo),
       modoExibirAssuntos: modoExibirAssuntos !== false,
+      modoExibirTempo: modoExibirTempo || 'detalhado',
       coresDisciplinasAtivas: coresDisciplinasAtivas !== false,
       disciplinaTodosDiasId,
     };
@@ -381,6 +384,7 @@ function CicloCreateWizard({
     selecaoDisciplinas,
     revisaoModo,
     modoExibirAssuntos,
+    modoExibirTempo,
     coresDisciplinasAtivas,
     disciplinaTodosDiasId,
     isEditMode,
@@ -555,6 +559,7 @@ function CicloCreateWizard({
       nome: nomeCiclo || dadosModeloSelecionado?.titulo || 'Preview do Ciclo',
       tempoSessaoMinutos,
       modoExibirAssuntos: modoExibirAssuntos !== false,
+      modoExibirTempo: modoExibirTempo || 'detalhado',
       coresDisciplinasAtivas: coresDisciplinasAtivas !== false,
       disciplinasSnapshot: disciplinasPreview.map((disciplina) => ({
         id: disciplina.id,
@@ -565,7 +570,7 @@ function CicloCreateWizard({
       ordemSessoes,
       sessoesConcluidas: [],
     };
-  }, [disciplinasPreview, tempoSessaoMinutos, modoExibirAssuntos, coresDisciplinasAtivas, nomeCiclo, dadosModeloSelecionado, gradeDisponibilidade]);
+  }, [disciplinasPreview, tempoSessaoMinutos, modoExibirAssuntos, modoExibirTempo, coresDisciplinasAtivas, nomeCiclo, dadosModeloSelecionado, gradeDisponibilidade]);
 
   const modoManualConfirmado = idModeloSelecionado === 'manual';
   const editalCatalogoConfirmado = Boolean(
@@ -658,6 +663,7 @@ function CicloCreateWizard({
       logoUrl: logoFinal,
       tempoSessaoMinutos,
       modoExibirAssuntos: modoExibirAssuntos !== false,
+      modoExibirTempo: modoExibirTempo || 'detalhado',
       coresDisciplinasAtivas: coresDisciplinasAtivas !== false,
       revisaoModo: normalizeRevisaoModoCiclo(revisaoModo),
       disciplinas: disciplinasComCalculo.map((d, position) => {
@@ -819,6 +825,8 @@ function CicloCreateWizard({
           setTempoSessaoMinutos={setTempoSessaoMinutos}
           modoExibirAssuntos={modoExibirAssuntos}
           setModoExibirAssuntos={setModoExibirAssuntos}
+          modoExibirTempo={modoExibirTempo}
+          setModoExibirTempo={setModoExibirTempo}
           coresDisciplinasAtivas={coresDisciplinasAtivas}
           setCoresDisciplinasAtivas={setCoresDisciplinasAtivas}
           disciplinasPreview={disciplinasPreview}
@@ -842,6 +850,7 @@ function CicloCreateWizard({
         horasTotais={horasTotais}
         tempoSessaoMinutos={tempoSessaoMinutos}
         modoExibirAssuntos={modoExibirAssuntos}
+        modoExibirTempo={modoExibirTempo}
         coresDisciplinasAtivas={coresDisciplinasAtivas}
         disciplinasPreview={disciplinasPreview}
         cicloPreview={cicloPreview}

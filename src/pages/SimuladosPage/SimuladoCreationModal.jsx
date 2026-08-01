@@ -535,21 +535,23 @@ const SimuladoCreationModal = ({ isOpen, onClose, onSave, disciplinasSugestivas,
                   </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2 sm:gap-4">
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-zinc-500 uppercase tracking-wide ml-1">Banca</label>
+              <div className="grid grid-cols-2 items-start gap-2 sm:gap-4">
+                  <div className="flex min-w-0 flex-col gap-2">
+                    <div className="flex h-4 items-center">
+                      <label className="ml-1 text-xs font-bold uppercase tracking-wide text-zinc-500">Banca</label>
+                    </div>
                     <input
                         value={banca}
                         onChange={e => setBanca(e.target.value)}
-                        className="w-full p-3 sm:p-4 rounded-2xl border-2 border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 focus:border-red-500 outline-none font-bold text-zinc-800 dark:text-white transition-all shadow-sm text-sm"
+                        className="h-12 w-full min-w-0 rounded-2xl border-2 border-zinc-100 bg-zinc-50 p-3 text-sm font-bold text-zinc-800 shadow-sm outline-none transition-all focus:border-red-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-white sm:h-[58px] sm:p-4"
                         placeholder="Ex: FCC"
                     />
                   </div>
 
                   {/* CAMPO DATA COM ERRO VISUAL */}
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                        <label className="text-xs font-bold text-zinc-500 uppercase tracking-wide ml-1">Data</label>
+                  <div className="flex min-w-0 flex-col gap-2">
+                    <div className="flex h-4 items-center justify-between gap-1">
+                        <label className="ml-1 text-xs font-bold uppercase tracking-wide text-zinc-500">Data</label>
                         {fieldErrors.data && (
                             <span className="text-[10px] font-bold text-red-500 flex items-center gap-1 animate-pulse">
                                 <AlertCircle size={12}/> Obrigatório
@@ -563,7 +565,7 @@ const SimuladoCreationModal = ({ isOpen, onClose, onSave, disciplinasSugestivas,
                             setData(e.target.value);
                             if(fieldErrors.data) setFieldErrors(prev => ({...prev, data: false}));
                         }}
-                        className={`w-full p-3 sm:p-4 rounded-2xl border-2 outline-none font-bold text-zinc-800 dark:text-white transition-all shadow-sm text-sm ${
+                        className={`h-12 w-full min-w-0 rounded-2xl border-2 p-3 text-[12px] font-bold text-zinc-800 shadow-sm outline-none transition-all dark:text-white sm:h-[58px] sm:p-4 sm:text-sm ${
                             fieldErrors.data
                             ? 'border-red-500 bg-red-50 dark:bg-red-900/10 focus:border-red-600'
                             : 'border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 focus:border-red-500'

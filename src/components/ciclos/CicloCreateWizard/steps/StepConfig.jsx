@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { BookOpen, Clock, Hash, Layers3, LayoutList, Palette, Settings2, Shuffle, Target } from 'lucide-react';
+import { BookOpen, Clock, EyeOff, Hash, Layers3, LayoutList, Palette, Settings2, Shuffle, Target, Timer } from 'lucide-react';
 import ColorisSwatch from '../../../shared/ColorisSwatch';
 
 const fmtMin = (min) => {
@@ -64,6 +64,48 @@ const OPCOES_ASSUNTOS = [
   },
 ];
 
+const OPCOES_TEMPO = [
+  {
+    id: 'detalhado',
+    label: 'Detalhado',
+    icon: Timer,
+    desc: 'Mostra o tempo de cada bloco no guia para acompanhar exatamente quanto estudar.',
+    activeBorder: 'border-blue-500/50',
+    activeBg: 'bg-blue-50/40 dark:bg-blue-950/10',
+    activeBar: 'bg-blue-500',
+    activeIcon: 'bg-blue-500',
+    activeText: 'text-blue-600 dark:text-blue-400',
+    activeDesc: 'text-blue-700/70 dark:text-blue-400/70',
+    activeBadge: 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400',
+  },
+  {
+    id: 'total',
+    label: 'So Total',
+    icon: Clock,
+    desc: 'Mostra apenas o total previsto no dia, deixando os cards do guia mais limpos.',
+    activeBorder: 'border-violet-500/50',
+    activeBg: 'bg-violet-50/40 dark:bg-violet-950/10',
+    activeBar: 'bg-violet-500',
+    activeIcon: 'bg-violet-500',
+    activeText: 'text-violet-600 dark:text-violet-400',
+    activeDesc: 'text-violet-700/70 dark:text-violet-400/70',
+    activeBadge: 'bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400',
+  },
+  {
+    id: 'nenhum',
+    label: 'Ocultar',
+    icon: EyeOff,
+    desc: 'Esconde horarios e duracoes para focar somente no conteudo do ciclo.',
+    activeBorder: 'border-zinc-400/50',
+    activeBg: 'bg-zinc-50/50 dark:bg-zinc-800/50',
+    activeBar: 'bg-zinc-400',
+    activeIcon: 'bg-zinc-400',
+    activeText: 'text-zinc-600 dark:text-zinc-300',
+    activeDesc: 'text-zinc-500/70',
+    activeBadge: 'bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300',
+  },
+];
+
 const ModeSelector = ({ options, value, onChange }) => (
   <div className="grid grid-cols-2 gap-2 sm:gap-3">
     {options.map((opt) => {
@@ -98,7 +140,7 @@ const ModeSelector = ({ options, value, onChange }) => (
             </div>
           </div>
 
-          <p className={`hidden text-[10px] font-medium leading-relaxed sm:block ${active ? opt.activeDesc : 'text-zinc-400 dark:text-zinc-500'}`}>
+          <p className={`text-[9px] font-medium leading-snug sm:text-[10px] sm:leading-relaxed ${active ? opt.activeDesc : 'text-zinc-400 dark:text-zinc-500'}`}>
             {opt.desc}
           </p>
         </button>
@@ -143,6 +185,8 @@ export default function StepConfig({
   setTempoSessaoMinutos,
   modoExibirAssuntos = true,
   setModoExibirAssuntos,
+  modoExibirTempo = 'detalhado',
+  setModoExibirTempo,
   coresDisciplinasAtivas = true,
   setCoresDisciplinasAtivas,
   disciplinasPreview = [],
@@ -157,6 +201,7 @@ export default function StepConfig({
   distribuicaoCabeNaRotina = true,
 }) {
   const modoAssuntos = modoExibirAssuntos === false ? 'livre' : 'guiado';
+  const modoTempo = modoExibirTempo || 'detalhado';
   const [colorDrafts, setColorDrafts] = useState({});
   const exemploDiaMinutos = minimumActiveDayMinutes || 120;
   const sessoesNoExemplo = Math.floor(exemploDiaMinutos / Math.max(1, tempoSessaoMinutos));
@@ -248,6 +293,27 @@ export default function StepConfig({
                   options={OPCOES_ASSUNTOS}
                   value={modoAssuntos}
                   onChange={(id) => setModoExibirAssuntos?.(id !== 'livre')}
+                />
+              </div>
+
+              <div className="rounded-3xl border border-zinc-100 bg-white p-5 shadow-sm dark:border-zinc-800/60 dark:bg-zinc-900">
+                <div className="mb-5 flex items-center gap-4">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-zinc-50 text-zinc-400 dark:bg-zinc-800">
+                    <Clock size={20} />
+                  </div>
+                  <div className="min-w-0">
+                    <h4 className="text-xs font-black uppercase tracking-widest text-zinc-900 dark:text-white">
+                      Gestao do Tempo
+                    </h4>
+                    <p className="mt-0.5 text-[11px] font-medium text-zinc-500 dark:text-zinc-400">
+                      Escolha quanto detalhe de tempo aparece nos blocos do guia de estudo.
+                    </p>
+                  </div>
+                </div>
+                <ModeSelector
+                  options={OPCOES_TEMPO}
+                  value={modoTempo}
+                  onChange={(id) => setModoExibirTempo?.(id)}
                 />
               </div>
 
@@ -386,7 +452,7 @@ export default function StepConfig({
                 </div>
               )}
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="hidden sm:grid sm:grid-cols-2 gap-3">
                 <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 px-4 py-4">
                   <div className="flex items-center gap-2 mb-2 text-zinc-400">
                     <Layers3 size={15} />

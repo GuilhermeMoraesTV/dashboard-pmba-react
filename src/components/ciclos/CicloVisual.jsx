@@ -43,13 +43,28 @@ const CYCLE_CENTER_MANUAL_LAYOUT = {
 };
 
 // TAMANHO DO CICLO VISUAL.
-// Aumente desktopMax para deixar o radar maior em telas grandes.
-// Diminua desktopViewportOffset se quiser usar mais altura da tela no desktop.
-const CYCLE_VISUAL_SIZE = {
-  desktopMax: 560,
-  desktopViewportOffset: 285,
-  parentOffset: 20,
-  viewportWidth: 78,
+// Ajuste aqui o radar padrão e o radar usado no preview do wizard.
+// mobileMax/desktopMax controlam o limite absoluto; viewportOffset controla
+// quanto da altura da tela fica reservado para textos/botoes ao redor.
+const CYCLE_VISUAL_SIZE_PRESETS = {
+  default: {
+    mobileMax: 430,
+    mobileViewportOffset: 255,
+    mobileViewportWidth: 88,
+    desktopMax: 560,
+    desktopViewportOffset: 285,
+    desktopViewportWidth: 78,
+    parentOffset: 20,
+  },
+  preview: {
+    mobileMax: 500,
+    mobileViewportOffset: 185,
+    mobileViewportWidth: 94,
+    desktopMax: 700,
+    desktopViewportOffset: 205,
+    desktopViewportWidth: 84,
+    parentOffset: 12,
+  },
 };
 
 const centerClampStyle = ({ maxLines, fontSize, lineHeight, topPadding = 0, bottomPadding = 0 } = {}) => {
@@ -420,6 +435,7 @@ function CicloVisual({
   cicloActionLoading,
   showAssuntos,
   hideActionButtons = false,
+  sizePreset = 'default',
   isResetAnimating = false,
 }) {
   const [hoveredId, setHoveredId] = useState(null);
@@ -434,6 +450,7 @@ function CicloVisual({
   const shouldShowAssuntos = typeof showAssuntos === 'boolean'
     ? showAssuntos
     : ciclo?.modoExibirAssuntos !== false;
+  const cycleVisualSize = CYCLE_VISUAL_SIZE_PRESETS[sizePreset] || CYCLE_VISUAL_SIZE_PRESETS.default;
   const shouldUseDisciplineColors = ciclo?.coresDisciplinasAtivas !== false;
   const coresDisciplinas = useMemo(() => {
     const mapa = {};
@@ -706,7 +723,7 @@ function CicloVisual({
       <div className="flex h-full w-full animate-fade-in flex-col items-stretch justify-center px-1">
 
         {/* --- ÁREA DO GRÁFICO --- */}
-        <div id="ciclo-radar-chart" className="relative flex h-full min-h-0 w-full flex-1 flex-col items-center justify-center overflow-visible group">
+        <div id="ciclo-radar-chart" className="relative flex h-full min-h-0 w-full flex-1 flex-col items-center overflow-visible group">
           <AnimatePresence>
             {isResetAnimating && <CycleResetAnimation conclusoes={ciclo?.conclusoes || 0} />}
           </AnimatePresence>
@@ -743,19 +760,22 @@ function CicloVisual({
                   ← Voltar às disciplinas
                 </button>
               )}
-              <p className="mt-1 text-center text-[9px] font-semibold text-zinc-500 dark:text-zinc-400 sm:text-[10px]">
-                Clique em uma disciplina ou bloco de estudo para abrir as acoes.
-              </p>
+              {!hideActionButtons && (
+                <p className="mt-1 text-center text-[9px] font-semibold text-zinc-500 dark:text-zinc-400 sm:text-[10px]">
+                  Clique em uma disciplina ou bloco de estudo para abrir as acoes.
+                </p>
+              )}
             </div>
           )}
 
-          <div
-            className="aspect-square max-h-full max-w-full shrink-0"
-            style={{
-              height: `min(calc(100% - ${CYCLE_VISUAL_SIZE.parentOffset}px), calc(100vh - ${CYCLE_VISUAL_SIZE.desktopViewportOffset}px), ${CYCLE_VISUAL_SIZE.viewportWidth}vw, ${CYCLE_VISUAL_SIZE.desktopMax}px)`,
-              width: `min(calc(100% - ${CYCLE_VISUAL_SIZE.parentOffset}px), calc(100vh - ${CYCLE_VISUAL_SIZE.desktopViewportOffset}px), ${CYCLE_VISUAL_SIZE.viewportWidth}vw, ${CYCLE_VISUAL_SIZE.desktopMax}px)`,
-            }}
-          >
+          <div className="flex min-h-0 w-full flex-1 items-center justify-center">
+            <div
+              className="ciclo-visual-size-box aspect-square max-h-full max-w-full shrink-0"
+              style={{
+                '--ciclo-visual-size-mobile': `min(calc(100% - ${cycleVisualSize.parentOffset}px), calc(100vh - ${cycleVisualSize.mobileViewportOffset}px), ${cycleVisualSize.mobileViewportWidth}vw, ${cycleVisualSize.mobileMax}px)`,
+                '--ciclo-visual-size-desktop': `min(calc(100% - ${cycleVisualSize.parentOffset}px), calc(100vh - ${cycleVisualSize.desktopViewportOffset}px), ${cycleVisualSize.desktopViewportWidth}vw, ${cycleVisualSize.desktopMax}px)`,
+              }}
+            >
             <svg viewBox="0 0 100 100" className="w-full h-full overflow-visible drop-shadow-lg">
               {dataViewAtual.map((seg) => {
                 const { key, ...props } = seg;
@@ -1373,6 +1393,7 @@ function CicloVisual({
           </AnimatePresence>
         </div>
       </div>
+    </div>
     </div>
   );
 }
