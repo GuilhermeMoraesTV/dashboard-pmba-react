@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { db } from '../../../firebaseConfig';
 import { doc, setDoc, onSnapshot } from 'firebase/firestore';
+import ColorisSwatch from '../../shared/ColorisSwatch';
 
 const PRESET_COLORS = [
   '#10B981', '#3B82F6', '#8B5CF6', '#EC4899', '#F59E0B', '#EF4444', '#06b6d4', '#ffffff',
@@ -374,21 +375,18 @@ const TimerSettingsModal = ({ isOpen, onClose, onSave, userUid = null }) => {
 
                   <div className="relative pt-2">
                     <div className="flex items-center gap-3 p-4 bg-zinc-100 dark:bg-zinc-950 rounded-2xl border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors group">
-                      <div className="w-10 h-10 rounded-xl shadow-lg flex items-center justify-center shrink-0 border border-black/10 dark:border-white/10" style={{ backgroundColor: localSettings.color }}>
-                        <Palette size={18} className={localSettings.color === '#ffffff' ? 'text-black' : 'text-white'} />
-                      </div>
+                      <ColorisSwatch
+                        value={localSettings.color}
+                        onChange={(color) => setLocalSettings(p => ({ ...p, color }))}
+                        label="Escolher cor personalizada do timer"
+                        sizeClass="h-10 w-10"
+                      />
                       <div className="flex-1">
                         <p className="text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase">Cor Personalizada</p>
                         <p className="text-sm font-mono text-zinc-900 dark:text-white mt-0.5">{localSettings.color}</p>
                       </div>
-                      <input
-                        type="color"
-                        value={localSettings.color}
-                        onChange={(e) => setLocalSettings(p => ({ ...p, color: e.target.value }))}
-                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                      />
                     </div>
-                    <p className="text-[10px] text-zinc-500 mt-2 px-1">Clique acima para escolher qualquer cor do espectro.</p>
+                    <p className="text-[10px] text-zinc-500 mt-2 px-1">Clique no quadrado para abrir o seletor Coloris.</p>
                   </div>
                 </motion.div>
               )}

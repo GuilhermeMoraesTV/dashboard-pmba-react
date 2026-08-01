@@ -81,7 +81,7 @@ export default function StepPreview({
 
       <div className="w-full px-2 sm:px-4 lg:px-8 overflow-y-auto custom-scrollbar pb-10">
         <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-4 md:gap-5 items-start">
-          <div className="order-2 xl:order-1 h-[520px] sm:h-auto rounded-[24px] border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/70 shadow-sm p-1.5 sm:p-3 lg:p-4 sm:min-h-[740px] xl:min-h-[780px]">
+          <div className="order-1 h-[560px] sm:h-auto rounded-[24px] border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/70 shadow-sm p-1.5 sm:p-3 lg:p-4 sm:min-h-[740px] xl:min-h-[780px]">
             <CicloVisual
               selectedDisciplinaId={selectedDisciplinaId}
               onSelectDisciplina={setSelectedDisciplinaId}
@@ -101,7 +101,7 @@ export default function StepPreview({
             />
           </div>
 
-          <div className="order-1 grid grid-cols-[minmax(0,0.78fr)_minmax(0,1.22fr)] items-start gap-2 sm:grid-cols-2 sm:gap-4 xl:order-2 xl:block xl:space-y-4">
+          <div className="order-2 grid grid-cols-[minmax(0,0.78fr)_minmax(0,1.22fr)] items-start gap-2 sm:grid-cols-2 sm:gap-4 xl:block xl:space-y-4">
             <EditalSidebarCard editalSelecionado={editalSelecionado} nomeCiclo={nomeCiclo} />
 
             <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:rounded-3xl xl:max-h-[560px]">

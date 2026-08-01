@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { BookOpen, Check, Clock, Edit2, Layers3, LayoutList, Palette, Settings2, Shuffle, Target } from 'lucide-react';
+import { BookOpen, Clock, Hash, Layers3, LayoutList, Palette, Settings2, Shuffle, Target } from 'lucide-react';
+import ColorisSwatch from '../../../shared/ColorisSwatch';
 
 const fmtMin = (min) => {
   if (!min || min <= 0) return '0m';
@@ -63,8 +64,6 @@ const OPCOES_ASSUNTOS = [
   },
 ];
 
-const CORES_RAPIDAS = ['#dc2626', '#ea580c', '#ca8a04', '#16a34a', '#0891b2', '#2563eb', '#7c3aed', '#be185d', '#52525b'];
-
 const ModeSelector = ({ options, value, onChange }) => (
   <div className="grid grid-cols-2 gap-2 sm:gap-3">
     {options.map((opt) => {
@@ -106,6 +105,35 @@ const ModeSelector = ({ options, value, onChange }) => (
       );
     })}
   </div>
+);
+
+const EditalMiniCard = ({ editalSelecionado }) => (
+  <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-3 shadow-sm flex flex-col items-center text-center justify-center relative overflow-hidden h-full min-h-[120px]">
+    <div className="absolute top-0 inset-x-0 h-1 bg-red-500 rounded-t-2xl" />
+    <div className="w-16 h-16 shrink-0 rounded-xl bg-zinc-50 dark:bg-zinc-800 border border-zinc-100 dark:border-zinc-700 flex items-center justify-center p-1 mb-2 z-10">
+      {editalSelecionado?.logo || editalSelecionado?.logoUrl ? (
+        <img src={editalSelecionado.logo || editalSelecionado.logoUrl} alt="Logo" className="w-full h-full object-contain" />
+      ) : <Target size={20} className="text-red-500" />}
+    </div>
+    <h3 className="text-[11px] font-black text-zinc-900 dark:text-white uppercase line-clamp-2 leading-tight">
+      {editalSelecionado?.titulo || editalSelecionado?.nome || 'Ciclo Manual'}
+    </h3>
+  </div>
+);
+
+const PageHeader = () => (
+  <motion.div
+    initial={{ opacity: 0, y: -12 }}
+    animate={{ opacity: 1, y: 0 }}
+    className="text-center mb-3 max-w-2xl mx-auto px-2 shrink-0 sm:mb-8 sm:px-4"
+  >
+    <h2 className="text-4xl sm:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-[0.95] mb-2 sm:mb-3">
+      Ajuste fino do seu<br /><span className="text-red-600">Plano</span>
+    </h2>
+    <p className="block text-zinc-500 dark:text-zinc-400 text-base sm:text-sm font-semibold leading-relaxed max-w-md mx-auto">
+      Defina o nome e como o ciclo vai se comportar no seu dia a dia.
+    </p>
+  </motion.div>
 );
 
 export default function StepConfig({
@@ -159,46 +187,48 @@ export default function StepConfig({
     onDisciplinaCorChange?.(disciplina.id, color);
   };
 
-  const handleApplyColor = (disciplina) => {
-    const id = disciplina.id || disciplina.nome;
-    const color = colorDrafts[id] || disciplina.cor || '#71717a';
-    onDisciplinaCorChange?.(disciplina.id, color);
-  };
-
   return (
     <div className="flex flex-col h-full overflow-hidden w-full">
-      <motion.div
-        initial={{ opacity: 0, y: -12 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="mb-3 max-w-2xl mx-auto px-2 text-center shrink-0 sm:mb-8 sm:px-4"
-      >
-        <h2 className="mb-1 text-xl font-black uppercase leading-none tracking-tight text-zinc-900 dark:text-white sm:mb-3 sm:text-4xl">
-          Ajuste fino do seu<br /><span className="text-red-600">Plano</span>
-        </h2>
-        <p className="mx-auto hidden max-w-md text-sm font-medium leading-relaxed text-zinc-500 dark:text-zinc-400 sm:block">
-          Defina o nome e como o ciclo vai se comportar no seu dia a dia.
-        </p>
-      </motion.div>
-      <div className="px-1 sm:px-4">
-        <div className="flex flex-col lg:flex-row gap-4 md:gap-6 w-full">
-          <div className="flex-1 min-w-0">
-            <div className="max-w-4xl mx-auto p-3 sm:p-7 rounded-2xl sm:rounded-3xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/40 shadow-sm space-y-3 sm:space-y-6">
-              <div>
-                <label className="text-xs font-black uppercase tracking-wider text-zinc-500">Nome do Ciclo</label>
-                <div className="relative mt-2">
+      <PageHeader />
+
+      <div className="flex flex-col lg:flex-row gap-3 lg:gap-8 flex-1 min-h-0 overflow-y-auto overflow-x-hidden custom-scrollbar pb-10 px-2 sm:px-0">
+          <div className="flex-1 min-w-0 flex flex-col gap-3 sm:gap-6">
+            <div className={editalSelecionado ? 'grid grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] gap-3 lg:block' : ''}>
+              {editalSelecionado && (
+                <div className="lg:hidden">
+                  <EditalMiniCard editalSelecionado={editalSelecionado} />
+                </div>
+              )}
+
+              <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.05 }}
+                className="group bg-white dark:bg-zinc-900 rounded-2xl sm:rounded-3xl border border-zinc-100 dark:border-zinc-800/50 p-4 sm:p-6 shadow-sm hover:shadow-md transition-all duration-300"
+              >
+                <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+                  <div className="w-8 h-8 rounded-xl bg-zinc-50 dark:bg-zinc-800 flex items-center justify-center text-zinc-400 group-focus-within:text-red-500 transition-colors">
+                    <Hash size={16} />
+                  </div>
+                  <label className="text-[9px] sm:text-[11px] font-black uppercase tracking-[0.12em] sm:tracking-[0.15em] text-zinc-400 group-focus-within:text-zinc-600 dark:group-focus-within:text-zinc-300 transition-colors">
+                    Nome do Ciclo
+                  </label>
+                </div>
+                <div className="relative">
                   <input
                     type="text"
                     value={nomeCiclo}
                     onChange={(e) => setNomeCiclo(e.target.value)}
-                    className="w-full p-3 text-sm text-left font-bold border-2 border-zinc-200 dark:border-zinc-800 rounded-2xl bg-zinc-50 dark:bg-zinc-900 focus:border-red-500 focus:ring-4 focus:ring-red-500/10 outline-none transition-all placeholder:text-zinc-300 sm:p-4 sm:text-lg"
+                    className="w-full px-3 py-3 sm:px-5 sm:py-4 text-sm sm:text-lg font-black bg-zinc-50 dark:bg-zinc-950 border-2 border-transparent focus:bg-white dark:focus:bg-zinc-900 focus:border-red-500/20 focus:ring-4 focus:ring-red-500/5 rounded-xl sm:rounded-2xl outline-none transition-all text-zinc-900 dark:text-white placeholder:text-zinc-300 dark:placeholder:text-zinc-700"
                     placeholder="Ex: CFO PMBA 2025"
                   />
-                  <Edit2
-                    size={16}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 opacity-70 pointer-events-none"
-                  />
                 </div>
-              </div>
+                <div className="mt-3 hidden sm:flex items-center gap-2 text-[10px] text-zinc-400 font-medium">
+                  <span className="w-1 h-1 rounded-full bg-zinc-300 dark:bg-zinc-700" />
+                  <span>Use um nome que identifique claramente seu objetivo</span>
+                </div>
+              </motion.div>
+            </div>
 
               <div className="rounded-3xl border border-zinc-100 bg-white p-5 shadow-sm dark:border-zinc-800/60 dark:bg-zinc-900">
                 <div className="mb-5 flex items-center gap-4">
@@ -248,71 +278,26 @@ export default function StepConfig({
                 </div>
 
                 {coresDisciplinasAtivas ? (
-                  <div className="grid max-h-[22rem] grid-cols-1 gap-2 overflow-y-auto pr-1 custom-scrollbar sm:max-h-56 sm:grid-cols-2">
+                  <div className="grid max-h-[22rem] grid-cols-1 gap-2 overflow-y-auto pr-1 custom-scrollbar md:max-h-56 md:grid-cols-2">
                     {disciplinasPreview.map((disciplina) => {
                       const draftId = disciplina.id || disciplina.nome;
                       const draftColor = colorDrafts[draftId] || disciplina.cor || '#71717a';
-                      const isApplied = (disciplina.cor || '#71717a').toLowerCase() === draftColor.toLowerCase();
 
                       return (
                         <div
                           key={draftId}
                           className="min-w-0 rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-800 dark:bg-zinc-950"
                         >
-                          <div className="flex min-w-0 items-center gap-2">
-                            <label className="relative h-10 w-10 shrink-0 cursor-pointer overflow-hidden rounded-xl border border-zinc-200 shadow-inner dark:border-zinc-700" style={{ backgroundColor: /^#[0-9a-fA-F]{6}$/.test(draftColor) ? draftColor : '#71717a' }}>
-                              <input
-                                type="color"
-                                value={/^#[0-9a-fA-F]{6}$/.test(draftColor) ? draftColor : '#71717a'}
-                                onChange={(event) => handleDraftColorChange(disciplina, event.target.value)}
-                                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-                                aria-label={`Cor de ${disciplina.nome}`}
-                              />
-                            </label>
+                          <div className="flex min-w-0 items-center gap-3">
                             <span className="min-w-0 flex-1 text-[11px] font-black uppercase leading-tight text-zinc-700 line-clamp-2 dark:text-zinc-200">
                               {disciplina.nome}
                             </span>
-                            <button
-                              type="button"
-                              onClick={() => handleApplyColor(disciplina)}
-                              className={`inline-flex h-8 shrink-0 items-center justify-center gap-1 rounded-xl px-2 text-[9px] font-black uppercase tracking-wider transition-all ${
-                                isApplied
-                                  ? 'bg-emerald-50 text-emerald-600 ring-1 ring-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-300 dark:ring-emerald-900/40'
-                                  : 'bg-red-600 text-white shadow-md shadow-red-600/20 hover:bg-red-700'
-                              }`}
-                            >
-                              <Check size={12} />
-                              {isApplied ? 'OK' : 'Aplicar'}
-                            </button>
-                          </div>
-                          <div className="mt-2 grid grid-cols-[auto_1fr] items-center gap-2 sm:hidden">
-                            <input
-                              type="color"
-                              value={/^#[0-9a-fA-F]{6}$/.test(draftColor) ? draftColor : '#71717a'}
-                              onChange={(event) => handleDraftColorChange(disciplina, event.target.value)}
-                              className="h-9 w-12 cursor-pointer rounded-xl border border-zinc-200 bg-white p-1 dark:border-zinc-700 dark:bg-zinc-900"
-                              aria-label={`Escolher qualquer cor para ${disciplina.nome}`}
-                            />
-                            <input
-                              type="text"
+                            <ColorisSwatch
                               value={draftColor}
-                              onChange={(event) => handleDraftColorChange(disciplina, event.target.value)}
-                              onBlur={() => /^#[0-9a-fA-F]{6}$/.test(draftColor) && handleApplyColor(disciplina)}
-                              placeholder="#DC2626"
-                              className="h-9 w-full rounded-xl border border-zinc-200 bg-white px-3 text-[11px] font-black uppercase tracking-wider text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+                              onChange={(color) => handleDraftColorChange(disciplina, color)}
+                              label={`Escolher cor de ${disciplina.nome}`}
+                              sizeClass="h-9 w-9 sm:h-10 sm:w-10"
                             />
-                            <div className="col-span-2 flex flex-wrap gap-1.5">
-                              {CORES_RAPIDAS.map((cor) => (
-                                <button
-                                  key={cor}
-                                  type="button"
-                                  onClick={() => handleDraftColorChange(disciplina, cor)}
-                                  className={`h-6 w-6 rounded-lg border-2 transition-transform active:scale-95 ${draftColor.toLowerCase() === cor.toLowerCase() ? 'border-zinc-900 dark:border-white' : 'border-white dark:border-zinc-800'}`}
-                                  style={{ backgroundColor: cor }}
-                                  aria-label={`Usar cor ${cor}`}
-                                />
-                              ))}
-                            </div>
                           </div>
                         </div>
                       );
@@ -425,7 +410,6 @@ export default function StepConfig({
                 Essas configuracoes podem ser ajustadas depois, sem perder o progresso do ciclo.
               </div>
             </div>
-          </div>
 
           <div className="lg:w-[300px] shrink-0">
             <div className="sticky top-6 hidden lg:block">
@@ -433,7 +417,6 @@ export default function StepConfig({
             </div>
           </div>
         </div>
-      </div>
     </div>
   );
 }

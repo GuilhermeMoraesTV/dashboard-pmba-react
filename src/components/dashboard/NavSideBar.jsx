@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom';
 import {
   Home, Target, Calendar, LogOut, RefreshCw, Menu, ShieldAlert,
-  LayoutList, BarChart3, ClipboardList, Sun, Moon, User, Radio, X, ChevronRight,
+  LayoutList, BarChart3, ClipboardList, Sun, Moon, Radio, X, ChevronRight,
   CalendarClock, Layers, ChevronDown, Newspaper, RotateCw, CalendarDays, BookOpen,
   Clock, AlertTriangle, ArrowRight, Bell, Flame, Settings, HelpCircle,
 } from 'lucide-react';
@@ -14,7 +14,6 @@ import { NotificationBell } from '../shared/NotificationPanel';
 import { calcularStatusEstudoHoje, contarRevisoesPendentes, contarRevisoesPendentesHoje } from '../../hooks/useCronogramaSystem';
 import { buildStudyDaysMap, calculateCurrentStudyStreak } from '../../utils/studyDayStatus';
 import { getAgendaSemana } from '../../services/scheduling/review';
-import TimerSettingsModal, { useTimerSettings } from '../ciclos/StudyTimer/TimerSettingsModal';
 
 const NAV_ICON_SIZE  = 20;
 const NAV_LABEL_SIZE = 'text-xs';
@@ -411,7 +410,6 @@ function NavSideBar({
 }) {
   const [hasUnreadSupport, setHasUnreadSupport]     = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen]   = useState(false);
-  const [isTimerSettingsOpen, setIsTimerSettingsOpen] = useState(false);
   const [isPlanejamentoOpen, setIsPlanejamentoOpen] = useState(false);
   const [homeContextPreferred, setHomeContextPreferred] = useState(() => {
     try { return localStorage.getItem('homeContextPreferred') || 'cronograma'; } catch { return 'cronograma'; }
@@ -424,7 +422,6 @@ function NavSideBar({
   const reminderDismissedRef = useRef(false);
   const reminderShownKeyRef = useRef(null);
   const bellContainerRef = useRef(null);
-  const { updateSettings } = useTimerSettings(user?.uid);
 
   useEffect(() => {
     if (!ENABLE_FLOATING_STUDY_REMINDER) return;
@@ -911,19 +908,6 @@ function NavSideBar({
                   >
                     <div className="flex items-center gap-4">
                       <div className="rounded-lg bg-red-50 p-1.5 text-red-600 transition-all group-hover:bg-red-600 group-hover:text-white dark:bg-red-950/30 dark:text-red-300">
-                        <User size={16}/>
-                      </div>
-                      <span>Meu Perfil</span>
-                    </div>
-                    <ChevronRight size={16} className="text-zinc-300 group-hover:text-zinc-500"/>
-                  </button>
-
-                  <button
-                    onClick={() => { setIsTimerSettingsOpen(true); setIsProfileMenuOpen(false); }}
-                    className="group flex w-full items-center justify-between rounded-xl border border-transparent px-3 py-2 text-xs font-bold text-zinc-700 transition-all hover:border-red-100 hover:bg-red-50/70 hover:text-zinc-950 dark:text-zinc-300 dark:hover:border-red-950/60 dark:hover:bg-red-950/20 dark:hover:text-white"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="rounded-lg bg-red-50 p-1.5 text-red-600 transition-all group-hover:bg-red-600 group-hover:text-white dark:bg-red-950/30 dark:text-red-300">
                         <Settings size={16}/>
                       </div>
                       <span>Configurações</span>
@@ -1203,15 +1187,6 @@ function NavSideBar({
           </button>
         </div>
       </nav>
-      <AnimatePresence>
-        {isTimerSettingsOpen && (
-          <TimerSettingsModal
-            isOpen={isTimerSettingsOpen}
-            onClose={() => setIsTimerSettingsOpen(false)}
-            onSave={updateSettings}
-          />
-        )}
-      </AnimatePresence>
     </>
   );
 }

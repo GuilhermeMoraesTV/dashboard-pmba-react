@@ -44,6 +44,19 @@
   }
 }
 
+.clr-picker {
+  z-index: 100080 !important;
+  border-radius: 18px !important;
+  border-color: rgba(228, 228, 231, 0.95) !important;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.28) !important;
+  overflow: hidden;
+}
+
+.clr-picker.clr-dark {
+  border-color: rgba(63, 63, 70, 0.95) !important;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.5) !important;
+}
+
 @layer components {
   /* Estilo Padrão dos Cards */
   .dashboard-card {

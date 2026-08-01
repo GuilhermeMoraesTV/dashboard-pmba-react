@@ -49,7 +49,7 @@ const CYCLE_VISUAL_SIZE = {
   desktopMax: 560,
   desktopViewportOffset: 285,
   parentOffset: 20,
-  viewportWidth: 64,
+  viewportWidth: 78,
 };
 
 const centerClampStyle = ({ maxLines, fontSize, lineHeight, topPadding = 0, bottomPadding = 0 } = {}) => {
@@ -706,7 +706,7 @@ function CicloVisual({
       <div className="flex h-full w-full animate-fade-in flex-col items-stretch justify-center px-1">
 
         {/* --- ÁREA DO GRÁFICO --- */}
-        <div id="ciclo-radar-chart" className="relative flex h-full min-h-0 w-full flex-1 flex-col items-center justify-start overflow-visible group">
+        <div id="ciclo-radar-chart" className="relative flex h-full min-h-0 w-full flex-1 flex-col items-center justify-center overflow-visible group">
           <AnimatePresence>
             {isResetAnimating && <CycleResetAnimation conclusoes={ciclo?.conclusoes || 0} />}
           </AnimatePresence>

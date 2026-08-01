@@ -535,13 +535,13 @@ const SimuladoCreationModal = ({ isOpen, onClose, onSave, disciplinasSugestivas,
                   </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-2 sm:gap-4">
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-zinc-500 uppercase tracking-wide ml-1">Banca</label>
                     <input
                         value={banca}
                         onChange={e => setBanca(e.target.value)}
-                        className="w-full p-4 rounded-2xl border-2 border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 focus:border-red-500 outline-none font-bold text-zinc-800 dark:text-white transition-all shadow-sm text-sm"
+                        className="w-full p-3 sm:p-4 rounded-2xl border-2 border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 focus:border-red-500 outline-none font-bold text-zinc-800 dark:text-white transition-all shadow-sm text-sm"
                         placeholder="Ex: FCC"
                     />
                   </div>
@@ -563,7 +563,7 @@ const SimuladoCreationModal = ({ isOpen, onClose, onSave, disciplinasSugestivas,
                             setData(e.target.value);
                             if(fieldErrors.data) setFieldErrors(prev => ({...prev, data: false}));
                         }}
-                        className={`w-full p-4 rounded-2xl border-2 outline-none font-bold text-zinc-800 dark:text-white transition-all shadow-sm text-sm ${
+                        className={`w-full p-3 sm:p-4 rounded-2xl border-2 outline-none font-bold text-zinc-800 dark:text-white transition-all shadow-sm text-sm ${
                             fieldErrors.data
                             ? 'border-red-500 bg-red-50 dark:bg-red-900/10 focus:border-red-600'
                             : 'border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 focus:border-red-500'
