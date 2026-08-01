@@ -347,7 +347,7 @@ const SourceToggleButton = ({ viewSource, onToggle, cicloLogo, cronogramaLogo })
       onClick={onToggle}
       whileHover={{ scale: 1.04, y: -1 }}
       whileTap={{ scale: 0.96 }}
-      className="group relative flex items-center gap-1.5 pl-1.5 pr-3 py-1 rounded-full border border-zinc-200 dark:border-zinc-700 bg-white/90 dark:bg-zinc-800/90 backdrop-blur-sm shadow-md hover:shadow-lg hover:border-red-300 dark:hover:border-red-600 transition-all duration-200"
+      className="group relative flex w-full min-w-0 items-center justify-center gap-1.5 rounded-full border border-zinc-200 bg-white/90 py-1.5 pl-1.5 pr-2.5 shadow-md backdrop-blur-sm transition-all duration-200 hover:border-red-300 hover:shadow-lg dark:border-zinc-700 dark:bg-zinc-800/90 dark:hover:border-red-600"
       title={`Ver edital do ${destinoLabel}`}
     >
       {/* Mini-logo do destino */}
@@ -362,7 +362,7 @@ const SourceToggleButton = ({ viewSource, onToggle, cicloLogo, cronogramaLogo })
 
       <ArrowLeftRight size={9} className="text-zinc-400 group-hover:text-red-500 transition-colors flex-shrink-0" />
 
-      <span className="min-w-0 truncate text-[8px] font-black uppercase tracking-widest text-zinc-500 group-hover:text-red-600 dark:group-hover:text-red-400 transition-colors whitespace-nowrap md:text-[9px]">
+      <span className="min-w-0 whitespace-nowrap text-[8px] font-black uppercase tracking-[0.12em] text-zinc-500 transition-colors group-hover:text-red-600 dark:group-hover:text-red-400 md:text-[9px]">
         Ver {destinoLabel}
       </span>
     </motion.button>
@@ -1028,13 +1028,13 @@ function EditalPage({
       </AnimatePresence>
 
       {/* ── HEADER ── */}
-      <div className={`${systemCardClass} p-3 md:p-6 flex flex-row items-start gap-3 text-left`}>
+      <div className={`${systemCardClass} p-4 md:p-6 flex flex-row items-start gap-5 md:gap-7 text-left`}>
 
-        <div className="flex w-16 flex-col items-center gap-2 flex-shrink-0 relative z-10 md:w-24">
-          <div className="flex h-14 w-14 items-center justify-center rounded-full border-4 border-white bg-zinc-50 shadow-xl dark:border-white/10 dark:bg-zinc-900 md:h-20 md:w-20 relative">
+        <div className="relative z-10 flex w-[7.75rem] flex-shrink-0 flex-col items-center gap-3 md:w-36">
+          <div className="relative flex h-20 w-20 items-center justify-center rounded-full border-4 border-white bg-zinc-50 shadow-xl dark:border-white/10 dark:bg-zinc-900 md:h-28 md:w-28">
             {logoAtivo
-              ? <img src={logoAtivo} alt="Logo" className="h-9 w-9 object-contain md:h-12 md:w-12" />
-              : <GraduationCap size={40} className="text-zinc-300 dark:text-zinc-600" />
+              ? <img src={logoAtivo} alt="Logo" className="h-12 w-12 object-contain md:h-20 md:w-20" />
+              : <GraduationCap size={52} className="text-zinc-300 dark:text-zinc-600" />
             }
             <div className="absolute -bottom-2 px-1.5 py-0.5 bg-emerald-500 text-white text-[7px] md:text-[9px] font-bold uppercase tracking-widest rounded-full shadow-md border-2 border-white dark:border-zinc-950">Ativo</div>
           </div>
@@ -1055,15 +1055,13 @@ function EditalPage({
                 <CheckCircle2 size={17} /> Edital Verticalizado
               </div>
             </div>
-
-            {/* Botão de navegação: ciclo → Painel do Ciclo | cronograma → Cronograma */}
           </div>
 
-          <h1 className="mb-2 max-w-[calc(100%-4rem)] text-base font-black uppercase leading-tight tracking-tight text-zinc-900 dark:text-white md:max-w-none md:text-3xl">{nomeAtivo}</h1>
+          <h1 className="mb-2 max-w-[calc(100%-4.5rem)] text-[1.55rem] font-black uppercase leading-none tracking-tight text-zinc-900 dark:text-white sm:text-3xl md:max-w-none md:text-5xl">{nomeAtivo}</h1>
 
-          <div className="mt-3 w-full">
+          <div className="mt-6 w-full md:mt-8">
             <div className="flex justify-between items-end mb-2">
-              <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Cobertura Global</span>
+              <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Progresso Atual</span>
               <div className="flex items-baseline gap-1"><span className="text-2xl font-black text-red-600 dark:text-red-500">{statsAtivos.percentual.toFixed(0)}</span><span className="text-sm font-bold text-zinc-400">%</span></div>
             </div>
             <div className="flex h-2 w-full gap-1">
