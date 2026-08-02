@@ -57,13 +57,13 @@ const CYCLE_VISUAL_SIZE_PRESETS = {
     parentOffset: 20,
   },
   preview: {
-    mobileMax: 500,
-    mobileViewportOffset: 185,
-    mobileViewportWidth: 94,
-    desktopMax: 700,
-    desktopViewportOffset: 205,
-    desktopViewportWidth: 84,
-    parentOffset: 12,
+    mobileMax: 540,
+    mobileViewportOffset: 160,
+    mobileViewportWidth: 96,
+    desktopMax: 820,
+    desktopViewportOffset: 115,
+    desktopViewportWidth: 88,
+    parentOffset: 6,
   },
 };
 

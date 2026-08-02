@@ -832,8 +832,6 @@ function CicloCreateWizard({
           disciplinasPreview={disciplinasPreview}
           onDisciplinaCorChange={handleDisciplinaColorChange}
           editalSelecionado={dadosModeloSelecionado}
-          horasTotais={horasTotais}
-          totalDisciplinas={disciplinasComCalculo.length}
           minimumActiveDayMinutes={minimumActiveDayMinutes}
           sessionAutoAdjustedNotice={sessionAutoAdjustedNotice}
           totalSessionSlots={totalSessionSlots}

@@ -347,16 +347,16 @@ const SourceToggleButton = ({ viewSource, onToggle, cicloLogo, cronogramaLogo })
       onClick={onToggle}
       whileHover={{ scale: 1.04, y: -1 }}
       whileTap={{ scale: 0.96 }}
-      className="group relative flex w-full min-w-0 items-center justify-center gap-1.5 rounded-full border border-zinc-200 bg-white/90 py-1.5 pl-1.5 pr-2.5 shadow-md backdrop-blur-sm transition-all duration-200 hover:border-red-300 hover:shadow-lg dark:border-zinc-700 dark:bg-zinc-800/90 dark:hover:border-red-600"
+      className="group relative flex min-w-[9.75rem] items-center justify-center gap-1.5 rounded-full border border-zinc-200 bg-white/90 py-1.5 pl-1.5 pr-3 shadow-md backdrop-blur-sm transition-all duration-200 hover:border-red-300 hover:shadow-lg dark:border-zinc-700 dark:bg-zinc-800/90 dark:hover:border-red-600 md:min-w-[11.25rem]"
       title={`Ver edital do ${destinoLabel}`}
     >
       {/* Mini-logo do destino */}
-      <div className="w-5 h-5 rounded-full bg-zinc-100 dark:bg-zinc-700 border border-zinc-200 dark:border-zinc-600 flex items-center justify-center overflow-hidden flex-shrink-0">
+      <div className="w-6 h-6 rounded-full bg-zinc-100 dark:bg-zinc-700 border border-zinc-200 dark:border-zinc-600 flex items-center justify-center overflow-hidden flex-shrink-0">
         {destinoLogo
-          ? <img src={destinoLogo} alt="" className="w-4 h-4 object-contain" />
+          ? <img src={destinoLogo} alt="" className="w-5 h-5 object-contain" />
           : (isCiclo
-              ? <CalendarDays size={10} className="text-zinc-400" />
-              : <BookOpen size={10} className="text-zinc-400" />)
+              ? <CalendarDays size={12} className="text-zinc-400" />
+              : <BookOpen size={12} className="text-zinc-400" />)
         }
       </div>
 
@@ -1030,7 +1030,7 @@ function EditalPage({
       {/* ── HEADER ── */}
       <div className={`${systemCardClass} p-4 md:p-6 flex flex-row items-start gap-5 md:gap-7 text-left`}>
 
-        <div className="relative z-10 flex w-[7.75rem] flex-shrink-0 flex-col items-center gap-3 md:w-36">
+        <div className="relative z-10 flex w-[8.75rem] flex-shrink-0 flex-col items-center gap-3 md:w-[12.25rem]">
           <div className="relative flex h-20 w-20 items-center justify-center rounded-full border-4 border-white bg-zinc-50 shadow-xl dark:border-white/10 dark:bg-zinc-900 md:h-28 md:w-28">
             {logoAtivo
               ? <img src={logoAtivo} alt="Logo" className="h-12 w-12 object-contain md:h-20 md:w-20" />
@@ -1059,7 +1059,7 @@ function EditalPage({
 
           <h1 className="mb-2 max-w-[calc(100%-4.5rem)] text-[1.55rem] font-black uppercase leading-none tracking-tight text-zinc-900 dark:text-white sm:text-3xl md:max-w-none md:text-5xl">{nomeAtivo}</h1>
 
-          <div className="mt-6 w-full md:mt-8">
+          <div className="mt-8 w-full md:mt-10">
             <div className="flex justify-between items-end mb-2">
               <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Progresso Atual</span>
               <div className="flex items-baseline gap-1"><span className="text-2xl font-black text-red-600 dark:text-red-500">{statsAtivos.percentual.toFixed(0)}</span><span className="text-sm font-bold text-zinc-400">%</span></div>

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Hash, CalendarDays, CalendarClock, Layers, BookOpen,
-  Target, AlertCircle, Info, Clock, Timer, Eye, EyeOff,
+  Target, AlertCircle, Clock, Timer, Eye, EyeOff,
   LayoutList, Shuffle, ChevronLeft, ChevronRight, Calendar, Flame
 } from 'lucide-react';
 
@@ -862,25 +862,6 @@ const Step4_Config = ({ config, onConfigChange, editalSelecionado, horarios = {}
                     className="h-full bg-gradient-to-r from-red-500 to-red-600 rounded-full" 
                   />
                 </div>
-              </div>
-            </div>
-
-            {/* Dica Contextual */}
-            <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-3xl p-6 text-white shadow-lg shadow-blue-500/20 relative overflow-hidden group">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 blur-3xl rounded-full -mr-16 -mt-16" />
-              <div className="flex items-start gap-4 relative z-10">
-                <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm shadow-sm shrink-0">
-                  <Info size={14} className="text-white" />
-                </div>
-                <div>
-                  <h5 className="text-[11px] font-black uppercase tracking-widest mb-1.5">Dica de Especialista</h5>
-                  <p className="text-[11px] text-blue-50 font-medium leading-relaxed opacity-90">
-                    O modo <span className="font-black underline decoration-blue-300 underline-offset-2">Analítico</span> (Detalhado) ajuda iniciantes a manter a disciplina, enquanto veteranos costumam preferir o modo <span className="font-black underline decoration-blue-300 underline-offset-2">Livre</span>.
-                  </p>
-                </div>
-              </div>
-              <div className="mt-4 flex justify-end relative z-10">
-                <div className="text-[8px] font-black uppercase tracking-widest bg-white/10 px-2 py-1 rounded-lg">Passo 4 de 5</div>
               </div>
             </div>
 

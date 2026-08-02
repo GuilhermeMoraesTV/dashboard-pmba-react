@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { BookOpen, Clock, EyeOff, Hash, Layers3, LayoutList, Palette, Settings2, Shuffle, Target, Timer } from 'lucide-react';
+import { BookOpen, Clock, EyeOff, Hash, LayoutList, Palette, Settings2, Shuffle, Target, Timer } from 'lucide-react';
 import ColorisSwatch from '../../../shared/ColorisSwatch';
 
 const fmtMin = (min) => {
@@ -192,8 +192,6 @@ export default function StepConfig({
   disciplinasPreview = [],
   onDisciplinaCorChange,
   editalSelecionado,
-  horasTotais = 0,
-  totalDisciplinas = 0,
   minimumActiveDayMinutes = null,
   sessionAutoAdjustedNotice = null,
   totalSessionSlots = 0,
@@ -451,25 +449,6 @@ export default function StepConfig({
                   Sua rotina comporta {totalSessionSlots} blocos, mas esta configuracao precisa de pelo menos {minimumRequiredSessions}. Aumente as horas, reduza o tempo do bloco ou remova a preferencia diaria no passo de disciplinas.
                 </div>
               )}
-
-              <div className="hidden sm:grid sm:grid-cols-2 gap-3">
-                <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 px-4 py-4">
-                  <div className="flex items-center gap-2 mb-2 text-zinc-400">
-                    <Layers3 size={15} />
-                    <span className="text-[10px] font-black uppercase tracking-widest">Materias</span>
-                  </div>
-                  <p className="text-2xl font-black text-zinc-900 dark:text-white">{totalDisciplinas}</p>
-                  <p className="text-xs text-zinc-500 mt-1">Selecionadas para o ciclo</p>
-                </div>
-                <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 px-4 py-4">
-                  <div className="flex items-center gap-2 mb-2 text-zinc-400">
-                    <Clock size={15} />
-                    <span className="text-[10px] font-black uppercase tracking-widest">Carga</span>
-                  </div>
-                  <p className="text-2xl font-black text-zinc-900 dark:text-white">{horasTotais}h</p>
-                  <p className="text-xs text-zinc-500 mt-1">Disponibilidade semanal total</p>
-                </div>
-              </div>
 
               <div className="flex items-center gap-2 rounded-xl bg-zinc-100 dark:bg-zinc-800 px-3 py-2 text-xs text-zinc-600 dark:text-zinc-300">
                 <Settings2 size={14} className="text-red-600" />
