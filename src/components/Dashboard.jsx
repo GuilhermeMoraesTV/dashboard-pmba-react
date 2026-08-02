@@ -331,6 +331,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   const [activeTab, setActiveTabState]          = useState(initialRouteTab);
   const [loading, setLoading]                   = useState(true);
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
+  const [isLargeSidebarViewport, setIsLargeSidebarViewport] = useState(false);
   const [isMobileOpen, setIsMobileOpen]         = useState(false);
   const [forceOpenVisual, setForceOpenVisual]   = useState(false);
   const [isTimerRaised, setIsTimerRaised]       = useState(false);
@@ -365,6 +366,19 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     setIsMobileOpen(false);
     if (location.pathname !== targetPath) navigate(targetPath);
   }, [activeTab, location.pathname, navigate]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return undefined;
+    const media = window.matchMedia('(min-width: 1024px)');
+    const update = () => setIsLargeSidebarViewport(media.matches);
+    update();
+    if (typeof media.addEventListener === 'function') {
+      media.addEventListener('change', update);
+      return () => media.removeEventListener('change', update);
+    }
+    media.addListener(update);
+    return () => media.removeListener(update);
+  }, []);
 
   useEffect(() => {
     const resolvedTab = PATH_TO_TAB[String(routeTab || 'home').toLowerCase()];
@@ -2305,6 +2319,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         handleLogout={handleLogout}
         isExpanded={isSidebarExpanded}
         setExpanded={setIsSidebarExpanded}
+        forceExpandedOnLarge={isLargeSidebarViewport}
         isMobileOpen={isMobileOpen}
         setMobileOpen={setIsMobileOpen}
         isDarkMode={isDarkMode}
@@ -2339,10 +2354,10 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       <div
         ref={mainContentRef}
         onPointerDown={() => {
-          if (isSidebarExpanded) setIsSidebarExpanded(false);
+          if (isSidebarExpanded && !isLargeSidebarViewport) setIsSidebarExpanded(false);
           if (isMobileOpen) setIsMobileOpen(false);
         }}
-        className={`dashboard-main-content relative z-10 min-w-0 flex-1 transition-all duration-300 pt-[80px] px-4 md:px-8 lg:pt-[90px] pb-10 ${isSidebarExpanded ? 'lg:ml-[252px]' : 'lg:ml-[72px]'}`}
+        className={`dashboard-main-content relative z-10 min-w-0 flex-1 transition-all duration-300 pt-[80px] px-4 md:px-8 lg:pt-[90px] pb-10 ${isLargeSidebarViewport || isSidebarExpanded ? 'lg:ml-[208px]' : 'lg:ml-[72px]'}`}
       >
         <Header user={user} activeTab={activeTab}/>
         <main className={`mt-2 min-w-0 animate-fade-in ${['home', 'ciclos', 'cronograma', 'planejamento'].includes(activeTab) ? 'w-full' : 'max-w-7xl mx-auto'}`}>

@@ -25,6 +25,14 @@ const fmtMin = (min) => {
   return m > 0 ? `${h}h${String(m).padStart(2, '0')}` : `${h}h`;
 };
 
+const NEUTRAL_DISCIPLINE_COLOR = {
+  id: 'neutral',
+  hex: '#71717a',
+  bg: 'bg-zinc-500',
+  text: 'text-zinc-700 dark:text-zinc-200',
+  progress: 'bg-zinc-500',
+};
+
 function CardSessoesCicloHoje({
   ciclo,
   disciplinas,
@@ -34,12 +42,14 @@ function CardSessoesCicloHoje({
   loadingSessionId = null,
   variant = 'home',
   showAssuntos: showAssuntosProp,
+  useDisciplineColors = true,
   registrosEstudo = [],
 }) {
   const cicloComDisciplinas = useMemo(() => ({ ...(ciclo || {}), disciplinas }), [ciclo, disciplinas]);
   const showAssuntos = typeof showAssuntosProp === 'boolean'
     ? showAssuntosProp
     : ciclo?.modoExibirAssuntos !== false;
+  const shouldUseDisciplineColors = useDisciplineColors !== false && ciclo?.coresDisciplinasAtivas !== false;
 
   const guiaHoje = useMemo(() => getCycleDailyGuide(cicloComDisciplinas, new Date(), registrosEstudo), [cicloComDisciplinas, registrosEstudo]);
   const {
@@ -111,12 +121,14 @@ function CardSessoesCicloHoje({
             const disc = disciplinas.find((d) => d.id === s.disciplinaId);
               const isCompleted = isSessaoConcluida(s);
             const isActive = idx === activeSessaoIndex;
-            const disciplinaColor = getDisciplineColorForSlot({
-              disciplinaId: disc?.id || s.disciplinaId,
-              disciplinaNome: disc?.nome || s.disciplinaNome,
-              disciplina: disc?.nome || s.disciplina,
-              cor: disc?.cor || s.cor,
-            });
+            const disciplinaColor = shouldUseDisciplineColors
+              ? getDisciplineColorForSlot({
+                disciplinaId: disc?.id || s.disciplinaId,
+                disciplinaNome: disc?.nome || s.disciplinaNome,
+                disciplina: disc?.nome || s.disciplina,
+                cor: disc?.cor || s.cor,
+              })
+              : NEUTRAL_DISCIPLINE_COLOR;
             const disciplinaStyle = getDisciplineCardVars(disciplinaColor);
 
             return (
@@ -300,12 +312,14 @@ function CardSessoesCicloHoje({
               const isCompleted = isSessaoConcluida(sessao);
               const isActive = idx === activeSessaoIndex;
               const assuntoNome = sessao.assuntoSugerido?.nome || sessao.assuntoSugerido || '';
-              const disciplinaColor = getDisciplineColorForSlot({
-                disciplinaId: disc.id,
-                disciplinaNome: disc.nome,
-                disciplina: disc.nome,
-                cor: disc.cor,
-              });
+              const disciplinaColor = shouldUseDisciplineColors
+                ? getDisciplineColorForSlot({
+                  disciplinaId: disc.id,
+                  disciplinaNome: disc.nome,
+                  disciplina: disc.nome,
+                  cor: disc.cor,
+                })
+                : NEUTRAL_DISCIPLINE_COLOR;
               const disciplinaStyle = getDisciplineCardVars(disciplinaColor);
               const progressoRaw = Number(sessao.progressoMinutos || 0);
               const progressoSessao = progressoRaw;

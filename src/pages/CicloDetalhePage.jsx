@@ -1440,6 +1440,7 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
                             loadingSessionId={loadingCicloSessao}
                             variant="cycle"
                             showAssuntos={showAssuntosCiclo}
+                            useDisciplineColors={ciclo?.coresDisciplinasAtivas !== false}
                             registrosEstudo={allRegistrosEstudo}
                         />
                         </div>

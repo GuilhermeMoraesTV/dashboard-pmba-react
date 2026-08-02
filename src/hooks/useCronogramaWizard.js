@@ -101,6 +101,7 @@ export const defaultConfig = () => {
     modoExibirTempo:     'detalhado',
     limitarMaterias:     false,
     limitesPorDia:       {},
+    disciplinasTodosDiasIds: [],
   };
 };
 
@@ -178,6 +179,7 @@ const _montarDadosParaSalvar = (config, edital, horarios, result, geradoPorIA_) 
   modoExibirTempo:         config.modoExibirTempo     || 'detalhado',
   limitarMaterias:         config.limitarMaterias     || false,
   limitesPorDia:           config.limitesPorDia       || {},
+  disciplinasTodosDiasIds: _normalizarIdsTodosDias(config.disciplinasTodosDiasIds),
   geradoPorIA:             geradoPorIA_,
   resumoGeracao:           result.resumoGeracao || '',
   diasEstudo: Object.entries(horarios)
@@ -185,8 +187,17 @@ const _montarDadosParaSalvar = (config, edital, horarios, result, geradoPorIA_) 
     .map(([d]) => Number(d)),
 });
 
-const _montarDisciplinasSnapshotCompleto = ({ edital, disciplinas, extraDisciplinas, selecao }) => {
+const _normalizarIdsTodosDias = (ids = []) => (
+  [...new Set((Array.isArray(ids) ? ids : (ids ? [ids] : [])).filter(Boolean).map(String))]
+);
+
+const _disciplinaEstaTodosDias = (idsTodosDias, disciplinaId) => (
+  _normalizarIdsTodosDias(idsTodosDias).includes(String(disciplinaId))
+);
+
+const _montarDisciplinasSnapshotCompleto = ({ edital, disciplinas, extraDisciplinas, selecao, disciplinasTodosDiasIds = [] }) => {
   const todasDiscs = edital?.id === 'manual' ? disciplinas : [...disciplinas, ...extraDisciplinas];
+  const idsTodosDias = _normalizarIdsTodosDias(disciplinasTodosDiasIds);
 
   return todasDiscs.map((disciplina, index) => {
     const sel = selecao[disciplina.id] || {};
@@ -202,6 +213,7 @@ const _montarDisciplinasSnapshotCompleto = ({ edital, disciplinas, extraDiscipli
       nivel: sel?.nivel || disciplina.nivel || 'intermediario',
       assuntos: _normalizarAssuntos(ativa ? assuntosFiltrados : assuntosOriginais),
       inCiclo: ativa,
+      estudarTodosDias: ativa && _disciplinaEstaTodosDias(idsTodosDias, disciplina.id),
     };
   });
 };
@@ -416,6 +428,12 @@ const _normalizarInitialStateEdicao = (source = {}, modelos = []) => {
       modoExibirTempo: cronograma.modoExibirTempo || 'detalhado',
       limitarMaterias: Boolean(cronograma.limitarMaterias),
       limitesPorDia: cronograma.limitesPorDia || {},
+      disciplinasTodosDiasIds: _normalizarIdsTodosDias(
+        cronograma.disciplinasTodosDiasIds
+        || snapshot
+          .filter((disciplina) => disciplina?.estudarTodosDias === true)
+          .map((disciplina) => disciplina.id)
+      ),
     },
   };
 };
@@ -653,7 +671,7 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
       setDisciplinas([]);
       setExtraDisciplinas([]);
       setSelecao({});
-      setCronConfigState(prev => ({ ...prev, nome: 'Meu Cronograma' }));
+      setCronConfigState(prev => ({ ...prev, nome: 'Meu Cronograma', disciplinasTodosDiasIds: [] }));
       return; // WizardShell avança o passo
     }
 
@@ -669,7 +687,7 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
       novaSelecao[d.id] = { checked: false, parcial: false, assuntosMarcados: new Set(), nivel: null };
     });
     setSelecao(novaSelecao);
-    setCronConfigState(prev => ({ ...prev, nome: editalObj.titulo || 'Meu Cronograma' }));
+    setCronConfigState(prev => ({ ...prev, nome: editalObj.titulo || 'Meu Cronograma', disciplinasTodosDiasIds: [] }));
 
     if (tipo === 'expresso') {
       handleSalvarExpresso(editalObj, discs);
@@ -713,7 +731,12 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
       if (Number(horas) > 0) horariosNumerados[dia] = Number(horas);
     });
 
-    const discsParaIA = _normalizarDiscsParaGeracao(discsFinais, selecao);
+    const discsParaIA = _normalizarDiscsParaGeracao(
+      discsFinais,
+      selecao,
+      cronConfig.disciplinasTodosDiasIds
+    );
+    const possuiPreferenciaDiaria = _normalizarIdsTodosDias(cronConfig.disciplinasTodosDiasIds).length > 0;
 
     let result = null;
 
@@ -735,6 +758,9 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
           resumoGeracao: result.resumoGeracao || 'Grade personalizada gerada a partir das disciplinas e horarios escolhidos.',
         };
       }
+    } else if (possuiPreferenciaDiaria) {
+      setPercentIA(55);
+      result = _gerarFallbackLocal(discsParaIA, horariosNumerados, { ...cronConfig, dataInicio: dataInicioPadrao });
     } else {
     try {
       result = await gerarCronogramaIA(
@@ -922,7 +948,12 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
       if (Number(horas) > 0) horariosNumerados[dia] = Number(horas);
     });
 
-    const discsParaIA = _normalizarDiscsParaGeracao(discsFinais, selecao);
+    const discsParaIA = _normalizarDiscsParaGeracao(
+      discsFinais,
+      selecao,
+      cronConfig.disciplinasTodosDiasIds
+    );
+    const possuiPreferenciaDiaria = _normalizarIdsTodosDias(cronConfig.disciplinasTodosDiasIds).length > 0;
 
     let result = null;
 
@@ -964,6 +995,9 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
           resumoGeracao: result.resumoGeracao || 'Grade personalizada gerada a partir das disciplinas e horarios escolhidos.',
         };
       }
+    } else if (possuiPreferenciaDiaria) {
+      setPercentIA(55);
+      result = _gerarFallbackLocal(discsParaIA, horariosNumerados, { ...cronConfig, dataInicio: dataInicioPadrao });
     } else {
       // Regenera se não há prévia
       try {
@@ -1014,6 +1048,7 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
       disciplinas,
       extraDisciplinas,
       selecao,
+      disciplinasTodosDiasIds: cronConfig.disciplinasTodosDiasIds,
     });
     const cronogramaComCores = _aplicarCoresUnicasCronograma(result.semanaTemplate, disciplinasSnapshotCompleto);
 
@@ -1159,7 +1194,8 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
  * Normaliza as disciplinas finais para envio à IA ou gerador local,
  * filtrando assuntos marcados e aplicando nível da seleção.
  */
-function _normalizarDiscsParaGeracao(discsFinais, selecao) {
+function _normalizarDiscsParaGeracao(discsFinais, selecao, disciplinasTodosDiasIds = []) {
+  const idsTodosDias = _normalizarIdsTodosDias(disciplinasTodosDiasIds);
   return discsFinais.map(d => {
     const sel = selecao[d.id];
     const assuntosFiltrados = sel?.assuntosMarcados?.size > 0
@@ -1170,6 +1206,7 @@ function _normalizarDiscsParaGeracao(discsFinais, selecao) {
       assuntos:    _normalizarAssuntos(assuntosFiltrados),
       diasFixados: [],
       nivel:       _isNivelValido(sel?.nivel) ? sel.nivel : d.nivel || 'intermediario',
+      estudarTodosDias: _disciplinaEstaTodosDias(idsTodosDias, d.id),
     };
   });
 }
@@ -1277,6 +1314,8 @@ function _gerarFallbackLocal(discs, horariosNumerados, config) {
       dataProva:           config.dataProva           || undefined,
       retaFinal:           config.retaFinal           || false,
       tempoRevisaoMinutos: config.tempoRevisaoMinutos || 20,
+      limitarMaterias:     config.limitarMaterias     || false,
+      limitesPorDia:       config.limitesPorDia       || {},
     });
   } catch (e) {
     console.error('[useCronogramaWizard] Fallback local falhou:', e);

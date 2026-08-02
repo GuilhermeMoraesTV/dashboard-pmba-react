@@ -391,6 +391,7 @@ function NavSideBar({
   handleLogout,
   isExpanded,
   setExpanded,
+  forceExpandedOnLarge = false,
   isMobileOpen,
   setMobileOpen,
   isDarkMode,
@@ -478,7 +479,7 @@ function NavSideBar({
     };
 
     // Só inicia o timer se estiver expandido E não for hover (dispositivos touch)
-    if (isExpanded) {
+    if (isExpanded && !forceExpandedOnLarge) {
       clearTimer();
       autoCloseTimerRef.current = setTimeout(() => {
         // Verifica se ainda está expandido antes de fechar
@@ -488,7 +489,7 @@ function NavSideBar({
 
     // Listener para resetar o timer ao tocar em qualquer lugar do menu
     const handleTouch = () => {
-      if (isExpanded) {
+      if (isExpanded && !forceExpandedOnLarge) {
         clearTimer();
         autoCloseTimerRef.current = setTimeout(() => setExpanded(false), 5000);
       }
@@ -501,7 +502,7 @@ function NavSideBar({
       clearTimer();
       if (el) el.removeEventListener('touchstart', handleTouch);
     };
-  }, [isExpanded, setExpanded]);
+  }, [forceExpandedOnLarge, isExpanded, setExpanded]);
 
   useEffect(() => {
     if (activeTab === 'ciclos' || activeTab === 'cronograma' || activeTab === 'cronogramas' || activeTab === 'planejamento') {
@@ -683,7 +684,8 @@ function NavSideBar({
     scrollWindowToTopInstant();
   };
 
-  const isFullyExpanded = isExpanded || isMobileOpen;
+  const isDesktopExpanded = forceExpandedOnLarge || isExpanded;
+  const isFullyExpanded = isDesktopExpanded || isMobileOpen;
   const hasCicloAtivo      = !!(activeCicloId && activeCicloData);
   const hasCronogramaAtivo = !!(activeCronogramaData?.ativo);
   const revisoesPendentesBadge = revisoesPendentes || (cronogramaParaAlertas ? contarRevisoesPendentes(cronogramaParaAlertas) : 0);
@@ -710,7 +712,7 @@ function NavSideBar({
   const NavButton = ({ label, icon, isActive, isAdmin, isNew, isAtalho, isPlanningGuide, badgeCount, onClick }) => (
     <button
       onClick={(e) => {
-        setExpanded(true);
+        if (!forceExpandedOnLarge) setExpanded(true);
         onClick(e);
       }}
       className={`
@@ -774,18 +776,7 @@ function NavSideBar({
       )}
 
       {/* Badge "ativo" para atalhos */}
-      {isAtalho && isFullyExpanded && !isActive && (
-        <span className={`ml-auto flex-shrink-0 ${NAV_BADGE_SIZE} font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/30 px-1.5 py-0.5 rounded-full`}>
-          ativo
-        </span>
-      )}
-
-      {/* Badge "novo" */}
-      {isNew && isFullyExpanded && !isActive && (
-        <span className={`ml-auto flex-shrink-0 ${NAV_BADGE_SIZE} font-black uppercase tracking-wider bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 px-1.5 py-0.5 rounded-full`}>
-          novo
-        </span>
-      )}
+      {/* Badges textuais removidos para manter o menu estreito e limpo. */}
       {isNew && !isFullyExpanded && !isMobileOpen && !isActive && (
         <div className="absolute right-1.5 top-1.5 w-1.5 h-1.5 bg-red-500 rounded-full"/>
       )}
@@ -804,7 +795,7 @@ function NavSideBar({
         bg-white/70 dark:bg-zinc-950/70 backdrop-blur-xl border-b border-white/60 dark:border-white/10
         flex items-center justify-between px-2 sm:px-4 shadow-sm shadow-black/5 dark:shadow-black/30 transition-all duration-300
         left-0 lg:left-[64px]
-        ${isExpanded ? 'lg:left-[240px]' : 'lg:left-[64px]'}
+        ${isDesktopExpanded ? 'lg:left-[196px]' : 'lg:left-[64px]'}
       `}
     >
       <div className="flex items-center z-20">
@@ -966,14 +957,14 @@ function NavSideBar({
           bg-white dark:bg-zinc-950 border-r border-zinc-200 dark:border-white/10
           transition-all duration-300 shadow-2xl lg:shadow-none
           ${isMobileOpen ? 'translate-x-0 w-[260px]' : '-translate-x-full lg:translate-x-0'}
-          lg:left-0 ${isExpanded ? 'lg:w-[240px]' : 'lg:w-[64px]'}
+          lg:left-0 ${isDesktopExpanded ? 'lg:w-[196px]' : 'lg:w-[64px]'}
         `}
-        onMouseEnter={() => !isMobileOpen && setExpanded(true)}
-        onMouseLeave={() => !isMobileOpen && setExpanded(false)}
+        onMouseEnter={() => !isMobileOpen && !forceExpandedOnLarge && setExpanded(true)}
+        onMouseLeave={() => !isMobileOpen && !forceExpandedOnLarge && setExpanded(false)}
       >
         <div className="nav-sidebar-content-zoom flex-shrink-0 flex items-center justify-between lg:justify-center h-[60px] px-4 border-b border-white/60 dark:border-white/10 lg:border-none">
           <div onClick={handleLogoClick} className="cursor-pointer flex items-center justify-center">
-            <img src="/logoModoQAP.png" alt="Logo" className="h-9 w-auto object-contain drop-shadow-sm"/>
+            <img src="/logoModoQAP.png" alt="Logo" className="h-12 w-auto object-contain drop-shadow-sm"/>
           </div>
           <button onClick={() => setMobileOpen(false)} className="lg:hidden p-1.5 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg">
             <X size={18}/>
@@ -1059,7 +1050,7 @@ function NavSideBar({
                   <button
                     onClick={() => {
                       setIsPlanejamentoOpen(v => !v);
-                      setExpanded(true);
+                      if (!forceExpandedOnLarge) setExpanded(true);
                     }}
                     className={`
                       relative flex items-center justify-between w-full ${NAV_BTN_PAD} ${NAV_BTN_RADIUS}

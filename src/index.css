@@ -962,6 +962,10 @@ body.wizard-shell-open .global-study-register-fab {
     --wizard-content-mobile-zoom: var(--zoom-mobile-wizard-step-ciclo-revisao);
   }
 
+  body.wizard-shell-open .wizard-step-frame[data-wizard-step="ciclo-blocos"] {
+    --wizard-content-mobile-zoom: var(--zoom-mobile-wizard-step-ciclo-blocos);
+  }
+
   body.wizard-shell-open .wizard-step-frame[data-wizard-step="ciclo-config"] {
     --wizard-content-mobile-zoom: var(--zoom-mobile-wizard-step-ciclo-config);
   }
@@ -1076,6 +1080,7 @@ body.registro-modal-open .app-global-footer {
   --zoom-desktop-modal-admin-editais: 0.90;
   --zoom-desktop-modal-profile-history: 0.90;
   --zoom-desktop-modal-archive: 0.90;
+  --zoom-desktop-modal-notifications: 0.90;
   --zoom-desktop-support-card: 0.92;
   --zoom-desktop-sidebar: 0.85;
   --zoom-desktop-desempenho-discipline-card: 0.94;
@@ -1090,6 +1095,7 @@ body.registro-modal-open .app-global-footer {
   --zoom-desktop-wizard-step-cronograma-revisao: 0.90;
   --zoom-desktop-wizard-step-cronograma-config: 0.90;
   --zoom-desktop-wizard-step-cronograma-preview: 0.88;
+  --zoom-desktop-wizard-step-ciclo-blocos: 0.90;
   --zoom-desktop-wizard-step-ciclo-revisao: 0.90;
   --zoom-desktop-wizard-step-ciclo-config: 0.90;
   --zoom-desktop-wizard-step-ciclo-preview: 0.88;
@@ -1119,6 +1125,7 @@ body.registro-modal-open .app-global-footer {
   --zoom-mobile-modal-admin-editais: 0.84;
   --zoom-mobile-modal-profile-history: 0.84;
   --zoom-mobile-modal-archive: 0.84;
+  --zoom-mobile-modal-notifications: 0.84;
   --zoom-mobile-support-card: 0.86;
   --zoom-mobile-sidebar: 0.92;
   --zoom-mobile-desempenho-discipline-card: 0.90;
@@ -1134,6 +1141,7 @@ body.registro-modal-open .app-global-footer {
   --zoom-mobile-wizard-step-cronograma-revisao: 0.80;
   --zoom-mobile-wizard-step-cronograma-config: 0.80;
   --zoom-mobile-wizard-step-cronograma-preview: 0.85;
+  --zoom-mobile-wizard-step-ciclo-blocos: 0.80;
   --zoom-mobile-wizard-step-ciclo-revisao: 0.80;
   --zoom-mobile-wizard-step-ciclo-config: 0.80;
   --zoom-mobile-wizard-step-ciclo-preview: 0.78;
@@ -1189,6 +1197,10 @@ body.registro-modal-open .app-global-footer {
 
   body.wizard-shell-open .wizard-step-frame[data-wizard-step="ciclo-revisao"] {
     --wizard-step-desktop-zoom: var(--zoom-desktop-wizard-step-ciclo-revisao);
+  }
+
+  body.wizard-shell-open .wizard-step-frame[data-wizard-step="ciclo-blocos"] {
+    --wizard-step-desktop-zoom: var(--zoom-desktop-wizard-step-ciclo-blocos);
   }
 
   body.wizard-shell-open .wizard-step-frame[data-wizard-step="ciclo-config"] {
@@ -1276,6 +1288,7 @@ body.registro-modal-open .app-global-footer {
   .modal-zoom--admin-editais { --modal-desktop-zoom: var(--zoom-desktop-modal-admin-editais); }
   .modal-zoom--profile-history { --modal-desktop-zoom: var(--zoom-desktop-modal-profile-history); }
   .modal-zoom--archive { --modal-desktop-zoom: var(--zoom-desktop-modal-archive); }
+  .modal-zoom--notifications { --modal-desktop-zoom: var(--zoom-desktop-modal-notifications); }
 
   .support-card-zoom {
     zoom: var(--zoom-desktop-support-card);
@@ -1552,6 +1565,7 @@ body.registro-modal-open .app-global-footer {
   .modal-zoom--admin-editais { --modal-mobile-zoom: var(--zoom-mobile-modal-admin-editais); }
   .modal-zoom--profile-history { --modal-mobile-zoom: var(--zoom-mobile-modal-profile-history); }
   .modal-zoom--archive { --modal-mobile-zoom: var(--zoom-mobile-modal-archive); }
+  .modal-zoom--notifications { --modal-mobile-zoom: var(--zoom-mobile-modal-notifications); }
 
   .modal-zoom--cronograma-detalhes {
     width: calc(100vw / var(--modal-mobile-zoom)) !important;

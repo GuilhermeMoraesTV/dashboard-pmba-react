@@ -103,6 +103,7 @@ const WizardShell = ({
   const ctaFinalLabel = isEditMode ? 'Salvar Alteracoes' : 'Ativar Cronograma';
   const isMontagemPersonalizada = cronConfig.modoMontagem === 'personalizado';
   const isPassoMontagemPersonalizada = passo === 1 && isMontagemPersonalizada;
+  const activeStudyDaysCount = Object.values(horarios || {}).filter((horas) => Number(horas) > 0).length;
   const currentStepZoomKey = {
     0: 'edital-manual',
     1: isMontagemPersonalizada ? 'cronograma-montagem-manual' : 'cronograma-modo-montagem',
@@ -122,6 +123,12 @@ const WizardShell = ({
         : prev
     ));
     setPasso(0);
+  };
+
+  const descartarEFechar = () => {
+    setConfirmandoSaida(false);
+    if (!isEditMode) limparDraft();
+    onClose?.();
   };
 
   useEffect(() => {
@@ -222,6 +229,11 @@ const WizardShell = ({
           modoManual={edital?.id === 'manual'}
           editalSelecionado={edital}
           horarios={horarios}
+          disciplinaTodosDiasIds={cronConfig.disciplinasTodosDiasIds || []}
+          onDisciplinaTodosDiasChange={(ids) => {
+            setCronConfig((prev) => ({ ...prev, disciplinasTodosDiasIds: ids }));
+          }}
+          activeStudyDaysCount={activeStudyDaysCount}
         />
       );
       case 3: return (
@@ -315,10 +327,15 @@ const WizardShell = ({
             {isPassoEdital || (isEditMode && isPrimeiroStep) ? (
               <button
                 onClick={() => {
-                  salvarDraftComPasso(passo);
-                  if (isEditMode) onClose?.();
-                  else if (onBackToSelector) onBackToSelector();
-                  else onClose();
+                  if (isEditMode) {
+                    onClose?.();
+                    return;
+                  }
+                  if (onBackToSelector) {
+                    onBackToSelector();
+                    return;
+                  }
+                  setConfirmandoSaida(true);
                 }}
                 className="flex items-center gap-2 px-3 py-2 sm:px-5 sm:py-3 rounded-2xl text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 font-black text-[10px] sm:text-[11px] uppercase tracking-widest transition-all active:scale-95"
               >
@@ -417,9 +434,9 @@ const WizardShell = ({
           <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-zinc-900/60 backdrop-blur-sm">
             <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="wizard-confirm-card bg-white dark:bg-zinc-900 p-8 rounded-[32px] border-2 border-zinc-100 dark:border-zinc-800 shadow-2xl max-w-sm w-full text-center">
               <div className="w-16 h-16 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center mx-auto mb-6"><AlertCircle size={32} className="text-red-600" /></div>
-              <h3 className="text-xl font-black text-zinc-900 dark:text-white uppercase mb-2">Abandonar Edição?</h3>
-              <p className="text-sm text-zinc-500 mb-8">Suas alterações não salvas serão perdidas.</p>
-              <div className="grid grid-cols-2 gap-3"><button onClick={() => setConfirmandoSaida(false)} className="py-3 rounded-2xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white font-bold text-xs uppercase tracking-widest hover:bg-zinc-200 transition-all">Ficar</button><button onClick={() => { salvarDraftComPasso(passo); onClose(); }} className="py-3 rounded-2xl bg-red-600 text-white font-bold text-xs uppercase tracking-widest hover:bg-red-700 transition-all">Sair</button></div>
+              <h3 className="text-xl font-black text-zinc-900 dark:text-white uppercase mb-2">{isEditMode ? 'Descartar alterações?' : 'Descartar planejamento?'}</h3>
+              <p className="text-sm text-zinc-500 mb-8">{isEditMode ? 'As alterações não salvas serão perdidas.' : 'O rascunho sera apagado e nao podera ser recuperado depois.'}</p>
+              <div className="grid grid-cols-2 gap-3"><button onClick={() => setConfirmandoSaida(false)} className="py-3 rounded-2xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white font-bold text-xs uppercase tracking-widest hover:bg-zinc-200 transition-all">Ficar</button><button onClick={descartarEFechar} className="py-3 rounded-2xl bg-red-600 text-white font-bold text-xs uppercase tracking-widest hover:bg-red-700 transition-all">Descartar</button></div>
             </motion.div>
           </div>
         )}

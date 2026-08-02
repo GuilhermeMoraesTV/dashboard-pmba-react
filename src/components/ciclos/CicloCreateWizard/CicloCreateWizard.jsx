@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { AlertTriangle, ArrowLeft, ArrowRight, CheckCircle2, RefreshCw, Settings2, Layers, Target, Clock, X } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, ArrowRight, CheckCircle2, RefreshCw, Settings2, Layers, Target, Clock, X, SlidersHorizontal } from 'lucide-react';
 import { collection, getDocs } from 'firebase/firestore';
 
 import { calcularDistribuicao, gerarOrdemSessoes, useCiclos } from '../../../hooks/useCiclos';
@@ -9,6 +9,7 @@ import { CATALOGO_EDITAIS } from '../../../pages/AdminPage/EditaisManager';
 import StepEdital from './steps/StepEdital';
 import StepDisciplinas from './steps/StepDisciplinas';
 import StepHorarios from './steps/StepHorarios';
+import StepDivisaoBlocos from './steps/StepDivisaoBlocos';
 import StepRevisao from './steps/StepRevisao';
 import StepConfig from './steps/StepConfig';
 import StepPreview from './steps/StepPreview';
@@ -21,9 +22,10 @@ const STEPS = [
   { id: 0, label: 'Edital', icon: Target, title: 'Selecao de Edital', sub: 'Escolha sua base' },
   { id: 1, label: 'Materias', icon: Layers, title: 'Disciplinas', sub: 'O que estudar' },
   { id: 2, label: 'Horarios', icon: Clock, title: 'Sua Rotina', sub: 'Quando estudar' },
-  { id: 3, label: 'Metodologia', icon: RefreshCw, title: 'Revisao', sub: 'Como revisar' },
-  { id: 4, label: 'Ajustes', icon: Settings2, title: 'Preferencias', sub: 'Personalizacao' },
-  { id: 5, label: 'Previa', icon: CheckCircle2, title: 'Resultado', sub: 'Seu plano pronto' },
+  { id: 3, label: 'Blocos', icon: SlidersHorizontal, title: 'Divisao dos blocos', sub: 'Tamanho das sessoes' },
+  { id: 4, label: 'Metodologia', icon: RefreshCw, title: 'Revisao', sub: 'Como revisar' },
+  { id: 5, label: 'Ajustes', icon: Settings2, title: 'Preferencias', sub: 'Personalizacao' },
+  { id: 6, label: 'Previa', icon: CheckCircle2, title: 'Resultado', sub: 'Seu plano pronto' },
 ];
 
 const NIVEL_TO_PESO = {
@@ -129,15 +131,25 @@ const scrollToTopInstant = (element = null) => {
   }
 };
 
+const normalizarDisciplinaTodosDiasIds = (valor) => {
+  const lista = Array.isArray(valor) ? valor : (valor ? [valor] : []);
+  return [...new Set(lista.filter(Boolean).map(String))];
+};
+
+const disciplinaEstaTodosDias = (ids, disciplinaId) => (
+  normalizarDisciplinaTodosDiasIds(ids).includes(String(disciplinaId))
+);
+
 const buildDisciplinaSnapshotCompleto = ({
   disciplinas = [],
   extraDisciplinas = [],
   selecaoDisciplinas = {},
   horasTotais = 0,
   tempoSessaoMinutos = 50,
-  disciplinaTodosDiasId = null,
+  disciplinaTodosDiasIds = [],
   diasEstudo = {},
 }) => {
+  const idsTodosDias = normalizarDisciplinaTodosDiasIds(disciplinaTodosDiasIds);
   const todasDisciplinas = [...disciplinas, ...extraDisciplinas];
   const disciplinasSelecionadas = todasDisciplinas
     .map((disciplina) => {
@@ -156,7 +168,7 @@ const buildDisciplinaSnapshotCompleto = ({
         nivelDominio,
         peso: NIVEL_TO_PESO[nivelDominio] || Number(disciplina.peso) || 3,
         assuntos: assuntosMarcados,
-        estudarTodosDias: disciplina.id === disciplinaTodosDiasId,
+        estudarTodosDias: disciplinaEstaTodosDias(idsTodosDias, disciplina.id),
       };
     })
     .filter(Boolean);
@@ -195,7 +207,7 @@ const buildDisciplinaSnapshotCompleto = ({
       cor: disciplina.cor || null,
       tempoAlocadoSemanalMinutos: ativa ? Number(disciplinaAtiva?.tempoAlocadoMinutos || 0) : 0,
       inCiclo: ativa,
-      estudarTodosDias: ativa && disciplina.id === disciplinaTodosDiasId,
+      estudarTodosDias: ativa && disciplinaEstaTodosDias(idsTodosDias, disciplina.id),
       index,
     };
   });
@@ -230,8 +242,9 @@ function CicloCreateWizard({
   const [modoExibirAssuntos, setModoExibirAssuntos] = useState(true);
   const [modoExibirTempo, setModoExibirTempo] = useState('detalhado');
   const [coresDisciplinasAtivas, setCoresDisciplinasAtivas] = useState(true);
-  const [disciplinaTodosDiasId, setDisciplinaTodosDiasId] = useState(null);
+  const [disciplinaTodosDiasIds, setDisciplinaTodosDiasIds] = useState([]);
   const [mostrandoRascunho, setMostrandoRascunho] = useState(false);
+  const [confirmandoSaida, setConfirmandoSaida] = useState(false);
   const [sessionAutoAdjustedNotice, setSessionAutoAdjustedNotice] = useState(null);
   const [validationMessage, setValidationMessage] = useState('');
   const conteudoRef = useRef(null);
@@ -271,7 +284,9 @@ function CicloCreateWizard({
     setModoExibirAssuntos(state.modoExibirAssuntos !== false);
     setModoExibirTempo(state.modoExibirTempo || 'detalhado');
     setCoresDisciplinasAtivas(state.coresDisciplinasAtivas !== false);
-    setDisciplinaTodosDiasId(state.disciplinaTodosDiasId || null);
+    setDisciplinaTodosDiasIds(
+      normalizarDisciplinaTodosDiasIds(state.disciplinaTodosDiasIds || state.disciplinaTodosDiasId)
+    );
   };
 
   const salvarRascunhoAtual = () => {
@@ -291,11 +306,17 @@ function CicloCreateWizard({
       modoExibirAssuntos: modoExibirAssuntos !== false,
       modoExibirTempo: modoExibirTempo || 'detalhado',
       coresDisciplinasAtivas: coresDisciplinasAtivas !== false,
-      disciplinaTodosDiasId,
+      disciplinaTodosDiasIds,
     };
     try {
       localStorage.setItem(CICLO_DRAFT_KEY, JSON.stringify(payload));
     } catch {}
+  };
+
+  const descartarEFechar = () => {
+    setConfirmandoSaida(false);
+    if (!isEditMode) limparCicloDraft();
+    onClose?.();
   };
 
   useEffect(() => {
@@ -386,7 +407,7 @@ function CicloCreateWizard({
     modoExibirAssuntos,
     modoExibirTempo,
     coresDisciplinasAtivas,
-    disciplinaTodosDiasId,
+    disciplinaTodosDiasIds,
     isEditMode,
   ]);
 
@@ -467,7 +488,7 @@ function CicloCreateWizard({
           nivelDominio,
           peso: NIVEL_TO_PESO[nivelDominio] || Number(d.peso) || 3,
           assuntos: assuntos.length > 0 ? assuntosMarcados : assuntos,
-          estudarTodosDias: d.id === disciplinaTodosDiasId,
+          estudarTodosDias: disciplinaEstaTodosDias(disciplinaTodosDiasIds, d.id),
         };
       })
       .filter(Boolean);
@@ -479,13 +500,16 @@ function CicloCreateWizard({
       const horas = razao * horasTotais;
       return { ...d, peso, nivelDominio: isNivelValido(d.nivelDominio) ? d.nivelDominio : null, horasCalculadas: horas };
     });
-  }, [disciplinas, extraDisciplinas, selecaoDisciplinas, horasTotais, disciplinaTodosDiasId]);
+  }, [disciplinas, extraDisciplinas, selecaoDisciplinas, horasTotais, disciplinaTodosDiasIds]);
 
   useEffect(() => {
-    if (!disciplinaTodosDiasId) return;
-    const continuaAtiva = disciplinasComCalculo.some((disciplina) => disciplina.id === disciplinaTodosDiasId);
-    if (!continuaAtiva) setDisciplinaTodosDiasId(null);
-  }, [disciplinaTodosDiasId, disciplinasComCalculo]);
+    if (disciplinaTodosDiasIds.length === 0) return;
+    const idsAtivos = new Set(disciplinasComCalculo.map((disciplina) => String(disciplina.id)));
+    const idsFiltrados = disciplinaTodosDiasIds.filter((id) => idsAtivos.has(String(id)));
+    if (idsFiltrados.length !== disciplinaTodosDiasIds.length) {
+      setDisciplinaTodosDiasIds(idsFiltrados);
+    }
+  }, [disciplinaTodosDiasIds, disciplinasComCalculo]);
 
   const minimumRequiredSessions = useMemo(
     () => disciplinasComCalculo.reduce(
@@ -603,7 +627,7 @@ function CicloCreateWizard({
     });
     setDisciplinas(disciplinasFormatadas);
     setExtraDisciplinas([]);
-    setDisciplinaTodosDiasId(null);
+    setDisciplinaTodosDiasIds([]);
     setSelecaoDisciplinas(
       Object.fromEntries(
         disciplinasFormatadas.map((disc) => [
@@ -626,7 +650,7 @@ function CicloCreateWizard({
     setDisciplinas([]);
     setExtraDisciplinas([]);
     setSelecaoDisciplinas({});
-    setDisciplinaTodosDiasId(null);
+    setDisciplinaTodosDiasIds([]);
   };
 
   const salvarWizard = async () => {
@@ -675,7 +699,7 @@ function CicloCreateWizard({
           peso: obterPesoDisciplina(d),
           nivelDominio: normalizarNivel(d.nivelDominio || d.nivel, d.peso),
           tempoAlocadoSemanalMinutos: Math.round(d.horasCalculadas * 60),
-          estudarTodosDias: d.id === disciplinaTodosDiasId,
+          estudarTodosDias: disciplinaEstaTodosDias(disciplinaTodosDiasIds, d.id),
           index: position,
           ...(previewDisciplina?.cor ? { cor: previewDisciplina.cor } : {}),
         };
@@ -686,7 +710,7 @@ function CicloCreateWizard({
         selecaoDisciplinas,
         horasTotais,
         tempoSessaoMinutos,
-        disciplinaTodosDiasId,
+        disciplinaTodosDiasIds,
         diasEstudo: gradeDisponibilidade,
       }).map((disciplina) => {
         const previewDisciplina = disciplinasPreview.find((item) => item.id === disciplina.id || item.nome === disciplina.nome);
@@ -720,9 +744,10 @@ function CicloCreateWizard({
     if (passo === 1) return editalConfirmado && !mostrarModalModelo;
     if (passo === 2) return selecaoValidaDisciplinas;
     if (passo === 3) return horasTotais > 0;
-    if (passo === 4) return Boolean(revisaoModo);
-    if (passo === 5) return nomeCiclo.trim().length > 0 && Number(tempoSessaoMinutos) >= 10 && distribuicaoCabeNaRotina;
-    if (passo === 6) return disciplinasPreview.length > 0 && Boolean(cicloPreview);
+    if (passo === 4) return Number(tempoSessaoMinutos) >= 10 && distribuicaoCabeNaRotina;
+    if (passo === 5) return Boolean(revisaoModo);
+    if (passo === 6) return nomeCiclo.trim().length > 0;
+    if (passo === 7) return disciplinasPreview.length > 0 && Boolean(cicloPreview);
     return false;
   }, [passo, editalConfirmado, mostrarModalModelo, selecaoValidaDisciplinas, horasTotais, revisaoModo, nomeCiclo, tempoSessaoMinutos, disciplinasPreview, cicloPreview, distribuicaoCabeNaRotina]);
 
@@ -795,8 +820,8 @@ function CicloCreateWizard({
           editalSelecionado={dadosModeloSelecionado}
           modoManual={idModeloSelecionado === 'manual' || !idModeloSelecionado}
           horarios={gradeDisponibilidade}
-          disciplinaTodosDiasId={disciplinaTodosDiasId}
-          setDisciplinaTodosDiasId={setDisciplinaTodosDiasId}
+          disciplinaTodosDiasIds={disciplinaTodosDiasIds}
+          setDisciplinaTodosDiasIds={setDisciplinaTodosDiasIds}
           activeStudyDaysCount={activeStudyDaysCount}
         />
       );
@@ -813,16 +838,28 @@ function CicloCreateWizard({
     }
 
     if (passo === 4) {
-      return <StepRevisao revisaoModo={revisaoModo} setRevisaoModo={setRevisaoModo} />;
+      return (
+        <StepDivisaoBlocos
+          tempoSessaoMinutos={tempoSessaoMinutos}
+          setTempoSessaoMinutos={setTempoSessaoMinutos}
+          minimumActiveDayMinutes={minimumActiveDayMinutes}
+          sessionAutoAdjustedNotice={sessionAutoAdjustedNotice}
+          totalSessionSlots={totalSessionSlots}
+          minimumRequiredSessions={minimumRequiredSessions}
+          distribuicaoCabeNaRotina={distribuicaoCabeNaRotina}
+        />
+      );
     }
 
     if (passo === 5) {
+      return <StepRevisao revisaoModo={revisaoModo} setRevisaoModo={setRevisaoModo} />;
+    }
+
+    if (passo === 6) {
       return (
         <StepConfig
           nomeCiclo={nomeCiclo}
           setNomeCiclo={setNomeCiclo}
-          tempoSessaoMinutos={tempoSessaoMinutos}
-          setTempoSessaoMinutos={setTempoSessaoMinutos}
           modoExibirAssuntos={modoExibirAssuntos}
           setModoExibirAssuntos={setModoExibirAssuntos}
           modoExibirTempo={modoExibirTempo}
@@ -832,11 +869,6 @@ function CicloCreateWizard({
           disciplinasPreview={disciplinasPreview}
           onDisciplinaCorChange={handleDisciplinaColorChange}
           editalSelecionado={dadosModeloSelecionado}
-          minimumActiveDayMinutes={minimumActiveDayMinutes}
-          sessionAutoAdjustedNotice={sessionAutoAdjustedNotice}
-          totalSessionSlots={totalSessionSlots}
-          minimumRequiredSessions={minimumRequiredSessions}
-          distribuicaoCabeNaRotina={distribuicaoCabeNaRotina}
         />
       );
     }
@@ -860,9 +892,10 @@ function CicloCreateWizard({
     1: 'edital-manual',
     2: 'disciplinas',
     3: 'horarios',
-    4: 'ciclo-revisao',
-    5: 'ciclo-config',
-    6: 'ciclo-preview',
+    4: 'ciclo-blocos',
+    5: 'ciclo-revisao',
+    6: 'ciclo-config',
+    7: 'ciclo-preview',
   }[passo] || 'ciclo-step';
 
   return (
@@ -871,7 +904,7 @@ function CicloCreateWizard({
         <div
           data-wizard-type="ciclo"
           data-wizard-step={currentStepZoomKey}
-          className={`wizard-step-frame ${passo === firstVisibleStep || passo === 6 ? 'w-full mx-auto' : 'max-w-5xl mx-auto'}`}
+          className={`wizard-step-frame ${passo === firstVisibleStep || passo === 7 ? 'w-full mx-auto' : 'max-w-5xl mx-auto'}`}
         >
           <AnimatePresence>
             {validationMessage && (
@@ -925,9 +958,11 @@ function CicloCreateWizard({
             ) : (
               <button
                 onClick={() => {
-                  if (!isEditMode) salvarRascunhoAtual();
-                  if (onBackToSelector) onBackToSelector();
-                  else onClose?.();
+                  if (onBackToSelector) {
+                    onBackToSelector();
+                    return;
+                  }
+                  setConfirmandoSaida(true);
                 }}
                 className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-zinc-400 hover:text-red-500 font-black text-[10px] uppercase tracking-widest transition-all active:scale-95"
               >
@@ -937,10 +972,7 @@ function CicloCreateWizard({
             )}
             <button
               type="button"
-              onClick={() => {
-                if (!isEditMode) salvarRascunhoAtual();
-                onClose?.();
-              }}
+              onClick={() => setConfirmandoSaida(true)}
               className="flex items-center gap-2 rounded-2xl border border-zinc-200 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-zinc-400 transition-all hover:border-red-200 hover:bg-red-50 hover:text-red-600 active:scale-95 dark:border-zinc-800 dark:hover:border-red-900/60 dark:hover:bg-red-950/20 sm:px-4 sm:py-2.5"
               aria-label="Fechar criação"
             >
@@ -1017,6 +1049,34 @@ function CicloCreateWizard({
                   className="py-3 rounded-2xl bg-red-600 text-white font-bold text-xs uppercase tracking-widest hover:bg-red-700 transition-all"
                 >
                   Recuperar
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {confirmandoSaida && (
+          <div className="fixed inset-0 z-[230] flex items-center justify-center p-4 bg-zinc-900/60 backdrop-blur-sm">
+            <motion.div initial={{ opacity: 0, scale: 0.94, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} className="wizard-confirm-card bg-white dark:bg-zinc-900 p-7 rounded-[32px] border-2 border-zinc-100 dark:border-zinc-800 shadow-2xl max-w-sm w-full text-center">
+              <div className="w-16 h-16 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center mx-auto mb-5">
+                <AlertTriangle size={28} className="text-red-600" />
+              </div>
+              <h3 className="text-xl font-black text-zinc-900 dark:text-white uppercase mb-2">{isEditMode ? 'Descartar alteracoes?' : 'Descartar ciclo?'}</h3>
+              <p className="text-sm text-zinc-500 mb-7">
+                {isEditMode ? 'As alteracoes nao salvas serao perdidas.' : 'O rascunho do planejamento sera apagado e nao podera ser recuperado depois.'}
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => setConfirmandoSaida(false)}
+                  className="py-3 rounded-2xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white font-bold text-xs uppercase tracking-widest hover:bg-zinc-200 transition-all"
+                >
+                  Ficar
+                </button>
+                <button
+                  onClick={descartarEFechar}
+                  className="py-3 rounded-2xl bg-red-600 text-white font-bold text-xs uppercase tracking-widest hover:bg-red-700 transition-all"
+                >
+                  Descartar
                 </button>
               </div>
             </motion.div>

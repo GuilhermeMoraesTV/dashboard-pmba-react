@@ -29,6 +29,13 @@ const getActiveDaySessionCapacities = (diasEstudo, tempoSessaoMinutos) => {
     .sort((a, b) => a.dia - b.dia);
 };
 
+const getDailyDisciplines = (disciplinas, restantes = null) => (
+  disciplinas.filter((disc) => (
+    disc?.estudarTodosDias === true
+    && (!restantes || (restantes.get(disc.id) || 0) > 0)
+  ))
+);
+
 export const calcularDistribuicao = (
   disciplinas,
   cargaHorariaTotalMinutos,
@@ -112,10 +119,11 @@ export const gerarOrdemSessoes = (disciplinas, embaralharOffset = 0, options = {
     options.diasEstudo,
     Math.max(1, Number(options.tempoSessaoMinutos) || 50)
   );
-  const diaria = discsOrdenadas.find((disc) => disc.estudarTodosDias && (restantes.get(disc.id) || 0) > 0);
+  const diarias = getDailyDisciplines(discsOrdenadas, restantes);
+  const idsDiarias = new Set(diarias.map((disc) => disc.id));
   const ordem = [];
   let cursor = 0;
-  let diasDiariosPendentes = capacidadesPorDia.length;
+  const diasDiariosPendentes = new Map(diarias.map((disc) => [disc.id, capacidadesPorDia.length]));
 
   const adicionar = (disciplina) => {
     const restante = restantes.get(disciplina.id) || 0;
@@ -134,9 +142,8 @@ export const gerarOrdemSessoes = (disciplinas, embaralharOffset = 0, options = {
       if ((restantes.get(candidata.id) || 0) <= 0) continue;
       if (
         preservarDiaria &&
-        diaria &&
-        candidata.id === diaria.id &&
-        (restantes.get(candidata.id) || 0) <= diasDiariosPendentes
+        idsDiarias.has(candidata.id) &&
+        (restantes.get(candidata.id) || 0) <= (diasDiariosPendentes.get(candidata.id) || 0)
       ) {
         continue;
       }
@@ -148,8 +155,13 @@ export const gerarOrdemSessoes = (disciplinas, embaralharOffset = 0, options = {
 
   capacidadesPorDia.forEach(({ sessoes }) => {
     let usadas = 0;
-    if (diaria && adicionar(diaria)) usadas += 1;
-    diasDiariosPendentes = Math.max(0, diasDiariosPendentes - 1);
+    diarias.forEach((diaria) => {
+      if (usadas < sessoes && adicionar(diaria)) usadas += 1;
+      diasDiariosPendentes.set(
+        diaria.id,
+        Math.max(0, (diasDiariosPendentes.get(diaria.id) || 0) - 1)
+      );
+    });
     while (usadas < sessoes && adicionarProxima(true)) usadas += 1;
   });
 

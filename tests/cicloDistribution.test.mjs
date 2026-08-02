@@ -71,4 +71,32 @@ describe('cicloDistribution', () => {
     assert.equal(ordem.length, distribuicao.reduce((total, item) => total + item.sessoesPorCiclo, 0));
     assert.deepEqual(ordem.slice(0, 5).map((item) => item.disciplinaId), ['lei', 'lei', 'lei', 'lei', 'lei']);
   });
+
+  it('reserva sessoes diarias para mais de uma disciplina marcada', () => {
+    const diasComDuasSessoes = {
+      1: 2,
+      2: 2,
+      3: 2,
+    };
+    const distribuicao = calcularDistribuicao(
+      [
+        { id: 'lei', nome: 'Legislacao', nivelDominio: 'intermediario', estudarTodosDias: true },
+        { id: 'pt', nome: 'Portugues', nivelDominio: 'intermediario', estudarTodosDias: true },
+        { id: 'inf', nome: 'Informatica', nivelDominio: 'iniciante' },
+      ],
+      360,
+      60,
+      { diasEstudo: diasComDuasSessoes }
+    );
+
+    const ordem = gerarOrdemSessoes(distribuicao, 0, {
+      diasEstudo: diasComDuasSessoes,
+      tempoSessaoMinutos: 60,
+    });
+
+    const blocosPorDia = [ordem.slice(0, 2), ordem.slice(2, 4), ordem.slice(4, 6)];
+    blocosPorDia.forEach((blocos) => {
+      assert.deepEqual(blocos.map((item) => item.disciplinaId).sort(), ['lei', 'pt']);
+    });
+  });
 });

@@ -3,14 +3,6 @@ import { motion } from 'framer-motion';
 import { BookOpen, Clock, EyeOff, Hash, LayoutList, Palette, Settings2, Shuffle, Target, Timer } from 'lucide-react';
 import ColorisSwatch from '../../../shared/ColorisSwatch';
 
-const fmtMin = (min) => {
-  if (!min || min <= 0) return '0m';
-  if (min < 60) return `${min}m`;
-  const h = Math.floor(min / 60);
-  const m = min % 60;
-  return m > 0 ? `${h}h${String(m).padStart(2, '0')}` : `${h}h`;
-};
-
 const EditalSidebarCard = ({ editalSelecionado }) => (
   <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 flex flex-col items-center text-center relative overflow-hidden shadow-[0_8px_30px_rgba(239,68,68,0.15)] dark:shadow-[0_8px_30px_rgba(239,68,68,0.08)]">
     <div className="absolute top-0 inset-x-0 h-24 bg-gradient-to-b from-red-50 dark:from-red-900/10 to-transparent pointer-events-none" />
@@ -181,8 +173,6 @@ const PageHeader = () => (
 export default function StepConfig({
   nomeCiclo,
   setNomeCiclo,
-  tempoSessaoMinutos,
-  setTempoSessaoMinutos,
   modoExibirAssuntos = true,
   setModoExibirAssuntos,
   modoExibirTempo = 'detalhado',
@@ -192,18 +182,10 @@ export default function StepConfig({
   disciplinasPreview = [],
   onDisciplinaCorChange,
   editalSelecionado,
-  minimumActiveDayMinutes = null,
-  sessionAutoAdjustedNotice = null,
-  totalSessionSlots = 0,
-  minimumRequiredSessions = 0,
-  distribuicaoCabeNaRotina = true,
 }) {
   const modoAssuntos = modoExibirAssuntos === false ? 'livre' : 'guiado';
   const modoTempo = modoExibirTempo || 'detalhado';
   const [colorDrafts, setColorDrafts] = useState({});
-  const exemploDiaMinutos = minimumActiveDayMinutes || 120;
-  const sessoesNoExemplo = Math.floor(exemploDiaMinutos / Math.max(1, tempoSessaoMinutos));
-  const sobraNoExemplo = Math.max(0, exemploDiaMinutos - (sessoesNoExemplo * tempoSessaoMinutos));
 
   useEffect(() => {
     setColorDrafts((current) => {
@@ -377,78 +359,6 @@ export default function StepConfig({
                 )}
               </div>
 
-              <div className="rounded-3xl border border-red-100 bg-gradient-to-br from-red-50/70 to-white p-5 dark:border-red-950/50 dark:from-red-950/20 dark:to-zinc-900">
-                <div className="flex items-start gap-3 mb-4">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-red-600 text-white shadow-lg shadow-red-600/20">
-                    <Clock size={18} />
-                  </div>
-                  <div>
-                    <span className="text-xs font-black uppercase tracking-wider text-zinc-900 dark:text-white">Tempo de cada bloco de estudo</span>
-                    <p className="mt-1 text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-400">
-                      Cada bloco aparece no radar com a mesma duracao; a dificuldade define quantos blocos cada materia recebe.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap gap-2 mb-3">
-                  {[25, 30, 45, 50, 60, 90].map((min) => (
-                    <button
-                      key={min}
-                      type="button"
-                      onClick={() => setTempoSessaoMinutos(min)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                        tempoSessaoMinutos === min
-                          ? 'bg-red-600 text-white shadow-md shadow-red-600/20'
-                          : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:border-red-300'
-                      }`}
-                    >
-                      {fmtMin(min)}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-zinc-500">Personalizar:</span>
-                  <input
-                    type="number"
-                    min={10}
-                    max={minimumActiveDayMinutes || 180}
-                    value={tempoSessaoMinutos}
-                    onChange={(e) => setTempoSessaoMinutos(Math.max(10, Math.min(minimumActiveDayMinutes || 180, Number(e.target.value))))}
-                    className="w-20 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg px-2 py-1 text-sm font-bold text-zinc-800 dark:text-white text-center focus:outline-none focus:ring-2 focus:ring-red-500"
-                  />
-                  <span className="text-xs text-zinc-400">min por bloco</span>
-                </div>
-
-                <div className="mt-4 grid grid-cols-[auto_1fr] items-center gap-3 rounded-2xl border border-red-100 bg-white/80 p-3 dark:border-red-950/50 dark:bg-zinc-900/70">
-                  <div className="rounded-xl bg-red-600 px-3 py-2 text-center text-white">
-                    <p className="text-lg font-black leading-none">{fmtMin(tempoSessaoMinutos)}</p>
-                    <p className="mt-1 text-[7px] font-black uppercase tracking-widest text-red-100">1 bloco</p>
-                  </div>
-                  <p className="text-[11px] font-medium leading-relaxed text-zinc-600 dark:text-zinc-300">
-                    Em um dia de <strong>{fmtMin(exemploDiaMinutos)}</strong>, o sistema agenda <strong>{sessoesNoExemplo} {sessoesNoExemplo === 1 ? 'bloco' : 'blocos'}</strong>
-                    {sobraNoExemplo > 0 ? ` e deixa ${fmtMin(sobraNoExemplo)} livres.` : '.'}
-                  </p>
-                </div>
-
-                {minimumActiveDayMinutes && (
-                  <p className="mt-2 text-[11px] text-zinc-500 dark:text-zinc-400">
-                    Menor dia ativo configurado: <span className="font-black text-zinc-800 dark:text-white">{fmtMin(minimumActiveDayMinutes)}</span>. O bloco nao pode passar desse limite.
-                  </p>
-                )}
-
-                {sessionAutoAdjustedNotice && (
-                  <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-700 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-300">
-                    A duracao do bloco foi ajustada automaticamente para {fmtMin(sessionAutoAdjustedNotice.adjustedTo)}, porque existe um dia ativo com apenas {fmtMin(sessionAutoAdjustedNotice.minDayMinutes)} disponiveis.
-                  </div>
-                )}
-              </div>
-
-              {!distribuicaoCabeNaRotina && (
-                <div className="rounded-3xl border border-red-200 bg-red-50 px-4 py-3 text-[11px] font-bold text-red-700 dark:border-red-900/40 dark:bg-red-950/20 dark:text-red-300">
-                  Sua rotina comporta {totalSessionSlots} blocos, mas esta configuracao precisa de pelo menos {minimumRequiredSessions}. Aumente as horas, reduza o tempo do bloco ou remova a preferencia diaria no passo de disciplinas.
-                </div>
-              )}
 
               <div className="flex items-center gap-2 rounded-xl bg-zinc-100 dark:bg-zinc-800 px-3 py-2 text-xs text-zinc-600 dark:text-zinc-300">
                 <Settings2 size={14} className="text-red-600" />

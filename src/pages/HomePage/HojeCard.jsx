@@ -79,10 +79,19 @@ const getRegistroDateKey = (registro) => {
 
 const isInteractiveClick = (target) => Boolean(target?.closest?.('button, a, input, textarea, select, [role="button"]'));
 
+const NEUTRAL_DISCIPLINE_COLOR = {
+  id: 'neutral',
+  hex: '#71717a',
+  bg: 'bg-zinc-500',
+  text: 'text-zinc-700 dark:text-zinc-200',
+  progress: 'bg-zinc-500',
+};
+
 // --- Slot de Missão ---
-function MissionSlot({ slot, isDone, onToggle, onMarkPending, onPlay, variant, sourceMode = 'cronograma', isLoading = false }) {
+function MissionSlot({ slot, isDone, onToggle, onMarkPending, onPlay, variant, sourceMode = 'cronograma', isLoading = false, useDisciplineColors = true }) {
   const isEstudo = variant === 'estudo';
   const isCycle = sourceMode === 'ciclo';
+  const shouldUseDisciplineColors = !isCycle || useDisciplineColors !== false;
   const tempoPlanejado = Number(slot.tempoPlanejadoMinutos ?? slot.tempoMinutos ?? 0);
   const progressoAtual = Number(slot.progressoMinutos || 0);
   const effectiveDone = Boolean(isDone) || (tempoPlanejado > 0 && progressoAtual >= tempoPlanejado);
@@ -91,8 +100,8 @@ function MissionSlot({ slot, isDone, onToggle, onMarkPending, onPlay, variant, s
     : (effectiveDone ? 100 : 0);
   const progressoPercentual = Math.min(100, progressoPercentualReal);
   const emAndamento = !effectiveDone && progressoAtual > 0 && progressoPercentual < 100;
-  const disciplinaColor = getDisciplineColorForSlot(slot);
-  const useDisciplineColor = isEstudo && !emAndamento;
+  const disciplinaColor = shouldUseDisciplineColors ? getDisciplineColorForSlot(slot) : NEUTRAL_DISCIPLINE_COLOR;
+  const useDisciplineColor = isEstudo && !emAndamento && shouldUseDisciplineColors;
   const progressoExibido = effectiveDone ? Math.max(100, progressoPercentualReal) : progressoPercentualReal;
   const progressoBarra = Math.min(100, Math.max(0, progressoExibido));
   const progressoMinutosExibido = effectiveDone ? Math.max(progressoAtual, tempoPlanejado) : progressoAtual;
@@ -414,7 +423,7 @@ function HojeCard({
 
   const cicloSlotsRevisao = useMemo(() => revisoesHoje.map((rev) => {
     const tempoPlanejadoMinutos = Number(rev.tempoPlanejadoMinutos || rev.tempoMinutos || 20);
-    const progressoMinutos = Boolean(rev.concluida)
+    const progressoMinutos = rev.concluida
       ? tempoPlanejadoMinutos
       : Number(rev.progressoMinutos || 0);
     return {
@@ -1127,6 +1136,7 @@ function HojeCard({
                     : handlePlay}
                   variant="estudo"
                   sourceMode={isCycleSlot ? 'ciclo' : 'cronograma'}
+                  useDisciplineColors={activeCicloData?.coresDisciplinasAtivas !== false}
                 />
               );
             }) : (

@@ -158,7 +158,9 @@ export const useCiclos = (user) => {
         (acc, d) => acc + (Number(d.sessoesPorCiclo) || 1),
         0
       );
-      const disciplinaTodosDias = disciplinasAtivas.find((disciplina) => disciplina.estudarTodosDias);
+      const disciplinaTodosDiasIds = disciplinasAtivas
+        .filter((disciplina) => disciplina.estudarTodosDias)
+        .map((disciplina) => disciplina.id);
 
       batch.set(cicloRef, {
         nome: cicloData.nome,
@@ -174,7 +176,8 @@ export const useCiclos = (user) => {
           diasEstudo: cicloData.diasEstudo,
           tempoSessaoMinutos,
         }),
-        disciplinaTodosDiasId: disciplinaTodosDias?.id || null,
+        disciplinaTodosDiasId: disciplinaTodosDiasIds[0] || null,
+        disciplinaTodosDiasIds,
         sessoesConcluidas: [],
         progressoSessoes: {},
         embaralharOffset: 0,
@@ -379,7 +382,10 @@ export const useCiclos = (user) => {
         0
       );
       updateData.ordemSessoes = novaOrdemSessoes;
-      updateData.disciplinaTodosDiasId = disciplinasParaOrdem.find((disciplina) => disciplina.estudarTodosDias)?.id || null;
+      updateData.disciplinaTodosDiasIds = disciplinasParaOrdem
+        .filter((disciplina) => disciplina.estudarTodosDias)
+        .map((disciplina) => disciplina.id);
+      updateData.disciplinaTodosDiasId = updateData.disciplinaTodosDiasIds[0] || null;
 
       if (options.guideUpgrade) {
         updateData.versaoCiclo = CICLO_GUIDE_VERSION;

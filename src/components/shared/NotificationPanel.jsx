@@ -741,7 +741,7 @@ const NotificationPanel = ({
             exit={{ opacity: 0, scale: 0.985, y: -4 }}
             transition={{ duration: 0.1, ease: 'easeOut' }}
             style={{ top: bellBottom + 8, ...panelPosition, maxHeight: panelMaxHeight }}
-            className="fixed z-[100] flex flex-col overflow-hidden glass-panel-fire rounded-[18px] sm:rounded-[20px] shadow-2xl"
+            className="modal-zoom modal-zoom--notifications fixed z-[100] flex flex-col overflow-hidden glass-panel-fire rounded-[18px] sm:rounded-[20px] shadow-2xl"
           >
             <style>{notifGlobalStyles}</style>
             <div className="h-1 bg-gradient-to-r from-red-700 via-red-500 to-red-700 flex-shrink-0 shadow-lg" />

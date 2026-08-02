@@ -11,8 +11,8 @@ export default function StepDisciplinas({
   editalSelecionado,
   modoManual,
   horarios,
-  disciplinaTodosDiasId,
-  setDisciplinaTodosDiasId,
+  disciplinaTodosDiasIds,
+  setDisciplinaTodosDiasIds,
   activeStudyDaysCount,
 }) {
   return (
@@ -26,8 +26,8 @@ export default function StepDisciplinas({
       editalSelecionado={editalSelecionado}
       modoManual={modoManual}
       horarios={horarios}
-      disciplinaTodosDiasId={disciplinaTodosDiasId}
-      onDisciplinaTodosDiasChange={setDisciplinaTodosDiasId}
+      disciplinaTodosDiasIds={disciplinaTodosDiasIds}
+      onDisciplinaTodosDiasChange={setDisciplinaTodosDiasIds}
       activeStudyDaysCount={activeStudyDaysCount}
     />
   );

@@ -83,10 +83,15 @@ const montarInitialState = ({ ciclo, disciplinas }) => {
         },
     gradeDisponibilidade: normalizarDiasEstudo(ciclo),
     tempoSessaoMinutos: Number(ciclo?.tempoSessaoMinutos) || 50,
-    disciplinaTodosDiasId:
-      ciclo?.disciplinaTodosDiasId ||
-      disciplinasWizard.find((disciplina) => disciplina.estudarTodosDias)?.id ||
-      null,
+    disciplinaTodosDiasIds: [
+      ...new Set([
+        ...(Array.isArray(ciclo?.disciplinaTodosDiasIds) ? ciclo.disciplinaTodosDiasIds : []),
+        ...(ciclo?.disciplinaTodosDiasId ? [ciclo.disciplinaTodosDiasId] : []),
+        ...disciplinasWizard
+          .filter((disciplina) => disciplina.estudarTodosDias)
+          .map((disciplina) => disciplina.id),
+      ].filter(Boolean).map(String)),
+    ],
     modoExibirAssuntos: ciclo?.modoExibirAssuntos !== false,
     disciplinas: disciplinasWizard,
     extraDisciplinas: [],

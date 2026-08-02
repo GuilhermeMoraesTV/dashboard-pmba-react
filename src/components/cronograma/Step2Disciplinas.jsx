@@ -284,6 +284,7 @@ const AssuntoItem = ({ assunto, checked, onToggle, onRemover, onEditar }) => {
 const DisciplinaCard = ({
   disciplina, isExpanded, onToggleExpand, estadoDisc, onToggleDisc, onToggleAssunto,
   onRemover, onEditar, onAdicionarAssunto, onRemoverAssunto, onEditarAssunto, onNivelChange, isExtra = false,
+  canToggleTodosDias = false, todosDiasAtivo = false, onToggleTodosDias, activeStudyDaysCount = 0,
 }) => {
   const [novoAssunto, setNovoAssunto] = useState('');
   const [editandoNome, setEditandoNome] = useState(false);
@@ -303,6 +304,7 @@ const DisciplinaCard = ({
 
   const isAtivo = discChecked || parcial;
   const isFaltandoNivel = isAtivo && !nivelAtual;
+  const labelDiasAtivos = activeStudyDaysCount ? ` (${activeStudyDaysCount} dias)` : '';
 
   const borderAccentColor = isAtivo
     ? nivelAtual === 'iniciante' ? 'bg-red-500'
@@ -366,6 +368,32 @@ const DisciplinaCard = ({
                     </motion.span>
                   );
                 })()}
+                {canToggleTodosDias && isAtivo && (
+                  <label
+                    title={`Estudar esta disciplina todos os dias ativos${labelDiasAtivos}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className={`shrink-0 inline-flex cursor-pointer select-none items-center gap-2 rounded-full border px-2.5 py-1 text-[9px] font-black uppercase tracking-wider transition-all ${
+                      todosDiasAtivo
+                        ? 'border-red-500 bg-red-50 text-red-700 shadow-sm dark:bg-red-950/25 dark:text-red-300'
+                        : 'border-zinc-200 bg-white text-zinc-500 hover:border-red-300 hover:text-red-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:border-red-800 dark:hover:text-red-300'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={todosDiasAtivo}
+                      onChange={() => onToggleTodosDias?.(disciplina.id)}
+                      className="sr-only"
+                    />
+                    <CalendarCheck2 size={11} strokeWidth={3} />
+                    <span>Estudar todo dia</span>
+                    <span className={`relative h-4 w-7 rounded-full transition-colors ${todosDiasAtivo ? 'bg-red-600' : 'bg-zinc-300 dark:bg-zinc-700'}`}>
+                      <span className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow-sm transition-all ${todosDiasAtivo ? 'right-0.5' : 'left-0.5'}`} />
+                    </span>
+                    <span className={todosDiasAtivo ? 'text-red-700 dark:text-red-300' : 'text-zinc-400'}>
+                      {todosDiasAtivo ? 'Ativo' : 'Inativo'}
+                    </span>
+                  </label>
+                )}
               </div>
             )}
 
@@ -489,6 +517,7 @@ const ModoGeral = ({
   modoManual,
   horarios,
   disciplinaTodosDiasId = null,
+  disciplinaTodosDiasIds = [],
   onDisciplinaTodosDiasChange = null,
   activeStudyDaysCount = 0,
 }) => {
@@ -567,11 +596,21 @@ const ModoGeral = ({
 
   const todasSelecionadas = disciplinas.length > 0 && disciplinas.every(d => selecao[d.id]?.checked) && (extraDisciplinas.length === 0 || extraDisciplinas.every(d => selecao[d.id]?.checked));
   const handleToggleTodos = () => { if (todasSelecionadas) handleLimparTodos(); else handleSelecionarTodos(); };
-  const disciplinasAtivasParaDiaria = [...disciplinas, ...extraDisciplinas].filter((disc) => {
-    const estado = selecao[disc.id];
-    return estado?.checked || estado?.parcial;
-  });
   const mostrarPreferenciaDiaria = typeof onDisciplinaTodosDiasChange === 'function';
+  const idsTodosDias = useMemo(() => {
+    const ids = Array.isArray(disciplinaTodosDiasIds)
+      ? disciplinaTodosDiasIds
+      : (disciplinaTodosDiasId ? [disciplinaTodosDiasId] : []);
+    return [...new Set(ids.filter(Boolean).map(String))];
+  }, [disciplinaTodosDiasId, disciplinaTodosDiasIds]);
+  const toggleDisciplinaTodosDias = (disciplinaId) => {
+    const id = String(disciplinaId);
+    const active = idsTodosDias.includes(id);
+    const next = active
+      ? idsTodosDias.filter((item) => item !== id)
+      : [...idsTodosDias, id];
+    onDisciplinaTodosDiasChange(next);
+  };
 
   return (
     <div className="flex flex-col h-full w-full">
@@ -585,49 +624,6 @@ const ModoGeral = ({
               <StatsMiniCard stats={stats} />
             </div>
           </div>
-
-          {mostrarPreferenciaDiaria && (
-            <div className="mb-5 rounded-3xl border border-red-100 bg-gradient-to-br from-red-50/70 to-white p-4 shadow-sm dark:border-red-950/50 dark:from-red-950/20 dark:to-zinc-900">
-              <div className="mb-3 flex items-start gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-red-600 text-white shadow-lg shadow-red-600/20">
-                  <CalendarCheck2 size={18} />
-                </div>
-                <div>
-                  <h4 className="text-xs font-black uppercase tracking-widest text-zinc-900 dark:text-white">Estudar matéria todos os dias</h4>
-                  <p className="mt-1 text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-400">
-                    Opcional. Escolha uma disciplina para aparecer pelo menos uma vez em cada dia ativo{activeStudyDaysCount ? ` (${activeStudyDaysCount} dias)` : ''}.
-                  </p>
-                </div>
-              </div>
-
-              {disciplinasAtivasParaDiaria.length > 0 ? (
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  {disciplinasAtivasParaDiaria.map((disciplina) => {
-                    const active = disciplinaTodosDiasId === disciplina.id;
-                    return (
-                      <button
-                        key={disciplina.id}
-                        type="button"
-                        onClick={() => onDisciplinaTodosDiasChange(active ? null : disciplina.id)}
-                        className={`flex items-center justify-between gap-3 rounded-2xl border px-3 py-2.5 text-left transition-all ${
-                          active
-                            ? 'border-red-500 bg-red-50 text-red-700 shadow-sm dark:bg-red-950/20 dark:text-red-300'
-                            : 'border-zinc-200 bg-white text-zinc-600 hover:border-red-200 dark:border-zinc-800 dark:bg-zinc-800/50 dark:text-zinc-300'
-                        }`}
-                      >
-                        <span className="min-w-0 truncate text-[11px] font-black">{disciplina.nome}</span>
-                        <CheckCircle2 size={15} className={active ? 'text-red-600' : 'text-zinc-300 dark:text-zinc-600'} />
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p className="rounded-2xl border border-dashed border-red-200 bg-white/70 px-3 py-3 text-[11px] font-bold text-zinc-500 dark:border-red-900/40 dark:bg-zinc-900/50 dark:text-zinc-400">
-                  Marque pelo menos uma disciplina para liberar esta preferência.
-                </p>
-              )}
-            </div>
-          )}
 
           {/* ── BARRA DE AÇÕES MOBILE ─────────────────────────────────────── */}
           <div className="lg:hidden flex flex-col gap-3 mb-6">
@@ -756,10 +752,10 @@ const ModoGeral = ({
             ) : (
               <>
                 {extraDisciplinas.map(disc => (
-                  <DisciplinaCard key={disc.id} disciplina={disc} isExpanded={expandedId === disc.id} onToggleExpand={() => setExpandedId(expandedId === disc.id ? null : disc.id)} isExtra={true} estadoDisc={selecao[disc.id]} onToggleDisc={() => handleToggleDisc(disc)} onToggleAssunto={idx => handleToggleAssunto(disc, idx)} onRemover={(id) => remover(id, true)} onEditar={(id, novo) => editar(id, novo, true)} onAdicionarAssunto={adicionarAssunto} onRemoverAssunto={(dId, idx) => removerAssunto(dId, idx, true)} onEditarAssunto={(dId, idx, novo) => editarAssunto(dId, idx, novo, true)} onNivelChange={handleNivelChange} />
+                  <DisciplinaCard key={disc.id} disciplina={disc} isExpanded={expandedId === disc.id} onToggleExpand={() => setExpandedId(expandedId === disc.id ? null : disc.id)} isExtra={true} estadoDisc={selecao[disc.id]} onToggleDisc={() => handleToggleDisc(disc)} onToggleAssunto={idx => handleToggleAssunto(disc, idx)} onRemover={(id) => remover(id, true)} onEditar={(id, novo) => editar(id, novo, true)} onAdicionarAssunto={adicionarAssunto} onRemoverAssunto={(dId, idx) => removerAssunto(dId, idx, true)} onEditarAssunto={(dId, idx, novo) => editarAssunto(dId, idx, novo, true)} onNivelChange={handleNivelChange} canToggleTodosDias={mostrarPreferenciaDiaria} todosDiasAtivo={idsTodosDias.includes(String(disc.id))} onToggleTodosDias={toggleDisciplinaTodosDias} activeStudyDaysCount={activeStudyDaysCount} />
                 ))}
                 {discFiltradas.map(disc => (
-                  <DisciplinaCard key={disc.id} disciplina={disc} isExpanded={expandedId === disc.id} onToggleExpand={() => setExpandedId(expandedId === disc.id ? null : disc.id)} isExtra={false} estadoDisc={selecao[disc.id]} onToggleDisc={() => handleToggleDisc(disc)} onToggleAssunto={idx => handleToggleAssunto(disc, idx)} onRemover={modoManual ? ((id) => remover(id, false)) : undefined} onEditar={(id, novo) => editar(id, novo, false)} onAdicionarAssunto={adicionarAssunto} onRemoverAssunto={(dId, idx) => removerAssunto(dId, idx, false)} onEditarAssunto={(dId, idx, novo) => editarAssunto(dId, idx, novo, false)} onNivelChange={handleNivelChange} />
+                  <DisciplinaCard key={disc.id} disciplina={disc} isExpanded={expandedId === disc.id} onToggleExpand={() => setExpandedId(expandedId === disc.id ? null : disc.id)} isExtra={false} estadoDisc={selecao[disc.id]} onToggleDisc={() => handleToggleDisc(disc)} onToggleAssunto={idx => handleToggleAssunto(disc, idx)} onRemover={modoManual ? ((id) => remover(id, false)) : undefined} onEditar={(id, novo) => editar(id, novo, false)} onAdicionarAssunto={adicionarAssunto} onRemoverAssunto={(dId, idx) => removerAssunto(dId, idx, false)} onEditarAssunto={(dId, idx, novo) => editarAssunto(dId, idx, novo, false)} onNivelChange={handleNivelChange} canToggleTodosDias={mostrarPreferenciaDiaria} todosDiasAtivo={idsTodosDias.includes(String(disc.id))} onToggleTodosDias={toggleDisciplinaTodosDias} activeStudyDaysCount={activeStudyDaysCount} />
                 ))}
               </>
             )}

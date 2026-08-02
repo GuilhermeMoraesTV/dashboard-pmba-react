@@ -1133,7 +1133,7 @@ function CicloVisual({
                 exit={{ opacity: 0, x: 20 }}
                 className="bg-zinc-50 dark:bg-zinc-900 rounded-2xl p-6 border border-zinc-200 dark:border-zinc-800 shadow-xl relative overflow-hidden"
               >
-                <div className="absolute left-0 top-0 bottom-0 w-1.5" style={{ backgroundColor: activeDisciplina.color }}></div>
+                <div className="absolute left-0 top-0 bottom-0 w-1.5" style={{ backgroundColor: shouldUseDisciplineColors ? activeDisciplina.color : '#71717a' }}></div>
 
                 <div className="relative z-10 pl-2">
                   {isModoCicloSessoes && activeDisciplina.isDisciplinaAgregada ? (
@@ -1144,7 +1144,7 @@ function CicloVisual({
                         </h3>
                         <span
                           className="px-2 py-1 rounded text-[10px] font-black uppercase tracking-wide bg-white dark:bg-zinc-800 border border-zinc-100 dark:border-zinc-700"
-                          style={{ color: activeDisciplina.color }}
+                          style={{ color: shouldUseDisciplineColors ? activeDisciplina.color : '#71717a' }}
                         >
                           {activeDisciplina.percentage.toFixed(0)}%
                         </span>
@@ -1179,7 +1179,7 @@ function CicloVisual({
                         <div className="w-full h-3 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
                           <motion.div
                             className="h-full rounded-full"
-                            style={{ backgroundColor: activeDisciplina.color }}
+                            style={{ backgroundColor: shouldUseDisciplineColors ? activeDisciplina.color : '#71717a' }}
                             initial={false}
                             animate={{ width: `${Math.min(activeDisciplina.percentage, 100)}%` }}
                             transition={{ duration: 0.35, ease: 'easeOut' }}
@@ -1211,7 +1211,7 @@ function CicloVisual({
                         </h3>
                         <span
                           className="px-2 py-1 rounded text-[10px] font-black uppercase tracking-wide bg-white dark:bg-zinc-800 border border-zinc-100 dark:border-zinc-700"
-                          style={{ color: activeDisciplina.color }}
+                          style={{ color: shouldUseDisciplineColors ? activeDisciplina.color : '#71717a' }}
                         >
                           {activeDisciplina.concluida ? 'Concluída' : 'Pendente'}
                         </span>
@@ -1267,7 +1267,7 @@ function CicloVisual({
                         <div className="w-full h-3 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
                           <motion.div
                             className="h-full rounded-full"
-                            style={{ backgroundColor: activeDisciplina.concluida ? CICLO_CONCLUIDO_COLOR : activeDisciplina.progressMinutos > 0 ? '#f59e0b' : activeDisciplina.corBase }}
+                            style={{ backgroundColor: activeDisciplina.concluida ? CICLO_CONCLUIDO_COLOR : activeDisciplina.progressMinutos > 0 ? '#f59e0b' : shouldUseDisciplineColors ? activeDisciplina.corBase : '#71717a' }}
                             initial={false}
                             animate={{ width: `${Math.min(activeDisciplina.percentage, 100)}%` }}
                             transition={{ duration: 0.35, ease: 'easeOut' }}
@@ -1317,7 +1317,7 @@ function CicloVisual({
                         </h3>
                         <span
                           className="px-2 py-1 rounded text-[10px] font-black uppercase tracking-wide bg-white dark:bg-zinc-800 border border-zinc-100 dark:border-zinc-700"
-                          style={{ color: activeDisciplina.color }}
+                          style={{ color: shouldUseDisciplineColors ? activeDisciplina.color : '#71717a' }}
                         >
                           {activeDisciplina.percentage.toFixed(0)}%
                         </span>
@@ -1333,7 +1333,7 @@ function CicloVisual({
                         <div className="w-full h-3 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
                           <motion.div
                             className="h-full rounded-full"
-                            style={{ backgroundColor: activeDisciplina.color }}
+                            style={{ backgroundColor: shouldUseDisciplineColors ? activeDisciplina.color : '#71717a' }}
                             initial={{ width: 0 }}
                             animate={{ width: `${Math.min(activeDisciplina.percentage, 100)}%` }}
                             transition={{ duration: 0.8, ease: 'easeOut' }}
