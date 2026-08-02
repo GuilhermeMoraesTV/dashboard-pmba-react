@@ -1080,7 +1080,7 @@ body.registro-modal-open .app-global-footer {
   --zoom-desktop-modal-admin-editais: 0.90;
   --zoom-desktop-modal-profile-history: 0.90;
   --zoom-desktop-modal-archive: 0.90;
-  --zoom-desktop-modal-notifications: 0.90;
+  --zoom-desktop-modal-notifications: 0.85;
   --zoom-desktop-support-card: 0.92;
   --zoom-desktop-sidebar: 0.85;
   --zoom-desktop-desempenho-discipline-card: 0.94;
@@ -1125,7 +1125,7 @@ body.registro-modal-open .app-global-footer {
   --zoom-mobile-modal-admin-editais: 0.84;
   --zoom-mobile-modal-profile-history: 0.84;
   --zoom-mobile-modal-archive: 0.84;
-  --zoom-mobile-modal-notifications: 0.84;
+  --zoom-mobile-modal-notifications: 0.80;
   --zoom-mobile-support-card: 0.86;
   --zoom-mobile-sidebar: 0.92;
   --zoom-mobile-desempenho-discipline-card: 0.90;

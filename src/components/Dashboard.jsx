@@ -2357,7 +2357,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
           if (isSidebarExpanded && !isLargeSidebarViewport) setIsSidebarExpanded(false);
           if (isMobileOpen) setIsMobileOpen(false);
         }}
-        className={`dashboard-main-content relative z-10 min-w-0 flex-1 transition-all duration-300 pt-[80px] px-4 md:px-8 lg:pt-[90px] pb-10 ${isLargeSidebarViewport || isSidebarExpanded ? 'lg:ml-[208px]' : 'lg:ml-[72px]'}`}
+        className={`dashboard-main-content relative z-10 min-w-0 flex-1 transition-all duration-300 pt-[80px] px-4 md:px-8 lg:pt-[90px] pb-10 ${isLargeSidebarViewport || isSidebarExpanded ? 'lg:ml-[196px]' : 'lg:ml-[72px]'}`}
       >
         <Header user={user} activeTab={activeTab}/>
         <main className={`mt-2 min-w-0 animate-fade-in ${['home', 'ciclos', 'cronograma', 'planejamento'].includes(activeTab) ? 'w-full' : 'max-w-7xl mx-auto'}`}>

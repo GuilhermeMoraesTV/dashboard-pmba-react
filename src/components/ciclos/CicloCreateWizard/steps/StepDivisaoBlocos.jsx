@@ -45,7 +45,7 @@ export default function StepDivisaoBlocos({
     [limiteMaximo]
   );
 
-  const exemploDiaMinutos = 120;
+  const exemploDiaMinutos = minimumActiveDayMinutes || 0;
   const sessoesNoExemplo = Math.floor(exemploDiaMinutos / Math.max(1, tempoSessaoMinutos));
   const sobraNoExemplo = Math.max(0, exemploDiaMinutos - (sessoesNoExemplo * tempoSessaoMinutos));
 
@@ -182,7 +182,7 @@ export default function StepDivisaoBlocos({
             <p className="mt-1 text-[7px] font-black uppercase tracking-widest text-red-100">1 bloco</p>
           </div>
           <p className="text-[12px] font-medium leading-relaxed text-zinc-700 dark:text-zinc-300">
-            Em um dia de <strong>2h</strong>, blocos de <strong>{fmtMin(tempoSessaoMinutos)}</strong> geram <strong>{sessoesNoExemplo} sessoes</strong>
+            Em um dia de <strong>{fmtMin(exemploDiaMinutos)}</strong>, blocos de <strong>{fmtMin(tempoSessaoMinutos)}</strong> geram <strong>{sessoesNoExemplo} sessoes</strong>
             {sobraNoExemplo > 0 ? ` e deixam ${fmtMin(sobraNoExemplo)} livres.` : '.'}
           </p>
         </div>

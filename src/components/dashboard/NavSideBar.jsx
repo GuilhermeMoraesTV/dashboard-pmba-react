@@ -795,7 +795,7 @@ function NavSideBar({
         bg-white/70 dark:bg-zinc-950/70 backdrop-blur-xl border-b border-white/60 dark:border-white/10
         flex items-center justify-between px-2 sm:px-4 shadow-sm shadow-black/5 dark:shadow-black/30 transition-all duration-300
         left-0 lg:left-[64px]
-        ${isDesktopExpanded ? 'lg:left-[196px]' : 'lg:left-[64px]'}
+        ${isDesktopExpanded ? 'lg:left-[184px]' : 'lg:left-[64px]'}
       `}
     >
       <div className="flex items-center z-20">
@@ -957,7 +957,7 @@ function NavSideBar({
           bg-white dark:bg-zinc-950 border-r border-zinc-200 dark:border-white/10
           transition-all duration-300 shadow-2xl lg:shadow-none
           ${isMobileOpen ? 'translate-x-0 w-[260px]' : '-translate-x-full lg:translate-x-0'}
-          lg:left-0 ${isDesktopExpanded ? 'lg:w-[196px]' : 'lg:w-[64px]'}
+          lg:left-0 ${isDesktopExpanded ? 'lg:w-[184px]' : 'lg:w-[64px]'}
         `}
         onMouseEnter={() => !isMobileOpen && !forceExpandedOnLarge && setExpanded(true)}
         onMouseLeave={() => !isMobileOpen && !forceExpandedOnLarge && setExpanded(false)}
@@ -971,7 +971,7 @@ function NavSideBar({
           </button>
         </div>
 
-        <div className={`nav-sidebar-content-zoom flex-1 py-3 px-2.5 ${NAV_GAP} overflow-y-auto`} style={{scrollbarWidth:'none'}}>
+        <div className={`nav-sidebar-content-zoom min-h-0 flex-1 overflow-y-auto px-2.5 pb-24 pt-3 ${NAV_GAP}`} style={{scrollbarWidth:'none'}}>
           <AnimatePresence>
             {hasCicloAtivo && (
               <motion.div key="atalho-ciclo" initial={{ opacity:0, height:0 }} animate={{ opacity:1, height:'auto' }} exit={{ opacity:0, height:0 }} transition={{ duration:0.2 }} className="mb-0.5">
@@ -1141,7 +1141,7 @@ function NavSideBar({
           })}
         </div>
 
-        <div className="nav-sidebar-content-zoom flex-shrink-0 border-t border-zinc-100 p-2.5 dark:border-zinc-800">
+        <div className="nav-sidebar-content-zoom absolute inset-x-0 bottom-0 border-t border-zinc-100 bg-white p-2.5 dark:border-zinc-800 dark:bg-zinc-950">
           <button
             type="button"
             onClick={() => {
