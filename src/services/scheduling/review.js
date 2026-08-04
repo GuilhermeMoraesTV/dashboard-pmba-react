@@ -365,9 +365,7 @@ export function getAgendaDia(
   };
 
   const slotsTeoriaAjustados = ajustarSlotsTeoriaAoOrcamento(slotsEstudoDia, minutosBrutoDia);
-  const slotsTeoriaBase = opcoes.expandirTeoriaAteBruto && revisoesDoDia.length === 0
-    ? expandirSlotsTeoriaAteOrcamento(slotsTeoriaAjustados, minutosBrutoDia)
-    : slotsTeoriaAjustados;
+  const slotsTeoriaBase = slotsTeoriaAjustados;
 
   minutosTeoriaOriginal = slotsTeoriaBase.reduce(
     (acc, s) => acc + (s.minutosEstudo || s.tempoMinutos || 0), 0
@@ -393,15 +391,6 @@ export function getAgendaDia(
     tetoLivreNoDia,
     tetoRevisaoPorTeoria
   ) : 0;
-
-  const slotsTeoriaImutaveis = slotsTeoriaBase.map((slot) => {
-    const minutosOriginais = Number(slot.minutosEstudo || slot.tempoMinutos || 0);
-    return {
-      ...slot,
-      tempoMinutos: minutosOriginais,
-      minutosEstudo: minutosOriginais,
-    };
-  });
 
   // Monta slots de revisao.
   let slotsRevisao = [];
@@ -434,7 +423,25 @@ export function getAgendaDia(
     slotsRevisao = slotsRevisao.filter((slot) => (slot.tempoMinutos || 0) > 0);
   }
 
-  return [...slotsTeoriaImutaveis, ...slotsRevisao];
+  const minutosRevisaoReal = slotsRevisao.reduce(
+    (acc, slot) => acc + Number(slot.tempoMinutos || slot.minutosEstudo || 0),
+    0
+  );
+  const tetoTeoriaFinal = Math.max(0, minutosBrutoDia - minutosRevisaoReal);
+  const slotsTeoriaFinais = opcoes.expandirTeoriaAteBruto
+    ? expandirSlotsTeoriaAteOrcamento(slotsTeoriaBase, tetoTeoriaFinal)
+    : slotsTeoriaBase;
+
+  const slotsTeoriaNormalizados = slotsTeoriaFinais.map((slot) => {
+    const minutosOriginais = Number(slot.minutosEstudo || slot.tempoMinutos || 0);
+    return {
+      ...slot,
+      tempoMinutos: minutosOriginais,
+      minutosEstudo: minutosOriginais,
+    };
+  });
+
+  return [...slotsTeoriaNormalizados, ...slotsRevisao];
 }
 
 // --- 3. getAgendaSemana ───────────────────────────────────────────────────────
@@ -713,7 +720,23 @@ export function getAgendaSemana(
 
     // No primeiro dia do cronograma, não há revisões espaçadas de estudos passados
     const isDiaZero = weekOffset === 0 && dataSlotStr === dataInicio;
-    const revisoesEfetivas = isDiaZero ? [] : revisoesDoDia;
+    let revisoesEfetivas = isDiaZero ? [] : revisoesDoDia;
+    if (cronograma?.limitarMaterias && cronograma?.limitesPorDia) {
+      const limiteDisciplinasDia = Number(
+        cronograma.limitesPorDia[diaAbsoluto] ?? cronograma.limitesPorDia[String(diaAbsoluto)] ?? 0
+      );
+      if (limiteDisciplinasDia > 0) {
+        const disciplinasDoDia = new Set(slotsEstudoDia.map((slot) => slot.disciplinaId).filter(Boolean));
+        revisoesEfetivas = revisoesEfetivas.filter((revisao) => {
+          const disciplinaId = revisao.disciplinaId;
+          if (!disciplinaId) return true;
+          if (disciplinasDoDia.has(disciplinaId)) return true;
+          if (disciplinasDoDia.size >= limiteDisciplinasDia) return false;
+          disciplinasDoDia.add(disciplinaId);
+          return true;
+        });
+      }
+    }
 
     // [FIX-7] Passa minutosRevisaoReservados (não o bruto) para getAgendaDia
     const slotsDia = getAgendaDia(
@@ -723,7 +746,7 @@ export function getAgendaSemana(
       weekOffset,
       tempoRevisaoMinutos,
       minutosRevisaoReservados,  // ← [FIX-7] orçamento CORRETO de revisão (25% do bruto)
-      { expandirTeoriaAteBruto: isDiaZero }
+      { expandirTeoriaAteBruto: slotsEstudoDia.length > 0 }
     ).map((s) => {
       const progressoRevisao = s.isRevisaoAuto ? Number(progressoRevisoesMinutos?.[s.slotId] || s.progressoMinutos || 0) : 0;
       const tempoPlanejado = Number(s.tempoMinutos || s.minutosEstudo || 0);

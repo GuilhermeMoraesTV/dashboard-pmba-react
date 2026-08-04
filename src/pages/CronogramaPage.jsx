@@ -2707,11 +2707,12 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
 
   const handleConfirmDeleteRegistro = async () => {
     if (!recordToDelete) return;
+    const record = recordToDelete;
+    setRecordToDelete(null);
     setLoadingAction(true);
     try {
-      if (onDeleteRegistro) await onDeleteRegistro(recordToDelete.id);
-      else await deleteDoc(doc(db, 'users', user.uid, 'registrosEstudo', recordToDelete.id));
-      setRecordToDelete(null);
+      if (onDeleteRegistro) await onDeleteRegistro(record.id);
+      else await deleteDoc(doc(db, 'users', user.uid, 'registrosEstudo', record.id));
     } finally {
       setLoadingAction(false);
     }

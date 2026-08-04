@@ -397,7 +397,9 @@ const Step5_Preview = ({
       historicoRevisoes: {},
       dataInicio: isoKey(startDate),
       tempoRevisaoMinutos: config?.tempoRevisaoMinutos ?? 20,
-      modoExibirAssuntos: config?.modoExibirAssuntos !== false
+      modoExibirAssuntos: config?.modoExibirAssuntos !== false,
+      limitarMaterias: config?.limitarMaterias || false,
+      limitesPorDia: config?.limitesPorDia || {},
     };
 
     const processSemana = (currentOffset) => {

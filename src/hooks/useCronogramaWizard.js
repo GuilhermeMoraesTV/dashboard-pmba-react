@@ -1012,6 +1012,8 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
             dataProva:           cronConfig.dataProva           || null,
             retaFinal:           cronConfig.retaFinal           || false,
             tempoRevisaoMinutos: cronConfig.tempoRevisaoMinutos || 20,
+            limitarMaterias:     cronConfig.limitarMaterias     || false,
+            limitesPorDia:       cronConfig.limitesPorDia       || {},
           },
           {},
           // [FIX-C] recebe (percent, msg) diretamente

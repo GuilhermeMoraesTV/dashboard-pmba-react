@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Loader2 } from 'lucide-react';
+import { Loader2, X } from 'lucide-react';
 import { collection, getDocs } from 'firebase/firestore';
+import { createPortal } from 'react-dom';
 
 import { db } from '../../firebaseConfig';
 import { CATALOGO_EDITAIS } from '../../pages/AdminPage/EditaisManager';
@@ -103,6 +104,45 @@ const montarInitialState = ({ ciclo, disciplinas }) => {
 function CicloEditModal({ onClose, user, ciclo, onCicloAtivado, upgradeMode = false }) {
   const [loadingData, setLoadingData] = useState(true);
   const [initialState, setInitialState] = useState(null);
+  const [confirmandoFechamento, setConfirmandoFechamento] = useState(false);
+  const tituloModal = upgradeMode ? 'Recalcular ciclo' : 'Edicao do ciclo';
+
+  const pedirConfirmacaoFechamento = () => setConfirmandoFechamento(true);
+
+  const confirmarFechamento = () => {
+    setConfirmandoFechamento(false);
+    onClose();
+  };
+
+  const renderConfirmacaoFechamento = () => (
+    confirmandoFechamento && (
+      <div className="fixed inset-0 z-[21000] flex items-center justify-center bg-zinc-950/75 px-4 backdrop-blur-sm">
+        <div className="w-full max-w-sm rounded-[24px] border border-zinc-200 bg-white p-5 shadow-2xl dark:border-zinc-800 dark:bg-zinc-900">
+          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-red-600">Confirmacao</p>
+          <h3 className="text-lg font-black uppercase tracking-tight text-zinc-900 dark:text-white">Descartar alteracoes?</h3>
+          <p className="mt-2 text-sm font-semibold leading-relaxed text-zinc-500 dark:text-zinc-400">
+            As alteracoes nao salvas deste ciclo serao perdidas.
+          </p>
+          <div className="mt-5 flex gap-2">
+            <button
+              type="button"
+              onClick={() => setConfirmandoFechamento(false)}
+              className="flex-1 rounded-2xl border border-zinc-200 px-4 py-3 text-sm font-black uppercase text-zinc-600 transition hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            >
+              Ficar
+            </button>
+            <button
+              type="button"
+              onClick={confirmarFechamento}
+              className="flex-1 rounded-2xl bg-red-600 px-4 py-3 text-sm font-black uppercase text-white shadow-lg shadow-red-600/20 transition hover:bg-red-700"
+            >
+              Descartar
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  );
 
   useEffect(() => {
     if (!user?.uid || !ciclo?.id) return;
@@ -145,12 +185,25 @@ function CicloEditModal({ onClose, user, ciclo, onCicloAtivado, upgradeMode = fa
     };
   }, [user, ciclo]);
 
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="min-h-[50vh] animate-fade-in"
-    >
+  return createPortal(
+    <div className="fixed inset-0 z-[20000] flex items-center justify-center bg-zinc-950/80 px-2 py-2 backdrop-blur-sm sm:px-4 sm:py-4">
+      <motion.div
+        initial={{ opacity: 0, y: 12, scale: 0.985 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        className="flex h-[calc(100dvh-1rem)] w-full max-w-7xl flex-col overflow-hidden rounded-[28px] border border-zinc-200 bg-zinc-50 shadow-2xl dark:border-zinc-800 dark:bg-zinc-950 sm:h-[calc(100dvh-2rem)]"
+      >
+      <div className="relative flex shrink-0 items-center justify-between gap-3 border-b border-zinc-200 bg-white px-4 py-3 pr-14 dark:border-zinc-800 dark:bg-zinc-900 sm:px-6 sm:pr-16">
+        <div className="min-w-0">
+          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-red-600">Planejamento</p>
+          <h2 className="truncate text-lg font-black uppercase tracking-tight text-zinc-900 dark:text-white sm:text-xl">
+            {tituloModal}
+          </h2>
+        </div>
+        <button onClick={pedirConfirmacaoFechamento} className="absolute right-3 top-3 shrink-0 rounded-2xl border border-zinc-200 bg-zinc-50 p-2 text-zinc-400 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:border-red-900/50 dark:hover:bg-red-950/20 sm:right-4">
+          <X size={18} />
+        </button>
+      </div>
+      <div className="min-h-0 flex-1">
       {loadingData || !initialState ? (
         <div className="min-h-[70vh] flex flex-col items-center justify-center gap-4 text-center px-6">
           <div className="w-16 h-16 rounded-full bg-red-50 dark:bg-red-900/20 flex items-center justify-center">
@@ -174,9 +227,14 @@ function CicloEditModal({ onClose, user, ciclo, onCicloAtivado, upgradeMode = fa
           user={user}
           onCicloAtivado={onCicloAtivado}
           upgradeMode={upgradeMode}
+          embedded
         />
       )}
-    </motion.div>
+      </div>
+      </motion.div>
+      {renderConfirmacaoFechamento()}
+    </div>,
+    document.body
   );
 }
 

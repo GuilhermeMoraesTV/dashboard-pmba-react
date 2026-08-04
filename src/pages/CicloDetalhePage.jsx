@@ -120,70 +120,75 @@ const CicloLegacyUpgradeModal = ({ ciclo, logoUrl, onClose, onConfirm, onRecalcu
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-[20000] flex items-center justify-center bg-zinc-950/80 px-4 py-3 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[20000] flex items-center justify-center bg-zinc-950/70 px-3 py-3 backdrop-blur-sm sm:px-4">
       <motion.div
         initial={{ opacity: 0, y: 16, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 16, scale: 0.98 }}
-        className="relative max-h-[calc(100dvh-24px)] w-full max-w-3xl overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-950"
+        className="relative flex max-h-[calc(100dvh-24px)] w-full max-w-4xl flex-col overflow-hidden rounded-[32px] border border-zinc-200 bg-zinc-50 shadow-2xl dark:border-zinc-800 dark:bg-zinc-950"
       >
-        <div className="relative overflow-hidden border-b border-red-700 bg-red-600 px-4 py-3 text-white">
+        <div className="relative overflow-hidden border-b border-zinc-200 bg-white px-4 py-4 dark:border-zinc-800 dark:bg-zinc-900 sm:px-6">
           {logoUrl && (
             <img
               src={logoUrl}
               alt=""
               aria-hidden="true"
-              className="pointer-events-none absolute -bottom-10 -right-4 h-36 w-36 rotate-[-12deg] object-contain opacity-20 saturate-0"
+              className="pointer-events-none absolute -bottom-12 -right-5 h-40 w-40 rotate-[-12deg] object-contain opacity-[0.06] saturate-0 dark:opacity-[0.08]"
             />
           )}
           <div className="relative z-10 flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-red-100">Edicao simples</p>
-              <h2 className="mt-0.5 text-lg font-black uppercase tracking-tight">Ajustes rapidos</h2>
-              <p className="mt-1 text-xs font-medium leading-relaxed text-red-50/90">Atualize a exibicao sem redistribuir as sessoes.</p>
+            <div className="flex min-w-0 items-start gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-red-600 text-white shadow-lg shadow-red-600/20">
+                <Settings2 size={21} strokeWidth={2.5} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-red-600">Edicao simples</p>
+                <h2 className="mt-0.5 text-xl font-black uppercase tracking-tight text-zinc-900 dark:text-white">Ajustes rapidos</h2>
+                <p className="mt-1 max-w-xl text-xs font-semibold leading-relaxed text-zinc-500 dark:text-zinc-400">Atualize os detalhes visuais do ciclo sem redistribuir sessoes, dias ou disciplinas.</p>
+              </div>
             </div>
-            <button onClick={onClose} className="shrink-0 rounded-lg p-2 text-white/80 transition hover:bg-red-700 hover:text-white">
+            <button onClick={onClose} className="shrink-0 rounded-2xl border border-zinc-200 bg-zinc-50 p-2 text-zinc-400 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:border-red-900/50 dark:hover:bg-red-950/20">
               <X size={18} />
             </button>
           </div>
         </div>
 
-        <div className="space-y-2.5 overflow-y-auto bg-zinc-50/70 p-3 dark:bg-zinc-950">
-            <div className="grid gap-2.5 md:grid-cols-2">
-              <label className="block rounded-2xl border border-zinc-200 bg-white p-2.5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-                <span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-zinc-500">
-                  <Cog size={13} className="text-red-600" />
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3 dark:bg-zinc-950 sm:p-4">
+            <div className="grid gap-3 md:grid-cols-2">
+              <label className="group block rounded-3xl border border-zinc-100 bg-white p-4 shadow-sm transition-all focus-within:border-red-200 focus-within:ring-4 focus-within:ring-red-500/5 dark:border-zinc-800 dark:bg-zinc-900">
+                <span className="flex items-center gap-3 text-[10px] font-black uppercase tracking-wider text-zinc-500">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-zinc-50 text-red-600 dark:bg-zinc-800"><Cog size={15} /></span>
                   Nome do planejamento
                 </span>
                 <input
                   value={nome}
                   onChange={(event) => setNome(event.target.value)}
-                  className="mt-1.5 h-9 w-full rounded-xl border-2 border-zinc-200 bg-zinc-50 px-3 text-sm font-black text-zinc-900 outline-none transition-all focus:border-red-500 focus:ring-4 focus:ring-red-500/10 dark:border-zinc-700 dark:bg-zinc-950 dark:text-white"
+                  className="mt-3 h-11 w-full rounded-2xl border-2 border-zinc-200 bg-zinc-50 px-4 text-sm font-black text-zinc-900 outline-none transition-all focus:border-red-500 focus:bg-white dark:border-zinc-700 dark:bg-zinc-950 dark:text-white"
                   placeholder="Ex: Ciclo PMBA"
                 />
               </label>
 
-              <label className="block rounded-2xl border border-zinc-200 bg-white p-2.5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-                <span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-zinc-500">
-                  <CalendarDays size={13} className="text-red-600" />
+              <label className="group block rounded-3xl border border-zinc-100 bg-white p-4 shadow-sm transition-all focus-within:border-red-200 focus-within:ring-4 focus-within:ring-red-500/5 dark:border-zinc-800 dark:bg-zinc-900">
+                <span className="flex items-center gap-3 text-[10px] font-black uppercase tracking-wider text-zinc-500">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-zinc-50 text-red-600 dark:bg-zinc-800"><CalendarDays size={15} /></span>
                   Data de termino
                 </span>
                 <input
                   type="date"
                   value={dataFim}
                   onChange={(event) => setDataFim(event.target.value)}
-                  className="mt-1.5 h-9 w-full rounded-xl border-2 border-zinc-200 bg-zinc-50 px-3 text-sm font-black text-zinc-900 outline-none transition-all focus:border-red-500 focus:ring-4 focus:ring-red-500/10 dark:border-zinc-700 dark:bg-zinc-950 dark:text-white"
+                  className="mt-3 h-11 w-full rounded-2xl border-2 border-zinc-200 bg-zinc-50 px-4 text-sm font-black text-zinc-900 outline-none transition-all focus:border-red-500 focus:bg-white dark:border-zinc-700 dark:bg-zinc-950 dark:text-white"
                 />
               </label>
             </div>
 
-            <label className="flex items-center justify-between gap-3 rounded-2xl border border-zinc-200 bg-white px-3 py-2.5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+            <label className={`flex items-center justify-between gap-4 rounded-3xl border bg-white p-4 shadow-sm transition-all dark:bg-zinc-900 ${modoExibirAssuntos ? 'border-red-200 ring-4 ring-red-500/5 dark:border-red-900/50' : 'border-zinc-100 dark:border-zinc-800'}`}>
               <div>
-                <div className="flex items-center gap-2">
-                  <BookOpen size={14} className="text-red-600" />
+                <div className="flex items-center gap-3">
+                  <span className={`flex h-9 w-9 items-center justify-center rounded-2xl ${modoExibirAssuntos ? 'bg-red-600 text-white' : 'bg-zinc-50 text-zinc-400 dark:bg-zinc-800'}`}><BookOpen size={15} /></span>
                   <p className="text-[10px] font-black uppercase tracking-wider text-zinc-900 dark:text-white">Guia por assunto</p>
                 </div>
-                <p className="mt-1 text-[10px] font-medium text-zinc-500">Mostra disciplina e assunto sugerido em cada sessao.</p>
+                <p className="mt-2 text-[11px] font-semibold leading-relaxed text-zinc-500">Mostra disciplina e assunto sugerido em cada sessao.</p>
               </div>
               <button
                 type="button"
@@ -196,13 +201,13 @@ const CicloLegacyUpgradeModal = ({ ciclo, logoUrl, onClose, onConfirm, onRecalcu
               </button>
             </label>
 
-            <label className="flex items-center justify-between gap-3 rounded-2xl border border-zinc-200 bg-white px-3 py-2.5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+            <label className={`flex items-center justify-between gap-4 rounded-3xl border bg-white p-4 shadow-sm transition-all dark:bg-zinc-900 ${coresDisciplinasAtivas ? 'border-red-200 ring-4 ring-red-500/5 dark:border-red-900/50' : 'border-zinc-100 dark:border-zinc-800'}`}>
               <div>
-                <div className="flex items-center gap-2">
-                  <Palette size={14} className="text-red-600" />
+                <div className="flex items-center gap-3">
+                  <span className={`flex h-9 w-9 items-center justify-center rounded-2xl ${coresDisciplinasAtivas ? 'bg-red-600 text-white' : 'bg-zinc-50 text-zinc-400 dark:bg-zinc-800'}`}><Palette size={15} /></span>
                   <p className="text-[10px] font-black uppercase tracking-wider text-zinc-900 dark:text-white">Cores no radar</p>
                 </div>
-                <p className="mt-1 text-[10px] font-medium text-zinc-500">Desligue para mostrar os blocos em cinza.</p>
+                <p className="mt-2 text-[11px] font-semibold leading-relaxed text-zinc-500">Desligue para mostrar os blocos em cinza.</p>
               </div>
               <button
                 type="button"
@@ -216,7 +221,7 @@ const CicloLegacyUpgradeModal = ({ ciclo, logoUrl, onClose, onConfirm, onRecalcu
             </label>
         </div>
 
-        <div className="flex items-center justify-between gap-2 border-t border-zinc-100 bg-zinc-50/80 p-3 dark:border-zinc-800 dark:bg-zinc-950">
+        <div className="flex items-center justify-between gap-2 border-t border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900 sm:p-4">
           <button
             onClick={onRecalculate}
             className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-zinc-200 px-3 py-2.5 text-[9px] font-black uppercase text-zinc-600 transition hover:bg-white dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900"
@@ -757,11 +762,11 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
 
   // Handlers
   const handleConfirmDeleteRegistro = async () => {
-    if (recordToDelete) {
-      if (onDeleteRegistro) await onDeleteRegistro(recordToDelete.id);
-      else await deleteDoc(doc(db,'users',user.uid,'registrosEstudo', recordToDelete.id));
-    }
+    if (!recordToDelete) return;
+    const record = recordToDelete;
     setRecordToDelete(null);
+    if (onDeleteRegistro) await onDeleteRegistro(record.id);
+    else await deleteDoc(doc(db,'users',user.uid,'registrosEstudo', record.id));
   };
   const handleUpdateRegistro = async (id, data) => { await updateDoc(doc(db,'users',user.uid,'registrosEstudo', id), data); };
   const handleViewDetails = (d) => { setDisciplinaEmDetalhe(d); setSelectedDisciplinaId(d.id); };

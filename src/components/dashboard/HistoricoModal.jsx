@@ -640,10 +640,13 @@ const HistoricoModal = ({ isOpen, onClose, registros, onDeleteRequest, onUpdateR
     const [selectedDate, setSelectedDate] = useState(null);
     const [recordToEdit, setRecordToEdit] = useState(null);
     const [recordToDelete, setRecordToDelete] = useState(null);
+    const [hiddenDeletingIds, setHiddenDeletingIds] = useState(() => new Set());
     const [activeMobileTab, setActiveMobileTab] = useState('timeline');
 
     const { groupedRecords, stats } = useMemo(() => {
-        let filtered = [...registros].sort((a,b) => toDateMillisSafe(b.timestamp) - toDateMillisSafe(a.timestamp));
+        let filtered = [...registros]
+            .filter((r) => !hiddenDeletingIds.has(r.id))
+            .sort((a,b) => toDateMillisSafe(b.timestamp) - toDateMillisSafe(a.timestamp));
 
         if (selectedDate) {
             filtered = filtered.filter(r => r.data === selectedDate);
@@ -662,7 +665,7 @@ const HistoricoModal = ({ isOpen, onClose, registros, onDeleteRequest, onUpdateR
         const totalQ = filtered.reduce((acc, r) => acc + (r.questoesFeitas||0), 0);
 
         return { groupedRecords: finalGroups, stats: { totalH, totalQ } };
-    }, [registros, selectedDate]);
+    }, [registros, selectedDate, hiddenDeletingIds]);
 
     const handleDateSelect = (dateStr) => {
         setSelectedDate(prev => prev === dateStr ? null : dateStr);
@@ -682,8 +685,22 @@ const HistoricoModal = ({ isOpen, onClose, registros, onDeleteRequest, onUpdateR
     const handleConfirmDelete = async () => {
         if (!recordToDelete || !onDeleteRequest) return;
         const record = recordToDelete;
+        if (record?.id) {
+            setHiddenDeletingIds((prev) => new Set([...prev, record.id]));
+        }
         setRecordToDelete(null);
-        await onDeleteRequest(record);
+        try {
+            await onDeleteRequest(record);
+        } catch (error) {
+            if (record?.id) {
+                setHiddenDeletingIds((prev) => {
+                    const next = new Set(prev);
+                    next.delete(record.id);
+                    return next;
+                });
+            }
+            throw error;
+        }
     };
 
     if (!isOpen) return null;

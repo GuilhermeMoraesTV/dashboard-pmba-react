@@ -224,6 +224,7 @@ function CicloCreateWizard({
   initialState = null,
   initialStep = 1,
   upgradeMode = false,
+  embedded = false,
 }) {
   const isEditMode = mode === 'edit';
   const [passo, setPasso] = useState(() => clampWizardStep(initialStep, isEditMode));
@@ -910,12 +911,13 @@ function CicloCreateWizard({
   }[passo] || 'ciclo-step';
 
   return (
-    <div className="flex flex-col min-h-screen pb-6">
-      <div ref={conteudoRef} className="wizard-main pb-32 pt-2 md:pb-36 md:pt-4">
+    <div className={`flex flex-col ${embedded ? 'relative h-full min-h-0 overflow-hidden pb-0' : 'min-h-screen pb-6'}`}>
+      <div ref={conteudoRef} className={`wizard-main flex-1 overflow-y-auto pt-2 md:pt-4 ${embedded ? 'pb-28 md:pb-32' : 'pb-32 md:pb-36'}`}>
         <div
           data-wizard-type="ciclo"
           data-wizard-step={currentStepZoomKey}
-          className={`wizard-step-frame ${passo === firstVisibleStep || passo === 7 ? 'w-full mx-auto' : 'max-w-5xl mx-auto'}`}
+          data-wizard-embedded={embedded ? 'true' : undefined}
+          className={`wizard-step-frame ${(!isEditMode && passo === firstVisibleStep) || passo === 7 ? 'w-full mx-auto' : 'max-w-5xl mx-auto'}`}
         >
           <AnimatePresence>
             {validationMessage && (
@@ -946,7 +948,7 @@ function CicloCreateWizard({
         </div>
       </div>
 
-      <div className="wizard-navigation-bar fixed inset-x-2 bottom-2 z-[100050] mx-auto max-w-5xl rounded-2xl border border-zinc-200/80 bg-white/92 shadow-2xl shadow-zinc-950/12 backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-900/94 sm:inset-x-3 sm:bottom-4">
+      <div className={`wizard-navigation-bar inset-x-2 bottom-2 z-[100050] mx-auto max-w-5xl rounded-2xl border border-zinc-200/80 bg-white/92 shadow-2xl shadow-zinc-950/12 backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-900/94 sm:inset-x-3 sm:bottom-4 ${embedded ? 'absolute' : 'fixed'}`}>
         <div className="absolute top-0 left-0 right-0 h-[2px] bg-zinc-100 dark:bg-zinc-800">
           <motion.div
             className="h-full bg-red-600"

@@ -1142,6 +1142,7 @@ body.registro-modal-open .app-global-footer {
 
   --zoom-desktop-modal-historico-estudo: 0.90;
   --zoom-desktop-modal-cronograma-detalhes: 0.92;
+  --zoom-desktop-modal-cronograma-ajustes: 0.94;
   --zoom-desktop-modal-simulado-novo: 0.80;
   --zoom-desktop-modal-simulado-iniciar: 0.85;
   --zoom-desktop-modal-admin-frases: 0.90;
@@ -1195,6 +1196,7 @@ body.registro-modal-open .app-global-footer {
 
   --zoom-mobile-modal-historico-estudo: 0.74;
   --zoom-mobile-modal-cronograma-detalhes: 0.86;
+  --zoom-mobile-modal-cronograma-ajustes: 0.82;
   --zoom-mobile-modal-simulado-novo: 0.80;
   --zoom-mobile-modal-simulado-iniciar: 0.80;
   --zoom-mobile-modal-admin-frases: 0.70;
@@ -1398,6 +1400,7 @@ body.registro-modal-open .app-global-footer {
 
   .modal-zoom--historico-estudo { --modal-desktop-zoom: var(--zoom-desktop-modal-historico-estudo); }
   .modal-zoom--cronograma-detalhes { --modal-desktop-zoom: var(--zoom-desktop-modal-cronograma-detalhes); }
+  .modal-zoom--cronograma-ajustes { --modal-desktop-zoom: var(--zoom-desktop-modal-cronograma-ajustes); }
   .modal-zoom--simulado-novo { --modal-desktop-zoom: var(--zoom-desktop-modal-simulado-novo); }
   .modal-zoom--simulado-iniciar { --modal-desktop-zoom: var(--zoom-desktop-modal-simulado-iniciar); }
   .modal-zoom--admin-frases { --modal-desktop-zoom: var(--zoom-desktop-modal-admin-frases); }
@@ -1675,6 +1678,7 @@ body.registro-modal-open .app-global-footer {
 
   .modal-zoom--historico-estudo { --modal-mobile-zoom: var(--zoom-mobile-modal-historico-estudo); }
   .modal-zoom--cronograma-detalhes { --modal-mobile-zoom: var(--zoom-mobile-modal-cronograma-detalhes); }
+  .modal-zoom--cronograma-ajustes { --modal-mobile-zoom: var(--zoom-mobile-modal-cronograma-ajustes); }
   .modal-zoom--simulado-novo { --modal-mobile-zoom: var(--zoom-mobile-modal-simulado-novo); }
   .modal-zoom--simulado-iniciar { --modal-mobile-zoom: var(--zoom-mobile-modal-simulado-iniciar); }
   .modal-zoom--admin-frases { --modal-mobile-zoom: var(--zoom-mobile-modal-admin-frases); }
@@ -1688,6 +1692,12 @@ body.registro-modal-open .app-global-footer {
   .modal-zoom--cronograma-detalhes {
     width: calc(100vw / var(--modal-mobile-zoom)) !important;
     max-width: calc(94vw / var(--modal-mobile-zoom)) !important;
+  }
+
+  .modal-zoom--cronograma-ajustes {
+    width: calc(100vw / var(--modal-mobile-zoom)) !important;
+    max-width: calc(94vw / var(--modal-mobile-zoom)) !important;
+    max-height: calc(94dvh / var(--modal-mobile-zoom)) !important;
   }
 
   .modal-zoom--admin-frases,

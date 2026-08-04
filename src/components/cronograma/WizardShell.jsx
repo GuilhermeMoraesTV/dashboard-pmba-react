@@ -61,6 +61,7 @@ const WizardShell = ({
   cronogramaId = null,
   initialState = null,
   initialStep = 0,
+  embedded = false,
 }) => {
   const [passo,             setPasso]             = useState(() => mode === 'edit' ? Math.max(1, Number(initialStep) || 1) : Number(initialStep) || 0);
   const [confirmandoSaida,  setConfirmandoSaida]  = useState(false);
@@ -299,13 +300,14 @@ const WizardShell = ({
   }
 
   return (
-    <div className="cronograma-wizard-shell flex flex-col min-h-screen bg-transparent">
+    <div className={`cronograma-wizard-shell flex flex-col bg-transparent ${embedded ? 'relative h-full min-h-0 overflow-hidden' : 'min-h-screen'}`}>
       
       {/* ── Main Content ── */}
-      <main ref={conteudoRef} className="wizard-main flex-1 overflow-y-auto px-4 pt-2 pb-32 md:px-6 md:pt-1 md:pb-36 custom-scrollbar">
+      <main ref={conteudoRef} className={`wizard-main flex-1 overflow-y-auto px-4 pt-2 md:px-6 md:pt-1 custom-scrollbar ${embedded ? 'pb-28 md:pb-32' : 'pb-32 md:pb-36'}`}>
         <div
           data-wizard-type="cronograma"
           data-wizard-step={currentStepZoomKey}
+          data-wizard-embedded={embedded ? 'true' : undefined}
           className={`wizard-step-frame ${isPassoEdital || isUltimoStep || isPassoMontagemPersonalizada ? 'w-full mx-auto' : 'max-w-5xl mx-auto'}`}
         >
           <AnimatePresence mode="wait">
@@ -323,7 +325,7 @@ const WizardShell = ({
       </main>
 
       {/* ── Footer Navigation ── */}
-      <div className="wizard-navigation-bar fixed inset-x-2 bottom-2 z-[100050] mx-auto max-w-5xl rounded-2xl border border-zinc-200/80 bg-white/92 p-1.5 shadow-2xl shadow-zinc-950/12 backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-900/94 sm:inset-x-3 sm:bottom-4 sm:p-3">
+      <div className={`wizard-navigation-bar inset-x-2 bottom-2 z-[100050] mx-auto max-w-5xl rounded-2xl border border-zinc-200/80 bg-white/92 p-1.5 shadow-2xl shadow-zinc-950/12 backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-900/94 sm:inset-x-3 sm:bottom-4 sm:p-3 ${embedded ? 'absolute' : 'fixed'}`}>
         <div className="flex items-center justify-between gap-2 sm:gap-3">
           
           <div className="flex items-center gap-2">
