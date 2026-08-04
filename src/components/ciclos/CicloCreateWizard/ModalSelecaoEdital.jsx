@@ -259,6 +259,7 @@ const SecaoModelo = ({ chaveCategoria, itens, idSelecionado, aoDestacar, aoConfi
     const contentRef = useRef();
     const [largura, setLargura] = useState(0);
     const [arrastando, setArrastando] = useState(false);
+    const [usarScrollNativo, setUsarScrollNativo] = useState(false);
 
     const gruposDeEditais = useMemo(() => {
         const grupos = {};
@@ -274,6 +275,15 @@ const SecaoModelo = ({ chaveCategoria, itens, idSelecionado, aoDestacar, aoConfi
         });
         return Object.values(grupos);
     }, [itens, chaveCategoria]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return undefined;
+        const media = window.matchMedia('(max-width: 1023px), (pointer: coarse)');
+        const update = () => setUsarScrollNativo(media.matches);
+        update();
+        media.addEventListener?.('change', update);
+        return () => media.removeEventListener?.('change', update);
+    }, []);
 
     useEffect(() => {
         const calcularLargura = () => {
@@ -316,17 +326,22 @@ const SecaoModelo = ({ chaveCategoria, itens, idSelecionado, aoDestacar, aoConfi
             </div>
 
             {/* CONTAINER DO ARRASTO (Máscara) */}
-            <motion.div ref={carrosselRef} className="cursor-grab active:cursor-grabbing overflow-hidden -mx-3 px-3 py-2" whileTap={{ cursor: "grabbing" }}>
+            <motion.div
+                ref={carrosselRef}
+                className="cursor-grab active:cursor-grabbing overflow-x-auto overflow-y-hidden overscroll-x-contain -mx-3 px-3 py-2 custom-scrollbar"
+                whileTap={{ cursor: "grabbing" }}
+                style={{ WebkitOverflowScrolling: 'touch', touchAction: usarScrollNativo ? 'pan-x pan-y' : 'pan-x' }}
+            >
 
                 {/* CONTEÚDO ARRASTÁVEL */}
                 <motion.div
                     ref={contentRef}
-                    drag="x"
+                    drag={usarScrollNativo ? false : 'x'}
                     dragConstraints={{ right: 0, left: -largura }}
-                    dragElastic={0.06}
-                    dragMomentum={false}
-                    onDragStart={() => setArrastando(true)}
-                    onDragEnd={() => setTimeout(() => setArrastando(false), 150)}
+                    dragElastic={usarScrollNativo ? 0 : 0.06}
+                    dragMomentum={!usarScrollNativo}
+                    onDragStart={() => !usarScrollNativo && setArrastando(true)}
+                    onDragEnd={() => !usarScrollNativo && setTimeout(() => setArrastando(false), 150)}
                     className="flex gap-3 sm:gap-4 w-max pb-3 transform-gpu will-change-transform"
                 >
                     {gruposDeEditais.map((grupo, index) => (

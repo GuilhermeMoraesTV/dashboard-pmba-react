@@ -380,6 +380,83 @@ const enrichCycleSessionsWithAssuntos = (ciclo, sessions) => (
   }))
 );
 
+const getSessionDisciplineKey = (session) => String(session?.disciplinaId ?? '');
+
+const applyCycleSessionPlan = (session, plannedMinutes, options = {}) => {
+  const tempoPlanejadoMinutos = Math.max(1, Math.round(Number(plannedMinutes) || 1));
+  const progressoMinutos = Number(session?.progressoMinutos || 0);
+  const concluidaPeloPlanejado = progressoMinutos >= tempoPlanejadoMinutos;
+
+  return {
+    ...session,
+    ...options,
+    tempoPlanejadoMinutos,
+    tempoMinutos: tempoPlanejadoMinutos,
+    concluida: Boolean(session?.concluida) || concluidaPeloPlanejado,
+  };
+};
+
+const takeNextCycleSessionForDay = (pendingSessions, usedDisciplineIds) => {
+  if (!pendingSessions.length) return null;
+
+  const preferredIndex = pendingSessions.findIndex((session) => {
+    const disciplinaKey = getSessionDisciplineKey(session);
+    return !disciplinaKey || !usedDisciplineIds.has(disciplinaKey);
+  });
+  const index = preferredIndex >= 0 ? preferredIndex : 0;
+  const [session] = pendingSessions.splice(index, 1);
+  return session;
+};
+
+const buildDayCycleAssignment = ({
+  pendingSessions,
+  dateKey,
+  dayCapacity,
+  tempoSessaoMinutos,
+}) => {
+  let usedMinutes = 0;
+  const dayAssignments = [];
+  const usedDisciplineIds = new Set();
+
+  while (pendingSessions.length > 0 && usedMinutes + tempoSessaoMinutos <= dayCapacity) {
+    const session = takeNextCycleSessionForDay(pendingSessions, usedDisciplineIds);
+    if (!session) break;
+    const disciplinaKey = getSessionDisciplineKey(session);
+    if (disciplinaKey) usedDisciplineIds.add(disciplinaKey);
+    dayAssignments.push(applyCycleSessionPlan(session, tempoSessaoMinutos, {
+      assignedDate: dateKey,
+      carriedOver: false,
+    }));
+    usedMinutes += tempoSessaoMinutos;
+  }
+
+  const remainingForPartial = Math.max(0, dayCapacity - usedMinutes);
+  if (remainingForPartial > 0 && pendingSessions.length > 0) {
+    const session = takeNextCycleSessionForDay(pendingSessions, usedDisciplineIds);
+    if (session) {
+      const disciplinaKey = getSessionDisciplineKey(session);
+      if (disciplinaKey) usedDisciplineIds.add(disciplinaKey);
+      dayAssignments.push(applyCycleSessionPlan(session, remainingForPartial, {
+        assignedDate: dateKey,
+        carriedOver: false,
+        sessaoParcial: remainingForPartial < tempoSessaoMinutos,
+        tempoSessaoOriginalMinutos: tempoSessaoMinutos,
+      }));
+      usedMinutes += remainingForPartial;
+    }
+  }
+
+  return {
+    sessions: dayAssignments,
+    plannedMinutes: usedMinutes,
+    remainingMinutes: Math.max(0, dayCapacity - usedMinutes),
+  };
+};
+
+const getCyclePlannedMinutes = (session, fallbackMinutes) => (
+  Math.max(1, Number(session?.tempoPlanejadoMinutos || session?.tempoMinutos || fallbackMinutes || 1))
+);
+
 export const getCycleDailyGuide = (ciclo, date = new Date(), registrosEstudo = []) => {
   const dayDate = startOfLocalDay(date);
   const dayOfWeek = dayDate.getDay();
@@ -435,34 +512,28 @@ export const getCycleDailyGuide = (ciclo, date = new Date(), registrosEstudo = [
   }
 
   const assignments = new Map();
-  let cursor = 0;
+  const pendingSessions = orderedSessions.slice();
   const currentDate = new Date(anchorDate);
 
-  while (currentDate.getTime() <= dayDate.getTime() && cursor < orderedSessions.length) {
+  while (currentDate.getTime() <= dayDate.getTime() && pendingSessions.length > 0) {
     const weekday = currentDate.getDay();
     const dayCapacity = Number(targetMinutesByDay[weekday] || 0);
 
     if (dayCapacity > 0) {
-      let usedMinutes = 0;
       const dateKey = dateToYMDLocal(currentDate);
-      const dayAssignments = [];
-
-      while (cursor < orderedSessions.length && usedMinutes + tempoSessaoMinutos <= dayCapacity) {
-        dayAssignments.push({
-          ...orderedSessions[cursor],
-          assignedDate: dateKey,
-          carriedOver: false,
-        });
-        usedMinutes += tempoSessaoMinutos;
-        cursor += 1;
-      }
+      const dayAssignment = buildDayCycleAssignment({
+        pendingSessions,
+        dateKey,
+        dayCapacity,
+        tempoSessaoMinutos,
+      });
 
       assignments.set(dateKey, {
         date: dateKey,
         targetMinutes: dayCapacity,
-        plannedMinutes: usedMinutes,
-        remainingMinutes: Math.max(0, dayCapacity - usedMinutes),
-        sessions: dayAssignments,
+        plannedMinutes: dayAssignment.plannedMinutes,
+        remainingMinutes: dayAssignment.remainingMinutes,
+        sessions: dayAssignment.sessions,
       });
     }
 
@@ -489,13 +560,14 @@ export const getCycleDailyGuide = (ciclo, date = new Date(), registrosEstudo = [
 
     let addedFromDate = false;
     pendingFromDay.forEach((session) => {
-      if (usedCarriedOverMinutes + tempoSessaoMinutos > targetMinutes) return;
+      const sessionMinutes = getCyclePlannedMinutes(session, tempoSessaoMinutos);
+      if (usedCarriedOverMinutes + sessionMinutes > targetMinutes) return;
       carriedOverSessions.push({
         ...session,
         carriedOver: true,
         originalAssignedDate: assignmentDate,
       });
-      usedCarriedOverMinutes += tempoSessaoMinutos;
+      usedCarriedOverMinutes += sessionMinutes;
       addedFromDate = true;
     });
     if (addedFromDate) carriedOverFromDates.push(assignmentDate);
@@ -508,13 +580,16 @@ export const getCycleDailyGuide = (ciclo, date = new Date(), registrosEstudo = [
 
   todayAssignment.sessions.forEach((session) => {
     if (seenSessionIndexes.has(session.globalIndex)) return;
-    if (usedFreshMinutes + tempoSessaoMinutos > remainingCapacityMinutes) return;
+    const sessionMinutes = getCyclePlannedMinutes(session, tempoSessaoMinutos);
+    if (usedFreshMinutes + sessionMinutes > remainingCapacityMinutes) return;
     todayFreshSessions.push(session);
-    usedFreshMinutes += tempoSessaoMinutos;
+    usedFreshMinutes += sessionMinutes;
   });
 
   const sessions = enrichCycleSessionsWithAssuntos(ciclo, [...carriedOverSessions, ...todayFreshSessions]);
-  const plannedMinutes = sessions.length * tempoSessaoMinutos;
+  const plannedMinutes = sessions.reduce((total, session) => (
+    total + getCyclePlannedMinutes(session, tempoSessaoMinutos)
+  ), 0);
 
   return {
     studyDays,
@@ -561,19 +636,20 @@ export const getCycleSessionsByDay = (ciclo) => {
   }
 
   const currentDate = new Date(anchorDate);
-  let cursor = 0;
+  const pendingSessions = orderedSessions.slice();
 
-  while (cursor < orderedSessions.length) {
+  while (pendingSessions.length > 0) {
     const weekday = currentDate.getDay();
     const targetMinutes = Number(targetMinutesByDay[weekday] || 0);
 
     if (targetMinutes > 0) {
-      let usedMinutes = 0;
-      while (cursor < orderedSessions.length && usedMinutes + tempoSessaoMinutos <= targetMinutes) {
-        sessionsByDay[weekday].push(orderedSessions[cursor]);
-        usedMinutes += tempoSessaoMinutos;
-        cursor += 1;
-      }
+      const dayAssignment = buildDayCycleAssignment({
+        pendingSessions,
+        dateKey: dateToYMDLocal(currentDate),
+        dayCapacity: targetMinutes,
+        tempoSessaoMinutos,
+      });
+      sessionsByDay[weekday].push(...dayAssignment.sessions);
     }
 
     currentDate.setDate(currentDate.getDate() + 1);

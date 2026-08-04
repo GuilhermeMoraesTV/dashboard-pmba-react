@@ -7,10 +7,36 @@
   width: var(--ciclo-visual-size-mobile);
 }
 
+.ciclo-visual-root {
+  min-height: calc(var(--ciclo-visual-size-mobile) + var(--ciclo-visual-flow-extra-mobile, 76px));
+}
+
+.ciclo-visual-card-shell {
+  min-height: auto;
+}
+
+.ciclo-visual-card-stage {
+  height: auto;
+  min-height: auto;
+}
+
 @media (min-width: 640px) {
   .ciclo-visual-size-box {
     height: var(--ciclo-visual-size-desktop);
     width: var(--ciclo-visual-size-desktop);
+  }
+
+  .ciclo-visual-root {
+    min-height: calc(var(--ciclo-visual-size-desktop) + var(--ciclo-visual-flow-extra-desktop, 88px));
+  }
+
+  .ciclo-visual-card-shell {
+    min-height: auto;
+  }
+
+  .ciclo-visual-card-stage {
+    height: auto;
+    min-height: auto;
   }
 }
 
@@ -934,6 +960,18 @@ body.wizard-shell-open .global-study-register-fab {
     --wizard-content-mobile-zoom: var(--zoom-mobile-wizard-step-horarios);
   }
 
+  body.wizard-shell-open .wizard-step-frame[data-wizard-step="cronograma-edital"] {
+    --wizard-content-mobile-zoom: var(--zoom-mobile-wizard-step-cronograma-edital);
+  }
+
+  body.wizard-shell-open .wizard-step-frame[data-wizard-step="cronograma-disciplinas"] {
+    --wizard-content-mobile-zoom: var(--zoom-mobile-wizard-step-cronograma-disciplinas);
+  }
+
+  body.wizard-shell-open .wizard-step-frame[data-wizard-step="cronograma-horarios"] {
+    --wizard-content-mobile-zoom: var(--zoom-mobile-wizard-step-cronograma-horarios);
+  }
+
   body.wizard-shell-open .wizard-step-frame[data-wizard-step="cronograma-montagem"] {
     --wizard-content-mobile-zoom: var(--zoom-mobile-wizard-step-cronograma-montagem);
   }
@@ -958,8 +996,24 @@ body.wizard-shell-open .global-study-register-fab {
     --wizard-content-mobile-zoom: var(--zoom-mobile-wizard-step-cronograma-preview);
   }
 
+  body.wizard-shell-open .wizard-step-frame[data-wizard-step="cronograma-step"] {
+    --wizard-content-mobile-zoom: var(--zoom-mobile-wizard-step-cronograma-step);
+  }
+
   body.wizard-shell-open .wizard-step-frame[data-wizard-step="ciclo-revisao"] {
     --wizard-content-mobile-zoom: var(--zoom-mobile-wizard-step-ciclo-revisao);
+  }
+
+  body.wizard-shell-open .wizard-step-frame[data-wizard-step="ciclo-edital"] {
+    --wizard-content-mobile-zoom: var(--zoom-mobile-wizard-step-ciclo-edital);
+  }
+
+  body.wizard-shell-open .wizard-step-frame[data-wizard-step="ciclo-disciplinas"] {
+    --wizard-content-mobile-zoom: var(--zoom-mobile-wizard-step-ciclo-disciplinas);
+  }
+
+  body.wizard-shell-open .wizard-step-frame[data-wizard-step="ciclo-horarios"] {
+    --wizard-content-mobile-zoom: var(--zoom-mobile-wizard-step-ciclo-horarios);
   }
 
   body.wizard-shell-open .wizard-step-frame[data-wizard-step="ciclo-blocos"] {
@@ -972,6 +1026,10 @@ body.wizard-shell-open .global-study-register-fab {
 
   body.wizard-shell-open .wizard-step-frame[data-wizard-step="ciclo-preview"] {
     --wizard-content-mobile-zoom: var(--zoom-mobile-wizard-step-ciclo-preview);
+  }
+
+  body.wizard-shell-open .wizard-step-frame[data-wizard-step="ciclo-step"] {
+    --wizard-content-mobile-zoom: var(--zoom-mobile-wizard-step-ciclo-step);
   }
 
   body.wizard-shell-open .wizard-navigation-bar {
@@ -1056,9 +1114,9 @@ body.registro-modal-open .app-global-footer {
   Use 1 para tamanho normal, 0.9 para 90%, 0.8 para 80%, etc.
 */
 :root {
-  --zoom-desktop-ciclo: 0.86;
+  --zoom-desktop-ciclo: 0.95;
   --zoom-desktop-edital: 0.82;
-  --zoom-desktop-cronograma: 0.88;
+  --zoom-desktop-cronograma: 0.90;
   --zoom-desktop-calendar: 0.90;
   --zoom-desktop-revisoes: 1;
   --zoom-desktop-profile: 0.92;
@@ -1069,6 +1127,18 @@ body.registro-modal-open .app-global-footer {
   --zoom-desktop-desempenho: 0.90;
   --zoom-desktop-planejamento: 0.85;
   --zoom-desktop-planejamento-selector: 0.85;
+
+  --ciclo-visual-default-max-mobile: 430px;
+  --ciclo-visual-default-max-desktop: 560px;
+  --ciclo-visual-preview-max-mobile: 540px;
+  --ciclo-visual-preview-max-desktop: 820px;
+  --ciclo-visual-card-height-mobile: 520px;
+  --ciclo-visual-card-height-desktop: 640px;
+  --ciclo-visual-stage-height-mobile: 430px;
+  --ciclo-visual-stage-height-desktop: 570px;
+  --cronograma-week-card-width-mobile: 226px;
+  --cronograma-week-card-width-tablet: 258px;
+  --cronograma-week-card-width-desktop: 315px;
 
   --zoom-desktop-modal-historico-estudo: 0.90;
   --zoom-desktop-modal-cronograma-detalhes: 0.92;
@@ -1089,16 +1159,24 @@ body.registro-modal-open .app-global-footer {
   --zoom-desktop-wizard-step-edital-manual: var(--zoom-desktop-wizard-step-edital);
   --zoom-desktop-wizard-step-disciplinas: 0.85;
   --zoom-desktop-wizard-step-horarios: 0.90;
+  --zoom-desktop-wizard-step-cronograma-edital: var(--zoom-desktop-wizard-step-edital);
+  --zoom-desktop-wizard-step-cronograma-disciplinas: var(--zoom-desktop-wizard-step-disciplinas);
+  --zoom-desktop-wizard-step-cronograma-horarios: var(--zoom-desktop-wizard-step-horarios);
   --zoom-desktop-wizard-step-cronograma-modo-montagem: 0.90;
   --zoom-desktop-wizard-step-cronograma-montagem: 0.85;
   --zoom-desktop-wizard-step-cronograma-montagem-manual: var(--zoom-desktop-wizard-step-cronograma-montagem);
   --zoom-desktop-wizard-step-cronograma-revisao: 0.90;
   --zoom-desktop-wizard-step-cronograma-config: 0.90;
   --zoom-desktop-wizard-step-cronograma-preview: 0.88;
+  --zoom-desktop-wizard-step-cronograma-step: 0.90;
+  --zoom-desktop-wizard-step-ciclo-edital: var(--zoom-desktop-wizard-step-edital);
+  --zoom-desktop-wizard-step-ciclo-disciplinas: var(--zoom-desktop-wizard-step-disciplinas);
+  --zoom-desktop-wizard-step-ciclo-horarios: var(--zoom-desktop-wizard-step-horarios);
   --zoom-desktop-wizard-step-ciclo-blocos: 0.90;
   --zoom-desktop-wizard-step-ciclo-revisao: 0.90;
   --zoom-desktop-wizard-step-ciclo-config: 0.90;
   --zoom-desktop-wizard-step-ciclo-preview: 0.88;
+  --zoom-desktop-wizard-step-ciclo-step: 0.90;
   --zoom-desktop-wizard-footer: 0.94;
 
   --zoom-mobile-default: 0.88;
@@ -1125,7 +1203,7 @@ body.registro-modal-open .app-global-footer {
   --zoom-mobile-modal-admin-editais: 0.84;
   --zoom-mobile-modal-profile-history: 0.84;
   --zoom-mobile-modal-archive: 0.84;
-  --zoom-mobile-modal-notifications: 0.80;
+  --zoom-mobile-modal-notifications: 0.86;
   --zoom-mobile-support-card: 0.86;
   --zoom-mobile-sidebar: 0.92;
   --zoom-mobile-desempenho-discipline-card: 0.90;
@@ -1135,16 +1213,24 @@ body.registro-modal-open .app-global-footer {
   --zoom-mobile-wizard-step-edital-manual: var(--zoom-mobile-wizard-step-edital);
   --zoom-mobile-wizard-step-disciplinas: 0.80;
   --zoom-mobile-wizard-step-horarios: 0.80;
+  --zoom-mobile-wizard-step-cronograma-edital: var(--zoom-mobile-wizard-step-edital);
+  --zoom-mobile-wizard-step-cronograma-disciplinas: var(--zoom-mobile-wizard-step-disciplinas);
+  --zoom-mobile-wizard-step-cronograma-horarios: var(--zoom-mobile-wizard-step-horarios);
   --zoom-mobile-wizard-step-cronograma-modo-montagem: 0.80;
   --zoom-mobile-wizard-step-cronograma-montagem: 0.80;
   --zoom-mobile-wizard-step-cronograma-montagem-manual: var(--zoom-mobile-wizard-step-cronograma-montagem);
   --zoom-mobile-wizard-step-cronograma-revisao: 0.80;
   --zoom-mobile-wizard-step-cronograma-config: 0.80;
   --zoom-mobile-wizard-step-cronograma-preview: 0.85;
+  --zoom-mobile-wizard-step-cronograma-step: 0.80;
+  --zoom-mobile-wizard-step-ciclo-edital: var(--zoom-mobile-wizard-step-edital);
+  --zoom-mobile-wizard-step-ciclo-disciplinas: var(--zoom-mobile-wizard-step-disciplinas);
+  --zoom-mobile-wizard-step-ciclo-horarios: var(--zoom-mobile-wizard-step-horarios);
   --zoom-mobile-wizard-step-ciclo-blocos: 0.80;
   --zoom-mobile-wizard-step-ciclo-revisao: 0.80;
   --zoom-mobile-wizard-step-ciclo-config: 0.80;
   --zoom-mobile-wizard-step-ciclo-preview: 0.78;
+  --zoom-mobile-wizard-step-ciclo-step: 0.80;
   --zoom-mobile-wizard-footer: 0.82;
 }
 
@@ -1171,6 +1257,18 @@ body.registro-modal-open .app-global-footer {
     --wizard-step-desktop-zoom: var(--zoom-desktop-wizard-step-horarios);
   }
 
+  body.wizard-shell-open .wizard-step-frame[data-wizard-step="cronograma-edital"] {
+    --wizard-step-desktop-zoom: var(--zoom-desktop-wizard-step-cronograma-edital);
+  }
+
+  body.wizard-shell-open .wizard-step-frame[data-wizard-step="cronograma-disciplinas"] {
+    --wizard-step-desktop-zoom: var(--zoom-desktop-wizard-step-cronograma-disciplinas);
+  }
+
+  body.wizard-shell-open .wizard-step-frame[data-wizard-step="cronograma-horarios"] {
+    --wizard-step-desktop-zoom: var(--zoom-desktop-wizard-step-cronograma-horarios);
+  }
+
   body.wizard-shell-open .wizard-step-frame[data-wizard-step="cronograma-montagem"] {
     --wizard-step-desktop-zoom: var(--zoom-desktop-wizard-step-cronograma-montagem);
   }
@@ -1195,8 +1293,24 @@ body.registro-modal-open .app-global-footer {
     --wizard-step-desktop-zoom: var(--zoom-desktop-wizard-step-cronograma-preview);
   }
 
+  body.wizard-shell-open .wizard-step-frame[data-wizard-step="cronograma-step"] {
+    --wizard-step-desktop-zoom: var(--zoom-desktop-wizard-step-cronograma-step);
+  }
+
   body.wizard-shell-open .wizard-step-frame[data-wizard-step="ciclo-revisao"] {
     --wizard-step-desktop-zoom: var(--zoom-desktop-wizard-step-ciclo-revisao);
+  }
+
+  body.wizard-shell-open .wizard-step-frame[data-wizard-step="ciclo-edital"] {
+    --wizard-step-desktop-zoom: var(--zoom-desktop-wizard-step-ciclo-edital);
+  }
+
+  body.wizard-shell-open .wizard-step-frame[data-wizard-step="ciclo-disciplinas"] {
+    --wizard-step-desktop-zoom: var(--zoom-desktop-wizard-step-ciclo-disciplinas);
+  }
+
+  body.wizard-shell-open .wizard-step-frame[data-wizard-step="ciclo-horarios"] {
+    --wizard-step-desktop-zoom: var(--zoom-desktop-wizard-step-ciclo-horarios);
   }
 
   body.wizard-shell-open .wizard-step-frame[data-wizard-step="ciclo-blocos"] {
@@ -1209,6 +1323,10 @@ body.registro-modal-open .app-global-footer {
 
   body.wizard-shell-open .wizard-step-frame[data-wizard-step="ciclo-preview"] {
     --wizard-step-desktop-zoom: var(--zoom-desktop-wizard-step-ciclo-preview);
+  }
+
+  body.wizard-shell-open .wizard-step-frame[data-wizard-step="ciclo-step"] {
+    --wizard-step-desktop-zoom: var(--zoom-desktop-wizard-step-ciclo-step);
   }
 
   body.wizard-shell-open .wizard-navigation-bar {

@@ -719,12 +719,12 @@ const NotificationPanel = ({
   }, [bellRef, isOpen]);
 
   const isMobileViewport = window.innerWidth < 640;
-  const panelWidth = isMobileViewport ? Math.min(326, window.innerWidth - 24) : 340;
+  const panelWidth = isMobileViewport ? Math.min(390, Math.max(300, window.innerWidth - 40)) : 340;
   const bellRight = bellRectState ? Math.max(window.innerWidth - bellRectState.right, 10) : 10;
   const bellBottom = bellRectState ? bellRectState.bottom : 74;
-  const panelMaxHeight = Math.min(isMobileViewport ? 470 : 520, Math.max(260, window.innerHeight - bellBottom - 24));
+  const panelMaxHeight = Math.min(isMobileViewport ? 500 : 520, Math.max(280, window.innerHeight - bellBottom - 24));
   const panelPosition = isMobileViewport
-    ? { left: 12, right: 12, width: 'auto' }
+    ? { left: '50%', width: panelWidth, marginLeft: -(panelWidth / 2) }
     : { right: bellRight, width: panelWidth };
 
   return createPortal(
@@ -741,7 +741,7 @@ const NotificationPanel = ({
             exit={{ opacity: 0, scale: 0.985, y: -4 }}
             transition={{ duration: 0.1, ease: 'easeOut' }}
             style={{ top: bellBottom + 8, ...panelPosition, maxHeight: panelMaxHeight }}
-            className="modal-zoom modal-zoom--notifications fixed z-[100] flex flex-col overflow-hidden glass-panel-fire rounded-[18px] sm:rounded-[20px] shadow-2xl"
+            className="modal-zoom modal-zoom--notifications fixed z-[100] flex flex-col overflow-hidden glass-panel-fire rounded-[22px] sm:rounded-[20px] shadow-2xl"
           >
             <style>{notifGlobalStyles}</style>
             <div className="h-1 bg-gradient-to-r from-red-700 via-red-500 to-red-700 flex-shrink-0 shadow-lg" />
@@ -772,14 +772,14 @@ const NotificationPanel = ({
                   {systemAlerts.map(alert => <SystemAlertCard key={alert.id} alert={alert} onAction={onSystemAlertAction} />)}
                 </div>
               )}
-              <div className="sticky top-0 z-20 flex items-center justify-between px-2.5 py-2 bg-white/95 dark:bg-zinc-950/95 border-b border-zinc-100 dark:border-zinc-800/60 overflow-x-hidden">
+              <div className="sticky top-0 z-20 grid grid-cols-2 gap-1.5 px-2.5 py-2 bg-white/95 dark:bg-zinc-950/95 border-b border-zinc-100 dark:border-zinc-800/60 sm:flex sm:items-center sm:justify-between sm:gap-1 sm:overflow-x-hidden">
                 {filters.map(f => (
-                  <button key={f.id} onClick={() => setActiveFilter(f.id)} className={`flex items-center gap-1 px-2 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-wider transition-colors duration-75 border ${activeFilter === f.id ? 'bg-zinc-900 text-white border-zinc-900 dark:bg-white dark:text-zinc-900 dark:border-white shadow-md' : 'bg-white dark:bg-zinc-900 text-zinc-500 border-zinc-100 dark:border-zinc-800 shadow-sm'}`}>
+                  <button key={f.id} onClick={() => setActiveFilter(f.id)} className={`flex min-w-0 items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-wider transition-colors duration-75 border ${activeFilter === f.id ? 'bg-zinc-900 text-white border-zinc-900 dark:bg-white dark:text-zinc-900 dark:border-white shadow-md' : 'bg-white dark:bg-zinc-900 text-zinc-500 border-zinc-100 dark:border-zinc-800 shadow-sm'}`}>
                     {f.icon && <f.icon size={11} />} {f.label} {f.count > 0 && <span className="text-[8px] font-black px-1.5 py-0.5 rounded-md bg-red-500 text-white shadow-md">{f.count}</span>}
                   </button>
                 ))}
               </div>
-              <div className="p-3 space-y-3">
+              <div className="space-y-3 p-2.5 sm:p-3">
                 {filtered.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-12 text-center">
                     <div className="w-16 h-16 bg-zinc-50 dark:bg-zinc-900 rounded-[20px] flex items-center justify-center mb-5 shadow-inner border border-zinc-100 dark:border-zinc-800"><Flame size={28} className="text-red-100 dark:text-red-950" strokeWidth={1.5} /></div>

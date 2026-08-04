@@ -197,7 +197,7 @@ const SecaoCategoria = ({ chave, itens, idConfirmado, onConfirmar }) => {
 
   useEffect(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return undefined;
-    const media = window.matchMedia('(max-width: 639px), (pointer: coarse)');
+    const media = window.matchMedia('(max-width: 1023px), (pointer: coarse)');
     const update = () => setUsarScrollNativo(media.matches);
     update();
     media.addEventListener?.('change', update);
@@ -269,7 +269,7 @@ const SecaoCategoria = ({ chave, itens, idConfirmado, onConfirmar }) => {
 
       <motion.div
         ref={scrollRef}
-        className="-mx-3 cursor-grab overflow-x-auto overflow-y-hidden overscroll-x-contain px-3 py-2 active:cursor-grabbing custom-scrollbar sm:overflow-hidden"
+        className="-mx-3 cursor-grab overflow-x-auto overflow-y-hidden overscroll-x-contain px-3 py-2 active:cursor-grabbing custom-scrollbar"
         whileTap={{ cursor: 'grabbing' }}
         style={{ WebkitOverflowScrolling: 'touch', touchAction: usarScrollNativo ? 'pan-x pan-y' : 'pan-x' }}
       >

@@ -30,16 +30,18 @@ const formatVisualHours = (minutes) => {
 
 const CICLO_CONCLUIDO_COLOR = '#10b981';
 
+const cssLength = (value) => (typeof value === 'number' ? `${value}px` : value);
+
 // AJUSTES MANUAIS DO MIOLO DO CICLO VISUAL.
 // Cada item fica em uma faixa horizontal dentro de um circulo real.
 // top move para baixo/cima; x move para direita/esquerda.
 const CYCLE_CENTER_MANUAL_LAYOUT = {
   circle: { size: 66, center: 33, radius: 31, safePadding: 2.2 },
-  disciplina: { x: 0, top: 10.8, height: 10.2, maxWidth: 49, fontSize: 3.8, lineHeight: 1.12, maxLines: 2, topPadding: 1.2, bottomPadding: 0.4 },
+  disciplina: { x: 0, top: 11.2, height: 10.8, maxWidth: 49, fontSize: 3.8, lineHeight: 1.16, maxLines: 2, topPadding: 1.6, bottomPadding: 0.6 },
   bloco: { x: 0, top: 20, height: 3.5, maxWidth: 44, fontSize: 2.25 },
-  assunto: { x: 0, top: 25.2, height: 9.2, maxWidth: 53, fontSize: 2.7, lineHeight: 1.2, maxLines: 2, topPadding: 0.8, bottomPadding: 0.1 },
-  tempo: { x: 0, top: 35.4, height: 7.8, maxWidth: 40, valueFontSize: 5.55, totalFontSize: 2.35 },
-  actions: { x: 0, top: 43.4, height: 5.8, maxWidth: 39, gap: 0.75, buttonHeight: 5.15, startWidth: 16.5, endWidth: 17.8, singleWidth: 20.5, fontSize: 2.05, radius: 2.6 },
+  assunto: { x: 0, top: 25.6, height: 9.8, maxWidth: 53, fontSize: 2.7, lineHeight: 1.22, maxLines: 2, topPadding: 1.2, bottomPadding: 0.4 },
+  tempo: { x: 0, top: 34.9, height: 8.8, maxWidth: 42, valueFontSize: 5.35, totalFontSize: 2.35 },
+  actions: { x: 0, top: 44.2, height: 5.8, maxWidth: 39, gap: 0.75, buttonHeight: 5.15, startWidth: 16.5, endWidth: 17.8, singleWidth: 20.5, fontSize: 2.05, radius: 2.6 },
 };
 
 // TAMANHO DO CICLO VISUAL.
@@ -48,19 +50,19 @@ const CYCLE_CENTER_MANUAL_LAYOUT = {
 // quanto da altura da tela fica reservado para textos/botoes ao redor.
 const CYCLE_VISUAL_SIZE_PRESETS = {
   default: {
-    mobileMax: 430,
+    mobileMax: 'var(--ciclo-visual-default-max-mobile, 430px)',
     mobileViewportOffset: 255,
     mobileViewportWidth: 88,
-    desktopMax: 560,
+    desktopMax: 'var(--ciclo-visual-default-max-desktop, 560px)',
     desktopViewportOffset: 285,
     desktopViewportWidth: 78,
     parentOffset: 20,
   },
   preview: {
-    mobileMax: 540,
+    mobileMax: 'var(--ciclo-visual-preview-max-mobile, 540px)',
     mobileViewportOffset: 160,
     mobileViewportWidth: 96,
-    desktopMax: 820,
+    desktopMax: 'var(--ciclo-visual-preview-max-desktop, 820px)',
     desktopViewportOffset: 115,
     desktopViewportWidth: 88,
     parentOffset: 6,
@@ -451,6 +453,10 @@ function CicloVisual({
     ? showAssuntos
     : ciclo?.modoExibirAssuntos !== false;
   const cycleVisualSize = CYCLE_VISUAL_SIZE_PRESETS[sizePreset] || CYCLE_VISUAL_SIZE_PRESETS.default;
+  const cycleVisualCssVars = {
+    '--ciclo-visual-size-mobile': `min(calc(100% - ${cycleVisualSize.parentOffset}px), calc(100vh - ${cycleVisualSize.mobileViewportOffset}px), ${cycleVisualSize.mobileViewportWidth}vw, ${cssLength(cycleVisualSize.mobileMax)})`,
+    '--ciclo-visual-size-desktop': `min(calc(100% - ${cycleVisualSize.parentOffset}px), calc(100vh - ${cycleVisualSize.desktopViewportOffset}px), ${cycleVisualSize.desktopViewportWidth}vw, ${cssLength(cycleVisualSize.desktopMax)})`,
+  };
   const shouldUseDisciplineColors = ciclo?.coresDisciplinasAtivas !== false;
   const coresDisciplinas = useMemo(() => {
     const mapa = {};
@@ -551,7 +557,7 @@ function CicloVisual({
 
     const ordemSessoes = ciclo.ordemSessoes || [];
     const sessoesConcluidasSet = new Set(ciclo.sessoesConcluidas || []);
-    const tempoSessao = ciclo.tempoSessaoMinutos || 50;
+    const tempoSessaoPadrao = ciclo.tempoSessaoMinutos || 50;
     const progressoSessoes = ciclo.progressoSessoes || {};
 
     const totalSessoesLocal = ordemSessoes.length;
@@ -572,10 +578,11 @@ function CicloVisual({
         disciplina,
         allowLooseMatch: false,
       });
+      const tempoPlanejadoSessao = Math.max(1, Number(sessao.tempoPlanejadoMinutos || sessao.tempoMinutos || tempoSessaoPadrao));
       const progressoMinutos = Math.max(progressoPersistido, progressoRegistrado);
-      const concluida = sessoesConcluidasSet.has(globalIndex) || progressoMinutos >= tempoSessao;
+      const concluida = sessoesConcluidasSet.has(globalIndex) || progressoMinutos >= tempoPlanejadoSessao;
       const corBase = coresDisciplinas[disciplina.id] || '#71717a';
-      const percentage = tempoSessao > 0 ? Math.min(100, Math.round((progressoMinutos / tempoSessao) * 100)) : 0;
+      const percentage = tempoPlanejadoSessao > 0 ? Math.min(100, Math.round((progressoMinutos / tempoPlanejadoSessao) * 100)) : 0;
       const color = concluida ? CICLO_CONCLUIDO_COLOR : progressoMinutos > 0 ? '#f59e0b' : corBase;
 
       const segmentData = {
@@ -588,7 +595,9 @@ function CicloVisual({
         angle: anguloPorSessao,
         color,
         corBase,
-        metaMinutos: tempoSessao,
+        metaMinutos: tempoPlanejadoSessao,
+        tempoPlanejadoMinutos: tempoPlanejadoSessao,
+        tempoMinutos: tempoPlanejadoSessao,
         progressMinutos: progressoMinutos,
         percentage,
         ...getCycleAssuntoForSession(ciclo, { ...sessao, globalIndex }, disciplina),
@@ -612,7 +621,7 @@ function CicloVisual({
         const concluidasDisc = sessoesDisc.filter(s => s.concluida).length;
         const totalDisc = disc.sessoesPorCiclo || sessoesDisc.length;
         const angulo = totalSessoesLocal > 0 ? (totalDisc / totalSessoesLocal) * 360 : 0;
-        const metaMinutos = totalDisc * (ciclo.tempoSessaoMinutos || 50);
+        const metaMinutos = sessoesDisc.reduce((acc, sessao) => acc + Number(sessao.metaMinutos || ciclo.tempoSessaoMinutos || 50), 0);
         const progressMinutos = sessoesDisc.reduce((acc, sessao) => acc + Math.min(Number(sessao.progressMinutos || 0), Number(sessao.metaMinutos || ciclo.tempoSessaoMinutos || 50)), 0);
         const percentage = metaMinutos > 0 ? (progressMinutos / metaMinutos) * 100 : 0;
         const corBase = coresDisciplinas[disc.id] || '#71717a';
@@ -669,7 +678,7 @@ function CicloVisual({
     ? data.reduce((acc, sessao) => acc + Math.min(Number(sessao.progressMinutos || 0), Number(sessao.metaMinutos || ciclo?.tempoSessaoMinutos || 50)), 0)
     : dataLegado.reduce((acc, d) => acc + d.progressMinutos, 0);
   const totalMeta = isModoCicloSessoes
-    ? totalSessoes * (ciclo?.tempoSessaoMinutos || 50)
+    ? data.reduce((acc, sessao) => acc + Number(sessao.metaMinutos || ciclo?.tempoSessaoMinutos || 50), 0)
     : dataLegado.reduce((acc, d) => acc + d.metaMinutos, 0);
   const progressoGeral = totalMeta > 0 ? (totalEstudado / totalMeta) * 100 : 0;
 
@@ -719,8 +728,8 @@ function CicloVisual({
   }
 
   return (
-    <div className="flex h-full w-full">
-      <div className="flex h-full w-full animate-fade-in flex-col items-stretch justify-center px-1">
+    <div className="ciclo-visual-root flex w-full" style={cycleVisualCssVars}>
+      <div className="flex w-full animate-fade-in flex-col items-stretch justify-center px-1">
 
         {/* --- ÁREA DO GRÁFICO --- */}
         <div id="ciclo-radar-chart" className="relative flex h-full min-h-0 w-full flex-1 flex-col items-center overflow-visible group">
@@ -771,10 +780,6 @@ function CicloVisual({
           <div className="flex min-h-0 w-full flex-1 items-center justify-center">
             <div
               className="ciclo-visual-size-box aspect-square max-h-full max-w-full shrink-0"
-              style={{
-                '--ciclo-visual-size-mobile': `min(calc(100% - ${cycleVisualSize.parentOffset}px), calc(100vh - ${cycleVisualSize.mobileViewportOffset}px), ${cycleVisualSize.mobileViewportWidth}vw, ${cycleVisualSize.mobileMax}px)`,
-                '--ciclo-visual-size-desktop': `min(calc(100% - ${cycleVisualSize.parentOffset}px), calc(100vh - ${cycleVisualSize.desktopViewportOffset}px), ${cycleVisualSize.desktopViewportWidth}vw, ${cycleVisualSize.desktopMax}px)`,
-              }}
             >
             <svg viewBox="0 0 100 100" className="w-full h-full overflow-visible drop-shadow-lg">
               {dataViewAtual.map((seg) => {
@@ -943,14 +948,14 @@ function CicloVisual({
                               style={centerCircularSlotStyle(CYCLE_CENTER_MANUAL_LAYOUT.tempo)}
                             >
                               <span
-                                className="font-black leading-none text-zinc-900 dark:text-white"
-                                style={{ fontSize: `${CYCLE_CENTER_MANUAL_LAYOUT.tempo.valueFontSize}px` }}
+                                className="font-black text-zinc-900 dark:text-white"
+                                style={{ fontSize: `${CYCLE_CENTER_MANUAL_LAYOUT.tempo.valueFontSize}px`, lineHeight: 1.1 }}
                               >
                                 {formatVisualHours(activeDisciplina.progressMinutos)}
                               </span>
                               <span
                                 className="font-black text-zinc-500 dark:text-zinc-300"
-                                style={{ fontSize: `${CYCLE_CENTER_MANUAL_LAYOUT.tempo.totalFontSize}px` }}
+                                style={{ fontSize: `${CYCLE_CENTER_MANUAL_LAYOUT.tempo.totalFontSize}px`, lineHeight: 1.1 }}
                               >
                                 / {formatVisualHours(activeDisciplina.metaMinutos)}
                               </span>
@@ -965,7 +970,7 @@ function CicloVisual({
                                 }}
                               >
                                 <button
-                                  onClick={() => onStartStudy(activeDisciplina.disciplina, null, { defaultContext: 'ciclo' })}
+                                  onClick={() => onStartStudy(activeDisciplina.disciplina, null, { defaultContext: 'ciclo', tempoPlanejadoMinutos: activeDisciplina.tempoPlanejadoMinutos || activeDisciplina.metaMinutos })}
                                   className="pointer-events-auto inline-flex items-center justify-center bg-red-600 px-[2px] font-black uppercase leading-none tracking-[0.02em] text-white shadow-[0_1.5px_5px_rgba(220,38,38,0.18)] transition hover:bg-red-700 active:scale-95"
                                   style={centerButtonStyle(CYCLE_CENTER_MANUAL_LAYOUT.actions.startWidth)}
                                 >
@@ -1004,7 +1009,7 @@ function CicloVisual({
                                   onClick={() => onStartStudy(
                                     activeDisciplina.disciplina,
                                     shouldShowAssuntos ? activeDisciplina.assuntoSugerido?.nome || null : null,
-                                    isModoCicloSessoes ? { defaultContext: 'ciclo', sessaoGlobalIndex: activeDisciplina.globalIndex } : { defaultContext: 'ciclo' }
+                                    isModoCicloSessoes ? { defaultContext: 'ciclo', sessaoGlobalIndex: activeDisciplina.globalIndex, tempoPlanejadoMinutos: activeDisciplina.tempoPlanejadoMinutos || activeDisciplina.metaMinutos } : { defaultContext: 'ciclo' }
                                   )}
                                   className="pointer-events-auto inline-flex items-center justify-center bg-red-600 px-[2px] font-black uppercase leading-none tracking-[0.03em] text-white shadow-[0_1.5px_5px_rgba(220,38,38,0.22)] transition hover:bg-red-700 active:scale-95"
                                   style={centerButtonStyle(CYCLE_CENTER_MANUAL_LAYOUT.actions.startWidth)}
@@ -1189,7 +1194,7 @@ function CicloVisual({
 
                       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                         <button
-                          onClick={() => onStartStudy(activeDisciplina.disciplina, null, { defaultContext: 'ciclo' })}
+                          onClick={() => onStartStudy(activeDisciplina.disciplina, null, { defaultContext: 'ciclo', tempoPlanejadoMinutos: activeDisciplina.tempoPlanejadoMinutos || activeDisciplina.metaMinutos })}
                           className="w-full py-3 bg-red-600 text-white rounded-xl font-bold text-xs uppercase tracking-wide shadow-lg shadow-red-600/20 transition-all hover:-translate-y-0.5 hover:bg-red-700"
                         >
                           Iniciar
@@ -1231,7 +1236,7 @@ function CicloVisual({
                             <Clock size={12} /> Duração
                           </div>
                           <p className="text-lg font-black text-zinc-800 dark:text-white">
-                            {formatVisualHours(ciclo?.tempoSessaoMinutos || 50)}
+                            {formatVisualHours(activeDisciplina.tempoPlanejadoMinutos || activeDisciplina.metaMinutos || ciclo?.tempoSessaoMinutos || 50)}
                           </p>
                         </div>
                       </div>
@@ -1282,7 +1287,7 @@ function CicloVisual({
                       ) : (
                         <div className="flex gap-3">
                           <button
-                            onClick={() => onStartStudy(activeDisciplina.disciplina, shouldShowAssuntos ? activeDisciplina.assuntoSugerido?.nome || null : null, { defaultContext: 'ciclo', sessaoGlobalIndex: activeDisciplina.globalIndex })}
+                            onClick={() => onStartStudy(activeDisciplina.disciplina, shouldShowAssuntos ? activeDisciplina.assuntoSugerido?.nome || null : null, { defaultContext: 'ciclo', sessaoGlobalIndex: activeDisciplina.globalIndex, tempoPlanejadoMinutos: activeDisciplina.tempoPlanejadoMinutos || activeDisciplina.metaMinutos })}
                             className="flex-1 py-3 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-xl font-bold text-xs uppercase tracking-wide shadow-lg hover:shadow-xl transition-all hover:-translate-y-0.5 flex items-center justify-center gap-2"
                           >
                             <Play size={16} fill="currentColor" /> Iniciar estudo
@@ -1362,7 +1367,7 @@ function CicloVisual({
 
                       <div className="flex gap-3">
                         <button
-                          onClick={() => onStartStudy(activeDisciplina.disciplina, null, { defaultContext: 'ciclo' })}
+                          onClick={() => onStartStudy(activeDisciplina.disciplina, null, { defaultContext: 'ciclo', tempoPlanejadoMinutos: activeDisciplina.tempoPlanejadoMinutos || activeDisciplina.metaMinutos })}
                           className="flex-1 py-3 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-xl font-bold text-xls uppercase tracking-wide shadow-lg hover:shadow-xl transition-all hover:-translate-y-0.5 flex items-center justify-center gap-2"
                         >
                           <Play size={25} fill="currentColor" /> Iniciar Estudo

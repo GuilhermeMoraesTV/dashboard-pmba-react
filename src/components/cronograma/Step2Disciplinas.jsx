@@ -213,19 +213,19 @@ const NivelInteligenteSelector = ({
 
   return (
     <div className="mt-4 pt-4 border-t border-zinc-100 dark:border-zinc-800/60 w-full" onClick={(e) => e.stopPropagation()}>
-      <div className="mb-2.5 flex w-full flex-wrap items-center gap-2">
-        <span className={`inline-flex max-w-full min-w-0 items-center gap-2 rounded-lg px-2.5 py-1.5 text-[0px] font-black uppercase tracking-widest leading-tight ${isFaltando ? 'bg-red-500/10 text-red-500 dark:bg-red-500/10 dark:text-red-400' : 'text-zinc-400 dark:text-zinc-500'}`}>
+      <div className={`mb-2.5 grid w-full gap-2 ${canToggleTodosDias ? 'grid-cols-2' : 'grid-cols-1'}`}>
+        <span className={`inline-flex min-w-0 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-center font-black uppercase tracking-widest leading-tight ${isFaltando ? 'bg-red-500/10 text-red-500 dark:bg-red-500/10 dark:text-red-400' : 'text-zinc-400 dark:text-zinc-500'}`}>
           <span className="shrink-0">
             {isFaltando ? <AlertTriangle size={12} /> : <Target size={12} />}
           </span>
-          <span className="min-w-0 whitespace-normal break-words text-[10px]">
+          <span className="min-w-0 whitespace-normal break-words text-[8px] sm:text-[10px]">
             {isFaltando ? 'Obrigatorio escolher nivel' : 'Nivel de Dominio'}
           </span>
         </span>
         {canToggleTodosDias && (
           <label
             title={`Estudar esta disciplina todos os dias ativos${labelDiasAtivos}`}
-            className={`inline-flex cursor-pointer select-none items-center gap-2 rounded-lg border px-2.5 py-1.5 text-[10px] font-black uppercase tracking-widest leading-tight transition-all ${
+            className={`inline-flex min-w-0 cursor-pointer select-none items-center justify-center gap-1.5 rounded-lg border px-2 py-1.5 text-center font-black uppercase tracking-widest leading-tight transition-all ${
               todosDiasAtivo
                 ? 'border-red-500 bg-red-50 text-red-700 shadow-sm dark:bg-red-950/25 dark:text-red-300'
                 : 'border-zinc-200 bg-white text-zinc-500 hover:border-red-300 hover:text-red-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:border-red-800 dark:hover:text-red-300'
@@ -237,9 +237,9 @@ const NivelInteligenteSelector = ({
               onChange={onToggleTodosDias}
               className="sr-only"
             />
-            <CalendarCheck2 size={12} strokeWidth={3} />
-            <span>Estudar disciplina todo dia</span>
-            <span className={`relative h-4 w-7 rounded-full transition-colors ${todosDiasAtivo ? 'bg-red-600' : 'bg-zinc-300 dark:bg-zinc-700'}`}>
+            <CalendarCheck2 size={12} strokeWidth={3} className="shrink-0" />
+            <span className="min-w-0 whitespace-normal break-words text-[8px] sm:text-[10px]">Estudar disciplina todo dia</span>
+            <span className={`relative h-4 w-7 shrink-0 rounded-full transition-colors ${todosDiasAtivo ? 'bg-red-600' : 'bg-zinc-300 dark:bg-zinc-700'}`}>
               <span className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow-sm transition-all ${todosDiasAtivo ? 'right-0.5' : 'left-0.5'}`} />
             </span>
           </label>

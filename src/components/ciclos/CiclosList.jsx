@@ -6,6 +6,8 @@ import {
   Archive,
   BookOpen,
   Calendar,
+  CalendarClock,
+  Clock,
   FilePenLine,
   MoreVertical,
   PauseCircle,
@@ -40,6 +42,12 @@ const formatDate = (value) => {
   const date = value?.toDate ? value.toDate() : new Date(value);
   if (Number.isNaN(date.getTime())) return '-';
   return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' });
+};
+
+const formatHours = (value) => {
+  const number = Number(value || 0);
+  if (!number) return '0h';
+  return Number.isInteger(number) ? `${number}h` : `${number.toFixed(1).replace('.', ',')}h`;
 };
 
 const getTs = (item) => {
@@ -127,6 +135,9 @@ const CicloCard = ({ ciclo, registrosEstudo = [], onOpen, onMenuToggle, isMenuOp
 
   const progresso = Math.max(progressoPorSessao, progressoHoras);
   const canOpen = typeof onOpen === 'function' && ciclo.ativo;
+  const dataInicio = ciclo.dataInicio || ciclo.inicio || ciclo.dataCriacao || ciclo.criadoEm;
+  const dataFim = ciclo.dataFim || ciclo.termino || ciclo.dataProva || ciclo.dataFinal;
+  const cargaSemanal = Number(ciclo.cargaHorariaSemanalTotal || ciclo.cargaHorariaSemanal || ciclo.horasSemanais || ciclo.horasTotais || 0);
 
   return (
     <div onClick={() => canOpen && onOpen(ciclo.id, ciclo)} className={`group relative flex h-full min-h-[170px] flex-col justify-between overflow-hidden rounded-2xl border border-zinc-200 bg-white p-4 transition-all duration-500 hover:-translate-y-1 hover:shadow-2xl dark:border-zinc-800 dark:bg-zinc-900/50 sm:min-h-[220px] sm:p-5 ${canOpen ? 'cursor-pointer' : 'cursor-default'}`}>
@@ -173,14 +184,22 @@ const CicloCard = ({ ciclo, registrosEstudo = [], onOpen, onMenuToggle, isMenuOp
         <div className="mb-3 flex-grow sm:mb-4">
           <h3 className="mb-2 line-clamp-2 text-lg font-black leading-tight text-zinc-900 transition-colors group-hover:text-red-600 dark:text-white dark:group-hover:text-red-500 sm:text-xl md:text-2xl">{ciclo.nome || 'Ciclo sem nome'}</h3>
           <div className="mb-4 hidden h-1 w-8 rounded-full bg-red-500 transition-all duration-500 group-hover:w-16 sm:block" />
-          <div className="mb-3 flex flex-row flex-wrap gap-3 sm:mb-4 sm:flex-col sm:gap-2">
-            <div className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400 sm:gap-2">
-              <Target size={12} className="text-red-500/70 sm:h-[14px] sm:w-[14px]" />
-              <span className="text-[9px] font-medium sm:text-[10px]">{totalBlocos || ciclo.disciplinas?.length || 0} blocos</span>
+          <div className="mb-3 grid grid-cols-2 gap-1.5 sm:mb-4 sm:gap-2">
+            <div className="flex min-w-0 items-center gap-1.5 rounded-lg border border-zinc-200/70 bg-zinc-50/80 px-2 py-1.5 text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-400">
+              <CalendarClock size={12} className="shrink-0 text-red-500/70" />
+              <span className="min-w-0 truncate text-[9px] font-bold sm:text-[10px]">Inicio: {formatDate(dataInicio)}</span>
             </div>
-            <div className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400 sm:gap-2">
-              <Calendar size={12} className="text-red-500/70 sm:h-[14px] sm:w-[14px]" />
-              <span className="text-[9px] font-medium sm:text-[10px]">Criado: {formatDate(ciclo.dataCriacao || ciclo.criadoEm)}</span>
+            <div className="flex min-w-0 items-center gap-1.5 rounded-lg border border-zinc-200/70 bg-zinc-50/80 px-2 py-1.5 text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-400">
+              <Target size={12} className="shrink-0 text-red-500/70" />
+              <span className="min-w-0 truncate text-[9px] font-bold sm:text-[10px]">Termino: {formatDate(dataFim)}</span>
+            </div>
+            <div className="flex min-w-0 items-center gap-1.5 rounded-lg border border-zinc-200/70 bg-zinc-50/80 px-2 py-1.5 text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-400">
+              <Clock size={12} className="shrink-0 text-red-500/70" />
+              <span className="min-w-0 truncate text-[9px] font-bold sm:text-[10px]">{formatHours(totalHoras)} estudadas</span>
+            </div>
+            <div className="flex min-w-0 items-center gap-1.5 rounded-lg border border-zinc-200/70 bg-zinc-50/80 px-2 py-1.5 text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-400">
+              <Calendar size={12} className="shrink-0 text-red-500/70" />
+              <span className="min-w-0 truncate text-[9px] font-bold sm:text-[10px]">{formatHours(cargaSemanal)}/sem</span>
             </div>
           </div>
 
@@ -198,17 +217,13 @@ const CicloCard = ({ ciclo, registrosEstudo = [], onOpen, onMenuToggle, isMenuOp
         </div>
 
         <div className="mt-1 flex flex-col gap-3 border-t border-zinc-100 pt-3 dark:border-zinc-800/50 sm:mt-2 sm:pt-4">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-            <span className="text-[9px] font-bold tabular-nums text-zinc-500 dark:text-zinc-400 sm:text-[10px]">{totalHoras}h estudadas</span>
-            {Number(ciclo.cargaHorariaSemanalTotal || 0) > 0 && <span className="text-[9px] font-bold tabular-nums text-zinc-500 dark:text-zinc-400 sm:text-[10px]">{ciclo.cargaHorariaSemanalTotal}h/sem</span>}
-          </div>
           <div className="grid grid-cols-2 gap-2">
             {ciclo.ativo ? (
               <button type="button" onClick={(event) => { event.stopPropagation(); if (canOpen) onOpen(ciclo.id, ciclo); }} className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-2 text-[9px] font-black uppercase tracking-widest text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-700 sm:text-[10px]">
                 Acessar <ArrowRight size={13} />
               </button>
             ) : (
-              <button type="button" onClick={(event) => onAction(event, 'ativar', ciclo)} disabled={isTimerActive} className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-2 text-[9px] font-black uppercase tracking-widest text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50 sm:text-[10px]">
+              <button type="button" onClick={(event) => onAction(event, 'ativar', ciclo)} disabled={isTimerActive} className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-[9px] font-black uppercase tracking-widest text-emerald-700 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-300 dark:hover:bg-emerald-900/30 sm:text-[10px]">
                 <Zap size={13} /> Ativar
               </button>
             )}

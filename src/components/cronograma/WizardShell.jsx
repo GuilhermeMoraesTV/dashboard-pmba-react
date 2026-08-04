@@ -105,10 +105,10 @@ const WizardShell = ({
   const isPassoMontagemPersonalizada = passo === 1 && isMontagemPersonalizada;
   const activeStudyDaysCount = Object.values(horarios || {}).filter((horas) => Number(horas) > 0).length;
   const currentStepZoomKey = {
-    0: 'edital-manual',
+    0: 'cronograma-edital',
     1: isMontagemPersonalizada ? 'cronograma-montagem-manual' : 'cronograma-modo-montagem',
-    2: 'disciplinas',
-    3: 'horarios',
+    2: 'cronograma-disciplinas',
+    3: 'cronograma-horarios',
     4: 'cronograma-revisao',
     5: 'cronograma-config',
     6: 'cronograma-preview',

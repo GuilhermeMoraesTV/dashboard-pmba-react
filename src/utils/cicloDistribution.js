@@ -21,10 +21,14 @@ const getActiveDaySessionCapacities = (diasEstudo, tempoSessaoMinutos) => {
   if (!diasEstudo || typeof diasEstudo !== 'object') return [];
 
   return Object.entries(diasEstudo)
-    .map(([dia, horas]) => ({
-      dia: Number(dia),
-      sessoes: Math.floor(((Number(horas) || 0) * 60) / tempoSessaoMinutos),
-    }))
+    .map(([dia, horas]) => {
+      const minutos = Math.max(0, Math.round((Number(horas) || 0) * 60));
+      return {
+        dia: Number(dia),
+        minutos,
+        sessoes: Math.ceil(minutos / tempoSessaoMinutos),
+      };
+    })
     .filter(({ dia, sessoes }) => Number.isInteger(dia) && dia >= 0 && dia <= 6 && sessoes > 0)
     .sort((a, b) => a.dia - b.dia);
 };
@@ -53,9 +57,10 @@ export const calcularDistribuicao = (
   }
 
   const capacidadesPorDia = getActiveDaySessionCapacities(options.diasEstudo, duracaoSessao);
+  const cargaTotalMinutos = Math.max(0, Math.round(Number(cargaHorariaTotalMinutos) || 0));
   const sessoesPelaCarga = capacidadesPorDia.length > 0
     ? capacidadesPorDia.reduce((total, dia) => total + dia.sessoes, 0)
-    : Math.floor(Math.max(0, Number(cargaHorariaTotalMinutos) || 0) / duracaoSessao);
+    : Math.ceil(cargaTotalMinutos / duracaoSessao);
   const diasAtivos = capacidadesPorDia.length;
   const minimos = disciplinas.map((disciplina) => (
     disciplina?.estudarTodosDias && diasAtivos > 0 ? diasAtivos : 1
@@ -83,10 +88,33 @@ export const calcularDistribuicao = (
     sobras -= 1;
   }
 
+  const rawMinuteAllocations = rateio.map((item, index) => {
+    const rawMinutes = totalSessoes > 0
+      ? cargaTotalMinutos * (item.sessoes / totalSessoes)
+      : 0;
+    return {
+      index,
+      base: Math.floor(rawMinutes),
+      fraction: rawMinutes - Math.floor(rawMinutes),
+    };
+  });
+  let roundingRemainder = Math.max(
+    0,
+    cargaTotalMinutos - rawMinuteAllocations.reduce((total, item) => total + item.base, 0)
+  );
+  rawMinuteAllocations
+    .slice()
+    .sort((a, b) => b.fraction - a.fraction || a.index - b.index)
+    .forEach((item) => {
+      if (roundingRemainder <= 0) return;
+      rawMinuteAllocations[item.index].base += 1;
+      roundingRemainder -= 1;
+    });
+
   return disciplinas.map((disciplina, index) => {
     const peso = obterPesoDisciplina(disciplina);
     const sessoesPorCiclo = rateio[index].sessoes;
-    const tempoAlocadoMinutos = sessoesPorCiclo * duracaoSessao;
+    const tempoAlocadoMinutos = rawMinuteAllocations[index]?.base || 0;
     return {
       ...disciplina,
       peso,

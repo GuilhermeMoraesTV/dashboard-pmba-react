@@ -134,7 +134,11 @@ export default function StepPreview({
     () => disciplinasPreview.reduce((total, disciplina) => total + (disciplina.sessoesPorCiclo || 0), 0),
     [disciplinasPreview]
   );
-  const totalPlanejadoMinutos = totalSessoesPreview * tempoSessaoMinutos;
+  const totalPlanejadoMinutos = useMemo(
+    () => disciplinasPreview.reduce((total, disciplina) => total + Number(disciplina.tempoAlocadoMinutos || 0), 0)
+      || Math.round((Number(horasTotais) || 0) * 60),
+    [disciplinasPreview, horasTotais]
+  );
   const maxSessoesDisciplina = Math.max(
     1,
     ...disciplinasPreview.map((disciplina) => Number(disciplina.sessoesPorCiclo) || 0)

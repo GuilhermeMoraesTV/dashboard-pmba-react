@@ -592,9 +592,13 @@ export const useCiclos = (user) => {
       const sessaoIndex = Number(sessaoGlobalIndex);
       const completionDate = dateToYMDLocal(options.concluidaEm || new Date());
       const tempoSessaoMinutos = Math.max(1, Number(data.tempoSessaoMinutos || 50));
+      const tempoPlanejadoMinutos = Math.max(
+        1,
+        Number(options.tempoPlanejadoMinutos || options.tempoMinutos || tempoSessaoMinutos)
+      );
       const progressoSessoes = data.progressoSessoes || {};
       const progressoAtual = Number(progressoSessoes?.[sessaoIndex] || progressoSessoes?.[String(sessaoIndex)] || 0);
-      const jaConcluida = concluidas.includes(sessaoIndex) || progressoAtual >= tempoSessaoMinutos;
+      const jaConcluida = concluidas.includes(sessaoIndex) || progressoAtual >= tempoPlanejadoMinutos;
 
       if (jaConcluida) {
         await updateDoc(cicloRef, {
@@ -605,7 +609,7 @@ export const useCiclos = (user) => {
       } else {
         await updateDoc(cicloRef, {
           sessoesConcluidas: [...concluidas, sessaoIndex],
-          [`progressoSessoes.${sessaoIndex}`]: tempoSessaoMinutos,
+          [`progressoSessoes.${sessaoIndex}`]: tempoPlanejadoMinutos,
           [`sessoesConcluidasDetalhes.${sessaoIndex}`]: {
             concluidaEm: completionDate,
             atualizadoEm: serverTimestamp(),

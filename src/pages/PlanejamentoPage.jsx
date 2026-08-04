@@ -392,6 +392,7 @@ function PlanejamentoPage({
             <h2 className="text-lg md:text-xl font-black text-zinc-800 dark:text-white tracking-tight uppercase mb-3">Cronogramas</h2>
             <CronogramaListPage
               user={user}
+              registrosEstudo={registrosEstudo}
               onCronogramaAberto={(_, cronograma) => {
                 if (cronograma?.ativo && onGoToCronograma) onGoToCronograma(cronograma.id);
               }}
@@ -422,6 +423,7 @@ function PlanejamentoPage({
       {aba === 'cronogramas' && (
         <CronogramaListPage
           user={user}
+          registrosEstudo={registrosEstudo}
           onCronogramaAberto={(_, cronograma) => {
             if (cronograma?.ativo && onGoToCronograma) onGoToCronograma(cronograma.id);
           }}

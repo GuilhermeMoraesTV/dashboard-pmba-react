@@ -60,9 +60,12 @@ function CardSessoesCicloHoje({
   } = guiaHoje;
 
   const tempoSessaoMinutos = Math.max(1, Number(ciclo?.tempoSessaoMinutos || 50));
+  const getTempoPlanejadoSessao = (sessao) => (
+    Math.max(1, Number(sessao?.tempoPlanejadoMinutos || sessao?.tempoMinutos || tempoSessaoMinutos))
+  );
   const totalPlanejadoHoje = Math.max(
     Number(plannedMinutes || 0),
-    sessoesDoDiaHoje.length * tempoSessaoMinutos
+    sessoesDoDiaHoje.reduce((total, sessao) => total + getTempoPlanejadoSessao(sessao), 0)
   );
   const totalProgressoHoje = sessoesDoDiaHoje.reduce((acc, sessao) => {
     const progressoRaw = Number(sessao.progressoMinutos || 0);
@@ -74,7 +77,8 @@ function CardSessoesCicloHoje({
   const isCycleVariant = variant === 'cycle';
   const isSessaoConcluida = (sessao) => {
     const progresso = Number(sessao?.progressoMinutos || 0);
-    return Boolean(sessao?.concluida) || (tempoSessaoMinutos > 0 && progresso >= tempoSessaoMinutos);
+    const tempoPlanejado = getTempoPlanejadoSessao(sessao);
+    return Boolean(sessao?.concluida) || (tempoPlanejado > 0 && progresso >= tempoPlanejado);
   };
   const activeSessaoIndex = sessoesDoDiaHoje.findIndex((s) => !isSessaoConcluida(s));
   const allSessionsDone = !isRestDayToday
@@ -321,10 +325,11 @@ function CardSessoesCicloHoje({
                 })
                 : NEUTRAL_DISCIPLINE_COLOR;
               const disciplinaStyle = getDisciplineCardVars(disciplinaColor);
+              const tempoPlanejadoSessao = getTempoPlanejadoSessao(sessao);
               const progressoRaw = Number(sessao.progressoMinutos || 0);
-              const progressoSessao = progressoRaw;
+              const progressoSessao = isCompleted ? Math.max(progressoRaw, tempoPlanejadoSessao) : progressoRaw;
               const progressoSessaoPercentual = Math.min(
-                Math.round((progressoSessao / tempoSessaoMinutos) * 100),
+                Math.round((progressoSessao / tempoPlanejadoSessao) * 100),
                 100
               );
 
@@ -383,7 +388,7 @@ function CardSessoesCicloHoje({
                         <div className="flex shrink-0 items-center gap-1 rounded-lg border border-zinc-200/50 bg-zinc-100 px-2 py-1 dark:border-zinc-700/50 dark:bg-zinc-800">
                           <Clock3 size={12} className="text-zinc-400" />
                           <span className="text-xs font-black tabular-nums text-zinc-700 dark:text-zinc-200">
-                            {fmtMin(ciclo?.tempoSessaoMinutos || 50)}
+                            {fmtMin(tempoPlanejadoSessao)}
                           </span>
                         </div>
                       </div>
@@ -411,7 +416,7 @@ function CardSessoesCicloHoje({
                       <div className="mt-2.5 sm:mt-3">
                         <div className="mb-1 flex items-center justify-between gap-2 text-[10px] font-black uppercase tracking-wide sm:text-[11px]">
                           <span className={isCompleted ? 'text-emerald-600 dark:text-emerald-400' : progressoSessao > 0 ? 'text-orange-600 dark:text-orange-400' : 'text-zinc-400'}>
-                            {fmtMin(progressoSessao)} / {fmtMin(tempoSessaoMinutos)}
+                            {fmtMin(progressoSessao)} / {fmtMin(tempoPlanejadoSessao)}
                           </span>
                           <span className="text-zinc-400">{progressoSessaoPercentual}%</span>
                         </div>
@@ -476,7 +481,7 @@ function CardSessoesCicloHoje({
             <Clock3 size={14} />
           </div>
           <p className="text-[11px] font-medium text-zinc-500">
-            Sobraram <span className="font-black text-zinc-800 dark:text-zinc-200">{fmtMin(remainingMinutes)}</span> fora dos blocos de {fmtMin(ciclo?.tempoSessaoMinutos || 50)} configurados.
+            Ainda existem <span className="font-black text-zinc-800 dark:text-zinc-200">{fmtMin(remainingMinutes)}</span> sem sessao porque o ciclo nao tem mais disciplinas pendentes para encaixar hoje.
           </p>
         </div>
       )}

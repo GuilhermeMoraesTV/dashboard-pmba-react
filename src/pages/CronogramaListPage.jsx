@@ -8,7 +8,7 @@ import {
   Plus, CalendarDays, Target, ArrowRight,
   MoreVertical, Zap, Trash2, AlertOctagon,
   TrendingUp, CalendarClock, SkipForward, Calendar, PauseCircle,
-  FilePenLine, Archive,
+  FilePenLine, Archive, Clock,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import CronogramaCreateWizard from '../components/cronograma/WizardShell';
@@ -76,8 +76,32 @@ const formatDate = (val) => {
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' });
 };
 
+const formatHours = (value) => {
+  const number = Number(value || 0);
+  if (!number) return '0h';
+  return Number.isInteger(number) ? `${number}h` : `${number.toFixed(1).replace('.', ',')}h`;
+};
+
 // ─── MÉTRICAS ─────────────────────────────────────────────────────────────────
-const calcularMetricas = (cronograma) => {
+const getRegistroMinutes = (registro) => Number(registro?.tempoEstudadoMinutos || registro?.duracaoMinutos || registro?.minutos || 0);
+
+const calcularMinutosEstudadosCronograma = (cronograma, registrosEstudo = []) => {
+  const registros = registrosEstudo.filter((registro) => (
+    registro?.cronogramaId === cronograma?.id &&
+    !registro?.conclusaoId &&
+    registro?.tipoEstudo !== 'check_manual'
+  ));
+  const minutosRegistros = registros.reduce((acc, registro) => acc + getRegistroMinutes(registro), 0);
+  if (minutosRegistros > 0) return minutosRegistros;
+
+  const progressoMinutos = cronograma?.progressoMinutos || {};
+  return Object.values(progressoMinutos).reduce((total, semana) => {
+    if (!semana || typeof semana !== 'object') return total;
+    return total + Object.values(semana).reduce((acc, value) => acc + Number(value || 0), 0);
+  }, 0);
+};
+
+const calcularMetricas = (cronograma, registrosEstudo = []) => {
   // Progresso Geral (%)
   // Cruza slots do semanaTemplate × semanas registradas no progresso (chaves "w*")
   const template = cronograma?.semanaTemplate ?? cronograma?.slots ?? [];
@@ -116,19 +140,20 @@ const calcularMetricas = (cronograma) => {
   // Horas Semanais
   const horasSemanais = cronograma?.cargaHorariaSemanal ?? cronograma?.horasSemanais ?? null;
 
-  // Total de Disciplinas
-  const totalDisciplinas = (cronograma?.disciplinasSnapshot ?? []).filter((disciplina) => disciplina?.inCiclo !== false).length;
+  const minutosEstudados = calcularMinutosEstudadosCronograma(cronograma, registrosEstudo);
+  const horasEstudadas = Math.round((minutosEstudados / 60) * 10) / 10;
 
-  return { progresso, diasRestantes, horasSemanais, totalDisciplinas };
+  return { progresso, diasRestantes, horasSemanais, horasEstudadas };
 };
 
 // ─── CARD ─────────────────────────────────────────────────────────────────────
-const CronogramaCard = ({ cronograma, onOpen, onMenuToggle, isMenuOpen, onAction, allowInactiveOpen = true }) => {
-  const metricas = useMemo(() => calcularMetricas(cronograma), [cronograma]);
-  const { progresso, diasRestantes, horasSemanais, totalDisciplinas } = metricas;
+const CronogramaCard = ({ cronograma, registrosEstudo = [], onOpen, onMenuToggle, isMenuOpen, onAction, allowInactiveOpen = true, showPostponeAction = true }) => {
+  const metricas = useMemo(() => calcularMetricas(cronograma, registrosEstudo), [cronograma, registrosEstudo]);
+  const { progresso, horasSemanais, horasEstudadas } = metricas;
   const totalSemanas = cronograma.totalSemanasNecessarias || 0;
   const logo = getLogo(cronograma);
   const canOpen = typeof onOpen === 'function' && (allowInactiveOpen || cronograma.ativo);
+  const cargaSemanal = Number(horasSemanais || 0);
 
   const semanaAtual = useMemo(() => {
     if (!cronograma.dataInicio) return 1;
@@ -169,7 +194,7 @@ const CronogramaCard = ({ cronograma, onOpen, onMenuToggle, isMenuOpen, onAction
               {isMenuOpen && (
                 <motion.div initial={{ opacity: 0, y: 5, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} onClick={e => e.stopPropagation()} className="absolute top-8 right-0 w-44 sm:w-52 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xl py-1 z-50 overflow-hidden ring-1 ring-black/5">
                   {cronograma.ativo && <button onClick={e => onAction(e, 'desativar', cronograma)} className="w-full text-left px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/60 flex items-center gap-2 transition-colors"><PauseCircle size={14} /> Desativar</button>}
-                  <button onClick={e => onAction(e, 'adiar', cronograma)} className="w-full text-left px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-amber-600 dark:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/10 flex items-center gap-2 transition-colors"><SkipForward size={14} /> Adiar semana</button>
+                  {showPostponeAction && <button onClick={e => onAction(e, 'adiar', cronograma)} className="w-full text-left px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-amber-600 dark:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/10 flex items-center gap-2 transition-colors"><SkipForward size={14} /> Adiar Cronograma</button>}
                   <button onClick={e => onAction(e, 'arquivar', cronograma)} className="w-full text-left px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/60 flex items-center gap-2 transition-colors"><Archive size={14} /> Arquivar</button>
                   <div className="h-px bg-zinc-100 dark:bg-zinc-800 my-1" />
                   <button onClick={e => onAction(e, 'excluir', cronograma)} className="w-full text-left px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-red-600 dark:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 flex items-center gap-2 transition-colors"><Trash2 size={14} /> Excluir</button>
@@ -183,13 +208,49 @@ const CronogramaCard = ({ cronograma, onOpen, onMenuToggle, isMenuOpen, onAction
         <div className="mb-3 sm:mb-4 flex-grow">
           <h3 className="text-lg sm:text-xl md:text-2xl font-black text-zinc-900 dark:text-white leading-tight mb-2 line-clamp-2 group-hover:text-emerald-600 dark:group-hover:text-emerald-500 transition-colors">{cronograma.nome}</h3>
           <div className="hidden sm:block w-8 h-1 bg-emerald-500 rounded-full mb-4 group-hover:w-16 transition-all duration-500" />
-          <div className="flex flex-row sm:flex-col gap-3 sm:gap-2 mb-3 sm:mb-4 flex-wrap">
+          <div className="mb-3 grid grid-cols-2 gap-1.5 sm:mb-4 sm:gap-2">
+            <div className="flex min-w-0 items-center gap-1.5 rounded-lg border border-zinc-200/70 bg-zinc-50/80 px-2 py-1.5 text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-400">
+              <CalendarClock size={12} className="shrink-0 text-emerald-500/70" />
+              <span className="min-w-0 truncate text-[9px] font-bold sm:text-[10px]">Inicio: {formatDate(cronograma.dataInicio)}</span>
+            </div>
+            <div className="flex min-w-0 items-center gap-1.5 rounded-lg border border-zinc-200/70 bg-zinc-50/80 px-2 py-1.5 text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-400">
+              <Target size={12} className="shrink-0 text-emerald-500/70" />
+              <span className="min-w-0 truncate text-[9px] font-bold sm:text-[10px]">Termino: {formatDate(cronograma.dataFim)}</span>
+            </div>
+            <div className="flex min-w-0 items-center gap-1.5 rounded-lg border border-zinc-200/70 bg-zinc-50/80 px-2 py-1.5 text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-400">
+              <Clock size={12} className="shrink-0 text-emerald-500/70" />
+              <span className="min-w-0 truncate text-[9px] font-bold sm:text-[10px]">{formatHours(horasEstudadas)} estudadas</span>
+            </div>
+            <div className="flex min-w-0 items-center gap-1.5 rounded-lg border border-zinc-200/70 bg-zinc-50/80 px-2 py-1.5 text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-400">
+              <Calendar size={12} className="shrink-0 text-emerald-500/70" />
+              <span className="min-w-0 truncate text-[9px] font-bold sm:text-[10px]">{formatHours(cargaSemanal)}/sem</span>
+            </div>
+          </div>
+          <div className="hidden">
             {cronograma.dataInicio && <div className="flex items-center gap-1.5 sm:gap-2 text-zinc-500 dark:text-zinc-400 text-xs"><CalendarClock size={12} className="text-emerald-500/70 sm:w-[14px] sm:h-[14px]" /><span className="text-[9px] sm:text-[10px] font-medium">Início: {formatDate(cronograma.dataInicio)}</span></div>}
             {cronograma.dataFim && <div className="flex items-center gap-1.5 sm:gap-2 text-zinc-500 dark:text-zinc-400 text-xs"><Target size={12} className="text-emerald-500/70 sm:w-[14px] sm:h-[14px]" /><span className="text-[9px] sm:text-[10px] font-medium">Término: {formatDate(cronograma.dataFim)}</span></div>}
           </div>
 
           {/* ── Barra de Progresso ─────────────────────────────────────────── */}
           <div className="mt-auto">
+            <div className="hidden">
+              <div className="flex items-center gap-1 text-zinc-400 dark:text-zinc-500">
+                <Clock size={11} className="text-emerald-500/70" />
+                <span className="text-[9px] sm:text-[10px] font-bold tabular-nums text-zinc-500 dark:text-zinc-400">
+                  {horasEstudadas}h estudadas
+                </span>
+              </div>
+
+              {horasSemanais != null && (
+                <div className="flex items-center gap-1 text-zinc-400 dark:text-zinc-500">
+                  <CalendarClock size={11} className="text-emerald-500/70" />
+                  <span className="text-[9px] sm:text-[10px] font-bold tabular-nums text-zinc-500 dark:text-zinc-400">
+                    {horasSemanais}h/sem
+                  </span>
+                </div>
+              )}
+            </div>
+
             <div className="flex justify-between items-end mb-1.5">
               <span className="text-[10px] sm:text-[11px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-widest flex items-center gap-1">
                 <TrendingUp size={11} className="sm:w-[13px] sm:h-[13px]" /> Progresso
@@ -215,45 +276,6 @@ const CronogramaCard = ({ cronograma, onOpen, onMenuToggle, isMenuOpen, onAction
         {/* ── Rodapé: Métricas + Acessar ───────────────────────────────────── */}
         <div className="border-t border-zinc-100 dark:border-zinc-800/50 mt-1 sm:mt-2 pt-3 sm:pt-4 flex flex-col gap-3">
 
-          {/* Linha de metadados */}
-          <div className="flex items-center gap-x-3 gap-y-1.5 flex-wrap">
-            {/* Disciplinas */}
-            {totalDisciplinas > 0 && (
-              <div className="flex items-center gap-1 text-zinc-400 dark:text-zinc-500">
-                <span className="text-[10px] leading-none">📚</span>
-                <span className="text-[9px] sm:text-[10px] font-bold tabular-nums text-zinc-500 dark:text-zinc-400">
-                  {totalDisciplinas} disc.
-                </span>
-              </div>
-            )}
-
-            {/* Horas semanais */}
-            {horasSemanais != null && (
-              <div className="flex items-center gap-1 text-zinc-400 dark:text-zinc-500">
-                <span className="text-[10px] leading-none">⏱</span>
-                <span className="text-[9px] sm:text-[10px] font-bold tabular-nums text-zinc-500 dark:text-zinc-400">
-                  {horasSemanais}h/sem
-                </span>
-              </div>
-            )}
-
-            {/* Dias restantes — só se dataFim existir */}
-            {diasRestantes != null && (
-              <div className="flex items-center gap-1">
-                <span className="text-[10px] leading-none">📅</span>
-                <span className={`text-[9px] sm:text-[10px] font-black tabular-nums ${
-                  diasRestantes === 0
-                    ? 'text-red-500 dark:text-red-400'
-                    : diasRestantes <= 7
-                    ? 'text-amber-500 dark:text-amber-400'
-                    : 'text-zinc-500 dark:text-zinc-400'
-                }`}>
-                  {diasRestantes === 0 ? 'Hoje' : `${diasRestantes}d`}
-                </span>
-              </div>
-            )}
-          </div>
-
           <div className="grid grid-cols-2 gap-2">
             {cronograma.ativo ? (
               <button
@@ -270,7 +292,7 @@ const CronogramaCard = ({ cronograma, onOpen, onMenuToggle, isMenuOpen, onAction
               <button
                 type="button"
                 onClick={(event) => onAction(event, 'ativar', cronograma)}
-                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-2 text-[9px] font-black uppercase tracking-widest text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-700 sm:text-[10px]"
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-[9px] font-black uppercase tracking-widest text-emerald-700 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-100 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-300 dark:hover:bg-emerald-900/30 sm:text-[10px]"
               >
                 <Zap size={13} /> Ativar
               </button>
@@ -294,11 +316,13 @@ const CronogramaCard = ({ cronograma, onOpen, onMenuToggle, isMenuOpen, onAction
 function CronogramaListPage({
   user,
   onCronogramaAberto,
+  registrosEstudo = [],
   hideHeader = false,
   onRequestCreate = null,
   onRequestEdit = null,
   compact = false,
   allowInactiveOpen = true,
+  showPostponeAction = true,
 }) {
   const [cronogramas, setCronogramas] = useState([]);
   const [loadingList, setLoadingList] = useState(true);
@@ -306,6 +330,7 @@ function CronogramaListPage({
   const [menuAberto, setMenuAberto] = useState(null);
   const [cronogramaParaExcluir, setCronogramaParaExcluir] = useState(null);
   const [cronogramaParaDesativar, setCronogramaParaDesativar] = useState(null);
+  const [cronogramaParaAdiar, setCronogramaParaAdiar] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [feedbackView, setFeedbackView] = useState('home');
@@ -364,13 +389,18 @@ function CronogramaListPage({
 
   const handleAction = async (e, action, cronograma) => {
     e.stopPropagation(); setMenuAberto(null);
-    if (action === 'ativar') { setActionLoading(true); await ativarCronograma(cronograma.id); setActionLoading(false); }
+    if (action === 'ativar') {
+      setActionLoading(true);
+      const ok = await ativarCronograma(cronograma.id);
+      setActionLoading(false);
+      if (ok) onCronogramaAberto?.(cronograma.id, { ...cronograma, ativo: true });
+    }
     else if (action === 'desativar') { setCronogramaParaDesativar(cronograma); }
     else if (action === 'editar') {
       if (canUseInlineEdit) setCronogramaParaEditar(cronograma);
       else onRequestEdit(cronograma);
     }
-    else if (action === 'adiar') { setActionLoading(true); await adiarCronograma(cronograma.id, cronograma); setActionLoading(false); }
+    else if (action === 'adiar') { setCronogramaParaAdiar(cronograma); }
     else if (action === 'arquivar') {
       setActionLoading(true);
       try {
@@ -394,6 +424,15 @@ function CronogramaListPage({
     setActionLoading(true);
     await desativarCronograma(cronogramaParaDesativar.id);
     setActionLoading(false); setCronogramaParaDesativar(null);
+  };
+
+  const handleConfirmarAdiamento = async () => {
+    if (!cronogramaParaAdiar || actionLoading) return;
+    setActionLoading(true);
+    const ok = await adiarCronograma(cronogramaParaAdiar.id, cronogramaParaAdiar);
+    if (!ok) setActionError('Erro ao adiar cronograma. Tente novamente.');
+    setActionLoading(false);
+    setCronogramaParaAdiar(null);
   };
 
   // CORREÇÃO 2: exclusão robusta — verifica se cicloVinculadoId existe antes de tentar atualizar
@@ -464,6 +503,9 @@ function CronogramaListPage({
             {cronogramaParaDesativar && (
               <ModalConfirmacao isOpen={true} titulo="Desativar Cronograma?" descricao={`O cronograma <strong>"${cronogramaParaDesativar.nome}"</strong> será pausado. Seu progresso é preservado.`} icone={PauseCircle} corBg="bg-zinc-100 dark:bg-zinc-800/60 border-zinc-200 dark:border-zinc-700 text-zinc-500" corBtn="bg-zinc-700 hover:bg-zinc-800 dark:bg-zinc-600 dark:hover:bg-zinc-500" labelBtn="Desativar" onClose={() => setCronogramaParaDesativar(null)} onConfirm={handleConfirmarDesativacao} loading={actionLoading} />
             )}
+            {cronogramaParaAdiar && (
+              <ModalConfirmacao isOpen={true} titulo="Adiar Cronograma?" descricao={`O cronograma <strong>"${cronogramaParaAdiar.nome}"</strong> sera movido 1 semana para frente. Seu progresso fica preservado.`} icone={SkipForward} corBg="bg-amber-500/10 border-amber-500/20 text-amber-600" corBtn="bg-amber-600 hover:bg-amber-700" labelBtn="Adiar" onClose={() => setCronogramaParaAdiar(null)} onConfirm={handleConfirmarAdiamento} loading={actionLoading} />
+            )}
             {cronogramaParaExcluir && (
               <ModalConfirmacao isOpen={true} titulo="Excluir Cronograma?" descricao={`O cronograma <strong class="text-red-600">"${cronogramaParaExcluir.nome}"</strong> e todo o progresso serão apagados permanentemente.`} icone={AlertOctagon} corBg="bg-red-600/10 border-red-500/20 text-red-600" corBtn="bg-red-600 hover:bg-red-700" labelBtn="Excluir Definitivamente" onClose={() => setCronogramaParaExcluir(null)} onConfirm={handleConfirmarExclusao} loading={actionLoading} />
             )}
@@ -502,7 +544,7 @@ function CronogramaListPage({
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6">
               {sortedCronogramas.map(cronograma => (
-                <CronogramaCard key={cronograma.id} cronograma={cronograma} onOpen={(id, item) => onCronogramaAberto?.(id, item)} onMenuToggle={handleMenuToggle} isMenuOpen={menuAberto === cronograma.id} onAction={handleAction} allowInactiveOpen={allowInactiveOpen} />
+                <CronogramaCard key={cronograma.id} cronograma={cronograma} registrosEstudo={registrosEstudo} onOpen={(id, item) => onCronogramaAberto?.(id, item)} onMenuToggle={handleMenuToggle} isMenuOpen={menuAberto === cronograma.id} onAction={handleAction} allowInactiveOpen={allowInactiveOpen} showPostponeAction={showPostponeAction} />
               ))}
             </div>
           )}

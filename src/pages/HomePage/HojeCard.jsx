@@ -29,7 +29,7 @@ const fmtMin = (min) => {
 const TechBackground = ({ activePanel, diaTodoConcluido }) => (
   <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
     <div className={`absolute inset-0 opacity-[0.04] transition-colors duration-1000 ${
-      diaTodoConcluido ? 'bg-red-500' : activePanel === 'estudo' ? 'bg-red-500' : 'bg-blue-500'
+      diaTodoConcluido ? 'bg-emerald-500' : activePanel === 'estudo' ? 'bg-red-500' : 'bg-blue-500'
     }`} />
     <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] rounded-full blur-[100px] bg-current opacity-[0.03]" />
     <div className="absolute -bottom-[10%] -right-[10%] w-[40%] h-[40%] rounded-full blur-[100px] bg-current opacity-[0.03]" />
@@ -403,8 +403,9 @@ function HojeCard({
     const tempoSessao = Math.max(1, Number(activeCicloData?.tempoSessaoMinutos || 50));
     return (cicloGuide.sessions || []).map((sessao) => {
       const disc = disciplinasCiclo.find((d) => d.id === sessao.disciplinaId);
+      const tempoPlanejadoMinutos = Math.max(1, Number(sessao.tempoPlanejadoMinutos || sessao.tempoMinutos || tempoSessao));
       const progressoRaw = Number(sessao.progressoMinutos || 0);
-      const concluidoPorProgresso = tempoSessao > 0 && progressoRaw >= tempoSessao;
+      const concluidoPorProgresso = tempoPlanejadoMinutos > 0 && progressoRaw >= tempoPlanejadoMinutos;
       return {
         ...sessao,
         slotId: `ciclo-${sessao.globalIndex}`,
@@ -413,7 +414,8 @@ function HojeCard({
         disciplinaObj: disc,
         cor: disc?.cor,
         assunto: sessao.assuntoSugerido?.nome || sessao.assuntoSugerido || '',
-        tempoPlanejadoMinutos: tempoSessao,
+        tempoPlanejadoMinutos,
+        tempoMinutos: tempoPlanejadoMinutos,
         progressoMinutos: progressoRaw,
         concluido: Boolean(sessao.concluida) || concluidoPorProgresso,
         isRevisaoAuto: false,
@@ -679,7 +681,11 @@ function HojeCard({
       onGoToStudySession(
         { id: disciplina.id, nome: disciplina.nome },
         sessao?.assuntoSugerido?.nome || null,
-        { defaultContext: 'ciclo', sessaoGlobalIndex: globalIndex }
+        {
+          defaultContext: 'ciclo',
+          sessaoGlobalIndex: globalIndex,
+          tempoPlanejadoMinutos: sessao?.tempoPlanejadoMinutos || sessao?.tempoMinutos,
+        }
       );
       return;
     }
@@ -912,19 +918,19 @@ function HojeCard({
         if (!completionGlowActive || isInteractiveClick(event.target)) return;
         openCompletionModal();
       }}
-      className={`group relative z-20 flex min-h-[400px] flex-col overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white p-6 transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/50 hover:!border-l-red-500 hover:shadow-glow dark:border-white/10 dark:!border-l-red-500/25 dark:bg-[#09090b] dark:shadow-[0_0_24px_rgba(239,68,68,0.1)] dark:hover:border-accent-light/30 dark:hover:!border-l-red-500 dark:hover:shadow-[0_0_36px_rgba(239,68,68,0.16)] ${completionGlowActive ? 'cursor-pointer' : ''} ${className}`}
+      className={`group relative z-20 flex min-h-[400px] flex-col overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 bg-white p-6 transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/50 hover:shadow-glow dark:border-white/10 dark:bg-[#09090b] ${completionGlowActive ? '!border-l-emerald-500/35 hover:!border-l-emerald-500 dark:!border-l-emerald-500/35 dark:hover:!border-l-emerald-500 dark:shadow-[0_0_24px_rgba(16,185,129,0.1)] dark:hover:shadow-[0_0_36px_rgba(16,185,129,0.16)] cursor-pointer' : '!border-l-red-500/20 hover:!border-l-red-500 dark:!border-l-red-500/25 dark:hover:!border-l-red-500 dark:shadow-[0_0_24px_rgba(239,68,68,0.1)] dark:hover:shadow-[0_0_36px_rgba(239,68,68,0.16)]'} ${className}`}
     >
       <div className="pointer-events-none absolute inset-0 z-0 bg-white dark:bg-[#09090b]" />
 
       <div className={`pointer-events-none absolute -right-24 -top-24 h-56 w-56 rounded-full opacity-10 blur-[90px] transition-all duration-700 group-hover:opacity-20 ${
-        activePanel === 'estudo' ? 'bg-gradient-to-br from-red-600 to-rose-700' : 'bg-gradient-to-br from-blue-600 to-indigo-700'
+        completionGlowActive ? 'bg-gradient-to-br from-emerald-500 to-teal-600' : activePanel === 'estudo' ? 'bg-gradient-to-br from-red-600 to-rose-700' : 'bg-gradient-to-br from-blue-600 to-indigo-700'
       }`} />
       <div className="pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-zinc-500/5 opacity-40 blur-[80px] transition-all duration-700" />
 
       <div className="relative z-20 flex h-full w-full min-h-0 flex-col">
         <div className={`mb-4 shrink-0 overflow-hidden rounded-2xl border p-3 shadow-md backdrop-blur-xl transition-all duration-500 dark:border-zinc-800 dark:bg-zinc-950/85 ${
           completionGlowActive
-            ? 'border-zinc-200/80 bg-white/90 shadow-red-500/10 dark:shadow-red-950/20'
+            ? 'border-emerald-200/80 bg-white/90 shadow-emerald-500/10 dark:shadow-emerald-950/20'
             : activePanel === 'estudo'
               ? 'border-zinc-200/80 bg-white/90 shadow-red-500/10 dark:shadow-red-950/20'
               : 'border-zinc-200/80 bg-white/90 shadow-blue-500/10 dark:shadow-blue-950/20'
@@ -933,7 +939,7 @@ function HojeCard({
             <div className="flex min-w-0 items-center gap-3">
               <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white shadow-lg sm:h-12 sm:w-12 ${
                 completionGlowActive
-                  ? 'bg-red-600 shadow-red-600/25'
+                  ? 'bg-emerald-600 shadow-emerald-600/25'
                   : activePanel === 'estudo'
                     ? 'bg-red-600 shadow-red-600/25'
                     : 'bg-blue-600 shadow-blue-600/25'
@@ -942,19 +948,19 @@ function HojeCard({
               </div>
               <div className="min-w-0">
                 <p className={`text-[8px] font-black uppercase tracking-[0.24em] sm:text-[9px] ${
-                  completionGlowActive ? 'text-red-600 dark:text-red-400' : activePanel === 'estudo' ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'
+                  completionGlowActive ? 'text-emerald-600 dark:text-emerald-400' : activePanel === 'estudo' ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'
                 }`}>
                   Estudo do dia
                 </p>
                 <h2 className="mt-0.5 text-base font-black uppercase leading-none tracking-tight text-zinc-900 dark:text-white sm:text-xl">
                   {completionGlowActive ? (
-                    <>Meta do dia <span className="text-red-600 dark:text-red-400">batida</span></>
+                    'ESTUDO DO DIA CONCLUIDO'
                   ) : (
                     <>{activePanel === 'estudo' ? 'Sessoes' : 'Revisoes'} <span className={activePanel === 'estudo' ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}>ativas</span></>
                   )}
                 </h2>
                 {completionGlowActive && (
-                  <p className="mt-1 text-[9px] font-black uppercase tracking-widest text-red-600/80 dark:text-red-300/80">
+                  <p className="mt-1 text-[9px] font-black uppercase tracking-widest text-emerald-600/80 dark:text-emerald-300/80">
                     {fmtMin(progressoDiaResumo.feito)} estudados
                   </p>
                 )}
@@ -966,15 +972,15 @@ function HojeCard({
                 {completionGlowActive ? 'Tempo' : 'Meta de hoje'}
               </p>
               <div className="mt-1 flex items-center justify-end gap-1.5">
-                <Clock size={13} className={completionGlowActive ? 'text-red-500' : activePanel === 'estudo' ? 'text-red-500' : 'text-blue-500'} />
+                <Clock size={13} className={completionGlowActive ? 'text-emerald-500' : activePanel === 'estudo' ? 'text-red-500' : 'text-blue-500'} />
                 <span className="text-base font-black tabular-nums text-zinc-900 dark:text-white sm:text-xl">
                   {fmtMin(progressoCard.feito)}
                   <span className="mx-1 text-xs font-medium text-zinc-400">/</span>
                   {fmtMin(progressoCard.total)}
                 </span>
               </div>
-              <p className={`mt-1 text-[9px] font-black uppercase tracking-widest ${completionGlowActive ? 'text-red-600 dark:text-red-400' : activePanel === 'estudo' ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}`}>
-                {completionGlowActive ? 'Meta batida' : `${progressoCard.pct}% concluido`}
+              <p className={`mt-1 text-[9px] font-black uppercase tracking-widest ${completionGlowActive ? 'text-emerald-600 dark:text-emerald-400' : activePanel === 'estudo' ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}`}>
+                {completionGlowActive ? 'Concluido' : `${progressoCard.pct}% concluido`}
               </p>
             </div>
           </div>
@@ -1022,7 +1028,7 @@ function HojeCard({
                 animate={{ width: `${progressoCard.pct}%` }}
                 transition={{ duration: 0.35, ease: 'easeOut' }}
                 className={`h-full rounded-full ${
-                  completionGlowActive ? 'bg-gradient-to-r from-red-600 via-rose-500 to-orange-500' : activePanel === 'estudo' ? 'bg-gradient-to-r from-red-600 via-rose-500 to-orange-500' : 'bg-gradient-to-r from-blue-600 via-sky-500 to-cyan-500'
+                  completionGlowActive ? 'bg-gradient-to-r from-emerald-500 via-green-500 to-teal-500' : activePanel === 'estudo' ? 'bg-gradient-to-r from-red-600 via-rose-500 to-orange-500' : 'bg-gradient-to-r from-blue-600 via-sky-500 to-cyan-500'
                 }`}
               />
             </div>
@@ -1032,12 +1038,12 @@ function HojeCard({
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <p className={`text-[9px] font-black uppercase tracking-[0.22em] ${
-                  completionGlowActive ? 'text-red-600 dark:text-red-400' : activePanel === 'estudo' ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'
+                  completionGlowActive ? 'text-emerald-600 dark:text-emerald-400' : activePanel === 'estudo' ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'
                 }`}>
                   Estudo do Dia
                 </p>
                 <div className={`h-1.5 w-1.5 rounded-full animate-pulse ${
-                  completionGlowActive ? 'bg-red-500' : activePanel === 'estudo' ? 'bg-red-500' : 'bg-blue-500'
+                  completionGlowActive ? 'bg-emerald-500' : activePanel === 'estudo' ? 'bg-red-500' : 'bg-blue-500'
                 }`} />
               </div>
               <h2 className="mt-0.5 text-xl font-black uppercase leading-none tracking-tight text-zinc-900 dark:text-white">
@@ -1047,7 +1053,7 @@ function HojeCard({
                   {modoCicloAtivo ? 'Modo Ciclo' : 'Cronograma'}
                 </span>
                 <span className="opacity-30">|</span>
-                <span className={completionGlowActive ? 'text-red-500' : ''}>{progressoCard.concluidos} de {progressoCard.itens} concluidos</span>
+                <span className={completionGlowActive ? 'text-emerald-500' : ''}>{progressoCard.concluidos} de {progressoCard.itens} concluidos</span>
               </div>
             </div>
             <div className="flex flex-col items-end">
@@ -1191,7 +1197,7 @@ function HojeCard({
             }}
             className={`group/btn relative flex w-full items-center justify-center gap-3 overflow-hidden rounded-2xl py-4 text-[10px] font-black uppercase tracking-[0.2em] text-white shadow-xl transition-all ${
               completionGlowActive
-                ? 'bg-zinc-950 hover:bg-red-600 dark:bg-white dark:text-zinc-950 dark:hover:bg-red-600 dark:hover:text-white'
+                ? 'bg-zinc-950 hover:bg-emerald-600 dark:bg-white dark:text-zinc-950 dark:hover:bg-emerald-600 dark:hover:text-white'
                 : activePanel === 'estudo'
                   ? 'bg-zinc-950 hover:bg-red-600 dark:bg-white dark:text-zinc-950 dark:hover:bg-red-600 dark:hover:text-white'
                   : 'bg-zinc-950 hover:bg-blue-600 dark:bg-white dark:text-zinc-950 dark:hover:bg-blue-600 dark:hover:text-white'

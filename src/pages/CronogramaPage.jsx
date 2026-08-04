@@ -91,6 +91,20 @@ const dateToYMDLocal = (date) => {
   return d.toISOString().split('T')[0];
 };
 
+const parseCronogramaDate = (value) => {
+  if (!value) return null;
+  if (value?.toDate) return value.toDate();
+  if (value?.seconds) return new Date(value.seconds * 1000);
+  if (value instanceof Date) return new Date(value);
+  if (typeof value === 'string') {
+    const normalized = /^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T12:00:00` : value;
+    const parsed = new Date(normalized);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
 const getRegistroDateKey = (registro) => {
   if (registro?.data) return registro.data;
   if (registro?.dataRegistro) return registro.dataRegistro;
@@ -177,7 +191,7 @@ const getTextoAssunto = (item, cronograma = {}) => {
     return topicos.slice(0, 2).map((t) => t.assunto).join(' · ') + (topicos.length > 2 ? ` +${topicos.length - 2}` : '');
   }
   if (item?.isRevisao || item?.isRevisaoAuto) return item?.assunto || item?.assuntoOriginal || 'Revisão espaçada';
-  if (cronograma?.modoExibirAssuntos === false) return getNomeDisc(item);
+  if (cronograma?.modoExibirAssuntos === false) return '';
   return item?.assunto || 'Tópico de estudo';
 };
 
@@ -251,7 +265,7 @@ const buildCronogramaTaskState = ({
 
 const isWeekPanIgnoredTarget = (target) => {
   if (!target?.closest) return false;
-  return Boolean(target.closest('button, input, textarea, select, a, [data-cronograma-task-card]'));
+  return Boolean(target.closest('button, input, textarea, select, a, [role="button"], [data-no-week-pan]'));
 };
 
 const cronogramaCollisionDetection = (args) => {
@@ -557,7 +571,7 @@ const TarefaCardDraggable = ({
 
   const assuntoTexto = tarefa.isRevisaoAuto
     ? (tarefa.assunto || 'Revisão Geral do Conteúdo')
-    : (modoExibirAssuntos ? (tarefa.assunto || 'Tópico de Estudo') : getNomeDisc(tarefa));
+    : (modoExibirAssuntos ? (tarefa.assunto || 'Tópico de Estudo') : '');
 
   const tempoPlanejadoMinutos = Number(tarefa.tempoPlanejadoMinutos ?? tarefa.tempoMinutos ?? tarefa.minutosEstudo ?? 0);
   const progressoAtualMinutos = Number(tarefa.progressoMinutos || 0);
@@ -629,7 +643,7 @@ const TarefaCardDraggable = ({
             >
               <Check size={15} strokeWidth={3.5} />
             </button>
-            <h4 className={`min-w-0 flex-1 truncate text-[11px] font-black uppercase tracking-wide leading-tight ${
+            <h4 className={`min-w-0 flex-1 line-clamp-2 text-[11px] font-black uppercase tracking-wide leading-tight ${
               tarefa.concluido ? `${disciplinaColor.text} line-through opacity-75`
               : isDominado     ? 'text-amber-700 dark:text-amber-400'
               : emAndamento    ? 'text-orange-700 dark:text-orange-400'
@@ -646,11 +660,13 @@ const TarefaCardDraggable = ({
           )}
         </div>
 
-        <p className={`line-clamp-3 w-full pr-1 text-xs font-semibold leading-snug ${
-          tarefa.concluido ? 'text-zinc-500 dark:text-zinc-400 line-through decoration-emerald-500/60' : isDominado ? 'text-amber-700/80 dark:text-amber-300/80' : 'text-zinc-600 dark:text-zinc-300'
-        }`}>
-          {assuntoTexto}
-        </p>
+        {assuntoTexto && (
+          <p className={`line-clamp-3 w-full pr-1 text-xs font-semibold leading-snug ${
+            tarefa.concluido ? 'text-zinc-500 dark:text-zinc-400 line-through decoration-emerald-500/60' : isDominado ? 'text-amber-700/80 dark:text-amber-300/80' : 'text-zinc-600 dark:text-zinc-300'
+          }`}>
+            {assuntoTexto}
+          </p>
+        )}
         {tarefa.isPendenciaTeoria && tarefa.assuntoOriginal && tarefa.assuntoOriginal !== tarefa.assunto && (
           <div className="text-[9px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
             Original: {tarefa.assuntoOriginal}
@@ -799,9 +815,11 @@ const ModalDetalhesCronograma = ({ slot, cronograma, onClose, onStart, onToggle,
               <h3 className="text-lg font-black uppercase tracking-tight text-zinc-900 dark:text-white sm:text-2xl">
                 {getNomeDisc(slot)}
               </h3>
-              <p className="mt-1 line-clamp-1 text-xs font-medium leading-relaxed text-zinc-600 dark:text-zinc-400 sm:line-clamp-2 sm:text-sm">
-                {getTextoAssunto(slot, cronograma)}
-              </p>
+              {getTextoAssunto(slot, cronograma) && (
+                <p className="mt-1 line-clamp-1 text-xs font-medium leading-relaxed text-zinc-600 dark:text-zinc-400 sm:line-clamp-2 sm:text-sm">
+                  {getTextoAssunto(slot, cronograma)}
+                </p>
+              )}
             </div>
 
             <button
@@ -1698,9 +1716,11 @@ const VisualizacaoMensal = ({ cronograma, dataInicio, onStart, registrosEstudo =
                               <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: slot.isRevisaoAuto ? '#3b82f6' : (corPorDisciplina[slot.disciplinaId] || '#94a3b8') }} />
                               <p className="truncate text-xs font-black uppercase tracking-wide text-zinc-900 dark:text-zinc-100">{getNomeDisc(slot)}</p>
                             </div>
-                            <p className="mt-1 text-[11px] font-medium leading-relaxed text-zinc-600 dark:text-zinc-400">
-                              {getTextoAssunto(slot, cronograma)}
-                            </p>
+                            {getTextoAssunto(slot, cronograma) && (
+                              <p className="mt-1 text-[11px] font-medium leading-relaxed text-zinc-600 dark:text-zinc-400">
+                                {getTextoAssunto(slot, cronograma)}
+                              </p>
+                            )}
                           </div>
                           <span className="rounded bg-zinc-100 px-2 py-1 text-[10px] font-black uppercase tracking-wide text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
                             {formatarDuracao(Number(slot.tempoMinutos ?? slot.minutosEstudo ?? 0))}
@@ -2005,7 +2025,7 @@ const VisualizacaoLista = ({ cronograma, weekDates, tarefasPorDia, onStart, onOp
                   >
                     <div className="p-3 sm:p-4">
                       <div className="flex items-start justify-between gap-2 sm:gap-3">
-                        <div className="flex min-w-0 items-start gap-2">
+                        <div className="flex min-w-0 flex-1 items-start gap-2">
                           <button
                             onClick={() => onToggle(tarefa)}
                             title={isCompleted ? 'Marcar como pendente' : 'Marcar como concluido'}
@@ -2017,15 +2037,14 @@ const VisualizacaoLista = ({ cronograma, weekDates, tarefasPorDia, onStart, onOp
                           >
                             <Check size={15} strokeWidth={3.5} />
                           </button>
-                          <div className="min-w-0">
-                          <h3 className={`text-sm font-black uppercase leading-tight tracking-tight sm:text-base ${
+                          <div className="min-w-0 flex-1">
+                          <h3 className={`line-clamp-2 text-sm font-black uppercase leading-tight tracking-tight sm:text-base ${
                             isCompleted ? 'text-emerald-800 dark:text-emerald-200' : 'text-zinc-900 dark:text-white'
                           }`}>
                             {getNomeDisc(tarefa)}
                           </h3>
                           </div>
                         </div>
-
                         {tempo > 0 && (
                           <div className="flex shrink-0 items-center gap-1.5 rounded-lg border border-zinc-200/50 bg-zinc-100 px-2 py-1 dark:border-zinc-700/50 dark:bg-zinc-800">
                             <Clock size={12} className="text-zinc-400" />
@@ -2036,25 +2055,27 @@ const VisualizacaoLista = ({ cronograma, weekDates, tarefasPorDia, onStart, onOp
                         )}
                       </div>
 
-                      <div className={`mt-2.5 flex items-center gap-2 rounded-xl border p-2 sm:mt-3 sm:gap-2.5 ${
-                        tarefa.isPendenciaTeoria
-                          ? 'border-amber-200 bg-amber-50/50 text-amber-700 dark:border-amber-900/30 dark:bg-amber-950/20 dark:text-amber-300'
-                          : isRevisao
-                            ? 'border-blue-100 bg-blue-50/60 text-blue-700 dark:border-blue-900/30 dark:bg-blue-950/20 dark:text-blue-300'
-                            : 'border-zinc-100 bg-zinc-50 text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/30'
-                      }`}>
-                        <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${
-                          tarefa.isPendenciaTeoria ? 'bg-amber-500 text-white' : isRevisao ? 'bg-blue-500 text-white' : 'bg-white shadow-sm dark:bg-zinc-800'
+                      {getTextoAssunto(tarefa, cronograma) && (
+                        <div className={`mt-2.5 flex items-center gap-2 rounded-xl border p-2 sm:mt-3 sm:gap-2.5 ${
+                          tarefa.isPendenciaTeoria
+                            ? 'border-amber-200 bg-amber-50/50 text-amber-700 dark:border-amber-900/30 dark:bg-amber-950/20 dark:text-amber-300'
+                            : isRevisao
+                              ? 'border-blue-100 bg-blue-50/60 text-blue-700 dark:border-blue-900/30 dark:bg-blue-950/20 dark:text-blue-300'
+                              : 'border-zinc-100 bg-zinc-50 text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/30'
                         }`}>
-                          {tarefa.isPendenciaTeoria ? <AlertTriangle size={14} /> : isRevisao ? <BarChart2 size={14} /> : <BookOpen size={14} />}
+                          <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${
+                            tarefa.isPendenciaTeoria ? 'bg-amber-500 text-white' : isRevisao ? 'bg-blue-500 text-white' : 'bg-white shadow-sm dark:bg-zinc-800'
+                          }`}>
+                            {tarefa.isPendenciaTeoria ? <AlertTriangle size={14} /> : isRevisao ? <BarChart2 size={14} /> : <BookOpen size={14} />}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[9px] font-black uppercase tracking-widest opacity-60">
+                              {tarefa.isPendenciaTeoria ? 'Retomar Assunto' : isRevisao ? 'Revisao Agendada' : 'Assunto Sugerido'}
+                            </p>
+                            <p className="truncate text-[11px] font-bold sm:text-xs">{getTextoAssunto(tarefa, cronograma)}</p>
+                          </div>
                         </div>
-                        <div className="min-w-0">
-                          <p className="text-[9px] font-black uppercase tracking-widest opacity-60">
-                            {tarefa.isPendenciaTeoria ? 'Retomar Assunto' : isRevisao ? 'Revisao Agendada' : 'Assunto Sugerido'}
-                          </p>
-                          <p className="truncate text-[11px] font-bold sm:text-xs">{getTextoAssunto(tarefa, cronograma)}</p>
-                        </div>
-                      </div>
+                      )}
 
                       {tempo > 0 && (
                         <div className="mt-2.5 flex items-end gap-2 sm:mt-3">
@@ -2339,11 +2360,18 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
 
   const adiarCronograma = async (cronogramaId, cronogramaAtual) => {
     try {
-      const dataAtual = new Date(cronogramaAtual.dataInicio + 'T12:00:00');
-      const dataAnterior = cronogramaAtual.dataInicio;
+      const dataAtual = parseCronogramaDate(cronogramaAtual.dataInicio);
+      if (!dataAtual) throw new Error('Data de inicio invalida');
+      const dataAnterior = dateToYMDLocal(dataAtual);
       dataAtual.setDate(dataAtual.getDate() + 7);
-      const novaData = dataAtual.toISOString().split('T')[0];
-      await updateDoc(doc(db, 'users', user.uid, 'cronogramas', cronogramaId), { dataInicio: novaData });
+      const novaData = dateToYMDLocal(dataAtual);
+      const updatePayload = { dataInicio: novaData };
+      const dataFimAtual = parseCronogramaDate(cronogramaAtual.dataFim);
+      if (dataFimAtual) {
+        dataFimAtual.setDate(dataFimAtual.getDate() + 7);
+        updatePayload.dataFim = dateToYMDLocal(dataFimAtual);
+      }
+      await updateDoc(doc(db, 'users', user.uid, 'cronogramas', cronogramaId), updatePayload);
       setUndoDelayData({ cronogramaId, previousDate: dataAnterior, nextDate: novaData });
       showToast('?? Cronograma adiado em 1 semana!');
     } catch (e) {
@@ -3290,7 +3318,10 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
             </div>
 
             <button
-              onClick={() => setDelayConfirmation(cronograma)}
+              onClick={(event) => {
+                event.stopPropagation();
+                setDelayConfirmation(cronograma);
+              }}
               disabled={loadingAction}
               className="group flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 bg-white text-[9px] font-bold uppercase tracking-wide text-zinc-600 shadow-sm transition-all hover:border-amber-200 hover:bg-amber-50 hover:text-amber-700 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:border-amber-900/30 dark:hover:bg-amber-900/10 dark:hover:text-amber-400 sm:w-auto sm:gap-1.5 sm:px-2.5"
               title="Adiar semana"
@@ -3370,6 +3401,7 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
                 onPointerCancel={handleWeekPanEnd}
                 onPointerLeave={handleWeekPanEnd}
                 onWheel={handleWeekWheel}
+                style={{ touchAction: 'pan-x pan-y', WebkitOverflowScrolling: 'touch' }}
                 className="flex cursor-grab select-none gap-3 overflow-x-auto overflow-y-hidden overscroll-x-contain scroll-smooth pb-5 active:cursor-grabbing sm:gap-4 [scrollbar-width:thin] [scrollbar-color:rgb(220_38_38)_transparent]"
               >
                 {weekDates.map((date) => {
@@ -3379,7 +3411,7 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
                     <div
                       key={date.getTime()}
                       data-week-today={isHoje ? 'true' : undefined}
-                      className={`w-[226px] min-w-[226px] self-start scroll-mx-3 sm:w-[258px] sm:min-w-[258px] xl:w-[268px] xl:min-w-[268px] ${isHoje ? 'relative z-10' : ''}`}
+                      className={`w-[var(--cronograma-week-card-width-mobile)] min-w-[var(--cronograma-week-card-width-mobile)] self-start scroll-mx-3 sm:w-[var(--cronograma-week-card-width-tablet)] sm:min-w-[var(--cronograma-week-card-width-tablet)] xl:w-[var(--cronograma-week-card-width-desktop)] xl:min-w-[var(--cronograma-week-card-width-desktop)] ${isHoje ? 'relative z-10' : ''}`}
                     >
                       <DayDropZone
                         diaSemanaIdx={diaReal}
@@ -3403,7 +3435,7 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
 
               <DragOverlay dropAnimation={{ duration: 220, easing: 'ease' }}>
                 {activeDragTask ? (
-                  <div className="w-[280px] xl:w-[310px]">
+                  <div className="w-[var(--cronograma-week-card-width-tablet)] xl:w-[var(--cronograma-week-card-width-desktop)]">
                     <TarefaCardDraggable
                       tarefa={activeDragTask}
                       onToggle={() => {}}

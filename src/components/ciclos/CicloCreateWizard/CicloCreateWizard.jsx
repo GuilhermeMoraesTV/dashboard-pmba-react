@@ -431,6 +431,13 @@ function CicloCreateWizard({
     [gradeDisponibilidade]
   );
 
+  const exampleActiveDayMinutes = useMemo(() => {
+    const firstActiveDay = Object.values(gradeDisponibilidade)
+      .map((horas) => Math.round((Number(horas) || 0) * 60))
+      .find((minutos) => minutos > 0);
+    return firstActiveDay || minimumActiveDayMinutes || 0;
+  }, [gradeDisponibilidade, minimumActiveDayMinutes]);
+
   const activeStudyDaysCount = useMemo(
     () => Object.values(gradeDisponibilidade).filter((horas) => Number(horas) > 0).length,
     [gradeDisponibilidade]
@@ -438,7 +445,10 @@ function CicloCreateWizard({
 
   const totalSessionSlots = useMemo(
     () => Object.values(gradeDisponibilidade).reduce(
-      (total, horas) => total + Math.floor(((Number(horas) || 0) * 60) / Math.max(1, tempoSessaoMinutos)),
+      (total, horas) => {
+        const minutos = Math.max(0, Math.round((Number(horas) || 0) * 60));
+        return total + (minutos > 0 ? Math.ceil(minutos / Math.max(1, tempoSessaoMinutos)) : 0);
+      },
       0
     ),
     [gradeDisponibilidade, tempoSessaoMinutos]
@@ -843,6 +853,7 @@ function CicloCreateWizard({
           tempoSessaoMinutos={tempoSessaoMinutos}
           setTempoSessaoMinutos={setTempoSessaoMinutos}
           minimumActiveDayMinutes={minimumActiveDayMinutes}
+          exampleDayMinutes={exampleActiveDayMinutes}
           sessionAutoAdjustedNotice={sessionAutoAdjustedNotice}
           totalSessionSlots={totalSessionSlots}
           minimumRequiredSessions={minimumRequiredSessions}
@@ -889,9 +900,9 @@ function CicloCreateWizard({
   };
 
   const currentStepZoomKey = {
-    1: 'edital-manual',
-    2: 'disciplinas',
-    3: 'horarios',
+    1: 'ciclo-edital',
+    2: 'ciclo-disciplinas',
+    3: 'ciclo-horarios',
     4: 'ciclo-blocos',
     5: 'ciclo-revisao',
     6: 'ciclo-config',

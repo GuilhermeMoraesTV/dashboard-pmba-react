@@ -50,6 +50,25 @@ describe('cicloDistribution', () => {
     assert.equal(totalSessoes, 8);
   });
 
+  it('conta sobras de tempo como sessoes parciais sem inflar a carga planejada', () => {
+    const distribuicao = calcularDistribuicao(
+      [
+        { id: 'a', nivelDominio: 'intermediario' },
+        { id: 'b', nivelDominio: 'intermediario' },
+        { id: 'c', nivelDominio: 'intermediario' },
+      ],
+      130,
+      60,
+      { diasEstudo: { 1: 2.1667 } }
+    );
+
+    const totalMinutos = distribuicao.reduce((total, item) => total + item.tempoAlocadoMinutos, 0);
+    const totalSessoes = distribuicao.reduce((total, item) => total + item.sessoesPorCiclo, 0);
+
+    assert.equal(totalMinutos, 130);
+    assert.equal(totalSessoes, 3);
+  });
+
   it('reserva uma sessao por dia ativo para a disciplina marcada como todos os dias', () => {
     const distribuicao = calcularDistribuicao(
       [

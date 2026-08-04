@@ -904,7 +904,9 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
   const handleMarcarSessaoDoVisual = async (sessaoGlobalIndex, sessao = null) => {
     const wasDone = Boolean(sessao?.concluida || sessao?.concluido || ciclo?.sessoesConcluidas?.map(Number).includes(Number(sessaoGlobalIndex)));
     applyLocalSessionCompletion(sessaoGlobalIndex, !wasDone);
-    const ok = await marcarSessaoConcluida(cicloId, sessaoGlobalIndex);
+    const ok = await marcarSessaoConcluida(cicloId, sessaoGlobalIndex, {
+      tempoPlanejadoMinutos: sessao?.tempoPlanejadoMinutos || sessao?.tempoMinutos,
+    });
     if (!ok) applyLocalSessionCompletion(sessaoGlobalIndex, wasDone);
     if (sessao?.disciplina?.id || sessao?.disciplinaId) {
       limparPendenciaTeoriaCiclo(cicloId, sessao.disciplina?.id || sessao.disciplinaId).catch(console.error);
@@ -926,6 +928,7 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
       onStartStudy(disciplina, sessao?.assuntoSugerido?.nome || null, {
         defaultContext: 'ciclo',
         sessaoGlobalIndex: globalIndex,
+        tempoPlanejadoMinutos: sessao?.tempoPlanejadoMinutos || sessao?.tempoMinutos,
       });
     }
   };
@@ -935,7 +938,9 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
     applyLocalSessionCompletion(sessao.globalIndex, !wasDone);
     setLoadingCicloSessao(sessao.globalIndex);
     try {
-      const ok = await marcarSessaoConcluida(cicloId, sessao.globalIndex);
+      const ok = await marcarSessaoConcluida(cicloId, sessao.globalIndex, {
+        tempoPlanejadoMinutos: sessao?.tempoPlanejadoMinutos || sessao?.tempoMinutos,
+      });
       if (!ok) applyLocalSessionCompletion(sessao.globalIndex, wasDone);
       limparPendenciaTeoriaCiclo(cicloId, sessao.disciplinaId).catch(console.error);
       const completionRegistro = buildCompletionRegistro({
@@ -1323,7 +1328,7 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
                                       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-600 text-white shadow-sm shadow-red-600/20"><Cog size={14} /></span>
                                       <span className="min-w-0 flex-1">
                                           <span className="block text-[10px] font-black uppercase tracking-wide text-zinc-900 dark:text-white">Ajuste simples</span>
-                                          <span className="mt-0.5 block text-[9px] font-medium leading-snug text-zinc-500 dark:text-zinc-400">Altere nome e preferências sem redistribuir o ciclo.</span>
+                                          <span className="mt-0.5 block text-[10px] font-medium leading-snug text-zinc-500 dark:text-zinc-400">Altere nome e preferências sem redistribuir o ciclo.</span>
                                       </span>
                                       <ChevronRight size={14} className="shrink-0 text-red-300 transition-transform group-hover:translate-x-0.5 group-hover:text-red-600 dark:text-red-800 dark:group-hover:text-red-400" />
                                   </button>
@@ -1338,7 +1343,7 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
                                       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-zinc-100 text-zinc-700 shadow-sm dark:bg-zinc-800 dark:text-zinc-200"><Clock3 size={14} /></span>
                                       <span className="min-w-0 flex-1">
                                           <span className="block text-[10px] font-black uppercase tracking-wide text-zinc-900 dark:text-white">Configurar timer</span>
-                                          <span className="mt-0.5 block text-[9px] font-medium leading-snug text-zinc-500 dark:text-zinc-400">Ajuste modo, foco, descanso, cor e sons do cronometro.</span>
+                                          <span className="mt-0.5 block text-[10px] font-medium leading-snug text-zinc-500 dark:text-zinc-400">Ajuste modo, foco, descanso, cor e sons do cronometro.</span>
                                       </span>
                                       <ChevronRight size={14} className="shrink-0 text-zinc-300 transition-transform group-hover:translate-x-0.5 group-hover:text-zinc-700 dark:text-zinc-700 dark:group-hover:text-zinc-300" />
                                   </button>
@@ -1353,7 +1358,7 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
                                       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-zinc-900 text-white shadow-sm dark:bg-white dark:text-zinc-950"><RotateCw size={14} /></span>
                                       <span className="min-w-0 flex-1">
                                           <span className="block text-[10px] font-black uppercase tracking-wide text-zinc-900 dark:text-white">Recalcular</span>
-                                          <span className="mt-0.5 block text-[9px] font-medium leading-snug text-zinc-500 dark:text-zinc-400">Refaça rotina, matérias e distribuição pelo assistente.</span>
+                                          <span className="mt-0.5 block text-[10px] font-medium leading-snug text-zinc-500 dark:text-zinc-400">Refaça rotina, matérias e distribuição pelo assistente.</span>
                                       </span>
                                       <ChevronRight size={14} className="shrink-0 text-zinc-300 transition-transform group-hover:translate-x-0.5 group-hover:text-zinc-700 dark:text-zinc-700 dark:group-hover:text-zinc-300" />
                                   </button>
@@ -1377,10 +1382,10 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
       {!showEmptyMessage && (
           <div className="-mx-2 min-h-0 flex-grow sm:-mx-4 md:-mx-6 lg:-mx-8">
               <div className={`grid min-h-0 grid-cols-1 items-start gap-3 ${showAssuntosCiclo ? 'xl:grid-cols-[minmax(0,0.92fr)_minmax(0,0.58fr)] 2xl:grid-cols-[minmax(0,0.98fr)_minmax(340px,0.62fr)]' : 'justify-items-center xl:grid-cols-1'}`}>
-                  <section className={`relative flex flex-col rounded-2xl border border-zinc-200/70 bg-white/80 px-2.5 py-2.5 shadow-lg shadow-zinc-200/30 backdrop-blur-xl dark:border-zinc-800/70 dark:bg-zinc-950/35 dark:shadow-none sm:px-4 sm:py-3 ${
+                  <section className={`ciclo-visual-card-shell relative flex flex-col rounded-2xl border border-zinc-200/70 bg-white/80 px-2.5 py-2.5 shadow-lg shadow-zinc-200/30 backdrop-blur-xl dark:border-zinc-800/70 dark:bg-zinc-950/35 dark:shadow-none sm:px-4 sm:py-3 ${
                       showAssuntosCiclo
-                          ? 'w-full overflow-hidden sm:min-h-[560px] lg:min-h-[610px] xl:min-h-[640px]'
-                          : 'mx-auto w-full max-w-[880px] overflow-hidden sm:min-h-[540px] lg:min-h-[600px] xl:min-h-[630px]'
+                          ? 'w-full overflow-hidden'
+                          : 'mx-auto w-full max-w-[880px] overflow-hidden'
                   }`}>
                       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-red-500/40 to-transparent" />
                       <div className="relative mb-2 flex flex-wrap items-center justify-between gap-2 px-1 sm:px-2">
@@ -1393,11 +1398,7 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
                           </div>
                       </div>
 
-                      <div className={`relative flex flex-1 items-stretch justify-center ${
-                          showAssuntosCiclo
-                              ? 'h-[430px] sm:h-auto sm:min-h-[500px] lg:min-h-[540px] xl:min-h-[570px]'
-                              : 'h-[430px] sm:h-auto sm:min-h-[490px] lg:min-h-[530px] xl:min-h-[560px]'
-                      }`}>
+                      <div className="ciclo-visual-card-stage relative flex flex-1 items-stretch justify-center">
                           <CicloVisual
                               selectedDisciplinaId={selectedDisciplinaId}
                               onSelectDisciplina={setSelectedDisciplinaId}

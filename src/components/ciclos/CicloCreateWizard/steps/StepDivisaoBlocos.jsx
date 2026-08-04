@@ -29,6 +29,7 @@ export default function StepDivisaoBlocos({
   tempoSessaoMinutos,
   setTempoSessaoMinutos,
   minimumActiveDayMinutes = null,
+  exampleDayMinutes = null,
   sessionAutoAdjustedNotice = null,
   totalSessionSlots = 0,
   minimumRequiredSessions = 0,
@@ -45,9 +46,10 @@ export default function StepDivisaoBlocos({
     [limiteMaximo]
   );
 
-  const exemploDiaMinutos = minimumActiveDayMinutes || 0;
+  const exemploDiaMinutos = exampleDayMinutes || minimumActiveDayMinutes || 0;
   const sessoesNoExemplo = Math.floor(exemploDiaMinutos / Math.max(1, tempoSessaoMinutos));
   const sobraNoExemplo = Math.max(0, exemploDiaMinutos - (sessoesNoExemplo * tempoSessaoMinutos));
+  const totalSessoesNoExemplo = sessoesNoExemplo + (sobraNoExemplo > 0 ? 1 : 0);
 
   const selecionarAutomatico = () => {
     setModo('automatico');
@@ -69,18 +71,18 @@ export default function StepDivisaoBlocos({
       <PageHeader />
 
       <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-4 overflow-y-auto px-2 pb-10 custom-scrollbar sm:px-4">
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="grid grid-cols-2 gap-2 sm:gap-3">
           <button
             type="button"
             onClick={selecionarAutomatico}
-            className={`min-h-[140px] rounded-3xl border-2 p-5 text-left transition-all ${
+            className={`min-h-[132px] rounded-2xl border-2 p-3 text-left transition-all sm:min-h-[140px] sm:rounded-3xl sm:p-5 ${
               modo === 'automatico'
                 ? 'border-red-500 bg-red-50 shadow-lg shadow-red-600/10 dark:bg-red-950/20'
                 : 'border-zinc-100 bg-white hover:border-red-200 dark:border-zinc-800 dark:bg-zinc-900'
             }`}
           >
-            <div className="mb-4 flex items-start justify-between gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-red-600 text-white shadow-lg shadow-red-600/20">
+            <div className="mb-3 flex flex-col items-start gap-2 sm:mb-4 sm:flex-row sm:justify-between sm:gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-red-600 text-white shadow-lg shadow-red-600/20 sm:h-11 sm:w-11">
                 <TimerReset size={20} />
               </div>
               <span className={`rounded-full px-2.5 py-1 text-[9px] font-black uppercase tracking-widest ${
@@ -91,10 +93,10 @@ export default function StepDivisaoBlocos({
                 Recomendado
               </span>
             </div>
-            <h3 className="text-sm font-black uppercase tracking-widest text-zinc-900 dark:text-white">
+            <h3 className="text-[11px] font-black uppercase tracking-wide text-zinc-900 dark:text-white sm:text-sm sm:tracking-widest">
               Automatico recomendado ({fmtMin(automaticMinutes)})
             </h3>
-            <p className="mt-2 text-[11px] font-medium leading-relaxed text-zinc-500 dark:text-zinc-400">
+            <p className="mt-2 text-[10px] font-medium leading-relaxed text-zinc-500 dark:text-zinc-400 sm:text-[11px]">
               O sistema usa blocos equilibrados para manter foco e repeticao sem fragmentar demais o dia.
             </p>
           </button>
@@ -102,14 +104,14 @@ export default function StepDivisaoBlocos({
           <button
             type="button"
             onClick={selecionarPersonalizado}
-            className={`min-h-[140px] rounded-3xl border-2 p-5 text-left transition-all ${
+            className={`min-h-[132px] rounded-2xl border-2 p-3 text-left transition-all sm:min-h-[140px] sm:rounded-3xl sm:p-5 ${
               modo === 'personalizado'
                 ? 'border-zinc-900 bg-zinc-50 shadow-lg shadow-zinc-900/10 dark:border-zinc-100 dark:bg-zinc-900'
                 : 'border-zinc-100 bg-white hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900'
             }`}
           >
-            <div className="mb-4 flex items-start justify-between gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-zinc-900 text-white shadow-lg shadow-zinc-900/15 dark:bg-white dark:text-zinc-900">
+            <div className="mb-3 flex flex-col items-start gap-2 sm:mb-4 sm:flex-row sm:justify-between sm:gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-zinc-900 text-white shadow-lg shadow-zinc-900/15 dark:bg-white dark:text-zinc-900 sm:h-11 sm:w-11">
                 <SlidersHorizontal size={20} />
               </div>
               <span className={`rounded-full px-2.5 py-1 text-[9px] font-black uppercase tracking-widest ${
@@ -120,10 +122,10 @@ export default function StepDivisaoBlocos({
                 Ajustar
               </span>
             </div>
-            <h3 className="text-sm font-black uppercase tracking-widest text-zinc-900 dark:text-white">
+            <h3 className="text-[11px] font-black uppercase tracking-wide text-zinc-900 dark:text-white sm:text-sm sm:tracking-widest">
               Personalizado
             </h3>
-            <p className="mt-2 text-[11px] font-medium leading-relaxed text-zinc-500 dark:text-zinc-400">
+            <p className="mt-2 text-[10px] font-medium leading-relaxed text-zinc-500 dark:text-zinc-400 sm:text-[11px]">
               Escolha a duracao de cada sessao quando quiser blocos mais curtos ou mais longos.
             </p>
           </button>
@@ -182,8 +184,8 @@ export default function StepDivisaoBlocos({
             <p className="mt-1 text-[7px] font-black uppercase tracking-widest text-red-100">1 bloco</p>
           </div>
           <p className="text-[12px] font-medium leading-relaxed text-zinc-700 dark:text-zinc-300">
-            Em um dia de <strong>{fmtMin(exemploDiaMinutos)}</strong>, blocos de <strong>{fmtMin(tempoSessaoMinutos)}</strong> geram <strong>{sessoesNoExemplo} sessoes</strong>
-            {sobraNoExemplo > 0 ? ` e deixam ${fmtMin(sobraNoExemplo)} livres.` : '.'}
+            Em um dia de <strong>{fmtMin(exemploDiaMinutos)}</strong>, blocos de <strong>{fmtMin(tempoSessaoMinutos)}</strong> geram <strong>{totalSessoesNoExemplo} sessoes</strong>
+            {sobraNoExemplo > 0 ? `: ${sessoesNoExemplo} completas e 1 sessao extra de ${fmtMin(sobraNoExemplo)}.` : '.'}
           </p>
         </div>
 
