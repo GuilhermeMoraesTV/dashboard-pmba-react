@@ -99,6 +99,7 @@ export const defaultConfig = () => {
     gradePersonalizada:  {},
     modoExibirAssuntos:  true,
     modoExibirTempo:     'detalhado',
+    coresDisciplinasAtivas: true,
     limitarMaterias:     false,
     limitesPorDia:       {},
     disciplinasTodosDiasIds: [],
@@ -177,6 +178,7 @@ const _montarDadosParaSalvar = (config, edital, horarios, result, geradoPorIA_) 
   gradePersonalizada:      config.gradePersonalizada  || {},
   modoExibirAssuntos:      config.modoExibirAssuntos  !== false,
   modoExibirTempo:         config.modoExibirTempo     || 'detalhado',
+  coresDisciplinasAtivas:  config.coresDisciplinasAtivas !== false,
   limitarMaterias:         config.limitarMaterias     || false,
   limitesPorDia:           config.limitesPorDia       || {},
   disciplinasTodosDiasIds: _normalizarIdsTodosDias(config.disciplinasTodosDiasIds),
@@ -426,6 +428,7 @@ const _normalizarInitialStateEdicao = (source = {}, modelos = []) => {
       modoMontagem: cronograma.modoMontagem || 'inteligente',
       modoExibirAssuntos: cronograma.modoExibirAssuntos !== false,
       modoExibirTempo: cronograma.modoExibirTempo || 'detalhado',
+      coresDisciplinasAtivas: cronograma.coresDisciplinasAtivas !== false,
       limitarMaterias: Boolean(cronograma.limitarMaterias),
       limitesPorDia: cronograma.limitesPorDia || {},
       disciplinasTodosDiasIds: _normalizarIdsTodosDias(

@@ -463,6 +463,7 @@ export default function StepModoMontagem({
   );
 
   const handleWeekPointerDown = (event) => {
+    if (event.pointerType !== 'mouse') return;
     if (event.button !== 0 || !weekScrollRef.current || shouldIgnorePan(event.target)) return;
     dragScrollRef.current = {
       active: true,
@@ -706,7 +707,8 @@ export default function StepModoMontagem({
                 onPointerCancel={stopWeekPointerDrag}
                 onPointerUp={stopWeekPointerDrag}
                 onClickCapture={handleWeekClickCapture}
-                className="min-w-0 flex-1 cursor-grab touch-pan-y overflow-x-auto pb-4 select-none custom-scrollbar sm:pb-6"
+                className="min-w-0 flex-1 cursor-grab overflow-x-auto pb-4 select-none custom-scrollbar sm:pb-6"
+                style={{ touchAction: 'pan-x pan-y', WebkitOverflowScrolling: 'touch' }}
               >
                 <div className="flex min-w-max gap-2 px-0 xl:gap-3">
                 {DIAS.map((dia) => (

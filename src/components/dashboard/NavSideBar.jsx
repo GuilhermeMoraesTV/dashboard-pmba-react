@@ -953,7 +953,7 @@ function NavSideBar({
       />
       <nav
         className={`
-          fixed top-0 bottom-0 z-[80] flex h-screen min-h-dvh flex-col
+          fixed top-0 bottom-0 z-[80] flex h-[100dvh] min-h-dvh flex-col
           bg-white dark:bg-zinc-950 border-r border-zinc-200 dark:border-white/10
           transition-all duration-300 shadow-2xl lg:shadow-none
           ${isMobileOpen ? 'translate-x-0 w-[260px]' : '-translate-x-full lg:translate-x-0'}
@@ -971,7 +971,7 @@ function NavSideBar({
           </button>
         </div>
 
-        <div className={`nav-sidebar-content-zoom min-h-0 flex-1 overflow-y-auto px-2.5 pb-24 pt-3 ${NAV_GAP}`} style={{scrollbarWidth:'none'}}>
+        <div className={`nav-sidebar-content-zoom min-h-0 flex-1 overflow-y-auto px-2.5 pb-3 pt-3 ${NAV_GAP}`} style={{scrollbarWidth:'none'}}>
           <AnimatePresence>
             {hasCicloAtivo && (
               <motion.div key="atalho-ciclo" initial={{ opacity:0, height:0 }} animate={{ opacity:1, height:'auto' }} exit={{ opacity:0, height:0 }} transition={{ duration:0.2 }} className="mb-0.5">
@@ -1141,7 +1141,7 @@ function NavSideBar({
           })}
         </div>
 
-        <div className="nav-sidebar-content-zoom absolute inset-x-0 bottom-0 border-t border-zinc-100 bg-white p-2.5 dark:border-zinc-800 dark:bg-zinc-950">
+        <div className="nav-sidebar-content-zoom shrink-0 border-t border-zinc-100 bg-white p-2.5 dark:border-zinc-800 dark:bg-zinc-950">
           <button
             type="button"
             onClick={() => {

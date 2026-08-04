@@ -169,7 +169,7 @@ export default function StepPreview({
             />
           </div>
 
-          <div className="order-2 h-[610px] rounded-[24px] border border-zinc-200 bg-white p-1.5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/70 sm:h-auto sm:min-h-[760px] sm:p-3 lg:p-4 xl:order-1 xl:min-h-[760px]">
+          <div className="order-2 min-h-0 rounded-[24px] border border-zinc-200 bg-white p-1.5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/70 sm:min-h-[760px] sm:p-3 lg:p-4 xl:order-1 xl:min-h-[760px]">
             <CicloVisual
               selectedDisciplinaId={selectedDisciplinaId}
               onSelectDisciplina={setSelectedDisciplinaId}

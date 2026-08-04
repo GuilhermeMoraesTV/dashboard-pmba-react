@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Brain, CheckCircle2, Clock3, RefreshCw, Sparkles } from 'lucide-react';
+import { CheckCircle2, Clock3, RefreshCw, Sparkles } from 'lucide-react';
 import { REVISAO_MODO_FLEXIVEL, REVISAO_MODO_SUGESTAO } from '../../../../utils/cicloReviewMode';
 
 const MODOS_REVISAO = [
@@ -32,9 +32,6 @@ export default function StepRevisao({ revisaoModo, setRevisaoModo }) {
         animate={{ opacity: 1, y: 0 }}
         className="mb-5 w-full px-2 text-center sm:mb-8 sm:px-4"
       >
-        <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-red-600 shadow-lg shadow-red-600/30 sm:mb-5 sm:h-14 sm:w-14 sm:rounded-2xl">
-          <Brain size={22} className="text-white sm:h-[26px] sm:w-[26px]" strokeWidth={2.5} />
-        </div>
         <h2 className="mb-2 text-4xl font-black uppercase leading-[0.95] tracking-tighter text-zinc-900 dark:text-white sm:mb-3 sm:text-4xl">
           Revisao <span className="text-red-600">Espacada</span>
         </h2>

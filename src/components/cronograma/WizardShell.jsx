@@ -176,7 +176,7 @@ const WizardShell = ({
       resetResultado();
       setErroGeracao(null);
     }
-    if (passo === 2 && nextPasso === 3) {
+    if (!isEditMode && passo === 2 && nextPasso === 3 && !Object.values(horarios || {}).some((horas) => Number(horas) > 0)) {
       setHorarios({ ...defaultHorarios });
     }
     setPasso(nextPasso);
@@ -255,6 +255,9 @@ const WizardShell = ({
           onConfigChange={setCronConfig}
           editalSelecionado={edital}
           horarios={horarios}
+          disciplinas={disciplinas}
+          extraDisciplinas={extraDisciplinas}
+          selecao={selecao}
         />
       );
       case 6: return (

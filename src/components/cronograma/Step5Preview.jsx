@@ -719,7 +719,7 @@ const Step5_Preview = ({
 
           {viewMode === 'mes' && (
             <div className="w-full overflow-x-auto pb-2 custom-scrollbar">
-            <motion.div key="mes" initial={{ opacity:0, scale:0.98 }} animate={{ opacity:1, scale:1 }} exit={{ opacity:0, scale:0.98 }} className="grid min-w-[560px] grid-cols-7 gap-1 rounded-[24px] border border-red-100/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(254,242,242,0.92))] p-2 shadow-[0_24px_60px_rgba(239,68,68,0.08)] dark:border-zinc-800 dark:bg-zinc-950/70 dark:shadow-none sm:min-w-0 sm:gap-3 sm:rounded-[40px] sm:p-4">
+            <motion.div key="mes" initial={{ opacity:0, scale:0.98 }} animate={{ opacity:1, scale:1 }} exit={{ opacity:0, scale:0.98 }} className="grid min-w-[720px] grid-cols-7 gap-1.5 rounded-[24px] border border-red-100/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(254,242,242,0.92))] p-2 shadow-[0_24px_60px_rgba(239,68,68,0.08)] dark:border-zinc-800 dark:bg-zinc-950/70 dark:shadow-none sm:min-w-0 sm:gap-3 sm:rounded-[40px] sm:p-4">
               {monthDays.map((dayObj, i) => {
                 const data = dayObj.date;
                 const key = isoKey(data);
@@ -763,7 +763,7 @@ const Step5_Preview = ({
                       setSemanaOffset(targetWeek);
                       setViewMode('semana');
                     }}
-                    className={`relative min-h-[88px] overflow-hidden rounded-xl border p-1.5 text-left transition-all cursor-pointer group sm:min-h-[110px] sm:rounded-2xl sm:p-2 ${hoje ? 'border-red-300 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(254,226,226,0.95))] ring-2 ring-red-300/40 shadow-[0_18px_40px_rgba(239,68,68,0.18)] dark:border-red-500/50 dark:bg-red-950/20 dark:ring-red-500/20 dark:shadow-lg dark:shadow-red-500/10' : isMesAtual ? 'border-red-100 bg-white/95 shadow-[0_10px_26px_rgba(15,23,42,0.06)] hover:border-red-200 hover:shadow-[0_18px_34px_rgba(239,68,68,0.12)] dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-red-900/40 dark:hover:shadow-md' : 'border-transparent bg-white/20 opacity-30 grayscale dark:bg-zinc-950/20'}`}
+                    className={`relative min-h-[110px] overflow-hidden rounded-xl border p-1.5 text-left transition-all cursor-pointer group sm:min-h-[110px] sm:rounded-2xl sm:p-2 ${hoje ? 'border-red-300 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(254,226,226,0.95))] ring-2 ring-red-300/40 shadow-[0_18px_40px_rgba(239,68,68,0.18)] dark:border-red-500/50 dark:bg-red-950/20 dark:ring-red-500/20 dark:shadow-lg dark:shadow-red-500/10' : isMesAtual ? 'border-red-100 bg-white/95 shadow-[0_10px_26px_rgba(15,23,42,0.06)] hover:border-red-200 hover:shadow-[0_18px_34px_rgba(239,68,68,0.12)] dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-red-900/40 dark:hover:shadow-md' : 'border-transparent bg-white/20 opacity-30 grayscale dark:bg-zinc-950/20'}`}
                   >
                     <div className="relative z-10 mb-1 flex items-start justify-between">
                       <span className={`text-[10px] font-black uppercase tracking-tighter ${hoje ? 'text-red-500' : 'text-zinc-400 dark:text-zinc-500'}`}>{diaNome}</span>
@@ -850,16 +850,20 @@ const Step5_Preview = ({
                               // [FIX-A] Usa helpers para todos os tipos de slot
                               const nomeDisc   = getNomeDisc(item);
                               const assuntoTxt = getTextoAssunto(item, config);
+                              const isRev = item.isRevisao || item.isRevisaoAuto || item.isConsolidada;
+                              const disciplinaColor = getDisciplineColorForSlot(item, colorMap);
+                              const cardStyle = getDisciplineCardVars(isRev ? REVIEW_COLOR : disciplinaColor);
 
                               return (
                                 <div key={i} onClick={() => setModalSlot(item)}
-                                  className={`relative flex items-center justify-between p-3 rounded-2xl border transition-all cursor-pointer group/item bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/80 ${isDone ? 'opacity-75' : ''}`}
+                                  style={cardStyle}
+                                  className={`discipline-tinted-card relative flex items-center justify-between p-3 rounded-2xl border transition-all cursor-pointer group/item dark:border-zinc-800 ${isDone ? 'discipline-completed-card opacity-75' : ''}`}
                                 >
                                   <div className="flex items-center gap-3 min-w-0">
-                                    <div className="w-2 h-2 rounded-full shrink-0 bg-zinc-300 dark:bg-zinc-600" />
+                                    <div className="w-2 h-2 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: disciplinaColor.hex }} />
                                     <div className="min-w-0">
                                       {/* [FIX-A] Nome da disciplina — sempre correto para revisões */}
-                                      <p className={`text-[11px] font-black uppercase truncate leading-none mb-1 ${isDone ? 'text-zinc-500 line-through opacity-75' : 'text-zinc-900 dark:text-zinc-100'}`}>
+                                      <p className={`text-[11px] font-black uppercase truncate leading-none mb-1 ${isDone ? `${isRev ? 'text-blue-700' : disciplinaColor.text} line-through opacity-75` : isRev ? 'text-blue-700 dark:text-blue-300' : disciplinaColor.text}`}>
                                         {nomeDisc}
                                       </p>
                                       {/* [FIX-B] Assunto — para revisões mostra o assunto revisado */}

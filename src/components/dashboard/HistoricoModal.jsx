@@ -681,8 +681,9 @@ const HistoricoModal = ({ isOpen, onClose, registros, onDeleteRequest, onUpdateR
 
     const handleConfirmDelete = async () => {
         if (!recordToDelete || !onDeleteRequest) return;
-        await onDeleteRequest(recordToDelete);
+        const record = recordToDelete;
         setRecordToDelete(null);
+        await onDeleteRequest(record);
     };
 
     if (!isOpen) return null;

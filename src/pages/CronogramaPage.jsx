@@ -585,7 +585,8 @@ const TarefaCardDraggable = ({
   const emAndamento = !tarefa.concluido && !tarefa.isRevisaoAuto && progressoLimitado > 0 && progressoPercentual < 100;
   const desmarcarBloqueado = tarefa.concluido && Boolean(tarefa.bloqueiaDesmarcar);
   const disciplinaColor = getDisciplineColorForSlot(tarefa);
-  const useDisciplineColor = !isDominado && !emAndamento && !tarefa.isRevisao && !tarefa.isRevisaoAuto;
+  const shouldUseDisciplineColors = cronograma?.coresDisciplinasAtivas !== false;
+  const useDisciplineColor = shouldUseDisciplineColors && !isDominado && !emAndamento && !tarefa.isRevisao && !tarefa.isRevisaoAuto;
   const cardStyle = useDisciplineColor
     ? { ...dragStyle, ...getDisciplineCardVars(disciplinaColor) }
     : dragStyle;
@@ -617,11 +618,11 @@ const TarefaCardDraggable = ({
     >
       {/* Linha lateral tática */}
       <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${
-        tarefa.concluido   ? disciplinaColor.bg
+        tarefa.concluido   ? (shouldUseDisciplineColors ? disciplinaColor.bg : 'bg-zinc-500')
         : isDominado       ? 'bg-amber-500'
         : tarefa.isRevisao ? 'bg-blue-500'
         : emAndamento      ? 'bg-orange-500'
-        : disciplinaColor.bg
+        : shouldUseDisciplineColors ? disciplinaColor.bg : 'bg-zinc-500'
       }`}/>
 
       <div className="flex h-full flex-col gap-2 px-3.5 py-3">
@@ -1984,6 +1985,10 @@ const VisualizacaoLista = ({ cronograma, weekDates, tarefasPorDia, onStart, onOp
                 : (isCompleted ? 100 : 0);
               const emAndamento = !isCompleted && progressoMinutos > 0 && progressoPercentual < 100;
               const canStart = !tarefa.isRevisaoAuto && !isCompleted;
+              const disciplinaColor = getDisciplineColorForSlot(tarefa);
+              const shouldUseDisciplineColors = cronograma?.coresDisciplinasAtivas !== false;
+              const useListDisciplineTheme = shouldUseDisciplineColors && !isRevisao && !isCompleted && !isDominado && !emAndamento;
+              const listCardStyle = useListDisciplineTheme ? getDisciplineCardVars(disciplinaColor) : undefined;
 
                       return (
                 <div key={`${date.getTime()}-${tarefa.slotId || idx}`} className="group flex items-start gap-3 sm:gap-8">
@@ -2009,8 +2014,11 @@ const VisualizacaoLista = ({ cronograma, weekDates, tarefasPorDia, onStart, onOp
                   </div>
 
                   <div
+                    style={listCardStyle}
                     className={`flex-1 overflow-hidden rounded-2xl border sm:rounded-3xl ${
-                      isActive
+                      useListDisciplineTheme
+                        ? 'discipline-tinted-card'
+                        : isActive
                         ? isRevisao
                           ? 'border-blue-500/35 bg-blue-50/70 shadow-2xl shadow-blue-500/10 dark:border-blue-900/50 dark:bg-blue-950/10'
                           : 'border-red-200 bg-red-50/70 shadow-2xl shadow-red-500/10 dark:border-red-900/50 dark:bg-red-950/10'
@@ -2892,9 +2900,8 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
 
   const handleWeekWheel = useCallback((event) => {
     const node = weekScrollRef.current;
-    if (!node || Math.abs(event.deltaX) >= Math.abs(event.deltaY)) return;
-    if (!event.shiftKey && event.deltaY < 24) return;
-    node.scrollLeft += event.deltaY;
+    if (!node || !event.shiftKey) return;
+    node.scrollLeft += event.deltaY || event.deltaX;
   }, []);
 
   useEffect(() => {

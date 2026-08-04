@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -264,7 +264,7 @@ const ModeSelector = ({ options, value, onChange }) => (
 );
 
 // ─── COMPONENTE PRINCIPAL ─────────────────────────────────────────────────────
-const Step4_Config = ({ config, onConfigChange, editalSelecionado, horarios = {} }) => {
+const Step4_Config = ({ config, onConfigChange, editalSelecionado, horarios = {}, disciplinas = [], extraDisciplinas = [], selecao = {} }) => {
   const setField = (key, val) => onConfigChange({ ...config, [key]: val });
 
   useEffect(() => {
@@ -280,19 +280,57 @@ const Step4_Config = ({ config, onConfigChange, editalSelecionado, horarios = {}
   }, []);
 
   const hasEdital = !!editalSelecionado && editalSelecionado.id !== 'manual';
-  const diasComEstudo = DIAS_SEMANA.filter(d => (horarios[d.idx] || 0) > 0);
+  const diasComEstudo = useMemo(
+    () => DIAS_SEMANA.filter(d => (horarios[d.idx] || 0) > 0),
+    [horarios],
+  );
+  const idsTodosDiasSelecionados = useMemo(() => {
+    const idsConfigurados = Array.isArray(config.disciplinasTodosDiasIds)
+      ? config.disciplinasTodosDiasIds.map(String)
+      : [];
+    const disciplinasDisponiveis = [...(disciplinas || []), ...(extraDisciplinas || [])];
+    return idsConfigurados.filter((id) => {
+      const disciplina = disciplinasDisponiveis.find((item) => String(item.id) === id);
+      if (!disciplina) return false;
+      const estado = selecao?.[disciplina.id];
+      return estado?.checked || estado?.parcial;
+    });
+  }, [config.disciplinasTodosDiasIds, disciplinas, extraDisciplinas, selecao]);
+  const minimoMateriasPorDia = Math.max(1, idsTodosDiasSelecionados.length);
 
   const handleToggleLimitar = (val) => {
-    if (val && !config.limitesPorDia) {
+    const nextConfig = { ...config, limitarMaterias: val };
+    if (val) {
+      const limitesAtuais = config.limitesPorDia || {};
       const limites = {};
-      diasComEstudo.forEach(d => { limites[d.idx] = config.materiasPorDia || 3; });
-      setField('limitesPorDia', limites);
+      diasComEstudo.forEach((dia) => {
+        const atual = Number(limitesAtuais[dia.idx] ?? limitesAtuais[String(dia.idx)] ?? config.materiasPorDia ?? 3);
+        limites[dia.idx] = Math.max(minimoMateriasPorDia, atual);
+      });
+      nextConfig.limitesPorDia = limites;
     }
-    setField('limitarMaterias', val);
+    onConfigChange(nextConfig);
   };
 
   const setLimiteDia = (diaIdx, val) =>
-    setField('limitesPorDia', { ...(config.limitesPorDia || {}), [diaIdx]: val });
+    setField('limitesPorDia', { ...(config.limitesPorDia || {}), [diaIdx]: Math.max(minimoMateriasPorDia, val) });
+
+  useEffect(() => {
+    if (!config.limitarMaterias || minimoMateriasPorDia <= 1) return;
+    const limitesAtuais = config.limitesPorDia || {};
+    const limitesCorrigidos = { ...limitesAtuais };
+    let changed = false;
+    diasComEstudo.forEach((dia) => {
+      const atual = Number(limitesAtuais[dia.idx] ?? limitesAtuais[String(dia.idx)] ?? config.materiasPorDia ?? 3);
+      if (atual < minimoMateriasPorDia) {
+        limitesCorrigidos[dia.idx] = minimoMateriasPorDia;
+        changed = true;
+      }
+    });
+    if (changed) {
+      onConfigChange({ ...config, limitesPorDia: limitesCorrigidos });
+    }
+  }, [config, diasComEstudo, minimoMateriasPorDia, onConfigChange]);
 
   const diasAteProva = config.dataInicio && config.dataProva
     ? Math.max(0, Math.floor((new Date(config.dataProva + 'T12:00') - new Date(config.dataInicio + 'T12:00')) / 86400000))
@@ -579,6 +617,11 @@ const Step4_Config = ({ config, onConfigChange, editalSelecionado, horarios = {}
                   <p className="text-[11px] text-zinc-400 font-medium">
                     Quantas matérias diferentes por dia?
                   </p>
+                  {idsTodosDiasSelecionados.length > 0 && (
+                    <p className="mt-1 text-[10px] font-bold text-red-600 dark:text-red-400">
+                      Minimo {minimoMateriasPorDia}: {idsTodosDiasSelecionados.length} disciplina{idsTodosDiasSelecionados.length === 1 ? '' : 's'} todos os dias.
+                    </p>
+                  )}
                 </div>
               </div>
               <ToggleSwitch checked={config.limitarMaterias || false} onChange={handleToggleLimitar} />
@@ -603,7 +646,7 @@ const Step4_Config = ({ config, onConfigChange, editalSelecionado, horarios = {}
                     ) : (
                       <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-2 sm:gap-3">
                         {diasComEstudo.map(dia => {
-                          const val = config.limitesPorDia?.[dia.idx] ?? config.materiasPorDia ?? 3;
+                          const val = Math.max(minimoMateriasPorDia, config.limitesPorDia?.[dia.idx] ?? config.materiasPorDia ?? 3);
                           return (
                             <div key={dia.idx} className="bg-zinc-50 dark:bg-zinc-800/40 rounded-xl sm:rounded-2xl p-2 sm:p-4 border border-zinc-100 dark:border-zinc-700/50 flex flex-col items-center hover:bg-white dark:hover:bg-zinc-800 hover:shadow-sm transition-all group">
                               <span className="text-[9px] font-black uppercase text-zinc-400 mb-3 tracking-tighter group-hover:text-red-500 transition-colors">
@@ -612,11 +655,12 @@ const Step4_Config = ({ config, onConfigChange, editalSelecionado, horarios = {}
                               <div className="flex items-center gap-1.5 sm:flex-col sm:gap-2">
                                 <button
                                   onClick={() => setLimiteDia(dia.idx, Math.min(7, val + 1))}
-                                  className="w-6 h-6 rounded-lg bg-white dark:bg-zinc-700 border border-zinc-200 dark:border-zinc-600 flex items-center justify-center text-zinc-400 hover:text-red-500 hover:border-red-200 transition-all shadow-sm"
+                                  className="w-6 h-6 rounded-lg bg-white dark:bg-zinc-700 border border-zinc-200 dark:border-zinc-600 flex items-center justify-center text-zinc-400 hover:text-red-500 hover:border-red-200 transition-all shadow-sm disabled:cursor-not-allowed disabled:opacity-40"
                                 >+</button>
                                 <span className="min-w-4 text-center text-base sm:text-xl font-black text-zinc-900 dark:text-white tabular-nums">{val}</span>
                                 <button
-                                  onClick={() => setLimiteDia(dia.idx, Math.max(1, val - 1))}
+                                  onClick={() => setLimiteDia(dia.idx, val - 1)}
+                                  disabled={val <= minimoMateriasPorDia}
                                   className="w-6 h-6 rounded-lg bg-white dark:bg-zinc-700 border border-zinc-200 dark:border-zinc-600 flex items-center justify-center text-zinc-400 hover:text-red-500 hover:border-red-200 transition-all shadow-sm"
                                 >−</button>
                               </div>
