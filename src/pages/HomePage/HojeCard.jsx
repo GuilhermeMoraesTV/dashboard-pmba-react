@@ -26,6 +26,8 @@ const fmtMin = (min) => {
   return m > 0 ? `${h}h${String(m).padStart(2, '0')}` : `${h}h`;
 };
 
+const normalizarModoTempo = (modo) => (modo === 'oculto' || modo === 'nenhum' ? 'total' : (modo || 'detalhado'));
+
 const TechBackground = ({ activePanel, diaTodoConcluido }) => (
   <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
     <div className={`absolute inset-0 opacity-[0.04] transition-colors duration-1000 ${
@@ -88,9 +90,11 @@ const NEUTRAL_DISCIPLINE_COLOR = {
 };
 
 // --- Slot de Missão ---
-function MissionSlot({ slot, isDone, onToggle, onMarkPending, onPlay, variant, sourceMode = 'cronograma', isLoading = false, useDisciplineColors = true }) {
+function MissionSlot({ slot, isDone, onToggle, onMarkPending, onPlay, variant, sourceMode = 'cronograma', isLoading = false, useDisciplineColors = true, modoExibirTempo = 'detalhado' }) {
   const isEstudo = variant === 'estudo';
   const isCycle = sourceMode === 'ciclo';
+  const modoTempo = isCycle ? 'detalhado' : normalizarModoTempo(modoExibirTempo);
+  const mostrarTempoBloco = modoTempo === 'detalhado';
   const shouldUseDisciplineColors = !isCycle || useDisciplineColors !== false;
   const tempoPlanejado = Number(slot.tempoPlanejadoMinutos ?? slot.tempoMinutos ?? 0);
   const progressoAtual = Number(slot.progressoMinutos || 0);
@@ -160,7 +164,7 @@ return (
             }`}>
               {slot.disciplinaNome || slot.disciplina}
             </h4>
-          {tempoPlanejado > 0 && (
+          {mostrarTempoBloco && tempoPlanejado > 0 && (
             <span className="inline-flex min-w-[3.75rem] shrink-0 items-center justify-center gap-1 rounded-full border border-white/70 bg-white/85 px-2 py-0.5 text-[10px] font-black tabular-nums text-zinc-800 shadow-sm dark:border-white/15 dark:bg-white/15 dark:text-white">
               <Clock size={12} className="text-zinc-600 dark:text-zinc-200" />
               {fmtMin(tempoPlanejado)}
@@ -174,7 +178,7 @@ return (
           </p>
         </div>
 
-        {tempoPlanejado > 0 && (
+        {mostrarTempoBloco && tempoPlanejado > 0 && (
           <div className="flex items-end gap-2">
             <div className="min-w-0 flex-1">
               <div className="mb-1 flex items-center justify-between gap-2 text-[10px] font-black text-zinc-700 dark:text-zinc-100">
@@ -215,6 +219,21 @@ return (
             )}
           </div>
         )}
+        {!mostrarTempoBloco && !effectiveDone && (
+          <div className="mt-auto flex justify-end">
+            <button
+              onClick={() => onPlay?.(slot)}
+              title="Iniciar estudo"
+              className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white shadow-sm transition-all active:scale-95 ${
+                isEstudo
+                  ? 'bg-red-600 shadow-red-600/20 hover:bg-red-700'
+                  : 'bg-blue-600 shadow-blue-600/20 hover:bg-blue-700'
+              }`}
+            >
+              <Play size={14} fill="currentColor" />
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="hidden">
@@ -231,7 +250,6 @@ return (
             <Play size={14} fill="currentColor" />
           </button>
         )}
-
         <button
           onClick={() => onToggle(slot)}
           className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border shadow-sm transition-all ${
@@ -298,6 +316,9 @@ function HojeCard({
   const hasCronograma = !!activeCronogramaData?.id;
   const hasCiclo = !!activeCicloData?.id;
   const modoCicloAtivo = hasCiclo && (!hasCronograma || modoPreferido === 'ciclo');
+  const modoTempoHome = modoCicloAtivo ? 'detalhado' : normalizarModoTempo(activeCronogramaData?.modoExibirTempo);
+  const mostrarTempoHomeTotal = modoTempoHome !== 'nenhum';
+  const mostrarTempoHomeDetalhado = modoTempoHome === 'detalhado';
   const { salvarPendenciaTeoriaCiclo, limparPendenciaTeoriaCiclo } = useCiclos(user);
   const { toggleSlotConcluido, concluirRevisaoCronograma, marcarTeoriaAindaNaoConcluida } = useCronogramaSystem(user);
 
@@ -959,7 +980,7 @@ function HojeCard({
                     <>{activePanel === 'estudo' ? 'Sessoes' : 'Revisoes'} <span className={activePanel === 'estudo' ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}>ativas</span></>
                   )}
                 </h2>
-                {completionGlowActive && (
+                {completionGlowActive && mostrarTempoHomeTotal && (
                   <p className="mt-1 text-[9px] font-black uppercase tracking-widest text-emerald-600/80 dark:text-emerald-300/80">
                     {fmtMin(progressoDiaResumo.feito)} estudados
                   </p>
@@ -967,26 +988,72 @@ function HojeCard({
               </div>
             </div>
 
+            {mostrarTempoHomeTotal && (
             <div className="shrink-0 text-right">
               <p className="text-[8px] font-black uppercase tracking-widest text-zinc-400">
-                {completionGlowActive ? 'Tempo' : 'Meta de hoje'}
+                {completionGlowActive || !mostrarTempoHomeDetalhado ? 'Tempo' : 'Meta de hoje'}
               </p>
               <div className="mt-1 flex items-center justify-end gap-1.5">
                 <Clock size={13} className={completionGlowActive ? 'text-emerald-500' : activePanel === 'estudo' ? 'text-red-500' : 'text-blue-500'} />
                 <span className="text-base font-black tabular-nums text-zinc-900 dark:text-white sm:text-xl">
-                  {fmtMin(progressoCard.feito)}
-                  <span className="mx-1 text-xs font-medium text-zinc-400">/</span>
-                  {fmtMin(progressoCard.total)}
+                  {mostrarTempoHomeDetalhado && (
+                    <>
+                      {fmtMin(progressoCard.feito)}
+                      <span className="mx-1 text-xs font-medium text-zinc-400">/</span>
+                    </>
+                  )}
+                  {fmtMin(mostrarTempoHomeDetalhado ? progressoCard.total : progressoDiaResumo.total)}
                 </span>
               </div>
+              {mostrarTempoHomeDetalhado && (
               <p className={`mt-1 text-[9px] font-black uppercase tracking-widest ${completionGlowActive ? 'text-emerald-600 dark:text-emerald-400' : activePanel === 'estudo' ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}`}>
                 {completionGlowActive ? 'Concluido' : `${progressoCard.pct}% concluido`}
               </p>
+              )}
+            </div>
+            )}
+          </div>
+
+          <div className="relative z-10 mt-3 flex items-center justify-between gap-3">
+            <span className="min-w-0 truncate text-[8px] font-black uppercase tracking-widest text-zinc-500">
+              {completionGlowActive
+                ? `Dia concluido - ${progressoCard.concluidos} de ${progressoCard.itens}`
+                : `${modoCicloAtivo ? 'Modo ciclo' : 'Cronograma'} - ${progressoCard.concluidos} de ${progressoCard.itens} concluidos`}
+            </span>
+            <div className="flex shrink-0 items-center rounded-xl border border-zinc-100 bg-zinc-50 p-0.5 dark:border-white/5 dark:bg-white/5">
+              <button
+                type="button"
+                onClick={() => setActivePanel('estudo')}
+                className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[8px] font-black uppercase tracking-wider transition-all duration-300 ${
+                  activePanel === 'estudo'
+                    ? 'bg-white text-zinc-950 shadow-sm dark:bg-zinc-800 dark:text-white'
+                    : 'text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300'
+                }`}
+              >
+                <BookOpen size={10} className={activePanel === 'estudo' ? 'text-red-500' : ''} /> Estudo
+              </button>
+              <button
+                type="button"
+                onClick={() => setActivePanel('revisao')}
+                className={`relative flex items-center gap-1 rounded-lg px-2 py-1 text-[8px] font-black uppercase tracking-wider transition-all duration-300 ${
+                  activePanel === 'revisao'
+                    ? 'bg-white text-zinc-950 shadow-sm dark:bg-zinc-800 dark:text-white'
+                    : 'text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300'
+                }`}
+              >
+                <Target size={10} className={activePanel === 'revisao' ? 'text-blue-500' : ''} /> Revisao
+                {revisoesPendentesCount > 0 && (
+                  <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full border-2 border-white bg-red-600 px-1 text-[8px] font-black leading-none text-white shadow-md shadow-red-600/25 dark:border-zinc-900">
+                    {revisoesPendentesCount > 9 ? '9+' : revisoesPendentesCount}
+                  </span>
+                )}
+              </button>
             </div>
           </div>
 
+          {mostrarTempoHomeDetalhado && (
           <div className="mt-3">
-            <div className="mb-1.5 flex items-center justify-between gap-3">
+            <div className="hidden">
               <span className="min-w-0 truncate text-[8px] font-black uppercase tracking-widest text-zinc-500">
                 {completionGlowActive
                   ? `Tempo do dia - ${fmtMin(progressoDiaResumo.feito)}`
@@ -1033,6 +1100,7 @@ function HojeCard({
               />
             </div>
           </div>
+          )}
 
           <div className="hidden">
             <div className="min-w-0">
@@ -1143,6 +1211,7 @@ function HojeCard({
                   variant="estudo"
                   sourceMode={isCycleSlot ? 'ciclo' : 'cronograma'}
                   useDisciplineColors={activeCicloData?.coresDisciplinasAtivas !== false}
+                  modoExibirTempo={modoTempoHome}
                 />
               );
             }) : (
@@ -1170,6 +1239,7 @@ function HojeCard({
                   onPlay={isCycleReview ? handleIniciarRevisaoCiclo : handlePlay}
                   variant="revisao"
                   sourceMode={isCycleReview ? 'ciclo' : 'cronograma'}
+                  modoExibirTempo={modoTempoHome}
                 />
               );
             }) : (

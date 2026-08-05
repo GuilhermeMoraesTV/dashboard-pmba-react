@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Loader2, X } from 'lucide-react';
+import { AlertTriangle, Loader2, X } from 'lucide-react';
 import { collection, getDocs } from 'firebase/firestore';
 import { createPortal } from 'react-dom';
 
@@ -116,30 +116,36 @@ function CicloEditModal({ onClose, user, ciclo, onCicloAtivado, upgradeMode = fa
 
   const renderConfirmacaoFechamento = () => (
     confirmandoFechamento && (
-      <div className="fixed inset-0 z-[21000] flex items-center justify-center bg-zinc-950/75 px-4 backdrop-blur-sm">
-        <div className="w-full max-w-sm rounded-[24px] border border-zinc-200 bg-white p-5 shadow-2xl dark:border-zinc-800 dark:bg-zinc-900">
-          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-red-600">Confirmacao</p>
-          <h3 className="text-lg font-black uppercase tracking-tight text-zinc-900 dark:text-white">Descartar alteracoes?</h3>
-          <p className="mt-2 text-sm font-semibold leading-relaxed text-zinc-500 dark:text-zinc-400">
+      <div className="fixed inset-0 z-[21000] flex items-center justify-center bg-zinc-900/60 p-4 backdrop-blur-sm">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.94, y: 10 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          className="wizard-confirm-card w-full max-w-sm rounded-[32px] border-2 border-zinc-100 bg-white p-7 text-center shadow-2xl dark:border-zinc-800 dark:bg-zinc-900"
+        >
+          <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-red-50 dark:bg-red-900/20">
+            <AlertTriangle size={28} className="text-red-600" />
+          </div>
+          <h3 className="mb-2 text-xl font-black uppercase text-zinc-900 dark:text-white">Descartar alteracoes?</h3>
+          <p className="mb-7 text-sm text-zinc-500">
             As alteracoes nao salvas deste ciclo serao perdidas.
           </p>
-          <div className="mt-5 flex gap-2">
+          <div className="grid grid-cols-2 gap-3">
             <button
               type="button"
               onClick={() => setConfirmandoFechamento(false)}
-              className="flex-1 rounded-2xl border border-zinc-200 px-4 py-3 text-sm font-black uppercase text-zinc-600 transition hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              className="rounded-2xl bg-zinc-100 py-3 text-xs font-bold uppercase tracking-widest text-zinc-900 transition-all hover:bg-zinc-200 dark:bg-zinc-800 dark:text-white"
             >
               Ficar
             </button>
             <button
               type="button"
               onClick={confirmarFechamento}
-              className="flex-1 rounded-2xl bg-red-600 px-4 py-3 text-sm font-black uppercase text-white shadow-lg shadow-red-600/20 transition hover:bg-red-700"
+              className="rounded-2xl bg-red-600 py-3 text-xs font-bold uppercase tracking-widest text-white transition-all hover:bg-red-700"
             >
               Descartar
             </button>
           </div>
-        </div>
+        </motion.div>
       </div>
     )
   );

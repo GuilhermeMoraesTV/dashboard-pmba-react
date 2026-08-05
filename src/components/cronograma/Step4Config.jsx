@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Hash, CalendarDays, CalendarClock, Layers, BookOpen,
-  Target, AlertCircle, Clock, Timer, Eye, EyeOff,
+  Target, AlertCircle, Clock, Timer, Eye,
   LayoutList, Shuffle, ChevronLeft, ChevronRight, Calendar, Flame
 } from 'lucide-react';
 
@@ -275,7 +275,7 @@ const Step4_Config = ({ config, onConfigChange, editalSelecionado, horarios = {}
     }
     if (config.modoMontagem === undefined) updates.modoMontagem = 'inteligente';
     if (config.modoExibirAssuntos === undefined) updates.modoExibirAssuntos = true;
-    if (config.modoExibirTempo === undefined)    updates.modoExibirTempo    = 'detalhado'; // 'detalhado' | 'total' | 'nenhum'
+    if (config.modoExibirTempo === undefined)    updates.modoExibirTempo    = 'detalhado'; // 'detalhado' | 'total'
     if (Object.keys(updates).length > 0) onConfigChange({ ...config, ...updates });
   }, []);
 
@@ -407,7 +407,7 @@ const Step4_Config = ({ config, onConfigChange, editalSelecionado, horarios = {}
       id: 'detalhado',
       label: 'Detalhado',
       icon: Timer,
-      desc: 'Mostra o tempo de cada bloco e ajuda a acompanhar quanto estudar em cada materia.',
+      desc: 'Mostra o tempo de cada bloco de disciplina e o total do dia.',
       activeBorder: 'border-blue-500/50',
       activeBg: 'bg-blue-50/30 dark:bg-blue-950/10',
       activeBar: 'bg-blue-500',
@@ -420,7 +420,7 @@ const Step4_Config = ({ config, onConfigChange, editalSelecionado, horarios = {}
       id: 'total',
       label: 'Só Total',
       icon: Clock,
-      desc: 'Mostra somente a carga total do dia, deixando os cards mais limpos.',
+      desc: 'Mostra somente o total do dia, sem tempo por bloco e sem barra de progresso.',
       activeBorder: 'border-violet-500/50',
       activeBg: 'bg-violet-50/30 dark:bg-violet-950/10',
       activeBar: 'bg-violet-500',
@@ -429,23 +429,10 @@ const Step4_Config = ({ config, onConfigChange, editalSelecionado, horarios = {}
       activeDesc: 'text-violet-700/70 dark:text-violet-400/70',
       activeBadge: 'bg-violet-100 dark:bg-red-900/40 text-violet-600 dark:text-violet-400',
     },
-    {
-      id: 'nenhum',
-      label: 'Ocultar',
-      icon: EyeOff,
-      desc: 'Esconde horarios e duracoes para deixar a rotina focada apenas no conteudo.',
-      activeBorder: 'border-zinc-400/50',
-      activeBg: 'bg-zinc-50/50 dark:bg-zinc-800/50',
-      activeBar: 'bg-zinc-400',
-      activeIcon: 'bg-zinc-400',
-      activeText: 'text-zinc-600 dark:text-zinc-300',
-      activeDesc: 'text-zinc-500/70',
-      activeBadge: 'bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300',
-    },
   ];
 
   const modoAssuntos   = config.modoExibirAssuntos === false ? 'livre' : 'guiado';
-  const modoTempo      = config.modoExibirTempo || 'detalhado';
+  const modoTempo      = ['detalhado', 'total'].includes(config.modoExibirTempo) ? config.modoExibirTempo : 'total';
 
   const handleModoMontagem = (id) => setField('modoMontagem', id === 'personalizado' ? 'personalizado' : 'inteligente');
   const handleModoAssuntos = (id) => setField('modoExibirAssuntos', id !== 'livre');
@@ -833,7 +820,7 @@ const Step4_Config = ({ config, onConfigChange, editalSelecionado, horarios = {}
                           </div>
                         </>
                       )}
-                      {modoTempo === 'nenhum' && (
+                      {false && modoTempo === 'nenhum' && (
                         <>
                           <div className="space-y-3">
                             <div className="text-[10px] font-black uppercase text-zinc-700 dark:text-zinc-200 opacity-60">Direito Constitucional</div>

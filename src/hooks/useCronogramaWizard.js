@@ -52,6 +52,8 @@ const DRAFT_VERSION       = 3;
 
 export const defaultHorarios = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
 
+const normalizarModoExibirTempo = (modo) => (modo === 'oculto' || modo === 'nenhum' ? 'total' : (modo || 'detalhado'));
+
 // ─── [FIX-A] Helper extraído: primeiro dia útil a partir de hoje ──────────────
 /**
  * Retorna a data ISO (YYYY-MM-DD) do primeiro dia a partir de hoje
@@ -177,7 +179,7 @@ const _montarDadosParaSalvar = (config, edital, horarios, result, geradoPorIA_) 
   modoMontagem:            config.modoMontagem        || 'inteligente',
   gradePersonalizada:      config.gradePersonalizada  || {},
   modoExibirAssuntos:      config.modoExibirAssuntos  !== false,
-  modoExibirTempo:         config.modoExibirTempo     || 'detalhado',
+  modoExibirTempo:         normalizarModoExibirTempo(config.modoExibirTempo),
   coresDisciplinasAtivas:  config.coresDisciplinasAtivas !== false,
   limitarMaterias:         config.limitarMaterias     || false,
   limitesPorDia:           config.limitesPorDia       || {},
@@ -427,7 +429,7 @@ const _normalizarInitialStateEdicao = (source = {}, modelos = []) => {
       dataProva: cronograma.dataProva || '',
       modoMontagem: cronograma.modoMontagem || 'inteligente',
       modoExibirAssuntos: cronograma.modoExibirAssuntos !== false,
-      modoExibirTempo: cronograma.modoExibirTempo || 'detalhado',
+      modoExibirTempo: normalizarModoExibirTempo(cronograma.modoExibirTempo),
       coresDisciplinasAtivas: cronograma.coresDisciplinasAtivas !== false,
       limitarMaterias: Boolean(cronograma.limitarMaterias),
       limitesPorDia: cronograma.limitesPorDia || {},

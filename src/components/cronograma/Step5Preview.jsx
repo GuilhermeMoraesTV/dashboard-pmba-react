@@ -127,6 +127,7 @@ const isReviewSlot = (item) => Boolean(item?.isRevisao || item?.isRevisaoAuto ||
 const getStudyItems = (items = []) => items.filter((item) => !isReviewSlot(item));
 const getItemMinutes = (item) => Number(item?.tempoMinutos ?? item?.minutosEstudo ?? item?.tempoPlanejadoMinutos ?? 0) || 0;
 const getDayMinutesTotal = (items = []) => items.reduce((acc, item) => acc + getItemMinutes(item), 0);
+const normalizarModoTempo = (modo) => (modo === 'oculto' || modo === 'nenhum' ? 'total' : (modo || 'detalhado'));
 
 const topicosFromReviewSlot = (item) => {
   const dadosSlot = {
@@ -180,7 +181,8 @@ const agruparRevisoesDoDia = (items = [], dayKey = '') => {
 
 const SlotCard = ({ item, onDragStart, onClick, compact = false, config = {}, colorMap = null, isToday = false }) => {
   const isRev = item.isRevisao || item.isRevisaoAuto || item.isConsolidada;
-  const modoTempo = config.modoExibirTempo || 'detalhado';
+  const modoTempo = normalizarModoTempo(config.modoExibirTempo);
+  const mostrarTempoBloco = modoTempo === 'detalhado';
   const isDone = Boolean(item.concluido);
   const disciplinaColor = getDisciplineColorForSlot(item, colorMap);
   const cardStyle = getDisciplineCardVars(isRev ? REVIEW_COLOR : disciplinaColor);
@@ -244,13 +246,13 @@ const SlotCard = ({ item, onDragStart, onClick, compact = false, config = {}, co
             {assuntoTxt}
           </p>
         </div>
-        {(modoTempo === 'detalhado' || !modoTempo) && (
+        {mostrarTempoBloco && (
           <span className={`pt-0.5 text-[10px] font-black tabular-nums ${isToday ? 'text-red-950 dark:text-white' : 'text-zinc-900 dark:text-white'}`}>
             {fmtMin(tempoPlanejadoMinutos)}
           </span>
         )}
       </div>
-      {tempoPlanejadoMinutos > 0 && (
+      {mostrarTempoBloco && tempoPlanejadoMinutos > 0 && (
         <div className="mt-auto">
           <div className={`mb-1.5 flex items-center justify-between gap-2 text-[10px] font-black ${isToday ? 'text-red-900 dark:text-red-50/90' : 'text-zinc-600 dark:text-zinc-300'}`}>
             <span className="tabular-nums">
@@ -298,6 +300,9 @@ const Step5_Preview = ({
   });
   const [modalSlot,    setModalSlot]    = useState(null);
   const [agendaOverride, setAgendaOverride] = useState(null);
+  const modoTempo = normalizarModoTempo(config?.modoExibirTempo);
+  const mostrarTempoTotal = modoTempo !== 'nenhum';
+  const mostrarTempoBloco = modoTempo === 'detalhado';
 
   const scrollRef = useRef(null);
   const isDraggingScroll = useRef(false);
@@ -661,15 +666,17 @@ const Step5_Preview = ({
                           </div>
                         </div>
                         <div className="flex shrink-0 flex-col items-end gap-1.5">
-                          <div className="rounded-lg border border-white/10 bg-white/10 px-1.5 py-1.5 text-white sm:px-2">
-                            <div className="flex items-center gap-1 sm:gap-1.5">
-                              <Clock size={11} className={hoje ? 'text-white' : 'text-zinc-300'} />
-                              <div className="flex flex-col items-end leading-none">
-                                <span className={`hidden text-[8px] font-black uppercase tracking-widest sm:block ${hoje ? 'text-red-100' : 'text-zinc-300'}`}>Tempo</span>
-                                <span className="mt-0.5 whitespace-nowrap text-[10px] font-black tabular-nums text-white sm:text-[11px]">{fmtMin(totalDia)}</span>
+                          {mostrarTempoTotal && (
+                            <div className="rounded-lg border border-white/10 bg-white/10 px-1.5 py-1.5 text-white sm:px-2">
+                              <div className="flex items-center gap-1 sm:gap-1.5">
+                                <Clock size={11} className={hoje ? 'text-white' : 'text-zinc-300'} />
+                                <div className="flex flex-col items-end leading-none">
+                                  <span className={`hidden text-[8px] font-black uppercase tracking-widest sm:block ${hoje ? 'text-red-100' : 'text-zinc-300'}`}>Tempo</span>
+                                  <span className="mt-0.5 whitespace-nowrap text-[10px] font-black tabular-nums text-white sm:text-[11px]">{fmtMin(totalDia)}</span>
+                                </div>
                               </div>
                             </div>
-                          </div>
+                          )}
                           {hoje ? (
                             <span className="rounded bg-white px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide text-red-600 shadow-sm sm:px-2 sm:text-[9px] sm:tracking-widest">
                               Hoje
@@ -772,7 +779,7 @@ const Step5_Preview = ({
                       <span className={`text-xs font-black ${hoje ? 'text-red-500' : 'text-zinc-500 dark:text-zinc-500'}`}>{data.getDate()}</span>
                     </div>
                     <div className="relative z-10 flex flex-col gap-1">
-                      {items.length > 0 && (
+                      {items.length > 0 && mostrarTempoTotal && (
                         <div className="w-fit rounded-md border border-red-100 bg-red-50/80 px-1.5 py-0.5 text-[8px] font-black tabular-nums text-red-600 dark:border-zinc-700 dark:bg-zinc-800/90 dark:text-zinc-200">
                           Total: {fmtMin(totalDia)}
                         </div>
@@ -785,9 +792,11 @@ const Step5_Preview = ({
                               {disc.nome}
                             </span>
                           </div>
-                          <span className="text-[8px] font-black tabular-nums text-zinc-500 dark:text-zinc-400">
-                            {fmtMin(disc.minutos)}
-                          </span>
+                          {mostrarTempoBloco && (
+                            <span className="text-[8px] font-black tabular-nums text-zinc-500 dark:text-zinc-400">
+                              {fmtMin(disc.minutos)}
+                            </span>
+                          )}
                         </div>
                       ))}
                       {resumoPorDisc.length > 3 && <span className="mt-0.5 text-center text-[8px] font-black text-zinc-400 dark:text-zinc-500">+{resumoPorDisc.length-3} DISCIPLINAS</span>}
@@ -839,7 +848,7 @@ const Step5_Preview = ({
                             <h4 className="text-xs font-black uppercase tracking-widest text-zinc-400 flex items-center gap-2">
                               <Zap size={14} className={hoje ? 'text-red-500' : 'text-zinc-300'} /> Missões do Dia
                             </h4>
-                            {items.length > 0 && config?.modoExibirTempo !== 'nenhum' && (
+                            {items.length > 0 && mostrarTempoTotal && (
                               <div className="text-[10px] font-black bg-zinc-50 dark:bg-zinc-800 px-2 py-1 rounded-lg text-zinc-600 dark:text-zinc-300 border border-zinc-100 dark:border-zinc-700">
                                 Total: {fmtMin(getDayMinutesTotal(items))}
                               </div>
@@ -874,7 +883,7 @@ const Step5_Preview = ({
                                       </p>
                                     </div>
                                   </div>
-                                  {(config?.modoExibirTempo === 'detalhado' || !config?.modoExibirTempo) && (
+                                  {mostrarTempoBloco && (
                                     <span className="text-[10px] font-black tabular-nums text-zinc-600 group-hover/item:text-red-600 transition-colors ml-2">
                                       {fmtMin(item.tempoMinutos)}
                                     </span>

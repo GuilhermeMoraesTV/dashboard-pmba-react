@@ -85,6 +85,8 @@ const formatarDuracao = (minutos = 0) => {
   return m > 0 ? `${h}h${String(m).padStart(2, '0')}` : `${h}h`;
 };
 
+const normalizarModoTempo = (modo) => (modo === 'oculto' || modo === 'nenhum' ? 'total' : (modo || 'detalhado'));
+
 const dateToYMDLocal = (date) => {
   const d = new Date(date);
   d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
@@ -567,7 +569,8 @@ const TarefaCardDraggable = ({
   );
 
   const modoExibirAssuntos = cronograma?.modoExibirAssuntos !== false;
-  const modoExibirTempo    = cronograma?.modoExibirTempo || 'detalhado';
+  const modoExibirTempo    = normalizarModoTempo(cronograma?.modoExibirTempo);
+  const mostrarTempoBloco  = modoExibirTempo === 'detalhado';
 
   const assuntoTexto = tarefa.isRevisaoAuto
     ? (tarefa.assunto || 'Revisão Geral do Conteúdo')
@@ -653,7 +656,7 @@ const TarefaCardDraggable = ({
               {tarefa.disciplinaNome}
             </h4>
           </div>
-          {modoExibirTempo !== 'oculto' && tempoPlanejadoMinutos > 0 && (
+          {mostrarTempoBloco && tempoPlanejadoMinutos > 0 && (
             <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-white/70 bg-white/75 px-2 py-0.5 text-[11px] font-black tabular-nums text-zinc-700 shadow-sm dark:border-white/10 dark:bg-white/10 dark:text-zinc-100">
               <Clock size={11} className="text-zinc-500 dark:text-zinc-300"/>
               {formatarDuracao(tempoPlanejadoMinutos)}
@@ -674,7 +677,7 @@ const TarefaCardDraggable = ({
           </div>
         )}
 
-        {modoExibirTempo !== 'oculto' && tempoPlanejadoMinutos > 0 && (
+        {mostrarTempoBloco && tempoPlanejadoMinutos > 0 && (
           <div className="flex items-end gap-2">
             <div className="min-w-0 flex-1">
               <div className="mb-1 flex items-center justify-between gap-2 text-[10px] font-bold text-zinc-500 dark:text-zinc-400">
@@ -701,6 +704,17 @@ const TarefaCardDraggable = ({
                 <Play size={13} fill="currentColor"/>
               </button>
             )}
+          </div>
+        )}
+        {!mostrarTempoBloco && !tarefa.isRevisaoAuto && !tarefa.concluido && (
+          <div className="mt-auto flex justify-end">
+            <button
+              onClick={(e) => { e.stopPropagation(); onStart(tarefa); }}
+              title="Iniciar estudo"
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-600 text-white shadow-sm shadow-red-600/20 transition-all hover:bg-red-700 active:scale-95"
+            >
+              <Play size={14} fill="currentColor"/>
+            </button>
           </div>
         )}
 
@@ -1052,7 +1066,7 @@ const SortableTarefaCard = ({ tarefa, diaSemanaIdx, ...props }) => {
   );
 };
 
-const RevisoesAgrupadasCard = ({ revisoes = [], onOpenConsolidada }) => {
+const RevisoesAgrupadasCard = ({ revisoes = [], onOpenConsolidada, mostrarTempo = true }) => {
   if (!revisoes.length) return null;
 
   const concluidas = revisoes.filter((tarefa) => tarefa.concluido).length;
@@ -1129,7 +1143,7 @@ const RevisoesAgrupadasCard = ({ revisoes = [], onOpenConsolidada }) => {
           </p>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1">
-          {totalMinutos > 0 && (
+          {mostrarTempo && totalMinutos > 0 && (
             <span className="inline-flex items-center gap-1 rounded bg-white/80 px-1.5 py-0.5 text-[9px] font-black text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
               <Clock size={10} />
               {formatarDuracao(totalFeito)} / {formatarDuracao(totalMinutos)}
@@ -1168,6 +1182,9 @@ const DayDropZone = ({
   const draggablesNoDia = tarefas.filter(isMovableTask).map(getDragTaskId);
   const revisoesAgrupadas = tarefas.filter((tarefa) => tarefa.isRevisao || tarefa.isRevisaoAuto || tarefa.isConsolidada);
   const tarefasVisiveis = tarefas.filter((tarefa) => !(tarefa.isRevisao || tarefa.isRevisaoAuto || tarefa.isConsolidada));
+  const modoTempo = normalizarModoTempo(cronograma?.modoExibirTempo);
+  const mostrarTempoTotal = modoTempo !== 'nenhum';
+  const mostrarBarrasTempo = modoTempo === 'detalhado';
 
   return (
     <div
@@ -1223,27 +1240,29 @@ const DayDropZone = ({
                 Concluido
               </span>
             )}
-            <div className={`rounded-lg border px-2 py-1.5 ${
-              isHoje
-                ? 'border-white/20 bg-white/10 text-white dark:border-white/10 dark:bg-white/10 dark:text-white'
-                : todoConcluido
-                ? 'border-white/10 bg-white/10 text-white dark:border-white/10 dark:bg-white/10 dark:text-white'
-                : 'border-white/10 bg-white/10 text-white dark:border-white/10 dark:bg-white/10 dark:text-white'
-            }`}>
-              <div className="flex items-center gap-1.5">
-                <Clock size={12} className={todoConcluido ? 'text-emerald-300' : isHoje ? 'text-white' : 'text-zinc-300'} />
-                <div className="flex flex-col items-end leading-none">
-                  <span className={`text-[8px] font-black uppercase tracking-widest ${
-                    todoConcluido ? 'text-emerald-200' : isHoje ? 'text-red-100' : 'text-zinc-300'
-                  }`}>
-                    Tempo
-                  </span>
-                  <span className="mt-0.5 text-[11px] font-black tabular-nums text-white">
-                    {formatarDuracao(totalMinutosDia)}
-                  </span>
+            {mostrarTempoTotal && (
+              <div className={`rounded-lg border px-2 py-1.5 ${
+                isHoje
+                  ? 'border-white/20 bg-white/10 text-white dark:border-white/10 dark:bg-white/10 dark:text-white'
+                  : todoConcluido
+                  ? 'border-white/10 bg-white/10 text-white dark:border-white/10 dark:bg-white/10 dark:text-white'
+                  : 'border-white/10 bg-white/10 text-white dark:border-white/10 dark:bg-white/10 dark:text-white'
+              }`}>
+                <div className="flex items-center gap-1.5">
+                  <Clock size={12} className={todoConcluido ? 'text-emerald-300' : isHoje ? 'text-white' : 'text-zinc-300'} />
+                  <div className="flex flex-col items-end leading-none">
+                    <span className={`text-[8px] font-black uppercase tracking-widest ${
+                      todoConcluido ? 'text-emerald-200' : isHoje ? 'text-red-100' : 'text-zinc-300'
+                    }`}>
+                      Tempo
+                    </span>
+                    <span className="mt-0.5 text-[11px] font-black tabular-nums text-white">
+                      {formatarDuracao(totalMinutosDia)}
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
             {total > 0 && !todoConcluido && (
               <div className="rounded bg-white/10 px-2 py-0.5 text-[10px] font-black text-white">
                 {concluidos}/{total}
@@ -1253,7 +1272,7 @@ const DayDropZone = ({
         </div>
 
         {/* Progress bar no header */}
-        {total > 0 && (
+        {mostrarBarrasTempo && total > 0 && (
           <div className={`mt-3 h-1.5 rounded-full overflow-hidden ${isHoje && !todoConcluido ? 'bg-white/20' : 'bg-white/15'}`}>
             <motion.div
               initial={{ width: 0 }}
@@ -1282,6 +1301,7 @@ const DayDropZone = ({
                   key={`reviews-${diaSemanaIdx}`}
                   revisoes={revisoesAgrupadas}
                   onOpenConsolidada={onOpenConsolidada}
+                  mostrarTempo={mostrarBarrasTempo}
                 />
               )}
               {tarefasVisiveis.map(t => (
@@ -1346,6 +1366,9 @@ const VisualizacaoMensal = ({ cronograma, dataInicio, onStart, registrosEstudo =
   const hojeDate = new Date();
   hojeDate.setHours(0, 0, 0, 0);
   const hoje = hojeDate.toDateString();
+  const modoTempo = normalizarModoTempo(cronograma?.modoExibirTempo);
+  const mostrarTempoTotal = modoTempo !== 'nenhum';
+  const mostrarTempoBloco = modoTempo === 'detalhado';
 
   const corPorDisciplina = useMemo(() => {
     const mapa = {};
@@ -1573,10 +1596,12 @@ const VisualizacaoMensal = ({ cronograma, dataInicio, onStart, registrosEstudo =
                     <div className="flex min-w-0 flex-col items-end gap-1">
                       {slots.length > 0 ? (
                         <>
-                          <span className="inline-flex items-center gap-1 rounded-md border border-zinc-200 bg-white/80 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide text-zinc-600 dark:border-white/10 dark:bg-white/10 dark:text-zinc-300">
-                            <Clock size={9} />
-                            {formatarDuracao(totalMinutosDia)}
-                          </span>
+                          {mostrarTempoTotal && (
+                            <span className="inline-flex items-center gap-1 rounded-md border border-zinc-200 bg-white/80 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide text-zinc-600 dark:border-white/10 dark:bg-white/10 dark:text-zinc-300">
+                              <Clock size={9} />
+                              {formatarDuracao(totalMinutosDia)}
+                            </span>
+                          )}
                           <span className={`rounded-md px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide ${
                             diaCompleto
                               ? 'bg-emerald-600 text-white'
@@ -1617,9 +1642,11 @@ const VisualizacaoMensal = ({ cronograma, dataInicio, onStart, registrosEstudo =
                             {disc.nome}
                           </span>
                         </div>
-                        <span className="shrink-0 text-[9px] font-black tabular-nums text-zinc-500 dark:text-zinc-400">
-                          {formatarDuracao(disc.minutos)}
-                        </span>
+                        {mostrarTempoBloco && (
+                          <span className="shrink-0 text-[9px] font-black tabular-nums text-zinc-500 dark:text-zinc-400">
+                            {formatarDuracao(disc.minutos)}
+                          </span>
+                        )}
                       </div>
                     ))}
 
@@ -1692,7 +1719,9 @@ const VisualizacaoMensal = ({ cronograma, dataInicio, onStart, registrosEstudo =
                             <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: corPorDisciplina[disc.disciplinaId] || '#94a3b8' }} />
                             <span className="truncate text-[11px] font-bold uppercase tracking-wide text-zinc-800 dark:text-zinc-200">{disc.nome}</span>
                           </div>
-                          <span className="text-[11px] font-black text-zinc-500 dark:text-zinc-400 tabular-nums">{formatarDuracao(disc.minutos)}</span>
+                          {mostrarTempoBloco && (
+                            <span className="text-[11px] font-black text-zinc-500 dark:text-zinc-400 tabular-nums">{formatarDuracao(disc.minutos)}</span>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -1723,9 +1752,11 @@ const VisualizacaoMensal = ({ cronograma, dataInicio, onStart, registrosEstudo =
                               </p>
                             )}
                           </div>
-                          <span className="rounded bg-zinc-100 px-2 py-1 text-[10px] font-black uppercase tracking-wide text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-                            {formatarDuracao(Number(slot.tempoMinutos ?? slot.minutosEstudo ?? 0))}
-                          </span>
+                          {mostrarTempoBloco && (
+                            <span className="rounded bg-zinc-100 px-2 py-1 text-[10px] font-black uppercase tracking-wide text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                              {formatarDuracao(Number(slot.tempoMinutos ?? slot.minutosEstudo ?? 0))}
+                            </span>
+                          )}
                         </div>
 
                         <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -1761,6 +1792,9 @@ const VisualizacaoLista = ({ cronograma, weekDates, tarefasPorDia, onStart, onOp
   const hojeDate = new Date();
   hojeDate.setHours(0, 0, 0, 0);
   const hojeStr = hojeDate.toDateString();
+  const modoTempo = normalizarModoTempo(cronograma?.modoExibirTempo);
+  const mostrarTempoTotal = modoTempo !== 'nenhum';
+  const mostrarTempoBloco = modoTempo === 'detalhado';
   const semanaExibidaContemHoje = weekDates.some((date) => date.toDateString() === hojeStr);
   const diasComItens = weekDates
     .map((date) => {
@@ -1838,6 +1872,7 @@ const VisualizacaoLista = ({ cronograma, weekDates, tarefasPorDia, onStart, onOp
             </div>
           </div>
 
+          {mostrarTempoBloco && (
           <div className="shrink-0 text-right">
             <div className="flex items-center justify-end gap-1.5">
               <Clock size={14} className="text-red-500 sm:h-4 sm:w-4" />
@@ -1849,8 +1884,10 @@ const VisualizacaoLista = ({ cronograma, weekDates, tarefasPorDia, onStart, onOp
             </div>
             <p className="text-[8px] font-black uppercase tracking-widest text-zinc-400 sm:text-[10px]">Horas da semana</p>
           </div>
+          )}
         </div>
 
+        {mostrarTempoBloco && (
         <div className="mt-4 sm:mt-6">
           <div className="mb-2 flex items-center justify-between">
             <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500 sm:text-[10px]">Progresso da lista</span>
@@ -1865,6 +1902,7 @@ const VisualizacaoLista = ({ cronograma, weekDates, tarefasPorDia, onStart, onOp
             />
           </div>
         </div>
+        )}
       </div>
 
       {tarefasTimeline.length === 0 ? (
@@ -1933,10 +1971,12 @@ const VisualizacaoLista = ({ cronograma, weekDates, tarefasPorDia, onStart, onOp
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                    <span className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
-                      <Clock size={12} />
-                      {formatarDuracao(totalMinutos)}
-                    </span>
+                    {mostrarTempoTotal && (
+                      <span className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
+                        <Clock size={12} />
+                        {formatarDuracao(totalMinutos)}
+                      </span>
+                    )}
                     {revisoes > 0 && (
                       <span className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-blue-700 dark:border-blue-900/40 dark:bg-blue-950/20 dark:text-blue-300">
                         <BarChart2 size={12} />
@@ -2053,7 +2093,7 @@ const VisualizacaoLista = ({ cronograma, weekDates, tarefasPorDia, onStart, onOp
                           </h3>
                           </div>
                         </div>
-                        {tempo > 0 && (
+                        {mostrarTempoBloco && tempo > 0 && (
                           <div className="flex shrink-0 items-center gap-1.5 rounded-lg border border-zinc-200/50 bg-zinc-100 px-2 py-1 dark:border-zinc-700/50 dark:bg-zinc-800">
                             <Clock size={12} className="text-zinc-400" />
                             <span className="text-sm font-black tabular-nums text-zinc-600 dark:text-zinc-300">
@@ -2085,7 +2125,7 @@ const VisualizacaoLista = ({ cronograma, weekDates, tarefasPorDia, onStart, onOp
                         </div>
                       )}
 
-                      {tempo > 0 && (
+                      {mostrarTempoBloco && tempo > 0 && (
                         <div className="mt-2.5 flex items-end gap-2 sm:mt-3">
                           <div className="min-w-0 flex-1">
                             <div className="mb-1 flex items-center justify-between gap-2 text-[10px] font-black uppercase tracking-wide">
@@ -2110,6 +2150,17 @@ const VisualizacaoLista = ({ cronograma, weekDates, tarefasPorDia, onStart, onOp
                               <Play size={14} fill="currentColor" />
                             </button>
                           )}
+                        </div>
+                      )}
+                      {!mostrarTempoBloco && canStart && (
+                        <div className="mt-2.5 flex justify-end sm:mt-3">
+                          <button
+                            onClick={() => onStart(tarefa)}
+                            title="Iniciar estudo"
+                            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-600 text-white shadow-sm shadow-red-600/20 transition-all hover:bg-red-700 active:scale-95"
+                          >
+                            <Play size={14} fill="currentColor" />
+                          </button>
                         </div>
                       )}
 

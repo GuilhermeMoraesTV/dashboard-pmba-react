@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { createPortal } from 'react-dom';
 import { doc, updateDoc } from 'firebase/firestore';
 import {
+  AlertCircle,
   BookOpen, CalendarDays, FilePenLine,
   Loader2, Palette, Settings2, X,
 } from 'lucide-react';
@@ -37,28 +38,31 @@ const ModalEditarCronograma = ({
 
   const renderConfirmacaoFechamento = () => (
     confirmandoFechamento && (
-      <div className="fixed inset-0 z-[21000] flex items-center justify-center bg-zinc-950/70 p-4 backdrop-blur-sm">
+      <div className="fixed inset-0 z-[21000] flex items-center justify-center bg-zinc-900/60 p-4 backdrop-blur-sm">
         <motion.div
-          initial={{ opacity: 0, y: 12, scale: 0.96 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          className="w-full max-w-sm rounded-[28px] border border-zinc-200 bg-white p-6 text-center shadow-2xl dark:border-zinc-800 dark:bg-zinc-900"
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="wizard-confirm-card w-full max-w-sm rounded-[32px] border-2 border-zinc-100 bg-white p-8 text-center shadow-2xl dark:border-zinc-800 dark:bg-zinc-900"
         >
-          <h3 className="text-lg font-black uppercase tracking-tight text-zinc-900 dark:text-white">Descartar alteracoes?</h3>
-          <p className="mt-2 text-sm font-medium leading-relaxed text-zinc-500 dark:text-zinc-400">
+          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-red-50 dark:bg-red-900/20">
+            <AlertCircle size={32} className="text-red-600" />
+          </div>
+          <h3 className="mb-2 text-xl font-black uppercase text-zinc-900 dark:text-white">Descartar alteracoes?</h3>
+          <p className="mb-8 text-sm text-zinc-500">
             As alteracoes nao salvas deste cronograma serao perdidas.
           </p>
-          <div className="mt-6 grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <button
               type="button"
               onClick={() => setConfirmandoFechamento(false)}
-              className="rounded-2xl bg-zinc-100 px-4 py-3 text-xs font-black uppercase tracking-widest text-zinc-900 transition hover:bg-zinc-200 dark:bg-zinc-800 dark:text-white dark:hover:bg-zinc-700"
+              className="rounded-2xl bg-zinc-100 py-3 text-xs font-bold uppercase tracking-widest text-zinc-900 transition-all hover:bg-zinc-200 dark:bg-zinc-800 dark:text-white"
             >
               Ficar
             </button>
             <button
               type="button"
               onClick={confirmarFechamento}
-              className="rounded-2xl bg-red-600 px-4 py-3 text-xs font-black uppercase tracking-widest text-white transition hover:bg-red-700"
+              className="rounded-2xl bg-red-600 py-3 text-xs font-bold uppercase tracking-widest text-white transition-all hover:bg-red-700"
             >
               Descartar
             </button>
