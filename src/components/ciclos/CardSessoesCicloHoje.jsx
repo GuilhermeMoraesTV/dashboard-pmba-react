@@ -37,7 +37,7 @@ function CardSessoesCicloHoje({
   );
 
   return (
-    <section className={`cycle-block-list-card-zoom flex min-h-0 flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900 ${fillAvailableHeight ? 'max-h-[430px] sm:max-h-[460px] xl:max-h-[520px]' : 'max-h-[430px] sm:max-h-[460px]'}`}>
+    <section className={`cycle-block-list-card-zoom ${fillAvailableHeight ? 'cycle-block-list-card-zoom--fill h-full max-h-none' : 'max-h-[430px] sm:max-h-[460px]'} flex min-h-0 flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900`}>
       <div className="border-b border-zinc-100 px-3 py-2.5 dark:border-zinc-800 sm:px-4">
         <p className="text-[10px] font-black uppercase tracking-[0.2em] text-red-600 dark:text-red-400">Fila do ciclo</p>
         <div className="mt-1 flex items-end justify-between gap-3">
@@ -91,12 +91,12 @@ function CardSessoesCicloHoje({
                     disabled={loading || !hasSession}
                     aria-label={completed ? 'Marcar bloco como pendente' : 'Marcar bloco como concluido'}
                     title={completed ? 'Marcar bloco como pendente' : 'Marcar bloco como concluido'}
-                    className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${completed
-                      ? 'border-emerald-500 bg-emerald-500 text-white shadow-sm shadow-emerald-500/25'
-                      : 'border-zinc-300 bg-white text-transparent hover:border-emerald-500 hover:text-emerald-500 dark:border-zinc-700 dark:bg-zinc-950'
+                    className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border shadow-sm transition-all disabled:cursor-not-allowed disabled:opacity-60 ${completed
+                      ? 'border-emerald-500 bg-emerald-500 text-white shadow-emerald-500/20'
+                      : 'border-emerald-200 bg-white text-emerald-600 shadow-emerald-500/10 hover:border-emerald-300 hover:bg-emerald-50 dark:border-emerald-900/40 dark:bg-white/10 dark:text-emerald-300 dark:hover:bg-emerald-900/35'
                     }`}
                   >
-                    {loading ? <Loader2 size={13} className="animate-spin text-emerald-500" /> : <Check size={14} strokeWidth={3} />}
+                    {loading ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} strokeWidth={3.5} />}
                   </button>
                   <div className="min-w-0 flex-1">
                     <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-400">
@@ -112,7 +112,7 @@ function CardSessoesCicloHoje({
                           style={{ width: `${progressPercent}%` }}
                         />
                       </div>
-                      <span className="shrink-0 text-[9px] font-black tabular-nums text-zinc-400">
+                      <span className="shrink-0 text-[11px] font-black tabular-nums text-zinc-500 dark:text-zinc-300 sm:text-xs">
                         {fmtMin(progressMinutes)} / {fmtMin(plannedMinutes)}
                       </span>
                       <button

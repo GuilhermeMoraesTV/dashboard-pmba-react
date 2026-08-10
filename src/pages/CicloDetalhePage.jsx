@@ -4,7 +4,7 @@ import { doc, collection, query, orderBy, onSnapshot, deleteDoc, updateDoc, getD
 import { AnimatePresence, motion } from 'framer-motion';
 import { createPortal } from 'react-dom';
 
-import CicloVisual from '../components/ciclos/CicloVisual';
+import CicloVisual, { CicloViewToggle } from '../components/ciclos/CicloVisual';
 import RegistroEstudoModal from '../components/ciclos/RegistroEstudoModal';
 import DisciplinaDetalheModal from '../components/ciclos/DisciplinaDetalheModal';
 import ModalConclusaoCiclo from '../components/ciclos/ModalConclusaoCiclo';
@@ -514,6 +514,7 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
   const [showUpgradeWizard, setShowUpgradeWizard] = useState(false);
   const [configMenuOpen, setConfigMenuOpen] = useState(false);
   const [showTimerSettings, setShowTimerSettings] = useState(false);
+  const [cycleViewMode, setCycleViewMode] = useState('completo');
   const [loadingCicloSessao, setLoadingCicloSessao] = useState(null);
   const [acaoRevisaoCiclo, setAcaoRevisaoCiclo] = useState(null);
   const [cicloResetAnimation, setCicloResetAnimation] = useState(false);
@@ -1241,16 +1242,19 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
 
       {!showEmptyMessage && (
           <div className="-mx-2 min-h-0 sm:-mx-4 md:-mx-6 lg:-mx-8">
-              <div className="grid min-h-0 grid-cols-1 items-start gap-3 xl:grid-cols-[minmax(0,1.08fr)_minmax(380px,0.62fr)] 2xl:grid-cols-[minmax(0,1.12fr)_minmax(410px,0.64fr)]">
-                  <section className="ciclo-visual-card-shell relative flex w-full flex-col overflow-hidden rounded-2xl border border-zinc-200/70 bg-white/80 px-2.5 py-2.5 shadow-lg shadow-zinc-200/30 backdrop-blur-xl dark:border-zinc-800/70 dark:bg-zinc-950/35 dark:shadow-none sm:px-4 sm:py-3">
+              <div className="grid min-h-0 grid-cols-1 items-stretch gap-3 xl:grid-cols-[minmax(0,1.08fr)_minmax(380px,0.62fr)] 2xl:grid-cols-[minmax(0,1.12fr)_minmax(410px,0.64fr)]">
+                  <section className="ciclo-visual-card-shell relative flex h-full w-full flex-col overflow-hidden rounded-2xl border border-zinc-200/70 bg-white/80 px-2.5 py-2.5 shadow-lg shadow-zinc-200/30 backdrop-blur-xl dark:border-zinc-800/70 dark:bg-zinc-950/35 dark:shadow-none sm:px-4 sm:py-3">
                       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-red-500/40 to-transparent" />
-                      <div className="relative mb-2 flex flex-wrap items-center justify-between gap-2 px-1 sm:px-2">
-                          <div>
+                      <div className="relative mb-2 flex items-center justify-between gap-2 px-1 sm:px-2">
+                          <div className="min-w-0">
                               <p className="text-[9px] font-black uppercase tracking-[0.24em] text-red-600 dark:text-red-400">Ciclo de Estudos</p>
-                              <h2 className="mt-0.5 text-base font-black uppercase tracking-tight text-zinc-900 dark:text-white sm:text-lg">Mapa visual do ciclo</h2>
+                              <h2 className="mt-0.5 whitespace-nowrap text-sm font-black uppercase tracking-tight text-zinc-900 dark:text-white sm:text-lg">Mapa visual do ciclo</h2>
                           </div>
-                          <div className="rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-[9px] font-black uppercase tracking-widest text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
-                              {disciplinas.length} disciplinas
+                          <div className="flex shrink-0 items-center gap-2">
+                              <CicloViewToggle value={cycleViewMode} onChange={setCycleViewMode} />
+                              <div className="hidden rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-[9px] font-black uppercase tracking-widest text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400 2xl:block">
+                                  {disciplinas.length} disciplinas
+                              </div>
                           </div>
                       </div>
 
@@ -1270,6 +1274,9 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
                               onConcluirCiclo={handleConcluirCicloDoVisual}
                               cicloActionLoading={cicloActionLoading}
                               isResetAnimating={cicloResetAnimation}
+                              viewCiclo={cycleViewMode}
+                              onViewCicloChange={setCycleViewMode}
+                              showViewToggle={false}
                           />
                       </div>
                   </section>

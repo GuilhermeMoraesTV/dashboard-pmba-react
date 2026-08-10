@@ -71,7 +71,7 @@ export default function DailyGoalCompletedModal({
             role="dialog"
             aria-modal="true"
             aria-label={ariaLabel}
-            className="relative max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-[352px] overflow-hidden rounded-[22px] border border-emerald-200/90 bg-white/95 shadow-2xl shadow-emerald-950/25 backdrop-blur-sm dark:border-emerald-900/40 dark:bg-zinc-950/95 sm:aspect-square sm:max-h-none sm:w-full sm:max-w-[520px] sm:rounded-[30px]"
+            className={`relative max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-[352px] overflow-hidden rounded-[22px] border border-emerald-200/90 bg-white/95 shadow-2xl shadow-emerald-950/25 backdrop-blur-sm dark:border-emerald-900/40 dark:bg-zinc-950/95 sm:max-h-none sm:w-full sm:rounded-[30px] ${compactStatsLayout ? 'sm:max-w-[480px]' : 'sm:aspect-square sm:max-w-[520px]'}`}
             initial={{ opacity: 0, y: 34, scale: 0.9, rotateX: 10 }}
             animate={{ opacity: 1, y: 0, scale: 1, rotateX: 0 }}
             exit={{ opacity: 0, y: 24, scale: 0.98 }}
@@ -116,7 +116,7 @@ export default function DailyGoalCompletedModal({
               <X size={18} />
             </button>
 
-            <div className="relative flex max-h-[calc(100dvh-1rem)] flex-col px-3 pb-3 pt-3 sm:h-full sm:max-h-none sm:px-7 sm:pb-7 sm:pt-7">
+            <div className={`relative flex max-h-[calc(100dvh-1rem)] flex-col px-3 pb-3 pt-3 sm:max-h-none sm:px-7 sm:pb-7 sm:pt-7 ${compactStatsLayout ? '' : 'sm:h-full'}`}>
               <motion.div
                 className="mx-auto mb-1.5 flex max-w-[290px] items-center justify-center gap-2 bg-transparent text-center sm:mb-2 sm:max-w-[360px]"
                 initial={{ opacity: 0, y: 8 }}
@@ -133,7 +133,7 @@ export default function DailyGoalCompletedModal({
                   </p>
                 </div>
               </motion.div>
-              <header className="mx-auto flex min-h-[100px] max-w-[290px] shrink-0 flex-col items-center justify-center px-8 text-center sm:min-h-[188px] sm:max-w-[380px] sm:px-16">
+              <header className={`mx-auto flex min-h-[100px] max-w-[290px] shrink-0 flex-col items-center justify-center px-8 text-center sm:max-w-[380px] sm:px-16 ${compactStatsLayout ? 'sm:min-h-[154px]' : 'sm:min-h-[188px]'}`}>
                 <motion.span
                   className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-emerald-200 bg-white/90 px-2.5 py-1 text-[7px] font-black uppercase tracking-[0.18em] text-emerald-700 shadow-sm dark:border-emerald-900/50 dark:bg-zinc-900/80 dark:text-emerald-300 sm:gap-2 sm:px-3 sm:text-[8px] sm:tracking-[0.26em]"
                   initial={{ opacity: 0, y: 8 }}
@@ -186,9 +186,9 @@ export default function DailyGoalCompletedModal({
                 </motion.p>
               </header>
 
-              <section className={`grid min-h-0 flex-1 grid-cols-1 gap-2 sm:gap-3 ${compactStatsLayout ? 'sm:grid-cols-[0.76fr_1.24fr]' : 'sm:grid-cols-[1.08fr_0.92fr]'}`}>
+              <section className={`grid min-h-0 flex-1 grid-cols-1 gap-2 sm:gap-3 ${compactStatsLayout ? 'sm:grid-cols-[0.9fr_1.1fr] sm:items-start' : 'sm:grid-cols-[1.08fr_0.92fr]'}`}>
                 <motion.div
-                  className={`relative flex min-h-[100px] flex-col rounded-[18px] border border-zinc-200 bg-white/80 p-3 shadow-sm dark:border-white/10 dark:bg-zinc-900/80 sm:rounded-[24px] sm:p-3.5 ${compactStatsLayout ? 'sm:min-h-[132px] sm:max-h-[152px] sm:self-start' : 'sm:min-h-0'}`}
+                  className={`relative flex min-h-[100px] flex-col rounded-[18px] border border-zinc-200 bg-white/80 p-3 shadow-sm dark:border-white/10 dark:bg-zinc-900/80 sm:rounded-[24px] ${compactStatsLayout ? 'sm:min-h-[116px] sm:max-h-[124px] sm:self-start sm:p-3' : 'sm:min-h-0 sm:p-3.5'}`}
                   initial={{ opacity: 0, y: 16, scale: 0.96 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   transition={{ duration: 0.42, delay: statDelay, ease: 'easeOut' }}
@@ -211,11 +211,11 @@ export default function DailyGoalCompletedModal({
                   </div>
                 </motion.div>
 
-                <div className={`grid min-h-0 grid-cols-2 gap-1.5 sm:gap-2 ${compactStatsLayout ? 'sm:grid-cols-1' : ''}`}>
+                <div className={`grid min-h-0 grid-cols-2 gap-1.5 sm:gap-2 ${compactStatsLayout ? 'sm:grid-cols-1 sm:grid-rows-[repeat(2,minmax(0,58px))] sm:self-start' : ''}`}>
                   {stats.map(({ label, value, description, icon: Icon, tone }, index) => (
                     <motion.div
                       key={label}
-                      className={`relative overflow-hidden rounded-[15px] border px-1.5 py-1.5 shadow-sm sm:rounded-[20px] sm:px-3 sm:py-3 ${
+                      className={`relative rounded-[15px] border px-1.5 py-1.5 shadow-sm sm:rounded-[20px] ${compactStatsLayout ? 'overflow-visible sm:px-2.5 sm:py-2' : 'overflow-hidden sm:px-3 sm:py-3'} ${
                         tone === 'emerald'
                           ? 'border-emerald-200 bg-emerald-50/60 dark:border-emerald-900/45 dark:bg-emerald-950/15'
                           : tone === 'red'
@@ -240,7 +240,7 @@ export default function DailyGoalCompletedModal({
                           <Icon className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                         </div>
                       </div>
-                      <p className="mt-1 break-words text-[13px] font-black leading-tight text-zinc-950 dark:text-white sm:mt-2 sm:text-base">{value}</p>
+                      <p className={`mt-1 font-black leading-tight text-zinc-950 dark:text-white ${compactStatsLayout ? 'whitespace-nowrap text-[12px] sm:mt-1 sm:text-sm' : 'break-words text-[13px] sm:mt-2 sm:text-base'}`}>{value}</p>
                       {description && (
                         <p className="mt-1 text-[7px] font-bold uppercase leading-tight tracking-wide text-zinc-500 dark:text-zinc-400 sm:text-[8px]">
                           {description}

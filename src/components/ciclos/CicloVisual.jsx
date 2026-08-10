@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle, BookOpen, Play, Clock, Target, Trophy, CheckCircle2, Sparkles, RotateCw } from 'lucide-react';
 import { getCycleAssuntoForSession, getCycleSessionRecordedMinutes } from '../../utils/studyDayStatus';
@@ -421,6 +421,35 @@ const CycleResetAnimation = ({ conclusoes = 0 }) => (
   </motion.div>
 );
 
+export function CicloViewToggle({ value = 'completo', onChange, className = '' }) {
+  return (
+    <div className={`flex items-center justify-center gap-1 rounded-full bg-white/75 p-0.5 shadow-sm ring-1 ring-zinc-200/70 backdrop-blur-md dark:bg-zinc-950/60 dark:ring-zinc-800/70 ${className}`}>
+      <button
+        type="button"
+        onClick={() => onChange?.('completo')}
+        className={`whitespace-nowrap rounded-full px-2.5 py-1 text-[8px] font-bold uppercase tracking-wide transition-all sm:px-3 sm:text-[9px] ${
+          value === 'completo'
+            ? 'bg-zinc-900 text-white shadow-md dark:bg-white dark:text-zinc-900'
+            : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-white'
+        }`}
+      >
+        Ciclo completo
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange?.('disciplina')}
+        className={`whitespace-nowrap rounded-full px-2.5 py-1 text-[8px] font-bold uppercase tracking-wide transition-all sm:px-3 sm:text-[9px] ${
+          value === 'disciplina'
+            ? 'bg-zinc-900 text-white shadow-md dark:bg-white dark:text-zinc-900'
+            : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-white'
+        }`}
+      >
+        Por disciplina
+      </button>
+    </div>
+  );
+}
+
 function CicloVisual({
   selectedDisciplinaId,
   onSelectDisciplina,
@@ -439,9 +468,17 @@ function CicloVisual({
   hideActionButtons = false,
   sizePreset = 'default',
   isResetAnimating = false,
+  viewCiclo: controlledViewCiclo,
+  onViewCicloChange,
+  showViewToggle = true,
 }) {
   const [hoveredId, setHoveredId] = useState(null);
-  const [viewCiclo, setViewCiclo] = useState('completo');
+  const [internalViewCiclo, setInternalViewCiclo] = useState('completo');
+  const viewCiclo = controlledViewCiclo || internalViewCiclo;
+  const setViewCiclo = useCallback((nextView) => {
+    setInternalViewCiclo(nextView);
+    onViewCicloChange?.(nextView);
+  }, [onViewCicloChange]);
   const [disciplinaFocada, setDisciplinaFocada] = useState(null);
   const [recentlyCompletedIndex, setRecentlyCompletedIndex] = useState(null);
   const previousConcluidasRef = useRef(ciclo?.sessoesConcluidas || []);
@@ -458,6 +495,12 @@ function CicloVisual({
     '--ciclo-visual-size-desktop': `min(calc(100% - ${cycleVisualSize.parentOffset}px), calc(100vh - ${cycleVisualSize.desktopViewportOffset}px), ${cycleVisualSize.desktopViewportWidth}vw, ${cssLength(cycleVisualSize.desktopMax)})`,
   };
   const shouldUseDisciplineColors = ciclo?.coresDisciplinasAtivas !== false;
+
+  useEffect(() => {
+    if (viewCiclo !== 'completo') return;
+    setDisciplinaFocada(null);
+    onSelectDisciplina?.(null);
+  }, [onSelectDisciplina, viewCiclo]);
   const coresDisciplinas = useMemo(() => {
     const mapa = {};
     disciplinas.forEach((d) => {
@@ -501,7 +544,7 @@ function CicloVisual({
     setViewCiclo('completo');
     setDisciplinaFocada(null);
     onSelectDisciplina?.(null);
-  }, [isResetAnimating, onSelectDisciplina]);
+  }, [isResetAnimating, onSelectDisciplina, setViewCiclo]);
 
   const dataLegado = useMemo(() => {
     if (!disciplinas.length) return [];
@@ -732,35 +775,14 @@ function CicloVisual({
       <div className="flex w-full animate-fade-in flex-col items-stretch justify-center px-1">
 
         {/* --- ÁREA DO GRÁFICO --- */}
-        <div id="ciclo-radar-chart" className={`group relative flex h-full min-h-0 w-full flex-1 flex-col items-center overflow-visible ${isModoCicloSessoes ? 'pt-9' : ''}`}>
+        <div id="ciclo-radar-chart" className={`group relative flex h-full min-h-0 w-full flex-1 flex-col items-center overflow-visible ${isModoCicloSessoes && (showViewToggle || disciplinaFocada) ? 'pt-9' : ''}`}>
           <AnimatePresence>
             {isResetAnimating && <CycleResetAnimation conclusoes={ciclo?.conclusoes || 0} />}
           </AnimatePresence>
 
-          {isModoCicloSessoes && (
+          {isModoCicloSessoes && (showViewToggle || (disciplinaFocada && viewCiclo === 'disciplina')) && (
             <div className="absolute left-1/2 top-0 z-20 flex -translate-x-1/2 flex-col items-center">
-              <div className="flex items-center justify-center gap-1 rounded-full bg-white/70 p-0.5 shadow-sm ring-1 ring-zinc-200/60 backdrop-blur-md dark:bg-zinc-950/55 dark:ring-zinc-800/60">
-                <button
-                  onClick={() => { setViewCiclo('completo'); setDisciplinaFocada(null); onSelectDisciplina(null); }}
-                  className={`whitespace-nowrap rounded-full px-2.5 py-1 text-[8px] font-bold uppercase tracking-wide transition-all sm:px-3 sm:text-[9px] ${
-                    viewCiclo === 'completo'
-                      ? 'bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-md'
-                      : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-white'
-                  }`}
-                >
-                  Ciclo completo
-                </button>
-                <button
-                  onClick={() => setViewCiclo('disciplina')}
-                  className={`whitespace-nowrap rounded-full px-2.5 py-1 text-[8px] font-bold uppercase tracking-wide transition-all sm:px-3 sm:text-[9px] ${
-                    viewCiclo === 'disciplina'
-                      ? 'bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-md'
-                      : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-white'
-                  }`}
-                >
-                  Por disciplina
-                </button>
-              </div>
+              {showViewToggle && <CicloViewToggle value={viewCiclo} onChange={setViewCiclo} />}
               {disciplinaFocada && viewCiclo === 'disciplina' && (
                 <button
                   onClick={() => { setDisciplinaFocada(null); onSelectDisciplina(null); }}

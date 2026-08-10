@@ -15,7 +15,7 @@ import { resolveLogoUrl } from '../../components/admin/config/editalAssets';
 import DailyGoalCompletedModal from '../../components/shared/DailyGoalCompletedModal.jsx';
 import CardSessoesCicloHoje from '../../components/ciclos/CardSessoesCicloHoje.jsx';
 import { buildCompletionRegistro } from '../../utils/completionRegistro';
-import { getCronogramaSlotRecordedMinutes, getCycleDayTargetMinutesMap, getCycleFreeQueue, isConfirmedStudyRecord } from '../../utils/studyDayStatus';
+import { getCronogramaSlotRecordedMinutes, getCycleDayTargetMinutesMap, getCycleFreeQueue } from '../../utils/studyDayStatus';
 import { getDisciplineCardVars, getDisciplineColorForSlot } from '../../utils/disciplineColors';
 import HomeEmptyState from './HomeEmptyState.jsx';
 
@@ -572,7 +572,6 @@ function HojeCard({
     return (Array.isArray(registrosEstudo) ? registrosEstudo : []).reduce((total, registro) => {
       if (getRegistroDateKey(registro) !== hojeKey) return total;
       if (String(registro.cicloId || '') !== String(activeCicloData?.id || '') || registro.cronogramaId) return total;
-      if (!isConfirmedStudyRecord(registro)) return total;
       return total + Math.max(0, Number(registro.tempoEstudadoMinutos || registro.tempoMinutos || 0));
     }, 0);
   }, [activeCicloData?.id, hojeKey, modoCicloAtivo, registrosEstudo]);

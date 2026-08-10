@@ -6,7 +6,22 @@
 .planning-level-range {
   appearance: none;
   -webkit-appearance: none;
-  outline: none;
+  border: 0 !important;
+  border-radius: 999px;
+  outline: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: transparent;
+  padding: 0;
+}
+
+.planning-level-range:focus,
+.planning-level-range:focus-visible,
+.planning-level-range:active {
+  border: 0 !important;
+  outline: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
 }
 
 .planning-level-range::-webkit-slider-runnable-track {
@@ -37,6 +52,10 @@
   border: 2px solid #059669;
   border-radius: 999px;
   background: #fff;
+}
+
+.planning-level-range::-moz-focus-outer {
+  border: 0;
 }
 
 /* PAGINA E PREVIEW DO CICLO: dimensoes do radar e do card externo. */
@@ -1167,6 +1186,9 @@ body.registro-modal-open .app-global-footer {
   --zoom-desktop-cycle-block-list-card: 0.86;
   --zoom-mobile-cycle-block-list-card: 0.88;
   --zoom-desktop-edital: 0.82;
+  /* Zoom exclusivo do header do edital. */
+  --zoom-desktop-edital-header: 1;
+  --zoom-mobile-edital-header: 1;
   /* Escala somente a area direita dos cards de disciplina do edital. */
   --edital-discipline-side-scale-desktop: 1.15;
   --edital-discipline-side-scale-mobile: 1;
@@ -1332,6 +1354,21 @@ body.registro-modal-open .app-global-footer {
 .edital-discipline-side__icon {
   width: calc(0.9rem * var(--edital-discipline-side-scale));
   height: calc(0.9rem * var(--edital-discipline-side-scale));
+}
+
+/* HEADER DO EDITAL: escala independente da pagina, no desktop e no mobile. */
+.edital-header-zoom {
+  --edital-header-zoom: var(--zoom-mobile-edital-header);
+  width: calc(100% / var(--edital-header-zoom));
+  max-width: none;
+  zoom: var(--edital-header-zoom);
+  transform-origin: top left;
+}
+
+@media (min-width: 640px) {
+  .edital-header-zoom {
+    --edital-header-zoom: var(--zoom-desktop-edital-header);
+  }
 }
 
 /* PAGINA DO EDITAL: metricas e acoes laterais de cada assunto. */
@@ -1614,6 +1651,10 @@ body.registro-modal-open .app-global-footer {
     min-width: 0;
     zoom: var(--zoom-desktop-cycle-block-list-card);
     transform-origin: top left;
+  }
+
+  .cycle-block-list-card-zoom--fill {
+    height: calc(100% / var(--zoom-desktop-cycle-block-list-card));
   }
 }
 
