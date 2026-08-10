@@ -61,12 +61,14 @@ const WizardShell = ({
   cronogramaId = null,
   initialState = null,
   initialStep = 0,
+  preselectedEdital = null,
   embedded = false,
 }) => {
   const [passo,             setPasso]             = useState(() => mode === 'edit' ? Math.max(1, Number(initialStep) || 1) : Number(initialStep) || 0);
   const [confirmandoSaida,  setConfirmandoSaida]  = useState(false);
   const [confirmandoVoltar, setConfirmandoVoltar] = useState(false);
   const conteudoRef = useRef(null);
+  const preselectedEditalAppliedRef = useRef(null);
 
   const {
     edital,
@@ -93,7 +95,16 @@ const WizardShell = ({
     mode,
     cronogramaId,
     initialState,
+    preselectedEdital,
   });
+
+  useEffect(() => {
+    if (isEditMode || !preselectedEdital?.id) return;
+    if (preselectedEditalAppliedRef.current === String(preselectedEdital.id)) return;
+    preselectedEditalAppliedRef.current = String(preselectedEdital.id);
+    handleSelectEdital(preselectedEdital);
+    setMostrandoRascunho(false);
+  }, [isEditMode, preselectedEdital, handleSelectEdital, setMostrandoRascunho]);
 
   const visibleSteps = isEditMode ? STEPS.slice(1) : STEPS;
   const firstVisibleStepId = visibleSteps[0]?.id ?? 0;
@@ -114,6 +125,7 @@ const WizardShell = ({
     5: 'cronograma-config',
     6: 'cronograma-preview',
   }[passo] || 'cronograma-step';
+  const wideStepFrame = passo === 2 || passo === 3;
   const getNextPasso = (current) => (isMontagemPersonalizada && current === 1 ? 4 : current + 1);
   const getPrevPasso = (current) => (isMontagemPersonalizada && current === 4 ? 1 : current - 1);
   const voltarParaSelecaoInicial = () => {
@@ -242,6 +254,8 @@ const WizardShell = ({
           horarios={horarios}
           onHorariosChange={setHorarios}
           editalSelecionado={edital}
+          config={cronConfig}
+          onConfigChange={setCronConfig}
         />
       );
       case 4: return (
@@ -308,7 +322,7 @@ const WizardShell = ({
           data-wizard-type="cronograma"
           data-wizard-step={currentStepZoomKey}
           data-wizard-embedded={embedded ? 'true' : undefined}
-          className={`wizard-step-frame ${isPassoEdital || isUltimoStep || isPassoMontagemPersonalizada ? 'w-full mx-auto' : 'max-w-5xl mx-auto'}`}
+          className={`wizard-step-frame ${isPassoEdital || isUltimoStep || isPassoMontagemPersonalizada ? 'w-full mx-auto' : wideStepFrame ? 'w-full max-w-7xl mx-auto' : 'max-w-5xl mx-auto'}`}
         >
           <AnimatePresence mode="wait">
             <motion.div

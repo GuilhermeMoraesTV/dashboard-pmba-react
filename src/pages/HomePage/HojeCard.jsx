@@ -13,8 +13,9 @@ import { useCiclos } from '../../hooks/useCiclos';
 import { useCronogramaSystem } from '../../hooks/useCronogramaSystem';
 import { resolveLogoUrl } from '../../components/admin/config/editalAssets';
 import DailyGoalCompletedModal from '../../components/shared/DailyGoalCompletedModal.jsx';
+import CardSessoesCicloHoje from '../../components/ciclos/CardSessoesCicloHoje.jsx';
 import { buildCompletionRegistro } from '../../utils/completionRegistro';
-import { getCronogramaSlotRecordedMinutes, getCycleDailyGuide } from '../../utils/studyDayStatus';
+import { getCronogramaSlotRecordedMinutes, getCycleDayTargetMinutesMap, getCycleFreeQueue, isConfirmedStudyRecord } from '../../utils/studyDayStatus';
 import { getDisciplineCardVars, getDisciplineColorForSlot } from '../../utils/disciplineColors';
 import HomeEmptyState from './HomeEmptyState.jsx';
 
@@ -417,19 +418,25 @@ function HojeCard({
 
   const cicloGuide = useMemo(() => {
     if (!activeCicloData?.id) return { sessions: [], isRestDay: false, plannedMinutes: 0 };
-    return getCycleDailyGuide({ ...activeCicloData, disciplinas: disciplinasCiclo }, new Date(), registrosEstudo);
+    return getCycleFreeQueue({ ...activeCicloData, disciplinas: disciplinasCiclo }, registrosEstudo);
   }, [activeCicloData, disciplinasCiclo, registrosEstudo]);
 
   const cicloSlotsEstudo = useMemo(() => {
     const tempoSessao = Math.max(1, Number(activeCicloData?.tempoSessaoMinutos || 50));
     return (cicloGuide.sessions || []).map((sessao) => {
       const disc = disciplinasCiclo.find((d) => d.id === sessao.disciplinaId);
+      const globalIndex = Number(sessao.globalIndex);
+      const hasGlobalIndex = sessao.globalIndex !== null
+        && sessao.globalIndex !== undefined
+        && Number.isInteger(globalIndex);
       const tempoPlanejadoMinutos = Math.max(1, Number(sessao.tempoPlanejadoMinutos || sessao.tempoMinutos || tempoSessao));
       const progressoRaw = Number(sessao.progressoMinutos || 0);
       const concluidoPorProgresso = tempoPlanejadoMinutos > 0 && progressoRaw >= tempoPlanejadoMinutos;
       return {
         ...sessao,
-        slotId: `ciclo-${sessao.globalIndex}`,
+        slotId: hasGlobalIndex
+          ? `ciclo-${globalIndex}`
+          : `ciclo-disciplina-${sessao.disciplinaId}`,
         disciplinaNome: disc?.nome || 'Disciplina',
         disciplina: disc?.nome || 'Disciplina',
         disciplinaObj: disc,
@@ -555,25 +562,48 @@ function HojeCard({
     () => revisoesVisiveis.filter((slot) => !slot.concluido).length,
     [revisoesVisiveis]
   );
+  const hojeKey = useMemo(() => formatDateKeyLocal(new Date()), []);
+  const cicloMetaHojeMinutos = useMemo(() => {
+    if (!modoCicloAtivo) return 0;
+    return Number(getCycleDayTargetMinutesMap(activeCicloData)?.[hojeIdx] || 0);
+  }, [activeCicloData, hojeIdx, modoCicloAtivo]);
+  const cicloEstudadoHojeMinutos = useMemo(() => {
+    if (!modoCicloAtivo) return 0;
+    return (Array.isArray(registrosEstudo) ? registrosEstudo : []).reduce((total, registro) => {
+      if (getRegistroDateKey(registro) !== hojeKey) return total;
+      if (String(registro.cicloId || '') !== String(activeCicloData?.id || '') || registro.cronogramaId) return total;
+      if (!isConfirmedStudyRecord(registro)) return total;
+      return total + Math.max(0, Number(registro.tempoEstudadoMinutos || registro.tempoMinutos || 0));
+    }, 0);
+  }, [activeCicloData?.id, hojeKey, modoCicloAtivo, registrosEstudo]);
 
   const progressoCard = useMemo(() => {
     const itens = activePanel === 'estudo' ? estudosVisiveis : revisoesVisiveis;
-    const total = itens.reduce((acc, item) => acc + Number(item.tempoPlanejadoMinutos ?? item.tempoMinutos ?? 0), 0);
-    const feito = itens.reduce((acc, item) => {
+    const totalFila = itens.reduce((acc, item) => acc + Number(item.tempoPlanejadoMinutos ?? item.tempoMinutos ?? 0), 0);
+    const feitoFila = itens.reduce((acc, item) => {
       const tempo = Number(item.tempoPlanejadoMinutos ?? item.tempoMinutos ?? 0);
       if (item.concluido) return acc + Math.max(Number(item.progressoMinutos || 0), tempo);
       return acc + Math.min(Number(item.progressoMinutos || 0), tempo || Number(item.progressoMinutos || 0));
     }, 0);
+    const usaMetaDiariaCiclo = modoCicloAtivo && activePanel === 'estudo' && cicloMetaHojeMinutos > 0;
+    const total = usaMetaDiariaCiclo ? cicloMetaHojeMinutos : totalFila;
+    const feito = usaMetaDiariaCiclo ? cicloEstudadoHojeMinutos : feitoFila;
     const pct = total > 0 ? Math.min(100, Math.round((feito / total) * 100)) : 0;
     return { total, feito, pct, itens: itens.length, concluidos: itens.filter((item) => item.concluido).length };
-  }, [activePanel, estudosVisiveis, revisoesVisiveis]);
+  }, [activePanel, cicloEstudadoHojeMinutos, cicloMetaHojeMinutos, estudosVisiveis, modoCicloAtivo, revisoesVisiveis]);
 
   const totalItensDia = estudosVisiveis.length + revisoesVisiveis.length;
   const totalConcluidosDia = estudosVisiveis.filter((s) => s.concluido).length + revisoesVisiveis.filter((s) => s.concluido).length;
-  const diaTodoConcluido = totalItensDia > 0 && totalConcluidosDia === totalItensDia;
+  const metaCicloConcluida = modoCicloAtivo && cicloMetaHojeMinutos > 0 && cicloEstudadoHojeMinutos >= cicloMetaHojeMinutos;
+  const diaTodoConcluido = modoCicloAtivo
+    ? metaCicloConcluida
+    : totalItensDia > 0 && totalConcluidosDia === totalItensDia;
   const completionGlowActive = diaTodoConcluido && totalItensDia > 0;
   const itensDoDia = useMemo(() => [...estudosVisiveis, ...revisoesVisiveis], [estudosVisiveis, revisoesVisiveis]);
   const progressoDiaResumo = useMemo(() => {
+    if (modoCicloAtivo && cicloMetaHojeMinutos > 0) {
+      return { total: cicloMetaHojeMinutos, feito: cicloEstudadoHojeMinutos };
+    }
     const total = itensDoDia.reduce((acc, item) => acc + Number(item.tempoPlanejadoMinutos ?? item.tempoMinutos ?? 0), 0);
     const feito = itensDoDia.reduce((acc, item) => {
       const tempo = Number(item.tempoPlanejadoMinutos ?? item.tempoMinutos ?? 0);
@@ -581,8 +611,7 @@ function HojeCard({
       return acc + Math.min(Number(item.progressoMinutos || 0), tempo || Number(item.progressoMinutos || 0));
     }, 0);
     return { total, feito };
-  }, [itensDoDia]);
-  const hojeKey = useMemo(() => formatDateKeyLocal(new Date()), []);
+  }, [cicloEstudadoHojeMinutos, cicloMetaHojeMinutos, itensDoDia, modoCicloAtivo]);
   const registrosHoje = useMemo(() => {
     const source = Array.isArray(registrosEstudo) ? registrosEstudo : [];
     return source.filter((registro) => {
@@ -971,13 +1000,13 @@ function HojeCard({
                 <p className={`text-[8px] font-black uppercase tracking-[0.24em] sm:text-[9px] ${
                   completionGlowActive ? 'text-emerald-600 dark:text-emerald-400' : activePanel === 'estudo' ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'
                 }`}>
-                  Estudo do dia
+                  {modoCicloAtivo ? 'Fila do ciclo' : 'Estudo do dia'}
                 </p>
                 <h2 className="mt-0.5 text-base font-black uppercase leading-none tracking-tight text-zinc-900 dark:text-white sm:text-xl">
                   {completionGlowActive ? (
                     'ESTUDO DO DIA CONCLUIDO'
                   ) : (
-                    <>{activePanel === 'estudo' ? 'Sessoes' : 'Revisoes'} <span className={activePanel === 'estudo' ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}>ativas</span></>
+                    <>{activePanel === 'estudo' ? (modoCicloAtivo ? 'Blocos do ciclo' : 'Sessoes ativas') : 'Revisoes ativas'}</>
                   )}
                 </h2>
                 {completionGlowActive && mostrarTempoHomeTotal && (
@@ -991,7 +1020,7 @@ function HojeCard({
             {mostrarTempoHomeTotal && (
             <div className="shrink-0 text-right">
               <p className="text-[8px] font-black uppercase tracking-widest text-zinc-400">
-                {completionGlowActive || !mostrarTempoHomeDetalhado ? 'Tempo' : 'Meta de hoje'}
+                {modoCicloAtivo ? 'Meta de hoje' : completionGlowActive || !mostrarTempoHomeDetalhado ? 'Tempo' : 'Meta de hoje'}
               </p>
               <div className="mt-1 flex items-center justify-end gap-1.5">
                 <Clock size={13} className={completionGlowActive ? 'text-emerald-500' : activePanel === 'estudo' ? 'text-red-500' : 'text-blue-500'} />
@@ -1018,7 +1047,7 @@ function HojeCard({
             <span className="min-w-0 truncate text-[8px] font-black uppercase tracking-widest text-zinc-500">
               {completionGlowActive
                 ? `Dia concluido - ${progressoCard.concluidos} de ${progressoCard.itens}`
-                : `${modoCicloAtivo ? 'Modo ciclo' : 'Cronograma'} - ${progressoCard.concluidos} de ${progressoCard.itens} concluidos`}
+                : `${modoCicloAtivo ? 'Ciclo livre' : 'Cronograma'} - ${progressoCard.concluidos} de ${progressoCard.itens} concluidos`}
             </span>
             <div className="flex shrink-0 items-center rounded-xl border border-zinc-100 bg-zinc-50 p-0.5 dark:border-white/5 dark:bg-white/5">
               <button
@@ -1194,22 +1223,29 @@ function HojeCard({
         </div>
         {activePanel === 'estudo' ? (
           <div className="study-guide-scroll custom-scrollbar min-h-0 flex-1 space-y-4 overflow-y-auto pr-2">
-            {estudosVisiveis.length > 0 ? estudosVisiveis.map((s) => {
+            {modoCicloAtivo ? (
+              <CardSessoesCicloHoje
+                ciclo={activeCicloData}
+                disciplinas={disciplinasCiclo}
+                onIniciarSessao={handleIniciarSessaoCiclo}
+                onToggleSessao={handleToggleSessaoCiclo}
+                loadingSessionId={loadingCicloSessao}
+                useDisciplineColors={activeCicloData?.coresDisciplinasAtivas !== false}
+                registrosEstudo={registrosEstudo}
+              />
+            ) : estudosVisiveis.length > 0 ? estudosVisiveis.map((s) => {
               const key = s.slotIdBase || s.slotId || s.globalIndex;
-              const isCycleSlot = modoCicloAtivo;
               return (
                 <MissionSlot
                   key={key}
                   slot={s}
                   isDone={Boolean(s.concluido)}
-                  isLoading={isCycleSlot ? loadingCicloSessao === s.globalIndex : loading === (s.slotIdBase || s.slotId)}
-                  onToggle={isCycleSlot ? handleToggleSessaoCiclo : handleToggle}
-                  onMarkPending={isCycleSlot ? handleMarcarPendenciaCiclo : handleMarkPending}
-                  onPlay={isCycleSlot
-                    ? (slot) => handleIniciarSessaoCiclo(slot.disciplinaObj || { id: slot.disciplinaId, nome: slot.disciplinaNome }, slot.globalIndex, slot)
-                    : handlePlay}
+                  isLoading={loading === (s.slotIdBase || s.slotId)}
+                  onToggle={handleToggle}
+                  onMarkPending={handleMarkPending}
+                  onPlay={handlePlay}
                   variant="estudo"
-                  sourceMode={isCycleSlot ? 'ciclo' : 'cronograma'}
+                  sourceMode="cronograma"
                   useDisciplineColors={activeCicloData?.coresDisciplinasAtivas !== false}
                   modoExibirTempo={modoTempoHome}
                 />

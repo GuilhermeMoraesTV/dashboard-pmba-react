@@ -12,6 +12,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CATALOGO_EDITAIS } from './AdminPage/EditaisManager';
 import { useForceUnlock } from '../hooks/useForceUnlock';
+import { deletePlanStudyRecords } from '../services/planDeletion';
 
 import {
   User, Save, X, Archive, Loader2, Upload, Trash2,
@@ -709,25 +710,16 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
         setCicloActionLoading(true);
 
         try {
-            // 1. Buscar todos os registros vinculados a este plano
-            const registrosQuery = query(
-                collection(db, 'users', user.uid, 'registrosEstudo'),
-                where(isCronograma ? 'cronogramaId' : 'cicloId', '==', id)
-            );
-            const snapshot = await getDocs(registrosQuery);
-
-            const batch = writeBatch(db);
-
-            // 2. Adicionar cada registro para deleção no batch
-            snapshot.docs.forEach((docRef) => {
-                batch.delete(docRef.ref);
+            await deletePlanStudyRecords({
+                userId: user.uid,
+                planId: id,
+                planType: isCronograma ? 'cronograma' : 'ciclo',
             });
 
-            // 3. Deletar o documento do plano
+            const batch = writeBatch(db);
             const planoRef = doc(db, 'users', user.uid, isCronograma ? 'cronogramas' : 'ciclos', id);
             batch.delete(planoRef);
 
-            // 4. Executar o batch
             await batch.commit();
 
             setMessage({ type: 'success', text: `${isCronograma ? 'Cronograma' : 'Ciclo'} "${nome}" e registros excluidos.` });

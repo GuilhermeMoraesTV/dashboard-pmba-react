@@ -30,11 +30,9 @@
 
 import {
   arredondar5,
-  normalizarNivel,
-  calcularMediaAssuntosPorNivel,
-  calcularPesoComAssuntos,
+  calcularMediaAssuntos,
+  calcularPesoDisciplina,
   calcularMateriasPorDia,
-  calcularScoreEfetivo,
   calcularSemanas,
   DIA_NOMES,
   INTERVALOS_REVISAO,
@@ -301,7 +299,7 @@ function normalizarDisciplinaUnicaPorDia(alocacoes, diasOrdenados) {
   }
 }
 
-function rebalancearMinutosTeoriaPorDia(alocacoes, minutosEstudoPorIdx, minutosTeoriaPorDia, maxMinutosSlot = MAX_MINUTOS_SLOT) {
+function rebalancearMinutosTeoriaPorDia(alocacoes, minutosEstudoPorIdx, minutosTeoriaPorDia, maxMinutosSlot = MAX_MINUTOS_SLOT, minMinutosSlot = MIN_MINUTOS_SLOT) {
   const getSomaDia = (dia) => alocacoes.reduce((acc, aloc, idx) => (
     Number(aloc.dia) === Number(dia) ? acc + (minutosEstudoPorIdx[idx] || 0) : acc
   ), 0);
@@ -324,7 +322,7 @@ function rebalancearMinutosTeoriaPorDia(alocacoes, minutosEstudoPorIdx, minutosT
 
     const idxDoador = alocacoes
       .map((aloc, idx) => ({ aloc, idx, minutos: minutosEstudoPorIdx[idx] || 0 }))
-      .filter(item => Number(item.aloc.dia) === diaExcedente.dia && item.minutos - 5 >= MIN_MINUTOS_SLOT)
+      .filter(item => Number(item.aloc.dia) === diaExcedente.dia && item.minutos - 5 >= minMinutosSlot)
       .sort((a, b) => b.minutos - a.minutos)[0]?.idx;
 
     if (idxDoador == null) break;
@@ -464,6 +462,9 @@ export function gerarSchedule(disciplinas, disponibilidade, opcoes = {}) {
   // ── Guarda de entrada ─────────────────────────────────────────────────────
   if (!disciplinas?.length) return null;
 
+  const minMinutosSlot = Math.max(5, Math.round(Number(opcoes.duracaoMinimaSessaoMinutos) || MIN_MINUTOS_SLOT));
+  const maxMinutosSlot = Math.max(minMinutosSlot, Math.round(Number(opcoes.duracaoMaximaSessaoMinutos) || 60));
+
   const disciplinasValidas = disciplinas.filter(d => {
     if (!d?.id   || typeof d.id   !== 'string') return false;
     if (!d?.nome || typeof d.nome !== 'string') return false;
@@ -528,8 +529,8 @@ export function gerarSchedule(disciplinas, disponibilidade, opcoes = {}) {
     const naoDiarias = disciplinas
       .filter((disciplina) => !idsDiarias.has(disciplina.id))
       .sort((a, b) => {
-        const pesoA = calcularPesoComAssuntos(a.nivel, Math.max(1, a.assuntos?.length || 1), 1);
-        const pesoB = calcularPesoComAssuntos(b.nivel, Math.max(1, b.assuntos?.length || 1), 1);
+        const pesoA = calcularPesoDisciplina(a, 1);
+        const pesoB = calcularPesoDisciplina(b, 1);
         return pesoB - pesoA;
       });
     const naoDiariasQueCabem = capacidadeNaoDiaria >= naoDiarias.length
@@ -544,14 +545,11 @@ export function gerarSchedule(disciplinas, disponibilidade, opcoes = {}) {
   const idsDisciplinasDiarias = new Set(disciplinasDiarias.map((disciplina) => disciplina.id));
 
   // ── PASSO 1: Calcular pesos ───────────────────────────────────────────────
-  const mediaAssuntosNivel = calcularMediaAssuntosPorNivel(disciplinas);
+  const mediaAssuntosGeral = calcularMediaAssuntos(disciplinas);
 
   const pesoPorId = {};
   disciplinas.forEach(d => {
-    const nivelNorm = normalizarNivel(d.nivel);
-    const nAssuntos = Math.max(1, d.assuntos?.length || 1);
-    const media     = mediaAssuntosNivel[nivelNorm] || 1;
-    pesoPorId[d.id] = calcularPesoComAssuntos(d.nivel, nAssuntos, media);
+    pesoPorId[d.id] = calcularPesoDisciplina(d, mediaAssuntosGeral);
   });
 
   // ── PASSO 2: totalMinutos BRUTO e totalMinutosTeoria ─────────────────────
@@ -574,7 +572,7 @@ export function gerarSchedule(disciplinas, disponibilidade, opcoes = {}) {
     const horasBrutas   = horarios[d];
     const minBrutos     = horasBrutas * 60;
     const minTeoriaBase = Math.floor(minBrutos * (1 - PERCENTUAL_REVISAO_DIARIA));
-    const minTeoriaDiarias = disciplinasDiarias.length * MIN_MINUTOS_SLOT;
+    const minTeoriaDiarias = disciplinasDiarias.length * minMinutosSlot;
     const minTeoria = Math.min(minBrutos, Math.max(minTeoriaBase, minTeoriaDiarias));
     const limiteConfigurado = opcoes.limitarMaterias && opcoes.limitesPorDia
       ? Number(opcoes.limitesPorDia[d] ?? opcoes.limitesPorDia[String(d)] ?? 0)
@@ -589,10 +587,12 @@ export function gerarSchedule(disciplinas, disponibilidade, opcoes = {}) {
     } else {
       nBlocos = calcularMateriasPorDia(horasBrutas, numDisciplinas);
     }
-    const blocosMinPorDuracao = Math.max(1, Math.ceil(minTeoria / MAX_MINUTOS_SLOT));
+    const blocosMinPorDuracao = Math.max(1, Math.ceil(minTeoria / maxMinutosSlot));
+    const blocosMaxPorDuracao = Math.max(1, Math.floor(minTeoria / minMinutosSlot));
     nBlocos = opcoes.limitarMaterias
       ? Math.max(nBlocos, disciplinasDiarias.length)
       : Math.max(nBlocos, blocosMinPorDuracao, disciplinasDiarias.length);
+    nBlocos = Math.max(blocosMinPorDuracao, Math.min(nBlocos, blocosMaxPorDuracao));
 
     totalMinutosBruto  += minBrutos;
     totalMinutosTeoria += minTeoria;
@@ -615,7 +615,7 @@ export function gerarSchedule(disciplinas, disponibilidade, opcoes = {}) {
   disciplinas.forEach((disciplina) => {
     if (!idsDisciplinasDiarias.has(disciplina.id)) return;
     minimosSlotsPorDisc[disciplina.id] = diasAtivos.length;
-    minimosMinutosPorDisc[disciplina.id] = diasAtivos.length * MIN_MINUTOS_SLOT;
+    minimosMinutosPorDisc[disciplina.id] = diasAtivos.length * minMinutosSlot;
   });
 
   const slotsPorDisc = distribuirSlotsComMinimos(
@@ -625,15 +625,7 @@ export function gerarSchedule(disciplinas, disponibilidade, opcoes = {}) {
     minimosSlotsPorDisc
   );
 
-  const maxMinutosSlotGeracao = opcoes.limitarMaterias
-    ? Math.max(
-        MAX_MINUTOS_SLOT,
-        ...diasAtivos.map((dia) => {
-          const blocosDia = Math.max(1, slotsPorDiaConfig[dia] || 1);
-          return Math.ceil(((minutosTeoriaPorDia[dia] || 0) / blocosDia) / 5) * 5;
-        })
-      )
-    : MAX_MINUTOS_SLOT;
+  const maxMinutosSlotGeracao = maxMinutosSlot;
   const minutosPorDisc = distribuirMinutosComMinimos(
     disciplinas,
     pesoPorId,
@@ -874,14 +866,14 @@ export function gerarSchedule(disciplinas, disponibilidade, opcoes = {}) {
     const alvoDisc = arredondar5(minutosPorDisc[discId] || 0);
 
     if (blocos.length === 0 || alvoDisc === 0) {
-      blocos.forEach(({ idx }) => { minutosEstudoPorIdx[idx] = MIN_MINUTOS_SLOT; });
+      blocos.forEach(({ idx }) => { minutosEstudoPorIdx[idx] = minMinutosSlot; });
       return;
     }
 
     if (blocos.length === 1) {
       minutosEstudoPorIdx[blocos[0].idx] = Math.min(
         maxMinutosSlotGeracao,
-        Math.max(MIN_MINUTOS_SLOT, alvoDisc),
+        Math.max(minMinutosSlot, alvoDisc),
       );
       return;
     }
@@ -892,7 +884,7 @@ export function gerarSchedule(disciplinas, disponibilidade, opcoes = {}) {
       const frac    = somaHoras > 0 ? aloc.horasDia / somaHoras : 1 / blocos.length;
       const exato   = frac * alvoDisc;
       const base5   = Math.floor(exato / 5) * 5;
-      const inteiro = Math.max(MIN_MINUTOS_SLOT, base5);
+      const inteiro = Math.max(minMinutosSlot, base5);
       return { idx, exato, inteiro, resto: exato - base5 };
     });
 
@@ -914,7 +906,7 @@ export function gerarSchedule(disciplinas, disponibilidade, opcoes = {}) {
         .sort((a, b) => b.inteiro - a.inteiro)
         .forEach(l => {
           if (restantes >= 0) return;
-          if (l.inteiro - 5 >= MIN_MINUTOS_SLOT) {
+          if (l.inteiro - 5 >= minMinutosSlot) {
             l.inteiro -= 5;
             restantes += 5;
           }
@@ -925,7 +917,7 @@ export function gerarSchedule(disciplinas, disponibilidade, opcoes = {}) {
     const alvos55 = linhas.filter(l => l.inteiro === 55);
     alvos55.forEach(alvo => {
       const doador = linhas
-        .filter(l => l.idx !== alvo.idx && l.inteiro >= MIN_MINUTOS_SLOT + 5)
+        .filter(l => l.idx !== alvo.idx && l.inteiro >= minMinutosSlot + 5)
         .sort((a, b) => b.inteiro - a.inteiro)[0];
       if (!doador) return;
       alvo.inteiro += 5;
@@ -954,7 +946,7 @@ export function gerarSchedule(disciplinas, disponibilidade, opcoes = {}) {
     linhas.forEach(l => { minutosEstudoPorIdx[l.idx] = l.inteiro; });
   });
 
-  rebalancearMinutosTeoriaPorDia(alocacoes, minutosEstudoPorIdx, minutosTeoriaPorDia, maxMinutosSlotGeracao);
+  rebalancearMinutosTeoriaPorDia(alocacoes, minutosEstudoPorIdx, minutosTeoriaPorDia, maxMinutosSlotGeracao, minMinutosSlot);
 
   // ── PASSO 6: Assuntos por índice circular ─────────────────────────────────
   const discById = {};
@@ -962,7 +954,7 @@ export function gerarSchedule(disciplinas, disponibilidade, opcoes = {}) {
 
   const slots = alocacoes.map((aloc, idx) => {
     const { dia, ordemNoDia, disc } = aloc;
-    const minutosEstudo = minutosEstudoPorIdx[idx] ?? MIN_MINUTOS_SLOT;
+    const minutosEstudo = minutosEstudoPorIdx[idx] ?? minMinutosSlot;
 
     const assuntos        = disc.assuntos || [];
     // ✅ CORREÇÃO: variável local se chama slotIdxParaDisc (com Idx),
@@ -985,8 +977,9 @@ export function gerarSchedule(disciplinas, disponibilidade, opcoes = {}) {
       ordemNoDia,
       disciplinaId:       disc.id,
       disciplinaNome:     disc.nome,
-      nivel:              normalizarNivel(disc.nivel) || 'intermediario',
-      pesoEfetivo:        calcularScoreEfetivo(disc.peso, disc.nivel),
+      conhecimentoNivel:  disc.conhecimentoNivel,
+      importanciaNivel:   disc.importanciaNivel,
+      pesoEfetivo:        pesoPorId[disc.id],
       assunto,
       acao_metodologica:  `${minutosEstudo}m Teoria/Questões`,
       foco_recomendado:   '',

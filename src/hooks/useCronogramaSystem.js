@@ -32,6 +32,7 @@ import {
   getDoc,
   FieldPath,
 } from 'firebase/firestore';
+import { deletePlanStudyRecords } from '../services/planDeletion';
 
 import {
   getAgendaSemana as _getAgendaSemana,
@@ -602,6 +603,11 @@ export const useCronogramaSystem = (user) => {
   const excluirCronograma = async (cronogramaId, cicloVinculadoId) => {
     setLoading(true);
     try {
+      await deletePlanStudyRecords({
+        userId: user.uid,
+        planId: cronogramaId,
+        planType: 'cronograma',
+      });
       const batch = writeBatch(db);
       batch.delete(doc(db, 'users', user.uid, 'cronogramas', cronogramaId));
       if (cicloVinculadoId) {

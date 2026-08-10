@@ -101,7 +101,7 @@ const ModalEditarCronograma = ({
               mode="edit"
               cronogramaId={cronograma.id}
               initialState={cronograma}
-              initialStep={1}
+              initialStep={2}
               embedded
               onClose={onFechar}
               onCronogramaCriado={(cronogramaId) => onCronogramaAtualizado?.(cronogramaId)}

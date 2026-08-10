@@ -2,6 +2,44 @@
 @tailwind components;
 @tailwind utilities;
 
+/* STEP DE DISCIPLINAS: barras de conhecimento e importancia. */
+.planning-level-range {
+  appearance: none;
+  -webkit-appearance: none;
+  outline: none;
+}
+
+.planning-level-range::-webkit-slider-runnable-track {
+  height: 6px;
+  background: transparent;
+}
+
+.planning-level-range::-webkit-slider-thumb {
+  width: 14px;
+  height: 14px;
+  margin-top: -4px;
+  appearance: none;
+  -webkit-appearance: none;
+  border: 2px solid #059669;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(5, 150, 105, 0.28);
+}
+
+.planning-level-range::-moz-range-track {
+  height: 6px;
+  background: transparent;
+}
+
+.planning-level-range::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: 2px solid #059669;
+  border-radius: 999px;
+  background: #fff;
+}
+
+/* PAGINA E PREVIEW DO CICLO: dimensoes do radar e do card externo. */
 .ciclo-visual-size-box {
   height: var(--ciclo-visual-size-mobile);
   width: var(--ciclo-visual-size-mobile);
@@ -40,6 +78,7 @@
   }
 }
 
+/* BASE GLOBAL: escala, tema, tipografia, body e barra de rolagem. */
 @layer base {
   :root {
     color-scheme: light dark;
@@ -82,6 +121,7 @@
   }
 }
 
+/* MODAL/POPOVER DE CORES: seletor usado nas disciplinas do planejamento. */
 .clr-picker {
   z-index: 100080 !important;
   border-radius: 18px !important;
@@ -95,6 +135,7 @@
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.5) !important;
 }
 
+/* COMPONENTES GLOBAIS: cards, campos, botoes, badges e estados reutilizaveis. */
 @layer components {
   /* Estilo Padrão dos Cards */
   .dashboard-card {
@@ -243,6 +284,7 @@
   }
 }
 
+/* ANIMACOES GLOBAIS: entradas, carregamento e feedback de interacao. */
 @keyframes fadeInFromBottom {
   from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: translateY(0); }
@@ -267,6 +309,7 @@
   50% { transform: translateY(-10px); }
 }
 
+/* CLASSES UTILITARIAS DE ANIMACAO E COMPONENTES DO CICLO. */
 @layer components {
   .animate-fade-in {
     animation: fadeInFromBottom 0.4s ease-out;
@@ -451,6 +494,7 @@
   }
 }
 
+/* AJUSTES RESPONSIVOS GLOBAIS PARA TABLET E MOBILE. */
 @media (max-width: 768px) {
   body { font-size: 14px; }
   h1 { font-size: 1.4rem; }
@@ -459,6 +503,7 @@
   .ciclo-legend-item { padding: 0.65rem; }
 }
 
+/* IMPRESSAO: remove navegacao e elementos exclusivamente interativos. */
 @media print {
   body {
     background: white;
@@ -709,6 +754,7 @@
   background: rgba(30, 58, 138, 0.15);
 }
 
+/* FUNDO GERAL DO SISTEMA: luzes, grade, feixes e particulas decorativas. */
 .app-background-effects {
   contain: strict;
 }
@@ -805,6 +851,7 @@
   margin-bottom: 0.75rem;
 }
 
+/* HOME E GUIAS DE ESTUDO: cards coloridos por disciplina e estado concluido. */
 .discipline-tinted-card {
   border-color: rgba(var(--discipline-rgb, 59, 130, 246), 0.22) !important;
   background-color: rgba(var(--discipline-rgb, 59, 130, 246), 0.08) !important;
@@ -891,8 +938,9 @@
   }
 }
 
-/* Quando um wizard de planejamento está aberto com footer fixo,
-   elevamos o footer global e o FAB de estudo para não disputar espaço. */
+/* WIZARDS DE CICLO/CRONOGRAMA: shell, cabecalho, conteudo, rodape e modais. */
+/* Quando um wizard esta aberto com footer fixo, o footer global e o FAB
+   sao reposicionados para nao disputar espaco com a navegacao do wizard. */
 body.wizard-shell-open .app-global-footer {
   margin-top: 0;
   z-index: 10;
@@ -1109,13 +1157,28 @@ body.registro-modal-open .app-global-footer {
 }
 
 /*
-  CONTROLES DE ZOOM DAS PAGINAS
+  CONTROLES DE ZOOM: PAGINAS, CARDS, MODAIS, SIDEBAR E STEPS DOS WIZARDS
   Menor valor = interface menor. Maior valor = interface maior.
   Use 1 para tamanho normal, 0.9 para 90%, 0.8 para 80%, etc.
 */
 :root {
   --zoom-desktop-ciclo: 0.95;
+  /* Zoom do card "Blocos do ciclo" na pagina do ciclo e na Home. */
+  --zoom-desktop-cycle-block-list-card: 0.86;
+  --zoom-mobile-cycle-block-list-card: 0.88;
   --zoom-desktop-edital: 0.82;
+  /* Escala somente a area direita dos cards de disciplina do edital. */
+  --edital-discipline-side-scale-desktop: 1.15;
+  --edital-discipline-side-scale-mobile: 1;
+  /* Escala revisoes, tempo, questoes e iniciar estudo nos assuntos. */
+  --edital-topic-side-scale-desktop: 1;
+  --edital-topic-side-scale-mobile: 1;
+  /* Zoom do modal inteiro da biblioteca de editais. */
+  --zoom-desktop-modal-edital-library: 0.92;
+  --zoom-mobile-modal-edital-library: 0.92;
+  /* Zoom somente dos cards; titulo, busca e suporte ficam em tamanho normal. */
+  --zoom-desktop-edital-library-cards: 0.82;
+  --zoom-mobile-edital-library-cards: 0.86;
   --zoom-desktop-cronograma: 0.90;
   --zoom-desktop-calendar: 0.90;
   --zoom-desktop-revisoes: 1;
@@ -1128,14 +1191,14 @@ body.registro-modal-open .app-global-footer {
   --zoom-desktop-planejamento: 0.85;
   --zoom-desktop-planejamento-selector: 0.85;
 
-  --ciclo-visual-default-max-mobile: 430px;
-  --ciclo-visual-default-max-desktop: 560px;
+  --ciclo-visual-default-max-mobile: 450px;
+  --ciclo-visual-default-max-desktop: 680px;
   --ciclo-visual-preview-max-mobile: 540px;
   --ciclo-visual-preview-max-desktop: 820px;
-  --ciclo-visual-card-height-mobile: 520px;
-  --ciclo-visual-card-height-desktop: 640px;
-  --ciclo-visual-stage-height-mobile: 430px;
-  --ciclo-visual-stage-height-desktop: 570px;
+  --ciclo-visual-card-height-mobile: 540px;
+  --ciclo-visual-card-height-desktop: 730px;
+  --ciclo-visual-stage-height-mobile: 460px;
+  --ciclo-visual-stage-height-desktop: 660px;
   --cronograma-week-card-width-mobile: 226px;
   --cronograma-week-card-width-tablet: 258px;
   --cronograma-week-card-width-desktop: 315px;
@@ -1181,6 +1244,7 @@ body.registro-modal-open .app-global-footer {
   --zoom-desktop-wizard-footer: 0.94;
 
   --zoom-mobile-default: 0.88;
+  --zoom-mobile-ciclo: 0.90;
   --zoom-mobile-planejamento: 0.86;
   --zoom-mobile-planejamento-selector: 0.84;
   --zoom-mobile-simulados: 0.84;
@@ -1236,6 +1300,123 @@ body.registro-modal-open .app-global-footer {
   --zoom-mobile-wizard-footer: 0.82;
 }
 
+/* PAGINA DO EDITAL: painel lateral de cada disciplina. */
+.edital-discipline-side {
+  --edital-discipline-side-scale: var(--edital-discipline-side-scale-mobile);
+  gap: calc(0.5rem * var(--edital-discipline-side-scale));
+  min-width: calc(4rem * var(--edital-discipline-side-scale));
+  padding: calc(0.65rem * var(--edital-discipline-side-scale));
+}
+
+.edital-discipline-side__date {
+  gap: calc(0.08rem * var(--edital-discipline-side-scale));
+  margin-right: calc(0.45rem * var(--edital-discipline-side-scale));
+  font-size: calc(0.72rem * var(--edital-discipline-side-scale));
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.edital-discipline-side__date > :last-child {
+  font-size: calc(0.86rem * var(--edital-discipline-side-scale));
+}
+
+.edital-discipline-side__button {
+  gap: calc(0.4rem * var(--edital-discipline-side-scale));
+  border-radius: calc(0.5rem * var(--edital-discipline-side-scale));
+  padding: calc(0.72rem * var(--edital-discipline-side-scale)) calc(0.8rem * var(--edital-discipline-side-scale));
+  font-size: calc(0.72rem * var(--edital-discipline-side-scale));
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.edital-discipline-side__icon {
+  width: calc(0.9rem * var(--edital-discipline-side-scale));
+  height: calc(0.9rem * var(--edital-discipline-side-scale));
+}
+
+/* PAGINA DO EDITAL: metricas e acoes laterais de cada assunto. */
+.edital-topic-side {
+  --edital-topic-side-scale: var(--edital-topic-side-scale-mobile);
+  gap: calc(0.75rem * var(--edital-topic-side-scale));
+  padding-left: calc(3.5rem * var(--edital-topic-side-scale));
+}
+
+.edital-topic-side__metrics {
+  gap: calc(1rem * var(--edital-topic-side-scale));
+  margin-right: calc(0.5rem * var(--edital-topic-side-scale));
+}
+
+.edital-topic-side__metric {
+  width: calc(3.5rem * var(--edital-topic-side-scale));
+}
+
+.edital-topic-side__metric--questions {
+  width: calc(5rem * var(--edital-topic-side-scale));
+}
+
+.edital-topic-side__metric--questions > div > :last-child {
+  font-size: calc(0.625rem * var(--edital-topic-side-scale));
+}
+
+.edital-topic-side__label {
+  margin-bottom: calc(0.125rem * var(--edital-topic-side-scale));
+  font-size: calc(0.5625rem * var(--edital-topic-side-scale));
+  line-height: 1;
+}
+
+.edital-topic-side__value {
+  font-size: calc(0.75rem * var(--edital-topic-side-scale));
+  line-height: 1.2;
+}
+
+.edital-topic-side__button {
+  width: calc(2.25rem * var(--edital-topic-side-scale));
+  height: calc(2.25rem * var(--edital-topic-side-scale));
+  border-radius: calc(0.75rem * var(--edital-topic-side-scale));
+}
+
+.edital-topic-side__icon {
+  width: calc(1rem * var(--edital-topic-side-scale));
+  height: calc(1rem * var(--edital-topic-side-scale));
+}
+
+/* MODAL OUTROS EDITAIS: escala do modal e da grade de cards. */
+.edital-library-modal {
+  zoom: var(--zoom-mobile-modal-edital-library);
+}
+
+.edital-library-cards {
+  zoom: var(--zoom-mobile-edital-library-cards);
+  width: calc(100% / var(--zoom-mobile-edital-library-cards));
+}
+
+/* DESKTOP: escalas do edital e do modal da biblioteca. */
+@media (min-width: 768px) {
+  .edital-discipline-side {
+    --edital-discipline-side-scale: var(--edital-discipline-side-scale-desktop);
+    min-width: auto;
+  }
+
+  .edital-discipline-side__button {
+    padding-inline: calc(1.15rem * var(--edital-discipline-side-scale));
+  }
+
+  .edital-topic-side {
+    --edital-topic-side-scale: var(--edital-topic-side-scale-desktop);
+    padding-left: 0;
+  }
+
+  .edital-library-modal {
+    zoom: var(--zoom-desktop-modal-edital-library);
+  }
+
+  .edital-library-cards {
+    zoom: var(--zoom-desktop-edital-library-cards);
+    width: calc(100% / var(--zoom-desktop-edital-library-cards));
+  }
+}
+
+/* DESKTOP: zoom individual de steps, paginas, cards e modais. */
 @media (min-width: 768px) {
   body.wizard-shell-open .wizard-step-frame {
     --wizard-step-desktop-zoom: 1;
@@ -1426,8 +1607,17 @@ body.registro-modal-open .app-global-footer {
     zoom: var(--zoom-desktop-desempenho-discipline-card);
     transform-origin: bottom right;
   }
+
+  .cycle-block-list-card-zoom {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    zoom: var(--zoom-desktop-cycle-block-list-card);
+    transform-origin: top left;
+  }
 }
 
+/* MOBILE: zoom individual de paginas, cards, tabelas e modais. */
 @media (max-width: 639px) {
   .mobile-page-zoom {
     --page-mobile-zoom: var(--zoom-mobile-default);
@@ -1463,6 +1653,11 @@ body.registro-modal-open .app-global-footer {
     padding-bottom: 3rem;
   }
 
+  .mobile-page-zoom--ciclo {
+    --page-mobile-zoom: var(--zoom-mobile-ciclo);
+    padding-bottom: 3rem;
+  }
+
   .mobile-page-zoom--edital {
     --page-mobile-zoom: var(--zoom-mobile-edital);
     padding-bottom: 3rem;
@@ -1495,6 +1690,14 @@ body.registro-modal-open .app-global-footer {
     min-width: 0;
     transform-origin: top left;
     zoom: var(--cronograma-blocks-mobile-zoom);
+  }
+
+  .cycle-block-list-card-zoom {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    zoom: var(--zoom-mobile-cycle-block-list-card);
+    transform-origin: top left;
   }
 
   .mobile-page-zoom--home .home-discipline-performance-card {

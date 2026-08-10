@@ -53,6 +53,7 @@ export default function DailyGoalCompletedModal({
     { label: 'Precisão', value: totalQuestions > 0 ? `${accuracy}%` : '-', icon: Trophy, tone: 'zinc' },
   ];
   const stats = Array.isArray(customStats) && customStats.length ? customStats : defaultStats;
+  const compactStatsLayout = Array.isArray(customStats) && customStats.length <= 2;
 
   const statDelay = 0.58;
 
@@ -185,9 +186,9 @@ export default function DailyGoalCompletedModal({
                 </motion.p>
               </header>
 
-              <section className="grid min-h-0 flex-1 grid-cols-1 gap-2 sm:grid-cols-[1.08fr_0.92fr] sm:gap-3">
+              <section className={`grid min-h-0 flex-1 grid-cols-1 gap-2 sm:gap-3 ${compactStatsLayout ? 'sm:grid-cols-[0.76fr_1.24fr]' : 'sm:grid-cols-[1.08fr_0.92fr]'}`}>
                 <motion.div
-                  className="relative flex min-h-[100px] flex-col rounded-[18px] border border-zinc-200 bg-white/80 p-3 shadow-sm dark:border-white/10 dark:bg-zinc-900/80 sm:min-h-0 sm:rounded-[24px] sm:p-3.5"
+                  className={`relative flex min-h-[100px] flex-col rounded-[18px] border border-zinc-200 bg-white/80 p-3 shadow-sm dark:border-white/10 dark:bg-zinc-900/80 sm:rounded-[24px] sm:p-3.5 ${compactStatsLayout ? 'sm:min-h-[132px] sm:max-h-[152px] sm:self-start' : 'sm:min-h-0'}`}
                   initial={{ opacity: 0, y: 16, scale: 0.96 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   transition={{ duration: 0.42, delay: statDelay, ease: 'easeOut' }}
@@ -195,7 +196,7 @@ export default function DailyGoalCompletedModal({
                   <div className="absolute inset-x-3 top-0 h-1 rounded-b-full bg-gradient-to-r from-amber-400 via-emerald-500 to-cyan-400" />
                   <p className="mt-1.5 text-[7px] font-black uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400 sm:mt-2 sm:text-[8px] sm:tracking-[0.24em]">Edital</p>
                   <div className="flex min-h-0 flex-1 items-center gap-3 text-left">
-                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[16px] border border-zinc-100 bg-white p-1.5 shadow-sm dark:border-white/10 dark:bg-zinc-950 sm:h-16 sm:w-16 sm:rounded-[18px] sm:p-2">
+                    <div className={`flex shrink-0 items-center justify-center rounded-[16px] border border-zinc-100 bg-white p-1.5 shadow-sm dark:border-white/10 dark:bg-zinc-950 sm:rounded-[18px] sm:p-2 ${compactStatsLayout ? 'h-12 w-12 sm:h-14 sm:w-14' : 'h-14 w-14 sm:h-16 sm:w-16'}`}>
                       {editalLogo ? (
                         <img src={editalLogo} alt="" className="h-full w-full object-contain" />
                       ) : (
@@ -203,14 +204,14 @@ export default function DailyGoalCompletedModal({
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <h3 className="line-clamp-4 break-words text-[11px] font-black uppercase leading-snug text-zinc-950 dark:text-white sm:text-[12px]">
+                      <h3 className={`break-words text-[11px] font-black uppercase leading-snug text-zinc-950 dark:text-white sm:text-[12px] ${compactStatsLayout ? '' : 'line-clamp-4'}`}>
                         {displayEditalName}
                       </h3>
                     </div>
                   </div>
                 </motion.div>
 
-                <div className="grid min-h-0 grid-cols-2 gap-1.5 sm:gap-2">
+                <div className={`grid min-h-0 grid-cols-2 gap-1.5 sm:gap-2 ${compactStatsLayout ? 'sm:grid-cols-1' : ''}`}>
                   {stats.map(({ label, value, description, icon: Icon, tone }, index) => (
                     <motion.div
                       key={label}
@@ -225,16 +226,8 @@ export default function DailyGoalCompletedModal({
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       transition={{ duration: 0.34, delay: statDelay + 0.08 + index * 0.06, ease: 'easeOut' }}
                     >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="text-[6.5px] font-black uppercase leading-tight tracking-[0.12em] text-zinc-500 dark:text-zinc-400 sm:text-[8px] sm:tracking-widest">{label}</p>
-                          <p className="mt-1 break-words text-sm font-black leading-tight text-zinc-950 dark:text-white sm:mt-2 sm:text-lg">{value}</p>
-                          {description && (
-                            <p className="mt-1 text-[7px] font-bold uppercase leading-tight tracking-wide text-zinc-500 dark:text-zinc-400 sm:text-[8px]">
-                              {description}
-                            </p>
-                          )}
-                        </div>
+                      <div className="flex items-center justify-between gap-1.5">
+                        <p className="min-w-0 pr-1 text-[6px] font-black uppercase leading-tight tracking-[0.08em] text-zinc-500 dark:text-zinc-400 sm:text-[8px] sm:tracking-widest">{label}</p>
                         <div
                           className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-lg sm:h-7 sm:w-7 sm:rounded-xl ${
                             tone === 'emerald'
@@ -247,6 +240,12 @@ export default function DailyGoalCompletedModal({
                           <Icon className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                         </div>
                       </div>
+                      <p className="mt-1 break-words text-[13px] font-black leading-tight text-zinc-950 dark:text-white sm:mt-2 sm:text-base">{value}</p>
+                      {description && (
+                        <p className="mt-1 text-[7px] font-bold uppercase leading-tight tracking-wide text-zinc-500 dark:text-zinc-400 sm:text-[8px]">
+                          {description}
+                        </p>
+                      )}
                     </motion.div>
                   ))}
                 </div>

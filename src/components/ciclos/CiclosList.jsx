@@ -32,10 +32,12 @@ import {
 
 import { db } from '../../firebaseConfig';
 import { CATALOGO_EDITAIS } from '../../pages/AdminPage/EditaisManager';
+import { buildEditaisMap, resolveLogoUrl } from '../admin/config/editalAssets';
 import EmptyStateCard from '../shared/EmptyStateCard';
 import CicloCreateWizard from './CicloCreateWizard/CicloCreateWizard';
 import CicloEditModal from './CicloEditModal';
 import { useCiclos } from '../../hooks/useCiclos';
+import { deletePlanStudyRecords } from '../../services/planDeletion';
 
 const formatDate = (value) => {
   if (!value) return '-';
@@ -56,24 +58,6 @@ const getTs = (item) => {
   if (value?.toDate) return value.toDate().getTime();
   if (value?.seconds) return value.seconds * 1000;
   return new Date(value).getTime() || 0;
-};
-
-const getLogo = (ciclo) => {
-  if (!ciclo) return null;
-  if (ciclo.logoUrl) return ciclo.logoUrl;
-  const templateId = ciclo.editalId || ciclo.templateId || ciclo.templateOrigem;
-  if (templateId && CATALOGO_EDITAIS) {
-    const edital = CATALOGO_EDITAIS.find((item) => item.id === templateId);
-    if (edital?.logoUrl || edital?.logo) return edital.logoUrl || edital.logo;
-  }
-  if (templateId && templateId !== 'manual') {
-    const cleanId = templateId.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-    return `/logosEditais/logo-${cleanId}.png`;
-  }
-  const nome = (ciclo.nome || '').toLowerCase();
-  if (nome.includes('pmba')) return '/logosEditais/logoModoQAP.png';
-  if (nome.includes('pmal')) return '/logosEditais/logo-pmal.png';
-  return null;
 };
 
 const ModalConfirmacao = ({ item, title, description, icon: Icon, tone = 'red', label, onClose, onConfirm, loading }) => {
@@ -110,8 +94,8 @@ const ModalConfirmacao = ({ item, title, description, icon: Icon, tone = 'red', 
   );
 };
 
-const CicloCard = ({ ciclo, registrosEstudo = [], onOpen, onMenuToggle, isMenuOpen, onAction, isTimerActive }) => {
-  const logo = getLogo(ciclo);
+const CicloCard = ({ ciclo, editaisMap, registrosEstudo = [], onOpen, onMenuToggle, isMenuOpen, onAction, isTimerActive }) => {
+  const logo = resolveLogoUrl({ ciclo, editaisMap });
   const concluidoCount = Number(ciclo.conclusoes || 0);
   const totalBlocos = Number(
     ciclo.totalSessoesCiclo ||
@@ -258,6 +242,7 @@ export default function CiclosList({
   const [timerWarning, setTimerWarning] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [actionError, setActionError] = useState('');
+  const [editaisMap, setEditaisMap] = useState(() => buildEditaisMap(CATALOGO_EDITAIS));
 
   const { ativarCiclo, desativarCiclo, loading: actionLoading, error } = useCiclos(user);
   const canUseInlineCreate = typeof onRequestCreate !== 'function';
@@ -291,6 +276,20 @@ export default function CiclosList({
       setLoadingList(false);
     });
   }, [user?.uid]);
+
+  useEffect(() => onSnapshot(collection(db, 'editais_templates'), (snapshot) => {
+    const merged = new Map(CATALOGO_EDITAIS.map((item) => [String(item.id), item]));
+    snapshot.docs.forEach((docSnap) => {
+      const stored = { id: docSnap.id, ...docSnap.data() };
+      const local = merged.get(String(docSnap.id));
+      merged.set(String(docSnap.id), {
+        ...local,
+        ...stored,
+        logoUrl: stored.logoUrl || stored.logo || local?.logoUrl || local?.logo || null,
+      });
+    });
+    setEditaisMap(buildEditaisMap([...merged.values()]));
+  }, () => setEditaisMap(buildEditaisMap(CATALOGO_EDITAIS))), []);
 
   const sortedCiclos = useMemo(() => [...ciclos].sort((a, b) => {
     if (a.ativo && !b.ativo) return -1;
@@ -356,10 +355,12 @@ export default function CiclosList({
     if (!cicloParaExcluir || deleteLoading || !user?.uid) return;
     setDeleteLoading(true);
     try {
+      await deletePlanStudyRecords({
+        userId: user.uid,
+        planId: cicloParaExcluir.id,
+        planType: 'ciclo',
+      });
       const batch = writeBatch(db);
-      const registrosQuery = query(collection(db, 'users', user.uid, 'registrosEstudo'), where('cicloId', '==', cicloParaExcluir.id));
-      const registrosSnap = await getDocs(registrosQuery);
-      registrosSnap.docs.forEach((docSnap) => batch.delete(docSnap.ref));
       batch.delete(doc(db, 'users', user.uid, 'ciclos', cicloParaExcluir.id));
       await batch.commit();
       setCicloParaExcluir(null);
@@ -472,6 +473,7 @@ export default function CiclosList({
             <CicloCard
               key={ciclo.id}
               ciclo={ciclo}
+              editaisMap={editaisMap}
               registrosEstudo={registrosEstudo}
               onOpen={onCicloClick}
               onMenuToggle={(event, id) => {

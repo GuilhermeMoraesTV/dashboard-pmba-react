@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { AlertTriangle, ArrowLeft, ArrowRight, CheckCircle2, RefreshCw, Settings2, Layers, Target, Clock, X, SlidersHorizontal } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, ArrowRight, CheckCircle2, RefreshCw, Settings2, Layers, Target, Clock, X } from 'lucide-react';
 import { collection, getDocs } from 'firebase/firestore';
 
 import { calcularDistribuicao, gerarOrdemSessoes, useCiclos } from '../../../hooks/useCiclos';
@@ -9,12 +9,18 @@ import { CATALOGO_EDITAIS } from '../../../pages/AdminPage/EditaisManager';
 import StepEdital from './steps/StepEdital';
 import StepDisciplinas from './steps/StepDisciplinas';
 import StepHorarios from './steps/StepHorarios';
-import StepDivisaoBlocos from './steps/StepDivisaoBlocos';
 import StepRevisao from './steps/StepRevisao';
 import StepConfig from './steps/StepConfig';
 import StepPreview from './steps/StepPreview';
 import { normalizeRevisaoModoCiclo, REVISAO_MODO_FLEXIVEL } from '../../../utils/cicloReviewMode';
 import { getDisciplineColorForSlot } from '../../../utils/disciplineColors';
+import {
+  calculatePlanningPriority,
+  getKnowledgeLevel,
+  getImportanceLevel,
+  hasCompletePlanningLevels,
+  normalizePlanningLevel,
+} from '../../../utils/planningPriority';
 
 const CICLO_DRAFT_KEY = 'planejamento_ciclo_wizard_draft_v1';
 
@@ -22,63 +28,10 @@ const STEPS = [
   { id: 0, label: 'Edital', icon: Target, title: 'Selecao de Edital', sub: 'Escolha sua base' },
   { id: 1, label: 'Materias', icon: Layers, title: 'Disciplinas', sub: 'O que estudar' },
   { id: 2, label: 'Horarios', icon: Clock, title: 'Sua Rotina', sub: 'Quando estudar' },
-  { id: 3, label: 'Blocos', icon: SlidersHorizontal, title: 'Divisao dos blocos', sub: 'Tamanho das sessoes' },
-  { id: 4, label: 'Metodologia', icon: RefreshCw, title: 'Revisao', sub: 'Como revisar' },
-  { id: 5, label: 'Ajustes', icon: Settings2, title: 'Preferencias', sub: 'Personalizacao' },
-  { id: 6, label: 'Previa', icon: CheckCircle2, title: 'Resultado', sub: 'Seu plano pronto' },
+  { id: 3, label: 'Metodologia', icon: RefreshCw, title: 'Revisao', sub: 'Como revisar' },
+  { id: 4, label: 'Ajustes', icon: Settings2, title: 'Preferencias', sub: 'Personalizacao' },
+  { id: 5, label: 'Previa', icon: CheckCircle2, title: 'Resultado', sub: 'Seu plano pronto' },
 ];
-
-const NIVEL_TO_PESO = {
-  iniciante: 5,
-  intermediario: 3,
-  avancado: 1,
-};
-
-const isNivelValido = (nivel) => (
-  nivel === 'iniciante' || nivel === 'intermediario' || nivel === 'avancado'
-);
-
-const normalizarNivel = (nivel, pesoFallback = 3) => {
-  if (isNivelValido(nivel)) return nivel;
-  const peso = Number(pesoFallback) || 3;
-  if (peso >= 4) return 'iniciante';
-  if (peso <= 1) return 'avancado';
-  return 'intermediario';
-};
-
-const obterPesoDisciplina = (disciplina) => {
-  const nivelNormalizado = normalizarNivel(disciplina?.nivelDominio || disciplina?.nivel, disciplina?.peso);
-  return Number(disciplina?.peso) || NIVEL_TO_PESO[nivelNormalizado] || 3;
-};
-
-const CONFIG_CATEGORIAS = {
-  pm: { label: 'Policia Militar', icon: Target, color: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-900/20' },
-  pc: { label: 'Policia Civil', icon: Target, color: 'text-zinc-600 dark:text-zinc-400', bg: 'bg-zinc-100 dark:bg-zinc-800' },
-  federal: { label: 'Carreiras Federais', icon: Target, color: 'text-blue-700', bg: 'bg-blue-50 dark:bg-blue-900/20' },
-  pp: { label: 'Policia Penal', icon: Target, color: 'text-slate-600 dark:text-slate-400', bg: 'bg-slate-100 dark:bg-slate-800' },
-  cbm: { label: 'Corpo de Bombeiros', icon: Target, color: 'text-red-600', bg: 'bg-red-50 dark:bg-red-900/20' },
-  gcm: { label: 'Guarda Municipal', icon: Target, color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
-  fa: { label: 'Forcas Armadas', icon: Target, color: 'text-green-600', bg: 'bg-green-50 dark:bg-green-900/20' },
-  outros: { label: 'Outros Concursos', icon: Target, color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
-};
-
-const formatarHoras = (horasDecimais) => {
-  if (!horasDecimais || isNaN(horasDecimais)) return '0h';
-  const totalMinutos = Math.round(horasDecimais * 60);
-  const h = Math.floor(totalMinutos / 60);
-  const m = totalMinutos % 60;
-  if (h > 0 && m > 0) return `${h}h ${m}m`;
-  if (h > 0) return `${h}h`;
-  return `${m}m`;
-};
-
-const getMinimumActiveDayMinutesFromSchedule = (schedule = {}) => {
-  const activeDayMinutes = Object.values(schedule)
-    .map((value) => Math.round((parseFloat(value) || 0) * 60))
-    .filter((value) => value > 0);
-
-  return activeDayMinutes.length > 0 ? Math.min(...activeDayMinutes) : null;
-};
 
 const lerCicloDraft = () => {
   try {
@@ -111,6 +64,8 @@ const desserializarSelecaoDisciplinas = (selecao = {}) =>
       id,
       {
         ...valor,
+        conhecimentoNivel: normalizePlanningLevel(valor?.conhecimentoNivel) || getKnowledgeLevel(valor),
+        importanciaNivel: normalizePlanningLevel(valor?.importanciaNivel) || getImportanceLevel(valor),
         assuntosMarcados: new Set(Array.isArray(valor?.assuntosMarcados) ? valor.assuntosMarcados : []),
       },
     ])
@@ -145,7 +100,8 @@ const buildDisciplinaSnapshotCompleto = ({
   extraDisciplinas = [],
   selecaoDisciplinas = {},
   horasTotais = 0,
-  tempoSessaoMinutos = 50,
+  duracaoMinimaSessaoMinutos = 30,
+  duracaoMaximaSessaoMinutos = 60,
   disciplinaTodosDiasIds = [],
   diasEstudo = {},
 }) => {
@@ -157,7 +113,10 @@ const buildDisciplinaSnapshotCompleto = ({
       const ativa = Boolean(selecao.checked || selecao.parcial);
       if (!ativa) return null;
 
-      const nivelDominio = selecao.nivel || disciplina.nivelDominio || disciplina.nivel || null;
+      const conhecimentoNivel = normalizePlanningLevel(selecao.conhecimentoNivel)
+        || getKnowledgeLevel(disciplina);
+      const importanciaNivel = normalizePlanningLevel(selecao.importanciaNivel)
+        || getImportanceLevel(disciplina);
       const assuntosOriginais = Array.isArray(disciplina.assuntos) ? disciplina.assuntos : [];
       const assuntosMarcados = selecao.checked
         ? assuntosOriginais
@@ -165,8 +124,8 @@ const buildDisciplinaSnapshotCompleto = ({
 
       return {
         ...disciplina,
-        nivelDominio,
-        peso: NIVEL_TO_PESO[nivelDominio] || Number(disciplina.peso) || 3,
+        conhecimentoNivel,
+        importanciaNivel,
         assuntos: assuntosMarcados,
         estudarTodosDias: disciplinaEstaTodosDias(idsTodosDias, disciplina.id),
       };
@@ -180,8 +139,8 @@ const buildDisciplinaSnapshotCompleto = ({
           id: disciplina.id || `snapshot-${index}`,
         })),
         Math.round(horasTotais * 60),
-        tempoSessaoMinutos,
-        { diasEstudo }
+        duracaoMaximaSessaoMinutos,
+        { diasEstudo, duracaoMinimaSessaoMinutos, duracaoMaximaSessaoMinutos }
       )
     : [];
   const mapaDistribuicaoAtiva = new Map(
@@ -191,7 +150,10 @@ const buildDisciplinaSnapshotCompleto = ({
   return todasDisciplinas.map((disciplina, index) => {
     const selecao = selecaoDisciplinas[disciplina.id] || {};
     const ativa = Boolean(selecao.checked || selecao.parcial);
-    const nivelDominio = selecao.nivel || disciplina.nivelDominio || disciplina.nivel || null;
+    const conhecimentoNivel = normalizePlanningLevel(selecao.conhecimentoNivel)
+      || getKnowledgeLevel(disciplina);
+    const importanciaNivel = normalizePlanningLevel(selecao.importanciaNivel)
+      || getImportanceLevel(disciplina);
     const assuntosOriginais = Array.isArray(disciplina.assuntos) ? disciplina.assuntos : [];
     const assuntosMarcados = selecao.checked
       ? assuntosOriginais
@@ -202,8 +164,9 @@ const buildDisciplinaSnapshotCompleto = ({
       id: disciplina.id,
       nome: disciplina.nome,
       assuntos: ativa ? assuntosMarcados : assuntosOriginais,
-      peso: NIVEL_TO_PESO[nivelDominio] || Number(disciplina.peso) || 3,
-      nivelDominio,
+      conhecimentoNivel,
+      importanciaNivel,
+      peso: calculatePlanningPriority({ ...disciplina, conhecimentoNivel, importanciaNivel }),
       cor: disciplina.cor || null,
       tempoAlocadoSemanalMinutos: ativa ? Number(disciplinaAtiva?.tempoAlocadoMinutos || 0) : 0,
       inCiclo: ativa,
@@ -223,6 +186,7 @@ function CicloCreateWizard({
   cicloId = null,
   initialState = null,
   initialStep = 1,
+  preselectedEdital = null,
   upgradeMode = false,
   embedded = false,
 }) {
@@ -232,7 +196,8 @@ function CicloCreateWizard({
   const [idModeloSelecionado, setIdModeloSelecionado] = useState(null);
   const [dadosModeloSelecionado, setDadosModeloSelecionado] = useState(null);
   const [gradeDisponibilidade, setGradeDisponibilidade] = useState({});
-  const [tempoSessaoMinutos, setTempoSessaoMinutos] = useState(50);
+  const [duracaoMinimaSessaoMinutos, setDuracaoMinimaSessaoMinutos] = useState(30);
+  const [duracaoMaximaSessaoMinutos, setDuracaoMaximaSessaoMinutos] = useState(60);
   const [disciplinas, setDisciplinas] = useState([]);
   const [extraDisciplinas, setExtraDisciplinas] = useState([]);
   const [selecaoDisciplinas, setSelecaoDisciplinas] = useState({});
@@ -240,15 +205,13 @@ function CicloCreateWizard({
   const [carregandoModelos, setCarregandoModelos] = useState(false);
   const [mostrarModalModelo, setMostrarModalModelo] = useState(false);
   const [revisaoModo, setRevisaoModo] = useState(REVISAO_MODO_FLEXIVEL);
-  const [modoExibirAssuntos, setModoExibirAssuntos] = useState(true);
-  const [modoExibirTempo, setModoExibirTempo] = useState('detalhado');
   const [coresDisciplinasAtivas, setCoresDisciplinasAtivas] = useState(true);
   const [disciplinaTodosDiasIds, setDisciplinaTodosDiasIds] = useState([]);
   const [mostrandoRascunho, setMostrandoRascunho] = useState(false);
   const [confirmandoSaida, setConfirmandoSaida] = useState(false);
-  const [sessionAutoAdjustedNotice, setSessionAutoAdjustedNotice] = useState(null);
   const [validationMessage, setValidationMessage] = useState('');
   const conteudoRef = useRef(null);
+  const preselectedEditalAppliedRef = useRef(null);
 
   const { criarCiclo, editarCiclo, loading } = useCiclos(user);
   const visibleSteps = isEditMode ? STEPS.slice(1) : STEPS;
@@ -273,7 +236,9 @@ function CicloCreateWizard({
     setIdModeloSelecionado(state.idModeloSelecionado || null);
     setDadosModeloSelecionado(state.dadosModeloSelecionado || null);
     setGradeDisponibilidade(state.gradeDisponibilidade || {});
-    setTempoSessaoMinutos(state.tempoSessaoMinutos ?? 50);
+    const legacyDuration = Number(state.tempoSessaoMinutos) || 50;
+    setDuracaoMinimaSessaoMinutos(Number(state.duracaoMinimaSessaoMinutos) || legacyDuration);
+    setDuracaoMaximaSessaoMinutos(Number(state.duracaoMaximaSessaoMinutos) || legacyDuration);
     setDisciplinas(Array.isArray(state.disciplinas) ? state.disciplinas : []);
     setExtraDisciplinas(Array.isArray(state.extraDisciplinas) ? state.extraDisciplinas : []);
     setSelecaoDisciplinas(
@@ -282,8 +247,6 @@ function CicloCreateWizard({
         : (state.selecaoDisciplinas || {})
     );
     setRevisaoModo(normalizeRevisaoModoCiclo(state.revisaoModo));
-    setModoExibirAssuntos(state.modoExibirAssuntos !== false);
-    setModoExibirTempo(state.modoExibirTempo || 'detalhado');
     setCoresDisciplinasAtivas(state.coresDisciplinasAtivas !== false);
     setDisciplinaTodosDiasIds(
       normalizarDisciplinaTodosDiasIds(state.disciplinaTodosDiasIds || state.disciplinaTodosDiasId)
@@ -299,13 +262,12 @@ function CicloCreateWizard({
       idModeloSelecionado,
       dadosModeloSelecionado,
       gradeDisponibilidade,
-      tempoSessaoMinutos,
+      duracaoMinimaSessaoMinutos,
+      duracaoMaximaSessaoMinutos,
       disciplinas,
       extraDisciplinas,
       selecaoDisciplinas: serializarSelecaoDisciplinas(selecaoDisciplinas),
       revisaoModo: normalizeRevisaoModoCiclo(revisaoModo),
-      modoExibirAssuntos: modoExibirAssuntos !== false,
-      modoExibirTempo: modoExibirTempo || 'detalhado',
       coresDisciplinasAtivas: coresDisciplinasAtivas !== false,
       disciplinaTodosDiasIds,
     };
@@ -367,14 +329,14 @@ function CicloCreateWizard({
 
   useEffect(() => {
     document.body.classList.add('wizard-shell-open');
-    if (!isEditMode) {
+    if (!isEditMode && !preselectedEdital) {
       const draft = lerCicloDraft();
       if (draft) setMostrandoRascunho(true);
     }
     return () => {
       document.body.classList.remove('wizard-shell-open');
     };
-  }, [isEditMode]);
+  }, [isEditMode, preselectedEdital]);
 
   useEffect(() => {
     scrollToTopInstant(conteudoRef.current);
@@ -400,13 +362,12 @@ function CicloCreateWizard({
     idModeloSelecionado,
     dadosModeloSelecionado,
     gradeDisponibilidade,
-    tempoSessaoMinutos,
+    duracaoMinimaSessaoMinutos,
+    duracaoMaximaSessaoMinutos,
     disciplinas,
     extraDisciplinas,
     selecaoDisciplinas,
     revisaoModo,
-    modoExibirAssuntos,
-    modoExibirTempo,
     coresDisciplinasAtivas,
     disciplinaTodosDiasIds,
     isEditMode,
@@ -427,89 +388,35 @@ function CicloCreateWizard({
     return Object.values(gradeDisponibilidade).reduce((acc, valor) => acc + (parseFloat(valor) || 0), 0);
   }, [gradeDisponibilidade]);
 
-  const minimumActiveDayMinutes = useMemo(
-    () => getMinimumActiveDayMinutesFromSchedule(gradeDisponibilidade),
-    [gradeDisponibilidade]
-  );
-
-  const exampleActiveDayMinutes = useMemo(() => {
-    const firstActiveDay = Object.values(gradeDisponibilidade)
-      .map((horas) => Math.round((Number(horas) || 0) * 60))
-      .find((minutos) => minutos > 0);
-    return firstActiveDay || minimumActiveDayMinutes || 0;
-  }, [gradeDisponibilidade, minimumActiveDayMinutes]);
-
-  const activeStudyDaysCount = useMemo(
-    () => Object.values(gradeDisponibilidade).filter((horas) => Number(horas) > 0).length,
-    [gradeDisponibilidade]
-  );
-
-  const totalSessionSlots = useMemo(
-    () => Object.values(gradeDisponibilidade).reduce(
-      (total, horas) => {
-        const minutos = Math.max(0, Math.round((Number(horas) || 0) * 60));
-        return total + (minutos > 0 ? Math.ceil(minutos / Math.max(1, tempoSessaoMinutos)) : 0);
-      },
-      0
-    ),
-    [gradeDisponibilidade, tempoSessaoMinutos]
-  );
-
-  useEffect(() => {
-    if (!minimumActiveDayMinutes || !tempoSessaoMinutos) {
-      setSessionAutoAdjustedNotice(null);
-      return;
-    }
-
-    if (tempoSessaoMinutos > minimumActiveDayMinutes) {
-      setTempoSessaoMinutos(minimumActiveDayMinutes);
-      setSessionAutoAdjustedNotice({
-        adjustedTo: minimumActiveDayMinutes,
-        minDayMinutes: minimumActiveDayMinutes,
-      });
-      return;
-    }
-
-    setSessionAutoAdjustedNotice((current) => {
-      if (!current) return null;
-      if (current.adjustedTo !== tempoSessaoMinutos) return null;
-      if (current.minDayMinutes !== minimumActiveDayMinutes) {
-        return {
-          adjustedTo: tempoSessaoMinutos,
-          minDayMinutes: minimumActiveDayMinutes,
-        };
-      }
-      return current;
-    });
-  }, [minimumActiveDayMinutes, tempoSessaoMinutos]);
-
   const disciplinasComCalculo = useMemo(() => {
     const disciplinasAtivas = [...disciplinas, ...extraDisciplinas]
       .map((d) => {
         const selecao = selecaoDisciplinas[d.id] || {};
         const ativo = Boolean(selecao.checked || selecao.parcial);
         if (!ativo) return null;
-        const nivelDominio = selecao.nivel || null;
+        const conhecimentoNivel = normalizePlanningLevel(selecao.conhecimentoNivel);
+        const importanciaNivel = normalizePlanningLevel(selecao.importanciaNivel);
         const assuntos = Array.isArray(d.assuntos) ? d.assuntos : [];
         const assuntosMarcados = selecao.checked
           ? assuntos
           : assuntos.filter((_, index) => selecao.assuntosMarcados?.has?.(index));
         return {
           ...d,
-          nivelDominio,
-          peso: NIVEL_TO_PESO[nivelDominio] || Number(d.peso) || 3,
+          conhecimentoNivel,
+          importanciaNivel,
           assuntos: assuntos.length > 0 ? assuntosMarcados : assuntos,
           estudarTodosDias: disciplinaEstaTodosDias(disciplinaTodosDiasIds, d.id),
         };
       })
       .filter(Boolean);
 
-    const pesoTotal = disciplinasAtivas.reduce((acc, d) => acc + obterPesoDisciplina(d), 0);
+    const mediaAssuntos = Math.max(1, disciplinasAtivas.reduce((acc, d) => acc + Math.max(1, d.assuntos?.length || 1), 0) / Math.max(1, disciplinasAtivas.length));
+    const pesoTotal = disciplinasAtivas.reduce((acc, d) => acc + calculatePlanningPriority(d, mediaAssuntos, { allowLegacy: false }), 0);
     return disciplinasAtivas.map((d) => {
-      const peso = obterPesoDisciplina(d);
+      const peso = calculatePlanningPriority(d, mediaAssuntos, { allowLegacy: false });
       const razao = pesoTotal > 0 ? peso / pesoTotal : 0;
       const horas = razao * horasTotais;
-      return { ...d, peso, nivelDominio: isNivelValido(d.nivelDominio) ? d.nivelDominio : null, horasCalculadas: horas };
+      return { ...d, peso, horasCalculadas: horas };
     });
   }, [disciplinas, extraDisciplinas, selecaoDisciplinas, horasTotais, disciplinaTodosDiasIds]);
 
@@ -522,31 +429,11 @@ function CicloCreateWizard({
     }
   }, [disciplinaTodosDiasIds, disciplinasComCalculo]);
 
-  const minimumRequiredSessions = useMemo(
-    () => disciplinasComCalculo.reduce(
-      (total, disciplina) => total + (
-        disciplina.estudarTodosDias && activeStudyDaysCount > 0 ? activeStudyDaysCount : 1
-      ),
-      0
-    ),
-    [disciplinasComCalculo, activeStudyDaysCount]
-  );
-  const distribuicaoCabeNaRotina = totalSessionSlots >= minimumRequiredSessions;
-
   const selecaoValidaDisciplinas = useMemo(
     () =>
       disciplinasComCalculo.length > 0 &&
-      disciplinasComCalculo.every((d) => isNivelValido(d.nivelDominio)) &&
-      [...disciplinas, ...extraDisciplinas]
-        .filter((d) => {
-          const selecao = selecaoDisciplinas[d.id] || {};
-          return Boolean(selecao.checked || selecao.parcial);
-        })
-        .every((d) => {
-          const nivel = selecaoDisciplinas[d.id]?.nivel;
-          return isNivelValido(nivel);
-        }),
-    [disciplinasComCalculo, disciplinas, extraDisciplinas, selecaoDisciplinas]
+      disciplinasComCalculo.every(hasCompletePlanningLevels),
+    [disciplinasComCalculo]
   );
 
   const disciplinasPreview = useMemo(() => {
@@ -557,8 +444,8 @@ function CicloCreateWizard({
         id: disciplina.id || `preview-${index}`,
       })),
       Math.round(horasTotais * 60),
-      tempoSessaoMinutos,
-      { diasEstudo: gradeDisponibilidade }
+      duracaoMaximaSessaoMinutos,
+      { diasEstudo: gradeDisponibilidade, duracaoMinimaSessaoMinutos, duracaoMaximaSessaoMinutos }
     );
 
     return disciplinasComDistribuicao.map((disciplina) => {
@@ -574,7 +461,7 @@ function CicloCreateWizard({
         cor: color?.hex || disciplina.cor || null,
       };
     });
-  }, [disciplinasComCalculo, horasTotais, tempoSessaoMinutos, gradeDisponibilidade]);
+  }, [disciplinasComCalculo, horasTotais, duracaoMinimaSessaoMinutos, duracaoMaximaSessaoMinutos, gradeDisponibilidade]);
 
   const handleDisciplinaColorChange = (disciplinaId, cor) => {
     const updateList = (list) => list.map((disciplina) => (
@@ -586,15 +473,11 @@ function CicloCreateWizard({
 
   const cicloPreview = useMemo(() => {
     if (disciplinasPreview.length === 0) return null;
-    const ordemSessoes = gerarOrdemSessoes(disciplinasPreview, 0, {
-      diasEstudo: gradeDisponibilidade,
-      tempoSessaoMinutos,
-    });
+    const ordemSessoes = gerarOrdemSessoes(disciplinasPreview);
     return {
       nome: nomeCiclo || dadosModeloSelecionado?.titulo || 'Preview do Ciclo',
-      tempoSessaoMinutos,
-      modoExibirAssuntos: modoExibirAssuntos !== false,
-      modoExibirTempo: modoExibirTempo || 'detalhado',
+      duracaoMinimaSessaoMinutos,
+      duracaoMaximaSessaoMinutos,
       coresDisciplinasAtivas: coresDisciplinasAtivas !== false,
       disciplinasSnapshot: disciplinasPreview.map((disciplina) => ({
         id: disciplina.id,
@@ -605,7 +488,7 @@ function CicloCreateWizard({
       ordemSessoes,
       sessoesConcluidas: [],
     };
-  }, [disciplinasPreview, tempoSessaoMinutos, modoExibirAssuntos, modoExibirTempo, coresDisciplinasAtivas, nomeCiclo, dadosModeloSelecionado, gradeDisponibilidade]);
+  }, [disciplinasPreview, duracaoMinimaSessaoMinutos, duracaoMaximaSessaoMinutos, coresDisciplinasAtivas, nomeCiclo, dadosModeloSelecionado]);
 
   const modoManualConfirmado = idModeloSelecionado === 'manual';
   const editalCatalogoConfirmado = Boolean(
@@ -621,16 +504,14 @@ function CicloCreateWizard({
     setMostrarModalModelo(false);
     setNomeCiclo(modelo.titulo || '');
     const disciplinasFormatadas = (modelo.disciplinas || []).map((d, index) => {
-      const pesoInicial = d.peso || d.peso_sugerido || 3;
-      const nivelDominio = normalizarNivel(d.nivelDominio || d.nivel, pesoInicial);
       const assuntosLimpos = (d.assuntos || [])
         .map((item) => (typeof item === 'string' ? item : item?.nome || ''))
         .filter((i) => i !== '');
       return {
         id: `imported-${Date.now()}-${index}`,
         nome: d.nome,
-        peso: NIVEL_TO_PESO[nivelDominio],
-        nivelDominio,
+        conhecimentoNivel: getKnowledgeLevel(d),
+        importanciaNivel: getImportanceLevel(d),
         assuntos: assuntosLimpos,
         cor: d.cor || d.color || null,
         index,
@@ -647,12 +528,21 @@ function CicloCreateWizard({
             checked: false,
             parcial: false,
             assuntosMarcados: new Set(),
-            nivel: null,
+            conhecimentoNivel: 0,
+            importanciaNivel: 0,
           },
         ])
       )
     );
   };
+
+  useEffect(() => {
+    if (isEditMode || !preselectedEdital?.id) return;
+    if (preselectedEditalAppliedRef.current === String(preselectedEdital.id)) return;
+    preselectedEditalAppliedRef.current = String(preselectedEdital.id);
+    selecionarModelo(preselectedEdital);
+    setMostrandoRascunho(false);
+  }, [isEditMode, preselectedEdital]);
 
   const selecionarManual = () => {
     setIdModeloSelecionado('manual');
@@ -674,7 +564,7 @@ function CicloCreateWizard({
       return;
     }
     if (!selecaoValidaDisciplinas) {
-      setValidationMessage('Escolha o nivel de dominio em todas as disciplinas selecionadas.');
+      setValidationMessage('Defina conhecimento e importancia de 1 a 5 em todas as disciplinas selecionadas.');
       return;
     }
     if (!nomeCiclo.trim()) {
@@ -696,9 +586,11 @@ function CicloCreateWizard({
       tipo: isManual ? 'manual' : 'padrao',
       criadoEm: new Date(),
       logoUrl: logoFinal,
-      tempoSessaoMinutos,
-      modoExibirAssuntos: modoExibirAssuntos !== false,
-      modoExibirTempo: modoExibirTempo || 'detalhado',
+      duracaoMinimaSessaoMinutos,
+      duracaoMaximaSessaoMinutos,
+      tempoSessaoMinutos: duracaoMaximaSessaoMinutos,
+      modoExibirAssuntos: false,
+      modoExibirTempo: 'total',
       coresDisciplinasAtivas: coresDisciplinasAtivas !== false,
       revisaoModo: normalizeRevisaoModoCiclo(revisaoModo),
       disciplinas: disciplinasComCalculo.map((d, position) => {
@@ -707,8 +599,9 @@ function CicloCreateWizard({
           id: d.id,
           nome: d.nome,
           assuntos: d.assuntos,
-          peso: obterPesoDisciplina(d),
-          nivelDominio: normalizarNivel(d.nivelDominio || d.nivel, d.peso),
+          conhecimentoNivel: d.conhecimentoNivel,
+          importanciaNivel: d.importanciaNivel,
+          peso: calculatePlanningPriority(d),
           tempoAlocadoSemanalMinutos: Math.round(d.horasCalculadas * 60),
           estudarTodosDias: disciplinaEstaTodosDias(disciplinaTodosDiasIds, d.id),
           index: position,
@@ -720,7 +613,8 @@ function CicloCreateWizard({
         extraDisciplinas,
         selecaoDisciplinas,
         horasTotais,
-        tempoSessaoMinutos,
+        duracaoMinimaSessaoMinutos,
+        duracaoMaximaSessaoMinutos,
         disciplinaTodosDiasIds,
         diasEstudo: gradeDisponibilidade,
       }).map((disciplina) => {
@@ -754,13 +648,14 @@ function CicloCreateWizard({
   const podeAvancar = useMemo(() => {
     if (passo === 1) return editalConfirmado && !mostrarModalModelo;
     if (passo === 2) return selecaoValidaDisciplinas;
-    if (passo === 3) return horasTotais > 0;
-    if (passo === 4) return Number(tempoSessaoMinutos) >= 10 && distribuicaoCabeNaRotina;
-    if (passo === 5) return Boolean(revisaoModo);
-    if (passo === 6) return nomeCiclo.trim().length > 0;
-    if (passo === 7) return disciplinasPreview.length > 0 && Boolean(cicloPreview);
+    if (passo === 3) return horasTotais > 0
+      && duracaoMinimaSessaoMinutos >= 5
+      && duracaoMaximaSessaoMinutos >= duracaoMinimaSessaoMinutos;
+    if (passo === 4) return Boolean(revisaoModo);
+    if (passo === 5) return nomeCiclo.trim().length > 0;
+    if (passo === 6) return disciplinasPreview.length > 0 && Boolean(cicloPreview);
     return false;
-  }, [passo, editalConfirmado, mostrarModalModelo, selecaoValidaDisciplinas, horasTotais, revisaoModo, nomeCiclo, tempoSessaoMinutos, disciplinasPreview, cicloPreview, distribuicaoCabeNaRotina]);
+  }, [passo, editalConfirmado, mostrarModalModelo, selecaoValidaDisciplinas, horasTotais, revisaoModo, nomeCiclo, duracaoMinimaSessaoMinutos, duracaoMaximaSessaoMinutos, disciplinasPreview, cicloPreview]);
 
   const handleVoltar = () => {
     if (isEditMode) {
@@ -830,10 +725,6 @@ function CicloCreateWizard({
           setSelecaoDisciplinas={setSelecaoDisciplinas}
           editalSelecionado={dadosModeloSelecionado}
           modoManual={idModeloSelecionado === 'manual' || !idModeloSelecionado}
-          horarios={gradeDisponibilidade}
-          disciplinaTodosDiasIds={disciplinaTodosDiasIds}
-          setDisciplinaTodosDiasIds={setDisciplinaTodosDiasIds}
-          activeStudyDaysCount={activeStudyDaysCount}
         />
       );
     }
@@ -844,38 +735,23 @@ function CicloCreateWizard({
           horarios={gradeDisponibilidade}
           setHorarios={setGradeDisponibilidade}
           editalSelecionado={dadosModeloSelecionado}
+          duracaoMinimaSessaoMinutos={duracaoMinimaSessaoMinutos}
+          setDuracaoMinimaSessaoMinutos={setDuracaoMinimaSessaoMinutos}
+          duracaoMaximaSessaoMinutos={duracaoMaximaSessaoMinutos}
+          setDuracaoMaximaSessaoMinutos={setDuracaoMaximaSessaoMinutos}
         />
       );
     }
 
     if (passo === 4) {
-      return (
-        <StepDivisaoBlocos
-          tempoSessaoMinutos={tempoSessaoMinutos}
-          setTempoSessaoMinutos={setTempoSessaoMinutos}
-          minimumActiveDayMinutes={minimumActiveDayMinutes}
-          exampleDayMinutes={exampleActiveDayMinutes}
-          sessionAutoAdjustedNotice={sessionAutoAdjustedNotice}
-          totalSessionSlots={totalSessionSlots}
-          minimumRequiredSessions={minimumRequiredSessions}
-          distribuicaoCabeNaRotina={distribuicaoCabeNaRotina}
-        />
-      );
-    }
-
-    if (passo === 5) {
       return <StepRevisao revisaoModo={revisaoModo} setRevisaoModo={setRevisaoModo} />;
     }
 
-    if (passo === 6) {
+    if (passo === 5) {
       return (
         <StepConfig
           nomeCiclo={nomeCiclo}
           setNomeCiclo={setNomeCiclo}
-          modoExibirAssuntos={modoExibirAssuntos}
-          setModoExibirAssuntos={setModoExibirAssuntos}
-          modoExibirTempo={modoExibirTempo}
-          setModoExibirTempo={setModoExibirTempo}
           coresDisciplinasAtivas={coresDisciplinasAtivas}
           setCoresDisciplinasAtivas={setCoresDisciplinasAtivas}
           disciplinasPreview={disciplinasPreview}
@@ -890,9 +766,9 @@ function CicloCreateWizard({
         editalSelecionado={dadosModeloSelecionado}
         nomeCiclo={nomeCiclo}
         horasTotais={horasTotais}
-        tempoSessaoMinutos={tempoSessaoMinutos}
-        modoExibirAssuntos={modoExibirAssuntos}
-        modoExibirTempo={modoExibirTempo}
+        tempoSessaoMinutos={duracaoMaximaSessaoMinutos}
+        modoExibirAssuntos={false}
+        modoExibirTempo="total"
         coresDisciplinasAtivas={coresDisciplinasAtivas}
         disciplinasPreview={disciplinasPreview}
         cicloPreview={cicloPreview}
@@ -904,11 +780,11 @@ function CicloCreateWizard({
     1: 'ciclo-edital',
     2: 'ciclo-disciplinas',
     3: 'ciclo-horarios',
-    4: 'ciclo-blocos',
-    5: 'ciclo-revisao',
-    6: 'ciclo-config',
-    7: 'ciclo-preview',
+    4: 'ciclo-revisao',
+    5: 'ciclo-config',
+    6: 'ciclo-preview',
   }[passo] || 'ciclo-step';
+  const wideStepFrame = passo === 2 || passo === 3;
 
   return (
     <div className={`flex flex-col ${embedded ? 'relative h-full min-h-0 overflow-hidden pb-0' : 'min-h-screen pb-6'}`}>
@@ -917,7 +793,7 @@ function CicloCreateWizard({
           data-wizard-type="ciclo"
           data-wizard-step={currentStepZoomKey}
           data-wizard-embedded={embedded ? 'true' : undefined}
-          className={`wizard-step-frame ${(!isEditMode && passo === firstVisibleStep) || passo === 7 ? 'w-full mx-auto' : 'max-w-5xl mx-auto'}`}
+          className={`wizard-step-frame ${(!isEditMode && passo === firstVisibleStep) || passo === 6 ? 'w-full mx-auto' : wideStepFrame ? 'w-full max-w-7xl mx-auto' : 'max-w-5xl mx-auto'}`}
         >
           <AnimatePresence>
             {validationMessage && (

@@ -6,8 +6,8 @@ import { createPortal } from 'react-dom';
 
 import { db } from '../../firebaseConfig';
 import { CATALOGO_EDITAIS } from '../../pages/AdminPage/EditaisManager';
-import { normalizarNivelDominio } from '../../hooks/useCiclos';
 import { normalizeRevisaoModoCiclo } from '../../utils/cicloReviewMode';
+import { getKnowledgeLevel, getImportanceLevel } from '../../utils/planningPriority';
 import CicloCreateWizard from './CicloCreateWizard/CicloCreateWizard';
 
 const normalizarAssuntos = (assuntos = []) =>
@@ -37,16 +37,12 @@ const montarInitialState = ({ ciclo, disciplinas }) => {
   const editalCatalogado = CATALOGO_EDITAIS.find((item) => item.id === templateId) || null;
 
   const disciplinasWizard = disciplinas.map((disciplina, index) => {
-    const nivelDominio = normalizarNivelDominio(
-      disciplina?.nivelDominio || disciplina?.nivel,
-      disciplina?.peso
-    );
-
     return {
       id: disciplina.id,
       nome: disciplina.nome || `Disciplina ${index + 1}`,
       peso: Number(disciplina?.peso) || 3,
-      nivelDominio,
+      conhecimentoNivel: getKnowledgeLevel(disciplina),
+      importanciaNivel: getImportanceLevel(disciplina),
       assuntos: normalizarAssuntos(disciplina.assuntos),
       cor: disciplina?.cor || null,
       inCiclo: disciplina?.inCiclo !== false,
@@ -64,7 +60,8 @@ const montarInitialState = ({ ciclo, disciplinas }) => {
         assuntosMarcados: new Set(
           (disciplina.inCiclo !== false ? disciplina.assuntos : []).map((_, assuntoIndex) => assuntoIndex)
         ),
-        nivel: disciplina.nivelDominio,
+        conhecimentoNivel: disciplina.conhecimentoNivel,
+        importanciaNivel: disciplina.importanciaNivel,
       },
     ])
   );
@@ -83,7 +80,8 @@ const montarInitialState = ({ ciclo, disciplinas }) => {
           logoUrl: editalCatalogado?.logoUrl || ciclo?.logoUrl || null,
         },
     gradeDisponibilidade: normalizarDiasEstudo(ciclo),
-    tempoSessaoMinutos: Number(ciclo?.tempoSessaoMinutos) || 50,
+    duracaoMinimaSessaoMinutos: Number(ciclo?.duracaoMinimaSessaoMinutos) || Number(ciclo?.tempoSessaoMinutos) || 30,
+    duracaoMaximaSessaoMinutos: Number(ciclo?.duracaoMaximaSessaoMinutos) || Number(ciclo?.tempoSessaoMinutos) || 60,
     disciplinaTodosDiasIds: [
       ...new Set([
         ...(Array.isArray(ciclo?.disciplinaTodosDiasIds) ? ciclo.disciplinaTodosDiasIds : []),

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { getCycleDailyGuide } from '../src/utils/studyDayStatus.js';
+import { buildStudyDaysMap, getCycleDailyGuide, getCycleFreeQueue, getDailyStudyStatus } from '../src/utils/studyDayStatus.js';
 
 describe('cycle daily guide', () => {
   it('uses leftover minutes as an extra planned study session and avoids repeated disciplines when possible', () => {
@@ -38,5 +38,107 @@ describe('cycle daily guide', () => {
       [60, 60, 10]
     );
     assert.equal(guide.sessions[2].sessaoParcial, true);
+  });
+});
+
+describe('cycle free queue', () => {
+  it('keeps every visual cycle block without date or carryover', () => {
+    const ciclo = {
+      id: 'ciclo-livre',
+      tempoSessaoMinutos: 60,
+      disciplinas: [
+        { id: 'pt', nome: 'Portugues', inCiclo: true, assuntos: ['A'] },
+        { id: 'mat', nome: 'Matematica', inCiclo: true, assuntos: ['B'] },
+      ],
+      ordemSessoes: [
+        { disciplinaId: 'pt', sessaoIndex: 0, tempoPlanejadoMinutos: 45 },
+        { disciplinaId: 'mat', sessaoIndex: 0, tempoPlanejadoMinutos: 55 },
+        { disciplinaId: 'pt', sessaoIndex: 1, tempoPlanejadoMinutos: 40 },
+      ],
+      sessoesConcluidas: [],
+      progressoSessoes: {},
+    };
+
+    const queue = getCycleFreeQueue(ciclo, []);
+    assert.deepEqual(queue.sessions.map((session) => session.disciplinaId), ['pt', 'mat', 'pt']);
+    assert.deepEqual(queue.sessions.map((session) => session.tempoPlanejadoMinutos), [45, 55, 40]);
+    assert.equal(queue.sessions.some((session) => session.assignedDate || session.carriedOver), false);
+  });
+
+  it('does not create a missed-day status when the cycle was not studied', () => {
+    const status = getDailyStudyStatus({
+      date: '2026-08-01',
+      studyDaysMap: {},
+      activeCronogramaData: null,
+      activeCicloData: { id: 'ciclo-livre', dataCriacao: '2026-07-01' },
+      getAgendaSemana: () => [],
+      contextMode: 'ciclo',
+      registrosEstudo: [],
+    });
+
+    assert.equal(status.status, 'no-data');
+    assert.equal(status.goalMet, false);
+  });
+
+  it('only meets the configured cycle time with confirmed study records', () => {
+    const date = '2026-08-03';
+    const cycle = {
+      id: 'ciclo-meta',
+      dataCriacao: '2026-08-01',
+      diasEstudo: { 1: 2 },
+    };
+    const completionOnly = [{
+      data: date,
+      cicloId: cycle.id,
+      tempoEstudadoMinutos: 120,
+      origemConclusao: 'botao_concluir',
+    }];
+    const partialConfirmed = [{
+      data: date,
+      cicloId: cycle.id,
+      tempoEstudadoMinutos: 90,
+      origemConclusao: 'timer',
+    }];
+    const completedConfirmed = [{
+      data: date,
+      cicloId: cycle.id,
+      tempoEstudadoMinutos: 120,
+      origemConclusao: 'timer',
+    }];
+
+    const getStatus = (records) => getDailyStudyStatus({
+      date,
+      studyDaysMap: buildStudyDaysMap(records),
+      activeCronogramaData: null,
+      activeCicloData: cycle,
+      getAgendaSemana: () => [],
+      contextMode: 'ciclo',
+      registrosEstudo: records,
+    });
+
+    assert.equal(getStatus(completionOnly).goalMet, false);
+    assert.equal(getStatus(completionOnly).status, 'goal-not-met');
+    assert.equal(getStatus(partialConfirmed).goalMet, false);
+    assert.equal(getStatus(partialConfirmed).status, 'goal-met-one');
+    assert.equal(getStatus(completedConfirmed).goalMet, true);
+    assert.equal(getStatus(completedConfirmed).status, 'goal-met-both');
+  });
+
+  it('keeps the queue identical to the real visual blocks and ignores disciplines without sessions', () => {
+    const queue = getCycleFreeQueue({
+      id: 'ciclo-legado',
+      disciplinas: [
+        { id: 'pt', nome: 'Portugues', inCiclo: true },
+        { id: 'adm', nome: 'Administrativo', inCiclo: false },
+        { id: 'dh', nome: 'Direitos Humanos', inCiclo: false },
+      ],
+      ordemSessoes: [
+        { disciplinaId: 'pt', sessaoIndex: 0, tempoPlanejadoMinutos: 45 },
+        { disciplinaId: 'adm', sessaoIndex: 0, tempoPlanejadoMinutos: 45 },
+      ],
+    });
+
+    assert.deepEqual(queue.sessions.map((session) => session.disciplinaId), ['pt', 'adm']);
+    assert.deepEqual(queue.sessions.map((session) => session.globalIndex), [0, 1]);
   });
 });

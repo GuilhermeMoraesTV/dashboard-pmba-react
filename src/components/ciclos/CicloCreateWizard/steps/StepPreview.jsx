@@ -85,7 +85,7 @@ const DisciplineDistributionCard = ({ disciplinasPreview, maxSessoesDisciplina }
             <div className="min-w-0">
               <p className="text-[10px] font-black leading-tight text-zinc-900 line-clamp-1 dark:text-white sm:text-[13px]">{disciplina.nome}</p>
               <p className="hidden items-center gap-1 text-[10px] text-zinc-500 mt-0.5 capitalize line-clamp-1 sm:flex">
-                {disciplina.nivelDominio || 'nivel nao definido'}
+                Conhecimento {disciplina.conhecimentoNivel || 0} / Importancia {disciplina.importanciaNivel || 0}
                 {disciplina.estudarTodosDias && <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-1.5 py-0.5 text-[7px] font-black uppercase text-red-600 dark:bg-red-950/40 dark:text-red-300"><CalendarCheck2 size={8} /> diaria</span>}
               </p>
             </div>

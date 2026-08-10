@@ -23,6 +23,11 @@ const formatHorasTexto = (val) => {
   return m ? `${h}h ${m}` : `${h}h`;
 };
 
+const minutesToHourParts = (minutes) => ({
+  horas: Math.floor(Math.max(0, Number(minutes) || 0) / 60),
+  minutos: Math.max(0, Number(minutes) || 0) % 60,
+});
+
 // ─── CARTÃO DE DIA (COMPACTO) ─────────────────────────────────────────────────
 const DiaCard = ({ dia, horas, onToggle, onHorasChange }) => {
   const isEstudo = horas > 0;
@@ -49,7 +54,7 @@ const DiaCard = ({ dia, horas, onToggle, onHorasChange }) => {
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ type: 'spring', stiffness: 400, damping: 35 }}
-      className={`relative rounded-xl md:rounded-2xl border overflow-hidden transition-all duration-300 ${
+      className={`relative overflow-hidden rounded-xl border transition-all duration-300 ${
         isEstudo
           ? 'border-red-400/50 bg-white dark:bg-zinc-900 shadow-md shadow-red-500/5'
           : 'border-zinc-200 dark:border-zinc-800/60 bg-zinc-50/80 dark:bg-zinc-800/30 hover:bg-zinc-100 dark:hover:bg-zinc-800'
@@ -64,11 +69,11 @@ const DiaCard = ({ dia, horas, onToggle, onHorasChange }) => {
       {/* Cabeçalho do Card */}
       <button
         onClick={() => onToggle(dia.idx)}
-        className="relative z-10 w-full flex items-center justify-between p-2 md:p-3 outline-none group"
+        className="group relative z-10 flex w-full items-center justify-between p-2 outline-none"
       >
         <div className="flex items-center gap-2">
           {/* Ícone menor no mobile */}
-          <div className={`w-7 h-7 md:w-9 md:h-9 rounded-lg md:rounded-xl flex items-center justify-center shrink-0 transition-all duration-300 ${
+          <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-all duration-300 ${
             isEstudo
               ? 'bg-red-500 text-white shadow-md shadow-red-500/30'
               : 'bg-white dark:bg-zinc-700 text-zinc-400 dark:text-zinc-500 border border-zinc-200 dark:border-zinc-600'
@@ -78,11 +83,11 @@ const DiaCard = ({ dia, horas, onToggle, onHorasChange }) => {
 
           <div className="text-left">
             {/* Nome abreviado no mobile, completo no desktop */}
-            <h4 className={`text-[11px] md:text-sm font-black tracking-wide leading-tight ${
+            <h4 className={`text-[11px] font-black leading-tight tracking-wide ${
               isEstudo ? 'text-zinc-900 dark:text-white' : 'text-zinc-500 dark:text-zinc-400'
             }`}>
-              <span className="md:hidden">{dia.curto}</span>
-              <span className="hidden md:inline">{dia.longo}</span>
+              <span className="xl:hidden">{dia.curto}</span>
+              <span className="hidden xl:inline">{dia.longo}</span>
             </h4>
             <span className={`text-[8px] md:text-[9px] font-bold uppercase tracking-widest ${
               dia.weekend ? 'text-red-500/80' : 'text-zinc-400'
@@ -95,10 +100,9 @@ const DiaCard = ({ dia, horas, onToggle, onHorasChange }) => {
         <div className="text-right">
           {isEstudo ? (
             <div className="flex flex-col items-end">
-              <span className="text-sm md:text-lg font-black text-red-600 dark:text-red-400 tracking-tighter leading-none">
+              <span className="text-sm font-black leading-none tracking-tighter text-red-600 dark:text-red-400">
                 {formatHorasTexto(horas)}
               </span>
-              <span className="text-[7px] md:text-[9px] font-bold text-zinc-400 uppercase tracking-widest mt-0.5 hidden md:block">Estudando</span>
             </div>
           ) : (
             <span className="px-1.5 md:px-2.5 py-0.5 md:py-1 rounded-full bg-zinc-200/60 dark:bg-zinc-700/50 text-[8px] md:text-[9px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest">
@@ -118,27 +122,25 @@ const DiaCard = ({ dia, horas, onToggle, onHorasChange }) => {
             transition={{ type: 'spring', stiffness: 400, damping: 35 }}
             className="overflow-hidden relative z-10"
           >
-            <div className="px-2 md:px-3 pb-2 md:pb-3 pt-0">
-              <div className="bg-zinc-50/50 dark:bg-zinc-800/40 rounded-lg md:rounded-xl p-2 md:p-3 border border-zinc-100 dark:border-zinc-700/50">
-
-                {/* Presets — Todos em uma única linha */}
-                <div className="flex w-full gap-1 mb-4">
-                  {PRESETS_HORAS.map(h => (
+            <div className="px-2 pb-2 pt-0">
+              <div className="rounded-lg border border-zinc-100 bg-zinc-50/50 px-2 py-1.5 dark:border-zinc-700/50 dark:bg-zinc-800/40">
+                <div className="mb-1.5 flex w-full gap-0.5">
+                  {PRESETS_HORAS.map((preset) => (
                     <button
-                      key={h}
-                      onClick={() => onHorasChange(dia.idx, h)}
-                      className={`flex-1 h-9 md:h-10 rounded-lg text-[11px] md:text-xs font-black transition-all active:scale-95 flex items-center justify-center ${
-                        horas === h
-                          ? 'bg-red-500 text-white shadow-md shadow-red-500/30 border-transparent'
-                          : 'bg-white dark:bg-zinc-700 text-zinc-500 dark:text-zinc-300 hover:bg-red-50 dark:hover:bg-zinc-600 border border-zinc-200 dark:border-zinc-600'
+                      key={preset}
+                      type="button"
+                      onClick={() => onHorasChange(dia.idx, preset)}
+                      className={`flex h-7 min-w-0 flex-1 items-center justify-center rounded-md text-[9px] font-black transition-colors ${
+                        horas === preset
+                          ? 'bg-red-500 text-white shadow-sm'
+                          : 'border border-zinc-200 bg-white text-zinc-500 hover:border-red-300 hover:text-red-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300'
                       }`}
                     >
-                      {h}h
+                      {preset}h
                     </button>
                   ))}
                 </div>
-
-                <div className="relative flex items-center w-full h-7 md:h-8">
+                <div className="relative flex h-6 w-full items-center">
                   <div className="absolute inset-x-0 h-2 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
                     <div
                       className="absolute left-0 h-full bg-gradient-to-r from-red-400 to-red-500 rounded-full"
@@ -156,7 +158,7 @@ const DiaCard = ({ dia, horas, onToggle, onHorasChange }) => {
                   />
                 </div>
 
-                <div className="flex justify-between mt-1 text-[8px] md:text-[9px] font-black uppercase text-zinc-400">
+                <div className="mt-0.5 flex justify-between text-[8px] font-black uppercase text-zinc-400">
                   <span>30min</span>
                   <span>12h</span>
                 </div>
@@ -199,7 +201,9 @@ const EditalSidebarCard = ({ editalSelecionado }) => (
 const Step3_Horarios = ({ horarios, onHorariosChange, editalSelecionado, config = null, onConfigChange = null }) => {
   const hasEdital = !!editalSelecionado;
   const modoMontagem = config?.modoMontagem || 'inteligente';
-  const podeEscolherModo = typeof onConfigChange === 'function';
+  const podeEscolherModo = typeof onConfigChange === 'function' && config?.mostrarModoMontagem !== false;
+  const duracaoMinima = Math.max(5, Number(config?.duracaoMinimaSessaoMinutos) || 30);
+  const duracaoMaxima = Math.max(duracaoMinima, Number(config?.duracaoMaximaSessaoMinutos) || 60);
 
   const totalHoras = useMemo(
     () => Object.values(horarios).reduce((a, h) => a + (parseFloat(h) || 0), 0),
@@ -227,6 +231,30 @@ const Step3_Horarios = ({ horarios, onHorariosChange, editalSelecionado, config 
   const handleModoMontagem = (modo) => {
     if (!podeEscolherModo) return;
     onConfigChange({ ...(config || {}), modoMontagem: modo });
+  };
+
+  const handleDuracaoChange = (field, rawValue) => {
+    if (typeof onConfigChange !== 'function') return;
+    const value = Math.max(5, Math.min(240, Math.round(Number(rawValue) || 0)));
+    const next = { ...(config || {}), [field]: value };
+    if (field === 'duracaoMinimaSessaoMinutos' && value > duracaoMaxima) {
+      next.duracaoMaximaSessaoMinutos = value;
+    }
+    if (field === 'duracaoMaximaSessaoMinutos' && value < duracaoMinima) {
+      next.duracaoMinimaSessaoMinutos = value;
+    }
+    onConfigChange(next);
+  };
+
+  const handleDuracaoPartChange = (field, part, rawValue) => {
+    const current = field === 'duracaoMinimaSessaoMinutos' ? duracaoMinima : duracaoMaxima;
+    const parts = minutesToHourParts(current);
+    const numeric = Math.max(0, Math.round(Number(rawValue) || 0));
+    const nextParts = {
+      ...parts,
+      [part]: part === 'horas' ? Math.min(4, numeric) : Math.min(55, Math.floor(numeric / 5) * 5),
+    };
+    handleDuracaoChange(field, (nextParts.horas * 60) + nextParts.minutos);
   };
 
   return (
@@ -308,10 +336,59 @@ const Step3_Horarios = ({ horarios, onHorariosChange, editalSelecionado, config 
             </div>
           )}
 
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-black text-zinc-400 uppercase tracking-widest">
-              Configurar Semana
-            </span>
+          <div>
+            <div className="mb-2">
+              <p className="text-xs font-black uppercase tracking-widest text-zinc-700 dark:text-zinc-200">Duração dos blocos de estudo</p>
+              <p className="mt-0.5 text-[9px] font-semibold text-zinc-400">Defina o menor e o maior tempo permitido para cada sessão.</p>
+            </div>
+            <div className="grid w-full max-w-2xl grid-cols-1 gap-2 rounded-xl border border-zinc-200 bg-white p-2 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:grid-cols-2">
+              {[
+                { field: 'duracaoMinimaSessaoMinutos', label: 'Mínima', value: duracaoMinima },
+                { field: 'duracaoMaximaSessaoMinutos', label: 'Máxima', value: duracaoMaxima },
+              ].map((item) => {
+                const parts = minutesToHourParts(item.value);
+                return (
+                  <div key={item.field} className="flex min-w-0 flex-col gap-1.5 rounded-lg bg-zinc-50 px-2.5 py-2 dark:bg-zinc-950">
+                    <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400">Duração {item.label.toLowerCase()}</span>
+                    <div className="grid min-w-0 grid-cols-2 gap-1.5">
+                      <label className="flex min-w-0 items-center gap-1 rounded-md border border-zinc-200 bg-white px-2 py-1 dark:border-zinc-800 dark:bg-zinc-900">
+                        <input
+                          type="number"
+                          min="0"
+                          max="4"
+                          step="1"
+                          value={parts.horas}
+                          onChange={(event) => handleDuracaoPartChange(item.field, 'horas', event.target.value)}
+                          aria-label={`${item.label} em horas`}
+                          className="min-w-0 flex-1 bg-transparent text-sm font-black text-zinc-900 outline-none dark:text-white"
+                        />
+                        <span className="text-[8px] font-black uppercase text-zinc-400">h</span>
+                      </label>
+                      <label className="flex min-w-0 items-center gap-1 rounded-md border border-zinc-200 bg-white px-2 py-1 dark:border-zinc-800 dark:bg-zinc-900">
+                        <input
+                          type="number"
+                          min="0"
+                          max="55"
+                          step="5"
+                          value={parts.minutos}
+                          onChange={(event) => handleDuracaoPartChange(item.field, 'minutos', event.target.value)}
+                          aria-label={`${item.label} em minutos`}
+                          className="min-w-0 flex-1 bg-transparent text-sm font-black text-zinc-900 outline-none dark:text-white"
+                        />
+                        <span className="text-[8px] font-black uppercase text-zinc-400">min</span>
+                      </label>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="flex items-end justify-between gap-3">
+            <div>
+              <p className="text-xs font-black uppercase tracking-widest text-zinc-700 dark:text-zinc-200">Dias e carga de estudo da semana</p>
+              <p className="mt-0.5 text-[9px] font-semibold text-zinc-400">Ative os dias em que pretende estudar e informe o tempo disponível.</p>
+            </div>
             <button
               onClick={limparTudo}
               disabled={totalHoras === 0}
@@ -322,8 +399,7 @@ const Step3_Horarios = ({ horarios, onHorariosChange, editalSelecionado, config 
             </button>
           </div>
 
-          {/* SEMPRE 2 colunas no mobile, 2 no desktop também */}
-          <div className="grid grid-cols-2 gap-2 md:gap-3 items-start">
+          <div className="grid grid-cols-2 items-start gap-2 sm:grid-cols-3 xl:grid-cols-4">
             {DIAS.map((dia) => (
               <DiaCard
                 key={dia.idx}

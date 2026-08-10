@@ -342,6 +342,8 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   const [feedbackInitialState, setFeedbackInitialState] = useState({ initialView: 'home', initialType: 'ideia' });
   const [warningAlert, setWarningAlert]         = useState({ isOpen:false, title:'', message:'' });
   const [forcePlanejamentoSelector, setForcePlanejamentoSelector] = useState(false);
+  const [pendingPlanningEdital, setPendingPlanningEdital] = useState(null);
+  const [reopenEditalLibrary, setReopenEditalLibrary] = useState(false);
   const [welcomeCarousel, setWelcomeCarousel]   = useState({ loading:true, mode:null });
 
   const [activeStudySession, setActiveStudySession]   = useState(null);
@@ -2000,6 +2002,18 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     setEditalInitialSource(source);
     setActiveTab('edital');
   }, [setActiveTab]);
+  const handleCreatePlanningFromEdital = useCallback((edital) => {
+    if (!edital) return;
+    setPendingPlanningEdital(edital);
+    setForcePlanejamentoSelector(true);
+    setActiveTab('planejamento');
+  }, [setActiveTab]);
+  const handleBackToEditalLibrary = useCallback(() => {
+    setPendingPlanningEdital(null);
+    setForcePlanejamentoSelector(false);
+    setReopenEditalLibrary(true);
+    setActiveTab('edital');
+  }, [setActiveTab]);
   const handleCreateNewCycleFromLegacy = useCallback(() => {
     setForcePlanejamentoSelector(false);
     setActiveTab('planejamento');
@@ -2225,7 +2239,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       case 'ciclos':
         return <CiclosPage user={user} onStartStudy={handleStartStudy} onCicloAtivado={handleCicloCreationOrActivation} addRegistroEstudo={addRegistroEstudo} deleteCompletionRegistro={deleteCompletionRegistro} onDeleteRegistro={deleteRegistro} activeCicloId={activeCicloId} forceOpenVisual={forceOpenVisual} targetOpenCicloId={targetOpenCicloId} onTargetOpenHandled={() => setTargetOpenCicloId(null)} onGoToEdital={() => handleGoToEditalSource('ciclo')} onGoToRevisao={() => setActiveTab('revisoes')} onCreateNewCycle={handleCreateNewCycleFromLegacy} registrosEstudo={mergedAllRegistrosEstudo} isTimerActive={!!(activeStudySession||activeSimuladoSession)} onRegistroModalOpenChange={setIsLocalRegistroModalOpen}/>;
       case 'planejamento':
-        return <PlanejamentoPage user={user} addRegistroEstudo={addRegistroEstudo} onStartStudy={handleStartStudy} onGoToEdital={() => handleGoToEditalSource('ciclo')} onGoToRevisao={() => setActiveTab('revisoes')} registrosEstudo={mergedAllRegistrosEstudo} isTimerActive={!!(activeStudySession||activeSimuladoSession)} onGoToCronograma={handleCronogramaCreation} onCicloAtivado={handleCicloCreationOrActivation} activeCicloId={activeCicloId} abrirDiretoSeletor={isNovoUsuarioPlanejamento || forcePlanejamentoSelector} onSeletorDiretoAberto={handleSeletorDiretoAberto} onOpenFeedback={handleOpenFeedback} onRegistroModalOpenChange={setIsLocalRegistroModalOpen} />;
+        return <PlanejamentoPage user={user} addRegistroEstudo={addRegistroEstudo} onStartStudy={handleStartStudy} onGoToEdital={() => handleGoToEditalSource('ciclo')} onGoToRevisao={() => setActiveTab('revisoes')} registrosEstudo={mergedAllRegistrosEstudo} isTimerActive={!!(activeStudySession||activeSimuladoSession)} onGoToCronograma={handleCronogramaCreation} onCicloAtivado={handleCicloCreationOrActivation} activeCicloId={activeCicloId} abrirDiretoSeletor={isNovoUsuarioPlanejamento || forcePlanejamentoSelector} onSeletorDiretoAberto={handleSeletorDiretoAberto} onOpenFeedback={handleOpenFeedback} onRegistroModalOpenChange={setIsLocalRegistroModalOpen} initialEdital={pendingPlanningEdital} onInitialEditalConsumed={() => setPendingPlanningEdital(null)} onBackToEditais={handleBackToEditalLibrary} />;
       case 'cronograma':
         return <CronogramaPage user={user} onStartStudy={handleStartStudy} addRegistroEstudo={addRegistroEstudo} deleteCompletionRegistro={deleteCompletionRegistro} registrosEstudo={mergedAllRegistrosEstudo} onDeleteRegistro={deleteRegistro} onGoToEdital={() => handleGoToEditalSource('cronograma')} onGoToRevisao={() => setActiveTab('revisoes')} initialEditMode={targetCronogramaEditMode} onInitialEditModeHandled={() => setTargetCronogramaEditMode(null)}/>;
       case 'cronogramas':
@@ -2244,10 +2258,13 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
             onDismissEditalUpdate={dismissEditalUpdate}
             loadingEditalUpdate={loadingNotif}
             onGoToCronograma={handleCronogramaCreation}
+            onCreatePlanningFromEdital={handleCreatePlanningFromEdital}
+            openLibraryOnMount={reopenEditalLibrary}
+            onLibraryOpened={() => setReopenEditalLibrary(false)}
           />
         );
       case 'revisoes':
-        return <div className="mobile-page-zoom mobile-page-zoom--revisoes desktop-page-zoom desktop-page-zoom--revisoes"><RevisaoPage user={user} onStartStudy={handleStartStudy} addRegistroEstudo={addRegistroEstudo} deleteCompletionRegistro={deleteCompletionRegistro} onChoosePlan={handleChoosePlanFromRevisao} /></div>;
+        return <div className="mobile-page-zoom mobile-page-zoom--revisoes desktop-page-zoom desktop-page-zoom--revisoes"><RevisaoPage user={user} onStartStudy={handleStartStudy} addRegistroEstudo={addRegistroEstudo} deleteCompletionRegistro={deleteCompletionRegistro} onChoosePlan={handleChoosePlanFromRevisao} registrosEstudo={mergedAllRegistrosEstudo} disciplinasCiclo={activeCycleDisciplines} /></div>;
       case 'stats':
         return <Desempenho registrosEstudo={mergedAllRegistrosEstudo} disciplinasDoCiclo={activeCycleDisciplines} activeCicloId={activeCicloId} activeCronogramaId={activeCronogramaData?.id||null} activeCicloData={activeCicloData} activeCronogramaData={activeCronogramaData} metas={goalsHistory} onCreateCycle={() => setActiveTab('planejamento')}/>;
       case 'simulados':

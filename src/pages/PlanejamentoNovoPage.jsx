@@ -108,21 +108,21 @@ const CardPlanejamento = ({
   );
 };
 
-function PlanejamentoNovoPage({ onBack, onCriarCiclo, onCriarCronograma, hideBack = false }) {
+function PlanejamentoNovoPage({ onBack, onBackToEditais, onCriarCiclo, onCriarCronograma, hideBack = false }) {
   return (
     <div className="desktop-page-zoom desktop-page-zoom--planejamento-selector mobile-page-zoom mobile-page-zoom--planejamento-selector flex min-h-[calc(100vh-9rem)] flex-col justify-center w-full relative pb-12 px-1 md:justify-start md:pt-2">
       <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-red-600/[0.02] dark:bg-red-600/[0.04] blur-[120px] rounded-full pointer-events-none" />
       
       <div className="w-full relative z-10">
-        {!hideBack && (
+        {(onBackToEditais || !hideBack) && (
           <header className="flex items-center justify-start mb-6 md:mb-4">
             <motion.button
               whileHover={{ x: -3 }}
-              onClick={onBack}
+              onClick={onBackToEditais || onBack}
               className="group flex items-center gap-2 px-4 py-2 rounded-xl border-2 border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-[10px] font-black uppercase tracking-[0.1em] text-zinc-500 hover:text-red-600 transition-all shadow-sm"
             >
               <ArrowLeft size={14} strokeWidth={3} className="group-hover:-translate-x-1 transition-transform" />
-              Voltar
+              {onBackToEditais ? 'Voltar para editais' : 'Voltar'}
             </motion.button>
           </header>
         )}

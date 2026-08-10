@@ -104,15 +104,25 @@ export const buildStudyDaysMap = (registrosEstudo = []) => {
     if (!dateKey) return;
 
     if (!days[dateKey]) {
-      days[dateKey] = { questions: 0, correct: 0, minutes: 0 };
+      days[dateKey] = { questions: 0, correct: 0, minutes: 0, confirmedMinutes: 0 };
     }
 
     days[dateKey].questions += Number(item.questoesFeitas || 0);
     days[dateKey].correct += Number(item.acertos || item.questoesAcertadas || 0);
     days[dateKey].minutes += getRecordMinutes(item);
+    if (isConfirmedStudyRecord(item)) {
+      days[dateKey].confirmedMinutes += getRecordMinutes(item);
+    }
   });
 
   return days;
+};
+
+export const isConfirmedStudyRecord = (registro) => {
+  if (!registro) return false;
+  const source = String(registro.origemConclusao || '').trim().toLowerCase();
+  const type = String(registro.tipoEstudo || '').trim().toLowerCase();
+  return source !== 'botao_concluir' && type !== 'check_manual';
 };
 
 const DEFAULT_CYCLE_STUDY_DAYS = [1, 2, 3, 4, 5];
@@ -206,13 +216,17 @@ const isCycleSessionCompletedByDate = (ciclo, globalIndex, dateKey = null) => {
   return String(completionDate) <= String(dateKey);
 };
 
-const buildCycleOrderedSessions = (ciclo, dateKey = null, registrosEstudo = []) => {
+export const buildCycleOrderedSessions = (ciclo, dateKey = null, registrosEstudo = []) => {
   const ordemSessoes = Array.isArray(ciclo?.ordemSessoes) ? ciclo.ordemSessoes : [];
   const progressoSessoes = ciclo?.progressoSessoes || {};
   const tempoSessaoMinutos = Math.max(1, Number(ciclo?.tempoSessaoMinutos) || 50);
 
   return ordemSessoes
     .map((sessao, globalIndex) => {
+      const tempoPlanejadoMinutos = Math.max(
+        1,
+        Number(sessao?.tempoPlanejadoMinutos || sessao?.tempoMinutos || tempoSessaoMinutos),
+      );
       const concluidaEm = getCycleSessionCompletionDate(ciclo, globalIndex);
       const progressoPersistido = Number(progressoSessoes?.[globalIndex] || progressoSessoes?.[String(globalIndex)] || 0);
       const progressoRegistrado = getCycleSessionRecordedMinutes({
@@ -231,17 +245,17 @@ const buildCycleOrderedSessions = (ciclo, dateKey = null, registrosEstudo = []) 
         onlyRealStudyRecords: true,
       });
       const progressoMinutos = Math.max(progressoPersistido, progressoRegistrado);
-      const concluidaPorRegistroDoDia = dateKey && progressoRegistrado >= tempoSessaoMinutos;
-      const bloqueiaDesmarcarConclusao = progressoRegistroReal >= tempoSessaoMinutos;
+      const concluidaPorRegistroDoDia = dateKey && progressoRegistrado >= tempoPlanejadoMinutos;
+      const bloqueiaDesmarcarConclusao = progressoRegistroReal >= tempoPlanejadoMinutos;
       const concluida = isCycleSessionCompletedByDate(ciclo, globalIndex, dateKey)
         || concluidaPorRegistroDoDia
-        || progressoMinutos >= tempoSessaoMinutos;
+        || progressoMinutos >= tempoPlanejadoMinutos;
       return {
         ...sessao,
         globalIndex,
         concluida,
         concluidaEm: concluidaEm || (concluidaPorRegistroDoDia ? dateKey : null),
-        tempoPlanejadoMinutos: tempoSessaoMinutos,
+        tempoPlanejadoMinutos,
         progressoMinutos,
         progressoRegistradoMinutos: progressoRegistrado,
         progressoRegistroRealMinutos: progressoRegistroReal,
@@ -379,6 +393,43 @@ const enrichCycleSessionsWithAssuntos = (ciclo, sessions) => (
     ...getCycleAssuntoForSession(ciclo, session),
   }))
 );
+
+export const getCycleFreeQueue = (ciclo, registrosEstudo = []) => {
+  if (!ciclo) {
+    return { sessions: [], plannedMinutes: 0, remainingMinutes: 0, isRestDay: false };
+  }
+
+  const orderedSessions = buildCycleOrderedSessions(ciclo, null, registrosEstudo);
+  const disciplines = Array.isArray(ciclo.disciplinas) ? ciclo.disciplinas : [];
+  const disciplineMap = new Map(disciplines.map((disciplina) => [String(disciplina.id), disciplina]));
+  const sessions = orderedSessions.filter((session) => disciplineMap.has(String(session.disciplinaId))).map((session) => {
+    const disciplinaId = String(session.disciplinaId || '');
+    const disciplina = disciplineMap.get(disciplinaId);
+    return {
+      ...session,
+      disciplinaNome: session.disciplinaNome || disciplina?.nome || 'Disciplina',
+    };
+  });
+  const enriched = enrichCycleSessionsWithAssuntos(ciclo, sessions);
+  const plannedMinutes = enriched.reduce(
+    (total, session) => total + Number(session.tempoPlanejadoMinutos || 0),
+    0,
+  );
+  const remainingMinutes = enriched.reduce(
+    (total, session) => total + Math.max(0, Number(session.tempoPlanejadoMinutos || 0) - Number(session.progressoMinutos || 0)),
+    0,
+  );
+
+  return {
+    sessions: enriched,
+    plannedMinutes,
+    targetMinutes: plannedMinutes,
+    remainingMinutes,
+    isRestDay: false,
+    carriedOverCount: 0,
+    carriedOverFromDates: [],
+  };
+};
 
 const getSessionDisciplineKey = (session) => String(session?.disciplinaId ?? '');
 
@@ -731,20 +782,31 @@ export const getDailyStudyStatus = ({
   activeCicloData,
   getAgendaSemana,
   contextMode = 'all',
-  registrosEstudo = [],
 }) => {
   const dateStr = typeof date === 'string' ? date : dateToYMDLocal(date);
   const dayDate = startOfLocalDay(typeof date === 'string' ? new Date(`${date}T12:00:00`) : date);
   const todayDate = startOfLocalDay(new Date());
   const isFutureDay = dayDate.getTime() > todayDate.getTime();
   const cronogramaStatus = getCronogramaDayStatus(activeCronogramaData, dayDate, getAgendaSemana);
-  const cicloStatus = getCycleSessionsForDay(activeCicloData, dayDate, registrosEstudo);
   const dayData = studyDaysMap?.[dateStr];
-  const hasStudyData = !!dayData && (dayData.minutes > 0 || dayData.questions > 0);
+  const confirmedMinutes = Math.max(0, Number(dayData?.confirmedMinutes ?? dayData?.minutes ?? 0));
+  const hasRawStudyData = !!dayData && (dayData.minutes > 0 || dayData.questions > 0);
+  const hasConfirmedStudyData = confirmedMinutes > 0;
+  const cycleTargetMinutes = Number(getCycleDayTargetMinutesMap(activeCicloData)?.[dayDate.getDay()] || 0);
+  const cicloStatus = activeCicloData?.id && cycleTargetMinutes > 0
+    ? {
+        isRestDay: false,
+        totalSlots: 1,
+        completedSlots: confirmedMinutes >= cycleTargetMinutes ? 1 : 0,
+        targetMinutes: cycleTargetMinutes,
+        confirmedMinutes,
+      }
+    : null;
 
   let statuses = [cronogramaStatus, cicloStatus].filter(Boolean);
   if (contextMode === 'cronograma') statuses = [cronogramaStatus].filter(Boolean);
   if (contextMode === 'ciclo') statuses = [cicloStatus].filter(Boolean);
+  const hasStudyData = contextMode === 'ciclo' ? hasConfirmedStudyData : hasRawStudyData;
 
   const recordDates = Object.keys(studyDaysMap || {})
     .map(ymdToMillis)

@@ -1,8 +1,9 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { db } from '../firebaseConfig';
 import {
-  collection, doc, getDocs, query, where,
+  collection, doc, getDoc, getDocs, query, where,
   addDoc, serverTimestamp, deleteDoc, onSnapshot, writeBatch, updateDoc
 } from 'firebase/firestore';
 import {
@@ -13,10 +14,27 @@ import {
   ChevronRight, LayoutGrid, GraduationCap, X, Ban, RefreshCw, ArrowUpCircle,
   GripVertical, Sparkles, Rocket, Plus, Minus, Shield, Star, Undo2, Trash2, ChevronUp,
   CalendarDays, ArrowLeftRight, Zap, LayoutList,
+  Download, FileText, Loader2, Library, Eye, ArrowLeft,
 } from 'lucide-react';
 import { CATALOGO_EDITAIS } from '../pages/AdminPage/EditaisManager';
 import { useForceUnlock } from '../hooks/useForceUnlock';
 import EmptyStateCard from '../components/shared/EmptyStateCard';
+import { TelaCatalogo } from '../components/cronograma/Step1Edital';
+import {
+  filterEditalDisciplines,
+  formatEditalProgressText,
+  formatEditalStudyDate,
+  prepareExternalEditalDisciplines,
+} from '../utils/editalPageUtils';
+import {
+  downloadEditalVerticalizadoPdf,
+  PDF_FILL_BLANK,
+  PDF_FILL_PROGRESS,
+  PDF_SCOPE_COMPLETE,
+  PDF_SCOPE_PLANNING,
+  prepareEditalVerticalizadoDisciplines,
+} from './EditalVerticalizadoPdf';
+import { isHighRelevance } from '../utils/planningPriority';
 
 // ----------------------------------------------------------------------
 // Helpers
@@ -31,22 +49,6 @@ const getTemplateIdDoCiclo = (ciclo) => {
 
 const normalize = (str) =>
   str ? str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase() : '';
-
-const formatDateRelative = (dateString) => {
-  if (!dateString) return '-';
-  let date;
-  try {
-    if (dateString.toDate) date = dateString.toDate();
-    else if (typeof dateString === 'string') date = new Date(dateString);
-    else if (typeof dateString === 'number') date = new Date(dateString);
-    else date = new Date();
-  } catch { return '-'; }
-  const today    = new Date();
-  const diffDays = Math.ceil(Math.abs(today - date) / (1000 * 60 * 60 * 24));
-  if (diffDays <= 1) return 'Hoje';
-  if (diffDays === 2) return 'Ontem';
-  return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-};
 
 const formatMinutesToTime = (totalMinutes) => {
   if (!totalMinutes || totalMinutes === 0) return '0m';
@@ -369,6 +371,181 @@ const SourceToggleButton = ({ viewSource, onToggle, cicloLogo, cronogramaLogo })
   );
 };
 
+const DownloadEditalModal = ({
+  open,
+  editalNome,
+  scope,
+  fillMode,
+  generating,
+  onScopeChange,
+  onFillModeChange,
+  onClose,
+  onGenerate,
+}) => {
+  if (!open || typeof document === 'undefined') return null;
+
+  const scopeLabel = scope === PDF_SCOPE_COMPLETE ? 'Edital completo' : 'Disciplinas do planejamento';
+  const fillLabel = fillMode === PDF_FILL_PROGRESS ? 'Progresso atual' : 'Em branco';
+  const Option = ({ active, icon, title, description, onClick }) => (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={generating}
+      className={`flex min-h-[88px] w-full items-start gap-3 rounded-2xl border-2 p-3.5 text-left transition-all disabled:cursor-wait disabled:opacity-70 ${active
+        ? 'border-red-500 bg-red-50 text-red-900 shadow-sm shadow-red-500/10 dark:border-red-500 dark:bg-red-500/10 dark:text-red-100'
+        : 'border-zinc-200 bg-white text-zinc-700 hover:border-red-200 hover:bg-red-50/40 dark:border-white/10 dark:bg-zinc-950 dark:text-zinc-300 dark:hover:border-red-500/40'}`}
+    >
+      <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${active ? 'bg-red-600 text-white' : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400'}`}>
+        {React.createElement(icon, { size: 19 })}
+      </span>
+      <span className="min-w-0">
+        <span className="block text-sm font-black">{title}</span>
+        <span className="mt-1 block text-[11px] font-medium leading-relaxed text-zinc-500 dark:text-zinc-400">{description}</span>
+      </span>
+      <span className={`ml-auto mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${active ? 'border-red-600' : 'border-zinc-300 dark:border-zinc-700'}`}>
+        {active && <span className="h-2.5 w-2.5 rounded-full bg-red-600" />}
+      </span>
+    </button>
+  );
+
+  return createPortal(
+    <div className="fixed inset-0 z-[100100] flex items-center justify-center bg-zinc-950/70 p-3 backdrop-blur-sm sm:p-5" onClick={generating ? undefined : onClose}>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.96, y: 14 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.96, y: 14 }}
+        onClick={(event) => event.stopPropagation()}
+        className="flex max-h-[calc(100vh-1.5rem)] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-zinc-200 bg-zinc-50 shadow-2xl dark:border-white/10 dark:bg-zinc-950 sm:max-h-[calc(100vh-2.5rem)]"
+      >
+        <div className="flex items-start gap-4 border-b border-zinc-200 bg-white p-5 dark:border-white/10 dark:bg-zinc-950 sm:p-6">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-red-600 text-white shadow-lg shadow-red-600/25">
+            <Download size={23} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-red-600">Edital verticalizado</p>
+            <h2 className="mt-1 truncate text-xl font-black text-zinc-900 dark:text-white">Baixar edital</h2>
+            <p className="mt-1 line-clamp-2 text-xs font-medium text-zinc-500 dark:text-zinc-400">{editalNome}</p>
+          </div>
+          <button type="button" onClick={onClose} disabled={generating} className="rounded-xl p-2 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700 disabled:opacity-40 dark:hover:bg-zinc-900 dark:hover:text-white" aria-label="Fechar">
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="min-h-0 flex-1 space-y-6 overflow-y-auto p-4 sm:p-6">
+          <section>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-black uppercase tracking-wider text-zinc-900 dark:text-white">1. Conteúdo</p>
+                <p className="mt-0.5 text-[11px] font-medium text-zinc-500">Escolha quais disciplinas entram no arquivo.</p>
+              </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Option active={scope === PDF_SCOPE_COMPLETE} icon={BookOpen} title="Edital completo" description="Inclui todas as disciplinas e assuntos do edital oficial." onClick={() => onScopeChange(PDF_SCOPE_COMPLETE)} />
+              <Option active={scope === PDF_SCOPE_PLANNING} icon={LayoutList} title="Disciplinas do planejamento" description="Inclui apenas o conteúdo selecionado no plano atual." onClick={() => onScopeChange(PDF_SCOPE_PLANNING)} />
+            </div>
+          </section>
+
+          <section>
+            <div className="mb-3">
+              <p className="text-xs font-black uppercase tracking-wider text-zinc-900 dark:text-white">2. Preenchimento</p>
+              <p className="mt-0.5 text-[11px] font-medium text-zinc-500">Defina como os campos de acompanhamento serão gerados.</p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Option active={fillMode === PDF_FILL_BLANK} icon={FileText} title="Em branco" description="Caixas de teoria, revisões e questões ficam livres para preencher." onClick={() => onFillModeChange(PDF_FILL_BLANK)} />
+              <Option active={fillMode === PDF_FILL_PROGRESS} icon={CheckCircle2} title="Progresso atual" description="Preenche teoria, revisões, questões e acertos registrados no sistema." onClick={() => onFillModeChange(PDF_FILL_PROGRESS)} />
+            </div>
+          </section>
+
+          <div className="rounded-2xl border border-red-100 bg-red-50/80 p-4 dark:border-red-500/20 dark:bg-red-500/10">
+            <p className="text-[9px] font-black uppercase tracking-[0.18em] text-red-600 dark:text-red-400">Arquivo selecionado</p>
+            <p className="mt-1.5 text-sm font-black text-zinc-900 dark:text-white">{scopeLabel} · {fillLabel}</p>
+            <p className="mt-1 text-[11px] font-medium leading-relaxed text-zinc-500 dark:text-zinc-400">Capa, sumário, tabelas vetoriais, logos do edital e do ModoQAP, marca-d'água e páginas numeradas.</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 border-t border-zinc-200 bg-white p-4 dark:border-white/10 dark:bg-zinc-950 sm:p-5">
+          <button type="button" onClick={onClose} disabled={generating} className="rounded-2xl bg-zinc-100 px-4 py-3 text-xs font-black uppercase tracking-wider text-zinc-700 transition-colors hover:bg-zinc-200 disabled:opacity-50 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800">Cancelar</button>
+          <button type="button" onClick={onGenerate} disabled={generating} className="flex items-center justify-center gap-2 rounded-2xl bg-red-600 px-4 py-3 text-xs font-black uppercase tracking-wider text-white shadow-lg shadow-red-600/25 transition-all hover:bg-red-700 disabled:cursor-wait disabled:opacity-75">
+            {generating ? <Loader2 size={17} className="animate-spin" /> : <Download size={17} />}
+            {generating ? 'Gerando...' : 'Gerar PDF'}
+          </button>
+        </div>
+      </motion.div>
+    </div>,
+    document.body,
+  );
+};
+
+const EditalLibraryModal = ({
+  open,
+  modelos,
+  loading,
+  downloadingId,
+  onClose,
+  onPreview,
+  onDownload,
+  onCreatePlanning,
+  onMissingEdital,
+}) => {
+  const [selectedEdital, setSelectedEdital] = useState(null);
+  if (!open || typeof document === 'undefined') return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[100100] flex items-center justify-center bg-zinc-950/75 p-2 backdrop-blur-sm sm:p-5" onClick={onClose}>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.97, y: 12 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.97, y: 12 }}
+        onClick={(event) => event.stopPropagation()}
+        className="edital-library-modal relative flex max-h-[calc(100vh-1rem)] w-full max-w-7xl flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl dark:border-white/10 dark:bg-zinc-950 sm:max-h-[calc(100vh-2.5rem)]"
+      >
+        <button type="button" onClick={onClose} className="absolute right-3 top-3 z-20 rounded-xl border border-zinc-200 bg-white/95 p-2 text-zinc-500 shadow-sm backdrop-blur hover:bg-zinc-100 hover:text-zinc-800 dark:border-white/10 dark:bg-zinc-950/95 dark:text-zinc-300 dark:hover:bg-zinc-900 dark:hover:text-white" aria-label="Fechar biblioteca de editais">
+          <X size={20} />
+        </button>
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-1 pt-2 sm:px-3 sm:pt-3">
+          <TelaCatalogo
+            modelos={modelos}
+            carregando={loading}
+            idConfirmado={selectedEdital?.id || null}
+            onConfirmar={setSelectedEdital}
+            onAbrirSuporte={onMissingEdital}
+            cardsClassName="edital-library-cards"
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 border-t border-zinc-200 bg-white p-3 dark:border-white/10 dark:bg-zinc-950 sm:grid-cols-3 sm:gap-3 sm:p-4">
+          <button
+            type="button"
+            disabled={!selectedEdital}
+            onClick={() => onPreview(selectedEdital)}
+            className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-zinc-200 bg-zinc-50 px-2 text-[9px] font-black uppercase text-zinc-700 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/10 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-red-500/10 sm:text-xs"
+          >
+            <Eye size={15} /> <span>Visualizar</span>
+          </button>
+          <button
+            type="button"
+            disabled={!selectedEdital || Boolean(downloadingId)}
+            onClick={() => onDownload(selectedEdital)}
+            className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-zinc-200 bg-zinc-50 px-2 text-[9px] font-black uppercase text-zinc-700 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/10 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-red-500/10 sm:text-xs"
+          >
+            {downloadingId ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />} <span>Baixar PDF</span>
+          </button>
+          <button
+            type="button"
+            disabled={!selectedEdital}
+            onClick={() => onCreatePlanning(selectedEdital)}
+            className="col-span-2 flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-zinc-900 px-2 text-[9px] font-black uppercase text-white shadow-lg transition-colors hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-white dark:text-zinc-900 dark:hover:bg-red-600 dark:hover:text-white sm:col-span-1 sm:text-xs"
+          >
+            <Plus size={15} /> <span>Criar planejamento</span>
+          </button>
+        </div>
+      </motion.div>
+    </div>,
+    document.body,
+  );
+};
+
 // ----------------------------------------------------------------------
 // COMPONENTE PRINCIPAL
 // ----------------------------------------------------------------------
@@ -378,6 +555,9 @@ function EditalPage({
   onStartStudy,
   onBack,              // navega para Painel do Ciclo
   onGoToCronograma,    // navega para página do Cronograma (novo)
+  onCreatePlanningFromEdital,
+  openLibraryOnMount = false,
+  onLibraryOpened,
   initialViewSource,
   editalUpdates,
   onApplyEditalUpdate,
@@ -411,11 +591,60 @@ function EditalPage({
   const [disciplinaParaExcluir, setDisciplinaParaExcluir] = useState(null);
   const [disciplinaParaRestaurar, setDisciplinaParaRestaurar] = useState(null);
   const [toastMessage,          setToastMessage]          = useState('');
+  const [downloadModalOpen,     setDownloadModalOpen]     = useState(false);
+  const [pdfScope,              setPdfScope]              = useState(PDF_SCOPE_PLANNING);
+  const [pdfFillMode,           setPdfFillMode]           = useState(PDF_FILL_BLANK);
+  const [generatingPdf,         setGeneratingPdf]         = useState(false);
+  const [libraryModalOpen,      setLibraryModalOpen]      = useState(false);
+  const [catalogModels,         setCatalogModels]         = useState(CATALOGO_EDITAIS);
+  const [loadingCatalog,        setLoadingCatalog]        = useState(false);
+  const [externalEdital,        setExternalEdital]        = useState(null);
+  const [downloadingExternalId, setDownloadingExternalId] = useState(null);
 
   // ── Fonte de visualização: 'ciclo' | 'cronograma' ────────────────────────
   const [viewSource, setViewSource] = useState(initialViewSource === 'cronograma' ? 'cronograma' : 'ciclo');
 
   const dragIdRef = useRef(null);
+
+  useEffect(() => {
+    if (!openLibraryOnMount) return;
+    setLibraryModalOpen(true);
+    onLibraryOpened?.();
+  }, [openLibraryOnMount, onLibraryOpened]);
+
+  useEffect(() => {
+    if (!libraryModalOpen) return undefined;
+    let active = true;
+
+    const loadCatalog = async () => {
+      setLoadingCatalog(true);
+      try {
+        const snapshot = await getDocs(collection(db, 'editais_templates'));
+        const firestoreTemplates = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
+        const firestoreMap = new Map(firestoreTemplates.map((item) => [String(item.id), item]));
+        const local = CATALOGO_EDITAIS
+          .filter((item) => !firestoreMap.get(String(item.id))?.deleted)
+          .map((item) => {
+            const stored = firestoreMap.get(String(item.id));
+            if (!stored) return item;
+            firestoreMap.delete(String(item.id));
+            return { ...item, ...stored, logo: stored.logoUrl || stored.logo || item.logo };
+          });
+        const custom = Array.from(firestoreMap.values())
+          .filter((item) => !item.deleted)
+          .map((item) => ({ ...item, logo: item.logoUrl || item.logo, ativo: item.ativo !== false }));
+        if (active) setCatalogModels([...local, ...custom]);
+      } catch (error) {
+        console.warn('Nao foi possivel atualizar o catalogo de editais:', error);
+        if (active) setCatalogModels(CATALOGO_EDITAIS);
+      } finally {
+        if (active) setLoadingCatalog(false);
+      }
+    };
+
+    loadCatalog();
+    return () => { active = false; };
+  }, [libraryModalOpen]);
 
   // Pending update do edital (apenas para ciclo)
   const pendingUpdate = useMemo(() => {
@@ -601,9 +830,6 @@ function EditalPage({
         isNew: pendingUpdate?.diff?.novosDiscIds?.has(disc.id),
         stats: { desempenho, questoes: sd.questoes, ultimaData: sd.lastDate, minutos: sd.minutes },
       };
-    }).filter(d => {
-      const t = searchTerm.toLowerCase();
-      return d.nome.toLowerCase().includes(t) || d.assuntos.some(a => a.nome.toLowerCase().includes(t));
     });
 
     return {
@@ -611,7 +837,7 @@ function EditalPage({
       inactiveDisciplines: listaCompleta.filter(d => !d.inCiclo),
       statsGlobal: { total: totalTopicosG, concluidos: totalConcluidosG, percentual: totalTopicosG > 0 ? (totalConcluidosG / totalTopicosG) * 100 : 0 }
     };
-  }, [disciplinas, registros, searchTerm, optimisticChecks, pendingUpdate]);
+  }, [disciplinas, registros, optimisticChecks, pendingUpdate]);
 
   // ── useMemo: processa edital do CRONOGRAMA ────────────────────────────────
   const { editalProcessado: editalCrono, inactiveDisciplines: inactiveCrono, statsGlobal: statsCrono } = useMemo(() => {
@@ -685,9 +911,6 @@ function EditalPage({
         inCiclo, isNew: false,
         stats: { desempenho, questoes: sd.questoes, ultimaData: sd.lastDate, minutos: sd.minutes },
       };
-    }).filter(d => {
-      const t = searchTerm.toLowerCase();
-      return d.nome.toLowerCase().includes(t) || d.assuntos.some(a => a.nome.toLowerCase().includes(t));
     });
 
     return {
@@ -695,17 +918,39 @@ function EditalPage({
       inactiveDisciplines: listaCompleta.filter(d => !d.inCiclo),
       statsGlobal: { total: totalTopicosG, concluidos: totalConcluidosG, percentual: totalTopicosG > 0 ? (totalConcluidosG / totalTopicosG) * 100 : 0 }
     };
-  }, [disciplinasCronograma, registrosCronoFiltrados, searchTerm, optimisticChecks, cronograma]);
+  }, [disciplinasCronograma, registrosCronoFiltrados, optimisticChecks, cronograma]);
 
   // ── Seleciona dados da fonte ativa ────────────────────────────────────────
-  const isCronoView   = viewSource === 'cronograma';
-  const editalAtivo   = isCronoView ? editalCrono   : editalCiclo;
-  const statsAtivos   = isCronoView ? statsCrono     : statsCiclo;
-  const inativeAtivos = isCronoView ? inactiveCrono  : inactiveCiclo;
+  const isCronoView = viewSource === 'cronograma';
+  const isExternalPreview = Boolean(externalEdital);
+  const externalDisciplines = useMemo(() => prepareExternalEditalDisciplines(externalEdital), [externalEdital]);
+  const editalFonteAtivo = isExternalPreview ? externalDisciplines : (isCronoView ? editalCrono : editalCiclo);
+  const statsAtivos = isExternalPreview
+    ? { total: 0, concluidos: 0, percentual: 0 }
+    : (isCronoView ? statsCrono : statsCiclo);
+  const inativeFonteAtiva = isExternalPreview ? [] : (isCronoView ? inactiveCrono : inactiveCiclo);
+  const activeSearchResult = useMemo(
+    () => filterEditalDisciplines(editalFonteAtivo, searchTerm),
+    [editalFonteAtivo, searchTerm],
+  );
+  const inactiveSearchResult = useMemo(
+    () => filterEditalDisciplines(inativeFonteAtiva, searchTerm),
+    [inativeFonteAtiva, searchTerm],
+  );
+  const editalAtivo = activeSearchResult.disciplines;
+  const inativeAtivos = inactiveSearchResult.disciplines;
+  const autoExpandedNames = useMemo(
+    () => new Set(activeSearchResult.autoExpandedNames),
+    [activeSearchResult.autoExpandedNames],
+  );
 
   // Logo e nome do header
-  const logoAtivo = isCronoView ? cronograma?.computedLogo : ciclo?.computedLogo;
-  const nomeAtivo = isCronoView ? (cronograma?.nome || 'Cronograma') : (ciclo?.nome || 'Missão Sem Nome');
+  const logoAtivo = isExternalPreview
+    ? (externalEdital?.logoUrl || externalEdital?.logo || null)
+    : (isCronoView ? cronograma?.computedLogo : ciclo?.computedLogo);
+  const nomeAtivo = isExternalPreview
+    ? (externalEdital?.titulo || externalEdital?.nome || 'Edital verticalizado')
+    : (isCronoView ? (cronograma?.nome || 'Cronograma') : (ciclo?.nome || 'Missão Sem Nome'));
   const labelAtivo = isCronoView ? 'Cronograma Ativo' : 'Ciclo Ativo';
 
   // ── Handlers de drag (só funciona no ciclo) ───────────────────────────────
@@ -856,7 +1101,134 @@ function EditalPage({
   const confirmStartStudy     = (disc, assunto) => { if (onStartStudy) { onStartStudy(disc, assunto, { defaultContext: 'ciclo' }); setStudyModalData(null); } };
   const handleStartTopicStudy = (disc, nome) => setStudyModalData({ disciplina: disc, assunto: nome });
 
+  const handleGenerateEditalPdf = async () => {
+    if (generatingPdf) return;
+    setGeneratingPdf(true);
+    setToastMessage('');
+
+    try {
+      const sourcePlan = isCronoView ? cronograma : ciclo;
+      const templateId = isCronoView ? cronogramaEditalId : cicloEditalId;
+      let templateData = null;
+      let usedSavedFallback = false;
+      const catalogTemplate = CATALOGO_EDITAIS.find((item) => String(item.id) === String(templateId));
+
+      if (templateId && !['manual', 'cronograma'].includes(String(templateId))) {
+        try {
+          const templateSnap = await getDoc(doc(db, 'editais_templates', String(templateId)));
+          if (templateSnap.exists()) templateData = { id: templateSnap.id, ...templateSnap.data() };
+        } catch (error) {
+          console.warn('Nao foi possivel carregar o template oficial para o PDF:', error);
+        }
+      }
+
+      const storedDisciplines = [...editalFonteAtivo, ...inativeFonteAtiva];
+      let sourceDisciplines = editalFonteAtivo;
+      if (pdfScope === PDF_SCOPE_COMPLETE) {
+        const officialDisciplines = templateData?.disciplinas || catalogTemplate?.disciplinas;
+        if (Array.isArray(officialDisciplines) && officialDisciplines.length > 0) {
+          sourceDisciplines = officialDisciplines;
+        } else {
+          sourceDisciplines = storedDisciplines;
+          usedSavedFallback = true;
+        }
+      }
+
+      const preparedDisciplines = prepareEditalVerticalizadoDisciplines({
+        sourceDisciplines,
+        progressDisciplines: storedDisciplines,
+        scope: pdfScope,
+        fillMode: pdfFillMode,
+      });
+      const editalName = templateData?.titulo
+        || templateData?.nome
+        || catalogTemplate?.titulo
+        || catalogTemplate?.nome
+        || sourcePlan?.editalNome
+        || sourcePlan?.concursoNome
+        || nomeAtivo;
+      const editalCargo = templateData?.cargo
+        || catalogTemplate?.cargo
+        || sourcePlan?.cargo
+        || sourcePlan?.cargoNome
+        || '';
+
+      await downloadEditalVerticalizadoPdf({
+        edital: { ...sourcePlan, ...templateData, nome: editalName, cargo: editalCargo },
+        disciplinas: preparedDisciplines,
+        scope: pdfScope,
+        fillMode: pdfFillMode,
+        logos: {
+          edital: templateData?.logoUrl || templateData?.logo || catalogTemplate?.logoUrl || catalogTemplate?.logo || logoAtivo,
+          system: '/logoModoQAP.png',
+        },
+      });
+
+      setDownloadModalOpen(false);
+      setToastMessage(usedSavedFallback
+        ? 'PDF gerado com o conteudo salvo no planejamento. O template oficial completo nao estava disponivel.'
+        : 'Edital verticalizado baixado com sucesso.');
+    } catch (error) {
+      console.error('Erro ao gerar edital verticalizado:', error);
+      setToastMessage(error?.message || 'Nao foi possivel gerar o PDF. Tente novamente.');
+    } finally {
+      setGeneratingPdf(false);
+    }
+  };
+
   // ── Early returns ─────────────────────────────────────────────────────────
+  const handlePreviewCatalogEdital = (edital) => {
+    if (!edital) return;
+    setExternalEdital(edital);
+    setLibraryModalOpen(false);
+    setSearchTerm('');
+    setExpandedDisciplinas({});
+    setShowInactive(false);
+  };
+
+  const handleDownloadCatalogEdital = async (edital) => {
+    if (!edital || downloadingExternalId) return;
+    setDownloadingExternalId(edital.id || 'external');
+    setToastMessage('');
+    try {
+      const preparedDisciplines = prepareEditalVerticalizadoDisciplines({
+        sourceDisciplines: edital.disciplinas || [],
+        progressDisciplines: [],
+        scope: PDF_SCOPE_COMPLETE,
+        fillMode: PDF_FILL_BLANK,
+      });
+      await downloadEditalVerticalizadoPdf({
+        edital,
+        disciplinas: preparedDisciplines,
+        scope: PDF_SCOPE_COMPLETE,
+        fillMode: PDF_FILL_BLANK,
+        logos: {
+          edital: edital.logoUrl || edital.logo || null,
+          system: '/logoModoQAP.png',
+        },
+      });
+      setToastMessage('Edital verticalizado baixado com sucesso.');
+    } catch (error) {
+      console.error('Erro ao baixar edital do catalogo:', error);
+      setToastMessage(error?.message || 'Nao foi possivel gerar o PDF deste edital.');
+    } finally {
+      setDownloadingExternalId(null);
+    }
+  };
+
+  const handleCreatePlanningWithCatalogEdital = (edital) => {
+    if (!edital || !onCreatePlanningFromEdital) return;
+    setLibraryModalOpen(false);
+    onCreatePlanningFromEdital(edital);
+  };
+
+  const handleReturnToActiveEdital = () => {
+    setExternalEdital(null);
+    setSearchTerm('');
+    setExpandedDisciplinas({});
+    setShowInactive(false);
+  };
+
   if (loading) return (
     <div className="flex h-96 items-center justify-center">
       <div className="animate-spin w-8 h-8 border-4 border-red-600 rounded-full border-t-transparent" />
@@ -866,8 +1238,24 @@ function EditalPage({
   const noCiclo     = !activeCicloId || !ciclo;
   const noCronograma = !cronograma;
 
-  if (noCiclo && noCronograma) return (
-    <div className="flex min-h-[calc(100vh-120px)] w-full items-center justify-center px-4 py-10">
+  if (noCiclo && noCronograma && !isExternalPreview) return (
+    <>
+      <AnimatePresence>
+        {libraryModalOpen && (
+          <EditalLibraryModal
+            open={libraryModalOpen}
+            modelos={catalogModels}
+            loading={loadingCatalog}
+            downloadingId={downloadingExternalId}
+            onClose={() => setLibraryModalOpen(false)}
+            onPreview={handlePreviewCatalogEdital}
+            onDownload={handleDownloadCatalogEdital}
+            onCreatePlanning={handleCreatePlanningWithCatalogEdital}
+            onMissingEdital={() => setToastMessage('Use o canal de feedback para solicitar a inclusao de um novo edital.')}
+          />
+        )}
+      </AnimatePresence>
+      <div className="flex min-h-[calc(100vh-120px)] w-full items-center justify-center px-4 py-10">
       <motion.div
         initial={{ opacity: 0, y: 30, scale: 0.95 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -900,16 +1288,15 @@ function EditalPage({
             Seu edital está aguardando um plano ativo. Ative um cronograma ou ciclo de estudos para visualizar o conteúdo detalhado e acompanhar seu progresso.
           </p>
 
-          <div className="mt-10 flex flex-col items-center gap-3">
-            <button
-              type="button"
-              onClick={onBack}
-              className="group/btn relative flex h-14 items-center gap-3 overflow-hidden rounded-2xl bg-zinc-950 px-8 text-xs font-black uppercase tracking-[0.2em] text-white shadow-2xl transition-all hover:scale-105 hover:bg-red-600 active:scale-95 dark:bg-white dark:text-zinc-950 dark:hover:bg-red-500 dark:hover:text-white"
-            >
-              <span className="relative z-10 flex items-center gap-2">
-                Ir para Planejamento <ArrowLeftRight size={16} />
-              </span>
+          <div className="mt-10 flex flex-col items-center gap-3 sm:flex-row">
+            <button type="button" onClick={() => setLibraryModalOpen(true)} className="group/btn relative flex h-14 items-center gap-3 overflow-hidden rounded-2xl bg-red-600 px-8 text-xs font-black uppercase tracking-[0.16em] text-white shadow-2xl transition-all hover:scale-105 hover:bg-red-700 active:scale-95">
+              <Library size={17} /> Outros editais
             </button>
+            <button type="button" onClick={onBack} className="group/btn relative flex h-14 items-center gap-3 overflow-hidden rounded-2xl bg-zinc-950 px-8 text-xs font-black uppercase tracking-[0.16em] text-white shadow-2xl transition-all hover:scale-105 hover:bg-red-600 active:scale-95 dark:bg-white dark:text-zinc-950 dark:hover:bg-red-500 dark:hover:text-white">
+              <span className="relative z-10 flex items-center gap-2">Ir para Planejamento <ArrowLeftRight size={16} /></span>
+            </button>
+          </div>
+          <div className="mt-3">
             <img
               src="/logoModoQAP.png"
               alt="Logo Modo QAP"
@@ -918,12 +1305,13 @@ function EditalPage({
           </div>
         </div>
       </motion.div>
-    </div>
+      </div>
+    </>
   );
 
   // Se está em view cronograma mas não tem dados relevantes no edital
   // (cronograma sem disciplinasSnapshot nem semanaTemplate), mostra aviso
-  const semDadosCrono = isCronoView && editalCrono.length === 0 && inactiveCrono.length === 0 && !searchTerm;
+  const semDadosCrono = !isExternalPreview && isCronoView && editalCrono.length === 0 && inactiveCrono.length === 0 && !searchTerm;
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -1012,9 +1400,41 @@ function EditalPage({
         />
       )}
 
+      <AnimatePresence>
+        {downloadModalOpen && !isExternalPreview && (
+          <DownloadEditalModal
+            open={downloadModalOpen}
+            editalNome={nomeAtivo}
+            scope={pdfScope}
+            fillMode={pdfFillMode}
+            generating={generatingPdf}
+            onScopeChange={setPdfScope}
+            onFillModeChange={setPdfFillMode}
+            onClose={() => !generatingPdf && setDownloadModalOpen(false)}
+            onGenerate={handleGenerateEditalPdf}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {libraryModalOpen && (
+          <EditalLibraryModal
+            open={libraryModalOpen}
+            modelos={catalogModels}
+            loading={loadingCatalog}
+            downloadingId={downloadingExternalId}
+            onClose={() => setLibraryModalOpen(false)}
+            onPreview={handlePreviewCatalogEdital}
+            onDownload={handleDownloadCatalogEdital}
+            onCreatePlanning={handleCreatePlanningWithCatalogEdital}
+            onMissingEdital={() => setToastMessage('Use o canal de feedback para solicitar a inclusao de um novo edital.')}
+          />
+        )}
+      </AnimatePresence>
+
       {/* Banner de atualização (apenas no modo ciclo) */}
       <AnimatePresence>
-        {!isCronoView && pendingUpdate && (
+        {!isExternalPreview && !isCronoView && pendingUpdate && (
           <UpdateBanner
             templateData={pendingUpdate.templateData}
             cicloLogo={ciclo?.computedLogo}
@@ -1028,17 +1448,17 @@ function EditalPage({
       </AnimatePresence>
 
       {/* ── HEADER ── */}
-      <div className={`${systemCardClass} p-4 md:p-6 flex flex-row items-start gap-5 md:gap-7 text-left`}>
+      <div className={`${systemCardClass} flex flex-row items-start gap-2.5 p-3 text-left sm:gap-5 sm:p-4 md:gap-7 md:p-6`}>
 
-        <div className="relative z-10 flex w-[8.75rem] flex-shrink-0 flex-col items-center gap-3 md:w-[12.25rem]">
-          <div className="relative flex h-20 w-20 items-center justify-center rounded-full border-4 border-white bg-zinc-50 shadow-xl dark:border-white/10 dark:bg-zinc-900 md:h-28 md:w-28">
+        <div className="relative z-10 flex w-[4.5rem] flex-shrink-0 flex-col items-center gap-3 sm:w-[8.75rem] md:w-[12.25rem]">
+          <div className="relative flex h-16 w-16 items-center justify-center rounded-full border-4 border-white bg-zinc-50 shadow-xl dark:border-white/10 dark:bg-zinc-900 sm:h-20 sm:w-20 md:h-28 md:w-28">
             {logoAtivo
-              ? <img src={logoAtivo} alt="Logo" className="h-12 w-12 object-contain md:h-20 md:w-20" />
+              ? <img src={logoAtivo} alt="Logo" className="h-10 w-10 object-contain sm:h-12 sm:w-12 md:h-20 md:w-20" />
               : <GraduationCap size={52} className="text-zinc-300 dark:text-zinc-600" />
             }
-            <div className="absolute -bottom-2 px-1.5 py-0.5 bg-emerald-500 text-white text-[7px] md:text-[9px] font-bold uppercase tracking-widest rounded-full shadow-md border-2 border-white dark:border-zinc-950">Ativo</div>
+            <div className="absolute -bottom-2 px-1.5 py-0.5 bg-emerald-500 text-white text-[7px] md:text-[9px] font-bold uppercase tracking-widest rounded-full shadow-md border-2 border-white dark:border-zinc-950">{isExternalPreview ? 'Visualização' : 'Ativo'}</div>
           </div>
-          {showToggle && (
+          {showToggle && !isExternalPreview && (
             <SourceToggleButton
               viewSource={viewSource}
               onToggle={() => setViewSource(v => v === 'ciclo' ? 'cronograma' : 'ciclo')}
@@ -1048,7 +1468,7 @@ function EditalPage({
           )}
         </div>
 
-        <div className="flex-1 z-10 min-w-0 w-full pr-0 md:pr-40">
+        <div className="flex-1 z-10 min-w-0 w-full pr-0 md:pr-[30rem]">
           <div className="flex flex-col gap-2 w-full mb-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="inline-flex w-fit items-center gap-1.5 px-2.5 py-1 bg-red-50 dark:bg-red-500/10 rounded-full text-[10px] md:text-[13px] font-bold uppercase tracking-wider border border-red-100 dark:border-red-500/20 text-red-600 dark:text-red-400">
@@ -1057,9 +1477,9 @@ function EditalPage({
             </div>
           </div>
 
-          <h1 className="mb-2 max-w-[calc(100%-4.5rem)] text-[1.55rem] font-black uppercase leading-none tracking-tight text-zinc-900 dark:text-white sm:text-3xl md:max-w-none md:text-5xl">{nomeAtivo}</h1>
+          <h1 className="mb-2 max-w-[calc(100%-6.5rem)] break-words text-[0.9rem] font-black uppercase leading-tight tracking-tight text-zinc-900 dark:text-white sm:max-w-[calc(100%-4.5rem)] sm:text-3xl md:max-w-none md:text-5xl">{nomeAtivo}</h1>
 
-          <div className="mt-8 w-full md:mt-10">
+          {!isExternalPreview && <div className="mt-8 w-full md:mt-10">
             <div className="flex justify-between items-end mb-2">
               <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Progresso Atual</span>
               <div className="flex items-baseline gap-1"><span className="text-2xl font-black text-red-600 dark:text-red-500">{statsAtivos.percentual.toFixed(0)}</span><span className="text-sm font-bold text-zinc-400">%</span></div>
@@ -1069,14 +1489,43 @@ function EditalPage({
                 <div key={i} className={`flex-1 rounded-sm transition-all duration-700 ${i < (statsAtivos.percentual / 3.33) ? 'bg-red-600 dark:bg-red-500' : 'bg-zinc-100 dark:bg-zinc-900'}`} />
               ))}
             </div>
-            <div className="flex justify-between text-[10px] text-zinc-400 font-bold uppercase mt-2">
-              <span>{statsAtivos.concluidos} Concluídos</span><span>{statsAtivos.total} Total</span>
+            <div className="text-[10px] text-zinc-400 font-bold uppercase mt-2">
+              <span>{formatEditalProgressText(statsAtivos.concluidos, statsAtivos.total)}</span>
             </div>
-          </div>
+          </div>}
         </div>
 
-        <div className="absolute right-3 top-3 z-20 md:right-6 md:top-6">
-          {isCronoView
+        <div className="absolute right-2.5 top-2.5 z-20 flex w-[6.1rem] flex-col items-stretch gap-1.5 sm:right-3 sm:top-3 sm:w-auto sm:flex-row sm:items-end sm:gap-2 md:right-6 md:top-6">
+          <button
+            type="button"
+            onClick={() => setLibraryModalOpen(true)}
+            className="flex min-w-0 items-center justify-start gap-1.5 rounded-lg border border-zinc-200 bg-zinc-50 px-2 py-1.5 text-[7px] font-bold uppercase tracking-wide text-zinc-600 shadow-sm transition-all hover:border-red-200 hover:bg-red-50 hover:text-red-700 dark:border-white/10 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-red-500/10 sm:px-2.5 sm:text-[9px] md:text-[11px]"
+            title="Ver outros editais verticalizados"
+          >
+            <Library size={14} className="text-red-600 dark:text-red-500" />
+            <span>Outros editais</span>
+          </button>
+          {isExternalPreview && (
+            <button
+              type="button"
+              onClick={handleReturnToActiveEdital}
+              className="flex min-w-0 items-center gap-1.5 rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1.5 text-[9px] font-bold uppercase tracking-wide text-zinc-600 shadow-sm transition-all hover:border-red-200 hover:bg-red-50 hover:text-red-700 dark:border-white/10 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-red-500/10 md:text-[11px]"
+            >
+              <ArrowLeft size={14} className="text-red-600 dark:text-red-500" />
+              <span>Meu edital</span>
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => isExternalPreview ? handleDownloadCatalogEdital(externalEdital) : setDownloadModalOpen(true)}
+            disabled={generatingPdf || Boolean(downloadingExternalId) || (editalFonteAtivo.length === 0 && inativeFonteAtiva.length === 0)}
+            className="flex min-w-0 items-center justify-start gap-1.5 rounded-lg border border-zinc-200 bg-zinc-50 px-2 py-1.5 text-[7px] font-bold uppercase tracking-wide text-zinc-600 shadow-sm transition-all hover:border-red-200 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-45 dark:border-white/10 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-red-500/10 sm:px-2.5 sm:text-[9px] md:text-[11px]"
+            title="Baixar edital verticalizado"
+          >
+            {generatingPdf || downloadingExternalId ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} className="text-red-600 dark:text-red-500" />}
+            <span>Baixar edital</span>
+          </button>
+          {!isExternalPreview && (isCronoView
             ? (onGoToCronograma && (
                 <button onClick={onGoToCronograma} className="flex min-w-0 items-center gap-1.5 rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1.5 text-[9px] font-bold uppercase tracking-wide text-zinc-600 shadow-sm transition-all hover:border-red-200 hover:bg-red-50 hover:text-red-700 dark:border-white/10 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-red-500/10 md:text-[11px]">
                   <CalendarDays size={14} className="text-red-600 dark:text-red-500" />
@@ -1091,7 +1540,7 @@ function EditalPage({
                   <ChevronRight size={12} className="opacity-60" />
                 </button>
               ))
-          }
+          )}
         </div>
 
         <div className="absolute right-0 top-0 p-10 opacity-5 pointer-events-none transform rotate-12"><BookOpen size={200} /></div>
@@ -1115,7 +1564,7 @@ function EditalPage({
       </div>
 
       {/* Dica de reordenação (apenas no ciclo) */}
-      {!isCronoView && (
+      {!isExternalPreview && !isCronoView && (
         <div className="flex items-center justify-between px-4 md:px-0">
           <p className="text-[11px] text-zinc-400 font-medium flex items-center gap-1.5">
             <GripVertical size={13} className="text-zinc-300" /> Arraste pelo ⋮ para reordenar
@@ -1160,10 +1609,11 @@ function EditalPage({
           const DesempIcon = desempConf.icon;
           const isDragging = dragId === disc.id;
           const isOver     = overId === disc.id && !isDragging;
+          const isExpanded = Boolean(expandedDisciplinas[disc.nome] || autoExpandedNames.has(disc.nome));
 
           return (
             <div key={disc.id}
-              onDragOver={(e) => handleDragOver(e, disc.id)}
+              onDragOver={(e) => !isExternalPreview && handleDragOver(e, disc.id)}
               onDragLeave={handleDragLeave}
               onDrop={(e) => handleDrop(e, disc.id)}
               onDragEnd={handleDragEnd}
@@ -1174,9 +1624,9 @@ function EditalPage({
                 disc.isNew ? 'ring-2 ring-emerald-400/40 border-emerald-300 dark:border-emerald-700' : '',
               ].join(' ')}>
 
-              <div className="flex flex-col md:flex-row md:items-stretch">
+              <div className="flex flex-row items-stretch">
                 {/* Grip de drag (apenas no ciclo) */}
-                {!isCronoView && (
+                {!isExternalPreview && !isCronoView && (
                   <div
                     draggable
                     onDragStart={(e) => handleDragStart(e, disc.id)}
@@ -1187,7 +1637,7 @@ function EditalPage({
                 )}
 
                 <div onClick={() => toggleDisciplina(disc.nome)} className="flex-1 flex items-center gap-3 p-3 text-left cursor-pointer group">
-                  <div className="relative flex-shrink-0">
+                  {!isExternalPreview && <div className="relative flex-shrink-0">
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center border transition-colors ${disc.progresso === 100 ? 'bg-emerald-100 dark:bg-emerald-900/20 text-emerald-600 border-emerald-200 dark:border-emerald-500/30' : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-500 border-zinc-200 dark:border-white/10 group-hover:text-red-500'}`}>
                       {disc.progresso === 100 ? <CheckCircle2 size={20} /> : <LayoutGrid size={20} />}
                     </div>
@@ -1195,49 +1645,43 @@ function EditalPage({
                       <circle cx="50" cy="50" r="48" fill="none" stroke="currentColor" className="text-zinc-200 dark:text-zinc-800" strokeWidth="2" />
                       <circle cx="50" cy="50" r="48" fill="none" stroke={disc.progresso === 100 ? '#10b981' : '#dc2626'} strokeWidth="2" strokeDasharray="301.59" strokeDashoffset={301.59 * (1 - disc.progresso / 100)} transform="rotate(-90 50 50)" className="transition-all duration-1000 ease-out" />
                     </svg>
-                  </div>
+                  </div>}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="font-bold text-sm md:text-base truncate transition-colors text-zinc-900 dark:text-white group-hover:text-red-600 dark:group-hover:text-red-400">{disc.nome}</h3>
                       <NewBadge isNew={disc.isNew} />
-                      {Number(disc.peso) >= 3 && (
+                      {isHighRelevance(disc) && (
                         <div className="hidden sm:flex items-center gap-1 px-2 py-0.5 bg-orange-100 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 rounded-full border border-orange-200 dark:border-orange-900/30 animate-pulse">
                           <Flame size={10} fill="currentColor" /><span className="text-[9px] font-bold uppercase">Alta Relevância</span>
                         </div>
                       )}
                     </div>
-                    <div className="flex flex-wrap items-center gap-2 mt-2">
+                    {!isExternalPreview && <div className="flex flex-wrap items-center gap-2 mt-2">
                       <span className="px-2 py-1 rounded-md bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300 text-[10px] font-black uppercase flex items-center gap-1 border border-blue-100 dark:border-blue-500/20"><CheckSquare size={11} /> {disc.concluidos}/{disc.totalAssuntos}</span>
                       <span className="px-2 py-1 rounded-md bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 text-[10px] font-black uppercase flex items-center gap-1 border border-amber-100 dark:border-amber-500/20"><Clock size={11} /> {formatMinutesToTime(disc.stats.minutos)}</span>
                       <span className={`px-2 py-1 rounded-md text-[10px] font-black uppercase flex items-center gap-1 ${desempConf.style}`}><DesempIcon size={11} /> {desempConf.label}</span>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setStudyModalData({ disciplina: disc, assunto: null }); }}
-                        className="md:hidden flex items-center gap-1 px-2.5 py-1 bg-zinc-900 dark:bg-white hover:bg-red-600 text-white dark:text-black hover:text-white dark:hover:text-white rounded-md text-[10px] font-bold uppercase shadow transition-all active:scale-95"
-                      >
-                        <Play size={10} fill="currentColor" /> Estudar
-                      </button>
-                    </div>
+                    </div>}
                   </div>
-                  <ChevronDown size={20} className={`text-zinc-400 transition-transform flex-shrink-0 ${expandedDisciplinas[disc.nome] ? 'rotate-180' : ''}`} />
+                  <ChevronDown size={20} className={`text-zinc-400 transition-transform flex-shrink-0 ${isExpanded ? 'rotate-180' : ''}`} />
                 </div>
 
-                <div className="hidden md:flex items-center justify-end gap-2.5 p-3 border-l border-zinc-100 dark:border-white/10 bg-zinc-50/70 dark:bg-zinc-900/55">
-                  <div className="flex flex-col items-end mr-2">
-                    <span className="text-[10px] font-bold text-zinc-400 uppercase">Último Estudo</span>
-                    <span className="text-xs font-mono text-zinc-700 dark:text-zinc-300">{formatDateRelative(disc.stats.ultimaData)}</span>
+                {!isExternalPreview && <div className="edital-discipline-side flex shrink-0 items-center justify-end border-l border-zinc-100 bg-zinc-50/70 dark:border-white/10 dark:bg-zinc-900/55">
+                  <div className="edital-discipline-side__date hidden flex-col items-end md:flex">
+                    <span className="font-bold text-zinc-400 uppercase">Último Estudo</span>
+                    <span className="font-mono text-zinc-700 dark:text-zinc-300">{formatEditalStudyDate(disc.stats.ultimaData)}</span>
                   </div>
                   <button
                     onClick={() => setStudyModalData({ disciplina: disc, assunto: null })}
-                    className="px-5 py-2.5 bg-zinc-900 dark:bg-white hover:bg-red-600 dark:hover:bg-red-600 text-white dark:text-black hover:text-white rounded-lg font-bold text-xs uppercase shadow transition-all active:scale-95 flex items-center gap-2"
+                    className="edital-discipline-side__button flex items-center bg-zinc-900 font-bold uppercase text-white shadow transition-all hover:bg-red-600 active:scale-95 dark:bg-white dark:text-black dark:hover:bg-red-600 dark:hover:text-white"
                   >
-                    <Play size={12} fill="currentColor" /> Estudar
+                    <Play className="edital-discipline-side__icon" fill="currentColor" /> <span className="hidden min-[390px]:inline">Estudar</span>
                   </button>
-                </div>
+                </div>}
               </div>
 
               {/* ── Assuntos expandidos ── */}
               <AnimatePresence>
-                {expandedDisciplinas[disc.nome] && (
+                {isExpanded && (
                   <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="border-t border-zinc-100 dark:border-white/10 bg-zinc-50/40 dark:bg-zinc-900/35">
                     <div className="divide-y divide-zinc-100 dark:divide-zinc-800/50">
                       {disc.assuntos.map((assunto, i) => {
@@ -1252,7 +1696,7 @@ function EditalPage({
                         return (
                           <div key={i} className={`flex flex-col md:flex-row md:items-center p-3 sm:px-4 transition-all gap-3 hover:bg-white/80 dark:hover:bg-zinc-900 ${assunto.estudado ? 'bg-emerald-50/40 dark:bg-emerald-500/10' : ''} ${assunto.isNew ? 'bg-emerald-50/60 dark:bg-emerald-500/10 border-l-2 border-emerald-400' : ''}`}>
                             <div className="flex items-start gap-3 flex-1">
-                              <button
+                              {!isExternalPreview && <button
                                 onClick={() => handleToggleCheck(disc.id, disc.nome, assunto.nome, assunto.estudado)}
                                 disabled={loadingCheck[ckKey]}
                                 className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all flex-shrink-0 shadow-sm z-10 ${assunto.estudado ? 'bg-emerald-500 text-white' : 'bg-white dark:bg-zinc-900 border-2 border-zinc-200 dark:border-white/10 text-zinc-300 hover:border-red-400 hover:text-red-400'}`}
@@ -1261,35 +1705,35 @@ function EditalPage({
                                   ? <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
                                   : <CheckSquare size={18} strokeWidth={3} />
                                 }
-                              </button>
+                              </button>}
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <p className={`text-[15px] leading-snug ${assunto.estudado ? 'text-zinc-500 line-through decoration-2 decoration-emerald-500/50 font-medium' : 'text-zinc-800 dark:text-zinc-100 font-bold'}`}>{assunto.nome}</p>
-                                  <NewBadge isNew={assunto.isNew} />
-                                  {isHot && (
+                                  {!isExternalPreview && <NewBadge isNew={assunto.isNew} />}
+                                  {!isExternalPreview && isHot && (
                                     <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-sm ml-2">
                                       <Flame size={14} fill="currentColor" /><span className="text-[10px] font-bold uppercase">Altas Chances</span>
                                     </div>
                                   )}
                                 </div>
-                                {!hasAct && !assunto.estudado && (
+                                {!isExternalPreview && !hasAct && !assunto.estudado && (
                                   <p className="text-xs text-red-500 font-medium mt-1 flex items-center gap-1"><AlertCircle size={10} /> Não iniciado</p>
                                 )}
                               </div>
                             </div>
-                            <div className="flex items-center justify-end gap-3 w-full md:w-auto pl-14 md:pl-0">
+                            {!isExternalPreview && <div className="edital-topic-side flex w-full items-center justify-end md:w-auto">
                               <div className="mr-1"><BookStackBadge count={assunto.qtdVezes} /></div>
-                              <div className="flex items-center gap-4 mr-2">
-                                <div className="flex flex-col items-end w-14"><span className="text-[9px] font-bold text-zinc-400 uppercase mb-0.5">Tempo</span><span className="text-xs font-black text-zinc-700 dark:text-zinc-300">{formatMinutesToTime(assunto.minutos)}</span></div>
-                                <div className="flex flex-col items-end w-20"><span className="text-[9px] font-bold text-zinc-400 uppercase mb-0.5">Questões</span><div className="flex items-center gap-1.5"><span className={`text-xs font-black ${qStats.colorText}`}>{qStats.perc}%</span><span className="text-[10px] font-medium text-zinc-400">({assunto.acertos}/{assunto.questoes})</span></div></div>
+                              <div className="edital-topic-side__metrics flex items-center">
+                                <div className="edital-topic-side__metric flex flex-col items-end"><span className="edital-topic-side__label font-bold text-zinc-400 uppercase">Tempo</span><span className="edital-topic-side__value font-black text-zinc-700 dark:text-zinc-300">{formatMinutesToTime(assunto.minutos)}</span></div>
+                                <div className="edital-topic-side__metric edital-topic-side__metric--questions flex flex-col items-end"><span className="edital-topic-side__label font-bold text-zinc-400 uppercase">Questões</span><div className="flex items-center gap-1.5"><span className={`edital-topic-side__value font-black ${qStats.colorText}`}>{qStats.perc}%</span><span className="text-[10px] font-medium text-zinc-400">({assunto.acertos}/{assunto.questoes})</span></div></div>
                               </div>
                               <button
                                 onClick={() => handleStartTopicStudy(disc, assunto.nome)}
-                                className="p-2.5 rounded-xl bg-zinc-100 dark:bg-zinc-900 hover:bg-red-500 hover:text-white dark:hover:bg-red-600 transition-all text-zinc-400 shadow-sm border border-zinc-200 dark:border-white/10"
+                                className="edital-topic-side__button flex items-center justify-center border border-zinc-200 bg-zinc-100 text-zinc-400 shadow-sm transition-all hover:bg-red-500 hover:text-white dark:border-white/10 dark:bg-zinc-900 dark:hover:bg-red-600"
                               >
-                                <Play size={16} fill="currentColor" />
+                                <Play className="edital-topic-side__icon" fill="currentColor" />
                               </button>
-                            </div>
+                            </div>}
                           </div>
                         );
                       })}

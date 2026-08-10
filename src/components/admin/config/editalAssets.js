@@ -22,6 +22,18 @@ export const buildEditaisMap = (catalogo = []) => {
   return map;
 };
 
+const KNOWN_LOCAL_LOGOS = [
+  'gcmaquiraz', 'gcmgoiania', 'gcmrecife', 'gcmsalvador', 'gcmviana',
+  'cbmerj', 'cbmmg', 'cbmba', 'pmerj', 'pmmg', 'pmgo', 'pmes', 'pmpe',
+  'pmpi', 'pmse', 'pmsp', 'pmal', 'pmba', 'pcpe', 'pcsc', 'pcba', 'ppmg', 'prf',
+];
+
+const resolveKnownLocalLogo = (...values) => {
+  const normalized = values.map(normalizeSlug).filter(Boolean);
+  const code = KNOWN_LOCAL_LOGOS.find((item) => normalized.some((value) => value.includes(item)));
+  return code ? `/logosEditais/logo-${code}.png` : null;
+};
+
 /**
  * 🚀 RESOLVER LOGO UNIVERSAL
  * Essa função tenta de tudo para achar a imagem.
@@ -30,19 +42,25 @@ export const resolveLogoUrl = ({ ciclo, editaisMap }) => {
   if (!ciclo) return null;
 
   // 1. PRIORIDADE MÁXIMA: O que está salvo no banco do usuário (Ciclos Novos vêm do Wizard com isso)
-  if (ciclo.logoUrl) return ciclo.logoUrl;
+  const directLogo = ciclo.logoUrl || ciclo.logo || ciclo.editalLogoUrl;
+  const templateId = ciclo.templateId || ciclo.editalId || ciclo.templateOrigem;
 
   // 2. BUSCA NO CATÁLOGO (Se tiver templateId e passarmos o mapa)
   // Isso resolve se você instalou o edital no Admin, mas o ciclo é antigo
-  if (ciclo.templateId && editaisMap?.has(ciclo.templateId)) {
-    const tpl = editaisMap.get(ciclo.templateId);
+  if (templateId && editaisMap?.has(String(templateId))) {
+    const tpl = editaisMap.get(String(templateId));
     if (tpl.logoUrl || tpl.logo) return tpl.logoUrl || tpl.logo;
   }
 
+  if (directLogo) return directLogo;
+
+  const knownLocalLogo = resolveKnownLocalLogo(templateId, ciclo.nome, ciclo.titulo, ciclo.instituicao);
+  if (knownLocalLogo) return knownLocalLogo;
+
   // 3. TENTATIVA DINÂMICA PELO ID (Fallback Padrão)
   // Ex: ID "gcm_viana" -> vira "logo-gcmviana.png"
-  if (ciclo.templateId && ciclo.templateId !== 'manual') {
-    const slugId = normalizeSlug(ciclo.templateId);
+  if (templateId && templateId !== 'manual') {
+    const slugId = normalizeSlug(templateId);
     return `/logosEditais/logo-${slugId}.png`;
   }
 

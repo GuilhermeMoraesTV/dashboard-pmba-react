@@ -26,6 +26,8 @@
  *            para cobrir todos os tópicos — nunca trunca antes disso.
  */
 
+import { calculatePlanningPriority } from '../../utils/planningPriority.js';
+
 // ─── DIAS DA SEMANA ───────────────────────────────────────────────────────────
 
 /** Nomes dos dias da semana indexados por número (0 = Domingo). */
@@ -278,6 +280,19 @@ export function calcularPesoComAssuntos(nivel, nAssuntos, mediaNivel) {
   }
 
   return pesoEfetivo;
+}
+
+export function calcularMediaAssuntos(disciplinas = []) {
+  if (!disciplinas.length) return 1;
+  return Math.max(
+    1,
+    disciplinas.reduce((total, disciplina) => total + Math.max(1, disciplina?.assuntos?.length || 1), 0)
+      / disciplinas.length,
+  );
+}
+
+export function calcularPesoDisciplina(disciplina, mediaAssuntos = 1) {
+  return calculatePlanningPriority(disciplina, mediaAssuntos);
 }
 
 /**

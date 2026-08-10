@@ -1,3 +1,9 @@
+import {
+  calculatePlanningPriority,
+  getKnowledgeLevel,
+  getImportanceLevel,
+} from './planningPriority.js';
+
 export const PESO_POR_NIVEL = {
   iniciante: 5,
   intermediario: 3,
@@ -12,190 +18,119 @@ export const normalizarNivelDominio = (nivel, pesoFallback = 3) => {
   return 'intermediario';
 };
 
-export const obterPesoDisciplina = (disciplina) => {
-  const nivelDominio = normalizarNivelDominio(disciplina?.nivelDominio || disciplina?.nivel, disciplina?.peso);
-  return Number(disciplina?.peso) || PESO_POR_NIVEL[nivelDominio] || 3;
-};
-
-const getActiveDaySessionCapacities = (diasEstudo, tempoSessaoMinutos) => {
-  if (!diasEstudo || typeof diasEstudo !== 'object') return [];
-
-  return Object.entries(diasEstudo)
-    .map(([dia, horas]) => {
-      const minutos = Math.max(0, Math.round((Number(horas) || 0) * 60));
-      return {
-        dia: Number(dia),
-        minutos,
-        sessoes: Math.ceil(minutos / tempoSessaoMinutos),
-      };
-    })
-    .filter(({ dia, sessoes }) => Number.isInteger(dia) && dia >= 0 && dia <= 6 && sessoes > 0)
-    .sort((a, b) => a.dia - b.dia);
-};
-
-const getDailyDisciplines = (disciplinas, restantes = null) => (
-  disciplinas.filter((disc) => (
-    disc?.estudarTodosDias === true
-    && (!restantes || (restantes.get(disc.id) || 0) > 0)
-  ))
+export const obterPesoDisciplina = (disciplina, mediaAssuntos = 1) => (
+  calculatePlanningPriority(disciplina, mediaAssuntos)
 );
+
+const normalizeSessionRange = (legacyDuration, options = {}) => {
+  const legacy = Math.max(5, Math.round(Number(legacyDuration) || 50));
+  const min = Math.max(5, Math.round(Number(options.duracaoMinimaSessaoMinutos) || legacy));
+  const max = Math.max(min, Math.round(Number(options.duracaoMaximaSessaoMinutos) || legacy));
+  return { min, max };
+};
+
+const allocateExactMinutes = (weightedItems, totalMinutes) => {
+  const totalWeight = weightedItems.reduce((total, item) => total + item.weight, 0);
+  if (totalWeight <= 0 || totalMinutes <= 0) return weightedItems.map(() => 0);
+
+  const allocations = weightedItems.map((item, index) => {
+    const raw = totalMinutes * (item.weight / totalWeight);
+    return { index, minutes: Math.floor(raw), fraction: raw - Math.floor(raw) };
+  });
+  let remainder = totalMinutes - allocations.reduce((total, item) => total + item.minutes, 0);
+  allocations
+    .slice()
+    .sort((a, b) => b.fraction - a.fraction || a.index - b.index)
+    .forEach((item) => {
+      if (remainder <= 0) return;
+      allocations[item.index].minutes += 1;
+      remainder -= 1;
+    });
+  return allocations.map((item) => item.minutes);
+};
+
+const splitMinutesIntoSessions = (minutes, min, max) => {
+  const total = Math.max(0, Math.round(Number(minutes) || 0));
+  if (total <= 0) return [];
+  if (total <= max) return [total];
+
+  const minimumCount = Math.ceil(total / max);
+  const maximumCount = Math.max(minimumCount, Math.floor(total / min));
+  const targetCount = Math.round(total / ((min + max) / 2));
+  const count = Math.min(maximumCount, Math.max(minimumCount, targetCount));
+  const base = Math.floor(total / count);
+  let remainder = total - (base * count);
+
+  return Array.from({ length: count }, () => {
+    const duration = base + (remainder > 0 ? 1 : 0);
+    remainder = Math.max(0, remainder - 1);
+    return duration;
+  });
+};
 
 export const calcularDistribuicao = (
   disciplinas,
   cargaHorariaTotalMinutos,
   tempoSessaoMinutos = 50,
-  options = {}
+  options = {},
 ) => {
-  const duracaoSessao = Math.max(1, Number(tempoSessaoMinutos) || 50);
-  const totalPesos = disciplinas.reduce((acc, d) => acc + obterPesoDisciplina(d), 0);
-  if (totalPesos === 0) {
-    return disciplinas.map(d => ({
-      ...d,
-      tempoAlocadoMinutos: 0,
-      sessoesPorCiclo: 1
-    }));
-  }
+  if (!Array.isArray(disciplinas) || disciplinas.length === 0) return [];
 
-  const capacidadesPorDia = getActiveDaySessionCapacities(options.diasEstudo, duracaoSessao);
-  const cargaTotalMinutos = Math.max(0, Math.round(Number(cargaHorariaTotalMinutos) || 0));
-  const sessoesPelaCarga = capacidadesPorDia.length > 0
-    ? capacidadesPorDia.reduce((total, dia) => total + dia.sessoes, 0)
-    : Math.ceil(cargaTotalMinutos / duracaoSessao);
-  const diasAtivos = capacidadesPorDia.length;
-  const minimos = disciplinas.map((disciplina) => (
-    disciplina?.estudarTodosDias && diasAtivos > 0 ? diasAtivos : 1
-  ));
-  const totalMinimo = minimos.reduce((total, valor) => total + valor, 0);
-  const totalSessoes = Math.max(totalMinimo, sessoesPelaCarga);
-  const rateio = disciplinas.map((disciplina, index) => {
-    const peso = obterPesoDisciplina(disciplina);
-    return {
-      index,
-      peso,
-      metaPonderada: totalSessoes * (peso / totalPesos),
-      sessoes: minimos[index],
-    };
-  });
-
-  let sobras = Math.max(0, totalSessoes - totalMinimo);
-  while (sobras > 0) {
-    const proxima = [...rateio].sort((a, b) => {
-      const deficitA = a.metaPonderada - a.sessoes;
-      const deficitB = b.metaPonderada - b.sessoes;
-      return deficitB - deficitA || b.peso - a.peso || a.index - b.index;
-    })[0];
-    rateio[proxima.index].sessoes += 1;
-    sobras -= 1;
-  }
-
-  const rawMinuteAllocations = rateio.map((item, index) => {
-    const rawMinutes = totalSessoes > 0
-      ? cargaTotalMinutos * (item.sessoes / totalSessoes)
-      : 0;
-    return {
-      index,
-      base: Math.floor(rawMinutes),
-      fraction: rawMinutes - Math.floor(rawMinutes),
-    };
-  });
-  let roundingRemainder = Math.max(
-    0,
-    cargaTotalMinutos - rawMinuteAllocations.reduce((total, item) => total + item.base, 0)
+  const totalMinutes = Math.max(0, Math.round(Number(cargaHorariaTotalMinutos) || 0));
+  const { min, max } = normalizeSessionRange(tempoSessaoMinutos, options);
+  const averageTopics = Math.max(
+    1,
+    disciplinas.reduce((total, disciplina) => total + Math.max(1, disciplina?.assuntos?.length || 1), 0)
+      / disciplinas.length,
   );
-  rawMinuteAllocations
-    .slice()
-    .sort((a, b) => b.fraction - a.fraction || a.index - b.index)
-    .forEach((item) => {
-      if (roundingRemainder <= 0) return;
-      rawMinuteAllocations[item.index].base += 1;
-      roundingRemainder -= 1;
-    });
+  const weightedItems = disciplinas.map((disciplina) => ({
+    weight: obterPesoDisciplina(disciplina, averageTopics),
+  }));
+  const minuteAllocations = allocateExactMinutes(weightedItems, totalMinutes);
 
   return disciplinas.map((disciplina, index) => {
-    const peso = obterPesoDisciplina(disciplina);
-    const sessoesPorCiclo = rateio[index].sessoes;
-    const tempoAlocadoMinutos = rawMinuteAllocations[index]?.base || 0;
+    const tempoAlocadoMinutos = minuteAllocations[index] || 0;
+    const duracoesSessoes = splitMinutesIntoSessions(tempoAlocadoMinutos, min, max);
     return {
       ...disciplina,
-      peso,
-      nivelDominio: normalizarNivelDominio(disciplina?.nivelDominio || disciplina?.nivel, disciplina?.peso),
+      conhecimentoNivel: getKnowledgeLevel(disciplina),
+      importanciaNivel: getImportanceLevel(disciplina),
+      peso: weightedItems[index].weight,
       tempoAlocadoMinutos,
-      sessoesPorCiclo,
+      sessoesPorCiclo: duracoesSessoes.length,
+      duracoesSessoes,
     };
   });
 };
 
-export const gerarOrdemSessoes = (disciplinas, embaralharOffset = 0, options = {}) => {
+export const gerarOrdemSessoes = (disciplinas, embaralharOffset = 0) => {
   if (!Array.isArray(disciplinas) || disciplinas.length === 0) return [];
 
-  const discsOrdenadas = [...disciplinas];
-
-  if (embaralharOffset > 0) {
-    const offset = embaralharOffset % discsOrdenadas.length;
-    const rotacionadas = [
-      ...discsOrdenadas.slice(offset),
-      ...discsOrdenadas.slice(0, offset)
-    ];
-    discsOrdenadas.splice(0, discsOrdenadas.length, ...rotacionadas);
-  }
-
-  const restantes = new Map(
-    discsOrdenadas.map((disc) => [disc.id, Math.max(0, Number(disc.sessoesPorCiclo) || 0)])
+  const offset = Math.max(0, Number(embaralharOffset) || 0) % disciplinas.length;
+  const orderedDisciplines = [
+    ...disciplinas.slice(offset),
+    ...disciplinas.slice(0, offset),
+  ];
+  const remaining = new Map(
+    orderedDisciplines.map((disciplina) => [disciplina.id, Math.max(0, Number(disciplina.sessoesPorCiclo) || 0)]),
   );
-  const indices = new Map(discsOrdenadas.map((disc) => [disc.id, 0]));
-  const capacidadesPorDia = getActiveDaySessionCapacities(
-    options.diasEstudo,
-    Math.max(1, Number(options.tempoSessaoMinutos) || 50)
-  );
-  const diarias = getDailyDisciplines(discsOrdenadas, restantes);
-  const idsDiarias = new Set(diarias.map((disc) => disc.id));
-  const ordem = [];
-  let cursor = 0;
-  const diasDiariosPendentes = new Map(diarias.map((disc) => [disc.id, capacidadesPorDia.length]));
+  const sessionIndexes = new Map(orderedDisciplines.map((disciplina) => [disciplina.id, 0]));
+  const queue = [];
 
-  const adicionar = (disciplina) => {
-    const restante = restantes.get(disciplina.id) || 0;
-    if (restante <= 0) return false;
-    const sessaoIndex = indices.get(disciplina.id) || 0;
-    ordem.push({ disciplinaId: disciplina.id, sessaoIndex });
-    restantes.set(disciplina.id, restante - 1);
-    indices.set(disciplina.id, sessaoIndex + 1);
-    return true;
-  };
-
-  const adicionarProxima = (preservarDiaria = false) => {
-    for (let tentativa = 0; tentativa < discsOrdenadas.length; tentativa += 1) {
-      const index = (cursor + tentativa) % discsOrdenadas.length;
-      const candidata = discsOrdenadas[index];
-      if ((restantes.get(candidata.id) || 0) <= 0) continue;
-      if (
-        preservarDiaria &&
-        idsDiarias.has(candidata.id) &&
-        (restantes.get(candidata.id) || 0) <= (diasDiariosPendentes.get(candidata.id) || 0)
-      ) {
-        continue;
-      }
-      cursor = (index + 1) % discsOrdenadas.length;
-      return adicionar(candidata);
-    }
-    return false;
-  };
-
-  capacidadesPorDia.forEach(({ sessoes }) => {
-    let usadas = 0;
-    diarias.forEach((diaria) => {
-      if (usadas < sessoes && adicionar(diaria)) usadas += 1;
-      diasDiariosPendentes.set(
-        diaria.id,
-        Math.max(0, (diasDiariosPendentes.get(diaria.id) || 0) - 1)
-      );
+  let added = true;
+  while (added) {
+    added = false;
+    orderedDisciplines.forEach((disciplina) => {
+      const count = remaining.get(disciplina.id) || 0;
+      if (count <= 0) return;
+      const sessaoIndex = sessionIndexes.get(disciplina.id) || 0;
+      const tempoPlanejadoMinutos = Number(disciplina.duracoesSessoes?.[sessaoIndex]) || null;
+      queue.push({ disciplinaId: disciplina.id, sessaoIndex, tempoPlanejadoMinutos });
+      remaining.set(disciplina.id, count - 1);
+      sessionIndexes.set(disciplina.id, sessaoIndex + 1);
+      added = true;
     });
-    while (usadas < sessoes && adicionarProxima(true)) usadas += 1;
-  });
-
-  while (adicionarProxima()) {
-    // Consome sessoes excedentes quando os minimos superam a carga configurada.
   }
 
-  return ordem;
+  return queue;
 };

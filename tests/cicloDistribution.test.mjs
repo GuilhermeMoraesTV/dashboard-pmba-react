@@ -1,121 +1,67 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import {
-  calcularDistribuicao,
-  gerarOrdemSessoes,
-} from '../src/utils/cicloDistribution.js';
+import { calcularDistribuicao, gerarOrdemSessoes } from '../src/utils/cicloDistribution.js';
 
-const diasUteisComUmaHora = {
-  1: 1,
-  2: 1,
-  3: 1,
-  4: 1,
-  5: 1,
-};
+describe('cicloDistribution rotativo livre', () => {
+  it('prioriza menor conhecimento quando a importancia e igual', () => {
+    const distribuicao = calcularDistribuicao([
+      { id: 'baixo', conhecimentoNivel: 1, importanciaNivel: 3, assuntos: ['A'] },
+      { id: 'alto', conhecimentoNivel: 5, importanciaNivel: 3, assuntos: ['A'] },
+    ], 600, 60, { duracaoMinimaSessaoMinutos: 30, duracaoMaximaSessaoMinutos: 60 });
 
-describe('cicloDistribution', () => {
-  it('prioriza disciplinas com maior dificuldade no rateio de sessoes', () => {
-    const distribuicao = calcularDistribuicao(
-      [
-        { id: 'mat', nome: 'Matematica', nivelDominio: 'iniciante' },
-        { id: 'pt', nome: 'Portugues', nivelDominio: 'avancado' },
-      ],
-      600,
-      60
-    );
-
-    const matematica = distribuicao.find((item) => item.id === 'mat');
-    const portugues = distribuicao.find((item) => item.id === 'pt');
-
-    assert.ok(matematica.sessoesPorCiclo > portugues.sessoesPorCiclo);
-    assert.ok(matematica.tempoAlocadoMinutos > portugues.tempoAlocadoMinutos);
+    const baixo = distribuicao.find((item) => item.id === 'baixo');
+    const alto = distribuicao.find((item) => item.id === 'alto');
+    assert.ok(baixo.tempoAlocadoMinutos > alto.tempoAlocadoMinutos);
   });
 
-  it('mantem a soma da distribuicao alinhada com a carga planejada', () => {
-    const distribuicao = calcularDistribuicao(
-      [
-        { id: 'a', nivelDominio: 'iniciante' },
-        { id: 'b', nivelDominio: 'intermediario' },
-        { id: 'c', nivelDominio: 'avancado' },
-      ],
-      480,
-      60
-    );
+  it('prioriza maior importancia quando o conhecimento e igual', () => {
+    const distribuicao = calcularDistribuicao([
+      { id: 'essencial', conhecimentoNivel: 3, importanciaNivel: 5, assuntos: ['A'] },
+      { id: 'menor', conhecimentoNivel: 3, importanciaNivel: 1, assuntos: ['A'] },
+    ], 600, 60, { duracaoMinimaSessaoMinutos: 30, duracaoMaximaSessaoMinutos: 60 });
 
-    const totalMinutos = distribuicao.reduce((total, item) => total + item.tempoAlocadoMinutos, 0);
-    const totalSessoes = distribuicao.reduce((total, item) => total + item.sessoesPorCiclo, 0);
-
-    assert.equal(totalMinutos, 480);
-    assert.equal(totalSessoes, 8);
+    const essencial = distribuicao.find((item) => item.id === 'essencial');
+    const menor = distribuicao.find((item) => item.id === 'menor');
+    assert.ok(essencial.tempoAlocadoMinutos > menor.tempoAlocadoMinutos);
   });
 
-  it('conta sobras de tempo como sessoes parciais sem inflar a carga planejada', () => {
-    const distribuicao = calcularDistribuicao(
-      [
-        { id: 'a', nivelDominio: 'intermediario' },
-        { id: 'b', nivelDominio: 'intermediario' },
-        { id: 'c', nivelDominio: 'intermediario' },
-      ],
-      130,
-      60,
-      { diasEstudo: { 1: 2.1667 } }
-    );
+  it('combina conhecimento e importancia em partes iguais', () => {
+    const distribuicao = calcularDistribuicao([
+      { id: 'necessidade', conhecimentoNivel: 1, importanciaNivel: 1, assuntos: ['A'] },
+      { id: 'relevancia', conhecimentoNivel: 5, importanciaNivel: 5, assuntos: ['A'] },
+    ], 600, 60, { duracaoMinimaSessaoMinutos: 30, duracaoMaximaSessaoMinutos: 60 });
 
-    const totalMinutos = distribuicao.reduce((total, item) => total + item.tempoAlocadoMinutos, 0);
-    const totalSessoes = distribuicao.reduce((total, item) => total + item.sessoesPorCiclo, 0);
-
-    assert.equal(totalMinutos, 130);
-    assert.equal(totalSessoes, 3);
+    assert.equal(distribuicao[0].tempoAlocadoMinutos, distribuicao[1].tempoAlocadoMinutos);
   });
 
-  it('reserva uma sessao por dia ativo para a disciplina marcada como todos os dias', () => {
-    const distribuicao = calcularDistribuicao(
-      [
-        { id: 'lei', nome: 'Legislacao', nivelDominio: 'intermediario', estudarTodosDias: true },
-        { id: 'inf', nome: 'Informatica', nivelDominio: 'iniciante' },
-      ],
-      300,
-      60,
-      { diasEstudo: diasUteisComUmaHora }
-    );
+  it('preserva a carga exata e divide em sessoes dentro do intervalo', () => {
+    const distribuicao = calcularDistribuicao([
+      { id: 'a', conhecimentoNivel: 1, importanciaNivel: 5, assuntos: ['A', 'B'] },
+      { id: 'b', conhecimentoNivel: 3, importanciaNivel: 3, assuntos: ['A'] },
+      { id: 'c', conhecimentoNivel: 5, importanciaNivel: 1, assuntos: ['A'] },
+    ], 480, 60, { duracaoMinimaSessaoMinutos: 30, duracaoMaximaSessaoMinutos: 60 });
 
-    const diaria = distribuicao.find((item) => item.id === 'lei');
-    const ordem = gerarOrdemSessoes(distribuicao, 0, {
-      diasEstudo: diasUteisComUmaHora,
-      tempoSessaoMinutos: 60,
+    assert.equal(distribuicao.reduce((total, item) => total + item.tempoAlocadoMinutos, 0), 480);
+    distribuicao.forEach((disciplina) => {
+      assert.equal(disciplina.duracoesSessoes.reduce((total, minutos) => total + minutos, 0), disciplina.tempoAlocadoMinutos);
+      disciplina.duracoesSessoes.forEach((minutos) => assert.ok(minutos >= 30 && minutos <= 60));
     });
-
-    assert.ok(diaria.sessoesPorCiclo >= 5);
-    assert.equal(ordem.length, distribuicao.reduce((total, item) => total + item.sessoesPorCiclo, 0));
-    assert.deepEqual(ordem.slice(0, 5).map((item) => item.disciplinaId), ['lei', 'lei', 'lei', 'lei', 'lei']);
   });
 
-  it('reserva sessoes diarias para mais de uma disciplina marcada', () => {
-    const diasComDuasSessoes = {
-      1: 2,
-      2: 2,
-      3: 2,
-    };
-    const distribuicao = calcularDistribuicao(
-      [
-        { id: 'lei', nome: 'Legislacao', nivelDominio: 'intermediario', estudarTodosDias: true },
-        { id: 'pt', nome: 'Portugues', nivelDominio: 'intermediario', estudarTodosDias: true },
-        { id: 'inf', nome: 'Informatica', nivelDominio: 'iniciante' },
-      ],
-      360,
-      60,
-      { diasEstudo: diasComDuasSessoes }
+  it('gera fila estavel em round-robin sem reservar dias ou criar atraso', () => {
+    const distribuicao = calcularDistribuicao([
+      { id: 'a', conhecimentoNivel: 3, importanciaNivel: 3, assuntos: ['A'] },
+      { id: 'b', conhecimentoNivel: 3, importanciaNivel: 3, assuntos: ['A'] },
+      { id: 'c', conhecimentoNivel: 3, importanciaNivel: 3, assuntos: ['A'] },
+    ], 270, 60, { duracaoMinimaSessaoMinutos: 30, duracaoMaximaSessaoMinutos: 60 });
+    const ordem = gerarOrdemSessoes(distribuicao);
+
+    assert.deepEqual(ordem.slice(0, 3).map((item) => item.disciplinaId), ['a', 'b', 'c']);
+    assert.equal(
+      ordem.reduce((total, item) => total + item.tempoPlanejadoMinutos, 0),
+      270,
     );
-
-    const ordem = gerarOrdemSessoes(distribuicao, 0, {
-      diasEstudo: diasComDuasSessoes,
-      tempoSessaoMinutos: 60,
-    });
-
-    const blocosPorDia = [ordem.slice(0, 2), ordem.slice(2, 4), ordem.slice(4, 6)];
-    blocosPorDia.forEach((blocos) => {
-      assert.deepEqual(blocos.map((item) => item.disciplinaId).sort(), ['lei', 'pt']);
-    });
+    assert.equal(ordem.some((item) => item.assignedDate || item.carriedOver), false);
   });
 });

@@ -542,7 +542,7 @@ export function getAgendaSemana(
     if (topicIdx >= assuntos.length) return null;
 
     // Mantem o assunto real no dado; a UI decide se exibe ou oculta.
-    const assunto = assuntos[topicIdx] ?? `Tópico ${topicIdx + 1}`;
+    let assunto = assuntos[topicIdx] ?? `Tópico ${topicIdx + 1}`;
 
     const progressoDisc = assuntos.length
       ? Math.min(100, Math.round((Math.min(topicIdx, assuntos.length) / assuntos.length) * 100))

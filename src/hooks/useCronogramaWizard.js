@@ -42,6 +42,12 @@ import { gerarSchedule } from '../services/scheduling/index.js';
 import { gerarCronogramaIA, gerarCronogramaExpressoIA, limparCacheIA } from '../services/cronogramaIA';
 import { useCronogramaSystem } from './useCronogramaSystem';
 import { buildDisciplineColorMap, getDisciplineColorForSlot, getDisciplineKey, getStoredDisciplineColor } from '../utils/disciplineColors';
+import {
+  getKnowledgeLevel,
+  getImportanceLevel,
+  hasCompletePlanningLevels,
+  normalizePlanningLevel,
+} from '../utils/planningPriority';
 import confetti from 'canvas-confetti';
 
 // ─── CONSTANTES ───────────────────────────────────────────────────────────────
@@ -95,6 +101,8 @@ export const defaultConfig = () => {
     dataInicio:          `${yyyy}-${mm}-${dd}`,
     dataInicioManual:    false,
     tempoRevisaoMinutos: 20,
+    duracaoMinimaSessaoMinutos: 30,
+    duracaoMaximaSessaoMinutos: 60,
     retaFinal:           false,
     dataProva:           '',
     modoMontagem:        'inteligente',
@@ -174,6 +182,8 @@ const _montarDadosParaSalvar = (config, edital, horarios, result, geradoPorIA_) 
   metodologiasAplicadas:   result.metodologiasAplicadas,
   metodologiaRevisao:      METODOLOGIA_REVISAO,
   tempoRevisaoMinutos:     config.tempoRevisaoMinutos || 20,
+  duracaoMinimaSessaoMinutos: Number(config.duracaoMinimaSessaoMinutos) || 30,
+  duracaoMaximaSessaoMinutos: Number(config.duracaoMaximaSessaoMinutos) || 60,
   retaFinal:               config.retaFinal           || false,
   dataProva:               config.dataProva           || null,
   modoMontagem:            config.modoMontagem        || 'inteligente',
@@ -214,7 +224,8 @@ const _montarDisciplinasSnapshotCompleto = ({ edital, disciplinas, extraDiscipli
     return {
       ...disciplina,
       index,
-      nivel: sel?.nivel || disciplina.nivel || 'intermediario',
+      conhecimentoNivel: normalizePlanningLevel(sel?.conhecimentoNivel) || getKnowledgeLevel(disciplina),
+      importanciaNivel: normalizePlanningLevel(sel?.importanciaNivel) || getImportanceLevel(disciplina),
       assuntos: _normalizarAssuntos(ativa ? assuntosFiltrados : assuntosOriginais),
       inCiclo: ativa,
       estudarTodosDias: ativa && _disciplinaEstaTodosDias(idsTodosDias, disciplina.id),
@@ -249,9 +260,7 @@ const _aplicarCoresUnicasCronograma = (semanaTemplate = [], disciplinas = []) =>
   };
 };
 
-const _isNivelValido = (nivel) => (
-  nivel === 'iniciante' || nivel === 'intermediario' || nivel === 'avancado'
-);
+const _temNiveisPlanejamento = (valor = {}) => hasCompletePlanningLevels(valor);
 
 const _normalizarTextoAssunto = (valor) => String(valor || '')
   .replace(/\s+/g, ' ')
@@ -280,7 +289,8 @@ const _normalizarDisciplinasEdital = (editalObj = {}) => (
     nome:     d.nome || d,
     assuntos: _normalizarAssuntos(d.assuntos),
     peso: Number(d.peso || d.peso_sugerido) || 3,
-    nivel: _isNivelValido(d.nivel || d.nivelDominio) ? (d.nivel || d.nivelDominio) : null,
+    conhecimentoNivel: getKnowledgeLevel(d),
+    importanciaNivel: getImportanceLevel(d),
   }))
 );
 
@@ -335,12 +345,23 @@ const _normalizarInitialStateEdicao = (source = {}, modelos = []) => {
   if (!cronograma || typeof cronograma !== 'object') return null;
 
   if (source?.disciplinas && source?.horarios && source?.cronConfig) {
+    const todasDisciplinas = [...(source.disciplinas || []), ...(source.extraDisciplinas || [])];
+    const selecaoNormalizada = Object.fromEntries(
+      Object.entries(source.selecao || {}).map(([id, valor]) => {
+        const disciplina = todasDisciplinas.find((item) => String(item.id) === String(id)) || valor;
+        return [id, {
+          ...valor,
+          conhecimentoNivel: normalizePlanningLevel(valor?.conhecimentoNivel) || getKnowledgeLevel(disciplina),
+          importanciaNivel: normalizePlanningLevel(valor?.importanciaNivel) || getImportanceLevel(disciplina),
+        }];
+      }),
+    );
     return {
       tipo: source.tipo || 'personalizado',
       edital: source.edital || null,
       disciplinas: source.disciplinas || [],
       extraDisciplinas: source.extraDisciplinas || [],
-      selecao: source.selecao || {},
+      selecao: selecaoNormalizada,
       horarios: { ...defaultHorarios, ...(source.horarios || {}) },
       cronConfig: { ...defaultConfig(), ...(source.cronConfig || {}), dataInicioManual: true },
     };
@@ -362,7 +383,8 @@ const _normalizarInitialStateEdicao = (source = {}, modelos = []) => {
     nome: disc?.nome || `Disciplina ${idx + 1}`,
     assuntos: Array.isArray(disc?.assuntos) ? disc.assuntos.filter(Boolean) : [],
     peso: Number(disc?.peso) || 3,
-    nivel: disc?.nivel || 'intermediario',
+    conhecimentoNivel: getKnowledgeLevel(disc),
+    importanciaNivel: getImportanceLevel(disc),
   }));
 
   const findSnapshotDisc = (disciplina) => snapshot.find((item) => item?.id === disciplina.id)
@@ -389,7 +411,8 @@ const _normalizarInitialStateEdicao = (source = {}, modelos = []) => {
       checked: ativo && !parcial,
       parcial,
       assuntosMarcados,
-      nivel: snapDisc?.nivel || disciplina?.nivel || 'intermediario',
+      conhecimentoNivel: getKnowledgeLevel(snapDisc || disciplina),
+      importanciaNivel: getImportanceLevel(snapDisc || disciplina),
     };
   });
 
@@ -400,7 +423,8 @@ const _normalizarInitialStateEdicao = (source = {}, modelos = []) => {
       nome: disc.nome || `Extra ${idx + 1}`,
       assuntos: Array.isArray(disc.assuntos) ? disc.assuntos.filter(Boolean) : [],
       peso: Number(disc.peso) || 3,
-      nivel: disc.nivel || 'intermediario',
+      conhecimentoNivel: getKnowledgeLevel(disc),
+      importanciaNivel: getImportanceLevel(disc),
     }));
 
   extraDisciplinas.forEach((disciplina) => {
@@ -408,7 +432,8 @@ const _normalizarInitialStateEdicao = (source = {}, modelos = []) => {
       checked: Boolean(snapshot.find((item) => item?.id === disciplina.id)?.inCiclo),
       parcial: false,
       assuntosMarcados: new Set(),
-      nivel: disciplina.nivel || 'intermediario',
+      conhecimentoNivel: disciplina.conhecimentoNivel,
+      importanciaNivel: disciplina.importanciaNivel,
     };
   });
 
@@ -425,6 +450,8 @@ const _normalizarInitialStateEdicao = (source = {}, modelos = []) => {
       dataInicio: cronograma.dataInicio || defaultConfig().dataInicio,
       dataInicioManual: true,
       tempoRevisaoMinutos: Number(cronograma.tempoRevisaoMinutos ?? 20) || 20,
+      duracaoMinimaSessaoMinutos: Number(cronograma.duracaoMinimaSessaoMinutos) || 30,
+      duracaoMaximaSessaoMinutos: Number(cronograma.duracaoMaximaSessaoMinutos) || 60,
       retaFinal: Boolean(cronograma.retaFinal),
       dataProva: cronograma.dataProva || '',
       modoMontagem: cronograma.modoMontagem || 'inteligente',
@@ -456,6 +483,7 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
     mode = 'create',
     cronogramaId = null,
     initialState = null,
+    preselectedEdital = null,
   } = options;
   const isEditMode = mode === 'edit';
   const hidratacaoEdicaoRef = useRef(false);
@@ -561,7 +589,7 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
 
     carregarModelos();
 
-    if (!isEditMode && _lerDraft()) setMostrandoRascunho(true);
+    if (!isEditMode && !preselectedEdital && _lerDraft()) setMostrandoRascunho(true);
   }, []);
 
   // ─── EFEITO: auto-save do draft sempre que dados de negócio mudarem ────────
@@ -689,7 +717,7 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
 
     const novaSelecao = {};
     discs.forEach(d => {
-      novaSelecao[d.id] = { checked: false, parcial: false, assuntosMarcados: new Set(), nivel: null };
+      novaSelecao[d.id] = { checked: false, parcial: false, assuntosMarcados: new Set(), conhecimentoNivel: 0, importanciaNivel: 0 };
     });
     setSelecao(novaSelecao);
     setCronConfigState(prev => ({ ...prev, nome: editalObj.titulo || 'Meu Cronograma', disciplinasTodosDiasIds: [] }));
@@ -776,6 +804,8 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
           dataProva:           cronConfig.dataProva           || null,
           retaFinal:           cronConfig.retaFinal           || false,
           tempoRevisaoMinutos: cronConfig.tempoRevisaoMinutos || 20,
+          duracaoMinimaSessaoMinutos: cronConfig.duracaoMinimaSessaoMinutos || 30,
+          duracaoMaximaSessaoMinutos: cronConfig.duracaoMaximaSessaoMinutos || 60,
           limitarMaterias:     cronConfig.limitarMaterias     || false,
           limitesPorDia:       cronConfig.limitesPorDia       || {},
         },
@@ -893,7 +923,8 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
     const disciplinasSnapshotCompleto = discs.map((disciplina, index) => ({
       ...disciplina,
       index,
-      nivel: disciplina.nivel || 'intermediario',
+      conhecimentoNivel: getKnowledgeLevel(disciplina) || 3,
+      importanciaNivel: getImportanceLevel(disciplina) || 3,
       inCiclo: true,
     }));
 
@@ -939,7 +970,7 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
       return;
     }
     if (!gradeManualAtiva && !_selecionadasTemNivelValido(discsFinais, selecao)) {
-      setErroGeracao('Escolha o nivel de dominio em todas as disciplinas selecionadas.');
+      setErroGeracao('Defina conhecimento e importancia de 1 a 5 em todas as disciplinas selecionadas.');
       return;
     }
 
@@ -1110,12 +1141,13 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
       // Se for manual, as disciplinas precisam existir no array
       if (edital?.id === 'manual' && disciplinas.length === 0) return false;
 
-      // Garante que todas as selecionadas possuem nível
-      return selecionadas.every(([, s]) => _isNivelValido(s.nivel));
+      return selecionadas.every(([, s]) => _temNiveisPlanejamento(s));
     }
 
     // Passo 2: Horários
-    if (passo === 3) return Object.values(horarios).some(h => h > 0);
+    if (passo === 3) return Object.values(horarios).some(h => h > 0)
+      && Number(cronConfig.duracaoMinimaSessaoMinutos) >= 5
+      && Number(cronConfig.duracaoMaximaSessaoMinutos) >= Number(cronConfig.duracaoMinimaSessaoMinutos);
 
     // Passo 3: Revisão (Informativo)
     if (passo === 4) return true;
@@ -1212,14 +1244,15 @@ function _normalizarDiscsParaGeracao(discsFinais, selecao, disciplinasTodosDiasI
       ...d,
       assuntos:    _normalizarAssuntos(assuntosFiltrados),
       diasFixados: [],
-      nivel:       _isNivelValido(sel?.nivel) ? sel.nivel : d.nivel || 'intermediario',
+      conhecimentoNivel: normalizePlanningLevel(sel?.conhecimentoNivel) || getKnowledgeLevel(d),
+      importanciaNivel: normalizePlanningLevel(sel?.importanciaNivel) || getImportanceLevel(d),
       estudarTodosDias: _disciplinaEstaTodosDias(idsTodosDias, d.id),
     };
   });
 }
 
 function _selecionadasTemNivelValido(discsFinais, selecao) {
-  return discsFinais.every((disciplina) => _isNivelValido(selecao[disciplina.id]?.nivel));
+  return discsFinais.every((disciplina) => _temNiveisPlanejamento(selecao[disciplina.id]));
 }
 
 function _filtrarDisciplinasSelecionadas(disciplinas, selecao) {
@@ -1303,6 +1336,8 @@ function _gerarCronogramaDeGradePersonalizada(grade, disciplinas = [], config = 
       revisao: METODOLOGIA_REVISAO,
       estudo: ['grade_manual'],
       tempoRevisaoMinutos: config.tempoRevisaoMinutos || 20,
+      duracaoMinimaSessaoMinutos: config.duracaoMinimaSessaoMinutos || 30,
+      duracaoMaximaSessaoMinutos: config.duracaoMaximaSessaoMinutos || 60,
     },
     geradoPorIA: false,
     modoMontagem: 'personalizado',

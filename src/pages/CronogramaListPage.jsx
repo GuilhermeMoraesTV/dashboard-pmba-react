@@ -16,30 +16,14 @@ import { useCronogramaSystem } from '../hooks/useCronogramaSystem';
 import FeedbackWidget from '../components/FeedbackWidget';
 import ModalEditarCronograma from '../components/cronograma/ModalEditarCronograma';
 import { CATALOGO_EDITAIS } from '../pages/AdminPage/EditaisManager';
+import { buildEditaisMap, resolveLogoUrl } from '../components/admin/config/editalAssets';
 import EmptyStateCard from '../components/shared/EmptyStateCard';
 import { sanitizeArticleHtml } from '../utils/sanitizeHtml';
+import { deletePlanStudyRecords } from '../services/planDeletion';
 
 // ============================================================================
 // Resolve a logo do cronograma a partir do registro ou do edital base.
 // ============================================================================
-const getLogo = (cronograma) => {
-  if (!cronograma) return null;
-  if (cronograma.logoUrl) return cronograma.logoUrl;
-  const templateId = cronograma.editalId || cronograma.templateId;
-  if (templateId && CATALOGO_EDITAIS) {
-    const edital = CATALOGO_EDITAIS.find(e => e.id === templateId);
-    if (edital && (edital.logoUrl || edital.logo)) return edital.logoUrl || edital.logo;
-  }
-  if (templateId && templateId !== 'manual') {
-    const idLimpo = templateId.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-    return `/logosEditais/logo-${idLimpo}.png`;
-  }
-  const nomeLower = cronograma.nome?.toLowerCase() || '';
-  if (nomeLower.includes('pmba')) return '/logosEditais/logo-pmba.png';
-  if (nomeLower.includes('pmal')) return '/logosEditais/logo-pmal.png';
-  return null;
-};
-
 // ─── MODAL ────────────────────────────────────────────────────────────────────
 const ModalConfirmacao = ({ isOpen, titulo, descricao, icone: Icone, corBg, corBtn, labelBtn, onClose, onConfirm, loading }) => {
   if (!isOpen) return null;
@@ -147,11 +131,11 @@ const calcularMetricas = (cronograma, registrosEstudo = []) => {
 };
 
 // ─── CARD ─────────────────────────────────────────────────────────────────────
-const CronogramaCard = ({ cronograma, registrosEstudo = [], onOpen, onMenuToggle, isMenuOpen, onAction, allowInactiveOpen = true, showPostponeAction = true }) => {
+const CronogramaCard = ({ cronograma, editaisMap, registrosEstudo = [], onOpen, onMenuToggle, isMenuOpen, onAction, allowInactiveOpen = true, showPostponeAction = true }) => {
   const metricas = useMemo(() => calcularMetricas(cronograma, registrosEstudo), [cronograma, registrosEstudo]);
   const { progresso, horasSemanais, horasEstudadas } = metricas;
   const totalSemanas = cronograma.totalSemanasNecessarias || 0;
-  const logo = getLogo(cronograma);
+  const logo = resolveLogoUrl({ ciclo: cronograma, editaisMap });
   const canOpen = typeof onOpen === 'function' && (allowInactiveOpen || cronograma.ativo);
   const cargaSemanal = Number(horasSemanais || 0);
 
@@ -337,6 +321,7 @@ function CronogramaListPage({
   const [feedbackType, setFeedbackType] = useState('ideia');
   const [cronogramaParaEditar, setCronogramaParaEditar] = useState(null);
   const [actionError, setActionError] = useState('');
+  const [editaisMap, setEditaisMap] = useState(() => buildEditaisMap(CATALOGO_EDITAIS));
   const canUseInlineCreate = typeof onRequestCreate !== 'function';
   const canUseInlineEdit = typeof onRequestEdit !== 'function';
   const containerClassName = compact ? 'p-0 animate-fade-in' : 'p-0 min-h-[50vh] animate-fade-in pb-12';
@@ -377,6 +362,20 @@ function CronogramaListPage({
       setLoadingList(false);
     }, err => { console.error(err); setLoadingList(false); });
   }, [user]);
+
+  useEffect(() => onSnapshot(collection(db, 'editais_templates'), (snapshot) => {
+    const merged = new Map(CATALOGO_EDITAIS.map((item) => [String(item.id), item]));
+    snapshot.docs.forEach((docSnap) => {
+      const stored = { id: docSnap.id, ...docSnap.data() };
+      const local = merged.get(String(docSnap.id));
+      merged.set(String(docSnap.id), {
+        ...local,
+        ...stored,
+        logoUrl: stored.logoUrl || stored.logo || local?.logoUrl || local?.logo || null,
+      });
+    });
+    setEditaisMap(buildEditaisMap([...merged.values()]));
+  }, () => setEditaisMap(buildEditaisMap(CATALOGO_EDITAIS))), []);
 
   const sortedCronogramas = useMemo(() =>
     [...cronogramas].sort((a, b) => {
@@ -441,6 +440,11 @@ function CronogramaListPage({
     setActionLoading(true);
     try {
       const { id, cicloVinculadoId } = cronogramaParaExcluir;
+      await deletePlanStudyRecords({
+        userId: user.uid,
+        planId: id,
+        planType: 'cronograma',
+      });
       const batch = writeBatch(db);
       batch.delete(doc(db, 'users', user.uid, 'cronogramas', id));
       if (cicloVinculadoId) {
@@ -544,7 +548,7 @@ function CronogramaListPage({
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6">
               {sortedCronogramas.map(cronograma => (
-                <CronogramaCard key={cronograma.id} cronograma={cronograma} registrosEstudo={registrosEstudo} onOpen={(id, item) => onCronogramaAberto?.(id, item)} onMenuToggle={handleMenuToggle} isMenuOpen={menuAberto === cronograma.id} onAction={handleAction} allowInactiveOpen={allowInactiveOpen} showPostponeAction={showPostponeAction} />
+                <CronogramaCard key={cronograma.id} cronograma={cronograma} editaisMap={editaisMap} registrosEstudo={registrosEstudo} onOpen={(id, item) => onCronogramaAberto?.(id, item)} onMenuToggle={handleMenuToggle} isMenuOpen={menuAberto === cronograma.id} onAction={handleAction} allowInactiveOpen={allowInactiveOpen} showPostponeAction={showPostponeAction} />
               ))}
             </div>
           )}

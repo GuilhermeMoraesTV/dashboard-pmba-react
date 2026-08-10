@@ -1,10 +1,11 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  BookOpen, CalendarCheck2, ChevronDown, CheckCircle2, Square, MinusSquare,
-  Search, X, CheckSquare, Layers, Tag, Sparkles, Target,
-  Plus, Trash2, Edit2, AlertTriangle, Zap, TrendingUp, Flame
+  BookOpen, CalendarCheck2, Check, X, HelpCircle, Square, MinusSquare,
+  CheckSquare, Layers, Tag, Sparkles, Target,
+  Plus, Trash2, Edit2, AlertTriangle, Brain, Scale
 } from 'lucide-react';
+import { normalizePlanningLevel } from '../../utils/planningPriority';
 
 // ══════════════════════════════════════════════════════════════════════════════
 //  CABEÇALHO DA PÁGINA
@@ -21,8 +22,8 @@ const PageHeader = ({ modoManual }) => (
     </h2>
     <p className="text-zinc-500 dark:text-zinc-400 text-base sm:text-sm font-semibold leading-relaxed max-w-md mx-auto">
       {modoManual
-        ? "Adicione as disciplinas e indique seu nível atual em cada uma. O sistema montará o tempo ideal de forma inteligente."
-        : "Marque o que vai estudar e defina seu nível de domínio. Nossa IA dará mais tempo para suas dificuldades e menos para o que já domina."}
+        ? "Monte sua lista, escolha as disciplinas que entram no plano e informe conhecimento e importância para orientar a distribuição."
+        : "Clique nos cards para escolher as disciplinas do plano. Depois ajuste conhecimento e importância para equilibrar ordem, peso e prioridade de estudo."}
     </p>
   </motion.div>
 );
@@ -123,112 +124,53 @@ const StatsMiniCard = ({ stats }) => (
 // ══════════════════════════════════════════════════════════════════════════════
 //  FORMULÁRIO
 // ══════════════════════════════════════════════════════════════════════════════
-const FormAdicionarDisciplina = ({ valor, setValor, onSubmit, modoManual }) => {
-  const [isOpen, setIsOpen] = useState(modoManual);
-
-  useEffect(() => {
-    if (window.innerWidth < 1024 && !modoManual) setIsOpen(false);
-  }, [modoManual]);
-
-  const handleSubmit = (e) => { e.preventDefault(); onSubmit(e); };
-
-  return (
-    <div className="bg-white dark:bg-zinc-900 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm mb-6 overflow-hidden transition-all">
-      <button onClick={() => setIsOpen(!isOpen)} className="w-full p-4 flex items-center justify-between hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors focus:outline-none">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-red-100 dark:bg-red-900/30 flex items-center justify-center shrink-0 transition-transform"><Plus size={18} className="text-red-600 dark:text-red-400" /></div>
-          <div className="text-left">
-            <h2 className="text-base font-black text-zinc-900 dark:text-white leading-none">Criar Nova Disciplina</h2>
-            <p className="text-[11px] text-zinc-500 mt-0.5">Clique para adicionar matérias personalizadas</p>
-          </div>
-        </div>
-        <div className={`p-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-400 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}><ChevronDown size={18} /></div>
-      </button>
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden">
-            <div className="px-4 pb-4">
-              <form onSubmit={handleSubmit} className="flex items-center gap-3 pt-2 border-t border-zinc-100 dark:border-zinc-800">
-                <div className="relative flex-1 w-full">
-                  <BookOpen size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" />
-                  <input value={valor} onChange={e => setValor(e.target.value)} placeholder="Ex: Redação, Informática..." className="w-full pl-10 pr-3 py-3.5 bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded-2xl text-sm font-bold placeholder:text-zinc-400 text-zinc-900 dark:text-white focus:border-red-500 focus:bg-white dark:focus:bg-zinc-900 outline-none transition-all shadow-sm" />
-                </div>
-                <button type="submit" disabled={!valor.trim()} className="flex items-center justify-center px-6 py-3.5 rounded-2xl bg-red-600 text-white font-bold text-sm hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 shadow-sm shrink-0">Adicionar</button>
-              </form>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
+const LEVEL_BAR_LABELS = {
+  1: 'Muito baixo',
+  2: 'Baixo',
+  3: 'Médio',
+  4: 'Alto',
+  5: 'Muito alto',
 };
 
-// ══════════════════════════════════════════════════════════════════════════════
-//  SELETOR DE NÍVEL — PILLS HORIZONTAIS (SEMPRE LADO A LADO)
-// ══════════════════════════════════════════════════════════════════════════════
-
-const NIVEL_CONFIG = {
-  iniciante: {
-    id: 'iniciante',
-    label: 'Iniciante',
-    icon: Flame,
-    activeBg: 'bg-red-500',
-    activeText: 'text-white',
-    badgeBg: 'bg-red-50 dark:bg-red-950/60',
-    badgeBorder: 'border-red-200 dark:border-red-800/60',
-    badgeText: 'text-red-600 dark:text-red-400',
-  },
-  intermediario: {
-    id: 'intermediario',
-    label: 'Médio',
-    icon: TrendingUp,
-    activeBg: 'bg-amber-500',
-    activeText: 'text-white',
-    badgeBg: 'bg-amber-50 dark:bg-amber-950/60',
-    badgeBorder: 'border-amber-200 dark:border-amber-800/60',
-    badgeText: 'text-amber-600 dark:text-amber-400',
-  },
-  avancado: {
-    id: 'avancado',
-    label: 'Avançado',
-    icon: Zap,
-    activeBg: 'bg-emerald-500',
-    activeText: 'text-white',
-    badgeBg: 'bg-emerald-50 dark:bg-emerald-950/60',
-    badgeBorder: 'border-emerald-200 dark:border-emerald-800/60',
-    badgeText: 'text-emerald-600 dark:text-emerald-400',
-  },
+const LEVEL_HELP = {
+  conhecimento: 'Conhecimento mostra quanto você já domina a disciplina. Quanto menor, maior a necessidade de reforço.',
+  importancia: 'Importância mostra o peso da disciplina no edital. Quanto maior, mais o planejamento prioriza essa matéria.',
 };
 
-const NivelInteligenteSelector = ({
-  nivelAtual,
-  onNivelChange,
+const PlanningLevelSelector = ({
+  conhecimentoNivel,
+  importanciaNivel,
+  onConhecimentoChange,
+  onImportanciaChange,
   isFaltando,
   canToggleTodosDias = false,
   todosDiasAtivo = false,
   onToggleTodosDias,
   labelDiasAtivos = '',
 }) => {
-  const options = Object.values(NIVEL_CONFIG);
+  const [activeControl, setActiveControl] = useState(null);
 
   return (
-    <div className="mt-4 pt-4 border-t border-zinc-100 dark:border-zinc-800/60 w-full" onClick={(e) => e.stopPropagation()}>
-      <div className={`mb-2.5 grid w-full gap-2 ${canToggleTodosDias ? 'grid-cols-2' : 'grid-cols-1'}`}>
-        <span className={`inline-flex min-w-0 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-center font-black uppercase tracking-widest leading-tight ${isFaltando ? 'bg-red-500/10 text-red-500 dark:bg-red-500/10 dark:text-red-400' : 'text-zinc-400 dark:text-zinc-500'}`}>
+    <div className="mt-2 w-full border-t border-zinc-100 pt-2 dark:border-zinc-800/60" onClick={(e) => e.stopPropagation()}>
+      {(isFaltando || canToggleTodosDias) && (
+      <div className={`mb-2 grid w-full gap-1.5 ${isFaltando && canToggleTodosDias ? 'grid-cols-2' : 'grid-cols-1'}`}>
+        {isFaltando && (
+        <span className={`inline-flex min-w-0 items-center justify-center gap-1 rounded-md px-2 py-1 text-center font-black uppercase tracking-wider leading-tight ${isFaltando ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400' : 'text-zinc-400 dark:text-zinc-500'}`}>
           <span className="shrink-0">
             {isFaltando ? <AlertTriangle size={12} /> : <Target size={12} />}
           </span>
-          <span className="min-w-0 whitespace-normal break-words text-[8px] sm:text-[10px]">
-            {isFaltando ? 'Obrigatorio escolher nivel' : 'Nivel de Dominio'}
+          <span className="min-w-0 whitespace-normal break-words text-[8px]">
+            {isFaltando ? 'Preencha os dois niveis' : 'Prioridade 50/50'}
           </span>
         </span>
+        )}
         {canToggleTodosDias && (
           <label
             title={`Estudar esta disciplina todos os dias ativos${labelDiasAtivos}`}
-            className={`inline-flex min-w-0 cursor-pointer select-none items-center justify-center gap-1.5 rounded-lg border px-2 py-1.5 text-center font-black uppercase tracking-widest leading-tight transition-all ${
+            className={`inline-flex min-w-0 cursor-pointer select-none items-center justify-center gap-1 rounded-md border px-2 py-1 text-center font-black uppercase tracking-wider leading-tight transition-all ${
               todosDiasAtivo
-                ? 'border-red-500 bg-red-50 text-red-700 shadow-sm dark:bg-red-950/25 dark:text-red-300'
-                : 'border-zinc-200 bg-white text-zinc-500 hover:border-red-300 hover:text-red-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:border-red-800 dark:hover:text-red-300'
+                ? 'border-emerald-400 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/25 dark:text-emerald-300'
+                : 'border-zinc-200 bg-white text-zinc-500 hover:border-emerald-300 hover:text-emerald-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400'
             }`}
           >
             <input
@@ -238,47 +180,65 @@ const NivelInteligenteSelector = ({
               className="sr-only"
             />
             <CalendarCheck2 size={12} strokeWidth={3} className="shrink-0" />
-            <span className="min-w-0 whitespace-normal break-words text-[8px] sm:text-[10px]">Estudar disciplina todo dia</span>
-            <span className={`relative h-4 w-7 shrink-0 rounded-full transition-colors ${todosDiasAtivo ? 'bg-red-600' : 'bg-zinc-300 dark:bg-zinc-700'}`}>
+            <span className="min-w-0 whitespace-normal break-words text-[8px]">Estudar todo dia</span>
+            <span className={`relative h-4 w-7 shrink-0 rounded-full transition-colors ${todosDiasAtivo ? 'bg-emerald-600' : 'bg-zinc-300 dark:bg-zinc-700'}`}>
               <span className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow-sm transition-all ${todosDiasAtivo ? 'right-0.5' : 'left-0.5'}`} />
             </span>
           </label>
         )}
       </div>
+      )}
 
-      {/* Botões SEMPRE em linha horizontal, ícones nunca cortados */}
-      <div className={`grid grid-cols-3 gap-1.5 sm:gap-2 p-1 sm:p-1.5 rounded-xl transition-all duration-300 ${isFaltando ? 'bg-red-500/[0.04] dark:bg-red-500/[0.06]' : 'bg-zinc-50 dark:bg-zinc-800/40'}`}>
-        {options.map((opt) => {
-          const isActive = nivelAtual === opt.id;
-          const Icon = opt.icon;
-
-          return (
-            <button
-              key={opt.id}
-              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onNivelChange(opt.id); }}
-              className={`
-                min-w-0 flex items-center justify-center gap-1 sm:gap-2
-                py-2 px-1 sm:py-2.5 sm:px-3 rounded-lg
-                text-[9px] sm:text-[11px] font-bold transition-all duration-200
-                active:scale-95
-                ${isActive
-                  ? `${opt.activeBg} ${opt.activeText} shadow-md`
-                  : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-white dark:hover:bg-zinc-700'
-                }
-              `}
-            >
-              <span className="shrink-0 flex items-center justify-center w-[14px] h-[14px]">
-                <Icon size={14} strokeWidth={isActive ? 2.5 : 2} />
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+      {[
+        { key: 'conhecimento', label: 'Conhecimento', icon: Brain, value: conhecimentoNivel, onChange: onConhecimentoChange, help: LEVEL_HELP.conhecimento },
+        { key: 'importancia', label: 'Importância no edital', icon: Scale, value: importanciaNivel, onChange: onImportanciaChange, help: LEVEL_HELP.importancia },
+      ].map((control) => {
+        const Icon = control.icon;
+        const percent = control.value ? ((control.value - 1) / 4) * 100 : 0;
+        return (
+          <div key={control.key} className="relative min-w-0 px-0.5 py-0.5">
+            <div className="mb-0.5 flex items-center justify-between gap-2">
+              <span
+                title={control.help}
+                className="flex cursor-help items-center gap-1 text-[9px] font-black uppercase tracking-wider text-zinc-500 dark:text-zinc-400"
+              >
+                <Icon size={12} /> {control.label} <HelpCircle size={11} className="text-zinc-300 dark:text-zinc-600" />
               </span>
-              <span className="min-w-0 whitespace-normal break-words leading-tight">{opt.label}</span>
-            </button>
-          );
-        })}
+              {activeControl === control.key && (
+                <motion.span initial={{ opacity: 0, y: 2 }} animate={{ opacity: 1, y: 0 }} className="absolute right-2 top-1 rounded-md bg-emerald-600 px-1.5 py-0.5 text-[8px] font-black text-white shadow-sm">
+                  {control.value ? LEVEL_BAR_LABELS[control.value] : 'Não definido'}
+                </motion.span>
+              )}
+            </div>
+            <div className="relative flex h-6 items-center">
+              <div className="absolute inset-x-0 h-1.5 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
+                <div
+                  className="h-full rounded-full bg-emerald-500 transition-all"
+                  style={{ width: `${percent}%` }}
+                />
+              </div>
+              <input
+                type="range"
+                min="1"
+                max="5"
+                step="1"
+                value={control.value || 1}
+                title={control.value ? LEVEL_BAR_LABELS[control.value] : 'Selecione um nível'}
+                aria-label={control.label}
+                onPointerDown={() => setActiveControl(control.key)}
+                onPointerUp={() => setActiveControl(null)}
+                onPointerCancel={() => setActiveControl(null)}
+                onFocus={() => setActiveControl(control.key)}
+                onBlur={() => setActiveControl(null)}
+                onChange={(event) => control.onChange(Number(event.target.value))}
+                className="planning-level-range absolute inset-x-0 z-10 m-0 h-6 w-full cursor-pointer bg-transparent"
+              />
+            </div>
+          </div>
+        );
+      })}
       </div>
-
-      <p className="text-[10px] text-zinc-400 dark:text-zinc-500 font-medium mt-2.5 leading-tight px-1">
-        * A sua dificuldade nessa matéria define o quanto de tempo será dedicado a ela no cronograma.
-      </p>
     </div>
   );
 };
@@ -287,61 +247,42 @@ const NivelInteligenteSelector = ({
 // ══════════════════════════════════════════════════════════════════════════════
 //  LISTAGEM DE ASSUNTOS E CARD DE DISCIPLINA
 // ══════════════════════════════════════════════════════════════════════════════
-const AssuntoItem = ({ assunto, checked, onToggle, onRemover, onEditar }) => {
-  const [editando, setEditando] = useState(false);
-  const [valor, setValor] = useState(assunto);
-  const confirmar = () => { const trimmed = valor.trim(); if (trimmed && trimmed !== assunto) onEditar?.(trimmed); setEditando(false); };
-
+const AssuntoItem = ({ assunto, checked, onToggle }) => {
   return (
-    <motion.div layout initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} className={`flex items-center gap-2 sm:gap-3 group px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl border transition-all cursor-pointer ${checked ? 'bg-red-50/50 dark:bg-red-900/10 border-red-200 dark:border-red-900/40' : 'bg-white dark:bg-zinc-900 border-zinc-100 dark:border-zinc-800 hover:border-red-100 dark:hover:border-red-900/30'}`} onClick={() => onToggle?.()}>
-      <div className={`shrink-0 flex items-center justify-center transition-colors ${checked ? 'text-red-600 dark:text-red-500' : 'text-zinc-300 dark:text-zinc-600 group-hover:text-red-400'}`}>
-        {checked ? <CheckSquare size={16} strokeWidth={2.5} /> : <Square size={16} strokeWidth={1.5} />}
-      </div>
-      {editando ? (
-        <input value={valor} onChange={e => setValor(e.target.value)} onBlur={confirmar} onKeyDown={e => { if (e.key === 'Enter') confirmar(); if (e.key === 'Escape') setEditando(false); }} autoFocus onClick={e => e.stopPropagation()} className="flex-1 text-sm font-medium bg-white dark:bg-zinc-950 border border-red-400 rounded-lg px-3 py-1 outline-none text-zinc-900 dark:text-white shadow-sm" />
-      ) : (
-        <span className={`flex-1 text-xs sm:text-sm font-medium leading-relaxed truncate transition-colors ${checked ? 'text-zinc-900 dark:text-zinc-100' : 'text-zinc-600 dark:text-zinc-400'}`}>{assunto}</span>
-      )}
-      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
-        <button onClick={() => { setEditando(true); setValor(assunto); }} className="p-1.5 rounded-lg text-zinc-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all"><Edit2 size={14} /></button>
-        <button onClick={onRemover} className="p-1.5 rounded-lg text-zinc-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 transition-all"><Trash2 size={14} /></button>
-      </div>
-    </motion.div>
+    <motion.button type="button" layout initial={{ opacity: 0, y: -3 }} animate={{ opacity: 1, y: 0 }} className="flex w-full items-center gap-3 border-b border-zinc-100 px-1 py-2.5 text-left last:border-b-0 dark:border-zinc-800" onClick={() => onToggle?.()}>
+      <span className={`min-w-0 flex-1 break-words text-sm font-medium leading-snug ${checked ? 'text-zinc-950 dark:text-white' : 'text-zinc-600 dark:text-zinc-400'}`}>{assunto}</span>
+      <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md border transition-colors ${checked ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-zinc-300 bg-white text-transparent dark:border-zinc-700 dark:bg-zinc-900'}`}>
+        <Check size={14} strokeWidth={3} />
+      </span>
+    </motion.button>
   );
 };
 
 
 const DisciplinaCard = ({
   disciplina, isExpanded, onToggleExpand, estadoDisc, onToggleDisc, onToggleAssunto,
-  onRemover, onEditar, onAdicionarAssunto, onRemoverAssunto, onEditarAssunto, onNivelChange, isExtra = false,
+  onRemover, onEditar, onAdicionarAssunto, onRemoverAssunto, onEditarAssunto,
+  onConhecimentoChange, onImportanciaChange, isExtra = false,
   canToggleTodosDias = false, todosDiasAtivo = false, onToggleTodosDias, activeStudyDaysCount = 0,
 }) => {
-  const [novoAssunto, setNovoAssunto] = useState('');
   const [editandoNome, setEditandoNome] = useState(false);
   const [nomeTemp, setNomeTemp] = useState(disciplina.nome);
 
   const confirmarNome = () => { const t = nomeTemp.trim(); if (t && t !== disciplina.nome) onEditar?.(disciplina.id, { ...disciplina, nome: t }); setEditandoNome(false); };
-  const handleAdicionarAssunto = (e) => { e.preventDefault(); const t = novoAssunto.trim(); if (!t) return; onAdicionarAssunto?.(disciplina.id, t); setNovoAssunto(''); if (!isExpanded) onToggleExpand(); };
 
   const discChecked = estadoDisc?.checked ?? false;
   const parcial = estadoDisc?.parcial ?? false;
   const assuntosMarcados = estadoDisc?.assuntosMarcados ?? new Set();
-  const nivelAtual = estadoDisc?.nivel || null;
+  const conhecimentoNivel = normalizePlanningLevel(estadoDisc?.conhecimentoNivel);
+  const importanciaNivel = normalizePlanningLevel(estadoDisc?.importanciaNivel);
 
   const totalAssuntos = disciplina.assuntos.length;
   const qtdMarcados = assuntosMarcados.size;
   const corBarra = discChecked ? 100 : totalAssuntos > 0 ? Math.round((qtdMarcados / totalAssuntos) * 100) : 0;
 
   const isAtivo = discChecked || parcial;
-  const isFaltandoNivel = isAtivo && !nivelAtual;
+  const isFaltandoNivel = isAtivo && (!conhecimentoNivel || !importanciaNivel);
   const labelDiasAtivos = activeStudyDaysCount ? ` (${activeStudyDaysCount} dias)` : '';
-
-  const borderAccentColor = isAtivo
-    ? nivelAtual === 'iniciante' ? 'bg-red-500'
-    : nivelAtual === 'intermediario' ? 'bg-amber-500'
-    : nivelAtual === 'avancado' ? 'bg-emerald-500'
-    : 'bg-orange-400'
-    : 'bg-transparent';
 
   return (
     <motion.div
@@ -349,67 +290,47 @@ const DisciplinaCard = ({
       initial={{ opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.95 }}
-      className={`relative mx-1 sm:mx-2 rounded-2xl border transition-all duration-300 overflow-hidden mb-4 group ${isFaltandoNivel
-        ? 'border-zinc-200 dark:border-zinc-700/80 bg-white dark:bg-zinc-900 shadow-md'
+      className={`relative overflow-hidden rounded-xl border transition-all duration-300 group ${isFaltandoNivel
+        ? 'border-amber-300 bg-amber-50/30 shadow-sm dark:border-amber-800/60 dark:bg-amber-950/10'
         : isAtivo
-        ? 'border-zinc-200 dark:border-zinc-700/80 bg-white dark:bg-zinc-900 shadow-md'
-        : 'border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:border-zinc-300 dark:hover:border-zinc-700 hover:shadow-sm'
+        ? 'border-emerald-400/80 bg-emerald-50/35 shadow-sm dark:border-emerald-800/70 dark:bg-emerald-950/10'
+        : 'border-zinc-200 bg-zinc-50/90 dark:border-zinc-800 dark:bg-zinc-900/70 hover:border-zinc-300 dark:hover:border-zinc-700 hover:bg-white dark:hover:bg-zinc-900'
       }`}
     >
-      <div className={`absolute left-3 top-4 bottom-4 w-1 transition-all duration-500 rounded-full ${borderAccentColor}`} />
-
-      <div className="pl-7 pr-4 sm:pr-5 pt-4 pb-4">
-        <div className="flex gap-3 cursor-pointer select-none" onClick={() => !editandoNome && onToggleExpand()}>
-
-          <button
-            onClick={(e) => { e.stopPropagation(); onToggleDisc(); }}
-            className={`shrink-0 mt-0.5 w-6 h-6 rounded-lg flex items-center justify-center transition-all active:scale-90 z-10 ${discChecked
-              ? 'bg-red-600 text-white shadow-sm shadow-red-500/30'
-              : parcial
-              ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-600'
-              : 'border-2 border-zinc-300 dark:border-zinc-600 text-transparent hover:border-red-400'
-            }`}
-          >
-            {discChecked ? <CheckCircle2 size={16} strokeWidth={3} /> : parcial ? <MinusSquare size={16} strokeWidth={3} /> : null}
-          </button>
-
+      <div className="px-3 py-3 sm:px-4">
+        <div className="flex gap-3 cursor-pointer select-none" onClick={() => !editandoNome && onToggleDisc()}>
           <div className="flex-1 min-w-0 z-10 flex flex-col justify-center">
             {editandoNome ? (
               <input value={nomeTemp} onChange={e => setNomeTemp(e.target.value)} onBlur={confirmarNome} onKeyDown={e => { if (e.key === 'Enter') confirmarNome(); if (e.key === 'Escape') setEditandoNome(false); }} autoFocus onClick={e => e.stopPropagation()} className="w-full text-sm sm:text-base font-bold bg-zinc-50 dark:bg-zinc-800 border-2 border-red-400 rounded-lg px-3 py-1 outline-none text-zinc-900 dark:text-white" />
             ) : (
               <div className="flex flex-wrap items-center gap-2">
-                <h4 className={`text-base sm:text-lg font-black tracking-tight truncate transition-colors ${isAtivo ? 'text-zinc-900 dark:text-white' : 'text-zinc-600 dark:text-zinc-400'}`}>
+                <h4 className={`min-w-0 break-words text-sm font-black leading-tight tracking-tight transition-colors sm:text-base ${isAtivo ? 'text-zinc-950 dark:text-white' : 'text-zinc-600 dark:text-zinc-400'}`}>
                   {disciplina.nome}
                 </h4>
                 {isExtra && (
                   <span className="shrink-0 text-[9px] font-black px-2 py-0.5 rounded-md bg-zinc-100 dark:bg-zinc-800 text-zinc-500 uppercase tracking-widest mt-0.5">Extra</span>
                 )}
-                {!isExpanded && nivelAtual && isAtivo && (() => {
-                  const cfg = NIVEL_CONFIG[nivelAtual];
-                  const Icon = cfg.icon;
-                  return (
-                    <motion.span
-                      initial={{ opacity: 0, scale: 0.8 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      className={`shrink-0 flex items-center gap-1 text-[9px] font-black px-2 py-0.5 rounded-full border ${cfg.badgeBg} ${cfg.badgeBorder} ${cfg.badgeText} uppercase tracking-wider`}
-                    >
-                      <Icon size={9} strokeWidth={3} />
-                      {cfg.label}
-                    </motion.span>
-                  );
-                })()}
               </div>
             )}
 
             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
               <span className="text-xs text-zinc-400 font-medium">{totalAssuntos} {totalAssuntos === 1 ? 'tópico' : 'tópicos'}</span>
+              {parcial && <><span className="w-1 h-1 rounded-full bg-zinc-300 dark:bg-zinc-600" /><MinusSquare size={12} className="text-orange-500" /></>}
               {qtdMarcados > 0 && !discChecked && (
-                <><span className="w-1 h-1 rounded-full bg-zinc-300 dark:bg-zinc-600" /><span className="text-xs font-bold text-orange-500">{qtdMarcados} selected</span></>
+                <><span className="w-1 h-1 rounded-full bg-zinc-300 dark:bg-zinc-600" /><span className="text-xs font-bold text-orange-500">{qtdMarcados} selecionados</span></>
               )}
             </div>
           </div>
 
-          <div className="flex items-start gap-1 shrink-0 z-10">
+          <div className="z-10 flex max-w-[148px] shrink-0 items-start gap-0.5">
+            <button
+              type="button"
+              onClick={(event) => { event.stopPropagation(); onToggleExpand(); }}
+              className="inline-flex min-w-0 items-center gap-1 rounded-lg px-1.5 py-2 text-[8px] font-black uppercase tracking-normal text-zinc-500 transition-all hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-white sm:px-2.5 sm:text-[9px] sm:tracking-wide"
+            >
+              <BookOpen size={14} />
+              <span>Ver assuntos</span>
+            </button>
             {onEditar && (
               <button onClick={e => { e.stopPropagation(); setEditandoNome(true); setNomeTemp(disciplina.nome); }} className="p-2 rounded-xl text-zinc-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all opacity-0 group-hover:opacity-100 md:opacity-100">
                 <Edit2 size={16} />
@@ -420,9 +341,6 @@ const DisciplinaCard = ({
                 <Trash2 size={16} />
               </button>
             )}
-            <div className={`p-1.5 sm:p-2 rounded-xl transition-all ${isExpanded ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300' : 'text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800'}`}>
-              <ChevronDown size={18} className={`transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />
-            </div>
           </div>
         </div>
 
@@ -437,9 +355,11 @@ const DisciplinaCard = ({
               className="overflow-hidden"
               onClick={e => e.stopPropagation()}
             >
-              <NivelInteligenteSelector
-                nivelAtual={nivelAtual}
-                onNivelChange={(n) => onNivelChange(disciplina.id, n)}
+              <PlanningLevelSelector
+                conhecimentoNivel={conhecimentoNivel}
+                importanciaNivel={importanciaNivel}
+                onConhecimentoChange={(nivel) => onConhecimentoChange(disciplina.id, nivel)}
+                onImportanciaChange={(nivel) => onImportanciaChange(disciplina.id, nivel)}
                 isFaltando={isFaltandoNivel}
                 canToggleTodosDias={canToggleTodosDias}
                 todosDiasAtivo={todosDiasAtivo}
@@ -454,7 +374,7 @@ const DisciplinaCard = ({
       {totalAssuntos > 0 && (
         <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-zinc-100 dark:bg-zinc-800 overflow-hidden rounded-b-xl">
           <motion.div
-            className={`h-full ${discChecked ? 'bg-red-500' : 'bg-orange-400'}`}
+            className={`h-full ${discChecked ? 'bg-emerald-500' : 'bg-orange-400'}`}
             initial={{ width: 0 }}
             animate={{ width: `${corBarra}%` }}
             transition={{ duration: 0.5, ease: "easeOut" }}
@@ -462,52 +382,141 @@ const DisciplinaCard = ({
         </div>
       )}
 
-      <AnimatePresence initial={false}>
-        {isExpanded && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.3, ease: "easeInOut" }}
-            className="overflow-hidden z-0"
-          >
-            <div className="px-4 sm:px-5 pb-5 pt-3 mt-1">
+    </motion.div>
+  );
+};
 
-              {totalAssuntos > 0 && (
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-xs font-bold uppercase tracking-widest text-zinc-400 flex items-center gap-2"><Tag size={12} /> Tópicos</span>
-                  <button onClick={onToggleDisc} className={`text-xs font-bold transition-colors px-3 py-1.5 rounded-lg ${discChecked ? 'text-red-600 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40' : 'text-zinc-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20'}`}>
+const AssuntosModal = ({
+  disciplina,
+  estadoDisc,
+  onClose,
+  onToggleDisc,
+  onToggleAssunto,
+  onAdicionarAssunto,
+}) => {
+  const [creating, setCreating] = useState(false);
+  const [novoAssunto, setNovoAssunto] = useState('');
+  if (!disciplina) return null;
+
+  const assuntos = Array.isArray(disciplina.assuntos) ? disciplina.assuntos : [];
+  const assuntosMarcados = estadoDisc?.assuntosMarcados ?? new Set();
+  const discChecked = estadoDisc?.checked ?? false;
+  const handleCreate = (event) => {
+    event.preventDefault();
+    const value = novoAssunto.trim();
+    if (!value) return;
+    onAdicionarAssunto?.(disciplina.id, value);
+    setNovoAssunto('');
+    setCreating(false);
+  };
+  return (
+    <AnimatePresence>
+      <motion.div
+        className="fixed inset-0 z-[100060] flex items-center justify-center bg-zinc-950/55 px-3 py-4 backdrop-blur-sm sm:px-6"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+      >
+        <motion.div
+          initial={{ opacity: 0, y: 24, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 16, scale: 0.98 }}
+          transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+          onClick={(event) => event.stopPropagation()}
+          className="flex max-h-[86vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-950"
+        >
+          <div className="border-b border-zinc-100 px-4 py-4 dark:border-zinc-800 sm:px-5">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+              <p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400">
+                <Tag size={12} /> Assuntos da disciplina
+              </p>
+              <h3 className="mt-1 break-words text-lg font-black text-zinc-950 dark:text-white sm:text-xl">
+                {disciplina.nome}
+              </h3>
+              <p className="mt-1 text-xs font-semibold text-zinc-500 dark:text-zinc-400">
+                Marque os assuntos que entram no planejamento.
+              </p>
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-zinc-100 text-zinc-500 transition-colors hover:bg-zinc-200 hover:text-zinc-900 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-white"
+                aria-label="Fechar assuntos"
+              >
+                <X size={17} />
+              </button>
+            </div>
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">
+                {assuntosMarcados.size}/{assuntos.length} selecionados
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCreating((value) => !value)}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-zinc-100 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wide text-zinc-600 transition-colors hover:bg-zinc-200 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                >
+                  <Plus size={13} /> Novo assunto
+                </button>
+                {assuntos.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={onToggleDisc}
+                    className={`rounded-lg px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wide transition-colors ${discChecked ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-300' : 'text-zinc-500 hover:bg-emerald-50 hover:text-emerald-700 dark:hover:bg-emerald-950/20'}`}
+                  >
                     {discChecked ? 'Desmarcar todos' : 'Marcar todos'}
                   </button>
-                </div>
-              )}
-
-              <div className="space-y-2 mb-4 max-h-64 overflow-y-auto pr-1 sm:pr-2 custom-scrollbar">
-                {totalAssuntos > 0 ? (
-                  <AnimatePresence>
-                    {disciplina.assuntos.map((assunto, idx) => (
-                      <AssuntoItem key={idx} assunto={assunto} checked={assuntosMarcados.has(idx)} onToggle={() => onToggleAssunto?.(idx)} onRemover={() => onRemoverAssunto?.(disciplina.id, idx)} onEditar={(novo) => onEditarAssunto?.(disciplina.id, idx, novo)} />
-                    ))}
-                  </AnimatePresence>
-                ) : (
-                  <div className="text-center py-6 px-4 bg-zinc-50 dark:bg-zinc-800/40 rounded-xl border border-dashed border-zinc-200 dark:border-zinc-700">
-                    <p className="text-sm text-zinc-500 font-medium">Nenhum tópico cadastrado.</p>
-                  </div>
                 )}
               </div>
-
-              <form onSubmit={handleAdicionarAssunto} className="flex items-center gap-2 sm:gap-3">
-                <input value={novoAssunto} onChange={e => setNovoAssunto(e.target.value)} placeholder="Novo tópico ou assunto..." className="flex-1 text-sm font-medium px-4 py-2.5 sm:py-3 bg-zinc-50 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700 rounded-xl outline-none focus:border-red-400 transition-all text-zinc-900 dark:text-white" />
-                <button type="submit" disabled={!novoAssunto.trim()} className="w-10 h-10 sm:w-11 sm:h-11 shrink-0 flex items-center justify-center rounded-xl bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 hover:bg-red-600 dark:hover:bg-red-600 disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-95 shadow-sm">
-                  <Plus size={18} />
-                </button>
-              </form>
-
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.div>
+            <AnimatePresence>
+              {creating && (
+                <motion.form
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  onSubmit={handleCreate}
+                  className="mt-2 flex overflow-hidden"
+                >
+                  <input
+                    value={novoAssunto}
+                    onChange={(event) => setNovoAssunto(event.target.value)}
+                    placeholder="Nome do novo assunto"
+                    autoFocus
+                    className="min-w-0 flex-1 rounded-l-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-900 outline-none focus:border-emerald-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white"
+                  />
+                  <button type="submit" disabled={!novoAssunto.trim()} className="rounded-r-lg bg-emerald-600 px-3 text-[10px] font-black uppercase text-white disabled:opacity-40">
+                    Criar
+                  </button>
+                </motion.form>
+              )}
+            </AnimatePresence>
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 custom-scrollbar sm:px-5">
+            <div className="flex flex-col">
+              {assuntos.length > 0 ? (
+                assuntos.map((assunto, idx) => (
+                  <AssuntoItem
+                    key={`${assunto}-${idx}`}
+                    assunto={assunto}
+                    checked={assuntosMarcados.has(idx)}
+                    onToggle={() => onToggleAssunto?.(idx)}
+                  />
+                ))
+              ) : (
+                <div className="rounded-xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-8 text-center dark:border-zinc-700 dark:bg-zinc-900/60">
+                  <p className="text-sm font-semibold text-zinc-500">Nenhum tópico cadastrado.</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
   );
 };
 
@@ -523,18 +532,22 @@ const ModoGeral = ({
   onExtraDisciplinasChange = () => {},
   editalSelecionado,
   modoManual,
-  horarios,
   disciplinaTodosDiasId = null,
   disciplinaTodosDiasIds = [],
   onDisciplinaTodosDiasChange = null,
   activeStudyDaysCount = 0,
 }) => {
   const [nomeNova, setNomeNova] = useState('');
-  const [busca, setBusca] = useState('');
-  const [expandedId, setExpandedId] = useState(null);
-  const [isAddingMobile, setIsAddingMobile] = useState(false);
+  const [assuntosModal, setAssuntosModal] = useState(null);
+  const [isAdding, setIsAdding] = useState(false);
 
-  const getSelecaoPadrao = () => ({ checked: false, parcial: false, assuntosMarcados: new Set(), nivel: null });
+  const getSelecaoPadrao = () => ({
+    checked: false,
+    parcial: false,
+    assuntosMarcados: new Set(),
+    conhecimentoNivel: 0,
+    importanciaNivel: 0,
+  });
 
   const adicionarDisciplina = (e) => {
     e.preventDefault(); const nome = nomeNova.trim(); if (!nome) return;
@@ -542,7 +555,7 @@ const ModoGeral = ({
     if (modoManual) onDisciplinasChange([{ id: novoId, nome, assuntos: [] }, ...disciplinas]);
     else onExtraDisciplinasChange([{ id: novoId, nome, assuntos: [] }, ...extraDisciplinas]);
     onSelecaoChange({ ...selecao, [novoId]: getSelecaoPadrao() });
-    setNomeNova(''); setExpandedId(novoId); setIsAddingMobile(false);
+    setNomeNova(''); setIsAdding(false);
   };
 
   const handleToggleDisc = (disc) => {
@@ -560,22 +573,34 @@ const ModoGeral = ({
     onSelecaoChange({ ...selecao, [disc.id]: { ...atual, checked: novos.size === totalDisc && totalDisc > 0, parcial: novos.size > 0 && novos.size < totalDisc, assuntosMarcados: novos } });
   };
 
-  const handleNivelChange = (discId, nivel) => {
+  const handlePlanningLevelChange = (discId, field, nivel) => {
     const atual = selecao[discId] || getSelecaoPadrao();
-    onSelecaoChange({ ...selecao, [discId]: { ...atual, nivel } });
+    onSelecaoChange({ ...selecao, [discId]: { ...atual, [field]: normalizePlanningLevel(nivel) } });
   };
 
   const handleSelecionarTodos = () => {
     const novo = {};
-    disciplinas.forEach(d => { novo[d.id] = { checked: true, parcial: false, assuntosMarcados: new Set(d.assuntos.map((_, i) => i)), nivel: selecao[d.id]?.nivel || null }; });
-    extraDisciplinas.forEach(d => { novo[d.id] = { checked: true, parcial: false, assuntosMarcados: new Set(d.assuntos.map((_, i) => i)), nivel: selecao[d.id]?.nivel || null }; });
+    [...disciplinas, ...extraDisciplinas].forEach((d) => {
+      novo[d.id] = {
+        checked: true,
+        parcial: false,
+        assuntosMarcados: new Set(d.assuntos.map((_, i) => i)),
+        conhecimentoNivel: normalizePlanningLevel(selecao[d.id]?.conhecimentoNivel),
+        importanciaNivel: normalizePlanningLevel(selecao[d.id]?.importanciaNivel),
+      };
+    });
     onSelecaoChange(novo);
   };
 
   const handleLimparTodos = () => {
     const novo = {};
-    disciplinas.forEach(d => { novo[d.id] = { ...getSelecaoPadrao(), nivel: selecao[d.id]?.nivel || null }; });
-    extraDisciplinas.forEach(d => { novo[d.id] = { ...getSelecaoPadrao(), nivel: selecao[d.id]?.nivel || null }; });
+    [...disciplinas, ...extraDisciplinas].forEach((d) => {
+      novo[d.id] = {
+        ...getSelecaoPadrao(),
+        conhecimentoNivel: normalizePlanningLevel(selecao[d.id]?.conhecimentoNivel),
+        importanciaNivel: normalizePlanningLevel(selecao[d.id]?.importanciaNivel),
+      };
+    });
     onSelecaoChange(novo);
   };
 
@@ -588,11 +613,6 @@ const ModoGeral = ({
   };
   const removerAssunto = (discId, idx, isExtra) => { if (isExtra) onExtraDisciplinasChange(extraDisciplinas.map(d => d.id === discId ? { ...d, assuntos: d.assuntos.filter((_, i) => i !== idx) } : d)); else onDisciplinasChange(disciplinas.map(d => d.id === discId ? { ...d, assuntos: d.assuntos.filter((_, i) => i !== idx) } : d)); };
   const editarAssunto = (discId, idx, novo, isExtra) => { if (isExtra) onExtraDisciplinasChange(extraDisciplinas.map(d => d.id === discId ? { ...d, assuntos: d.assuntos.map((a, i) => i === idx ? novo : a) } : d)); else onDisciplinasChange(disciplinas.map(d => d.id === discId ? { ...d, assuntos: d.assuntos.map((a, i) => i === idx ? novo : a) } : d)); };
-
-  const discFiltradas = useMemo(() => {
-    if (!busca) return disciplinas;
-    return disciplinas.filter(d => d.nome.toLowerCase().includes(busca.toLowerCase()));
-  }, [disciplinas, busca]);
 
   const stats = useMemo(() => {
     const totalDisc = disciplinas.length + extraDisciplinas.length;
@@ -619,11 +639,19 @@ const ModoGeral = ({
       : [...idsTodosDias, id];
     onDisciplinaTodosDiasChange(next);
   };
+  const abrirAssuntosModal = (disciplina, isExtra = false) => {
+    setAssuntosModal({ id: disciplina.id, isExtra });
+  };
+  const disciplinaModal = useMemo(() => {
+    if (!assuntosModal?.id) return null;
+    const source = assuntosModal.isExtra ? extraDisciplinas : disciplinas;
+    return source.find((disciplina) => String(disciplina.id) === String(assuntosModal.id)) || null;
+  }, [assuntosModal, disciplinas, extraDisciplinas]);
 
   return (
     <div className="flex flex-col h-full w-full">
       <PageHeader modoManual={modoManual} />
-      <div className="flex flex-col lg:flex-row gap-6 lg:gap-8 w-full overflow-y-auto custom-scrollbar pb-10 px-2 sm:px-3">
+      <div className="flex flex-col lg:flex-row gap-6 lg:gap-8 w-full overflow-y-auto custom-scrollbar pb-10 px-2 sm:px-3 xl:px-6">
         <div className="flex-1 min-w-0 flex flex-col gap-2">
 
           <div className="lg:hidden flex flex-col gap-3 mb-4">
@@ -640,55 +668,36 @@ const ModoGeral = ({
             <div className="flex items-center gap-2 h-[46px]">
 
               {/* Input filtro: menor, não cresce demais */}
-              {!modoManual && (
-                <div className="relative w-[110px] shrink-0 h-full group">
-                  <input
-                    type="text"
-                    value={busca}
-                    onChange={e => setBusca(e.target.value)}
-                    placeholder="Filtrar..."
-                    className="w-full h-full px-5 bg-white dark:bg-zinc-900 border-2 border-zinc-200 dark:border-zinc-800 rounded-2xl text-xs font-bold text-zinc-900 dark:text-white placeholder:text-zinc-400 focus:border-red-500 outline-none transition-all shadow-sm"
-                  />
-                  {busca && (
-                    <button onClick={() => setBusca('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-zinc-400 hover:text-red-500 rounded-lg">
-                      <X size={12} />
-                    </button>
-                  )}
-                </div>
-              )}
-
               {/* Botão Nova / Extra — somente ícone quando cancelar, texto limpo sem + duplo */}
               <button
-                onClick={() => setIsAddingMobile(!isAddingMobile)}
-                className={`flex-1 h-full px-3 rounded-2xl flex items-center justify-center gap-1.5 font-bold text-xs transition-all shadow-sm border-2 ${isAddingMobile
+                onClick={() => setIsAdding(!isAdding)}
+                className={`flex-1 h-full px-3 rounded-2xl flex items-center justify-center gap-1.5 font-bold text-xs transition-all shadow-sm border-2 ${isAdding
                   ? 'bg-zinc-900 text-white border-zinc-900 dark:bg-white dark:text-zinc-900 dark:border-white'
                   : 'bg-red-50 text-red-600 border-red-200 dark:bg-red-900/20 dark:border-red-900/50 dark:text-red-400'
                 }`}
               >
-                <Plus size={15} className={`transition-transform duration-300 shrink-0 ${isAddingMobile ? 'rotate-45' : ''}`} />
-                <span>{isAddingMobile ? 'Cancelar' : modoManual ? 'Nova' : 'Extra'}</span>
+                <Plus size={15} className={`transition-transform duration-300 shrink-0 ${isAdding ? 'rotate-45' : ''}`} />
+                <span>{isAdding ? 'Cancelar' : 'Nova disciplina'}</span>
               </button>
 
               {/* Botão Marcar/Limpar Tudo — flex-1 também, com texto completo */}
-              {!modoManual && (
-                <button
-                  onClick={handleToggleTodos}
-                  className={`flex-1 h-full px-3 rounded-2xl flex items-center justify-center gap-1.5 font-bold text-xs transition-all shadow-sm border-2 ${todasSelecionadas
-                    ? 'bg-red-50 border-red-200 text-red-600 dark:bg-red-900/20 dark:border-red-900/50 dark:text-red-400'
-                    : 'bg-white border-zinc-200 text-zinc-700 dark:bg-zinc-900 dark:border-zinc-800 dark:text-zinc-300'
-                  }`}
-                >
-                  {todasSelecionadas
-                    ? <><Square size={14} className="shrink-0" /><span>Limpar tudo</span></>
-                    : <><CheckSquare size={14} className="shrink-0" /><span>Marcar tudo</span></>
-                  }
-                </button>
-              )}
+              <button
+                onClick={handleToggleTodos}
+                className={`flex-1 h-full px-3 rounded-2xl flex items-center justify-center gap-1.5 font-bold text-xs transition-all shadow-sm border-2 ${todasSelecionadas
+                  ? 'bg-red-50 border-red-200 text-red-600 dark:bg-red-900/20 dark:border-red-900/50 dark:text-red-400'
+                  : 'bg-white border-zinc-200 text-zinc-700 dark:bg-zinc-900 dark:border-zinc-800 dark:text-zinc-300'
+                }`}
+              >
+                {todasSelecionadas
+                  ? <><Square size={14} className="shrink-0" /><span>Limpar tudo</span></>
+                  : <><CheckSquare size={14} className="shrink-0" /><span>Marcar tudo</span></>
+                }
+              </button>
             </div>
 
             {/* Campo expandível para adicionar disciplina */}
             <AnimatePresence>
-              {isAddingMobile && (
+              {isAdding && (
                 <motion.form
                   initial={{ height: 0, opacity: 0 }}
                   animate={{ height: 'auto', opacity: 1 }}
@@ -718,21 +727,25 @@ const ModoGeral = ({
           </div>
           {/* ── FIM BARRA MOBILE ──────────────────────────────────────────── */}
 
-          <div className="hidden lg:block">
-            <FormAdicionarDisciplina valor={nomeNova} setValor={setNomeNova} onSubmit={adicionarDisciplina} modoManual={modoManual} />
-            {!modoManual && (
-              <div className="flex flex-col md:flex-row gap-3 items-center mb-6">
-                <div className="relative w-full md:flex-1 group">
-                  <input type="text" value={busca} onChange={e => setBusca(e.target.value)} placeholder="Filtrar disciplinas..." className="w-full px-5 py-3.5 bg-white dark:bg-zinc-900 border-2 border-zinc-200 dark:border-zinc-800 rounded-2xl text-sm font-bold text-zinc-900 dark:text-white placeholder:text-zinc-400 focus:border-red-500 outline-none transition-all shadow-sm" />
-                  {busca && <button onClick={() => setBusca('')} className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1.5 text-zinc-400 hover:text-red-600 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all"><X size={14} /></button>}
-                </div>
-                <div className="w-full md:w-auto shrink-0">
-                  <button onClick={handleToggleTodos} className={`w-full md:w-auto flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl text-sm font-bold transition-all shadow-sm border-2 ${todasSelecionadas ? 'bg-red-50 border-red-200 text-red-600 hover:bg-red-100 dark:bg-red-900/20 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-900/40' : 'bg-white border-zinc-200 text-zinc-700 hover:border-zinc-900 hover:text-zinc-900 dark:bg-zinc-900 dark:border-zinc-800 dark:text-zinc-300 dark:hover:border-zinc-100 dark:hover:text-white'}`}>
-                    {todasSelecionadas ? (<><Square size={16} /> Limpar Tudo</>) : (<><CheckSquare size={16} /> Marcar Tudo</>)}
-                  </button>
-                </div>
-              </div>
-            )}
+          <div className="hidden lg:flex flex-col items-end gap-3 mb-6">
+            <div className="flex items-center gap-3">
+              <button onClick={() => setIsAdding(!isAdding)} className="flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-sm font-bold bg-red-600 text-white hover:bg-red-700 transition-colors shadow-sm">
+                <Plus size={16} /> Nova disciplina
+              </button>
+              <button onClick={handleToggleTodos} className={`flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-sm font-bold transition-all shadow-sm border-2 ${todasSelecionadas ? 'bg-red-50 border-red-200 text-red-600 dark:bg-red-900/20 dark:border-red-900/50 dark:text-red-400' : 'bg-white border-zinc-200 text-zinc-700 hover:border-zinc-900 dark:bg-zinc-900 dark:border-zinc-800 dark:text-zinc-300'}`}>
+                {todasSelecionadas ? (<><Square size={16} /> Limpar tudo</>) : (<><CheckSquare size={16} /> Marcar tudo</>)}
+              </button>
+            </div>
+            <AnimatePresence>
+              {isAdding && (
+                <motion.form initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} onSubmit={adicionarDisciplina} className="w-full overflow-hidden">
+                  <div className="flex items-center gap-2 pt-1">
+                    <input value={nomeNova} onChange={e => setNomeNova(e.target.value)} placeholder="Nome da disciplina..." autoFocus className="flex-1 py-3 px-4 bg-white dark:bg-zinc-900 border-2 border-red-200 dark:border-red-900/50 rounded-xl text-sm font-bold text-zinc-900 dark:text-white outline-none focus:border-red-500" />
+                    <button type="submit" disabled={!nomeNova.trim()} className="px-5 py-3 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-bold text-sm disabled:opacity-50">Criar</button>
+                  </div>
+                </motion.form>
+              )}
+            </AnimatePresence>
           </div>
 
           <div>
@@ -747,7 +760,7 @@ const ModoGeral = ({
                 </div>
                 <div>
                   <h4 className="text-sm font-black text-red-900 dark:text-red-300 uppercase tracking-tight">Nenhuma disciplina selecionada</h4>
-                  <p className="text-xs text-red-700/70 dark:text-red-400/70 font-medium">Você precisa selecionar pelo menos uma matéria e definir seu nível para avançar.</p>
+                  <p className="text-xs text-red-700/70 dark:text-red-400/70 font-medium">Selecione pelo menos uma disciplina e defina conhecimento e importância para avançar.</p>
                 </div>
               </motion.div>
             )}
@@ -758,14 +771,14 @@ const ModoGeral = ({
                 <p className="text-lg font-bold text-zinc-600">Seu cronograma está vazio</p>
               </div>
             ) : (
-              <>
+              <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
                 {extraDisciplinas.map(disc => (
-                  <DisciplinaCard key={disc.id} disciplina={disc} isExpanded={expandedId === disc.id} onToggleExpand={() => setExpandedId(expandedId === disc.id ? null : disc.id)} isExtra={true} estadoDisc={selecao[disc.id]} onToggleDisc={() => handleToggleDisc(disc)} onToggleAssunto={idx => handleToggleAssunto(disc, idx)} onRemover={(id) => remover(id, true)} onEditar={(id, novo) => editar(id, novo, true)} onAdicionarAssunto={adicionarAssunto} onRemoverAssunto={(dId, idx) => removerAssunto(dId, idx, true)} onEditarAssunto={(dId, idx, novo) => editarAssunto(dId, idx, novo, true)} onNivelChange={handleNivelChange} canToggleTodosDias={mostrarPreferenciaDiaria} todosDiasAtivo={idsTodosDias.includes(String(disc.id))} onToggleTodosDias={toggleDisciplinaTodosDias} activeStudyDaysCount={activeStudyDaysCount} />
+                  <DisciplinaCard key={disc.id} disciplina={disc} isExpanded={false} onToggleExpand={() => abrirAssuntosModal(disc, true)} isExtra={true} estadoDisc={selecao[disc.id]} onToggleDisc={() => handleToggleDisc(disc)} onToggleAssunto={idx => handleToggleAssunto(disc, idx)} onRemover={(id) => remover(id, true)} onEditar={(id, novo) => editar(id, novo, true)} onAdicionarAssunto={adicionarAssunto} onRemoverAssunto={(dId, idx) => removerAssunto(dId, idx, true)} onEditarAssunto={(dId, idx, novo) => editarAssunto(dId, idx, novo, true)} onConhecimentoChange={(id, nivel) => handlePlanningLevelChange(id, 'conhecimentoNivel', nivel)} onImportanciaChange={(id, nivel) => handlePlanningLevelChange(id, 'importanciaNivel', nivel)} canToggleTodosDias={mostrarPreferenciaDiaria} todosDiasAtivo={idsTodosDias.includes(String(disc.id))} onToggleTodosDias={toggleDisciplinaTodosDias} activeStudyDaysCount={activeStudyDaysCount} />
                 ))}
-                {discFiltradas.map(disc => (
-                  <DisciplinaCard key={disc.id} disciplina={disc} isExpanded={expandedId === disc.id} onToggleExpand={() => setExpandedId(expandedId === disc.id ? null : disc.id)} isExtra={false} estadoDisc={selecao[disc.id]} onToggleDisc={() => handleToggleDisc(disc)} onToggleAssunto={idx => handleToggleAssunto(disc, idx)} onRemover={modoManual ? ((id) => remover(id, false)) : undefined} onEditar={(id, novo) => editar(id, novo, false)} onAdicionarAssunto={adicionarAssunto} onRemoverAssunto={(dId, idx) => removerAssunto(dId, idx, false)} onEditarAssunto={(dId, idx, novo) => editarAssunto(dId, idx, novo, false)} onNivelChange={handleNivelChange} canToggleTodosDias={mostrarPreferenciaDiaria} todosDiasAtivo={idsTodosDias.includes(String(disc.id))} onToggleTodosDias={toggleDisciplinaTodosDias} activeStudyDaysCount={activeStudyDaysCount} />
+                {disciplinas.map(disc => (
+                  <DisciplinaCard key={disc.id} disciplina={disc} isExpanded={false} onToggleExpand={() => abrirAssuntosModal(disc, false)} isExtra={false} estadoDisc={selecao[disc.id]} onToggleDisc={() => handleToggleDisc(disc)} onToggleAssunto={idx => handleToggleAssunto(disc, idx)} onRemover={modoManual ? ((id) => remover(id, false)) : undefined} onEditar={(id, novo) => editar(id, novo, false)} onAdicionarAssunto={adicionarAssunto} onRemoverAssunto={(dId, idx) => removerAssunto(dId, idx, false)} onEditarAssunto={(dId, idx, novo) => editarAssunto(dId, idx, novo, false)} onConhecimentoChange={(id, nivel) => handlePlanningLevelChange(id, 'conhecimentoNivel', nivel)} onImportanciaChange={(id, nivel) => handlePlanningLevelChange(id, 'importanciaNivel', nivel)} canToggleTodosDias={mostrarPreferenciaDiaria} todosDiasAtivo={idsTodosDias.includes(String(disc.id))} onToggleTodosDias={toggleDisciplinaTodosDias} activeStudyDaysCount={activeStudyDaysCount} />
                 ))}
-              </>
+              </div>
             )}
           </div>
         </div>
@@ -775,6 +788,18 @@ const ModoGeral = ({
           <StatsSidebarCard stats={stats} />
         </div>
       </div>
+      {disciplinaModal && (
+        <AssuntosModal
+          disciplina={disciplinaModal}
+          estadoDisc={selecao[disciplinaModal.id]}
+          onClose={() => setAssuntosModal(null)}
+          onToggleDisc={() => handleToggleDisc(disciplinaModal)}
+          onToggleAssunto={(idx) => handleToggleAssunto(disciplinaModal, idx)}
+          onAdicionarAssunto={adicionarAssunto}
+          onRemoverAssunto={(id, idx) => removerAssunto(id, idx, Boolean(assuntosModal?.isExtra))}
+          onEditarAssunto={(id, idx, novo) => editarAssunto(id, idx, novo, Boolean(assuntosModal?.isExtra))}
+        />
+      )}
     </div>
   );
 };

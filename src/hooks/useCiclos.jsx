@@ -23,6 +23,8 @@ import {
   obterPesoDisciplina,
   PESO_POR_NIVEL,
 } from '../utils/cicloDistribution';
+import { getKnowledgeLevel, getImportanceLevel } from '../utils/planningPriority';
+import { deletePlanStudyRecords } from '../services/planDeletion';
 
 export {
   calcularDistribuicao,
@@ -115,12 +117,14 @@ export const useCiclos = (user) => {
     try {
       const cargaHorariaTotal = Number(cicloData.cargaHorariaTotal || 0);
       const cargaHorariaTotalMinutos = cargaHorariaTotal * 60;
-      const tempoSessaoMinutos = normalizeTempoSessaoMinutos(cicloData.tempoSessaoMinutos, cicloData.diasEstudo);
+      const duracaoMinimaSessaoMinutos = Math.max(5, Number(cicloData.duracaoMinimaSessaoMinutos) || 30);
+      const duracaoMaximaSessaoMinutos = Math.max(duracaoMinimaSessaoMinutos, Number(cicloData.duracaoMaximaSessaoMinutos) || Number(cicloData.tempoSessaoMinutos) || 60);
+      const tempoSessaoMinutos = duracaoMaximaSessaoMinutos;
       const disciplinasComTempo = calcularDistribuicao(
         cicloData.disciplinas,
         cargaHorariaTotalMinutos,
         tempoSessaoMinutos,
-        { diasEstudo: cicloData.diasEstudo }
+        { diasEstudo: cicloData.diasEstudo, duracaoMinimaSessaoMinutos, duracaoMaximaSessaoMinutos }
       );
       const disciplinasComEstadoCompleto = Array.isArray(cicloData.disciplinasEstadoCompleto) && cicloData.disciplinasEstadoCompleto.length > 0
         ? cicloData.disciplinasEstadoCompleto
@@ -167,15 +171,14 @@ export const useCiclos = (user) => {
         cargaHorariaSemanalTotal: cargaHorariaTotal,
         diasEstudo: cicloData.diasEstudo || null,
         tempoSessaoMinutos,
+        duracaoMinimaSessaoMinutos,
+        duracaoMaximaSessaoMinutos,
         revisaoModo: normalizeRevisaoModoCiclo(cicloData.revisaoModo),
         modoExibirAssuntos: cicloData.modoExibirAssuntos !== false,
         modoExibirTempo: cicloData.modoExibirTempo || 'detalhado',
         coresDisciplinasAtivas: cicloData.coresDisciplinasAtivas !== false,
         totalSessoesCiclo,
-        ordemSessoes: gerarOrdemSessoes(disciplinasAtivas, 0, {
-          diasEstudo: cicloData.diasEstudo,
-          tempoSessaoMinutos,
-        }),
+        ordemSessoes: gerarOrdemSessoes(disciplinasAtivas),
         disciplinaTodosDiasId: disciplinaTodosDiasIds[0] || null,
         disciplinaTodosDiasIds,
         sessoesConcluidas: [],
@@ -200,9 +203,11 @@ export const useCiclos = (user) => {
         batch.set(disciplina._ref, {
           nome: disciplina.nome,
           peso: obterPesoDisciplina(disciplina),
-          nivelDominio: normalizarNivelDominio(disciplina.nivelDominio || disciplina.nivel, disciplina.peso),
+          conhecimentoNivel: getKnowledgeLevel(disciplina),
+          importanciaNivel: getImportanceLevel(disciplina),
           tempoAlocadoSemanalMinutos: disciplina.inCiclo === false ? 0 : Number(disciplinaAtiva.tempoAlocadoMinutos || 0),
           sessoesPorCiclo: disciplina.inCiclo === false ? 0 : (Number(disciplinaAtiva.sessoesPorCiclo) || 1),
+          duracoesSessoes: disciplina.inCiclo === false ? [] : (disciplinaAtiva.duracoesSessoes || []),
           assuntos: Array.isArray(disciplina.assuntos) ? disciplina.assuntos : [],
           index: disciplina._position,
           inCiclo: disciplina.inCiclo !== false,
@@ -267,12 +272,14 @@ export const useCiclos = (user) => {
     try {
       const cargaHorariaTotal = Number(cicloData.cargaHorariaTotal || 0);
       const cargaHorariaTotalMinutos = cargaHorariaTotal * 60;
-      const tempoSessaoMinutos = normalizeTempoSessaoMinutos(cicloData.tempoSessaoMinutos, cicloData.diasEstudo);
+      const duracaoMinimaSessaoMinutos = Math.max(5, Number(cicloData.duracaoMinimaSessaoMinutos) || 30);
+      const duracaoMaximaSessaoMinutos = Math.max(duracaoMinimaSessaoMinutos, Number(cicloData.duracaoMaximaSessaoMinutos) || Number(cicloData.tempoSessaoMinutos) || 60);
+      const tempoSessaoMinutos = duracaoMaximaSessaoMinutos;
       const disciplinasComTempo = calcularDistribuicao(
         cicloData.disciplinas,
         cargaHorariaTotalMinutos,
         tempoSessaoMinutos,
-        { diasEstudo: cicloData.diasEstudo }
+        { diasEstudo: cicloData.diasEstudo, duracaoMinimaSessaoMinutos, duracaoMaximaSessaoMinutos }
       );
       const disciplinasComEstadoCompleto = Array.isArray(cicloData.disciplinasEstadoCompleto) && cicloData.disciplinasEstadoCompleto.length > 0
         ? cicloData.disciplinasEstadoCompleto
@@ -290,6 +297,8 @@ export const useCiclos = (user) => {
         cargaHorariaSemanalTotal: cargaHorariaTotal,
         diasEstudo: cicloData.diasEstudo || null,
         tempoSessaoMinutos,
+        duracaoMinimaSessaoMinutos,
+        duracaoMaximaSessaoMinutos,
         embaralharOffset: 0,
       };
 
@@ -315,6 +324,7 @@ export const useCiclos = (user) => {
         const disciplinaEstaAtiva = disciplina.inCiclo !== false;
         const tempoAlocadoNumerico = disciplinaEstaAtiva ? Number(disciplinaAtiva?.tempoAlocadoMinutos || 0) : 0;
         const sessoesPorCiclo = disciplinaEstaAtiva ? (Number(disciplinaAtiva?.sessoesPorCiclo) || 1) : 0;
+        const duracoesSessoes = disciplinaEstaAtiva ? (disciplinaAtiva?.duracoesSessoes || []) : [];
         const corDisciplina = disciplina.cor || disciplinaAtiva?.cor || null;
 
         if (disciplina.id && !String(disciplina.id).startsWith('temp-') && !String(disciplina.id).startsWith('manual-')) {
@@ -322,9 +332,11 @@ export const useCiclos = (user) => {
           const discUpdate = {
             nome: disciplina.nome,
             peso: obterPesoDisciplina(disciplina),
-            nivelDominio: normalizarNivelDominio(disciplina.nivelDominio || disciplina.nivel, disciplina.peso),
+            conhecimentoNivel: getKnowledgeLevel(disciplina),
+            importanciaNivel: getImportanceLevel(disciplina),
             tempoAlocadoSemanalMinutos: tempoAlocadoNumerico,
             sessoesPorCiclo,
+            duracoesSessoes,
             index: position,
             inCiclo: disciplinaEstaAtiva,
             estudarTodosDias: disciplinaEstaAtiva && disciplina.estudarTodosDias === true,
@@ -336,6 +348,7 @@ export const useCiclos = (user) => {
           if (disciplinaEstaAtiva) disciplinasParaOrdem.push({
             id: disciplina.id,
             sessoesPorCiclo,
+            duracoesSessoes,
             estudarTodosDias: disciplina.estudarTodosDias === true,
           });
         } else {
@@ -343,9 +356,11 @@ export const useCiclos = (user) => {
           batch.set(disciplinaRef, {
             nome: disciplina.nome,
             peso: obterPesoDisciplina(disciplina),
-            nivelDominio: normalizarNivelDominio(disciplina.nivelDominio || disciplina.nivel, disciplina.peso),
+            conhecimentoNivel: getKnowledgeLevel(disciplina),
+            importanciaNivel: getImportanceLevel(disciplina),
             tempoAlocadoSemanalMinutos: tempoAlocadoNumerico,
             sessoesPorCiclo,
+            duracoesSessoes,
             assuntos: disciplina.assuntos || [],
             index: position,
             inCiclo: disciplinaEstaAtiva,
@@ -356,6 +371,7 @@ export const useCiclos = (user) => {
           if (disciplinaEstaAtiva) disciplinasParaOrdem.push({
             id: disciplina.id,
             sessoesPorCiclo,
+            duracoesSessoes,
             estudarTodosDias: disciplina.estudarTodosDias === true,
           });
         }
@@ -373,10 +389,7 @@ export const useCiclos = (user) => {
         }
       }
 
-      const novaOrdemSessoes = gerarOrdemSessoes(disciplinasParaOrdem, 0, {
-        diasEstudo: cicloData.diasEstudo,
-        tempoSessaoMinutos,
-      });
+      const novaOrdemSessoes = gerarOrdemSessoes(disciplinasParaOrdem);
       updateData.totalSessoesCiclo = disciplinasParaOrdem.reduce(
         (acc, d) => acc + (Number(d.sessoesPorCiclo) || 1),
         0
@@ -719,6 +732,11 @@ export const useCiclos = (user) => {
     if (!user) { setError('Usuario nao autenticado'); return false; }
     setLoading(true); setError(null);
     try {
+      await deletePlanStudyRecords({
+        userId: user.uid,
+        planId: cicloId,
+        planType: 'ciclo',
+      });
       const batch = writeBatch(db);
       const cicloRef = doc(db, 'users', user.uid, 'ciclos', cicloId);
       const disciplinasRef = collection(db, 'users', user.uid, 'ciclos', cicloId, 'disciplinas');

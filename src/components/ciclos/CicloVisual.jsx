@@ -38,10 +38,10 @@ const cssLength = (value) => (typeof value === 'number' ? `${value}px` : value);
 const CYCLE_CENTER_MANUAL_LAYOUT = {
   circle: { size: 66, center: 33, radius: 31, safePadding: 2.2 },
   disciplina: { x: 0, top: 11.2, height: 10.8, maxWidth: 49, fontSize: 3.8, lineHeight: 1.16, maxLines: 2, topPadding: 1.6, bottomPadding: 0.6 },
-  bloco: { x: 0, top: 20, height: 3.5, maxWidth: 44, fontSize: 2.25 },
-  assunto: { x: 0, top: 25.6, height: 9.8, maxWidth: 53, fontSize: 2.7, lineHeight: 1.22, maxLines: 2, topPadding: 1.2, bottomPadding: 0.4 },
-  tempo: { x: 0, top: 34.9, height: 8.8, maxWidth: 42, valueFontSize: 5.35, totalFontSize: 2.35 },
-  actions: { x: 0, top: 44.2, height: 5.8, maxWidth: 39, gap: 0.75, buttonHeight: 5.15, startWidth: 16.5, endWidth: 17.8, singleWidth: 20.5, fontSize: 2.05, radius: 2.6 },
+  bloco: { x: 0, top: 22.8, height: 3.5, maxWidth: 44, fontSize: 2.25 },
+  assunto: { x: 0, top: 27.6, height: 8.4, maxWidth: 53, fontSize: 2.55, lineHeight: 1.2, maxLines: 2, topPadding: 0.8, bottomPadding: 0.2 },
+  tempo: { x: 0, top: 36.2, height: 8.2, maxWidth: 42, valueFontSize: 5.15, totalFontSize: 2.25 },
+  actions: { x: 0, top: 45.1, height: 5.8, maxWidth: 39, gap: 0.75, buttonHeight: 5.15, startWidth: 16.5, endWidth: 17.8, singleWidth: 20.5, fontSize: 2.05, radius: 2.6 },
 };
 
 // TAMANHO DO CICLO VISUAL.
@@ -54,7 +54,7 @@ const CYCLE_VISUAL_SIZE_PRESETS = {
     mobileViewportOffset: 255,
     mobileViewportWidth: 88,
     desktopMax: 'var(--ciclo-visual-default-max-desktop, 560px)',
-    desktopViewportOffset: 285,
+    desktopViewportOffset: 220,
     desktopViewportWidth: 78,
     parentOffset: 20,
   },
@@ -732,17 +732,17 @@ function CicloVisual({
       <div className="flex w-full animate-fade-in flex-col items-stretch justify-center px-1">
 
         {/* --- ÁREA DO GRÁFICO --- */}
-        <div id="ciclo-radar-chart" className="relative flex h-full min-h-0 w-full flex-1 flex-col items-center overflow-visible group">
+        <div id="ciclo-radar-chart" className={`group relative flex h-full min-h-0 w-full flex-1 flex-col items-center overflow-visible ${isModoCicloSessoes ? 'pt-9' : ''}`}>
           <AnimatePresence>
             {isResetAnimating && <CycleResetAnimation conclusoes={ciclo?.conclusoes || 0} />}
           </AnimatePresence>
 
           {isModoCicloSessoes && (
-            <div className="relative z-20 mb-2 flex flex-col items-center sm:mb-3">
-              <div className="flex flex-wrap items-center gap-2 justify-center rounded-full bg-white/55 p-1 shadow-sm ring-1 ring-zinc-200/60 backdrop-blur-md dark:bg-zinc-950/35 dark:ring-zinc-800/60">
+            <div className="absolute left-1/2 top-0 z-20 flex -translate-x-1/2 flex-col items-center">
+              <div className="flex items-center justify-center gap-1 rounded-full bg-white/70 p-0.5 shadow-sm ring-1 ring-zinc-200/60 backdrop-blur-md dark:bg-zinc-950/55 dark:ring-zinc-800/60">
                 <button
                   onClick={() => { setViewCiclo('completo'); setDisciplinaFocada(null); onSelectDisciplina(null); }}
-                  className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wide transition-all sm:px-4 sm:text-xs ${
+                  className={`whitespace-nowrap rounded-full px-2.5 py-1 text-[8px] font-bold uppercase tracking-wide transition-all sm:px-3 sm:text-[9px] ${
                     viewCiclo === 'completo'
                       ? 'bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-md'
                       : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-white'
@@ -752,7 +752,7 @@ function CicloVisual({
                 </button>
                 <button
                   onClick={() => setViewCiclo('disciplina')}
-                  className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wide transition-all sm:px-4 sm:text-xs ${
+                  className={`whitespace-nowrap rounded-full px-2.5 py-1 text-[8px] font-bold uppercase tracking-wide transition-all sm:px-3 sm:text-[9px] ${
                     viewCiclo === 'disciplina'
                       ? 'bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-md'
                       : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-white'
@@ -764,20 +764,15 @@ function CicloVisual({
               {disciplinaFocada && viewCiclo === 'disciplina' && (
                 <button
                   onClick={() => { setDisciplinaFocada(null); onSelectDisciplina(null); }}
-                  className="mt-2 flex items-center gap-1 rounded-full bg-white/70 px-3 py-1 text-xs font-bold text-zinc-500 shadow-sm ring-1 ring-zinc-200/70 transition-colors hover:text-zinc-800 dark:bg-zinc-950/50 dark:ring-zinc-800/70 dark:hover:text-white"
+                  className="mt-1 flex items-center gap-1 rounded-full bg-white/80 px-2 py-0.5 text-[8px] font-bold text-zinc-500 shadow-sm ring-1 ring-zinc-200/70 transition-colors hover:text-zinc-800 dark:bg-zinc-950/60 dark:ring-zinc-800/70 dark:hover:text-white"
                 >
                   ← Voltar às disciplinas
                 </button>
               )}
-              {!hideActionButtons && (
-                <p className="mt-1 text-center text-[9px] font-semibold text-zinc-500 dark:text-zinc-400 sm:text-[10px]">
-                  Clique em uma disciplina ou bloco de estudo para abrir as acoes.
-                </p>
-              )}
             </div>
           )}
 
-          <div className="flex min-h-0 w-full flex-1 items-center justify-center">
+            <div className="flex min-h-0 w-full flex-1 items-start justify-center">
             <div
               className="ciclo-visual-size-box aspect-square max-h-full max-w-full shrink-0"
             >
@@ -919,7 +914,7 @@ function CicloVisual({
                                   fontSize: `${CYCLE_CENTER_MANUAL_LAYOUT.bloco.fontSize}px`,
                                 }}
                               >
-                                Bloco {(Number(activeDisciplina.sessaoIndex) || 0) + 1}
+                                Bloco {Math.max(0, Number(activeDisciplina.globalIndex) || 0) + 1}
                               </span>
                             )}
 
@@ -1228,7 +1223,7 @@ function CicloVisual({
                             <Target size={12} /> Bloco
                           </div>
                           <p className="text-lg font-black text-zinc-800 dark:text-white">
-                            {activeDisciplina.sessaoIndex + 1} de {activeDisciplina.disciplina.sessoesPorCiclo || 1}
+                            {Math.max(0, Number(activeDisciplina.globalIndex) || 0) + 1} de {totalSessoes}
                           </p>
                         </div>
                         <div className="bg-white dark:bg-zinc-800/50 rounded-xl p-3 border border-zinc-200 dark:border-zinc-700/50 shadow-sm">

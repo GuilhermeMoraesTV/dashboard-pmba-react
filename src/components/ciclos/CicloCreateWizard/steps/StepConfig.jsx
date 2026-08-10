@@ -173,18 +173,12 @@ const PageHeader = () => (
 export default function StepConfig({
   nomeCiclo,
   setNomeCiclo,
-  modoExibirAssuntos = true,
-  setModoExibirAssuntos,
-  modoExibirTempo = 'detalhado',
-  setModoExibirTempo,
   coresDisciplinasAtivas = true,
   setCoresDisciplinasAtivas,
   disciplinasPreview = [],
   onDisciplinaCorChange,
   editalSelecionado,
 }) {
-  const modoAssuntos = modoExibirAssuntos === false ? 'livre' : 'guiado';
-  const modoTempo = modoExibirTempo || 'detalhado';
   const [colorDrafts, setColorDrafts] = useState({});
 
   useEffect(() => {
@@ -254,48 +248,6 @@ export default function StepConfig({
                 </div>
               </motion.div>
             </div>
-
-              <div className="rounded-3xl border border-zinc-100 bg-white p-5 shadow-sm dark:border-zinc-800/60 dark:bg-zinc-900">
-                <div className="mb-5 flex items-center gap-4">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-zinc-50 text-zinc-400 dark:bg-zinc-800">
-                    <BookOpen size={20} />
-                  </div>
-                  <div className="min-w-0">
-                    <h4 className="text-xs font-black uppercase tracking-widest text-zinc-900 dark:text-white">
-                      Foco do Conteudo
-                    </h4>
-                    <p className="mt-0.5 text-[11px] font-medium text-zinc-500 dark:text-zinc-400">
-                      Escolha como os blocos do ciclo aparecem no radar, na Home e no guia do dia.
-                    </p>
-                  </div>
-                </div>
-                <ModeSelector
-                  options={OPCOES_ASSUNTOS}
-                  value={modoAssuntos}
-                  onChange={(id) => setModoExibirAssuntos?.(id !== 'livre')}
-                />
-              </div>
-
-              <div className="rounded-3xl border border-zinc-100 bg-white p-5 shadow-sm dark:border-zinc-800/60 dark:bg-zinc-900">
-                <div className="mb-5 flex items-center gap-4">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-zinc-50 text-zinc-400 dark:bg-zinc-800">
-                    <Clock size={20} />
-                  </div>
-                  <div className="min-w-0">
-                    <h4 className="text-xs font-black uppercase tracking-widest text-zinc-900 dark:text-white">
-                      Gestao do Tempo
-                    </h4>
-                    <p className="mt-0.5 text-[11px] font-medium text-zinc-500 dark:text-zinc-400">
-                      Escolha quanto detalhe de tempo aparece nos blocos do guia de estudo.
-                    </p>
-                  </div>
-                </div>
-                <ModeSelector
-                  options={OPCOES_TEMPO}
-                  value={modoTempo}
-                  onChange={(id) => setModoExibirTempo?.(id)}
-                />
-              </div>
 
               <div className="rounded-3xl border border-zinc-100 bg-white p-5 shadow-sm dark:border-zinc-800/60 dark:bg-zinc-900">
                 <div className="mb-4 flex items-start justify-between gap-4">

@@ -374,7 +374,8 @@ export default function StepModoMontagem({
         ...(selecao[disciplina.id] || {}),
         checked: true,
         parcial: false,
-        nivel: selecao[disciplina.id]?.nivel || disciplina.nivelDominio || disciplina.nivel || 'intermediario',
+        conhecimentoNivel: Number(selecao[disciplina.id]?.conhecimentoNivel) || 0,
+        importanciaNivel: Number(selecao[disciplina.id]?.importanciaNivel) || 0,
       },
     });
   };

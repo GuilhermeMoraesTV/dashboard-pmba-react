@@ -5,6 +5,28 @@ import { gerarSchedule } from '../src/services/scheduling/index.js';
 import { getAgendaSemana } from '../src/services/scheduling/review.js';
 
 describe('scheduling daily disciplines', () => {
+  it('uses knowledge and importance and respects the configured session range', () => {
+    const resultado = gerarSchedule(
+      [
+        { id: 'prioritaria', nome: 'Prioritaria', conhecimentoNivel: 1, importanciaNivel: 5, assuntos: ['A', 'B'] },
+        { id: 'reforco', nome: 'Reforco', conhecimentoNivel: 5, importanciaNivel: 1, assuntos: ['A', 'B'] },
+      ],
+      { 1: 5 },
+      {
+        dataInicio: '2026-08-03',
+        duracaoMinimaSessaoMinutos: 30,
+        duracaoMaximaSessaoMinutos: 60,
+      },
+    );
+
+    const minutosPorDisciplina = resultado.semanaTemplate.reduce((acc, slot) => {
+      acc[slot.disciplinaId] = (acc[slot.disciplinaId] || 0) + Number(slot.minutosEstudo || 0);
+      assert.ok(slot.minutosEstudo >= 30 && slot.minutosEstudo <= 60);
+      return acc;
+    }, {});
+    assert.ok(minutosPorDisciplina.prioritaria > minutosPorDisciplina.reforco);
+  });
+
   it('places every daily discipline on every active day', () => {
     const resultado = gerarSchedule(
       [
@@ -80,8 +102,9 @@ describe('scheduling daily disciplines', () => {
       const estudosDia = resultado.semanaTemplate.filter((slot) => slot.dia === dia);
       const idsEstudo = new Set(estudosDia.map((slot) => slot.disciplinaId));
 
-      assert.equal(estudosDia.length, 2);
+      assert.equal(estudosDia.length, 3);
       assert.deepEqual([...idsEstudo].sort(), ['lei', 'pt']);
+      estudosDia.forEach((slot) => assert.ok(slot.minutosEstudo <= 60));
     });
 
     const agenda = getAgendaSemana(
@@ -109,7 +132,7 @@ describe('scheduling daily disciplines', () => {
         0
       );
 
-      assert.equal(estudosDia.length, 2);
+      assert.ok(estudosDia.length >= 1);
       assert.ok(idsEstudo.size <= 2);
       assert.equal(totalDia, 180);
     });

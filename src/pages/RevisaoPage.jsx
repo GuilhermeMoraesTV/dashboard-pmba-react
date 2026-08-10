@@ -8,9 +8,12 @@ import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   collection, query, where, onSnapshot, doc, updateDoc
 } from "firebase/firestore";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion as Motion, AnimatePresence } from "framer-motion";
 import {
+  AlertTriangle,
+  BarChart3,
   BookOpen,
+  Brain,
   CalendarDays,
   CalendarPlus,
   Check,
@@ -18,8 +21,6 @@ import {
   Clock,
   Flame,
   ArrowLeftRight,
-  Layers,
-  ListChecks,
   Play,
   RefreshCw,
   ShieldCheck,
@@ -29,13 +30,14 @@ import {
 
 import { db } from "../firebaseConfig";
 import { useCronogramaSystem } from "../hooks/useCronogramaSystem";
-import { formatDateKeyLocal, getCronogramaReviewBuckets } from "../services/scheduling/review.js";
+import { formatDateKeyLocal } from "../services/scheduling/review.js";
 import { useCicloRevisoes } from "../hooks/useCicloRevisoes";
 import { buildCompletionRegistro } from "../utils/completionRegistro";
 import {
   REGISTRO_PROGRESS_OPTIMISTIC_EVENT,
   applyCronogramaRegistroProgress,
 } from "../services/reviewOptimisticUpdates";
+import { buildRevisaoCentral, filterRevisaoCentralItems } from "../utils/revisaoCentral";
 const cx = (...classes) => classes.filter(Boolean).join(" ");
 
 const getContextLogo = (item) => {
@@ -54,8 +56,6 @@ const getContextLogo = (item) => {
   return null;
 };
 
-const getContextName = (item, fallback) => item?.nome || item?.editalNome || item?.titulo || fallback;
-
 const toMidnight = (date) => {
   if (!date) return new Date();
   if (date?.toDate) return date.toDate();
@@ -67,8 +67,6 @@ const toMidnight = (date) => {
   dt.setHours(0, 0, 0, 0);
   return dt;
 };
-
-const diffDias = (a, b) => Math.round((toMidnight(a).getTime() - toMidnight(b).getTime()) / 86400000);
 
 const fmtMin = (min) => {
   if (!min || min <= 0) return "0m";
@@ -100,79 +98,44 @@ const TAB_TONES = {
   },
   proximas: {
     icon: CalendarDays,
-    label: "Proximas",
+    label: "Próximas",
     eyebrow: "Radar",
     emptyTitle: "Agenda limpa",
     emptyText: "Nada previsto para os proximos dias neste filtro.",
     gradient: "from-sky-500 to-blue-600",
     soft: "bg-sky-50 text-sky-700 ring-sky-100 dark:bg-sky-400/10 dark:text-sky-200 dark:ring-sky-300/20",
   },
+  resolvidas: {
+    icon: Trophy,
+    label: "Dominadas",
+    eyebrow: "Retencao",
+    emptyTitle: "Nenhuma resolvida ainda",
+    emptyText: "As revisoes concluidas e os assuntos dominados aparecem aqui.",
+    gradient: "from-amber-500 to-orange-500",
+    soft: "bg-amber-50 text-amber-700 ring-amber-100 dark:bg-amber-400/10 dark:text-amber-200 dark:ring-amber-300/20",
+  },
 };
 
-const SourceBadge = ({ tipo }) => {
-  const isCiclo = tipo === "ciclo";
-  const Icon = isCiclo ? Layers : CalendarDays;
-  return (
-    <span className={cx(
-      "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.16em] ring-1",
-      isCiclo
-        ? "bg-violet-50 text-violet-700 ring-violet-100 dark:bg-violet-400/10 dark:text-violet-200 dark:ring-violet-300/20"
-        : "bg-blue-50 text-blue-700 ring-blue-100 dark:bg-blue-400/10 dark:text-blue-200 dark:ring-blue-300/20"
-    )}>
-      <Icon size={11} />
-      {isCiclo ? "Ciclo" : "Cronograma"}
-    </span>
-  );
-};
-
-const MiniBadge = ({ children, tone = "zinc", icon: Icon }) => {
-  const styles = {
-    red: "bg-red-50 text-red-700 ring-red-100 dark:bg-red-400/10 dark:text-red-200 dark:ring-red-300/20",
-    amber: "bg-amber-50 text-amber-700 ring-amber-100 dark:bg-amber-400/10 dark:text-amber-200 dark:ring-amber-300/20",
-    emerald: "bg-emerald-50 text-emerald-700 ring-emerald-100 dark:bg-emerald-400/10 dark:text-emerald-200 dark:ring-emerald-300/20",
-    sky: "bg-blue-50 text-blue-700 ring-blue-100 dark:bg-blue-400/10 dark:text-blue-200 dark:ring-blue-300/20",
-    zinc: "bg-zinc-100 text-zinc-600 ring-zinc-200 dark:bg-white/[0.07] dark:text-zinc-300 dark:ring-white/10",
-  };
-
-  return (
-    <span className={cx("inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.15em] ring-1", styles[tone])}>
-      {Icon && <Icon size={11} />}
-      {children}
-    </span>
-  );
-};
-
-const ContextButton = ({ active, icon: Icon, label, name, logo, onClick, color = "red" }) => {
-  const activeClass = color === "violet"
-    ? "border-violet-400 bg-violet-600 text-white shadow-violet-950/20"
-    : "border-red-500 bg-red-600 text-white shadow-red-950/20";
-
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cx(
-        "group flex min-w-0 items-center gap-3 rounded-2xl border px-3 py-2.5 text-left shadow-sm transition-all active:scale-[0.98]",
-        active
-          ? `${activeClass} shadow-xl`
-          : "border-zinc-200 bg-white/[0.85] text-zinc-700 hover:-translate-y-0.5 hover:border-red-200 hover:bg-red-50 dark:border-white/10 dark:bg-white/[0.05] dark:text-zinc-200 dark:hover:border-red-400/30 dark:hover:bg-red-400/10"
-      )}
-    >
-      <span className={cx(
-        "flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl ring-1",
-        active ? "bg-white/[0.18] ring-white/25" : "bg-zinc-100 ring-zinc-200 dark:bg-white/[0.06] dark:ring-white/10"
-      )}>
-        {logo ? <img src={logo} alt="" className="h-full w-full object-contain p-1" /> : <Icon size={18} />}
-      </span>
-      <span className="min-w-0">
-        <span className={cx("block text-[10px] font-black uppercase tracking-[0.18em]", active ? "text-white/70" : "text-zinc-400")}>
-          {label}
+const ReviewStatCard = ({ icon: Icon, title, value, detail }) => (
+  <article className="group relative flex min-h-[108px] flex-col justify-center overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white px-3 py-2.5 shadow-soft transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/40 hover:!border-l-red-500 hover:shadow-[0_0_18px_rgba(239,68,68,0.07)] dark:border-white/10 dark:!border-l-red-500/25 dark:bg-zinc-950 dark:hover:border-accent-light/20 dark:hover:!border-l-red-500 dark:hover:shadow-[0_0_22px_rgba(239,68,68,0.08)]">
+    <div className="relative z-20 flex w-full flex-col gap-0.5">
+      <h2 className="w-full truncate text-[10.5px] font-bold uppercase leading-none tracking-wider text-text-secondary dark:text-text-dark-secondary">
+        {title}
+      </h2>
+      <div className="mt-1 flex items-baseline gap-1">
+        <p className="text-xl font-extrabold leading-none tracking-tight text-text-primary dark:text-text-dark-primary md:text-2xl">
+          {value}
+        </p>
+        <span className="truncate text-[10px] leading-none opacity-90">
+          {detail}
         </span>
-        <span className="block max-w-[210px] truncate text-sm font-black leading-tight">{name}</span>
-      </span>
-    </button>
-  );
-};
+      </div>
+    </div>
+    <div className="pointer-events-none absolute -bottom-4 -right-4 z-10 text-red-500/10 transition-all duration-700 ease-out group-hover:scale-125 group-hover:rotate-[-10deg] dark:text-red-500/5">
+      {React.createElement(Icon, { strokeWidth: 1.5, className: "h-16 w-16 md:h-20 md:w-20" })}
+    </div>
+  </article>
+);
 
 const SourceToggleButton = ({ source, onToggle, cicloLogo, cronogramaLogo }) => {
   const isCiclo = source === "ciclo";
@@ -180,7 +143,7 @@ const SourceToggleButton = ({ source, onToggle, cicloLogo, cronogramaLogo }) => 
   const destinoLabel = isCiclo ? "Cronograma" : "Ciclo";
 
   return (
-    <motion.button
+    <Motion.button
       type="button"
       onClick={onToggle}
       whileHover={{ scale: 1.04, y: -1 }}
@@ -197,7 +160,7 @@ const SourceToggleButton = ({ source, onToggle, cicloLogo, cronogramaLogo }) => 
       <span className="whitespace-nowrap text-[9px] font-black uppercase tracking-widest text-zinc-500 transition-colors group-hover:text-red-600 dark:group-hover:text-red-400">
         Ver {destinoLabel}
       </span>
-    </motion.button>
+    </Motion.button>
   );
 };
 
@@ -213,8 +176,6 @@ const getReviewDateLabel = (date) => toMidnight(date).toLocaleDateString("pt-BR"
 
 const ReviewTimelineItem = ({
   item,
-  index,
-  active,
   onConcluir,
   onIniciar,
   onDominar,
@@ -225,99 +186,61 @@ const ReviewTimelineItem = ({
 }) => {
   const concluido = !!item.concluido || !!item.concluida;
   const tipo = item._fonte || "cronograma";
-  const isCiclo = tipo === "ciclo";
   const isDominado = !!item.dominado;
   const diasAtraso = item.diasAtraso ?? 0;
   const tempo = item.tempoMinutos || item.duracao || 20;
-  const tempoFeitoRaw = Number(item.progressoMinutos || 0);
-  const tempoFeito = concluido ? Math.max(tempoFeitoRaw, Number(tempo || 0)) : tempoFeitoRaw;
+  const somenteLeitura = item.somenteLeitura === true;
   const desmarcarBloqueado = concluido && Boolean(item.bloqueiaDesmarcar || item.bloqueiaDesmarcarConclusao);
 
   return (
-    <div className="group flex items-start gap-3 sm:gap-6">
-      <div className="relative mt-2 flex shrink-0 items-center justify-center">
-        {concluido ? (
-          <div className="z-10 flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500 text-white shadow-lg shadow-emerald-500/35 ring-4 ring-white dark:ring-zinc-950 sm:h-10 sm:w-10">
-            <Check size={15} strokeWidth={4} />
+    <Motion.article
+      layout
+      className={cx(
+        "group relative min-h-[92px] overflow-hidden rounded-2xl border bg-white shadow-sm transition-all duration-200 hover:border-blue-200 hover:shadow-lg hover:shadow-blue-500/10 dark:border-zinc-700/50 dark:bg-zinc-900 dark:hover:border-blue-900/40",
+        concluido && "border-emerald-200 bg-emerald-50/70 dark:border-emerald-900/40 dark:bg-emerald-950/10",
+        disabled && "pointer-events-none opacity-70"
+      )}
+    >
+      <div className={cx("absolute bottom-0 left-0 top-0 w-1.5", concluido ? "bg-emerald-500/45" : diasAtraso > 0 ? "bg-red-500" : "bg-blue-500")} />
+      <div className="flex flex-col gap-2 px-3 py-2.5 pl-4">
+        <div className="flex min-w-0 items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <h3 className={cx(
+              "truncate text-[11px] font-black uppercase leading-tight tracking-wide sm:text-xs",
+              concluido ? "text-emerald-700 line-through opacity-75 dark:text-emerald-300" : "text-zinc-900 dark:text-zinc-100"
+            )}>
+              {item.disciplinaNome || item.disciplina || "Disciplina"}
+            </h3>
+            <p className={cx("mt-1 line-clamp-2 text-[10px] font-bold leading-snug tracking-tight text-zinc-500 dark:text-zinc-300 sm:text-[11px]", concluido && "line-through decoration-emerald-500/60")}>
+              {item.assunto || item.topico || "Tópico"}
+            </p>
           </div>
-        ) : active ? (
-          <div className={cx(
-            "relative z-10 flex h-8 w-8 items-center justify-center rounded-full text-white shadow-lg ring-4 ring-white dark:ring-zinc-950 sm:h-10 sm:w-10",
-            isCiclo ? "bg-violet-600 shadow-violet-600/25" : "bg-blue-600 shadow-blue-600/25"
-          )}>
-            <span className={cx("absolute inset-0 animate-ping rounded-full opacity-30", isCiclo ? "bg-violet-500" : "bg-blue-500")} />
-            <Play size={14} fill="currentColor" />
-          </div>
-        ) : (
-          <div className="z-10 flex h-8 w-8 items-center justify-center rounded-full border-2 border-zinc-200 bg-zinc-100 text-zinc-400 ring-4 ring-white dark:border-zinc-700 dark:bg-zinc-800 dark:ring-zinc-950 sm:h-10 sm:w-10">
-            <span className="text-[10px] font-black sm:text-xs">{index + 1}</span>
-          </div>
-        )}
-      </div>
+          <span className="inline-flex min-w-[3.75rem] shrink-0 items-center justify-center gap-1 rounded-full border border-zinc-200 bg-white/85 px-2 py-0.5 text-[10px] font-black tabular-nums text-zinc-800 shadow-sm dark:border-white/15 dark:bg-white/15 dark:text-white">
+            <Clock size={12} className="text-zinc-600 dark:text-zinc-200" />
+            {fmtMin(tempo)}
+          </span>
+        </div>
 
-      <motion.article
-        layout
-        whileHover={disabled ? undefined : { x: 4 }}
-        className={cx(
-          "flex-1 overflow-hidden rounded-2xl border bg-white/85 shadow-sm transition-all dark:bg-zinc-950/45 sm:rounded-3xl",
-          active && !concluido
-              ? isCiclo
-                ? "border-violet-300 shadow-2xl shadow-violet-500/10 dark:border-violet-400/30"
-              : "border-blue-300 shadow-2xl shadow-blue-500/10 dark:border-blue-400/30"
-            : concluido
-              ? "border-emerald-200 bg-emerald-50/80 shadow-emerald-500/10 dark:border-emerald-900/40 dark:bg-emerald-950/15"
-              : "border-zinc-200/80 hover:border-blue-200 hover:shadow-lg hover:shadow-blue-950/[0.04] dark:border-white/10 dark:hover:border-blue-300/20",
-          disabled && "pointer-events-none opacity-70"
-        )}
-      >
-        <div className={cx("h-1 bg-gradient-to-r", concluido ? "from-emerald-500 to-teal-500" : isCiclo ? "from-violet-500 to-fuchsia-600" : "from-blue-600 to-sky-500")} />
-        <div className="p-3 sm:p-4">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-            <div className="min-w-0 flex-1">
-              <div className="mb-2 flex flex-wrap items-center gap-1.5">
-                <SourceBadge tipo={tipo} />
-                {active && !concluido && <MiniBadge tone={isCiclo ? "zinc" : "sky"} icon={Zap}>Agora</MiniBadge>}
-                {diasAtraso > 0 && <MiniBadge tone="red" icon={Flame}>{diasAtraso}d atraso</MiniBadge>}
-                {isDominado && <MiniBadge tone="amber" icon={Trophy}>Dominado</MiniBadge>}
-                {concluido && <MiniBadge tone="emerald" icon={CheckCircle2}>Concluida</MiniBadge>}
-              </div>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[9px] font-black uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+          <span className="inline-flex items-center gap-1"><CalendarDays size={11} />{fmtDate(getReviewDateValue(item))}</span>
+          {diasAtraso > 0 && <span className="inline-flex items-center gap-1 text-red-600 dark:text-red-300"><Flame size={11} />{diasAtraso}d de atraso</span>}
+          {isDominado && <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-300"><Trophy size={11} />Dominado</span>}
+          {concluido && <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-300"><CheckCircle2 size={11} />Concluída</span>}
+        </div>
 
-              <h3 className="truncate text-base font-black uppercase tracking-tight text-zinc-950 dark:text-white sm:text-lg">
-                {item.disciplinaNome || item.disciplina || "Disciplina"}
-              </h3>
-              <div className="mt-2 flex items-start gap-2 rounded-xl border border-zinc-100 bg-zinc-50/80 p-2.5 text-zinc-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-zinc-300">
-                <BookOpen size={15} className={cx("mt-0.5 shrink-0", isCiclo ? "text-violet-500" : "text-blue-500")} />
-                <p className="line-clamp-2 text-xs font-bold leading-relaxed sm:text-sm">
-                  {item.assunto || item.topico || "Topico"}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-              <span className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-zinc-100 px-3 text-xs font-black text-zinc-600 ring-1 ring-zinc-200 dark:bg-white/[0.07] dark:text-zinc-300 dark:ring-white/10">
-                <Clock size={13} />
-                {fmtMin(tempoFeito)} / {fmtMin(tempo)}
-              </span>
-              <span className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-zinc-100 px-3 text-xs font-black text-zinc-600 ring-1 ring-zinc-200 dark:bg-white/[0.07] dark:text-zinc-300 dark:ring-white/10">
-                <CalendarDays size={13} />
-                {fmtDate(getReviewDateValue(item))}
-              </span>
-            </div>
-          </div>
-
-          <div className="mt-3 flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1.5">
             {onIniciar && !concluido && (
               <button
                 type="button"
                 onClick={() => onIniciar(item)}
                 disabled={disabled}
-                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-zinc-950 px-3 text-[9px] font-black uppercase tracking-wider text-white shadow-sm transition-all hover:bg-blue-700 disabled:opacity-50 dark:bg-white dark:text-zinc-950 dark:hover:bg-blue-100"
+                className="inline-flex h-7 items-center justify-center gap-1 rounded-lg bg-blue-600 px-2.5 text-[9px] font-black uppercase tracking-wider text-white shadow-sm transition-all hover:bg-blue-700 disabled:opacity-50"
               >
-                <Play size={13} fill="currentColor" /> Iniciar
+                <Play size={11} fill="currentColor" /> Iniciar
               </button>
             )}
 
-            <button
+            {!somenteLeitura && <button
               type="button"
               onClick={() => {
                 if (desmarcarBloqueado) return;
@@ -325,14 +248,14 @@ const ReviewTimelineItem = ({
               }}
               disabled={disabled || desmarcarBloqueado}
               className={cx(
-                "inline-flex h-9 items-center justify-center gap-1.5 rounded-xl px-3 text-[9px] font-black uppercase tracking-wider text-white shadow-sm transition-all disabled:opacity-60",
-                desmarcarBloqueado ? "cursor-not-allowed bg-emerald-600" : concluido ? "bg-emerald-600 hover:bg-emerald-700" : "bg-blue-600 hover:bg-blue-700"
+                "inline-flex h-7 items-center justify-center gap-1 rounded-lg px-2.5 text-[9px] font-black uppercase tracking-wider shadow-sm transition-all disabled:opacity-60",
+                desmarcarBloqueado || concluido ? "bg-emerald-500 text-white" : "border border-emerald-200 bg-white text-emerald-600 hover:bg-emerald-50 dark:border-emerald-900/40 dark:bg-white/10 dark:text-emerald-300"
               )}
               title={desmarcarBloqueado ? "Conclusao protegida por registro de revisao" : undefined}
             >
-              {isLoading ? <RefreshCw size={13} className="animate-spin" /> : <Check size={13} strokeWidth={3} />}
+              {isLoading ? <RefreshCw size={11} className="animate-spin" /> : <Check size={11} strokeWidth={3} />}
               {desmarcarBloqueado ? "Registrada" : concluido ? "Alterar" : "Concluir"}
-            </button>
+            </button>}
 
             {onDominar && tipo === "cronograma" && !concluido && (
               <button
@@ -340,14 +263,14 @@ const ReviewTimelineItem = ({
                 onClick={() => onDominar(item)}
                 disabled={disabled}
                 className={cx(
-                  "inline-flex h-9 items-center justify-center gap-1.5 rounded-xl px-3 text-[9px] font-black uppercase tracking-wider ring-1 transition-all disabled:opacity-50",
+                  "inline-flex h-7 items-center justify-center gap-1 rounded-lg px-2.5 text-[9px] font-black uppercase tracking-wider ring-1 transition-all disabled:opacity-50",
                   isDominado
                     ? "bg-amber-50 text-amber-700 ring-amber-100 dark:bg-amber-400/10 dark:text-amber-200 dark:ring-amber-300/20"
                     : "bg-white text-zinc-600 ring-zinc-200 hover:text-amber-700 dark:bg-white/[0.05] dark:text-zinc-300 dark:ring-white/10"
                 )}
               >
-                {actionType === "dominar" ? <RefreshCw size={13} className="animate-spin" /> : <Trophy size={13} />}
-                Dominar
+                {actionType === "dominar" ? <RefreshCw size={11} className="animate-spin" /> : <Trophy size={11} />}
+                Dominado
               </button>
             )}
 
@@ -356,38 +279,26 @@ const ReviewTimelineItem = ({
                 type="button"
                 onClick={() => onReagendar(item)}
                 disabled={disabled}
-                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-red-50 px-3 text-[9px] font-black uppercase tracking-wider text-red-700 ring-1 ring-red-100 transition-all hover:bg-red-600 hover:text-white disabled:opacity-50 dark:bg-red-400/10 dark:text-red-200 dark:ring-red-300/20"
+                className="inline-flex h-7 items-center justify-center gap-1 rounded-lg bg-red-50 px-2.5 text-[9px] font-black uppercase tracking-wider text-red-700 ring-1 ring-red-100 transition-all hover:bg-red-600 hover:text-white disabled:opacity-50 dark:bg-red-400/10 dark:text-red-200 dark:ring-red-300/20"
               >
-                {actionType === "reagendar" ? <RefreshCw size={13} className="animate-spin" /> : <CalendarPlus size={13} />}
+                {actionType === "reagendar" ? <RefreshCw size={11} className="animate-spin" /> : <CalendarPlus size={11} />}
                 Hoje
               </button>
             )}
-          </div>
         </div>
-      </motion.article>
-    </div>
+      </div>
+    </Motion.article>
   );
 };
 
 const RevisaoListaTimeline = ({
   items,
-  activeTab,
   onConcluir,
   onIniciar,
   onDominar,
   onReagendar,
   actionLoading,
 }) => {
-  const total = items.length;
-  const concluidas = items.filter((item) => item.concluido || item.concluida).length;
-  const totalMinutos = items.reduce((acc, item) => acc + Number(item.tempoMinutos || item.duracao || 20), 0);
-  const totalFeito = items.reduce((acc, item) => {
-    const planned = Number(item.tempoMinutos || item.duracao || 20);
-    const done = Number(item.progressoMinutos || 0);
-    return acc + ((item.concluido || item.concluida) ? Math.max(done, planned) : done);
-  }, 0);
-  const progresso = total > 0 ? Math.round((concluidas / total) * 100) : 0;
-  const activeIndex = items.findIndex((item) => !(item.concluido || item.concluida) && !item.dominado);
   const grupos = items.reduce((acc, item) => {
     const key = getReviewDateKey(item);
     if (!acc[key]) {
@@ -401,108 +312,27 @@ const RevisaoListaTimeline = ({
   const gruposOrdenados = Object.values(grupos).sort((a, b) => a.date - b.date);
 
   return (
-    <motion.div
+    <Motion.div
       key="revisao-lista-operacional"
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0 }}
-      className="mx-auto w-full max-w-4xl px-1 sm:px-4"
+      className="w-full"
     >
-      <div className="relative mb-5 overflow-hidden rounded-2xl border border-zinc-200/80 bg-white/70 p-4 shadow-[0_18px_55px_rgba(37,99,235,0.18)] backdrop-blur-md dark:border-zinc-800 dark:bg-zinc-950/40 dark:shadow-[0_22px_65px_rgba(59,130,246,0.24)] sm:mb-8 sm:rounded-[32px] sm:p-6">
-        <div className="pointer-events-none absolute right-0 top-0 h-24 w-24 rounded-full bg-blue-500/10 blur-[50px] sm:h-32 sm:w-32 sm:blur-[60px]" />
-        <div className="relative z-10 flex items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <div className={cx("flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-white shadow-lg sm:h-14 sm:w-14 sm:rounded-2xl", activeTab.gradient)}>
-              <ListChecks size={22} className="sm:h-7 sm:w-7" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[9px] font-black uppercase tracking-[0.24em] text-blue-600 dark:text-blue-300 sm:text-[10px] sm:tracking-[0.3em]">Lista operacional</p>
-              <h3 className="truncate text-lg font-black uppercase leading-none tracking-tight text-zinc-950 dark:text-white sm:text-2xl">Fila de revisoes</h3>
-            </div>
-          </div>
-
-          <div className="shrink-0 text-right">
-            <div className="flex items-center justify-end gap-1.5">
-              <Clock size={14} className="text-blue-500 sm:h-4 sm:w-4" />
-              <span className="text-sm font-black tabular-nums text-zinc-900 dark:text-white sm:text-xl">{fmtMin(totalFeito)} / {fmtMin(totalMinutos)}</span>
-            </div>
-            <p className="text-[8px] font-black uppercase tracking-widest text-zinc-400 sm:text-[10px]">{concluidas}/{total} feitas</p>
-          </div>
-        </div>
-
-        <div className="relative z-10 mt-4 sm:mt-6">
-          <div className="mb-2 flex items-center justify-between gap-3">
-            <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400 sm:text-[10px]">Progresso da lista</span>
-            <span className="text-sm font-black text-blue-600 dark:text-blue-300">{progresso}%</span>
-          </div>
-          <div className="h-2.5 w-full overflow-hidden rounded-full border border-zinc-200/50 bg-zinc-100 p-0.5 dark:border-zinc-700/50 dark:bg-zinc-800 sm:h-3">
-            <motion.div
-              initial={{ width: 0 }}
-              animate={{ width: `${Math.min(progresso, 100)}%` }}
-              transition={{ duration: 0.7, ease: "easeOut" }}
-              className="h-full rounded-full bg-gradient-to-r from-blue-600 via-sky-500 to-blue-500 shadow-[0_0_8px_rgba(37,99,235,0.32)]"
-            />
-          </div>
-        </div>
-      </div>
-
-      <div className="space-y-5 pb-6 sm:space-y-6 sm:pb-8">
+      <div className="space-y-5 pb-6">
         {gruposOrdenados.map((grupo) => {
-          const feitas = grupo.items.filter((item) => item.concluido || item.concluida).length;
           const isToday = formatDateKeyLocal(new Date()) === grupo.key;
-          const diaCompleto = grupo.items.length > 0 && feitas === grupo.items.length;
 
           return (
-            <section
-              key={grupo.key}
-              className={cx(
-                "overflow-hidden rounded-3xl border shadow-sm",
-                diaCompleto
-                  ? "border-emerald-200 bg-emerald-50/40 dark:border-emerald-900/40 dark:bg-emerald-950/10"
-                  : isToday
-                  ? "border-blue-200 bg-white shadow-blue-500/10 dark:border-blue-900/45 dark:bg-zinc-950/45"
-                  : "border-zinc-200 bg-white/70 dark:border-white/10 dark:bg-zinc-950/35"
-              )}
-            >
-              <div className={cx(
-                "flex flex-col gap-3 border-b px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5",
-                diaCompleto
-                  ? "border-emerald-100 bg-emerald-50/70 dark:border-emerald-900/30 dark:bg-emerald-950/10"
-                  : isToday
-                  ? "border-blue-100 bg-blue-50/70 dark:border-blue-900/40 dark:bg-blue-950/10"
-                  : "border-zinc-100 bg-zinc-50/80 dark:border-white/10 dark:bg-white/[0.04]"
-              )}>
-                <div className="flex min-w-0 items-center gap-3">
-                  <div className={cx(
-                    "flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-white shadow-lg",
-                    diaCompleto ? "bg-emerald-600 shadow-emerald-600/20" : isToday ? "bg-blue-600 shadow-blue-600/20" : "bg-zinc-900 shadow-zinc-900/10 dark:bg-zinc-800"
-                  )}>
-                    {diaCompleto ? <Trophy size={19} /> : isToday ? <Flame size={19} /> : <CalendarDays size={19} />}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="truncate text-base font-black uppercase tracking-tight text-zinc-950 dark:text-white sm:text-lg">
-                        {getReviewDateLabel(grupo.date)}
-                      </h3>
-                      {isToday && <span className="rounded-md bg-blue-600 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-white">Hoje</span>}
-                    </div>
-                    <p className="mt-1 text-[10px] font-black uppercase tracking-widest text-zinc-400">
-                      {grupo.items.length} revisao{grupo.items.length === 1 ? "" : "es"} na fila
-                    </p>
-                  </div>
-                </div>
-
-                <span className={cx(
-                  "inline-flex w-fit items-center gap-1.5 rounded-lg px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-white",
-                  diaCompleto ? "bg-emerald-600" : "bg-zinc-950 dark:bg-white dark:text-zinc-950"
-                )}>
-                  {feitas}/{grupo.items.length}
-                </span>
+            <section key={grupo.key}>
+              <div className="mb-2 flex items-center gap-2 px-1">
+                <CalendarDays size={12} className={isToday ? "text-blue-600" : "text-zinc-400"} />
+                <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400">
+                  {getReviewDateLabel(grupo.date)}
+                </h3>
+                {isToday && <span className="rounded bg-blue-600 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider text-white">Hoje</span>}
               </div>
-
-              <div className="relative px-3 py-4 sm:px-5">
-                <div className="absolute bottom-4 left-[31px] top-4 w-0.5 bg-zinc-200 dark:bg-zinc-800 sm:left-[47px]" />
-                <div className="relative z-10 space-y-3 sm:space-y-4">
+              <div className="space-y-2.5">
                   {grupo.items.map((item) => {
                     const globalIndex = items.indexOf(item);
                     const actionId = getItemActionId(item);
@@ -510,8 +340,6 @@ const RevisaoListaTimeline = ({
                       <ReviewTimelineItem
                         key={item.id || item.idUnique || item.slotId || actionId || globalIndex}
                         item={item}
-                        index={globalIndex}
-                        active={globalIndex === activeIndex}
                         onConcluir={onConcluir}
                         onIniciar={onIniciar}
                         onDominar={onDominar}
@@ -522,17 +350,24 @@ const RevisaoListaTimeline = ({
                       />
                     );
                   })}
-                </div>
               </div>
             </section>
           );
         })}
       </div>
-    </motion.div>
+    </Motion.div>
   );
 };
 
-export function RevisaoPage({ user, onStartStudy, addRegistroEstudo, deleteCompletionRegistro, onChoosePlan }) {
+export function RevisaoPage({
+  user,
+  onStartStudy,
+  addRegistroEstudo,
+  deleteCompletionRegistro,
+  onChoosePlan,
+  registrosEstudo = [],
+  disciplinasCiclo = [],
+}) {
   const [aba, setAba] = useState("hoje");
   const [filtroFonte, setFiltroFonte] = useState("todas");
   const [cronograma, setCronograma] = useState(null);
@@ -590,68 +425,36 @@ export function RevisaoPage({ user, onStartStudy, addRegistroEstudo, deleteCompl
     });
   }, [user?.uid]);
 
-  const { hojeC: revisoesHojeCron, atrasadasC, proximasC } = useMemo(() => {
-    const res = { hojeC: [], atrasadasC: [], proximasC: [] };
-    if (!cronograma) return res;
-    const buckets = getCronogramaReviewBuckets(cronograma, new Date());
-    res.hojeC = buckets.hoje.map((s) => ({ ...s, _fonte: "cronograma" }));
-    res.atrasadasC = buckets.atrasadas.map((s) => ({ ...s, _fonte: "cronograma" }));
-    res.proximasC = buckets.proximas.map((s) => ({ ...s, _fonte: "cronograma" }));
-    return res;
-  }, [cronograma]);
-
   const revisoesCicloAtivas = useMemo(() => {
     if (!cicloAtivo?.id) return [];
     return todasRevisoesCiclo.filter((r) => r.cicloId === cicloAtivo.id);
   }, [todasRevisoesCiclo, cicloAtivo?.id]);
-
-  const hoje = useMemo(() => [
-    ...revisoesHojeCron,
-    ...revisoesCicloAtivas
-      .filter((r) => {
-        const hojeKey = formatDateKeyLocal(new Date());
-        return String(r.dataAgendada || "") === hojeKey;
-      })
-      .map((r) => ({ ...r, _fonte: "ciclo" }))
-  ], [revisoesHojeCron, revisoesCicloAtivas]);
-
-  const atrasadas = useMemo(() => [
-    ...atrasadasC,
-    ...revisoesCicloAtivas
-      .filter((r) => {
-        const hojeKey = formatDateKeyLocal(new Date());
-        return r.dataAgendada < hojeKey;
-      })
-      .map((r) => ({ ...r, _fonte: "ciclo", diasAtraso: diffDias(new Date(), toMidnight(r.dataAgendada)) }))
-  ], [atrasadasC, revisoesCicloAtivas]);
-
-  const proximas = useMemo(() => [
-    ...proximasC,
-    ...revisoesCicloAtivas
-      .filter((r) => {
-        const agora = toMidnight(new Date());
-        const dt = toMidnight(r.dataAgendada);
-        return dt > agora;
-      })
-      .map((r) => ({ ...r, _fonte: "ciclo", dataSlot: toMidnight(r.dataAgendada) }))
-      .sort((a, b) => a.dataSlot - b.dataSlot)
-  ], [proximasC, revisoesCicloAtivas]);
-
-  const listaAtual = useMemo(() => ({ hoje, atrasadas, proximas })[aba] || [], [aba, hoje, atrasadas, proximas]);
-
-  const slotsExibidos = useMemo(() => {
-    let lista = listaAtual;
-    if (filtroFonte !== "todas") lista = lista.filter((s) => s._fonte === filtroFonte);
-    return lista;
-  }, [listaAtual, filtroFonte]);
-
-  const concluidasHoje = useMemo(() => hoje.filter((s) => s.concluido || s.concluida).length, [hoje]);
-  const totalGeral = hoje.length + atrasadas.length + proximas.length;
-  const totalConcluidas = useMemo(
-    () => [...hoje, ...atrasadas, ...proximas].filter((s) => s.concluido || s.concluida).length,
-    [hoje, atrasadas, proximas]
-  );
-  const progressoGeral = totalGeral > 0 ? Math.round((totalConcluidas / totalGeral) * 100) : 0;
+  const central = useMemo(() => buildRevisaoCentral({
+    cronograma,
+    ciclo: cicloAtivo ? { ...cicloAtivo, disciplinas: disciplinasCiclo } : null,
+    revisoesCiclo: revisoesCicloAtivas,
+    registrosEstudo,
+    dataReferencia: new Date(),
+  }), [cronograma, cicloAtivo, disciplinasCiclo, registrosEstudo, revisoesCicloAtivas]);
+  const { hoje, atrasadas, proximas, resolvidas } = central.buckets;
+  const listaAtual = useMemo(() => central.buckets[aba] || [], [aba, central.buckets]);
+  const slotsExibidos = useMemo(() => filterRevisaoCentralItems(listaAtual, {
+    origem: filtroFonte,
+  }), [filtroFonte, listaAtual]);
+  const totalGeral = central.metricas.total;
+  const totalConcluidas = resolvidas.length;
+  const resumoRevisoesFeitas = useMemo(() => registrosEstudo.reduce((resumo, registro) => {
+    const isRevisao = registro?.isRevisao === true
+      || registro?.revisao === true
+      || String(registro?.tipoEstudo || "").toLowerCase() === "revisao";
+    if (!isRevisao) return resumo;
+    return {
+      quantidade: resumo.quantidade + 1,
+      minutos: resumo.minutos + Math.max(0, Number(registro?.tempoEstudadoMinutos || registro?.duracaoMinutos || 0)),
+    };
+  }, { quantidade: 0, minutos: 0 }), [registrosEstudo]);
+  const progressoGeral = central.metricas.retencao;
+  const concluidasHoje = hoje.filter((item) => item.concluido || item.concluida).length;
   const activeTab = TAB_TONES[aba] || TAB_TONES.hoje;
   const ActiveTabIcon = activeTab.icon;
   const handleConcluir = async (item) => {
@@ -722,35 +525,29 @@ export function RevisaoPage({ user, onStartStudy, addRegistroEstudo, deleteCompl
     }
   };
 
+  const reagendarItem = async (s, dataDestino = new Date()) => {
+    if (s._fonte === "ciclo") {
+      await updateDoc(doc(db, "users", user.uid, "revisoesCiclo", s.id), {
+        dataAgendada: formatDateKeyLocal(dataDestino)
+      });
+      return true;
+    }
+    if (!cronograma?.id) return false;
+    return reagendarRevisaoCronograma(cronograma.id, s, dataDestino, cronograma.dataInicio);
+  };
+
   const handleReagendar = async (s) => {
     const actionId = getItemActionId(s);
     if (actionLoading) return;
     setActionLoading({ id: actionId, type: "reagendar" });
-    if (s._fonte === "ciclo") {
-      try {
-        await updateDoc(doc(db, "users", user.uid, "revisoesCiclo", s.id), {
-          dataAgendada: formatDateKeyLocal(new Date())
-        });
-        showToast("Revisao de ciclo reagendada para hoje");
-      } catch {
-        showToast("Erro ao reagendar");
-      } finally {
-        setActionLoading(null);
-      }
-    } else {
-      if (!cronograma?.id) {
-        setActionLoading(null);
-        return;
-      }
-      try {
-        const ok = await reagendarRevisaoCronograma(cronograma.id, s, new Date(), cronograma.dataInicio);
-        if (!ok) throw new Error("reagendamento-falhou");
-        showToast("Reagendado para hoje");
-      } catch {
-        showToast("Erro ao reagendar");
-      } finally {
-        setActionLoading(null);
-      }
+    try {
+      const ok = await reagendarItem(s, new Date());
+      if (!ok) throw new Error("reagendamento-falhou");
+      showToast("Reagendado para hoje");
+    } catch {
+      showToast("Erro ao reagendar");
+    } finally {
+      setActionLoading(null);
     }
   };
 
@@ -761,7 +558,7 @@ export function RevisaoPage({ user, onStartStudy, addRegistroEstudo, deleteCompl
   if (nenhuma) {
     return (
       <div className="flex min-h-[calc(100vh-120px)] w-full items-center justify-center px-4 py-10">
-        <motion.div
+        <Motion.div
           initial={{ opacity: 0, y: 30, scale: 0.95 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           className="group relative w-full max-w-2xl overflow-hidden rounded-[40px] border border-zinc-200 bg-white p-8 text-center shadow-[0_30px_100px_rgba(0,0,0,0.06)] dark:border-white/10 dark:bg-zinc-950 dark:shadow-[0_30px_100px_rgba(0,0,0,0.3)] sm:px-12 sm:pb-9 sm:pt-12"
@@ -801,7 +598,7 @@ export function RevisaoPage({ user, onStartStudy, addRegistroEstudo, deleteCompl
               <img src="/logoModoQAP.png" alt="Logo Modo QAP" className="h-8 w-auto object-contain opacity-90 transition-opacity duration-300 group-hover:opacity-100" />
             </div>
           </div>
-        </motion.div>
+        </Motion.div>
       </div>
     );
   }
@@ -810,6 +607,7 @@ export function RevisaoPage({ user, onStartStudy, addRegistroEstudo, deleteCompl
     { id: "hoje", count: hoje.length, ...TAB_TONES.hoje },
     { id: "atrasadas", count: atrasadas.length, ...TAB_TONES.atrasadas },
     { id: "proximas", count: proximas.length, ...TAB_TONES.proximas },
+    { id: "resolvidas", count: resolvidas.length, ...TAB_TONES.resolvidas },
   ];
   const sourceAtual = filtroFonte === "ciclo"
     ? "ciclo"
@@ -828,14 +626,14 @@ export function RevisaoPage({ user, onStartStudy, addRegistroEstudo, deleteCompl
     <div className="relative flex min-h-screen w-full flex-col bg-transparent text-zinc-950 dark:text-white">
       <AnimatePresence>
         {toast && (
-          <motion.div
+          <Motion.div
             initial={{ opacity: 0, y: -18, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -18, scale: 0.98 }}
             className="fixed left-1/2 top-24 z-[1000] max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-2xl border border-zinc-800/10 bg-zinc-950/95 px-5 py-3 text-center text-xs font-black uppercase tracking-[0.18em] text-white shadow-2xl shadow-zinc-950/30 backdrop-blur-xl dark:border-white/10 dark:bg-white/95 dark:text-zinc-950"
           >
             {toast}
-          </motion.div>
+          </Motion.div>
         )}
       </AnimatePresence>
 
@@ -937,7 +735,7 @@ export function RevisaoPage({ user, onStartStudy, addRegistroEstudo, deleteCompl
                   </div>
                 </div>
                 <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-zinc-100 ring-1 ring-zinc-200/70 dark:bg-zinc-800 dark:ring-zinc-700/70 md:mt-2 md:h-1.5">
-                  <motion.div
+                  <Motion.div
                     initial={false}
                     animate={{ width: `${Math.min(progressoGeral, 100)}%` }}
                     transition={{ duration: 0.45, ease: "easeOut" }}
@@ -948,7 +746,7 @@ export function RevisaoPage({ user, onStartStudy, addRegistroEstudo, deleteCompl
               <div className="relative shrink-0">
                 <svg className="h-9 w-9 -rotate-90 sm:h-10 sm:w-10 md:h-14 md:w-14" viewBox="0 0 80 80">
                   <circle cx="40" cy="40" r="34" fill="none" stroke="currentColor" className="text-zinc-200 dark:text-zinc-800" strokeWidth="6" />
-                  <motion.circle cx="40" cy="40" r="34" fill="none" stroke="currentColor" className={progressoGeral >= 100 ? "text-emerald-500" : progressoGeral > 0 ? "text-blue-600 dark:text-blue-500" : "text-zinc-400"} strokeWidth="6" strokeLinecap="round" strokeDasharray={2 * Math.PI * 34} initial={{ strokeDashoffset: 2 * Math.PI * 34 }} animate={{ strokeDashoffset: 2 * Math.PI * 34 * (1 - Math.min(progressoGeral, 100) / 100) }} transition={{ duration: 1.5, ease: "easeOut" }} />
+                  <Motion.circle cx="40" cy="40" r="34" fill="none" stroke="currentColor" className={progressoGeral >= 100 ? "text-emerald-500" : progressoGeral > 0 ? "text-blue-600 dark:text-blue-500" : "text-zinc-400"} strokeWidth="6" strokeLinecap="round" strokeDasharray={2 * Math.PI * 34} initial={{ strokeDashoffset: 2 * Math.PI * 34 }} animate={{ strokeDashoffset: 2 * Math.PI * 34 * (1 - Math.min(progressoGeral, 100) / 100) }} transition={{ duration: 1.5, ease: "easeOut" }} />
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
                   <span className={cx("text-[9px] font-black sm:text-[10px] md:text-sm", progressoGeral >= 100 ? "text-emerald-500" : progressoGeral > 0 ? "text-blue-600 dark:text-blue-500" : "text-zinc-400")}>{progressoGeral}%</span>
@@ -958,45 +756,35 @@ export function RevisaoPage({ user, onStartStudy, addRegistroEstudo, deleteCompl
           </div>
         </section>
 
-        <section className="flex flex-col items-start justify-between gap-4 px-2 sm:flex-row sm:items-center">
-          <div className="flex items-center gap-4">
-            <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-zinc-400">
-              <ListChecks size={16} /> Revisoes
-            </h3>
-
-            <div className="hidden items-center gap-1 rounded-lg bg-zinc-200/50 p-1 shadow-sm dark:bg-zinc-800 sm:flex">
-              {tabs.map((tab) => {
-                const Icon = tab.icon;
-                const selected = aba === tab.id;
-                return (
-                  <button
-                    type="button"
-                    key={tab.id}
-                    onClick={() => setAba(tab.id)}
-                    className={cx(
-                      "flex items-center justify-center gap-1.5 rounded px-3 py-1.5 text-[10px] font-black uppercase tracking-widest transition-colors",
-                      selected
-                        ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-white"
-                        : "text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300"
-                    )}
-                  >
-                    <Icon size={12} />
-                    {tab.label}
-                    <span className={cx(
-                      "rounded px-1.5 py-0.5 text-[9px] tabular-nums",
-                      selected ? "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200" : "bg-white/70 text-zinc-500 dark:bg-zinc-900/60 dark:text-zinc-400"
-                    )}>
-                      {tab.count}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
+        <section className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
+          <ReviewStatCard
+            icon={CheckCircle2}
+            title="Revisões feitas"
+            value={resumoRevisoesFeitas.quantidade}
+            detail="Concluídas"
+          />
+          <ReviewStatCard
+            icon={AlertTriangle}
+            title="Revisões críticas"
+            value={central.metricas.atrasoCritico}
+            detail="7+ dias"
+          />
+          <ReviewStatCard
+            icon={Clock}
+            title="Tempo de revisão feito"
+            value={fmtMin(resumoRevisoesFeitas.minutos)}
+            detail="Registrado"
+          />
+          <ReviewStatCard
+            icon={Brain}
+            title="Progresso de retenção"
+            value={`${progressoGeral}%`}
+            detail="Cobertura atual"
+          />
         </section>
 
-        <section className="flex items-center gap-1 rounded-lg bg-zinc-200/50 p-1 shadow-sm dark:bg-zinc-800 sm:hidden">
+        <section className="overflow-x-auto rounded-lg bg-zinc-200/50 p-1 shadow-sm dark:bg-zinc-800">
+          <div className="flex min-w-max items-center gap-1 sm:min-w-0">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const selected = aba === tab.id;
@@ -1006,7 +794,7 @@ export function RevisaoPage({ user, onStartStudy, addRegistroEstudo, deleteCompl
                 key={tab.id}
                 onClick={() => setAba(tab.id)}
                 className={cx(
-                  "flex-1 flex items-center justify-center gap-1.5 rounded px-3 py-1.5 text-[10px] font-black uppercase tracking-widest transition-colors",
+                  "flex min-w-[118px] flex-1 items-center justify-center gap-1.5 rounded px-3 py-2 text-[10px] font-black uppercase tracking-widest transition-colors sm:min-w-0",
                   selected
                     ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-white"
                     : "text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300"
@@ -1014,16 +802,23 @@ export function RevisaoPage({ user, onStartStudy, addRegistroEstudo, deleteCompl
               >
                 <Icon size={12} />
                 <span className="truncate">{tab.label}</span>
+                <span className={cx(
+                  "rounded px-1.5 py-0.5 text-[9px] tabular-nums",
+                  selected ? "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200" : "bg-white/70 text-zinc-500 dark:bg-zinc-900/60 dark:text-zinc-400"
+                )}>
+                  {tab.count}
+                </span>
               </button>
             );
           })}
+          </div>
         </section>
 
-        <section className="min-h-0 w-full flex-1">
+        <section className="grid min-h-0 w-full flex-1 gap-5 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_340px]">
           <div className="min-h-[420px]">
             <AnimatePresence mode="wait">
               {slotsExibidos.length === 0 ? (
-                <motion.div
+                <Motion.div
                   key="empty"
                   initial={{ opacity: 0, y: 16 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -1035,11 +830,10 @@ export function RevisaoPage({ user, onStartStudy, addRegistroEstudo, deleteCompl
                   </div>
                   <p className="text-base font-black text-zinc-950 dark:text-white">{activeTab.emptyTitle}</p>
                   <p className="mt-2 max-w-sm text-sm font-medium leading-relaxed text-zinc-500 dark:text-zinc-400">{activeTab.emptyText}</p>
-                </motion.div>
+                </Motion.div>
               ) : (
                 <RevisaoListaTimeline
                   items={slotsExibidos}
-                  activeTab={activeTab}
                   onConcluir={handleConcluir}
                   onIniciar={onStartStudy ? handleIniciar : null}
                   onDominar={handleDominar}
@@ -1049,6 +843,18 @@ export function RevisaoPage({ user, onStartStudy, addRegistroEstudo, deleteCompl
               )}
             </AnimatePresence>
           </div>
+          <aside className="space-y-4">
+            <section className="rounded-3xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-zinc-950/45 sm:p-5">
+              <div className="mb-4 flex items-center gap-2"><BarChart3 size={17} className="text-violet-600" /><div><p className="text-[9px] font-black uppercase tracking-[0.2em] text-violet-600">Diagnóstico</p><h2 className="font-black">Por disciplina</h2></div></div>
+              <div className="space-y-3">{central.diagnosticoDisciplinas.slice(0, 6).map((item) => <article key={item.id} className="rounded-2xl bg-zinc-50 p-3 dark:bg-white/[0.04]"><div className="flex items-start justify-between gap-2"><p className="min-w-0 text-sm font-black leading-tight">{item.nome}</p><span className={cx("rounded-md px-2 py-0.5 text-[9px] font-black uppercase", item.risco === "alto" ? "bg-red-100 text-red-700 dark:bg-red-400/10 dark:text-red-300" : item.risco === "medio" ? "bg-amber-100 text-amber-700 dark:bg-amber-400/10 dark:text-amber-300" : "bg-emerald-100 text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-300")}>{item.risco}</span></div><div className="mt-2 flex gap-3 text-[10px] font-bold text-zinc-500"><span>{item.atrasadas} atrasadas</span><span>{item.cobertura}% coberto</span></div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800"><div className="h-full rounded-full bg-violet-600" style={{ width: `${item.cobertura}%` }} /></div></article>)}</div>
+            </section>
+            <section className="rounded-3xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-zinc-950/45 sm:p-5">
+              <div className="flex items-center gap-2"><BookOpen size={17} className="text-blue-600" /><div><p className="text-[9px] font-black uppercase tracking-[0.2em] text-blue-600">Edital + histórico</p><h2 className="font-black">Cobertura real</h2></div></div>
+              <p className="mt-3 text-sm font-medium leading-relaxed text-zinc-500 dark:text-zinc-400">{central.cobertura.semRevisaoRecente.length} assunto(s) do planejamento estão sem revisão recente. O cálculo usa os registros compartilhados por Histórico e Desempenho.</p>
+              <div className="mt-4 flex items-center justify-between rounded-2xl bg-blue-50 p-3 dark:bg-blue-400/10"><span className="text-xs font-black text-blue-700 dark:text-blue-300">Retenção atual</span><span className="text-xl font-black text-blue-700 dark:text-blue-300">{progressoGeral}%</span></div>
+              {central.cobertura.semRevisaoRecente.slice(0, 3).map((item) => <p key={`${item.disciplinaId}:${item.assunto}`} className="mt-2 line-clamp-2 text-xs font-semibold text-zinc-600 dark:text-zinc-300">• {item.disciplinaNome}: {item.assunto}</p>)}
+            </section>
+          </aside>
         </section>
 
       </main>

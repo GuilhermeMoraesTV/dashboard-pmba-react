@@ -174,6 +174,9 @@ function PlanejamentoPage({
   abrirDiretoSeletor = false,
   onSeletorDiretoAberto,
   onRegistroModalOpenChange,
+  initialEdital = null,
+  onInitialEditalConsumed,
+  onBackToEditais,
 }) {
   const [aba, setAba] = useState('todos');
   const [telaCriacao, setTelaCriacao] = useState('lista'); // 'lista' | 'seletor'
@@ -182,6 +185,13 @@ function PlanejamentoPage({
   const [cicloParaEditar, setCicloParaEditar] = useState(null);
   const [cronogramaParaEditar, setCronogramaParaEditar] = useState(null);
   const [seletorDiretoAtivo, setSeletorDiretoAtivo] = useState(false);
+  const [editalPreSelecionado, setEditalPreSelecionado] = useState(initialEdital);
+
+  useEffect(() => {
+    if (!initialEdital) return;
+    setEditalPreSelecionado(initialEdital);
+    setTelaCriacao('seletor');
+  }, [initialEdital]);
 
   useEffect(() => {
     if (abrirDiretoSeletor && !wizardAberto && !selectedCicloId && !cicloParaEditar && !cronogramaParaEditar) {
@@ -196,6 +206,12 @@ function PlanejamentoPage({
     setWizardAberto(tipo);
   };
 
+  const fecharWizardCriacao = () => {
+    setWizardAberto(null);
+    setEditalPreSelecionado(null);
+    onInitialEditalConsumed?.();
+  };
+
   const abrirSeletorCriacao = () => {
     setSeletorDiretoAtivo(false);
     setTelaCriacao('seletor');
@@ -204,6 +220,13 @@ function PlanejamentoPage({
   const voltarParaMetodos = () => {
     setWizardAberto(null);
     setTelaCriacao('seletor');
+  };
+
+  const voltarParaEditais = () => {
+    setEditalPreSelecionado(null);
+    setSeletorDiretoAtivo(false);
+    onInitialEditalConsumed?.();
+    onBackToEditais?.();
   };
 
   const abrirEdicaoCiclo = (ciclo) => {
@@ -276,11 +299,15 @@ function PlanejamentoPage({
     return (
       <div className="p-0 min-h-[50vh] animate-fade-in">
         <CicloCreateWizard
-          onClose={() => setWizardAberto(null)}
+          onClose={fecharWizardCriacao}
           onBackToSelector={voltarParaMetodos}
           user={user}
+          preselectedEdital={editalPreSelecionado}
+          initialStep={editalPreSelecionado ? 2 : 1}
           onCicloAtivado={(novoCicloId) => {
             setWizardAberto(null);
+            setEditalPreSelecionado(null);
+            onInitialEditalConsumed?.();
             onCicloAtivado?.(novoCicloId);
           }}
           onOpenFeedback={onOpenFeedback}
@@ -294,10 +321,14 @@ function PlanejamentoPage({
       <div className="p-0 min-h-[50vh] animate-fade-in">
         <CronogramaCreateWizard
           user={user}
-          onClose={() => setWizardAberto(null)}
+          onClose={fecharWizardCriacao}
           onBackToSelector={voltarParaMetodos}
+          preselectedEdital={editalPreSelecionado}
+          initialStep={editalPreSelecionado ? 1 : 0}
           onCronogramaCriado={(novoCronogramaId) => {
             setWizardAberto(null);
+            setEditalPreSelecionado(null);
+            onInitialEditalConsumed?.();
             onGoToCronograma?.(novoCronogramaId);
           }}
           onOpenFeedback={onOpenFeedback}
@@ -314,6 +345,7 @@ function PlanejamentoPage({
           setTelaCriacao('lista');
         }}
         hideBack={seletorDiretoAtivo}
+        onBackToEditais={editalPreSelecionado && onBackToEditais ? voltarParaEditais : undefined}
         onCriarCiclo={() => abrirCriacao('ciclo')}
         onCriarCronograma={() => abrirCriacao('cronograma')}
       />

@@ -379,7 +379,7 @@ const TelaEscolhaTipo = ({ onManual, onCatalogo }) => {
 };
 
 // ─── TELA CATÁLOGO ────────────────────────────────────────────────────────────
-const TelaCatalogo = ({ modelos, carregando, idConfirmado, onConfirmar, onAbrirSuporte }) => {
+const TelaCatalogo = ({ modelos, carregando, idConfirmado, onConfirmar, onAbrirSuporte, cardsClassName = '' }) => {
   const [busca, setBusca] = useState('');
 
   const modelosFiltrados = useMemo(() => {
@@ -437,7 +437,7 @@ const TelaCatalogo = ({ modelos, carregando, idConfirmado, onConfirmar, onAbrirS
         ) : total === 0 ? (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center py-20 bg-zinc-50 dark:bg-zinc-900/50 rounded-[40px] border-2 border-dashed border-zinc-200 dark:border-zinc-800"><Search size={48} className="text-zinc-200 dark:text-zinc-800 mb-4" strokeWidth={1.5} /><h3 className="font-black text-zinc-400 uppercase tracking-widest">Missão não localizada</h3></motion.div>
         ) : (
-          <div className="space-y-2 pb-10">
+          <div className={`space-y-2 pb-10 ${cardsClassName}`}>
             {Object.entries(categorias).map(([chave, itens]) => itens.length > 0 && (<SecaoCategoria key={chave} chave={chave} itens={itens} idConfirmado={idConfirmado} onConfirmar={onConfirmar} />))}
           </div>
         )}
@@ -477,7 +477,7 @@ const Step1_Edital = ({ editalSelecionado, modelos = [], carregando, onSelect, o
   );
 };
 
-export { Step1_Edital };
+export { Step1_Edital, TelaCatalogo };
 export default Step1_Edital;
 
 

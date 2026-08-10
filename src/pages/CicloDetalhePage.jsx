@@ -17,7 +17,7 @@ import { useCicloRevisoes } from '../hooks/useCicloRevisoes';
 import CardSessoesCicloHoje from '../components/ciclos/CardSessoesCicloHoje';
 import { formatDateKeyLocal } from '../services/scheduling/review';
 import { buildCompletionRegistro } from '../utils/completionRegistro';
-import { getCycleDailyGuide, getRegistroDateKey } from '../utils/studyDayStatus';
+import { getCycleFreeQueue, getRegistroDateKey } from '../utils/studyDayStatus';
 import { isCicloLegacyForGuide } from '../utils/cicloLegacyUpgrade';
 
 import {
@@ -520,7 +520,6 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
   const [optimisticReviewDone, setOptimisticReviewDone] = useState({});
   const previousDailyGoalDoneRef = useRef(null);
   const dailyGoalShownRef = useRef(new Set());
-  const revisoesSectionRef = useRef(null);
   const configMenuRef = useRef(null);
 
   useEffect(() => {
@@ -691,13 +690,9 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
   const hojeKey = useMemo(() => formatDateKeyLocal(new Date()), []);
   const cicloGuideHoje = useMemo(() => {
     if (!ciclo?.id) return { sessions: [], plannedMinutes: 0, isRestDay: false };
-    return getCycleDailyGuide({ ...ciclo, disciplinas }, new Date(), allRegistrosEstudo);
+    return getCycleFreeQueue({ ...ciclo, disciplinas }, allRegistrosEstudo);
   }, [allRegistrosEstudo, ciclo, disciplinas]);
-  const estudosDiaConcluidos = useMemo(() => (
-    !cicloGuideHoje.isRestDay
-    && cicloGuideHoje.sessions?.length > 0
-    && cicloGuideHoje.sessions.every((sessao) => sessao.concluida)
-  ), [cicloGuideHoje]);
+  const estudosDiaConcluidos = false;
   const registrosHojeCiclo = useMemo(() => (
     allRegistrosEstudo.filter((registro) => (
       getRegistroDateKey(registro) === hojeKey
@@ -920,11 +915,7 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
     }
   };
   const handleGoToRevisoesCiclo = () => {
-    if (totalPendentesRevisoesCiclo <= 0) {
-      onGoToRevisao?.();
-      return;
-    }
-    revisoesSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    onGoToRevisao?.();
   };
 
   // Concluir direto do CicloVisual (sem modal intermediário)
@@ -966,7 +957,7 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
 
   // --- RENDERIZAÇÃO ---
   return (
-    <div className="desktop-page-zoom desktop-page-zoom--ciclo relative flex min-h-[calc(100vh-120px)] flex-col animate-fade-in">
+    <div className="desktop-page-zoom desktop-page-zoom--ciclo mobile-page-zoom mobile-page-zoom--ciclo relative flex min-h-[calc(100vh-120px)] flex-col animate-fade-in">
       <div className="mb-4">
           {/* HEADER SUPERIOR — botão "Concluir Missão" removido daqui, agora está no CicloVisual */}
           <div className="flex items-center justify-between mb-4">
@@ -1205,21 +1196,6 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
                                       type="button"
                                       onClick={() => {
                                           setConfigMenuOpen(false);
-                                          setShowUpgradeModal(true);
-                                      }}
-                                      className="group relative flex w-full items-center gap-2.5 rounded-xl border border-red-100/80 bg-gradient-to-r from-red-50/90 to-white p-2.5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-red-200 hover:shadow-md hover:shadow-red-600/10 dark:border-red-950/60 dark:from-red-950/35 dark:to-zinc-950 dark:hover:border-red-900"
-                                  >
-                                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-600 text-white shadow-sm shadow-red-600/20"><Cog size={14} /></span>
-                                      <span className="min-w-0 flex-1">
-                                          <span className="block text-[10px] font-black uppercase tracking-wide text-zinc-900 dark:text-white">Ajuste simples</span>
-                                          <span className="mt-0.5 block text-[10px] font-medium leading-snug text-zinc-500 dark:text-zinc-400">Altere nome e preferências sem redistribuir o ciclo.</span>
-                                      </span>
-                                      <ChevronRight size={14} className="shrink-0 text-red-300 transition-transform group-hover:translate-x-0.5 group-hover:text-red-600 dark:text-red-800 dark:group-hover:text-red-400" />
-                                  </button>
-                                  <button
-                                      type="button"
-                                      onClick={() => {
-                                          setConfigMenuOpen(false);
                                           setShowTimerSettings(true);
                                       }}
                                       className="group relative mt-1.5 flex w-full items-center gap-2.5 rounded-xl border border-zinc-200/80 bg-white p-2.5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-zinc-300 hover:bg-zinc-50 hover:shadow-md hover:shadow-zinc-900/5 dark:border-zinc-800 dark:bg-zinc-900/70 dark:hover:border-zinc-700 dark:hover:bg-zinc-900"
@@ -1264,13 +1240,9 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
       </div>
 
       {!showEmptyMessage && (
-          <div className="-mx-2 min-h-0 flex-grow sm:-mx-4 md:-mx-6 lg:-mx-8">
-              <div className={`grid min-h-0 grid-cols-1 items-start gap-3 ${showAssuntosCiclo ? 'xl:grid-cols-[minmax(0,0.92fr)_minmax(0,0.58fr)] 2xl:grid-cols-[minmax(0,0.98fr)_minmax(340px,0.62fr)]' : 'justify-items-center xl:grid-cols-1'}`}>
-                  <section className={`ciclo-visual-card-shell relative flex flex-col rounded-2xl border border-zinc-200/70 bg-white/80 px-2.5 py-2.5 shadow-lg shadow-zinc-200/30 backdrop-blur-xl dark:border-zinc-800/70 dark:bg-zinc-950/35 dark:shadow-none sm:px-4 sm:py-3 ${
-                      showAssuntosCiclo
-                          ? 'w-full overflow-hidden'
-                          : 'mx-auto w-full max-w-[880px] overflow-hidden'
-                  }`}>
+          <div className="-mx-2 min-h-0 sm:-mx-4 md:-mx-6 lg:-mx-8">
+              <div className="grid min-h-0 grid-cols-1 items-start gap-3 xl:grid-cols-[minmax(0,1.08fr)_minmax(380px,0.62fr)] 2xl:grid-cols-[minmax(0,1.12fr)_minmax(410px,0.64fr)]">
+                  <section className="ciclo-visual-card-shell relative flex w-full flex-col overflow-hidden rounded-2xl border border-zinc-200/70 bg-white/80 px-2.5 py-2.5 shadow-lg shadow-zinc-200/30 backdrop-blur-xl dark:border-zinc-800/70 dark:bg-zinc-950/35 dark:shadow-none sm:px-4 sm:py-3">
                       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-red-500/40 to-transparent" />
                       <div className="relative mb-2 flex flex-wrap items-center justify-between gap-2 px-1 sm:px-2">
                           <div>
@@ -1292,7 +1264,7 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
                               registrosEstudo={registrosAtivosDaSemana}
                               viewMode={'total'}
                               ciclo={ciclo}
-                              showAssuntos={showAssuntosCiclo}
+                              showAssuntos={false}
                               canConcludeCiclo={canConcludeCiclo}
                               onMarcarSessao={handleMarcarSessaoDoVisual}
                               onConcluirCiclo={handleConcluirCicloDoVisual}
@@ -1302,11 +1274,10 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
                       </div>
                   </section>
 
-                  {showAssuntosCiclo && (
-                  <aside className="min-w-0 max-w-full space-y-4 overflow-hidden xl:flex xl:max-h-[700px] xl:flex-col xl:space-y-4 xl:overflow-y-auto xl:pr-1">
+                  <aside className="min-w-0 max-w-full space-y-4 overflow-hidden xl:flex xl:h-full xl:min-h-0 xl:flex-col xl:space-y-4 xl:pr-1">
                   {/* COLUNA: GUIA DE ESTUDO DO DIA (A ESTRELA DA PÁGINA) */}
-                  <div className="space-y-3 xl:order-1">
-                      <div>
+                  <div className="space-y-3 xl:order-1 xl:flex xl:min-h-0 xl:flex-1 xl:flex-col xl:space-y-3">
+                      <div className="xl:shrink-0">
                       <CicloRevisoesShortcutButton
                           totalAtrasadas={revisoesAtrasadasCiclo.length}
                           totalHoje={revisoesDoDiaCicloVisiveis.length}
@@ -1315,45 +1286,21 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
                           onClick={handleGoToRevisoesCiclo}
                       />
                       </div>
-                        <div>
+                        <div className="xl:min-h-0 xl:flex-1">
                         <CardSessoesCicloHoje
                             ciclo={ciclo}
                             disciplinas={disciplinas}
                             onIniciarSessao={handleIniciarSessaoSugerida}
                             onToggleSessao={handleToggleSessaoSugerida}
-                            onMarcarTeoriaPendente={handleMarcarTeoriaPendente}
                             loadingSessionId={loadingCicloSessao}
-                            variant="cycle"
-                            showAssuntos={showAssuntosCiclo}
                             useDisciplineColors={ciclo?.coresDisciplinasAtivas !== false}
                             registrosEstudo={allRegistrosEstudo}
+                            fillAvailableHeight
                         />
                         </div>
                   </div>
 
-                  {/* COLUNA: REVISÕES DO CICLO (SIDEBAR SLEEK) */}
-                  <div ref={revisoesSectionRef} className="scroll-mt-4 xl:order-2 xl:shrink-0">
-                    {(loadingRevisoesCiclo || revisoesAtrasadasCicloVisiveis.length > 0 || revisoesDoDiaCicloVisiveis.length > 0) && (
-                      <div className="relative overflow-hidden rounded-2xl border border-zinc-200/60 bg-white/40 p-1 shadow-xl shadow-zinc-200/20 backdrop-blur-xl dark:border-zinc-800/40 dark:bg-zinc-950/20 dark:shadow-none sm:rounded-[32px] sm:shadow-2xl">
-                         <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-blue-500/5 blur-3xl" />
-                         
-                         <CicloRevisoesOperacionaisCard
-                            revisoesAtrasadas={revisoesAtrasadasCicloVisiveis}
-                            revisoesHoje={revisoesDoDiaCicloVisiveis}
-                            totalPendentes={totalPendentesRevisoesCiclo}
-                            loading={loadingRevisoesCiclo}
-                            acaoRevisao={acaoRevisaoCiclo}
-                            onIniciar={handleIniciarRevisaoCiclo}
-                            onConcluir={handleConcluirRevisaoCiclo}
-                            onReagendar={handleReagendarRevisaoCiclo}
-                        />
-                      </div>
-                    )}
-                      
-                      {/* CARD ADICIONAL DE DICA ESTRATÉGICA (DANDO MAIS VIDA À PÁGINA) */}
-                  </div>
-                  </aside>
-                  )}
+                   </aside>
               </div>
           </div>
       )}

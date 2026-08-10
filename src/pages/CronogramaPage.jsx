@@ -3324,25 +3324,6 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
                     <button
                       type="button"
                       onClick={() => {
-                        setEditInitialMode('simple');
-                        setConfigMenuOpen(false);
-                        setMostrandoEditar(true);
-                      }}
-                      className="group relative flex w-full items-center gap-3 overflow-hidden rounded-xl border border-red-200 bg-red-50 p-3 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-red-300 hover:bg-red-100 hover:shadow-md hover:shadow-red-600/10 dark:border-red-900/50 dark:bg-red-950/20 dark:hover:border-red-800 dark:hover:bg-red-950/35"
-                    >
-                      <span className="absolute right-2 top-2 rounded-full bg-white/80 px-1.5 py-0.5 text-[7px] font-black uppercase tracking-widest text-red-600 ring-1 ring-red-100 dark:bg-red-950/60 dark:text-red-300 dark:ring-red-900/50">
-                        rápido
-                      </span>
-                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-600 text-white shadow-sm shadow-red-600/20"><Cog size={16} /></span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-[11px] font-black uppercase tracking-wide text-zinc-900 dark:text-white">Ajuste simples</span>
-                        <span className="mt-1 block text-[9px] font-semibold leading-snug text-red-700/80 dark:text-red-200/80">Nome, datas e preferências sem recalcular a distribuição.</span>
-                      </span>
-                      <ChevronRight size={14} className="shrink-0 text-red-300 transition-transform group-hover:translate-x-0.5 group-hover:text-red-600 dark:text-red-800 dark:group-hover:text-red-400" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
                         setEditInitialMode('recalculate');
                         setConfigMenuOpen(false);
                         setMostrandoEditar(true);
