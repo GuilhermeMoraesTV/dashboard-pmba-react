@@ -140,11 +140,11 @@ const CicloCard = ({ ciclo, editaisMap, registrosEstudo = [], onOpen, onMenuTogg
       <div className="relative z-10 flex h-full flex-col">
         <div className="mb-3 flex items-start justify-between sm:mb-4">
           <div className="flex flex-wrap items-center gap-2">
-            <div className={`flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[9px] font-black uppercase tracking-widest sm:px-2.5 sm:py-1 sm:text-[10px] ${ciclo.ativo ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.2)]' : 'border-zinc-200 bg-zinc-100 text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800'}`}>
+            <div className={`flex items-center gap-1.5 rounded-md border px-2 py-1 text-[10px] font-black uppercase tracking-widest sm:px-2.5 sm:text-[11px] ${ciclo.ativo ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.2)]' : 'border-zinc-200 bg-zinc-100 text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800'}`}>
               {ciclo.ativo && <span className="relative flex h-1.5 w-1.5"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" /><span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" /></span>}
               {ciclo.ativo ? 'ATIVO' : 'INATIVO'}
             </div>
-            <div className="flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-zinc-100 px-2 py-1 text-[9px] font-black uppercase tracking-widest text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800/50">
+            <div className="flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-zinc-100 px-2 py-1 text-[10px] font-black uppercase tracking-widest text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800/50 sm:text-[11px]">
               <RotateCw size={10} /> {concluidoCount} voltas
             </div>
           </div>
@@ -170,20 +170,20 @@ const CicloCard = ({ ciclo, editaisMap, registrosEstudo = [], onOpen, onMenuTogg
           <div className="mb-4 hidden h-1 w-8 rounded-full bg-red-500 transition-all duration-500 group-hover:w-16 sm:block" />
           <div className="mb-3 grid grid-cols-2 gap-1.5 sm:mb-4 sm:gap-2">
             <div className="flex min-w-0 items-center gap-1.5 rounded-lg border border-zinc-200/70 bg-zinc-50/80 px-2 py-1.5 text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-400">
-              <CalendarClock size={12} className="shrink-0 text-red-500/70" />
-              <span className="min-w-0 truncate text-[9px] font-bold sm:text-[10px]">Inicio: {formatDate(dataInicio)}</span>
+              <CalendarClock size={14} className="shrink-0 text-red-500/70" />
+              <span className="min-w-0 truncate text-[11px] font-bold sm:text-xs">Inicio: {formatDate(dataInicio)}</span>
             </div>
             <div className="flex min-w-0 items-center gap-1.5 rounded-lg border border-zinc-200/70 bg-zinc-50/80 px-2 py-1.5 text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-400">
-              <Target size={12} className="shrink-0 text-red-500/70" />
-              <span className="min-w-0 truncate text-[9px] font-bold sm:text-[10px]">Termino: {formatDate(dataFim)}</span>
+              <Target size={14} className="shrink-0 text-red-500/70" />
+              <span className="min-w-0 truncate text-[11px] font-bold sm:text-xs">Termino: {formatDate(dataFim)}</span>
             </div>
             <div className="flex min-w-0 items-center gap-1.5 rounded-lg border border-zinc-200/70 bg-zinc-50/80 px-2 py-1.5 text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-400">
-              <Clock size={12} className="shrink-0 text-red-500/70" />
-              <span className="min-w-0 truncate text-[9px] font-bold sm:text-[10px]">{formatHours(totalHoras)} estudadas</span>
+              <Clock size={14} className="shrink-0 text-red-500/70" />
+              <span className="min-w-0 truncate text-[11px] font-bold sm:text-xs">{formatHours(totalHoras)} estudadas</span>
             </div>
             <div className="flex min-w-0 items-center gap-1.5 rounded-lg border border-zinc-200/70 bg-zinc-50/80 px-2 py-1.5 text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-400">
-              <Calendar size={12} className="shrink-0 text-red-500/70" />
-              <span className="min-w-0 truncate text-[9px] font-bold sm:text-[10px]">{formatHours(cargaSemanal)}/sem</span>
+              <Calendar size={14} className="shrink-0 text-red-500/70" />
+              <span className="min-w-0 truncate text-[11px] font-bold sm:text-xs">{formatHours(cargaSemanal)}/sem</span>
             </div>
           </div>
 

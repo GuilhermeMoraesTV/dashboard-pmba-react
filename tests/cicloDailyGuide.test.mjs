@@ -61,8 +61,72 @@ describe('cycle free queue', () => {
 
     const queue = getCycleFreeQueue(ciclo, []);
     assert.deepEqual(queue.sessions.map((session) => session.disciplinaId), ['pt', 'mat', 'pt']);
-    assert.deepEqual(queue.sessions.map((session) => session.tempoPlanejadoMinutos), [45, 55, 40]);
+    assert.deepEqual(queue.sessions.map((session) => session.tempoPlanejadoMinutos), [50, 60, 40]);
     assert.equal(queue.sessions.some((session) => session.assignedDate || session.carriedOver), false);
+  });
+
+  it('does not reuse records from a completed round in the new free queue', () => {
+    const ciclo = {
+      id: 'ciclo-voltas',
+      tempoSessaoMinutos: 60,
+      disciplinas: [{ id: 'pt', nome: 'Portugues', assuntos: ['A'] }],
+      ordemSessoes: [{ disciplinaId: 'pt', sessaoIndex: 0, tempoPlanejadoMinutos: 45 }],
+      sessoesConcluidas: [],
+      progressoSessoes: {},
+    };
+    const queue = getCycleFreeQueue(ciclo, [{
+      cicloId: ciclo.id,
+      disciplinaId: 'pt',
+      sessaoGlobalIndex: 0,
+      tempoEstudadoMinutos: 45,
+      conclusaoId: 1,
+    }]);
+
+    assert.equal(queue.sessions[0].concluida, false);
+    assert.equal(queue.sessions[0].progressoMinutos, 0);
+    assert.equal(queue.remainingMinutes, 50);
+  });
+
+  it('repairs an old max-only order with the configured discipline durations', () => {
+    const queue = getCycleFreeQueue({
+      id: 'ciclo-duracoes',
+      tempoSessaoMinutos: 90,
+      disciplinas: [{
+        id: 'pt',
+        nome: 'Portugues',
+        duracoesSessoes: [50, 70, 90],
+      }],
+      ordemSessoes: [
+        { disciplinaId: 'pt', sessaoIndex: 0, tempoPlanejadoMinutos: 90 },
+        { disciplinaId: 'pt', sessaoIndex: 1, tempoPlanejadoMinutos: 90 },
+        { disciplinaId: 'pt', sessaoIndex: 2, tempoPlanejadoMinutos: 90 },
+      ],
+      sessoesConcluidas: [],
+      progressoSessoes: {},
+    });
+
+    assert.deepEqual(queue.sessions.map((session) => session.tempoPlanejadoMinutos), [50, 70, 90]);
+    assert.equal(queue.plannedMinutes, 210);
+  });
+
+  it('normalizes persisted visual blocks to round ten-minute durations', () => {
+    const queue = getCycleFreeQueue({
+      id: 'ciclo-tempos-redondos',
+      duracaoMinimaSessaoMinutos: 40,
+      duracaoMaximaSessaoMinutos: 90,
+      disciplinas: [{
+        id: 'pt',
+        nome: 'Portugues',
+        duracoesSessoes: [55, 66, 88],
+      }],
+      ordemSessoes: [
+        { disciplinaId: 'pt', sessaoIndex: 0 },
+        { disciplinaId: 'pt', sessaoIndex: 1 },
+        { disciplinaId: 'pt', sessaoIndex: 2 },
+      ],
+    });
+
+    assert.deepEqual(queue.sessions.map((session) => session.tempoPlanejadoMinutos), [60, 70, 90]);
   });
 
   it('does not create a missed-day status when the cycle was not studied', () => {

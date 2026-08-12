@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle, BookOpen, Play, Clock, Target, Trophy, CheckCircle2, Sparkles, RotateCw } from 'lucide-react';
 import { getCycleAssuntoForSession, getCycleSessionRecordedMinutes } from '../../utils/studyDayStatus';
 import { getDisciplineColorForSlot } from '../../utils/disciplineColors';
+import { normalizarDuracaoSessao } from '../../utils/cicloDistribution';
 
 // --- HELPER: Formatador Inteligente de Horas ---
 const formatVisualHours = (minutes) => {
@@ -130,7 +131,6 @@ const CicloSegment = ({
   progressPercentage,
   concluida,
   isActive,
-  isRecentlyCompleted,
   onHover,
   onLeave,
   onClick
@@ -188,14 +188,14 @@ const CicloSegment = ({
           strokeOpacity={0.18}
           strokeLinecap="butt"
           initial={{ opacity: 0 }}
-          animate={isRecentlyCompleted ? { opacity: [0.15, 0.34, 0.18] } : { opacity: 0.18 }}
-          transition={{ duration: 0.9, ease: 'easeOut' }}
+          animate={{ opacity: 0.18 }}
+          transition={{ duration: 0 }}
         />
       )}
       <motion.path
         initial={{ d: initialPath }}
         animate={{ d: bgPath }}
-        transition={{ duration: 0.35, ease: 'circOut' }}
+        transition={{ duration: 0 }}
         fill="none"
         stroke={color}
         strokeWidth={strokeWidth}
@@ -212,8 +212,8 @@ const CicloSegment = ({
             stroke="white"
             strokeWidth="0.8"
             initial={{ scale: 0.6, opacity: 0 }}
-            animate={isRecentlyCompleted ? { scale: [0.8, 1.18, 1], opacity: [0.3, 1, 1] } : { scale: 1, opacity: 1 }}
-            transition={{ duration: 0.22, ease: 'easeOut' }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 0 }}
           />
           <motion.path
             d={`M ${badgeX - 0.95} ${badgeY + 0.05} L ${badgeX - 0.2} ${badgeY + 0.8} L ${badgeX + 1.25} ${badgeY - 0.95}`}
@@ -224,21 +224,8 @@ const CicloSegment = ({
             strokeLinejoin="round"
             initial={{ pathLength: 0, opacity: 0 }}
             animate={{ pathLength: 1, opacity: 1 }}
-            transition={{ duration: 0.18, delay: 0.04, ease: 'easeOut' }}
+            transition={{ duration: 0 }}
           />
-          {isRecentlyCompleted && (
-            <motion.circle
-              cx={badgeX}
-              cy={badgeY}
-              r="2.6"
-              fill="none"
-              stroke={CICLO_CONCLUIDO_COLOR}
-              strokeWidth="0.6"
-              initial={{ scale: 1, opacity: 0.55 }}
-              animate={{ scale: 1.9, opacity: 0 }}
-              transition={{ duration: 0.28, ease: 'easeOut' }}
-            />
-          )}
         </>
       )}
       {isActive && (
@@ -471,6 +458,8 @@ function CicloVisual({
   viewCiclo: controlledViewCiclo,
   onViewCicloChange,
   showViewToggle = true,
+  sessionCompletionOverrides = {},
+  loadingSessionIds = {},
 }) {
   const [hoveredId, setHoveredId] = useState(null);
   const [internalViewCiclo, setInternalViewCiclo] = useState('completo');
@@ -480,8 +469,6 @@ function CicloVisual({
     onViewCicloChange?.(nextView);
   }, [onViewCicloChange]);
   const [disciplinaFocada, setDisciplinaFocada] = useState(null);
-  const [recentlyCompletedIndex, setRecentlyCompletedIndex] = useState(null);
-  const previousConcluidasRef = useRef(ciclo?.sessoesConcluidas || []);
   const previousIsConcluidoRef = useRef(false);
 
   // Detecta se é ciclo novo (com sessões) ou ciclo legado (por carga horária)
@@ -518,26 +505,6 @@ function CicloVisual({
     });
     return mapa;
   }, [disciplinas, shouldUseDisciplineColors]);
-
-  useEffect(() => {
-    if (!isModoCicloSessoes) return undefined;
-
-    const atuais = Array.isArray(ciclo?.sessoesConcluidas) ? ciclo.sessoesConcluidas : [];
-    const anteriores = Array.isArray(previousConcluidasRef.current) ? previousConcluidasRef.current : [];
-    const novaConclusao = atuais.find((index) => !anteriores.includes(index));
-
-    if (typeof novaConclusao === 'number') {
-      setRecentlyCompletedIndex(novaConclusao);
-      const timeoutId = window.setTimeout(() => {
-        setRecentlyCompletedIndex((current) => (current === novaConclusao ? null : current));
-      }, 1600);
-      previousConcluidasRef.current = atuais;
-      return () => window.clearTimeout(timeoutId);
-    }
-
-    previousConcluidasRef.current = atuais;
-    return undefined;
-  }, [ciclo?.sessoesConcluidas, isModoCicloSessoes]);
 
   useEffect(() => {
     if (!isResetAnimating) return;
@@ -621,9 +588,21 @@ function CicloVisual({
         disciplina,
         allowLooseMatch: false,
       });
-      const tempoPlanejadoSessao = Math.max(1, Number(sessao.tempoPlanejadoMinutos || sessao.tempoMinutos || tempoSessaoPadrao));
-      const progressoMinutos = Math.max(progressoPersistido, progressoRegistrado);
-      const concluida = sessoesConcluidasSet.has(globalIndex) || progressoMinutos >= tempoPlanejadoSessao;
+      const duracaoConfigurada = Number(disciplina.duracoesSessoes?.[Number(sessao.sessaoIndex)] || 0);
+      const tempoPlanejadoSessao = normalizarDuracaoSessao(
+        duracaoConfigurada || sessao.tempoPlanejadoMinutos || sessao.tempoMinutos || tempoSessaoPadrao,
+        {
+          min: ciclo?.duracaoMinimaSessaoMinutos || 10,
+          max: ciclo?.duracaoMaximaSessaoMinutos || 240,
+        },
+      );
+      const completionOverride = sessionCompletionOverrides?.[globalIndex];
+      const progressoMinutos = typeof completionOverride === 'boolean'
+        ? (completionOverride ? tempoPlanejadoSessao : 0)
+        : Math.max(progressoPersistido, progressoRegistrado);
+      const concluida = typeof completionOverride === 'boolean'
+        ? completionOverride
+        : sessoesConcluidasSet.has(globalIndex) || progressoMinutos >= tempoPlanejadoSessao;
       const corBase = coresDisciplinas[disciplina.id] || '#71717a';
       const percentage = tempoPlanejadoSessao > 0 ? Math.min(100, Math.round((progressoMinutos / tempoPlanejadoSessao) * 100)) : 0;
       const color = concluida ? CICLO_CONCLUIDO_COLOR : progressoMinutos > 0 ? '#f59e0b' : corBase;
@@ -649,7 +628,7 @@ function CicloVisual({
       currentAngle += anguloPorSessao;
       return segmentData;
     }).filter(Boolean);
-  }, [disciplinas, ciclo, coresDisciplinas, registrosEstudo]);
+  }, [disciplinas, ciclo, coresDisciplinas, registrosEstudo, sessionCompletionOverrides]);
 
   const dataViewAtual = useMemo(() => {
     if (!isModoCicloSessoes) return dataLegado;
@@ -760,6 +739,11 @@ function CicloVisual({
   const getNextPendingSessionForDisciplina = (disciplinaId) => (
     data.find((sessao) => sessao.disciplina.id === disciplinaId && !sessao.concluida) || null
   );
+  const isSessionLoading = (sessionIndex) => Boolean(loadingSessionIds?.[Number(sessionIndex)]);
+  const isNextDisciplineSessionLoading = (disciplinaId) => {
+    const nextSession = getNextPendingSessionForDisciplina(disciplinaId);
+    return nextSession ? isSessionLoading(nextSession.globalIndex) : false;
+  };
 
   const handleConcluirDisciplinaAgregada = (disciplinaId) => {
     const sessao = getNextPendingSessionForDisciplina(disciplinaId);
@@ -809,7 +793,6 @@ function CicloVisual({
                     progressPercentage={seg.percentage}
                     concluida={!!seg.concluida}
                     isActive={activeDisciplina?.key === seg.key}
-                    isRecentlyCompleted={seg.globalIndex === recentlyCompletedIndex}
                     onHover={() => setHoveredId(seg.key)}
                     onLeave={() => setHoveredId(null)}
                     onClick={() => handleSegmentClick(seg)}
@@ -995,7 +978,7 @@ function CicloVisual({
                                 </button>
                                 <button
                                   onClick={() => handleConcluirDisciplinaAgregada(activeDisciplina.disciplina.id)}
-                                  disabled={cicloActionLoading || !getNextPendingSessionForDisciplina(activeDisciplina.disciplina.id)}
+                                  disabled={isNextDisciplineSessionLoading(activeDisciplina.disciplina.id) || !getNextPendingSessionForDisciplina(activeDisciplina.disciplina.id)}
                                   className="pointer-events-auto inline-flex items-center justify-center bg-emerald-600 px-[2px] font-black uppercase leading-none tracking-[0.02em] text-white shadow-[0_1.5px_5px_rgba(5,150,105,0.18)] transition hover:bg-emerald-700 active:scale-95 disabled:opacity-50"
                                   style={centerButtonStyle(CYCLE_CENTER_MANUAL_LAYOUT.actions.endWidth)}
                                 >
@@ -1005,7 +988,7 @@ function CicloVisual({
                             ) : !hideActionButtons && activeDisciplina.concluida && isModoCicloSessoes ? (
                               <button
                                 onClick={() => onMarcarSessao?.(activeDisciplina.globalIndex, activeDisciplina)}
-                                disabled={cicloActionLoading}
+                                disabled={isSessionLoading(activeDisciplina.globalIndex)}
                                 className="pointer-events-auto inline-flex items-center justify-center border border-emerald-500/40 bg-emerald-500/10 px-[4.4px] font-black uppercase leading-none tracking-[0.03em] text-emerald-600 disabled:opacity-60 dark:text-emerald-300"
                                 style={{
                                   ...centerCircularSlotStyle(CYCLE_CENTER_MANUAL_LAYOUT.actions),
@@ -1036,7 +1019,7 @@ function CicloVisual({
                                 {isModoCicloSessoes ? (
                                   <button
                                     onClick={() => onMarcarSessao?.(activeDisciplina.globalIndex, activeDisciplina)}
-                                    disabled={cicloActionLoading}
+                                    disabled={isSessionLoading(activeDisciplina.globalIndex)}
                                     className="pointer-events-auto inline-flex items-center justify-center bg-emerald-600 px-[2px] font-black uppercase leading-none tracking-[0.03em] text-white shadow-[0_1.5px_5px_rgba(5,150,105,0.24)] transition hover:bg-emerald-700 active:scale-95 disabled:opacity-60"
                                     style={centerButtonStyle(CYCLE_CENTER_MANUAL_LAYOUT.actions.endWidth)}
                                   >
@@ -1218,7 +1201,7 @@ function CicloVisual({
                         </button>
                         <button
                           onClick={() => handleConcluirDisciplinaAgregada(activeDisciplina.disciplina.id)}
-                          disabled={cicloActionLoading || !getNextPendingSessionForDisciplina(activeDisciplina.disciplina.id)}
+                          disabled={isNextDisciplineSessionLoading(activeDisciplina.disciplina.id) || !getNextPendingSessionForDisciplina(activeDisciplina.disciplina.id)}
                           className="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold text-xs uppercase tracking-wide shadow-lg shadow-emerald-600/20 transition-all hover:-translate-y-0.5 hover:bg-emerald-700 disabled:opacity-50 disabled:hover:translate-y-0"
                         >
                           Concluir
@@ -1311,7 +1294,7 @@ function CicloVisual({
                           </button>
                           <button
                             onClick={() => onMarcarSessao?.(activeDisciplina.globalIndex, activeDisciplina)}
-                            disabled={cicloActionLoading}
+                            disabled={isSessionLoading(activeDisciplina.globalIndex)}
                             className="px-4 py-3 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 rounded-xl font-bold text-xs uppercase tracking-wide hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors border border-zinc-200 dark:border-zinc-700 shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
                           >
                             Concluir
@@ -1323,7 +1306,7 @@ function CicloVisual({
                         <div className="mt-3">
                           <button
                             onClick={() => onMarcarSessao?.(activeDisciplina.globalIndex, activeDisciplina)}
-                            disabled={cicloActionLoading}
+                            disabled={isSessionLoading(activeDisciplina.globalIndex)}
                             className="w-full px-4 py-3 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 rounded-xl font-bold text-xs uppercase tracking-wide hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors border border-zinc-200 dark:border-zinc-700 shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
                           >
                             Desmarcar

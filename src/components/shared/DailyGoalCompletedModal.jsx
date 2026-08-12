@@ -11,6 +11,14 @@ const fmtMin = (min) => {
   return m > 0 ? `${h}h${String(m).padStart(2, '0')}` : `${h}h`;
 };
 
+const getStatValueSize = (value) => {
+  const length = String(value ?? '').length;
+  if (length <= 4) return 'text-xl sm:text-2xl';
+  if (length <= 9) return 'text-lg sm:text-xl';
+  if (length <= 14) return 'text-base sm:text-lg';
+  return 'text-sm sm:text-base';
+};
+
 export default function DailyGoalCompletedModal({
   open,
   onClose,
@@ -186,9 +194,9 @@ export default function DailyGoalCompletedModal({
                 </motion.p>
               </header>
 
-              <section className={`grid min-h-0 flex-1 grid-cols-1 gap-2 sm:gap-3 ${compactStatsLayout ? 'sm:grid-cols-[0.9fr_1.1fr] sm:items-start' : 'sm:grid-cols-[1.08fr_0.92fr]'}`}>
+              <section className={`grid min-h-0 flex-1 grid-cols-1 gap-2 sm:gap-3 ${compactStatsLayout ? 'sm:grid-cols-[1.4fr_0.6fr] sm:items-stretch' : 'sm:grid-cols-[1.08fr_0.92fr]'}`}>
                 <motion.div
-                  className={`relative flex min-h-[100px] flex-col rounded-[18px] border border-zinc-200 bg-white/80 p-3 shadow-sm dark:border-white/10 dark:bg-zinc-900/80 sm:rounded-[24px] ${compactStatsLayout ? 'sm:min-h-[116px] sm:max-h-[124px] sm:self-start sm:p-3' : 'sm:min-h-0 sm:p-3.5'}`}
+                  className={`relative flex min-h-[100px] flex-col rounded-[18px] border border-zinc-200 bg-white/80 p-3 shadow-sm dark:border-white/10 dark:bg-zinc-900/80 sm:rounded-[24px] ${compactStatsLayout ? 'sm:min-h-[152px] sm:p-4' : 'sm:min-h-0 sm:p-3.5'}`}
                   initial={{ opacity: 0, y: 16, scale: 0.96 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   transition={{ duration: 0.42, delay: statDelay, ease: 'easeOut' }}
@@ -211,11 +219,11 @@ export default function DailyGoalCompletedModal({
                   </div>
                 </motion.div>
 
-                <div className={`grid min-h-0 grid-cols-2 gap-1.5 sm:gap-2 ${compactStatsLayout ? 'sm:grid-cols-1 sm:grid-rows-[repeat(2,minmax(0,58px))] sm:self-start' : ''}`}>
+                <div className={`grid min-h-0 grid-cols-2 gap-1.5 sm:gap-2 ${compactStatsLayout ? 'sm:grid-cols-1 sm:grid-rows-2' : ''}`}>
                   {stats.map(({ label, value, description, icon: Icon, tone }, index) => (
                     <motion.div
                       key={label}
-                      className={`relative rounded-[15px] border px-1.5 py-1.5 shadow-sm sm:rounded-[20px] ${compactStatsLayout ? 'overflow-visible sm:px-2.5 sm:py-2' : 'overflow-hidden sm:px-3 sm:py-3'} ${
+                      className={`relative min-h-[66px] overflow-hidden rounded-[15px] border px-2 py-2 shadow-sm sm:rounded-[20px] ${compactStatsLayout ? 'sm:min-h-[72px] sm:px-3 sm:py-2.5' : 'sm:px-3 sm:py-3'} ${
                         tone === 'emerald'
                           ? 'border-emerald-200 bg-emerald-50/60 dark:border-emerald-900/45 dark:bg-emerald-950/15'
                           : tone === 'red'
@@ -240,7 +248,7 @@ export default function DailyGoalCompletedModal({
                           <Icon className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                         </div>
                       </div>
-                      <p className={`mt-1 font-black leading-tight text-zinc-950 dark:text-white ${compactStatsLayout ? 'whitespace-nowrap text-[12px] sm:mt-1 sm:text-sm' : 'break-words text-[13px] sm:mt-2 sm:text-base'}`}>{value}</p>
+                      <p className={`mt-1 min-w-0 break-words font-black leading-none tabular-nums text-zinc-950 dark:text-white ${compactStatsLayout ? `sm:mt-1.5 ${getStatValueSize(value)}` : 'text-[13px] sm:mt-2 sm:text-base'}`}>{value}</p>
                       {description && (
                         <p className="mt-1 text-[7px] font-bold uppercase leading-tight tracking-wide text-zinc-500 dark:text-zinc-400 sm:text-[8px]">
                           {description}

@@ -164,11 +164,11 @@ const CronogramaCard = ({ cronograma, editaisMap, registrosEstudo = [], onOpen, 
       <div className="relative z-10 flex flex-col h-full">
         <div className="flex justify-between items-start mb-3 sm:mb-4">
           <div className="flex flex-wrap gap-2 items-center">
-            <div className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md text-[9px] sm:text-[10px] font-black uppercase tracking-widest border flex items-center gap-1.5 ${cronograma.ativo ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.2)]' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 border-zinc-200 dark:border-zinc-700'}`}>
+            <div className={`rounded-md border px-2 py-1 text-[10px] font-black uppercase tracking-widest sm:px-2.5 sm:text-[11px] flex items-center gap-1.5 ${cronograma.ativo ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.2)]' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 border-zinc-200 dark:border-zinc-700'}`}>
               {cronograma.ativo && (<span className="relative flex h-1.5 w-1.5"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" /><span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" /></span>)}
               {cronograma.ativo ? 'ATIVO' : 'INATIVO'}
             </div>
-            <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg border bg-zinc-100 dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-700 text-[9px] font-black uppercase tracking-widest text-zinc-500">
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg border bg-zinc-100 dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-700 text-[10px] sm:text-[11px] font-black uppercase tracking-widest text-zinc-500">
               <Calendar size={10} /> Sem {semanaAtual}/{totalSemanas}
             </div>
           </div>
@@ -194,20 +194,20 @@ const CronogramaCard = ({ cronograma, editaisMap, registrosEstudo = [], onOpen, 
           <div className="hidden sm:block w-8 h-1 bg-emerald-500 rounded-full mb-4 group-hover:w-16 transition-all duration-500" />
           <div className="mb-3 grid grid-cols-2 gap-1.5 sm:mb-4 sm:gap-2">
             <div className="flex min-w-0 items-center gap-1.5 rounded-lg border border-zinc-200/70 bg-zinc-50/80 px-2 py-1.5 text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-400">
-              <CalendarClock size={12} className="shrink-0 text-emerald-500/70" />
-              <span className="min-w-0 truncate text-[9px] font-bold sm:text-[10px]">Inicio: {formatDate(cronograma.dataInicio)}</span>
+              <CalendarClock size={14} className="shrink-0 text-emerald-500/70" />
+              <span className="min-w-0 truncate text-[11px] font-bold sm:text-xs">Inicio: {formatDate(cronograma.dataInicio)}</span>
             </div>
             <div className="flex min-w-0 items-center gap-1.5 rounded-lg border border-zinc-200/70 bg-zinc-50/80 px-2 py-1.5 text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-400">
-              <Target size={12} className="shrink-0 text-emerald-500/70" />
-              <span className="min-w-0 truncate text-[9px] font-bold sm:text-[10px]">Termino: {formatDate(cronograma.dataFim)}</span>
+              <Target size={14} className="shrink-0 text-emerald-500/70" />
+              <span className="min-w-0 truncate text-[11px] font-bold sm:text-xs">Termino: {formatDate(cronograma.dataFim)}</span>
             </div>
             <div className="flex min-w-0 items-center gap-1.5 rounded-lg border border-zinc-200/70 bg-zinc-50/80 px-2 py-1.5 text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-400">
-              <Clock size={12} className="shrink-0 text-emerald-500/70" />
-              <span className="min-w-0 truncate text-[9px] font-bold sm:text-[10px]">{formatHours(horasEstudadas)} estudadas</span>
+              <Clock size={14} className="shrink-0 text-emerald-500/70" />
+              <span className="min-w-0 truncate text-[11px] font-bold sm:text-xs">{formatHours(horasEstudadas)} estudadas</span>
             </div>
             <div className="flex min-w-0 items-center gap-1.5 rounded-lg border border-zinc-200/70 bg-zinc-50/80 px-2 py-1.5 text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-400">
-              <Calendar size={12} className="shrink-0 text-emerald-500/70" />
-              <span className="min-w-0 truncate text-[9px] font-bold sm:text-[10px]">{formatHours(cargaSemanal)}/sem</span>
+              <Calendar size={14} className="shrink-0 text-emerald-500/70" />
+              <span className="min-w-0 truncate text-[11px] font-bold sm:text-xs">{formatHours(cargaSemanal)}/sem</span>
             </div>
           </div>
           <div className="hidden">

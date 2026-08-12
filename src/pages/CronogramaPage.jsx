@@ -2682,6 +2682,10 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
     if (!cronograma?.id) return [];
     return (registrosEstudo || []).filter((registro) => registro.cronogramaId === cronograma.id);
   }, [cronograma?.id, registrosEstudo]);
+  const totalAcumuladoCronograma = useMemo(() => registrosHistoricoCronograma.reduce(
+    (total, registro) => total + Math.max(0, Number(registro.tempoEstudadoMinutos || registro.duracaoMinutos || 0)),
+    0,
+  ), [registrosHistoricoCronograma]);
 
   const dataFimConteudoCronograma = useMemo(
     () => calcularDataFimConteudoCronograma(cronograma),
@@ -3216,7 +3220,7 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
           </div>
 
           {/* Lado direito — mesmo padrão de progresso do Ciclo */}
-          <div className="z-10 flex w-[104px] shrink-0 items-center justify-between gap-1.5 rounded-xl border border-zinc-200 bg-white/75 p-1.5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/55 sm:w-[132px] md:w-auto md:min-w-[240px] md:gap-3 md:p-2.5">
+          <div className="z-10 flex w-[132px] shrink-0 items-center justify-between gap-1.5 rounded-xl border border-zinc-200 bg-white/75 p-1.5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/55 sm:w-[164px] md:w-auto md:min-w-[286px] md:gap-3 md:p-2.5">
             <div className="min-w-0 flex-1">
               <div className="flex items-center justify-between gap-2 md:gap-5">
                 <div>
@@ -3235,6 +3239,10 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
                   transition={{ duration: 0.45, ease: 'easeOut' }}
                   className={`h-full rounded-full ${progressoGeral >= 100 ? 'bg-gradient-to-r from-emerald-500 to-teal-400' : 'bg-gradient-to-r from-red-600 via-rose-500 to-orange-400'}`}
                 />
+              </div>
+              <div className="mt-1.5 flex min-w-0 items-center justify-between gap-2 rounded-md bg-emerald-50/90 px-1.5 py-1 dark:bg-emerald-950/20 md:mt-2 md:px-2">
+                <span className="min-w-0 truncate text-[6px] font-black uppercase tracking-wide text-emerald-600 md:text-[8px]">Total do cronograma</span>
+                <span className="shrink-0 font-mono text-[9px] font-black text-emerald-700 dark:text-emerald-300 md:text-xs">{formatarDuracao(totalAcumuladoCronograma)}</span>
               </div>
             </div>
             <div className="relative shrink-0">

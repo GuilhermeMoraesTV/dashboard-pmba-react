@@ -1,3 +1,5 @@
+import { normalizarDuracaoSessao } from './cicloDistribution.js';
+
 export const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000;
 
 export const dateToYMDLocal = (date) => {
@@ -223,9 +225,16 @@ export const buildCycleOrderedSessions = (ciclo, dateKey = null, registrosEstudo
 
   return ordemSessoes
     .map((sessao, globalIndex) => {
-      const tempoPlanejadoMinutos = Math.max(
-        1,
-        Number(sessao?.tempoPlanejadoMinutos || sessao?.tempoMinutos || tempoSessaoMinutos),
+      const disciplina = Array.isArray(ciclo?.disciplinas)
+        ? ciclo.disciplinas.find((item) => String(item?.id) === String(sessao?.disciplinaId))
+        : null;
+      const duracaoConfigurada = Number(disciplina?.duracoesSessoes?.[Number(sessao?.sessaoIndex)] || 0);
+      const tempoPlanejadoMinutos = normalizarDuracaoSessao(
+        duracaoConfigurada || sessao?.tempoPlanejadoMinutos || sessao?.tempoMinutos || tempoSessaoMinutos,
+        {
+          min: ciclo?.duracaoMinimaSessaoMinutos || 10,
+          max: ciclo?.duracaoMaximaSessaoMinutos || 240,
+        },
       );
       const concluidaEm = getCycleSessionCompletionDate(ciclo, globalIndex);
       const progressoPersistido = Number(progressoSessoes?.[globalIndex] || progressoSessoes?.[String(globalIndex)] || 0);
@@ -368,6 +377,9 @@ export const getCycleSessionRecordedMinutes = ({
 
   return (Array.isArray(registrosEstudo) ? registrosEstudo : []).reduce((acc, registro) => {
     if (!isCycleStudyRegistro(registro, ciclo.id)) return acc;
+    // Registros de voltas ja encerradas recebem conclusaoId ao concluir o ciclo.
+    // Eles continuam no historico, mas nao podem preencher novamente a fila atual.
+    if (registro.conclusaoId != null) return acc;
     if (onlyRealStudyRecords && !isProtectedManualStudyRegistro(registro)) return acc;
     if (dateKey && getRegistroDateKey(registro) !== dateKey) return acc;
 

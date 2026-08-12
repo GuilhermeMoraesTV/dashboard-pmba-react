@@ -35,10 +35,10 @@
   margin-top: -4px;
   appearance: none;
   -webkit-appearance: none;
-  border: 2px solid #059669;
+  border: 2px solid var(--planning-level-color, #059669);
   border-radius: 999px;
   background: #fff;
-  box-shadow: 0 1px 4px rgba(5, 150, 105, 0.28);
+  box-shadow: 0 1px 5px color-mix(in srgb, var(--planning-level-color, #059669) 38%, transparent);
 }
 
 .planning-level-range::-moz-range-track {
@@ -49,13 +49,25 @@
 .planning-level-range::-moz-range-thumb {
   width: 12px;
   height: 12px;
-  border: 2px solid #059669;
+  border: 2px solid var(--planning-level-color, #059669);
   border-radius: 999px;
   background: #fff;
 }
 
 .planning-level-range::-moz-focus-outer {
   border: 0;
+}
+
+.duration-number-input::-webkit-outer-spin-button,
+.duration-number-input::-webkit-inner-spin-button {
+  margin: 0;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.duration-number-input[type='number'] {
+  appearance: textfield;
+  -moz-appearance: textfield;
 }
 
 /* PAGINA E PREVIEW DO CICLO: dimensoes do radar e do card externo. */
@@ -1183,7 +1195,7 @@ body.registro-modal-open .app-global-footer {
 :root {
   --zoom-desktop-ciclo: 0.95;
   /* Zoom do card "Blocos do ciclo" na pagina do ciclo e na Home. */
-  --zoom-desktop-cycle-block-list-card: 0.86;
+  --zoom-desktop-cycle-block-list-card: 0.82;
   --zoom-mobile-cycle-block-list-card: 0.88;
   --zoom-desktop-edital: 0.82;
   /* Zoom exclusivo do header do edital. */
@@ -1646,15 +1658,25 @@ body.registro-modal-open .app-global-footer {
   }
 
   .cycle-block-list-card-zoom {
-    width: 100%;
-    max-width: 100%;
+    width: calc((100% - 1px) / var(--zoom-desktop-cycle-block-list-card));
+    max-width: none;
     min-width: 0;
     zoom: var(--zoom-desktop-cycle-block-list-card);
     transform-origin: top left;
   }
 
   .cycle-block-list-card-zoom--fill {
-    height: calc(100% / var(--zoom-desktop-cycle-block-list-card));
+    height: 100%;
+  }
+
+}
+
+@media (min-width: 1280px) {
+  /* A coluna nao participa da altura intrinseca da grade: o card do radar
+     define o limite e a lista usa somente esse espaco, com scroll interno. */
+  .cycle-detail-blocks-column {
+    contain: size;
+    min-height: 0;
   }
 }
 
@@ -1734,8 +1756,8 @@ body.registro-modal-open .app-global-footer {
   }
 
   .cycle-block-list-card-zoom {
-    width: 100%;
-    max-width: 100%;
+    width: calc((100% - 1px) / var(--zoom-mobile-cycle-block-list-card));
+    max-width: none;
     min-width: 0;
     zoom: var(--zoom-mobile-cycle-block-list-card);
     transform-origin: top left;

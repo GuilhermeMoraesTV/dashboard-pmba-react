@@ -19,9 +19,11 @@ function CardSessoesCicloHoje({
   onIniciarSessao,
   onToggleSessao,
   loadingSessionId = null,
+  loadingSessionIds = {},
   useDisciplineColors = true,
   registrosEstudo = [],
   fillAvailableHeight = false,
+  sessionCompletionOverrides = {},
 }) {
   const cicloComDisciplinas = useMemo(
     () => ({ ...(ciclo || {}), disciplinas }),
@@ -58,17 +60,29 @@ function CardSessoesCicloHoje({
               id: session.disciplinaId,
               nome: session.disciplinaNome || 'Disciplina',
             };
-            const completed = Boolean(session.concluida);
             const plannedMinutes = Math.max(1, Number(session.tempoPlanejadoMinutos || session.tempoMinutos || ciclo?.tempoSessaoMinutos || 1));
-            const progressMinutes = completed
-              ? Math.max(plannedMinutes, Number(session.progressoMinutos || 0))
-              : Math.min(plannedMinutes, Math.max(0, Number(session.progressoMinutos || 0)));
+            const completionOverride = session.globalIndex !== null
+              ? sessionCompletionOverrides?.[session.globalIndex]
+              : undefined;
+            const completed = typeof completionOverride === 'boolean'
+              ? completionOverride
+              : Boolean(session.concluida);
+            const progressMinutes = typeof completionOverride === 'boolean'
+              ? (completionOverride ? plannedMinutes : 0)
+              : completed
+                ? Math.max(plannedMinutes, Number(session.progressoMinutos || 0))
+                : Math.min(plannedMinutes, Math.max(0, Number(session.progressoMinutos || 0)));
             const progressPercent = Math.min(100, Math.round((progressMinutes / plannedMinutes) * 100));
             const hasSession = !session.filaSemSessao && session.globalIndex !== null;
             const loading = hasSession
-              && loadingSessionId !== null
-              && loadingSessionId !== undefined
-              && Number(loadingSessionId) === Number(session.globalIndex);
+              && (
+                Boolean(loadingSessionIds?.[session.globalIndex])
+                || (
+                  loadingSessionId !== null
+                  && loadingSessionId !== undefined
+                  && Number(loadingSessionId) === Number(session.globalIndex)
+                )
+              );
             const color = useDisciplineColors !== false && ciclo?.coresDisciplinasAtivas !== false
               ? getDisciplineColorForSlot({
                 disciplinaId: disciplina?.id || session.disciplinaId,
@@ -77,6 +91,12 @@ function CardSessoesCicloHoje({
                 cor: disciplina?.cor || session.cor,
               })?.hex || NEUTRAL_COLOR
               : NEUTRAL_COLOR;
+            const displayedSession = {
+              ...session,
+              concluida: completed,
+              concluido: completed,
+              progressoMinutos: progressMinutes,
+            };
 
             return (
               <div
@@ -87,7 +107,7 @@ function CardSessoesCicloHoje({
                 <div className="flex min-w-0 flex-1 items-center gap-2.5">
                   <button
                     type="button"
-                    onClick={() => onToggleSessao?.(session)}
+                    onClick={() => onToggleSessao?.(displayedSession)}
                     disabled={loading || !hasSession}
                     aria-label={completed ? 'Marcar bloco como pendente' : 'Marcar bloco como concluido'}
                     title={completed ? 'Marcar bloco como pendente' : 'Marcar bloco como concluido'}
@@ -105,24 +125,26 @@ function CardSessoesCicloHoje({
                     <p className="min-w-0 break-words text-sm font-black leading-snug text-zinc-900 dark:text-white">
                       {disciplina?.nome || session.disciplinaNome || 'Disciplina'}
                     </p>
-                    <div className="mt-1.5 flex min-w-0 items-center gap-2">
+                    <div className="mt-1.5 min-w-0">
                       <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
                         <div
                           className={`h-full rounded-full transition-all ${completed ? 'bg-emerald-500' : 'bg-amber-500'}`}
                           style={{ width: `${progressPercent}%` }}
                         />
                       </div>
-                      <span className="shrink-0 text-[11px] font-black tabular-nums text-zinc-500 dark:text-zinc-300 sm:text-xs">
-                        {fmtMin(progressMinutes)} / {fmtMin(plannedMinutes)}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => onIniciarSessao?.(disciplinaAcao, session.globalIndex, session)}
-                        disabled={!hasSession}
-                        className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-red-600 px-2.5 text-[9px] font-black uppercase tracking-wide text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        <Play size={13} fill="currentColor" /> Iniciar
-                      </button>
+                      <div className="mt-1.5 flex min-w-0 items-center justify-between gap-2">
+                        <span className="min-w-0 truncate text-[11px] font-black tabular-nums text-zinc-500 dark:text-zinc-300 sm:text-xs">
+                          {fmtMin(progressMinutes)} / {fmtMin(plannedMinutes)}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => onIniciarSessao?.(disciplinaAcao, session.globalIndex, displayedSession)}
+                          disabled={!hasSession}
+                          className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-red-600 px-2.5 text-[9px] font-black uppercase tracking-wide text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <Play size={13} fill="currentColor" /> Iniciar
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>

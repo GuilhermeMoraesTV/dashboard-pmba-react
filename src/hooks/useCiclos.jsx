@@ -11,7 +11,9 @@ import {
   updateDoc,
   getDoc,
   setDoc,
-  deleteField
+  deleteField,
+  arrayUnion,
+  arrayRemove,
 } from 'firebase/firestore';
 import { upsertCicloRevisao } from '../services/cicloRevisoes';
 import { normalizeRevisaoModoCiclo } from '../utils/cicloReviewMode';
@@ -476,6 +478,7 @@ export const useCiclos = (user) => {
             disciplinas.map((d) => ({
               id: d.id,
               sessoesPorCiclo: d.sessoesPorCiclo,
+              duracoesSessoes: Array.isArray(d.duracoesSessoes) ? d.duracoesSessoes : [],
               estudarTodosDias: d.estudarTodosDias === true,
             })),
             Number(cicloData.embaralharOffset || 0),
@@ -552,6 +555,7 @@ export const useCiclos = (user) => {
         return {
           id: discDoc.id,
           sessoesPorCiclo,
+          duracoesSessoes: Array.isArray(discData.duracoesSessoes) ? discData.duracoesSessoes : [],
           estudarTodosDias: discData.estudarTodosDias === true,
         };
       });
@@ -615,13 +619,13 @@ export const useCiclos = (user) => {
 
       if (jaConcluida) {
         await updateDoc(cicloRef, {
-          sessoesConcluidas: concluidas.filter(i => i !== sessaoIndex),
+          sessoesConcluidas: arrayRemove(sessaoIndex),
           [`sessoesConcluidasDetalhes.${sessaoIndex}`]: deleteField(),
           [`progressoSessoes.${sessaoIndex}`]: 0,
         });
       } else {
         await updateDoc(cicloRef, {
-          sessoesConcluidas: [...concluidas, sessaoIndex],
+          sessoesConcluidas: arrayUnion(sessaoIndex),
           [`progressoSessoes.${sessaoIndex}`]: tempoPlanejadoMinutos,
           [`sessoesConcluidasDetalhes.${sessaoIndex}`]: {
             concluidaEm: completionDate,

@@ -45,7 +45,25 @@ describe('cicloDistribution rotativo livre', () => {
     assert.equal(distribuicao.reduce((total, item) => total + item.tempoAlocadoMinutos, 0), 480);
     distribuicao.forEach((disciplina) => {
       assert.equal(disciplina.duracoesSessoes.reduce((total, minutos) => total + minutos, 0), disciplina.tempoAlocadoMinutos);
-      disciplina.duracoesSessoes.forEach((minutos) => assert.ok(minutos >= 30 && minutos <= 60));
+      disciplina.duracoesSessoes.forEach((minutos) => {
+        assert.ok(minutos >= 30 && minutos <= 60);
+        assert.equal(minutos % 10, 0);
+      });
+    });
+  });
+
+  it('usa somente duracoes redondas dentro dos limites configurados', () => {
+    const distribuicao = calcularDistribuicao([
+      { id: 'a', conhecimentoNivel: 1, importanciaNivel: 5, assuntos: ['A'] },
+      { id: 'b', conhecimentoNivel: 3, importanciaNivel: 3, assuntos: ['A'] },
+      { id: 'c', conhecimentoNivel: 5, importanciaNivel: 1, assuntos: ['A'] },
+    ], 720, 60, { duracaoMinimaSessaoMinutos: 40, duracaoMaximaSessaoMinutos: 90 });
+
+    const duracoes = distribuicao.flatMap((disciplina) => disciplina.duracoesSessoes);
+    assert.ok(duracoes.length > 0);
+    duracoes.forEach((minutos) => {
+      assert.equal(minutos % 10, 0);
+      assert.ok(minutos >= 40 && minutos <= 90);
     });
   });
 
@@ -63,5 +81,21 @@ describe('cicloDistribution rotativo livre', () => {
       270,
     );
     assert.equal(ordem.some((item) => item.assignedDate || item.carriedOver), false);
+  });
+
+  it('preserva as duracoes minima e maxima ao gerar uma nova ordem', () => {
+    const ordem = gerarOrdemSessoes([
+      { id: 'a', sessoesPorCiclo: 3, duracoesSessoes: [30, 45, 60] },
+      { id: 'b', sessoesPorCiclo: 2, duracoesSessoes: [35, 55] },
+    ], 1);
+
+    assert.deepEqual(
+      ordem.filter((sessao) => sessao.disciplinaId === 'a').map((sessao) => sessao.tempoPlanejadoMinutos),
+      [30, 45, 60],
+    );
+    assert.deepEqual(
+      ordem.filter((sessao) => sessao.disciplinaId === 'b').map((sessao) => sessao.tempoPlanejadoMinutos),
+      [35, 55],
+    );
   });
 });

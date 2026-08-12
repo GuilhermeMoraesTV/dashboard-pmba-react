@@ -23,10 +23,13 @@ const formatHorasTexto = (val) => {
   return m ? `${h}h ${m}` : `${h}h`;
 };
 
-const minutesToHourParts = (minutes) => ({
-  horas: Math.floor(Math.max(0, Number(minutes) || 0) / 60),
-  minutos: Math.max(0, Number(minutes) || 0) % 60,
-});
+const minutesToHourParts = (minutes) => {
+  const rounded = Math.round(Math.max(0, Number(minutes) || 0) / 10) * 10;
+  return {
+    horas: Math.floor(rounded / 60),
+    minutos: rounded % 60,
+  };
+};
 
 // ─── CARTÃO DE DIA (COMPACTO) ─────────────────────────────────────────────────
 const DiaCard = ({ dia, horas, onToggle, onHorasChange }) => {
@@ -252,7 +255,7 @@ const Step3_Horarios = ({ horarios, onHorariosChange, editalSelecionado, config 
     const numeric = Math.max(0, Math.round(Number(rawValue) || 0));
     const nextParts = {
       ...parts,
-      [part]: part === 'horas' ? Math.min(4, numeric) : Math.min(55, Math.floor(numeric / 5) * 5),
+      [part]: part === 'horas' ? Math.min(4, numeric) : Math.min(50, Math.floor(numeric / 10) * 10),
     };
     handleDuracaoChange(field, (nextParts.horas * 60) + nextParts.minutos);
   };
@@ -339,19 +342,19 @@ const Step3_Horarios = ({ horarios, onHorariosChange, editalSelecionado, config 
           <div>
             <div className="mb-2">
               <p className="text-xs font-black uppercase tracking-widest text-zinc-700 dark:text-zinc-200">Duração dos blocos de estudo</p>
-              <p className="mt-0.5 text-[9px] font-semibold text-zinc-400">Defina o menor e o maior tempo permitido para cada sessão.</p>
+              <p className="mt-1 max-w-2xl text-xs font-semibold leading-relaxed text-zinc-600 dark:text-zinc-300">A duração mínima e a máxima formam a faixa obrigatória de cada bloco. Nenhuma sessão será menor que o mínimo nem maior que o máximo.</p>
             </div>
-            <div className="grid w-full max-w-2xl grid-cols-1 gap-2 rounded-xl border border-zinc-200 bg-white p-2 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:grid-cols-2">
+            <div className="grid w-full max-w-2xl grid-cols-2 gap-2 rounded-xl border border-zinc-200 bg-white p-2 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
               {[
                 { field: 'duracaoMinimaSessaoMinutos', label: 'Mínima', value: duracaoMinima },
                 { field: 'duracaoMaximaSessaoMinutos', label: 'Máxima', value: duracaoMaxima },
               ].map((item) => {
                 const parts = minutesToHourParts(item.value);
                 return (
-                  <div key={item.field} className="flex min-w-0 flex-col gap-1.5 rounded-lg bg-zinc-50 px-2.5 py-2 dark:bg-zinc-950">
-                    <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400">Duração {item.label.toLowerCase()}</span>
-                    <div className="grid min-w-0 grid-cols-2 gap-1.5">
-                      <label className="flex min-w-0 items-center gap-1 rounded-md border border-zinc-200 bg-white px-2 py-1 dark:border-zinc-800 dark:bg-zinc-900">
+                  <div key={item.field} className="flex min-w-0 flex-col gap-1.5 rounded-lg bg-zinc-50 px-1.5 py-2 dark:bg-zinc-950 sm:px-2.5">
+                    <span className="text-center text-[9px] font-black uppercase tracking-wide text-zinc-500 dark:text-zinc-400 sm:text-[10px]">Duração {item.label.toLowerCase()}</span>
+                    <div className="grid min-w-0 grid-cols-2 gap-1 sm:gap-1.5">
+                      <label className="flex min-w-0 items-center gap-0.5 rounded-md border border-zinc-200 bg-white px-1 py-1 dark:border-zinc-800 dark:bg-zinc-900 sm:px-2">
                         <input
                           type="number"
                           min="0"
@@ -360,34 +363,37 @@ const Step3_Horarios = ({ horarios, onHorariosChange, editalSelecionado, config 
                           value={parts.horas}
                           onChange={(event) => handleDuracaoPartChange(item.field, 'horas', event.target.value)}
                           aria-label={`${item.label} em horas`}
-                          className="min-w-0 flex-1 bg-transparent text-sm font-black text-zinc-900 outline-none dark:text-white"
+                          className="duration-number-input w-full min-w-0 bg-transparent text-center text-base font-black tabular-nums text-zinc-900 outline-none dark:text-white"
                         />
-                        <span className="text-[8px] font-black uppercase text-zinc-400">h</span>
+                        <span className="text-[9px] font-black uppercase text-zinc-400">h</span>
                       </label>
-                      <label className="flex min-w-0 items-center gap-1 rounded-md border border-zinc-200 bg-white px-2 py-1 dark:border-zinc-800 dark:bg-zinc-900">
+                      <label className="flex min-w-0 items-center gap-0.5 rounded-md border border-zinc-200 bg-white px-1 py-1 dark:border-zinc-800 dark:bg-zinc-900 sm:px-2">
                         <input
                           type="number"
                           min="0"
-                          max="55"
-                          step="5"
+                          max="50"
+                          step="10"
                           value={parts.minutos}
                           onChange={(event) => handleDuracaoPartChange(item.field, 'minutos', event.target.value)}
                           aria-label={`${item.label} em minutos`}
-                          className="min-w-0 flex-1 bg-transparent text-sm font-black text-zinc-900 outline-none dark:text-white"
+                          className="duration-number-input w-full min-w-0 bg-transparent text-center text-base font-black tabular-nums text-zinc-900 outline-none dark:text-white"
                         />
-                        <span className="text-[8px] font-black uppercase text-zinc-400">min</span>
+                        <span className="text-[9px] font-black uppercase text-zinc-400">min</span>
                       </label>
                     </div>
                   </div>
                 );
               })}
+              <p className="col-span-2 rounded-lg border border-emerald-200 bg-emerald-50/70 px-2.5 py-2 text-[10px] font-bold leading-relaxed text-emerald-800 dark:border-emerald-900/45 dark:bg-emerald-950/20 dark:text-emerald-300 sm:text-[11px]">
+                O sistema distribui os blocos dentro dessa faixa e prioriza tempos redondos de 10 minutos, como 40min, 50min, 1h ou 1h30.
+              </p>
             </div>
           </div>
 
           <div className="flex items-end justify-between gap-3">
             <div>
               <p className="text-xs font-black uppercase tracking-widest text-zinc-700 dark:text-zinc-200">Dias e carga de estudo da semana</p>
-              <p className="mt-0.5 text-[9px] font-semibold text-zinc-400">Ative os dias em que pretende estudar e informe o tempo disponível.</p>
+              <p className="mt-0.5 text-[11px] font-semibold leading-snug text-zinc-500 dark:text-zinc-400">Ative os dias em que pretende estudar e informe o tempo disponível.</p>
             </div>
             <button
               onClick={limparTudo}

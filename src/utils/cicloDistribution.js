@@ -24,47 +24,66 @@ export const obterPesoDisciplina = (disciplina, mediaAssuntos = 1) => (
 
 const normalizeSessionRange = (legacyDuration, options = {}) => {
   const legacy = Math.max(5, Math.round(Number(legacyDuration) || 50));
-  const min = Math.max(5, Math.round(Number(options.duracaoMinimaSessaoMinutos) || legacy));
-  const max = Math.max(min, Math.round(Number(options.duracaoMaximaSessaoMinutos) || legacy));
+  const rawMin = Math.max(5, Math.round(Number(options.duracaoMinimaSessaoMinutos) || legacy));
+  const rawMax = Math.max(rawMin, Math.round(Number(options.duracaoMaximaSessaoMinutos) || legacy));
+  const min = Math.ceil(rawMin / 10) * 10;
+  const max = Math.max(min, Math.floor(rawMax / 10) * 10);
   return { min, max };
 };
 
-const allocateExactMinutes = (weightedItems, totalMinutes) => {
+export const normalizarDuracaoSessao = (duration, options = {}) => {
+  const rawMin = Math.max(5, Math.round(Number(options.min) || 10));
+  const rawMax = Math.max(rawMin, Math.round(Number(options.max) || 240));
+  const min = Math.ceil(rawMin / 10) * 10;
+  const max = Math.max(min, Math.floor(rawMax / 10) * 10);
+  const rounded = Math.round(Math.max(1, Number(duration) || min) / 10) * 10;
+  return Math.min(max, Math.max(min, rounded));
+};
+
+const allocateExactMinutes = (weightedItems, totalMinutes, minimumPerItem = 0) => {
   const totalWeight = weightedItems.reduce((total, item) => total + item.weight, 0);
   if (totalWeight <= 0 || totalMinutes <= 0) return weightedItems.map(() => 0);
 
+  const totalUnits = Math.max(0, Math.round(totalMinutes / 10));
+  const minimumUnits = Math.max(0, Math.ceil(minimumPerItem / 10));
+  const canReserveMinimum = totalUnits >= minimumUnits * weightedItems.length;
+  const reservedUnits = canReserveMinimum ? minimumUnits : 0;
+  const distributableUnits = totalUnits - (reservedUnits * weightedItems.length);
+
   const allocations = weightedItems.map((item, index) => {
-    const raw = totalMinutes * (item.weight / totalWeight);
-    return { index, minutes: Math.floor(raw), fraction: raw - Math.floor(raw) };
+    const raw = distributableUnits * (item.weight / totalWeight);
+    return { index, units: reservedUnits + Math.floor(raw), fraction: raw - Math.floor(raw) };
   });
-  let remainder = totalMinutes - allocations.reduce((total, item) => total + item.minutes, 0);
+  let remainder = totalUnits - allocations.reduce((total, item) => total + item.units, 0);
   allocations
     .slice()
     .sort((a, b) => b.fraction - a.fraction || a.index - b.index)
     .forEach((item) => {
       if (remainder <= 0) return;
-      allocations[item.index].minutes += 1;
+      allocations[item.index].units += 1;
       remainder -= 1;
     });
-  return allocations.map((item) => item.minutes);
+  return allocations.map((item) => item.units * 10);
 };
 
 const splitMinutesIntoSessions = (minutes, min, max) => {
-  const total = Math.max(0, Math.round(Number(minutes) || 0));
-  if (total <= 0) return [];
-  if (total <= max) return [total];
+  const totalUnits = Math.max(0, Math.round((Number(minutes) || 0) / 10));
+  const minUnits = Math.max(1, Math.ceil(min / 10));
+  const maxUnits = Math.max(minUnits, Math.floor(max / 10));
+  if (totalUnits <= 0) return [];
+  if (totalUnits <= maxUnits) return [Math.max(minUnits, totalUnits) * 10];
 
-  const minimumCount = Math.ceil(total / max);
-  const maximumCount = Math.max(minimumCount, Math.floor(total / min));
-  const targetCount = Math.round(total / ((min + max) / 2));
+  const minimumCount = Math.ceil(totalUnits / maxUnits);
+  const maximumCount = Math.max(minimumCount, Math.floor(totalUnits / minUnits));
+  const targetCount = Math.round(totalUnits / ((minUnits + maxUnits) / 2));
   const count = Math.min(maximumCount, Math.max(minimumCount, targetCount));
-  const base = Math.floor(total / count);
-  let remainder = total - (base * count);
+  const base = Math.floor(totalUnits / count);
+  let remainder = totalUnits - (base * count);
 
   return Array.from({ length: count }, () => {
-    const duration = base + (remainder > 0 ? 1 : 0);
+    const durationUnits = base + (remainder > 0 ? 1 : 0);
     remainder = Math.max(0, remainder - 1);
-    return duration;
+    return durationUnits * 10;
   });
 };
 
@@ -86,7 +105,7 @@ export const calcularDistribuicao = (
   const weightedItems = disciplinas.map((disciplina) => ({
     weight: obterPesoDisciplina(disciplina, averageTopics),
   }));
-  const minuteAllocations = allocateExactMinutes(weightedItems, totalMinutes);
+  const minuteAllocations = allocateExactMinutes(weightedItems, totalMinutes, min);
 
   return disciplinas.map((disciplina, index) => {
     const tempoAlocadoMinutos = minuteAllocations[index] || 0;
