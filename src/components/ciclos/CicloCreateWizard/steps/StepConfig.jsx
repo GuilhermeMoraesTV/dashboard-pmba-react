@@ -111,7 +111,7 @@ const ModeSelector = ({ options, value, onChange }) => (
           className={`relative flex min-h-[86px] flex-col items-start gap-2 overflow-hidden rounded-2xl border-2 p-2.5 text-left transition-all duration-300 sm:min-h-[112px] sm:gap-2.5 sm:p-4 ${
             active
               ? `${opt.activeBorder} ${opt.activeBg} shadow-md sm:scale-[1.02]`
-              : 'border-zinc-100 bg-white hover:border-zinc-200 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/50 dark:hover:border-zinc-700 dark:hover:bg-zinc-800/80'
+              : 'border-zinc-100 bg-white hover:border-zinc-200 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800/55 dark:hover:border-zinc-600 dark:hover:bg-zinc-800/80'
           }`}
         >
           <div className={`absolute inset-x-0 top-0 h-1 transition-all ${active ? opt.activeBar : 'bg-transparent'}`} />
@@ -238,7 +238,7 @@ export default function StepConfig({
                     type="text"
                     value={nomeCiclo}
                     onChange={(e) => setNomeCiclo(e.target.value)}
-                    className="w-full px-3 py-3 sm:px-5 sm:py-4 text-sm sm:text-lg font-black bg-zinc-50 dark:bg-zinc-950 border-2 border-transparent focus:bg-white dark:focus:bg-zinc-900 focus:border-red-500/20 focus:ring-4 focus:ring-red-500/5 rounded-xl sm:rounded-2xl outline-none transition-all text-zinc-900 dark:text-white placeholder:text-zinc-300 dark:placeholder:text-zinc-700"
+                    className="w-full px-3 py-3 sm:px-5 sm:py-4 text-sm sm:text-lg font-black bg-zinc-50 dark:bg-card-dark border-2 border-transparent focus:bg-white dark:focus:bg-zinc-900 focus:border-red-500/20 focus:ring-4 focus:ring-red-500/5 rounded-xl sm:rounded-2xl outline-none transition-all text-zinc-900 dark:text-white placeholder:text-zinc-300 dark:placeholder:text-zinc-700"
                     placeholder="Ex: CFO PMBA 2025"
                   />
                 </div>
@@ -284,7 +284,7 @@ export default function StepConfig({
                       return (
                         <div
                           key={draftId}
-                          className="min-w-0 rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-800 dark:bg-zinc-950"
+                          className="min-w-0 rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-800 dark:bg-card-dark"
                         >
                           <div className="flex min-w-0 items-center gap-3">
                             <span className="min-w-0 flex-1 text-[11px] font-black uppercase leading-tight text-zinc-700 line-clamp-2 dark:text-zinc-200">
@@ -302,7 +302,7 @@ export default function StepConfig({
                     })}
                   </div>
                 ) : (
-                  <div className="flex items-center gap-3 rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-3 dark:border-zinc-800 dark:bg-zinc-950">
+                  <div className="flex items-center gap-3 rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-3 dark:border-zinc-800 dark:bg-card-dark">
                     <span className="h-8 w-8 rounded-xl bg-zinc-500 shadow-inner" />
                     <p className="text-[11px] font-bold text-zinc-500 dark:text-zinc-400">
                       O ciclo sera exibido em cinza, mas as cores escolhidas ficam guardadas para quando voce reativar.

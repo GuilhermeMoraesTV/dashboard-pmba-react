@@ -116,7 +116,7 @@ function DisciplinePerformanceCard({ items, totals, className = '' }) {
   const hasItems = items.length > 0;
 
   return (
-    <div className={`home-discipline-performance-card group relative flex flex-col overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white p-4 transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/50 hover:!border-l-red-500 hover:shadow-glow dark:border-white/10 dark:!border-l-red-500/25 dark:hover:border-accent-light/30 dark:hover:!border-l-red-500 dark:bg-zinc-950 ${className}`}>
+    <div className={`home-discipline-performance-card group relative flex flex-col overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white p-4 transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/50 hover:!border-l-red-500 hover:shadow-glow dark:border-white/10 dark:!border-l-red-500/25 dark:hover:border-accent-light/30 dark:hover:!border-l-red-500 dark:bg-card-dark ${className}`}>
       <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-red-500/5 blur-[80px] opacity-70 transition-all duration-700 group-hover:opacity-100" />
       <div className="pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-zinc-500/5 blur-[80px] opacity-60 transition-all duration-700" />
 
@@ -236,7 +236,7 @@ function WeeklySummaryCard({ data, className = '' }) {
           className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-full"
           style={{ background: `conic-gradient(#ef4444 ${activePct}%, rgba(113,113,122,0.18) 0)` }}
         >
-          <div className="flex h-11 w-11 flex-col items-center justify-center rounded-full bg-white text-zinc-900 shadow-inner dark:bg-zinc-950 dark:text-white">
+          <div className="flex h-11 w-11 flex-col items-center justify-center rounded-full bg-white text-zinc-900 shadow-inner dark:bg-card-dark dark:text-white">
             <span className="text-sm font-black leading-none">{data.activeDays}</span>
             <span className="text-[7px] font-black uppercase leading-none text-zinc-400">/7</span>
           </div>
@@ -335,7 +335,7 @@ function WeeklySummaryCard({ data, className = '' }) {
 function StudyHistoryTimelineCard({ data, className = '' }) {
   if (!data.activeDays) {
     return (
-      <div className={`group relative flex flex-col overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white p-4 transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/50 hover:!border-l-red-500 hover:shadow-glow dark:border-white/10 dark:!border-l-red-500/25 dark:hover:border-accent-light/30 dark:hover:!border-l-red-500 dark:bg-zinc-950 ${className}`}>
+      <div className={`group relative flex flex-col overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white p-4 transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/50 hover:!border-l-red-500 hover:shadow-glow dark:border-white/10 dark:!border-l-red-500/25 dark:hover:border-accent-light/30 dark:hover:!border-l-red-500 dark:bg-card-dark ${className}`}>
         <HomeEmptyState
           icon={BarChart3}
           title="Histórico ainda zerado"
@@ -380,7 +380,7 @@ function StudyHistoryTimelineCard({ data, className = '' }) {
     };
   };
   return (
-    <div className={`group relative flex flex-col overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white p-4 transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/50 hover:!border-l-red-500 hover:shadow-glow dark:border-white/10 dark:!border-l-red-500/25 dark:hover:border-accent-light/30 dark:hover:!border-l-red-500 dark:bg-zinc-950 ${className}`}>
+    <div className={`group relative flex flex-col overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white p-4 transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/50 hover:!border-l-red-500 hover:shadow-glow dark:border-white/10 dark:!border-l-red-500/25 dark:hover:border-accent-light/30 dark:hover:!border-l-red-500 dark:bg-card-dark ${className}`}>
       {/* Decorative Orbs */}
       <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-red-500/5 blur-[80px] transition-all duration-700 group-hover:bg-red-500/10" />
       <div className="pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-zinc-500/5 blur-[80px] transition-all duration-700 group-hover:bg-zinc-500/10" />

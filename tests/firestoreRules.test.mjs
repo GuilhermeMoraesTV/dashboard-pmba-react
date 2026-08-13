@@ -7,9 +7,12 @@ import {
   initializeTestEnvironment,
 } from '@firebase/rules-unit-testing';
 import {
+  collectionGroup,
   deleteDoc,
   doc,
   getDoc,
+  getDocs,
+  query,
   setDoc,
   updateDoc,
 } from 'firebase/firestore';
@@ -41,6 +44,11 @@ before(async () => {
       status: 'pendente',
     });
     await setDoc(doc(db, 'users', 'owner-user'), { uid: 'owner-user', name: 'Aluno' });
+    await setDoc(doc(db, 'users', 'legacy-owner'), { name: 'Aluno legado' });
+    await setDoc(doc(db, 'users', 'owner-user', 'registrosEstudo', 'record-1'), { uid: 'owner-user', tempoEstudadoMinutos: 30 });
+    await setDoc(doc(db, 'users', 'owner-user', 'simulados', 'simulation-1'), { uid: 'owner-user', resumo: { totalQuestoes: 10 } });
+    await setDoc(doc(db, 'users', 'owner-user', 'ciclos', 'cycle-1'), { uid: 'owner-user', nome: 'Ciclo' });
+    await setDoc(doc(db, 'users', 'owner-user', 'cronogramas', 'schedule-1'), { uid: 'owner-user', nome: 'Cronograma' });
   });
 });
 
@@ -90,6 +98,28 @@ test('users impede autopromoção e mantém leitura administrativa', async () =>
   await assertSucceeds(getDoc(doc(adminDb, 'users', 'new-student')));
 });
 
+test('users permite ao dono atualizar a capa e a posicao do proprio perfil', async () => {
+  const ownerDb = environment.authenticatedContext('owner-user').firestore();
+  const strangerDb = environment.authenticatedContext('stranger-user').firestore();
+
+  await assertSucceeds(updateDoc(doc(ownerDb, 'users', 'owner-user'), {
+    coverURL: 'https://firebasestorage.googleapis.com/profile-cover.jpg',
+    coverPosition: { x: 38, y: 72 },
+  }));
+  await assertSucceeds(updateDoc(doc(ownerDb, 'users', 'owner-user'), {
+    coverURL: null,
+    coverPosition: { x: 50, y: 50 },
+  }));
+  const legacyDb = environment.authenticatedContext('legacy-owner').firestore();
+  await assertSucceeds(updateDoc(doc(legacyDb, 'users', 'legacy-owner'), {
+    coverURL: 'https://firebasestorage.googleapis.com/legacy-profile-cover.jpg',
+    coverPosition: { x: 44, y: 61 },
+  }));
+  await assertFails(updateDoc(doc(strangerDb, 'users', 'owner-user'), {
+    coverURL: 'https://example.com/unauthorized.jpg',
+  }));
+});
+
 test('system_ai_usage é somente leitura para admin no cliente', async () => {
   await environment.withSecurityRulesDisabled(async (context) => {
     await setDoc(doc(context.firestore(), 'system_ai_usage', '2026-06-19_owner-user'), { calls: 1 });
@@ -99,4 +129,13 @@ test('system_ai_usage é somente leitura para admin no cliente', async () => {
   await assertFails(getDoc(doc(ownerDb, 'system_ai_usage', '2026-06-19_owner-user')));
   await assertSucceeds(getDoc(doc(adminDb, 'system_ai_usage', '2026-06-19_owner-user')));
   await assertFails(setDoc(doc(adminDb, 'system_ai_usage', 'manual'), { calls: 2 }));
+});
+
+test('collection groups acadêmicos são legíveis somente pelo admin', async () => {
+  const ownerDb = environment.authenticatedContext('owner-user').firestore();
+  const adminDb = environment.authenticatedContext('admin-user').firestore();
+  for (const collectionName of ['registrosEstudo', 'simulados', 'ciclos', 'cronogramas']) {
+    await assertSucceeds(getDocs(query(collectionGroup(adminDb, collectionName))));
+    await assertFails(getDocs(query(collectionGroup(ownerDb, collectionName))));
+  }
 });

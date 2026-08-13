@@ -77,7 +77,7 @@ const GradeHorarios = ({ disponibilidade, setDisponibilidade }) => {
 
   return (
     <div className="h-full flex flex-col select-none">
-      <div className="grid grid-cols-8 gap-1 pr-2 mb-2 flex-shrink-0 bg-white dark:bg-zinc-950 pt-2 pb-2 sticky top-0 z-10 border-b border-zinc-200 dark:border-zinc-800">
+      <div className="grid grid-cols-8 gap-1 pr-2 mb-2 flex-shrink-0 bg-white dark:bg-card-dark pt-2 pb-2 sticky top-0 z-10 border-b border-zinc-200 dark:border-zinc-800">
         <div className="text-[10px] font-black text-zinc-300 uppercase text-center pt-2">H</div>
         {dias.map((d, i) => (<div key={i} className="text-[10px] sm:text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase text-center">{d}</div>))}
       </div>

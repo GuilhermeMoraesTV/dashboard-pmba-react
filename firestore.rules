@@ -60,6 +60,8 @@ service cloud.firestore {
         'email',
         'name',
         'photoURL',
+        'coverURL',
+        'coverPosition',
         'studyStats',
         'uid',
         'updatedAt'
@@ -75,6 +77,8 @@ service cloud.firestore {
         'email',
         'name',
         'photoURL',
+        'coverURL',
+        'coverPosition',
         'studyStats',
         'uid',
         'updatedAt'
@@ -171,6 +175,23 @@ service cloud.firestore {
       allow create, update, delete: if isOwner(uid);
     }
 
+    // Consultas transversais usadas exclusivamente pelo painel administrativo.
+    match /{path=**}/registrosEstudo/{recordId} {
+      allow read: if isAdmin();
+    }
+
+    match /{path=**}/simulados/{simuladoId} {
+      allow read: if isAdmin();
+    }
+
+    match /{path=**}/ciclos/{cicloId} {
+      allow read: if isAdmin();
+    }
+
+    match /{path=**}/cronogramas/{cronogramaId} {
+      allow read: if isAdmin();
+    }
+
     // Documento principal do usuário e todas as subcoleções permanecem restritos ao dono ou admin.
     match /users/{userId} {
       allow create: if isAdmin()
@@ -185,7 +206,10 @@ service cloud.firestore {
         || (
           isOwner(userId)
           && ownerUserDocTouchedKeysAreSafe()
-          && request.resource.data.uid == resource.data.uid
+          && (
+            !request.resource.data.keys().hasAny(['uid'])
+            || request.resource.data.uid == userId
+          )
         );
       allow delete: if isAdmin();
 

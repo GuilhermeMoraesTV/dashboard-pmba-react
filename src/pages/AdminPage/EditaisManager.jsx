@@ -779,9 +779,9 @@ const EditaisManagerModal = ({ isOpen, onClose }) => {
       <AnimatePresence>{showCustomModal && <CustomEditalModal onClose={() => { setShowCustomModal(false); setEditalToEdit(null); }} editalToEdit={editalToEdit} showToast={triggerToast} allEditais={allEditais} />}</AnimatePresence>
 
       <motion.div initial={{ scale: 0.95, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }}
-        className="modal-zoom modal-zoom--admin-editais bg-zinc-50 dark:bg-zinc-950 w-full max-w-6xl h-[calc(100dvh-1.5rem)] sm:h-[calc(100dvh-2.5rem)] md:h-[calc(100dvh-3.5rem)] lg:h-[82dvh] rounded-2xl md:rounded-[2.5rem] border border-zinc-200 dark:border-zinc-800 shadow-2xl flex flex-col overflow-hidden">
+        className="admin-modal-shell admin-modal-shell--editais modal-zoom modal-zoom--admin-editais bg-zinc-50 dark:bg-zinc-950 w-full md:w-[96vw] md:max-w-[1500px] h-[calc(100dvh-1.5rem)] sm:h-[calc(100dvh-2.5rem)] md:h-[calc(100dvh-3.5rem)] lg:h-[88dvh] rounded-2xl md:rounded-[2rem] border border-zinc-200 dark:border-zinc-800 shadow-2xl flex flex-col overflow-hidden">
 
-        <div className="px-8 py-6 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 flex flex-col md:flex-row justify-between items-center gap-6 z-10 shadow-sm">
+        <div className="admin-modal-heading admin-editais-heading px-5 py-4 sm:px-6 flex flex-col md:flex-row justify-between items-center gap-4 z-10">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 bg-red-50 dark:bg-red-900/20 rounded-2xl text-red-600 flex items-center justify-center border border-red-100 dark:border-red-800/30"><Server size={24} /></div>
             <div><h3 className="text-2xl font-black text-zinc-900 dark:text-white tracking-tight leading-none mb-1">Central de Editais</h3><p className="text-xs font-bold text-zinc-400 uppercase">Gerencie e instale novos concursos</p></div>
@@ -805,7 +805,7 @@ const EditaisManagerModal = ({ isOpen, onClose }) => {
           </div>
         </div>
 
-        <div className="flex-1 flex flex-col overflow-hidden bg-zinc-50/50 dark:bg-black/20">
+        <div className="admin-modal-body admin-editais-content flex-1 flex flex-col overflow-hidden">
           <div className="px-8 pt-6 pb-2">
             <div className="flex gap-2 overflow-x-auto pb-4" style={{ scrollbarWidth: 'none' }}>
               {categories.map(cat => {
@@ -820,7 +820,7 @@ const EditaisManagerModal = ({ isOpen, onClose }) => {
             </div>
           </div>
           <div className="flex-1 overflow-y-auto px-8 pb-10 custom-scrollbar">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+            <div className="admin-editais-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
               <AnimatePresence mode="popLayout">
                 {filteredEditais.map(edital => <EditalCard key={edital.id} edital={edital} />)}
               </AnimatePresence>

@@ -1,7 +1,9 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { onAuthStateChanged } from 'firebase/auth';
-import { auth } from './firebaseConfig';
+import { auth, authPersistenceReady } from './firebaseConfig';
+import PwaStatus from './components/shared/PwaStatus';
+import { dismissInitialLoadingScreen } from './utils/initialLoadingScreen';
 
 // Importações Lazy
 const Dashboard = lazy(() => import('./components/Dashboard'));
@@ -19,6 +21,11 @@ function ProtectedDashboard({ user, isDarkMode, toggleTheme }) {
 function PublicRoute({ user, children }) {
   const location = useLocation();
   const destination = location.state?.from?.pathname || '/app/home';
+
+  useEffect(() => {
+    if (!user) dismissInitialLoadingScreen();
+  }, [user]);
+
   return user ? <Navigate to={destination} replace /> : children;
 }
 
@@ -63,20 +70,25 @@ function App() {
 
   // Monitoramento de Autenticação
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      setLoading(false);
+    let unsubscribe = () => {};
+    let active = true;
+
+    authPersistenceReady.finally(() => {
+      if (!active) return;
+      unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+        setUser(currentUser);
+        setLoading(false);
+      });
     });
 
-    return () => unsubscribe();
+    return () => {
+      active = false;
+      unsubscribe();
+    };
   }, []);
 
   if (loading) {
-    return (
-      <div className="flex justify-center items-center min-h-screen bg-background-color dark:bg-dark-background-color">
-        <div className="w-8 h-8 border-4 border-red-500 border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    );
+    return null;
   }
 
   return (
@@ -86,14 +98,9 @@ function App() {
           - 'flex-grow' no Suspense/Main empurra o Footer para o final.
       */}
       <div className="flex flex-col min-h-screen bg-background-color dark:bg-dark-background-color transition-colors">
+        <PwaStatus />
 
-        <Suspense
-          fallback={
-            <div className="flex flex-grow justify-center items-center">
-              <div className="w-8 h-8 border-4 border-zinc-300 border-t-zinc-600 rounded-full animate-spin"></div>
-            </div>
-          }
-        >
+        <Suspense fallback={null}>
           <main className="flex-grow">
             <Routes>
               <Route

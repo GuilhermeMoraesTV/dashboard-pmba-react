@@ -14,7 +14,7 @@ const StepBar = ({ passo, steps, isExpresso }) => {
     <div className="w-full select-none">
       
       {/* 📱 MOBILE VIEW: Todos os passos visíveis em linha conectada */}
-      <div className="flex sm:hidden items-center justify-center w-full px-1 py-1 gap-0.5 rounded-xl border border-zinc-200/80 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/70 backdrop-blur">
+      <div className="flex sm:hidden items-center justify-center w-full px-1 py-1 gap-0.5 rounded-xl border border-zinc-200/80 dark:border-zinc-800 bg-white/80 dark:bg-card-dark backdrop-blur">
         {steps.map((step, idx) => {
           const isDone = passo > step.id;
           const isActive = passo === step.id;
@@ -69,7 +69,7 @@ const StepBar = ({ passo, steps, isExpresso }) => {
       </div>
 
       {/* 💻 DESKTOP VIEW: Design Conectado e Espaçado */}
-      <div className="hidden sm:flex items-center justify-center gap-0 w-full rounded-[1.8rem] border border-zinc-200/80 dark:border-zinc-800 bg-white/85 dark:bg-zinc-950/70 backdrop-blur px-4 py-3">
+      <div className="hidden sm:flex items-center justify-center gap-0 w-full rounded-[1.8rem] border border-zinc-200/80 dark:border-zinc-800 bg-white/85 dark:bg-card-dark backdrop-blur px-4 py-3">
         {steps.map((step, idx) => {
           const isDone = passo > step.id;
           const isActive = passo === step.id;

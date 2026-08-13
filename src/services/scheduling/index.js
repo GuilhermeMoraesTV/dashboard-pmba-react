@@ -462,8 +462,18 @@ export function gerarSchedule(disciplinas, disponibilidade, opcoes = {}) {
   // ── Guarda de entrada ─────────────────────────────────────────────────────
   if (!disciplinas?.length) return null;
 
-  const minMinutosSlot = Math.max(5, Math.round(Number(opcoes.duracaoMinimaSessaoMinutos) || MIN_MINUTOS_SLOT));
-  const maxMinutosSlot = Math.max(minMinutosSlot, Math.round(Number(opcoes.duracaoMaximaSessaoMinutos) || 60));
+  const duracaoMinimaConfigurada = Math.max(5, Math.round(Number(opcoes.duracaoMinimaSessaoMinutos) || MIN_MINUTOS_SLOT));
+  const duracaoMaximaConfigurada = Math.max(duracaoMinimaConfigurada, Math.round(Number(opcoes.duracaoMaximaSessaoMinutos) || 60));
+  const duracaoUnicaMinutos = Math.max(
+    5,
+    Math.round(Number(opcoes.tempoSessaoMinutos) || duracaoMaximaConfigurada),
+  );
+  const usarDuracaoUnica = opcoes.usarDuracaoUnica === true
+    || duracaoMinimaConfigurada === duracaoMaximaConfigurada;
+  // No modo de duração única, o valor escolhido é um teto e o bloco residual
+  // pode ser menor. Por isso o mínimo técnico continua em 5 minutos.
+  const minMinutosSlot = usarDuracaoUnica ? 5 : duracaoMinimaConfigurada;
+  const maxMinutosSlot = usarDuracaoUnica ? duracaoUnicaMinutos : duracaoMaximaConfigurada;
 
   const disciplinasValidas = disciplinas.filter(d => {
     if (!d?.id   || typeof d.id   !== 'string') return false;
@@ -587,7 +597,8 @@ export function gerarSchedule(disciplinas, disponibilidade, opcoes = {}) {
     } else {
       nBlocos = calcularMateriasPorDia(horasBrutas, numDisciplinas);
     }
-    const blocosMinPorDuracao = Math.max(1, Math.ceil(minTeoria / maxMinutosSlot));
+    const minutosBaseParaQuantidade = usarDuracaoUnica ? minBrutos : minTeoria;
+    const blocosMinPorDuracao = Math.max(1, Math.ceil(minutosBaseParaQuantidade / maxMinutosSlot));
     const blocosMaxPorDuracao = Math.max(1, Math.floor(minTeoria / minMinutosSlot));
     nBlocos = opcoes.limitarMaterias
       ? Math.max(nBlocos, disciplinasDiarias.length)
@@ -1168,6 +1179,8 @@ export function gerarSchedule(disciplinas, disponibilidade, opcoes = {}) {
       intervalosRevisao:       INTERVALOS_REVISAO,  // [1, 7, 30]
       estudo:                  [],
       tempoRevisaoMinutos,
+      usarDuracaoUnica,
+      tempoSessaoMinutos: usarDuracaoUnica ? duracaoUnicaMinutos : null,
       percentualRevisao:       PERCENTUAL_REVISAO_DIARIA,
       retaFinal,
       dataProva,

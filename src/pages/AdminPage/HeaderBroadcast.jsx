@@ -38,17 +38,21 @@ const ExpandedModal = ({ isOpen, onClose, title, children }) => {
         initial={{ scale: 0.95, opacity: 0, y: 20 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.95, opacity: 0, y: 20 }}
-        className="modal-zoom modal-zoom--admin-broadcast bg-zinc-100 dark:bg-zinc-900 w-full h-[calc(100dvh-1.5rem)] sm:h-[calc(100dvh-2.5rem)] md:w-[90vw] md:max-w-5xl md:h-[calc(100dvh-3.5rem)] lg:h-[78dvh] rounded-2xl md:rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-2xl flex flex-col overflow-hidden relative"
+        className="admin-modal-shell admin-modal-shell--broadcast modal-zoom modal-zoom--admin-broadcast w-full h-[calc(100dvh-1.5rem)] sm:h-[calc(100dvh-2.5rem)] md:w-[96vw] md:max-w-[1500px] md:h-[calc(100dvh-3rem)] lg:h-[88dvh] rounded-2xl md:rounded-[2rem] border border-zinc-200 dark:border-zinc-800 shadow-2xl flex flex-col overflow-hidden relative"
       >
-        <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800 flex justify-between items-center bg-white dark:bg-zinc-950 shadow-sm z-50">
-          <h3 className="text-xl font-black text-zinc-900 dark:text-white flex items-center gap-2 tracking-tight">
-            {title} <span className="text-red-600 hidden md:inline">.</span>
-          </h3>
-          <button onClick={onClose} className="p-2 bg-zinc-50 dark:bg-zinc-900 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 rounded-full transition-colors text-zinc-400">
+        <div className="admin-modal-heading flex items-center justify-between gap-4 px-5 py-4 sm:px-6 z-50">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="admin-modal-heading__icon"><Megaphone size={21} /></span>
+            <div className="min-w-0">
+              <h3 className="truncate text-lg font-black tracking-tight text-zinc-900 dark:text-white sm:text-xl">{title}</h3>
+              <p className="hidden text-xs font-semibold text-zinc-500 sm:block">Crie comunicados, confira a prévia e acompanhe o histórico de envios.</p>
+            </div>
+          </div>
+          <button onClick={onClose} aria-label="Fechar central de broadcast" className="admin-modal-close">
             <X size={20} />
           </button>
         </div>
-        <div className="flex-1 overflow-hidden relative flex flex-col md:flex-row bg-zinc-50 dark:bg-black/20">
+        <div className="admin-modal-body flex-1 overflow-hidden relative flex flex-col md:flex-row">
           {children}
         </div>
       </motion.div>

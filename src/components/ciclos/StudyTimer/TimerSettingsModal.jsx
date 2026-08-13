@@ -108,7 +108,7 @@ const TimeAdjuster = ({ label, valueMinutes, onChange, colorClass, icon: Icon, m
   };
 
   return (
-    <div className="bg-zinc-100 dark:bg-zinc-950/50 rounded-2xl p-4 border border-zinc-200 dark:border-zinc-800 transition-all hover:border-zinc-300 dark:hover:border-zinc-700">
+    <div className="bg-zinc-100 dark:bg-zinc-800/55 rounded-2xl p-4 border border-zinc-200 dark:border-zinc-700 transition-all hover:border-zinc-300 dark:hover:border-zinc-600">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <div className={`p-1.5 rounded-lg bg-white dark:bg-zinc-900 shadow-sm ${colorClass}`}>
@@ -243,7 +243,7 @@ const TimerSettingsModal = ({ isOpen, onClose, onSave, userUid = null }) => {
         className="relative z-10 flex w-full max-w-2xl flex-col overflow-hidden rounded-[28px] border border-zinc-200 bg-zinc-50 shadow-2xl dark:border-zinc-800 dark:bg-zinc-900 max-h-[calc(100dvh-32px)]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex justify-between items-center p-5 border-b border-zinc-200 dark:border-zinc-800 bg-white/50 dark:bg-zinc-900/50 backdrop-blur-sm relative z-10">
+        <div className="flex justify-between items-center p-5 border-b border-zinc-200 dark:border-zinc-800 bg-white/50 dark:bg-card-dark backdrop-blur-sm relative z-10">
           <div className="flex items-center gap-4">
             <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-red-600 to-red-800 flex items-center justify-center shadow-lg shadow-red-900/20">
               <Sliders size={20} className="text-white" />
@@ -273,7 +273,7 @@ const TimerSettingsModal = ({ isOpen, onClose, onSave, userUid = null }) => {
             )}
           </AnimatePresence>
 
-          <div className="flex bg-zinc-100 dark:bg-zinc-950 p-1.5 rounded-2xl mb-6 border border-zinc-200 dark:border-zinc-800 relative">
+          <div className="flex bg-zinc-100 dark:bg-card-dark p-1.5 rounded-2xl mb-6 border border-zinc-200 dark:border-zinc-800 relative">
             {['geral', 'aparencia', 'som'].map(tab => (
               <button
                 key={tab}
@@ -307,7 +307,7 @@ const TimerSettingsModal = ({ isOpen, onClose, onSave, userUid = null }) => {
                     <div className="grid grid-cols-2 gap-4">
                       <button
                         onClick={() => setLocalSettings(p => ({ ...p, mode: 'livre' }))}
-                        className={`p-4 rounded-2xl border-2 flex flex-col items-center gap-3 transition-all duration-300 ${localSettings.mode === 'livre' ? 'border-red-600 bg-red-50 dark:bg-red-900/10 text-red-600' : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-700'}`}
+                        className={`p-4 rounded-2xl border-2 flex flex-col items-center gap-3 transition-all duration-300 ${localSettings.mode === 'livre' ? 'border-red-600 bg-red-50 dark:bg-red-900/10 text-red-600' : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-card-dark text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-700'}`}
                       >
                         <Clock size={24} className={localSettings.mode === 'livre' ? 'text-red-500' : 'opacity-50'} />
                         <div className="text-center">
@@ -317,7 +317,7 @@ const TimerSettingsModal = ({ isOpen, onClose, onSave, userUid = null }) => {
                       </button>
                       <button
                         onClick={() => setLocalSettings(p => ({ ...p, mode: 'pomodoro' }))}
-                        className={`p-4 rounded-2xl border-2 flex flex-col items-center gap-3 transition-all duration-300 ${localSettings.mode === 'pomodoro' ? 'border-red-600 bg-red-50 dark:bg-red-900/10 text-red-600' : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-700'}`}
+                        className={`p-4 rounded-2xl border-2 flex flex-col items-center gap-3 transition-all duration-300 ${localSettings.mode === 'pomodoro' ? 'border-red-600 bg-red-50 dark:bg-red-900/10 text-red-600' : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-card-dark text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-700'}`}
                       >
                         <RefreshCw size={24} className={localSettings.mode === 'pomodoro' ? 'text-red-500' : 'opacity-50'} />
                         <div className="text-center">
@@ -374,7 +374,7 @@ const TimerSettingsModal = ({ isOpen, onClose, onSave, userUid = null }) => {
                   </div>
 
                   <div className="relative pt-2">
-                    <div className="flex items-center gap-3 p-4 bg-zinc-100 dark:bg-zinc-950 rounded-2xl border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors group">
+                    <div className="flex items-center gap-3 p-4 bg-zinc-100 dark:bg-card-dark rounded-2xl border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors group">
                       <ColorisSwatch
                         value={localSettings.color}
                         onChange={(color) => setLocalSettings(p => ({ ...p, color }))}
@@ -407,7 +407,7 @@ const TimerSettingsModal = ({ isOpen, onClose, onSave, userUid = null }) => {
                             setLocalSettings(p => ({ ...p, soundType: 'default', selectedSoundId: sound.id }));
                             playPreviewSound(sound.url);
                           }}
-                          className={`w-full p-3 rounded-xl border flex items-center justify-between transition-all ${localSettings.soundType === 'default' && localSettings.selectedSoundId === sound.id ? 'border-red-600 bg-red-50 dark:bg-red-900/10 text-red-700 dark:text-white' : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-900'}`}
+                          className={`w-full p-3 rounded-xl border flex items-center justify-between transition-all ${localSettings.soundType === 'default' && localSettings.selectedSoundId === sound.id ? 'border-red-600 bg-red-50 dark:bg-red-900/10 text-red-700 dark:text-white' : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-card-dark text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-900'}`}
                         >
                           <div className="flex items-center gap-3">
                             <div className={`p-2 rounded-lg ${localSettings.soundType === 'default' && localSettings.selectedSoundId === sound.id ? 'bg-red-600 text-white' : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-500'}`}>

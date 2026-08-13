@@ -110,7 +110,7 @@ const SlotCard = ({ slot, onRemove, onMinutesChange }) => {
               {slot.disciplinaNome}
             </h4>
           </div>
-          <span className="w-fit rounded-md bg-white/75 px-1.5 py-0.5 text-[10px] font-black leading-none tracking-tight text-zinc-700 tabular-nums dark:bg-zinc-950/60 dark:text-zinc-200 sm:text-sm">
+          <span className="w-fit rounded-md bg-white/75 px-1.5 py-0.5 text-[10px] font-black leading-none tracking-tight text-zinc-700 tabular-nums dark:bg-card-dark/60 dark:text-zinc-200 sm:text-sm">
             {fmtMin(minutos)}
           </span>
         </div>
@@ -121,7 +121,7 @@ const SlotCard = ({ slot, onRemove, onMinutesChange }) => {
             event.stopPropagation();
             onRemove();
           }}
-          className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-lg border border-zinc-200 bg-white/90 text-zinc-500 shadow-sm transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600 dark:border-zinc-700 dark:bg-zinc-950/90 dark:text-zinc-300 dark:hover:border-red-900/60 dark:hover:bg-red-950/30 dark:hover:text-red-300 sm:top-1/2 sm:-translate-y-1/2"
+          className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-lg border border-zinc-200 bg-white/90 text-zinc-500 shadow-sm transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600 dark:border-zinc-700 dark:bg-card-dark/90 dark:text-zinc-300 dark:hover:border-red-900/60 dark:hover:bg-red-950/30 dark:hover:text-red-300 sm:top-1/2 sm:-translate-y-1/2"
           aria-label="Remover bloco"
         >
           <Trash2 size={13} />
@@ -192,8 +192,8 @@ const DayColumn = ({
       onClick={() => activateDay(true)}
       className={`relative flex min-h-[340px] w-[216px] shrink-0 flex-col overflow-hidden rounded-[18px] border p-2 transition-all duration-300 sm:min-h-[480px] sm:w-[300px] sm:rounded-[20px] sm:p-2.5 lg:min-h-[470px] lg:w-[264px] xl:min-h-[500px] xl:w-[280px] ${
         selected || isHoje
-          ? 'border-zinc-300 bg-white/80 shadow-md ring-1 ring-zinc-300/70 dark:border-zinc-700 dark:bg-zinc-950/50 dark:ring-zinc-700/60'
-          : 'border-zinc-200 bg-zinc-50/70 shadow-sm hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-950/30 dark:hover:border-zinc-700'
+          ? 'border-zinc-300 bg-white/80 shadow-md ring-1 ring-zinc-300/70 dark:border-zinc-700 dark:bg-card-dark dark:ring-zinc-700/60'
+          : 'border-zinc-200 bg-zinc-50/70 shadow-sm hover:border-zinc-300 dark:border-zinc-800 dark:bg-card-dark dark:hover:border-zinc-700'
       }`}
     >
       <button
@@ -229,7 +229,7 @@ const DayColumn = ({
           onSelect(dia.idx);
           onOpenPicker(dia.idx);
         }}
-        className="mb-1.5 flex h-7 shrink-0 items-center justify-center gap-1 rounded-xl border border-zinc-200 bg-white text-[7px] font-black uppercase tracking-[0.08em] text-zinc-500 shadow-sm transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400 dark:hover:border-red-900/60 dark:hover:bg-red-950/20 sm:mb-2 sm:h-9 sm:gap-1.5 sm:text-[9px] sm:tracking-widest"
+        className="mb-1.5 flex h-7 shrink-0 items-center justify-center gap-1 rounded-xl border border-zinc-200 bg-white text-[7px] font-black uppercase tracking-[0.08em] text-zinc-500 shadow-sm transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 dark:border-zinc-800 dark:bg-card-dark dark:text-zinc-400 dark:hover:border-red-900/60 dark:hover:bg-red-950/20 sm:mb-2 sm:h-9 sm:gap-1.5 sm:text-[9px] sm:tracking-widest"
       >
         <Plus size={13} />
         Escolher disciplina
@@ -237,7 +237,7 @@ const DayColumn = ({
 
       {pickerOpen && (
         <div
-          className="mb-2 shrink-0 overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-lg shadow-zinc-950/10 dark:border-zinc-800 dark:bg-zinc-950"
+          className="mb-2 shrink-0 overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-lg shadow-zinc-950/10 dark:border-zinc-800 dark:bg-card-dark"
           onClick={(event) => event.stopPropagation()}
         >
           <div className="flex items-center justify-between gap-2 border-b border-zinc-100 px-3 py-2 dark:border-zinc-800">
@@ -615,7 +615,7 @@ export default function StepModoMontagem({
                     ? 'border-red-500 bg-white shadow-red-500/10 dark:border-red-900/50'
                     : isAutomatico
                       ? 'border-zinc-100 bg-white hover:border-red-600 hover:shadow-red-600/10 dark:border-zinc-800'
-                      : 'border-dashed border-zinc-300 bg-zinc-50 hover:border-zinc-400 hover:bg-white hover:shadow-zinc-900/10 dark:border-zinc-700 dark:bg-zinc-900/60 dark:hover:border-zinc-500 dark:hover:bg-zinc-900'
+                      : 'border-dashed border-zinc-300 bg-zinc-50 hover:border-zinc-400 hover:bg-white hover:shadow-zinc-900/10 dark:border-zinc-700 dark:bg-zinc-800/55 dark:hover:border-zinc-500 dark:hover:bg-zinc-800'
                 }`}
               >
                 <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[2.2rem]">
@@ -688,7 +688,7 @@ export default function StepModoMontagem({
                   Monte sua semana manualmente: escolha um dia, adicione as disciplinas que quer estudar e ajuste a duração de cada bloco.
                 </p>
                 <div className="mt-2 flex flex-row flex-wrap items-center justify-center gap-2">
-                  <div className="inline-flex w-fit items-center gap-1.5 rounded-xl border border-red-100 bg-white px-2.5 py-1.5 shadow-sm dark:border-red-900/40 dark:bg-zinc-950 sm:gap-2 sm:rounded-2xl sm:px-3.5 sm:py-2.5">
+                  <div className="inline-flex w-fit items-center gap-1.5 rounded-xl border border-red-100 bg-white px-2.5 py-1.5 shadow-sm dark:border-red-900/40 dark:bg-card-dark sm:gap-2 sm:rounded-2xl sm:px-3.5 sm:py-2.5">
                     <Clock size={14} className="text-red-500 sm:h-[17px] sm:w-[17px]" />
                     <span className="text-[9px] font-black uppercase tracking-widest text-zinc-400">Total da semana</span>
                     <span className="text-sm font-black leading-none tabular-nums text-zinc-900 dark:text-white sm:text-lg">{fmtMin(totalMinutos)}</span>
@@ -733,7 +733,7 @@ export default function StepModoMontagem({
                 </div>
               </div>
 
-              <aside className="hidden min-w-0 overflow-hidden rounded-xl border border-zinc-200 bg-white p-1.5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/60 sm:rounded-2xl sm:p-3 lg:block lg:self-start lg:rounded-[28px] lg:p-4">
+              <aside className="hidden min-w-0 overflow-hidden rounded-xl border border-zinc-200 bg-white p-1.5 shadow-sm dark:border-zinc-800 dark:bg-card-dark sm:rounded-2xl sm:p-3 lg:block lg:self-start lg:rounded-[28px] lg:p-4">
             <div className="mb-1.5 flex items-center gap-2 border-b border-zinc-100 pb-1.5 dark:border-zinc-800 sm:mb-3 sm:gap-3 sm:pb-3 lg:mb-4 lg:pb-4">
               <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-zinc-100 text-zinc-500 dark:bg-zinc-900 sm:h-9 sm:w-9 sm:rounded-2xl lg:h-10 lg:w-10">
                 <Layers size={16} className="sm:h-[18px] sm:w-[18px]" />
@@ -795,7 +795,7 @@ export default function StepModoMontagem({
                         event.stopPropagation();
                         addSlot(disciplina);
                       }}
-                      className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-white text-red-600 dark:bg-zinc-950 sm:h-7 sm:w-7 sm:rounded-xl"
+                      className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-white text-red-600 dark:bg-card-dark sm:h-7 sm:w-7 sm:rounded-xl"
                       aria-label={`Adicionar ${disciplina.nome}`}
                       data-no-touch-drag
                     >

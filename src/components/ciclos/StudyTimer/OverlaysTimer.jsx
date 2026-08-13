@@ -84,7 +84,7 @@ const OverlaysTimer = ({
                             <motion.div
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
-                                className="fixed inset-0 z-[10000] bg-white/95 dark:bg-zinc-950/95 backdrop-blur-md flex flex-col items-center justify-center p-6"
+                                className="fixed inset-0 z-[10000] bg-white/95 dark:bg-card-dark/95 backdrop-blur-md flex flex-col items-center justify-center p-6"
                             >
                                 <div className="w-24 h-24 rounded-full flex items-center justify-center mb-6 animate-bounce shadow-2xl" style={{ backgroundColor: `${themeColor}20`, color: themeColor }}>
                                     <CheckCircle2 size={48} />
@@ -126,7 +126,7 @@ const OverlaysTimer = ({
                             <motion.div
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
-                                className="fixed inset-0 z-[10000] bg-white/95 dark:bg-zinc-950/95 backdrop-blur-md flex flex-col items-center justify-center p-6"
+                                className="fixed inset-0 z-[10000] bg-white/95 dark:bg-card-dark/95 backdrop-blur-md flex flex-col items-center justify-center p-6"
                             >
                                 <div className="w-24 h-24 rounded-full flex items-center justify-center mb-6 animate-bounce shadow-2xl" style={{ backgroundColor: `${themeColor}20`, color: themeColor }}>
                                     <AlarmClock size={48} />

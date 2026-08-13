@@ -895,9 +895,9 @@ function HojeCard({
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        className={`group relative z-20 flex min-h-[400px] flex-col overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white p-6 transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/50 hover:!border-l-red-500 hover:shadow-glow dark:border-white/10 dark:!border-l-red-500/25 dark:bg-[#09090b] dark:shadow-[0_0_24px_rgba(239,68,68,0.1)] dark:hover:border-accent-light/30 dark:hover:!border-l-red-500 dark:hover:shadow-[0_0_36px_rgba(239,68,68,0.16)] ${className}`}
+        className={`group relative z-20 flex min-h-[400px] flex-col overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white p-6 transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/50 hover:!border-l-red-500 hover:shadow-glow dark:border-white/10 dark:!border-l-red-500/25 dark:bg-card-dark dark:shadow-[0_0_24px_rgba(239,68,68,0.1)] dark:hover:border-accent-light/30 dark:hover:!border-l-red-500 dark:hover:shadow-[0_0_36px_rgba(239,68,68,0.16)] ${className}`}
       >
-        <div className="pointer-events-none absolute inset-0 z-0 bg-white dark:bg-[#09090b]" />
+        <div className="pointer-events-none absolute inset-0 z-0 bg-white dark:bg-card-dark" />
 
         <div className="pointer-events-none absolute -right-24 -top-24 h-56 w-56 rounded-full bg-gradient-to-br from-red-600 to-rose-700 opacity-10 blur-[90px] transition-all duration-700 group-hover:opacity-20" />
         <div className="pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-zinc-500/5 opacity-40 blur-[80px] transition-all duration-700" />
@@ -967,9 +967,9 @@ function HojeCard({
         if (!completionGlowActive || isInteractiveClick(event.target)) return;
         openCompletionModal();
       }}
-      className={`group relative z-20 flex min-h-[400px] flex-col overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 bg-white p-6 transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/50 hover:shadow-glow dark:border-white/10 dark:bg-[#09090b] ${completionGlowActive ? '!border-l-emerald-500/35 hover:!border-l-emerald-500 dark:!border-l-emerald-500/35 dark:hover:!border-l-emerald-500 dark:shadow-[0_0_24px_rgba(16,185,129,0.1)] dark:hover:shadow-[0_0_36px_rgba(16,185,129,0.16)] cursor-pointer' : '!border-l-red-500/20 hover:!border-l-red-500 dark:!border-l-red-500/25 dark:hover:!border-l-red-500 dark:shadow-[0_0_24px_rgba(239,68,68,0.1)] dark:hover:shadow-[0_0_36px_rgba(239,68,68,0.16)]'} ${className}`}
+      className={`group relative z-20 flex min-h-[400px] flex-col overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 bg-white p-6 transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/50 hover:shadow-glow dark:border-white/10 dark:bg-card-dark ${completionGlowActive ? '!border-l-emerald-500/35 hover:!border-l-emerald-500 dark:!border-l-emerald-500/35 dark:hover:!border-l-emerald-500 dark:shadow-[0_0_24px_rgba(16,185,129,0.1)] dark:hover:shadow-[0_0_36px_rgba(16,185,129,0.16)] cursor-pointer' : '!border-l-red-500/20 hover:!border-l-red-500 dark:!border-l-red-500/25 dark:hover:!border-l-red-500 dark:shadow-[0_0_24px_rgba(239,68,68,0.1)] dark:hover:shadow-[0_0_36px_rgba(239,68,68,0.16)]'} ${className}`}
     >
-      <div className="pointer-events-none absolute inset-0 z-0 bg-white dark:bg-[#09090b]" />
+      <div className="pointer-events-none absolute inset-0 z-0 bg-white dark:bg-card-dark" />
 
       <div className={`pointer-events-none absolute -right-24 -top-24 h-56 w-56 rounded-full opacity-10 blur-[90px] transition-all duration-700 group-hover:opacity-20 ${
         completionGlowActive ? 'bg-gradient-to-br from-emerald-500 to-teal-600' : activePanel === 'estudo' ? 'bg-gradient-to-br from-red-600 to-rose-700' : 'bg-gradient-to-br from-blue-600 to-indigo-700'
@@ -977,7 +977,7 @@ function HojeCard({
       <div className="pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-zinc-500/5 opacity-40 blur-[80px] transition-all duration-700" />
 
       <div className="relative z-20 flex h-full w-full min-h-0 flex-col">
-        <div className={`mb-4 shrink-0 overflow-hidden rounded-2xl border p-3 shadow-md backdrop-blur-xl transition-all duration-500 dark:border-zinc-800 dark:bg-zinc-950/85 ${
+        <div className={`mb-4 shrink-0 overflow-hidden rounded-2xl border p-3 shadow-md backdrop-blur-xl transition-all duration-500 dark:border-zinc-800 dark:bg-card-dark/85 ${
           completionGlowActive
             ? 'border-emerald-200/80 bg-white/90 shadow-emerald-500/10 dark:shadow-emerald-950/20'
             : activePanel === 'estudo'
@@ -1002,25 +1002,14 @@ function HojeCard({
                   {modoCicloAtivo ? 'Fila do ciclo' : 'Estudo do dia'}
                 </p>
                 <h2 className="mt-0.5 text-base font-black uppercase leading-none tracking-tight text-zinc-900 dark:text-white sm:text-xl">
-                  {completionGlowActive ? (
-                    'ESTUDO DO DIA CONCLUIDO'
-                  ) : (
-                    <>{activePanel === 'estudo' ? (modoCicloAtivo ? 'Blocos do ciclo' : 'Sessoes ativas') : 'Revisoes ativas'}</>
-                  )}
+                  {completionGlowActive ? 'ESTUDO DO DIA CONCLUIDO' : activePanel === 'estudo' ? (modoCicloAtivo ? 'Blocos do ciclo' : 'Sessoes ativas') : 'Revisoes ativas'}
                 </h2>
-                {completionGlowActive && mostrarTempoHomeTotal && (
-                  <p className="mt-1 text-[9px] font-black uppercase tracking-widest text-emerald-600/80 dark:text-emerald-300/80">
-                    {fmtMin(progressoDiaResumo.feito)} estudados
-                  </p>
-                )}
               </div>
             </div>
 
             {mostrarTempoHomeTotal && (
             <div className="shrink-0 text-right">
-              <p className="text-[8px] font-black uppercase tracking-widest text-zinc-400">
-                {modoCicloAtivo ? 'Meta de hoje' : completionGlowActive || !mostrarTempoHomeDetalhado ? 'Tempo' : 'Meta de hoje'}
-              </p>
+              <p className="text-[8px] font-black uppercase tracking-widest text-zinc-400">Meta de hoje</p>
               <div className="mt-1 flex items-center justify-end gap-1.5">
                 <Clock size={13} className={completionGlowActive ? 'text-emerald-500' : activePanel === 'estudo' ? 'text-red-500' : 'text-blue-500'} />
                 <span className="text-base font-black tabular-nums text-zinc-900 dark:text-white sm:text-xl">
@@ -1033,21 +1022,11 @@ function HojeCard({
                   {fmtMin(mostrarTempoHomeDetalhado ? progressoCard.total : progressoDiaResumo.total)}
                 </span>
               </div>
-              {mostrarTempoHomeDetalhado && (
-              <p className={`mt-1 text-[9px] font-black uppercase tracking-widest ${completionGlowActive ? 'text-emerald-600 dark:text-emerald-400' : activePanel === 'estudo' ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}`}>
-                {completionGlowActive ? 'Concluido' : `${progressoCard.pct}% concluido`}
-              </p>
-              )}
             </div>
             )}
           </div>
 
-          <div className="relative z-10 mt-3 flex items-center justify-between gap-3">
-            <span className="min-w-0 truncate text-[8px] font-black uppercase tracking-widest text-zinc-500">
-              {completionGlowActive
-                ? `Dia concluido - ${progressoCard.concluidos} de ${progressoCard.itens}`
-                : `${modoCicloAtivo ? 'Ciclo livre' : 'Cronograma'} - ${progressoCard.concluidos} de ${progressoCard.itens} concluidos`}
-            </span>
+          <div className="relative z-10 mt-2 flex items-center justify-end">
             <div className="flex shrink-0 items-center rounded-xl border border-zinc-100 bg-zinc-50 p-0.5 dark:border-white/5 dark:bg-white/5">
               <button
                 type="button"
@@ -1078,57 +1057,6 @@ function HojeCard({
               </button>
             </div>
           </div>
-
-          {mostrarTempoHomeDetalhado && (
-          <div className="mt-3">
-            <div className="hidden">
-              <span className="min-w-0 truncate text-[8px] font-black uppercase tracking-widest text-zinc-500">
-                {completionGlowActive
-                  ? `Tempo do dia - ${fmtMin(progressoDiaResumo.feito)}`
-                  : `${modoCicloAtivo ? 'Modo ciclo' : 'Cronograma'} - ${progressoCard.concluidos} de ${progressoCard.itens} concluidos`}
-              </span>
-              <div className="flex shrink-0 items-center rounded-xl border border-zinc-100 bg-zinc-50 p-0.5 dark:border-white/5 dark:bg-white/5">
-                <button
-                  type="button"
-                  onClick={() => setActivePanel('estudo')}
-                  className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[8px] font-black uppercase tracking-wider transition-all duration-300 ${
-                    activePanel === 'estudo'
-                      ? 'bg-white text-zinc-950 shadow-sm dark:bg-zinc-800 dark:text-white'
-                      : 'text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300'
-                  }`}
-                >
-                  <BookOpen size={10} className={activePanel === 'estudo' ? 'text-red-500' : ''} /> Estudo
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActivePanel('revisao')}
-                  className={`relative flex items-center gap-1 rounded-lg px-2 py-1 text-[8px] font-black uppercase tracking-wider transition-all duration-300 ${
-                    activePanel === 'revisao'
-                      ? 'bg-white text-zinc-950 shadow-sm dark:bg-zinc-800 dark:text-white'
-                      : 'text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300'
-                  }`}
-                >
-                  <Target size={10} className={activePanel === 'revisao' ? 'text-blue-500' : ''} /> Revisao
-                  {revisoesPendentesCount > 0 && (
-                    <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full border-2 border-white bg-red-600 px-1 text-[8px] font-black leading-none text-white shadow-md shadow-red-600/25 dark:border-zinc-900">
-                      {revisoesPendentesCount > 9 ? '9+' : revisoesPendentesCount}
-                    </span>
-                  )}
-                </button>
-              </div>
-            </div>
-            <div className="h-2 w-full overflow-hidden rounded-full border border-zinc-200/50 bg-zinc-100 p-0.5 dark:border-zinc-700/50 dark:bg-zinc-800">
-              <motion.div
-                initial={false}
-                animate={{ width: `${progressoCard.pct}%` }}
-                transition={{ duration: 0.35, ease: 'easeOut' }}
-                className={`h-full rounded-full ${
-                  completionGlowActive ? 'bg-gradient-to-r from-emerald-500 via-green-500 to-teal-500' : activePanel === 'estudo' ? 'bg-gradient-to-r from-red-600 via-rose-500 to-orange-500' : 'bg-gradient-to-r from-blue-600 via-sky-500 to-cyan-500'
-                }`}
-              />
-            </div>
-          </div>
-          )}
 
           <div className="hidden">
             <div className="min-w-0">

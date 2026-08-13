@@ -15,9 +15,12 @@ import CronogramaCreateWizard from '../components/cronograma/WizardShell';
 import { useCronogramaSystem } from '../hooks/useCronogramaSystem';
 import FeedbackWidget from '../components/FeedbackWidget';
 import ModalEditarCronograma from '../components/cronograma/ModalEditarCronograma';
-import { CATALOGO_EDITAIS } from '../pages/AdminPage/EditaisManager';
-import { buildEditaisMap, resolveLogoUrl } from '../components/admin/config/editalAssets';
+import { resolveLogoUrl } from '../components/admin/config/editalAssets';
+import { useEditaisCatalog } from '../hooks/useEditaisCatalog';
 import EmptyStateCard from '../components/shared/EmptyStateCard';
+import CronogramaPostponeUndo from '../components/cronograma/CronogramaPostponeUndo';
+import PostponeDaysField from '../components/cronograma/PostponeDaysField';
+import { normalizePostponeDays } from '../utils/cronogramaPostponement';
 import { sanitizeArticleHtml } from '../utils/sanitizeHtml';
 import { deletePlanStudyRecords } from '../services/planDeletion';
 
@@ -25,20 +28,21 @@ import { deletePlanStudyRecords } from '../services/planDeletion';
 // Resolve a logo do cronograma a partir do registro ou do edital base.
 // ============================================================================
 // ─── MODAL ────────────────────────────────────────────────────────────────────
-const ModalConfirmacao = ({ isOpen, titulo, descricao, icone: Icone, corBg, corBtn, labelBtn, onClose, onConfirm, loading }) => {
+const ModalConfirmacao = ({ isOpen, titulo, descricao, icone: Icone, corBg, corBtn, labelBtn, onClose, onConfirm, loading, children = null, confirmDisabled = false }) => {
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex justify-center items-center p-4 animate-fade-in" onClick={onClose}>
-      <div className="bg-white dark:bg-zinc-950 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
+      <div className="bg-white dark:bg-card-dark rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
         <div className={`${corBg} p-6 flex flex-col items-center border-b`}>
           <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4"><Icone size={32} /></div>
           <h2 className="text-xl font-black text-zinc-900 dark:text-white uppercase tracking-tight">{titulo}</h2>
         </div>
         <div className="p-6 text-center">
-          <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-6" dangerouslySetInnerHTML={{ __html: sanitizeArticleHtml(descricao) }} />
+          <p className={`text-sm text-zinc-600 dark:text-zinc-400 ${children ? 'mb-4' : 'mb-6'}`} dangerouslySetInnerHTML={{ __html: sanitizeArticleHtml(descricao) }} />
+          {children}
           <div className="flex gap-3">
             <button onClick={onClose} disabled={loading} className="flex-1 px-4 py-3 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 rounded-xl font-bold text-xs uppercase tracking-wider hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors">Cancelar</button>
-            <button onClick={onConfirm} disabled={loading} className={`flex-1 px-4 py-3 ${corBtn} text-white rounded-xl font-bold text-xs uppercase tracking-wider shadow-lg transition-all flex items-center justify-center gap-2`}>
+            <button onClick={onConfirm} disabled={loading || confirmDisabled} className={`flex-1 px-4 py-3 ${corBtn} text-white rounded-xl font-bold text-xs uppercase tracking-wider shadow-lg transition-all flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-60`}>
               {loading ? 'Aguarde...' : labelBtn}
             </button>
           </div>
@@ -138,6 +142,7 @@ const CronogramaCard = ({ cronograma, editaisMap, registrosEstudo = [], onOpen, 
   const logo = resolveLogoUrl({ ciclo: cronograma, editaisMap });
   const canOpen = typeof onOpen === 'function' && (allowInactiveOpen || cronograma.ativo);
   const cargaSemanal = Number(horasSemanais || 0);
+  const terminoLabel = cronograma.dataFim ? formatDate(cronograma.dataFim) : 'Em aberto';
 
   const semanaAtual = useMemo(() => {
     if (!cronograma.dataInicio) return 1;
@@ -147,7 +152,7 @@ const CronogramaCard = ({ cronograma, editaisMap, registrosEstudo = [], onOpen, 
   }, [cronograma.dataInicio, totalSemanas]);
 
   return (
-    <div onClick={() => canOpen && onOpen(cronograma.id, cronograma)} className={`group relative bg-white dark:bg-zinc-900/50 rounded-2xl p-4 sm:p-5 border border-zinc-200 dark:border-zinc-800 overflow-hidden transition-all duration-500 hover:-translate-y-1 hover:shadow-2xl flex flex-col justify-between h-full min-h-[170px] sm:min-h-[220px] ${canOpen ? 'cursor-pointer' : 'cursor-default'}`}>
+    <div onClick={() => canOpen && onOpen(cronograma.id, cronograma)} className={`group relative bg-white dark:bg-card-dark rounded-2xl p-4 sm:p-5 border border-zinc-200 dark:border-zinc-800 overflow-hidden transition-all duration-500 hover:-translate-y-1 hover:shadow-2xl flex flex-col justify-between h-full min-h-[170px] sm:min-h-[220px] ${canOpen ? 'cursor-pointer' : 'cursor-default'}`}>
       <div className="absolute left-0 top-0 bottom-0 w-1 bg-transparent group-hover:bg-emerald-500 transition-colors duration-300 z-20" />
 
       {/* CORREÇÃO 1: logo */}
@@ -176,7 +181,7 @@ const CronogramaCard = ({ cronograma, editaisMap, registrosEstudo = [], onOpen, 
             <button onClick={e => onMenuToggle(e, cronograma.id)} className="p-1.5 sm:p-2 -mr-2 -mt-2 text-zinc-400 hover:text-zinc-800 dark:hover:text-white rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"><MoreVertical size={18} className="sm:w-5 sm:h-5" /></button>
             <AnimatePresence>
               {isMenuOpen && (
-                <motion.div initial={{ opacity: 0, y: 5, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} onClick={e => e.stopPropagation()} className="absolute top-8 right-0 w-44 sm:w-52 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xl py-1 z-50 overflow-hidden ring-1 ring-black/5">
+                <motion.div initial={{ opacity: 0, y: 5, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} onClick={e => e.stopPropagation()} className="absolute top-8 right-0 w-44 sm:w-52 bg-white dark:bg-card-dark border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xl py-1 z-50 overflow-hidden ring-1 ring-black/5">
                   {cronograma.ativo && <button onClick={e => onAction(e, 'desativar', cronograma)} className="w-full text-left px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/60 flex items-center gap-2 transition-colors"><PauseCircle size={14} /> Desativar</button>}
                   {showPostponeAction && <button onClick={e => onAction(e, 'adiar', cronograma)} className="w-full text-left px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-amber-600 dark:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/10 flex items-center gap-2 transition-colors"><SkipForward size={14} /> Adiar Cronograma</button>}
                   <button onClick={e => onAction(e, 'arquivar', cronograma)} className="w-full text-left px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/60 flex items-center gap-2 transition-colors"><Archive size={14} /> Arquivar</button>
@@ -193,21 +198,21 @@ const CronogramaCard = ({ cronograma, editaisMap, registrosEstudo = [], onOpen, 
           <h3 className="text-lg sm:text-xl md:text-2xl font-black text-zinc-900 dark:text-white leading-tight mb-2 line-clamp-2 group-hover:text-emerald-600 dark:group-hover:text-emerald-500 transition-colors">{cronograma.nome}</h3>
           <div className="hidden sm:block w-8 h-1 bg-emerald-500 rounded-full mb-4 group-hover:w-16 transition-all duration-500" />
           <div className="mb-3 grid grid-cols-2 gap-1.5 sm:mb-4 sm:gap-2">
-            <div className="flex min-w-0 items-center gap-1.5 rounded-lg border border-zinc-200/70 bg-zinc-50/80 px-2 py-1.5 text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-400">
+            <div className="flex min-w-0 items-center gap-1.5 rounded-lg border border-zinc-200/70 bg-zinc-50/80 px-2 py-1.5 text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800/55 dark:text-zinc-300">
               <CalendarClock size={14} className="shrink-0 text-emerald-500/70" />
-              <span className="min-w-0 truncate text-[11px] font-bold sm:text-xs">Inicio: {formatDate(cronograma.dataInicio)}</span>
+              <span className="min-w-0 text-[10px] font-bold sm:text-xs">INÍCIO: {formatDate(cronograma.dataInicio)}</span>
             </div>
-            <div className="flex min-w-0 items-center gap-1.5 rounded-lg border border-zinc-200/70 bg-zinc-50/80 px-2 py-1.5 text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-400">
+            <div className="flex min-w-0 items-center gap-1.5 rounded-lg border border-zinc-200/70 bg-zinc-50/80 px-2 py-1.5 text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800/55 dark:text-zinc-300">
               <Target size={14} className="shrink-0 text-emerald-500/70" />
-              <span className="min-w-0 truncate text-[11px] font-bold sm:text-xs">Termino: {formatDate(cronograma.dataFim)}</span>
+              <span className="min-w-0 whitespace-nowrap text-[10px] font-bold sm:text-xs">TÉRMINO: {terminoLabel}</span>
             </div>
-            <div className="flex min-w-0 items-center gap-1.5 rounded-lg border border-zinc-200/70 bg-zinc-50/80 px-2 py-1.5 text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-400">
+            <div className="flex min-w-0 items-center gap-1.5 rounded-lg border border-zinc-200/70 bg-zinc-50/80 px-2 py-1.5 text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800/55 dark:text-zinc-300">
               <Clock size={14} className="shrink-0 text-emerald-500/70" />
-              <span className="min-w-0 truncate text-[11px] font-bold sm:text-xs">{formatHours(horasEstudadas)} estudadas</span>
+              <span className="min-w-0 text-[10px] font-bold sm:text-xs">TEMPO TOTAL: {formatHours(horasEstudadas)}</span>
             </div>
-            <div className="flex min-w-0 items-center gap-1.5 rounded-lg border border-zinc-200/70 bg-zinc-50/80 px-2 py-1.5 text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-400">
+            <div className="flex min-w-0 items-center gap-1.5 rounded-lg border border-zinc-200/70 bg-zinc-50/80 px-2 py-1.5 text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800/55 dark:text-zinc-300">
               <Calendar size={14} className="shrink-0 text-emerald-500/70" />
-              <span className="min-w-0 truncate text-[11px] font-bold sm:text-xs">{formatHours(cargaSemanal)}/sem</span>
+              <span className="min-w-0 text-[10px] font-bold sm:text-xs">CARGA SEMANAL: {formatHours(cargaSemanal)}</span>
             </div>
           </div>
           <div className="hidden">
@@ -315,18 +320,25 @@ function CronogramaListPage({
   const [cronogramaParaExcluir, setCronogramaParaExcluir] = useState(null);
   const [cronogramaParaDesativar, setCronogramaParaDesativar] = useState(null);
   const [cronogramaParaAdiar, setCronogramaParaAdiar] = useState(null);
+  const [postponeDays, setPostponeDays] = useState('7');
+  const [postponementToUndo, setPostponementToUndo] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [feedbackView, setFeedbackView] = useState('home');
   const [feedbackType, setFeedbackType] = useState('ideia');
   const [cronogramaParaEditar, setCronogramaParaEditar] = useState(null);
   const [actionError, setActionError] = useState('');
-  const [editaisMap, setEditaisMap] = useState(() => buildEditaisMap(CATALOGO_EDITAIS));
+  const editaisMap = useEditaisCatalog();
   const canUseInlineCreate = typeof onRequestCreate !== 'function';
   const canUseInlineEdit = typeof onRequestEdit !== 'function';
   const containerClassName = compact ? 'p-0 animate-fade-in' : 'p-0 min-h-[50vh] animate-fade-in pb-12';
 
-  const { adiarCronograma, ativarCronograma, desativarCronograma } = useCronogramaSystem(user);
+  const {
+    adiarCronograma,
+    desfazerAdiamentoCronograma,
+    ativarCronograma,
+    desativarCronograma,
+  } = useCronogramaSystem(user);
 
   const handleOpenFeedback = ({ initialView = 'home', initialType = 'ideia' } = {}) => {
     setFeedbackView(initialView); setFeedbackType(initialType); setFeedbackOpen(true);
@@ -344,7 +356,7 @@ function CronogramaListPage({
     if (!user) { setLoadingList(false); return; }
     setLoadingList(true);
     const q = query(collection(db, 'users', user.uid, 'cronogramas'));
-    return onSnapshot(q, snapshot => {
+    return onSnapshot(q, { includeMetadataChanges: true }, snapshot => {
       const docs = snapshot.docs
         .map(d => ({ id: d.id, ...d.data() }))
         .filter((cronograma) => !cronograma.arquivado);
@@ -359,23 +371,12 @@ function CronogramaListPage({
         return getTs(b) - getTs(a);
       });
       setCronogramas(docs);
-      setLoadingList(false);
+      const awaitingServerConfirmation = snapshot.metadata.fromCache
+        && docs.length === 0
+        && navigator.onLine;
+      if (!awaitingServerConfirmation) setLoadingList(false);
     }, err => { console.error(err); setLoadingList(false); });
   }, [user]);
-
-  useEffect(() => onSnapshot(collection(db, 'editais_templates'), (snapshot) => {
-    const merged = new Map(CATALOGO_EDITAIS.map((item) => [String(item.id), item]));
-    snapshot.docs.forEach((docSnap) => {
-      const stored = { id: docSnap.id, ...docSnap.data() };
-      const local = merged.get(String(docSnap.id));
-      merged.set(String(docSnap.id), {
-        ...local,
-        ...stored,
-        logoUrl: stored.logoUrl || stored.logo || local?.logoUrl || local?.logo || null,
-      });
-    });
-    setEditaisMap(buildEditaisMap([...merged.values()]));
-  }, () => setEditaisMap(buildEditaisMap(CATALOGO_EDITAIS))), []);
 
   const sortedCronogramas = useMemo(() =>
     [...cronogramas].sort((a, b) => {
@@ -399,7 +400,10 @@ function CronogramaListPage({
       if (canUseInlineEdit) setCronogramaParaEditar(cronograma);
       else onRequestEdit(cronograma);
     }
-    else if (action === 'adiar') { setCronogramaParaAdiar(cronograma); }
+    else if (action === 'adiar') {
+      setPostponeDays('7');
+      setCronogramaParaAdiar(cronograma);
+    }
     else if (action === 'arquivar') {
       setActionLoading(true);
       try {
@@ -428,10 +432,28 @@ function CronogramaListPage({
   const handleConfirmarAdiamento = async () => {
     if (!cronogramaParaAdiar || actionLoading) return;
     setActionLoading(true);
-    const ok = await adiarCronograma(cronogramaParaAdiar.id, cronogramaParaAdiar);
-    if (!ok) setActionError('Erro ao adiar cronograma. Tente novamente.');
+    setActionError('');
+    const days = normalizePostponeDays(postponeDays);
+    if (!days) {
+      setActionError('Informe uma quantidade entre 1 e 365 dias.');
+      setActionLoading(false);
+      return;
+    }
+    const result = await adiarCronograma(cronogramaParaAdiar.id, cronogramaParaAdiar, days);
+    if (result) setPostponementToUndo(result);
+    else setActionError('Erro ao adiar cronograma. Tente novamente.');
     setActionLoading(false);
     setCronogramaParaAdiar(null);
+  };
+
+  const handleDesfazerAdiamento = async () => {
+    if (!postponementToUndo || actionLoading) return;
+    setActionLoading(true);
+    setActionError('');
+    const ok = await desfazerAdiamentoCronograma(postponementToUndo);
+    if (ok) setPostponementToUndo(null);
+    else setActionError('Erro ao desfazer o adiamento. Tente novamente.');
+    setActionLoading(false);
   };
 
   // CORREÇÃO 2: exclusão robusta — verifica se cicloVinculadoId existe antes de tentar atualizar
@@ -496,7 +518,7 @@ function CronogramaListPage({
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="fixed left-1/2 top-4 z-[90] flex w-[calc(100%-2rem)] max-w-md -translate-x-1/2 items-center gap-3 rounded-2xl border border-red-200 bg-white px-4 py-3 text-sm font-bold text-red-700 shadow-2xl shadow-red-900/10 dark:border-red-900/40 dark:bg-zinc-950 dark:text-red-300"
+                className="fixed left-1/2 top-4 z-[90] flex w-[calc(100%-2rem)] max-w-md -translate-x-1/2 items-center gap-3 rounded-2xl border border-red-200 bg-white px-4 py-3 text-sm font-bold text-red-700 shadow-2xl shadow-red-900/10 dark:border-red-900/40 dark:bg-card-dark dark:text-red-300"
               >
                 <AlertOctagon size={18} className="shrink-0" />
                 <span>{actionError}</span>
@@ -504,11 +526,33 @@ function CronogramaListPage({
               </motion.div>
             )}
 
+            {postponementToUndo && (
+              <CronogramaPostponeUndo
+                postponement={postponementToUndo}
+                loading={actionLoading}
+                onUndo={handleDesfazerAdiamento}
+              />
+            )}
+
             {cronogramaParaDesativar && (
               <ModalConfirmacao isOpen={true} titulo="Desativar Cronograma?" descricao={`O cronograma <strong>"${cronogramaParaDesativar.nome}"</strong> será pausado. Seu progresso é preservado.`} icone={PauseCircle} corBg="bg-zinc-100 dark:bg-zinc-800/60 border-zinc-200 dark:border-zinc-700 text-zinc-500" corBtn="bg-zinc-700 hover:bg-zinc-800 dark:bg-zinc-600 dark:hover:bg-zinc-500" labelBtn="Desativar" onClose={() => setCronogramaParaDesativar(null)} onConfirm={handleConfirmarDesativacao} loading={actionLoading} />
             )}
             {cronogramaParaAdiar && (
-              <ModalConfirmacao isOpen={true} titulo="Adiar Cronograma?" descricao={`O cronograma <strong>"${cronogramaParaAdiar.nome}"</strong> sera movido 1 semana para frente. Seu progresso fica preservado.`} icone={SkipForward} corBg="bg-amber-500/10 border-amber-500/20 text-amber-600" corBtn="bg-amber-600 hover:bg-amber-700" labelBtn="Adiar" onClose={() => setCronogramaParaAdiar(null)} onConfirm={handleConfirmarAdiamento} loading={actionLoading} />
+              <ModalConfirmacao
+                isOpen={true}
+                titulo="Adiar Cronograma?"
+                descricao={`Escolha por quantos dias deseja mover o cronograma <strong>"${cronogramaParaAdiar.nome}"</strong>. Seu progresso será preservado.`}
+                icone={SkipForward}
+                corBg="bg-amber-500/10 border-amber-500/20 text-amber-600"
+                corBtn="bg-amber-600 hover:bg-amber-700"
+                labelBtn="Adiar"
+                onClose={() => setCronogramaParaAdiar(null)}
+                onConfirm={handleConfirmarAdiamento}
+                loading={actionLoading}
+                confirmDisabled={!normalizePostponeDays(postponeDays)}
+              >
+                <PostponeDaysField value={postponeDays} onChange={setPostponeDays} disabled={actionLoading} />
+              </ModalConfirmacao>
             )}
             {cronogramaParaExcluir && (
               <ModalConfirmacao isOpen={true} titulo="Excluir Cronograma?" descricao={`O cronograma <strong class="text-red-600">"${cronogramaParaExcluir.nome}"</strong> e todo o progresso serão apagados permanentemente.`} icone={AlertOctagon} corBg="bg-red-600/10 border-red-500/20 text-red-600" corBtn="bg-red-600 hover:bg-red-700" labelBtn="Excluir Definitivamente" onClose={() => setCronogramaParaExcluir(null)} onConfirm={handleConfirmarExclusao} loading={actionLoading} />

@@ -91,7 +91,7 @@ const ContextSelector = ({ context }) => {
 
 // --- COMPONENTES VISUAIS INTERNOS ---
 const StatCard = ({ icon: Icon, title, value, subValue, className = "" }) => (
-  <div className={`group relative flex min-h-[86px] flex-col justify-center overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white px-3 py-2.5 shadow-soft transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/40 hover:!border-l-red-500 hover:shadow-[0_0_18px_rgba(239,68,68,0.07)] dark:border-white/10 dark:!border-l-red-500/25 dark:bg-zinc-950 dark:hover:border-accent-light/20 dark:hover:!border-l-red-500 dark:hover:shadow-[0_0_22px_rgba(239,68,68,0.08)] ${className}`}>
+  <div className={`group relative flex min-h-[86px] flex-col justify-center overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white px-3 py-2.5 shadow-soft transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/40 hover:!border-l-red-500 hover:shadow-[0_0_18px_rgba(239,68,68,0.07)] dark:border-white/10 dark:!border-l-red-500/25 dark:bg-card-dark dark:hover:border-accent-light/20 dark:hover:!border-l-red-500 dark:hover:shadow-[0_0_22px_rgba(239,68,68,0.08)] ${className}`}>
     <div className="relative z-20 flex w-full flex-col gap-0.5">
       <h3 className="w-full truncate text-[10px] font-semibold uppercase leading-none tracking-wide text-text-secondary dark:text-text-dark-secondary">
         {title}
@@ -171,7 +171,7 @@ const InlineSelect = ({ options, value, onChange, placeholder, disabled }) => {
             className={`
               absolute z-[10050] top-full mt-1.5
               min-w-[180px] max-w-[min(240px,80vw)]
-              bg-white dark:bg-zinc-950
+              bg-white dark:bg-card-dark
               border border-zinc-200 dark:border-zinc-700/80
               rounded-xl shadow-2xl shadow-black/20 dark:shadow-black/50
               overflow-hidden
@@ -253,7 +253,7 @@ const DesempenhoHeader = ({ analytics, filters, options, context }) => {
     <div className="relative z-40 flex flex-col gap-5">
 
       {/* ── TÍTULO + FILTROS ─────────────────────────────────────────────── */}
-      <div className="group relative z-40 overflow-visible rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white p-4 shadow-soft transition-all duration-300 hover:border-accent-light/40 hover:!border-l-red-500 hover:shadow-[0_0_18px_rgba(239,68,68,0.07)] dark:border-white/10 dark:!border-l-red-500/25 dark:bg-zinc-950 dark:hover:border-accent-light/20 dark:hover:!border-l-red-500 dark:hover:shadow-[0_0_22px_rgba(239,68,68,0.08)]">
+      <div className="group relative z-40 overflow-visible rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white p-4 shadow-soft transition-all duration-300 hover:border-accent-light/40 hover:!border-l-red-500 hover:shadow-[0_0_18px_rgba(239,68,68,0.07)] dark:border-white/10 dark:!border-l-red-500/25 dark:bg-card-dark dark:hover:border-accent-light/20 dark:hover:!border-l-red-500 dark:hover:shadow-[0_0_22px_rgba(239,68,68,0.08)]">
         <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-red-500/5 blur-[80px] transition-all duration-700 group-hover:bg-red-500/10" />
         <div className="pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-zinc-500/5 blur-[80px]" />
         <div className="relative z-10 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">

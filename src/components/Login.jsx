@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
+import AuthLayout from './auth/AuthLayout';
 import { auth } from '../firebaseConfig'; // Verifique o caminho
 import {
   signInWithEmailAndPassword,
@@ -89,40 +90,8 @@ function Login() {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#0a0a0a] relative overflow-hidden font-sans items-center justify-center py-4">
-
-      {/* HACK CSS CORRIGIDO E PADRONIZADO */}
-      <style>{`
-        input:-webkit-autofill,
-        input:-webkit-autofill:hover,
-        input:-webkit-autofill:focus,
-        input:-webkit-autofill:active {
-            -webkit-box-shadow: 0 0 0 30px #1a1a1a inset !important;
-            -webkit-text-fill-color: white !important;
-            caret-color: white !important;
-            border-radius: 0px !important;
-            border: none !important;
-        }
-      `}</style>
-
-      {/* 1. IMAGEM DE FUNDO */}
-      <div className="absolute inset-0 z-0">
-        <img
-          src="/imagem-login.png"
-          alt="Background Login"
-          className="w-full h-full object-cover object-top"
-        />
-        <div className="absolute inset-0 bg-black/50 backdrop-blur-[1px]"></div>
-      </div>
-
-      {/* 2. CARD CENTRALIZADO */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, ease: "easeOut" }}
-        className="w-full max-w-[360px] relative z-10 max-h-[90vh] overflow-y-auto scrollbar-hide"
-      >
-        <div className="bg-black/60 backdrop-blur-md border border-white/10 rounded-2xl p-5 shadow-2xl">
+    <AuthLayout mode="login">
+        <div className="rounded-2xl border border-white/10 bg-black/65 p-5 shadow-2xl shadow-black/50 backdrop-blur-xl sm:p-7">
 
           {/* Logo Compacta */}
           <div className="flex justify-center mb-4">
@@ -278,8 +247,7 @@ function Login() {
             </div>
           </form>
         </div>
-      </motion.div>
-    </div>
+    </AuthLayout>
   );
 }
 

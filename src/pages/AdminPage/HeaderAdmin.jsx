@@ -3,7 +3,7 @@ import { db } from '../../firebaseConfig';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import {
   Lock, MessageSquare, Megaphone, Quote, Bug, FileText, Lightbulb, HelpCircle,
-  Database, AlertTriangle, RefreshCw, GitMerge
+  Database, AlertTriangle, RefreshCw, GitMerge, SlidersHorizontal, X, ShieldCheck
 } from 'lucide-react';
 
 // Importação dos Modais
@@ -12,11 +12,19 @@ import HeaderFrases from './HeaderFrases';
 import HeaderBroadcast from './HeaderBroadcast';
 import MigrarTemplateModal from './MigrarTemplateModal';
 
-const HeaderAdmin = ({ onRecalculateStats, broadcastDraft = null }) => {
+const HeaderAdmin = ({
+  onRecalculateStats,
+  broadcastDraft = null,
+  filters,
+  filterOptions = {},
+  onFilterChange,
+  onResetFilters,
+}) => {
   const [showInbox, setShowInbox]           = useState(false);
   const [showBroadcast, setShowBroadcast]   = useState(false);
   const [showQuotes, setShowQuotes]         = useState(false);
   const [showMigrar, setShowMigrar]         = useState(false);
+  const [showFilters, setShowFilters]       = useState(false);
 
   const [recalcMode, setRecalcMode] = useState('idle');
   const [counts, setCounts]         = useState({ total: 0, bug: 0, ideia: 0, edital: 0, duvida: 0 });
@@ -72,11 +80,15 @@ const HeaderAdmin = ({ onRecalculateStats, broadcastDraft = null }) => {
       <HeaderFrases      isOpen={showQuotes}    onClose={() => setShowQuotes(false)} />
       <MigrarTemplateModal isOpen={showMigrar}  onClose={() => setShowMigrar(false)} />
 
-      <header className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 border-b border-zinc-200 dark:border-zinc-800 pb-6 sticky top-0 bg-white/90 dark:bg-zinc-950/90 backdrop-blur-md z-40 pt-4 px-4 md:px-0">
-        <div>
-          <div className="flex items-center gap-2 mb-2">
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-red-600 text-white rounded-full text-[10px] font-bold uppercase tracking-widest shadow-lg shadow-red-600/20 cursor-default select-none">
-              <Lock size={10} /> Admin Zone
+      <header className="admin-control-header relative sticky top-3 z-40 flex flex-col items-start justify-between gap-5 overflow-visible rounded-[30px] border border-zinc-200/80 bg-white/95 px-5 py-5 shadow-[0_22px_55px_-34px_rgba(24,24,27,0.45)] backdrop-blur-xl dark:border-zinc-800/80 dark:bg-zinc-950/95 sm:px-6 lg:flex-row lg:items-center">
+        <div className="flex min-w-0 items-center gap-4">
+          <div className="hidden h-14 w-14 shrink-0 items-center justify-center rounded-[20px] bg-gradient-to-br from-red-500 to-red-700 text-white shadow-lg shadow-red-600/20 sm:flex">
+            <ShieldCheck size={27} />
+          </div>
+          <div className="min-w-0">
+          <div className="mb-1.5 flex items-center gap-2">
+            <div className="inline-flex items-center gap-2 rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.2em] text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
+              <Lock size={10} /> Área administrativa
             </div>
 
             {/* Botão Secreto (Bala de Prata) */}
@@ -102,17 +114,30 @@ const HeaderAdmin = ({ onRecalculateStats, broadcastDraft = null }) => {
             )}
           </div>
 
-          <h1 className="text-3xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter flex items-center gap-2">
-            Painel de Controle <span className="text-red-600">.</span>
+          <h1 className="flex items-center gap-2 text-2xl font-black tracking-[-0.04em] text-zinc-950 dark:text-white sm:text-3xl">
+            Painel de controle <span className="text-red-600">.</span>
           </h1>
+          <p className="mt-1 text-xs font-semibold text-zinc-500 dark:text-zinc-400">Operação, comunicação e inteligência acadêmica em um só lugar.</p>
+          </div>
         </div>
 
-        <div className="flex items-center gap-3 flex-wrap">
+        <div className="admin-control-actions flex w-full flex-wrap items-center gap-2 lg:w-auto lg:justify-end">
+
+          <button
+            type="button"
+            onClick={() => setShowFilters((current) => !current)}
+            aria-expanded={showFilters}
+            className={`admin-control-action relative flex items-center gap-2 rounded-full border px-4 py-2.5 font-bold transition-all active:scale-95 ${showFilters ? 'border-red-300 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300' : 'border-zinc-200 bg-zinc-50 text-zinc-700 hover:border-red-200 hover:bg-white dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200'}`}
+          >
+            <SlidersHorizontal size={18} />
+            <span>Filtros</span>
+            {filters?.windowDays ? <span className="rounded-md bg-zinc-100 px-1.5 py-0.5 text-[10px] font-black text-zinc-500 dark:bg-zinc-800 dark:text-zinc-300">{filters.windowDays}d</span> : null}
+          </button>
 
           {/* ── NOVO: Botão Migrar Template ── */}
           <button
             onClick={() => setShowMigrar(true)}
-            className="relative flex items-center gap-2 px-5 py-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-200 rounded-xl font-bold hover:border-violet-300 dark:hover:border-violet-800 hover:text-violet-600 dark:hover:text-violet-400 hover:shadow-lg transition-all active:scale-95 group"
+            className="admin-control-action group relative flex items-center gap-2 rounded-full border border-zinc-200 bg-zinc-50 px-4 py-2.5 font-bold text-zinc-700 transition-all hover:border-violet-300 hover:bg-white hover:text-violet-600 active:scale-95 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:border-violet-800 dark:hover:text-violet-400"
             title="Migrar ciclos de um template para outro"
           >
             <GitMerge size={18} className="group-hover:text-violet-500 transition-colors" />
@@ -121,7 +146,7 @@ const HeaderAdmin = ({ onRecalculateStats, broadcastDraft = null }) => {
 
           {/* Botão Ocorrências */}
           <div className="relative group">
-            <button onClick={() => setShowInbox(true)} className="relative flex items-center gap-2 px-5 py-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-200 rounded-xl font-bold hover:border-red-200 dark:hover:border-red-900/50 hover:shadow-lg hover:shadow-red-900/10 transition-all active:scale-95">
+            <button onClick={() => setShowInbox(true)} className="admin-control-action relative flex items-center gap-2 rounded-full border border-zinc-200 bg-zinc-50 px-4 py-2.5 font-bold text-zinc-700 transition-all hover:border-red-200 hover:bg-white active:scale-95 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:border-red-900/50">
               <div className="relative">
                 <MessageSquare size={18} className="group-hover:text-red-600 transition-colors" />
                 {counts.total > 0 && (
@@ -150,7 +175,7 @@ const HeaderAdmin = ({ onRecalculateStats, broadcastDraft = null }) => {
           {/* Botão Frases */}
           <button
             onClick={() => setShowQuotes(true)}
-            className="relative flex items-center gap-2 px-5 py-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-200 rounded-xl font-bold hover:border-violet-200 dark:hover:border-violet-900/50 hover:shadow-lg hover:text-violet-600 dark:hover:text-violet-400 transition-all active:scale-95 group"
+            className="admin-control-action group relative flex items-center gap-2 rounded-full border border-zinc-200 bg-zinc-50 px-4 py-2.5 font-bold text-zinc-700 transition-all hover:border-violet-200 hover:bg-white hover:text-violet-600 active:scale-95 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:border-violet-900/50 dark:hover:text-violet-400"
           >
             <Quote size={18} className="group-hover:text-violet-500 transition-colors" />
             <span className="hidden sm:inline">Frases</span>
@@ -164,11 +189,57 @@ const HeaderAdmin = ({ onRecalculateStats, broadcastDraft = null }) => {
           {/* Botão Broadcast */}
           <button
             onClick={() => setShowBroadcast(true)}
-            className="flex items-center gap-2 px-5 py-3 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-xl font-bold hover:scale-105 transition-transform shadow-xl"
+            className="admin-control-action flex items-center gap-2 rounded-full bg-zinc-950 px-4 py-2.5 font-bold text-white shadow-lg shadow-zinc-950/15 transition-all hover:-translate-y-0.5 hover:bg-red-600 dark:bg-white dark:text-zinc-950 dark:hover:bg-red-500 dark:hover:text-white"
           >
             <Megaphone size={18} /> <span className="hidden sm:inline">Broadcast</span>
           </button>
         </div>
+
+        {showFilters && filters && (
+          <div className="absolute left-0 right-0 top-[calc(100%+0.65rem)] z-50 rounded-[26px] border border-zinc-200 bg-white p-4 shadow-2xl dark:border-zinc-800 dark:bg-zinc-950 md:left-auto md:right-0 md:w-[760px]">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-black text-zinc-900 dark:text-white">Filtrar indicadores</p>
+                <p className="text-[11px] font-medium text-zinc-400">O período e os recortes permanecem ativos ao trocar de aba.</p>
+              </div>
+              <button type="button" onClick={() => setShowFilters(false)} aria-label="Fechar filtros" className="rounded-xl p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-900 dark:hover:text-zinc-200"><X size={17} /></button>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+              <label className="space-y-1">
+                <span className="text-[10px] font-black uppercase tracking-[0.14em] text-zinc-400">Período</span>
+                <select value={filters.windowDays} onChange={(event) => onFilterChange?.('windowDays', Number(event.target.value))} className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-xs font-bold text-zinc-700 outline-none dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200">
+                  {[30, 60, 90].map((days) => <option key={days} value={days}>{days} dias</option>)}
+                </select>
+              </label>
+              <label className="space-y-1">
+                <span className="text-[10px] font-black uppercase tracking-[0.14em] text-zinc-400">Origem</span>
+                <select value={filters.contextType} onChange={(event) => onFilterChange?.('contextType', event.target.value)} className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-xs font-bold text-zinc-700 outline-none dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200">
+                  <option value="all">Todas</option>
+                  <option value="ciclo">Ciclos</option>
+                  <option value="cronograma">Cronogramas</option>
+                  <option value="simulado">Simulados</option>
+                </select>
+              </label>
+              <label className="space-y-1">
+                <span className="text-[10px] font-black uppercase tracking-[0.14em] text-zinc-400">Perfil</span>
+                <select value={filters.userProfile} onChange={(event) => onFilterChange?.('userProfile', event.target.value)} className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-xs font-bold text-zinc-700 outline-none dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200">
+                  <option value="all">Todos</option>
+                  {(filterOptions.userProfiles || []).map((profile) => <option key={profile} value={profile}>{profile}</option>)}
+                </select>
+              </label>
+              <label className="space-y-1">
+                <span className="text-[10px] font-black uppercase tracking-[0.14em] text-zinc-400">Edital</span>
+                <select value={filters.templateId} onChange={(event) => onFilterChange?.('templateId', event.target.value)} className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-xs font-bold text-zinc-700 outline-none dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200">
+                  <option value="all">Todos</option>
+                  {(filterOptions.templateIds || []).map((templateId) => <option key={templateId} value={templateId}>{templateId === 'manual' ? 'Manual' : templateId}</option>)}
+                </select>
+              </label>
+              <div className="flex items-end">
+                <button type="button" onClick={onResetFilters} className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-xs font-black uppercase tracking-[0.12em] text-zinc-500 hover:text-red-600 dark:border-zinc-800 dark:bg-zinc-900">Limpar</button>
+              </div>
+            </div>
+          </div>
+        )}
       </header>
     </>
   );

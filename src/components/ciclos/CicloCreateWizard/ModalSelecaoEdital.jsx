@@ -198,7 +198,7 @@ const CardEdital = ({ dados, unico, idSelecionado, aoDestacar, aoConfirmar, aoCl
                     <motion.div
                         initial={{ opacity: 0, y: '100%' }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: '100%' }}
                         transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                        className="absolute inset-0 z-30 bg-white dark:bg-zinc-950 flex flex-col"
+                        className="absolute inset-0 z-30 bg-white dark:bg-card-dark flex flex-col"
                     >
                         <div className="p-2 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/50">
                             <span className="text-[10px] font-black uppercase text-zinc-500 tracking-wider flex items-center gap-1">
@@ -208,7 +208,7 @@ const CardEdital = ({ dados, unico, idSelecionado, aoDestacar, aoConfirmar, aoCl
                                 <X size={13} />
                             </button>
                         </div>
-                        <div className="flex-1 overflow-y-auto p-1.5 space-y-1 custom-scrollbar bg-zinc-50/30 dark:bg-black/20">
+                        <div className="flex-1 overflow-y-auto p-1.5 space-y-1 custom-scrollbar bg-zinc-50/30 dark:bg-zinc-800/35">
                             {dados.map((item) => {
                                 const isItemActive = idSelecionado === item.id;
                                 return (
@@ -416,7 +416,7 @@ const ModalSelecaoEdital = ({ aberto, aoFechar, aoSelecionar, modelos, carregand
                 transition={{ type: "spring", duration: 0.4, bounce: 0.2 }}
                 onClick={(e) => !modoPagina && e.stopPropagation()}
                 className={`
-                    bg-white dark:bg-zinc-950
+                    bg-white dark:bg-card-dark
                     rounded-3xl border-2 border-zinc-200/50 dark:border-zinc-800/50 shadow-2xl
                     flex flex-col overflow-hidden relative
                     ${modoPagina

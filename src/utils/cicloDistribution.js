@@ -71,6 +71,14 @@ const splitMinutesIntoSessions = (minutes, min, max) => {
   const minUnits = Math.max(1, Math.ceil(min / 10));
   const maxUnits = Math.max(minUnits, Math.floor(max / 10));
   if (totalUnits <= 0) return [];
+  if (minUnits === maxUnits) {
+    const fullSessions = Math.floor(totalUnits / maxUnits);
+    const remainderUnits = totalUnits % maxUnits;
+    return [
+      ...Array.from({ length: fullSessions }, () => maxUnits * 10),
+      ...(remainderUnits > 0 ? [remainderUnits * 10] : []),
+    ];
+  }
   if (totalUnits <= maxUnits) return [Math.max(minUnits, totalUnits) * 10];
 
   const minimumCount = Math.ceil(totalUnits / maxUnits);

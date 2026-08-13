@@ -83,6 +83,15 @@ import { getAgendaSemana, getWeekOffsetFromDate } from '../services/scheduling/r
 import { upsertCicloRevisao } from '../services/cicloRevisoes';
 import { resolveLogoUrl } from './admin/config/editalAssets';
 import { isCicloLegacyForGuide } from '../utils/cicloLegacyUpgrade';
+import { DEFAULT_COVER_POSITION, normalizeCoverPosition } from '../utils/profileCover';
+import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import {
+  createHydrationState,
+  getCoreHydrationStatus,
+  HYDRATION_RESOURCE_KEYS,
+  isPlanningAssessmentReady,
+} from '../utils/appHydration';
+import { dismissInitialLoadingScreen } from '../utils/initialLoadingScreen';
 import {
   buildStudyDaysMap,
   getCronogramaSlotRecordedMinutes,
@@ -276,6 +285,42 @@ const SectionLoader = ({ minHeight = '16rem' }) => (
   <div className="w-full" style={{ minHeight }} aria-busy="true" />
 );
 
+const DashboardBootScreen = ({ isOnline, timedOut = false, noOfflineData = false }) => (
+  <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-zinc-950 px-6 text-white">
+    <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(220,38,38,0.16),transparent_46%)]" />
+    <div className="relative flex max-w-md flex-col items-center text-center">
+      <img src="/logoModoQAP.png" alt="ModoQAP" className="mb-6 h-24 w-24 rounded-full object-cover shadow-2xl shadow-red-950/50" />
+      <p className="text-[10px] font-black uppercase tracking-[0.42em] text-red-500">ModoQAP</p>
+      <h1 className="mt-3 text-2xl font-black uppercase tracking-tight">
+        {noOfflineData ? 'Dados offline indisponíveis' : 'Preparando seu sistema'}
+      </h1>
+      <p className="mt-3 text-sm font-medium leading-relaxed text-zinc-400">
+        {noOfflineData
+          ? 'Conecte-se à internet uma vez para baixar seus dados neste dispositivo.'
+          : timedOut
+            ? 'A conexão está demorando. Estamos usando os dados seguros disponíveis neste dispositivo.'
+            : isOnline
+              ? 'Sincronizando edital, planejamento e progresso antes de liberar a navegação.'
+              : 'Carregando os dados salvos neste dispositivo.'}
+      </p>
+      {!noOfflineData && (
+        <div className="mt-7 h-1.5 w-52 overflow-hidden rounded-full bg-white/10">
+          <div className="h-full w-2/5 animate-pulse rounded-full bg-red-600" />
+        </div>
+      )}
+      {noOfflineData && (
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          className="mt-7 rounded-xl bg-red-600 px-5 py-3 text-xs font-black uppercase tracking-wider hover:bg-red-700"
+        >
+          Tentar novamente
+        </button>
+      )}
+    </div>
+  </div>
+);
+
 const ShareCardPreviewModal = ({ data, onClose, onDownload }) => {
   if (!data) return null;
   return (
@@ -305,6 +350,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   const { tab: routeTab } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const isOnline = useOnlineStatus();
   const initialRouteTab = PATH_TO_TAB[String(routeTab || 'home').toLowerCase()] || 'home';
   const userUid = user?.uid || 'anonymous';
   const STUDY_STORAGE_KEY   = useMemo(() => `@ModoQAP:ActiveSession:${userUid}`, [userUid]);
@@ -345,6 +391,13 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   const [pendingPlanningEdital, setPendingPlanningEdital] = useState(null);
   const [reopenEditalLibrary, setReopenEditalLibrary] = useState(false);
   const [welcomeCarousel, setWelcomeCarousel]   = useState({ loading:true, mode:null });
+  const [profileCover, setProfileCover] = useState({
+    url: null,
+    position: DEFAULT_COVER_POSITION,
+    loading: true,
+  });
+  const [hydrationState, setHydrationState] = useState(createHydrationState);
+  const [hydrationTimedOut, setHydrationTimedOut] = useState(false);
 
   const [activeStudySession, setActiveStudySession]   = useState(null);
   const [finishModalData, setFinishModalData]         = useState(null);
@@ -404,6 +457,8 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   const [allSimulados, setAllSimulados]           = useState([]);
   const [registrosLoaded, setRegistrosLoaded]     = useState(false);
   const [simuladosLoaded, setSimuladosLoaded]     = useState(false);
+  const [goalsLoaded, setGoalsLoaded]             = useState(false);
+  const [activeCycleDisciplinesLoaded, setActiveCycleDisciplinesLoaded] = useState(false);
   const [activeCycleDisciplines, setActiveCycleDisciplines] = useState([]);
 
   const mainContentRef = useRef(null);
@@ -416,6 +471,74 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     setIsFeedbackOpen(true);
   };
   const statsSyncKeyRef = useRef('');
+
+  const markHydrationSnapshot = useCallback((resource, snapshot) => {
+    if (!HYDRATION_RESOURCE_KEYS.includes(resource)) return;
+    setHydrationState((current) => ({
+      ...current,
+      [resource]: {
+        received: true,
+        // Depois que o servidor confirmou este recurso, uma mudanca de
+        // metadados causada por perda de conexao nao deve reabrir o boot.
+        authoritative: current[resource].authoritative || snapshot?.metadata?.fromCache === false,
+        failed: false,
+        hasPendingWrites: Boolean(snapshot?.metadata?.hasPendingWrites),
+      },
+    }));
+  }, []);
+
+  const markHydrationError = useCallback((resource) => {
+    if (!HYDRATION_RESOURCE_KEYS.includes(resource)) return;
+    setHydrationState((current) => ({
+      ...current,
+      [resource]: {
+        ...current[resource],
+        received: true,
+        failed: true,
+        hasPendingWrites: false,
+      },
+    }));
+  }, []);
+
+  const resetHydrationResource = useCallback((resource) => {
+    if (!HYDRATION_RESOURCE_KEYS.includes(resource)) return;
+    setHydrationState((current) => ({
+      ...current,
+      [resource]: createHydrationState()[resource],
+    }));
+  }, []);
+
+  useEffect(() => {
+    setHydrationState(createHydrationState());
+    setHydrationTimedOut(false);
+  }, [user?.uid]);
+
+  useEffect(() => {
+    if (!user?.uid) {
+      setProfileCover({ url: null, position: DEFAULT_COVER_POSITION, loading: false });
+      return undefined;
+    }
+
+    setProfileCover({ url: null, position: DEFAULT_COVER_POSITION, loading: true });
+    return onSnapshot(doc(db, 'users', user.uid), (snapshot) => {
+      const profileData = snapshot.data();
+      setProfileCover({
+        url: profileData?.coverURL || null,
+        position: normalizeCoverPosition(profileData?.coverPosition),
+        loading: false,
+      });
+    }, (error) => {
+      console.error('[Dashboard] Erro ao carregar capa do perfil:', error);
+      setProfileCover({ url: null, position: DEFAULT_COVER_POSITION, loading: false });
+    });
+  }, [user?.uid]);
+
+  useEffect(() => {
+    if (!user?.uid) return undefined;
+    setHydrationTimedOut(false);
+    const timeoutId = window.setTimeout(() => setHydrationTimedOut(true), 10000);
+    return () => window.clearTimeout(timeoutId);
+  }, [user?.uid, isOnline]);
 
   const todayStr = dateToYMD(new Date());
   const hasActiveStudyContext = !!(activeCicloId || activeCronogramaData?.id);
@@ -508,14 +631,17 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     if (!user) return;
     const q = query(collection(db,'users',user.uid,'simulados'), orderBy('data','desc'));
     setSimuladosLoaded(false);
-    return onSnapshot(q, (snap) => {
+    resetHydrationResource('simulados');
+    return onSnapshot(q, { includeMetadataChanges: true }, (snap) => {
       setAllSimulados(snap.docs.map(d => ({ id:d.id, ...d.data() })));
       setSimuladosLoaded(true);
+      markHydrationSnapshot('simulados', snap);
     }, (error) => {
       console.error('[Dashboard] Erro ao sincronizar simulados:', error);
       setSimuladosLoaded(true);
+      markHydrationError('simulados');
     });
-  }, [user]);
+  }, [user, markHydrationError, markHydrationSnapshot, resetHydrationResource]);
 
   const mergedAllRegistrosEstudo = useMemo(() => {
     const virtual = [];
@@ -686,12 +812,53 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     setPendingDailyGoalModalData(null);
   }, [finishModalData, isLocalRegistroModalOpen, pendingDailyGoalModalData, showGlobalRegistroModal]);
 
+  const legacyReadyFlags = registrosLoaded
+    && simuladosLoaded
+    && activeCicloLoaded
+    && activeCronogramaLoaded
+    && goalsLoaded
+    && activeCycleDisciplinesLoaded;
+  const hydrationStatus = useMemo(() => getCoreHydrationStatus({
+    hydrationState,
+    isOnline,
+    timedOut: hydrationTimedOut,
+    legacyReadyFlags,
+  }), [hydrationState, hydrationTimedOut, isOnline, legacyReadyFlags]);
+  const coreDataReady = hydrationStatus.ready;
+  const planningAssessmentReady = isPlanningAssessmentReady(hydrationState);
+  const hasPendingWrites = hydrationStatus.hasPendingWrites;
+
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('modoqap-firestore-sync-state', {
+      detail: { hasPendingWrites },
+    }));
+    return () => {
+      window.dispatchEvent(new CustomEvent('modoqap-firestore-sync-state', {
+        detail: { hasPendingWrites: false },
+      }));
+    };
+  }, [hasPendingWrites]);
+
   const isNovoUsuarioPlanejamento = useMemo(() => {
+    if (!planningAssessmentReady) return false;
     const semCicloAtivo = !activeCicloId;
     const semCronogramaAtivo = !activeCronogramaData?.id;
     const semRegistros = mergedAllRegistrosEstudo.length === 0;
     return semCicloAtivo && semCronogramaAtivo && semRegistros;
-  }, [activeCicloId, activeCronogramaData?.id, mergedAllRegistrosEstudo.length]);
+  }, [activeCicloId, activeCronogramaData?.id, mergedAllRegistrosEstudo.length, planningAssessmentReady]);
+
+  const noOfflineData = !isOnline
+    && coreDataReady
+    && !activeCicloId
+    && !activeCronogramaData?.id
+    && mergedAllRegistrosEstudo.length === 0
+    && allSimulados.length === 0
+    && goalsHistory.length === 0
+    && !planningAssessmentReady;
+
+  useEffect(() => {
+    if (coreDataReady && !userAccess.isLoading) dismissInitialLoadingScreen();
+  }, [coreDataReady, userAccess.isLoading]);
 
   useEffect(() => {
     if (!user?.uid) {
@@ -699,7 +866,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       return;
     }
 
-    const ready = registrosLoaded && simuladosLoaded && activeCicloLoaded && activeCronogramaLoaded;
+    const ready = coreDataReady && planningAssessmentReady;
     if (!ready) {
       setWelcomeCarousel((current) => ({ ...current, loading:true }));
       return;
@@ -740,6 +907,8 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     simuladosLoaded,
     activeCicloLoaded,
     activeCronogramaLoaded,
+    coreDataReady,
+    planningAssessmentReady,
     isNovoUsuarioPlanejamento,
   ]);
 
@@ -841,17 +1010,20 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     if (!user) return;
     setLoading(true);
     setRegistrosLoaded(false);
+    resetHydrationResource('registros');
     const q = query(collection(db,'users',user.uid,'registrosEstudo'), orderBy('data','desc'), orderBy('timestamp','desc'));
-    return onSnapshot(q, (snap) => {
+    return onSnapshot(q, { includeMetadataChanges: true }, (snap) => {
       setAllRegistrosEstudo(snap.docs.map(normalizeRegistroEstudo));
       setRegistrosLoaded(true);
       setLoading(false);
+      markHydrationSnapshot('registros', snap);
     }, (error) => {
       console.error('[Dashboard] Erro ao sincronizar registrosEstudo:', error);
       setRegistrosLoaded(true);
       setLoading(false);
+      markHydrationError('registros');
     });
-  }, [user]);
+  }, [user, markHydrationError, markHydrationSnapshot, resetHydrationResource]);
 
   useEffect(() => {
     if (!user || !registrosLoaded || !simuladosLoaded) return;
@@ -875,15 +1047,39 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     };
     const syncKey = `${totals.totalHorasMinutos}|${totals.totalQuestoes}|${totals.totalAcertos}`;
     if (statsSyncKeyRef.current === syncKey) return;
+    const persistedSyncKey = `modoqap_stats_sync_${user.uid}`;
+    try {
+      if (localStorage.getItem(persistedSyncKey) === syncKey) {
+        statsSyncKeyRef.current = syncKey;
+        return;
+      }
+    } catch {}
     statsSyncKeyRef.current = syncKey;
 
-    setDoc(doc(db,'users',user.uid,'stats','geral'), {
-      ...totals,
-      lastUpdated: Timestamp.now(),
-    }, { merge: true }).catch((error) => {
-      console.error('[Dashboard] Erro ao sincronizar stats/geral:', error);
-      statsSyncKeyRef.current = '';
-    });
+    const persistStats = () => {
+      setDoc(doc(db,'users',user.uid,'stats','geral'), {
+        ...totals,
+        lastUpdated: Timestamp.now(),
+      }, { merge: true }).then(() => {
+        try { localStorage.setItem(persistedSyncKey, syncKey); } catch {}
+      }).catch((error) => {
+        console.error('[Dashboard] Erro ao sincronizar stats/geral:', error);
+        statsSyncKeyRef.current = '';
+      });
+    };
+
+    if ('requestIdleCallback' in window) {
+      const idleId = window.requestIdleCallback(persistStats, { timeout: 2500 });
+      return () => {
+        window.cancelIdleCallback(idleId);
+        if (statsSyncKeyRef.current === syncKey) statsSyncKeyRef.current = '';
+      };
+    }
+    const timeoutId = window.setTimeout(persistStats, 0);
+    return () => {
+      window.clearTimeout(timeoutId);
+      if (statsSyncKeyRef.current === syncKey) statsSyncKeyRef.current = '';
+    };
   }, [allRegistrosEstudo, allSimulados, registrosLoaded, simuladosLoaded, user]);
 
   const recalculateAllStats = async () => {
@@ -2167,24 +2363,28 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   useEffect(() => {
     if (!user) return;
     setActiveCicloLoaded(false);
+    resetHydrationResource('activeCiclo');
     const q = query(collection(db,'users',user.uid,'ciclos'), where('ativo','==',true), where('arquivado','==',false));
-    return onSnapshot(q, (snap) => {
+    return onSnapshot(q, { includeMetadataChanges: true }, (snap) => {
       if (snap.empty) { setActiveCicloId(null); setActiveCicloData(null); }
       else { const d = snap.docs[0]; setActiveCicloId(d.id); setActiveCicloData({ id:d.id, ...d.data() }); }
       setActiveCicloLoaded(true);
+      markHydrationSnapshot('activeCiclo', snap);
     }, (error) => {
       console.error('[Dashboard] Erro ao sincronizar ciclo ativo:', error);
       setActiveCicloId(null);
       setActiveCicloData(null);
       setActiveCicloLoaded(true);
+      markHydrationError('activeCiclo');
     });
-  }, [user]);
+  }, [user, markHydrationError, markHydrationSnapshot, resetHydrationResource]);
 
   useEffect(() => {
     if (!user) return;
     setActiveCronogramaLoaded(false);
+    resetHydrationResource('activeCronograma');
     const q = query(collection(db,'users',user.uid,'cronogramas'), where('ativo','==',true));
-    return onSnapshot(q, (snap) => {
+    return onSnapshot(q, { includeMetadataChanges: true }, (snap) => {
       if (snap.empty) setActiveCronogramaData(null);
       else {
         const cronogramasAtivos = snap.docs
@@ -2198,34 +2398,84 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         setActiveCronogramaData(cronogramasAtivos[0] || null);
       }
       setActiveCronogramaLoaded(true);
+      markHydrationSnapshot('activeCronograma', snap);
     }, (error) => {
       console.error('[Dashboard] Erro ao sincronizar cronograma ativo:', error);
       setActiveCronogramaData(null);
       setActiveCronogramaLoaded(true);
+      markHydrationError('activeCronograma');
     });
-  }, [user]);
+  }, [user, markHydrationError, markHydrationSnapshot, resetHydrationResource]);
 
   useEffect(() => {
-    if (!user || !activeCicloId) { setActiveCycleDisciplines([]); return; }
+    if (!user || !activeCicloId) {
+      setActiveCycleDisciplines([]);
+      setActiveCycleDisciplinesLoaded(Boolean(hydrationState.activeCiclo.received));
+      if (hydrationState.activeCiclo.received) {
+        setHydrationState((current) => ({
+          ...current,
+          disciplinasCiclo: {
+            received: true,
+            authoritative: current.activeCiclo.authoritative,
+            failed: current.activeCiclo.failed,
+            hasPendingWrites: false,
+          },
+        }));
+      }
+      return undefined;
+    }
+    setActiveCycleDisciplinesLoaded(false);
+    resetHydrationResource('disciplinasCiclo');
     return onSnapshot(
       query(collection(db,'users',user.uid,'ciclos',activeCicloId,'disciplinas')),
-      (snap) => setActiveCycleDisciplines(sortDisciplinasByEditalOrder(snap.docs.map((d, __sourceOrder) => {
-        const data = d.data();
-        const assuntos = Array.isArray(data.assuntos)
-          ? data.assuntos.map(a => typeof a==='string' ? { nome:a, inCiclo:true } : { ...a, nome:(a?.nome||'').trim(), inCiclo:a?.inCiclo!==false }).filter(a=>a.nome)
-          : [];
-        return { id:d.id, ...data, assuntos, inCiclo:data.inCiclo!==false, __sourceOrder };
-      })))
+      { includeMetadataChanges: true },
+      (snap) => {
+        setActiveCycleDisciplines(sortDisciplinasByEditalOrder(snap.docs.map((d, __sourceOrder) => {
+          const data = d.data();
+          const assuntos = Array.isArray(data.assuntos)
+            ? data.assuntos.map(a => typeof a==='string' ? { nome:a, inCiclo:true } : { ...a, nome:(a?.nome||'').trim(), inCiclo:a?.inCiclo!==false }).filter(a=>a.nome)
+            : [];
+          return { id:d.id, ...data, assuntos, inCiclo:data.inCiclo!==false, __sourceOrder };
+        })));
+        setActiveCycleDisciplinesLoaded(true);
+        markHydrationSnapshot('disciplinasCiclo', snap);
+      },
+      (error) => {
+        console.error('[Dashboard] Erro ao sincronizar disciplinas do ciclo:', error);
+        setActiveCycleDisciplinesLoaded(true);
+        markHydrationError('disciplinasCiclo');
+      }
     );
-  }, [user, activeCicloId]);
+  }, [
+    user,
+    activeCicloId,
+    hydrationState.activeCiclo.received,
+    hydrationState.activeCiclo.authoritative,
+    hydrationState.activeCiclo.failed,
+    markHydrationError,
+    markHydrationSnapshot,
+    resetHydrationResource,
+  ]);
 
   useEffect(() => {
     if (!user) return;
+    setGoalsLoaded(false);
+    resetHydrationResource('metas');
     return onSnapshot(
       query(collection(db,'users',user.uid,'metas'), orderBy('startDate','desc')),
-      (snap) => setGoalsHistory(snap.docs.map(d => ({ id:d.id, ...d.data() })))
+      { includeMetadataChanges: true },
+      (snap) => {
+        setGoalsHistory(snap.docs.map(d => ({ id:d.id, ...d.data() })));
+        setGoalsLoaded(true);
+        markHydrationSnapshot('metas', snap);
+      },
+      (error) => {
+        console.error('[Dashboard] Erro ao sincronizar metas:', error);
+        setGoalsLoaded(true);
+        markHydrationError('metas');
+      }
     );
-  }, [user]);
+  }, [user, markHydrationError, markHydrationSnapshot, resetHydrationResource]);
 
   const renderTabContent = () => {
     if (loading && ['home','calendar','stats'].includes(activeTab)) {
@@ -2250,6 +2500,9 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
             user={user}
             activeCicloId={activeCicloId}
             activeCronogramaId={activeCronogramaData?.id || null}
+            activeCicloData={activeCicloData}
+            activeCronogramaData={activeCronogramaData}
+            registrosEstudo={mergedAllRegistrosEstudo}
             initialViewSource={editalInitialSource}
             onStartStudy={handleStartStudy}
             onBack={handleGoToActiveCycle}
@@ -2270,7 +2523,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       case 'simulados':
         return <SimuladosPage user={user} activeCycleDisciplines={activeCycleDisciplines} onStartSimulado={handleStartSimulado} initialData={finishedSimuladoData} onClearInitialData={handleClearSimuladoData}/>;
       case 'profile':
-        return <div className="mobile-page-zoom mobile-page-zoom--profile desktop-page-zoom desktop-page-zoom--profile"><ProfilePage user={user} allRegistrosEstudo={mergedAllRegistrosEstudo} onDeleteRegistro={deleteRegistro}/></div>;
+        return <div className="mobile-page-zoom mobile-page-zoom--profile desktop-page-zoom desktop-page-zoom--profile"><ProfilePage user={user} allRegistrosEstudo={mergedAllRegistrosEstudo} onDeleteRegistro={deleteRegistro} coverURL={profileCover.url} coverPosition={profileCover.position} coverLoading={profileCover.loading}/></div>;
       case 'noticias':
         return <div className="mobile-page-zoom mobile-page-zoom--noticias desktop-page-zoom desktop-page-zoom--noticias"><NoticiasPage/></div>;
       case 'admin':
@@ -2283,14 +2536,15 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   };
 
   if (!user) {
-    return (
-      <div className="flex justify-center items-center min-h-screen bg-background-light dark:bg-background-dark">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-red-600 mx-auto mb-4"></div>
-          <h2 className="text-lg font-medium text-gray-600 dark:text-gray-300">Carregando...</h2>
-        </div>
-      </div>
-    );
+    return null;
+  }
+
+  if (!coreDataReady || userAccess.isLoading) {
+    return null;
+  }
+
+  if (noOfflineData) {
+    return <DashboardBootScreen isOnline={false} noOfflineData />;
   }
 
   return (
@@ -2330,6 +2584,9 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       {/* NavSideBar com a prop nova para histórico */}
         <NavSideBar
           user={user}
+          coverURL={profileCover.url}
+          coverPosition={profileCover.position}
+          coverLoading={profileCover.loading}
           userAccess={userAccess}
           activeTab={activeTab}
         setActiveTab={handleTabChange}

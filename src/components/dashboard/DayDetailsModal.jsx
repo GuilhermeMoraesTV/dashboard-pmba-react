@@ -179,7 +179,7 @@ const DisciplinaComumBlock = ({ disc, idx }) => {
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.05 }}
       className="bg-white dark:bg-zinc-900 border border-zinc-200/60 dark:border-zinc-800 rounded-2xl overflow-hidden shadow-sm">
       <button onClick={() => setOpen(v => !v)}
-        className="w-full px-4 py-2.5 bg-zinc-50/80 dark:bg-zinc-950/30 border-b border-zinc-100 dark:border-zinc-800 flex flex-col sm:flex-row justify-between sm:items-center gap-2 hover:bg-zinc-100/60 dark:hover:bg-zinc-900/60 transition-colors">
+        className="w-full px-4 py-2.5 bg-zinc-50/80 dark:bg-card-dark/30 border-b border-zinc-100 dark:border-zinc-800 flex flex-col sm:flex-row justify-between sm:items-center gap-2 hover:bg-zinc-100/60 dark:hover:bg-zinc-900/60 transition-colors">
         <div className="flex items-center gap-2">
           <div className="w-1 h-5 bg-indigo-500 rounded-full shrink-0" />
           <h4 className="font-bold text-zinc-800 dark:text-white text-sm text-left">{disc.name}</h4>
@@ -418,7 +418,7 @@ function DayDetailsModal({ date, dayData, goals = { questions: 0, hours: 0 }, on
       <div className="fixed inset-0 z-[100070] flex items-center justify-center p-2 sm:p-4 overflow-hidden">
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="absolute inset-0 bg-zinc-950/70 backdrop-blur-sm" />
         <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className="relative w-full max-w-6xl bg-zinc-50 dark:bg-zinc-950 rounded-[2rem] shadow-2xl overflow-hidden flex flex-col h-[calc(100dvh-1.5rem)] sm:h-[calc(100dvh-2rem)] lg:h-[90dvh] max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-2rem)] border border-white/50 dark:border-zinc-800">
+          className="relative w-full max-w-6xl bg-zinc-50 dark:bg-card-dark rounded-[2rem] shadow-2xl overflow-hidden flex flex-col h-[calc(100dvh-1.5rem)] sm:h-[calc(100dvh-2rem)] lg:h-[90dvh] max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-2rem)] border border-white/50 dark:border-zinc-800">
           <div className="bg-emerald-50 dark:bg-emerald-900/10 border-b border-emerald-100 dark:border-emerald-900/30 p-3 sm:px-6 shrink-0 relative overflow-hidden">
             <div className="absolute top-[-20px] right-[-20px] opacity-[0.08] dark:opacity-[0.1] rotate-12 pointer-events-none">
               <Coffee size={120} className="text-emerald-600" />
@@ -489,7 +489,7 @@ function DayDetailsModal({ date, dayData, goals = { questions: 0, hours: 0 }, on
     <div className="fixed inset-0 z-[100070] flex items-center justify-center p-2 sm:p-4 overflow-hidden">
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="absolute inset-0 bg-zinc-950/70 backdrop-blur-sm" />
       <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className="relative w-full max-w-6xl bg-zinc-50 dark:bg-zinc-950 rounded-[2rem] shadow-2xl overflow-hidden flex flex-col h-[calc(100dvh-1.5rem)] sm:h-[calc(100dvh-2rem)] lg:h-[90dvh] max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-2rem)] border border-white/50 dark:border-zinc-800">
+        className="relative w-full max-w-6xl bg-zinc-50 dark:bg-card-dark rounded-[2rem] shadow-2xl overflow-hidden flex flex-col h-[calc(100dvh-1.5rem)] sm:h-[calc(100dvh-2rem)] lg:h-[90dvh] max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-2rem)] border border-white/50 dark:border-zinc-800">
 
         {/* HEADER */}
         <div className="bg-red-50 dark:bg-red-900/10 border-b border-red-100 dark:border-red-900/30 p-3 sm:px-6 shrink-0 relative overflow-hidden">

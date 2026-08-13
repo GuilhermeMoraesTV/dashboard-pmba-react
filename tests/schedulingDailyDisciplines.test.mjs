@@ -137,4 +137,73 @@ describe('scheduling daily disciplines', () => {
       assert.equal(totalDia, 180);
     });
   });
+
+  it('uses the selected single duration as the standard block and keeps only a smaller remainder', () => {
+    const disciplinas = [
+      { id: 'pt', nome: 'Portugues', nivel: 'intermediario', assuntos: ['A', 'B', 'C'] },
+      { id: 'mat', nome: 'Matematica', nivel: 'intermediario', assuntos: ['A', 'B', 'C'] },
+    ];
+    const horarios = { 1: 2 };
+    const resultado = gerarSchedule(disciplinas, horarios, {
+      dataInicio: '2026-08-03',
+      usarDuracaoUnica: true,
+      tempoSessaoMinutos: 50,
+      duracaoMinimaSessaoMinutos: 50,
+      duracaoMaximaSessaoMinutos: 50,
+    });
+
+    assert.equal(resultado.semanaTemplate.length, 3);
+    resultado.semanaTemplate.forEach((slot) => assert.ok(slot.minutosEstudo <= 50));
+
+    const agenda = getAgendaSemana({
+      ...resultado,
+      disciplinasSnapshot: disciplinas,
+      progresso: {},
+      historicoRevisoes: {},
+      dataInicio: '2026-08-03',
+      usarDuracaoUnica: true,
+      tempoSessaoMinutos: 50,
+      duracaoMinimaSessaoMinutos: 50,
+      duracaoMaximaSessaoMinutos: 50,
+    }, 0, null, null, horarios);
+
+    const duracoes = agenda
+      .filter((slot) => !slot.isRevisaoAuto && !slot.isRevisao && !slot.isConsolidada)
+      .map((slot) => Number(slot.tempoMinutos || slot.minutosEstudo || 0));
+
+    assert.deepEqual(duracoes, [50, 50, 20]);
+    assert.equal(duracoes.reduce((total, minutos) => total + minutos, 0), 120);
+    assert.equal(duracoes.some((minutos) => minutos > 50), false);
+  });
+
+  it('increases and decreases the weekly block count when the available time changes', () => {
+    const disciplinas = [
+      { id: 'pt', nome: 'Portugues', nivel: 'intermediario', assuntos: ['A', 'B', 'C', 'D', 'E', 'F'] },
+      { id: 'mat', nome: 'Matematica', nivel: 'intermediario', assuntos: ['A', 'B', 'C', 'D', 'E', 'F'] },
+    ];
+    const opcoes = {
+      dataInicio: '2026-08-03',
+      usarDuracaoUnica: true,
+      tempoSessaoMinutos: 50,
+      duracaoMinimaSessaoMinutos: 50,
+      duracaoMaximaSessaoMinutos: 50,
+    };
+
+    const agendaParaHoras = (horas) => {
+      const horarios = { 1: horas };
+      const resultado = gerarSchedule(disciplinas, horarios, opcoes);
+      return getAgendaSemana({
+        ...resultado,
+        ...opcoes,
+        disciplinasSnapshot: disciplinas,
+        progresso: {},
+        historicoRevisoes: {},
+      }, 0, null, null, horarios)
+        .filter((slot) => !slot.isRevisaoAuto && !slot.isRevisao && !slot.isConsolidada)
+        .map((slot) => Number(slot.tempoMinutos || slot.minutosEstudo || 0));
+    };
+
+    assert.deepEqual(agendaParaHoras(1), [50, 10]);
+    assert.deepEqual(agendaParaHoras(5), [50, 50, 50, 50, 50, 50]);
+  });
 });

@@ -50,12 +50,15 @@ const CiclosCentralizadosPanel = ({ user, activeCicloId, onOpenActive, onRequest
       return undefined;
     }
     const ref = collection(db, 'users', user.uid, 'ciclos');
-    return onSnapshot(ref, (snapshot) => {
+    return onSnapshot(ref, { includeMetadataChanges: true }, (snapshot) => {
       const lista = snapshot.docs
         .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
         .sort((a, b) => Number(b.ativo === true) - Number(a.ativo === true));
       setCiclos(lista);
-      setLoading(false);
+      const awaitingServerConfirmation = snapshot.metadata.fromCache
+        && lista.length === 0
+        && navigator.onLine;
+      if (!awaitingServerConfirmation) setLoading(false);
     }, () => setLoading(false));
   }, [user?.uid]);
 
@@ -102,7 +105,7 @@ const CiclosCentralizadosPanel = ({ user, activeCicloId, onOpenActive, onRequest
               <article key={ciclo.id} onClick={() => active && onOpenActive?.(ciclo.id)} className={`group relative flex h-full min-h-[170px] flex-col justify-between overflow-hidden rounded-2xl border border-zinc-200 bg-white p-4 transition-all duration-500 hover:-translate-y-1 hover:shadow-2xl dark:border-zinc-800 dark:bg-zinc-900/50 sm:min-h-[220px] sm:p-5 ${active ? 'cursor-pointer' : 'cursor-default'}`}>
                 <div className="absolute left-0 top-0 bottom-0 z-20 w-1 bg-transparent transition-colors duration-300 group-hover:bg-red-500" />
                 <div className="relative z-10 mb-3 flex items-start gap-3">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-card-dark">
                     {ciclo.logoUrl ? (
                       <img src={ciclo.logoUrl} alt={ciclo.nome || 'Ciclo'} className="h-full w-full object-contain p-1.5" />
                     ) : (
@@ -354,7 +357,7 @@ function PlanejamentoPage({
   return (
     <div className="desktop-page-zoom desktop-page-zoom--planejamento mobile-page-zoom mobile-page-zoom--planejamento mx-auto w-full max-w-7xl p-0 min-h-[50vh] animate-fade-in pb-12">
       <section className="mb-5 w-full">
-        <div className="group relative overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white p-4 shadow-soft transition-all duration-300 hover:border-accent-light/40 hover:!border-l-red-500 hover:shadow-[0_0_18px_rgba(239,68,68,0.07)] dark:border-white/10 dark:!border-l-red-500/25 dark:bg-zinc-950 dark:hover:border-accent-light/20 dark:hover:!border-l-red-500 dark:hover:shadow-[0_0_22px_rgba(239,68,68,0.08)]">
+        <div className="group relative overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white p-4 shadow-soft transition-all duration-300 hover:border-accent-light/40 hover:!border-l-red-500 hover:shadow-[0_0_18px_rgba(239,68,68,0.07)] dark:border-white/10 dark:!border-l-red-500/25 dark:bg-card-dark dark:hover:border-accent-light/20 dark:hover:!border-l-red-500 dark:hover:shadow-[0_0_22px_rgba(239,68,68,0.08)]">
           <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-red-500/5 blur-[80px] transition-all duration-700 group-hover:bg-red-500/10" />
           <div className="pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-zinc-500/5 blur-[80px]" />
 

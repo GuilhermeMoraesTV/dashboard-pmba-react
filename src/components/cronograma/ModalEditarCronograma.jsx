@@ -82,7 +82,7 @@ const ModalEditarCronograma = ({
         <motion.div
           initial={{ opacity: 0, y: 12, scale: 0.985 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          className="flex h-[calc(100dvh-1rem)] w-full max-w-7xl flex-col overflow-hidden rounded-[28px] border border-zinc-200 bg-zinc-50 shadow-2xl dark:border-zinc-800 dark:bg-zinc-950 sm:h-[calc(100dvh-2rem)]"
+          className="flex h-[calc(100dvh-1rem)] w-full max-w-7xl flex-col overflow-hidden rounded-[28px] border border-zinc-200 bg-zinc-50 shadow-2xl dark:border-zinc-800 dark:bg-card-dark sm:h-[calc(100dvh-2rem)]"
         >
           <div className="relative flex shrink-0 items-center justify-between gap-3 border-b border-zinc-200 bg-white px-4 py-3 pr-14 dark:border-zinc-800 dark:bg-zinc-900 sm:px-6 sm:pr-16">
             <div className="min-w-0">
@@ -91,7 +91,7 @@ const ModalEditarCronograma = ({
                 {tituloModoCompleto}
               </h2>
             </div>
-            <button onClick={pedirConfirmacaoFechamento} className="absolute right-3 top-3 shrink-0 rounded-2xl border border-zinc-200 bg-zinc-50 p-2 text-zinc-400 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:border-red-900/50 dark:hover:bg-red-950/20 sm:right-4">
+            <button onClick={pedirConfirmacaoFechamento} className="absolute right-3 top-3 shrink-0 rounded-2xl border border-zinc-200 bg-zinc-50 p-2 text-zinc-400 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 dark:border-zinc-800 dark:bg-card-dark dark:hover:border-red-900/50 dark:hover:bg-red-950/20 sm:right-4">
               <X size={18} />
             </button>
           </div>
@@ -138,7 +138,7 @@ const ModalEditarCronograma = ({
         initial={{ opacity: 0, y: 16, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 16, scale: 0.98 }}
-        className="modal-zoom modal-zoom--cronograma-ajustes relative flex max-h-[calc(100dvh-24px)] w-full max-w-4xl flex-col overflow-hidden rounded-[32px] border border-zinc-200 bg-zinc-50 shadow-2xl dark:border-zinc-800 dark:bg-zinc-950"
+        className="modal-zoom modal-zoom--cronograma-ajustes relative flex max-h-[calc(100dvh-24px)] w-full max-w-4xl flex-col overflow-hidden rounded-[32px] border border-zinc-200 bg-zinc-50 shadow-2xl dark:border-zinc-800 dark:bg-card-dark"
       >
         <div className="relative overflow-hidden border-b border-zinc-200 bg-white px-4 py-4 dark:border-zinc-800 dark:bg-zinc-900 sm:px-6">
           {cronograma.logoUrl && (
@@ -160,13 +160,13 @@ const ModalEditarCronograma = ({
                 <p className="mt-1 max-w-xl text-xs font-semibold leading-relaxed text-zinc-500 dark:text-zinc-400">Atualize os detalhes visuais do cronograma sem redistribuir blocos, dias ou disciplinas.</p>
               </div>
             </div>
-            <button onClick={pedirConfirmacaoFechamento} className="shrink-0 rounded-2xl border border-zinc-200 bg-zinc-50 p-2 text-zinc-400 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:border-red-900/50 dark:hover:bg-red-950/20">
+            <button onClick={pedirConfirmacaoFechamento} className="shrink-0 rounded-2xl border border-zinc-200 bg-zinc-50 p-2 text-zinc-400 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 dark:border-zinc-800 dark:bg-card-dark dark:hover:border-red-900/50 dark:hover:bg-red-950/20">
               <X size={18} />
             </button>
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3 dark:bg-zinc-950 sm:p-4">
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3 dark:bg-card-dark sm:p-4">
           <div className="grid gap-3 md:grid-cols-2">
             <label className="group block rounded-3xl border border-zinc-100 bg-white p-4 shadow-sm transition-all focus-within:border-red-200 focus-within:ring-4 focus-within:ring-red-500/5 dark:border-zinc-800 dark:bg-zinc-900">
               <span className="flex items-center gap-3 text-[10px] font-black uppercase tracking-wider text-zinc-500">
@@ -176,7 +176,7 @@ const ModalEditarCronograma = ({
               <input
                 value={nome}
                 onChange={(event) => setNome(event.target.value)}
-                className="mt-3 h-11 w-full rounded-2xl border-2 border-zinc-200 bg-zinc-50 px-4 text-sm font-black text-zinc-900 outline-none transition-all focus:border-red-500 focus:bg-white dark:border-zinc-700 dark:bg-zinc-950 dark:text-white"
+                className="mt-3 h-11 w-full rounded-2xl border-2 border-zinc-200 bg-zinc-50 px-4 text-sm font-black text-zinc-900 outline-none transition-all focus:border-red-500 focus:bg-white dark:border-zinc-700 dark:bg-card-dark dark:text-white"
                 placeholder="Ex: Cronograma PMBA"
               />
             </label>
@@ -190,7 +190,7 @@ const ModalEditarCronograma = ({
                 type="date"
                 value={dataFim}
                 onChange={(event) => setDataFim(event.target.value)}
-                className="mt-3 h-11 w-full rounded-2xl border-2 border-zinc-200 bg-zinc-50 px-4 text-sm font-black text-zinc-900 outline-none transition-all focus:border-red-500 focus:bg-white dark:border-zinc-700 dark:bg-zinc-950 dark:text-white"
+                className="mt-3 h-11 w-full rounded-2xl border-2 border-zinc-200 bg-zinc-50 px-4 text-sm font-black text-zinc-900 outline-none transition-all focus:border-red-500 focus:bg-white dark:border-zinc-700 dark:bg-card-dark dark:text-white"
               />
             </label>
           </div>

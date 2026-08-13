@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import EmptyStateCard from '../../components/shared/EmptyStateCard';
 
 // --- HELPERS LOCAIS ---
-const systemInfoCardClass = 'group/card relative flex min-h-[94px] flex-col justify-between overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white p-4 shadow-soft transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/40 hover:!border-l-red-500 hover:shadow-[0_0_18px_rgba(239,68,68,0.07)] dark:border-white/10 dark:!border-l-red-500/25 dark:bg-zinc-950 dark:hover:border-accent-light/20 dark:hover:!border-l-red-500 dark:hover:shadow-[0_0_22px_rgba(239,68,68,0.08)]';
+const systemInfoCardClass = 'group/card relative flex min-h-[94px] flex-col justify-between overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white p-4 shadow-soft transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/40 hover:!border-l-red-500 hover:shadow-[0_0_18px_rgba(239,68,68,0.07)] dark:border-white/10 dark:!border-l-red-500/25 dark:bg-card-dark dark:hover:border-accent-light/20 dark:hover:!border-l-red-500 dark:hover:shadow-[0_0_22px_rgba(239,68,68,0.08)]';
 
 const formatDuration = (minutes) => {
   if (minutes === null || minutes === undefined) return '-';
@@ -42,7 +42,7 @@ const DeleteConfirmationModal = ({ isOpen, onClose, onConfirm, item }) => {
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.9, opacity: 0 }}
-        className="bg-white dark:bg-zinc-950 rounded-3xl shadow-2xl border border-zinc-200 dark:border-zinc-800 w-full max-w-md overflow-hidden"
+        className="bg-white dark:bg-card-dark rounded-3xl shadow-2xl border border-zinc-200 dark:border-zinc-800 w-full max-w-md overflow-hidden"
       >
         <div className="bg-red-50 dark:bg-red-900/10 p-6 flex flex-col items-center border-b border-red-100 dark:border-red-800/30">
           <div className="w-20 h-20 bg-red-100 dark:bg-red-500/20 rounded-full flex items-center justify-center mb-4 text-red-600 dark:text-red-500 ring-8 ring-red-50/50 dark:ring-red-900/10">
@@ -104,7 +104,7 @@ const SimuladoTableRow = ({ item, onDeleteRequest, onEditRequest, compareMode, i
   };
 
   return (
-    <div className={`group mx-2 my-3 overflow-hidden rounded-xl border border-l-4 transition-all duration-200 md:mx-3 ${isSelected ? 'border-blue-300 border-l-blue-500 bg-blue-50 shadow-[0_0_18px_rgba(37,99,235,0.10)] dark:border-blue-500/40 dark:border-l-blue-400 dark:bg-blue-950/20' : expanded ? 'border-red-200 border-l-red-500 bg-zinc-50 shadow-md dark:border-red-500/25 dark:border-l-red-500 dark:bg-zinc-900/35' : 'border-zinc-200 border-l-zinc-300 bg-white shadow-sm hover:-translate-y-0.5 hover:border-red-200 hover:border-l-red-500 hover:shadow-[0_0_18px_rgba(239,68,68,0.06)] dark:border-white/10 dark:border-l-zinc-700 dark:bg-zinc-950 dark:hover:border-red-500/25 dark:hover:border-l-red-500'}`}>
+    <div className={`group mx-2 my-3 overflow-hidden rounded-xl border border-l-4 transition-all duration-200 md:mx-3 ${isSelected ? 'border-blue-300 border-l-blue-500 bg-blue-50 shadow-[0_0_18px_rgba(37,99,235,0.10)] dark:border-blue-500/40 dark:border-l-blue-400 dark:bg-blue-950/20' : expanded ? 'border-red-200 border-l-red-500 bg-zinc-50 shadow-md dark:border-red-500/25 dark:border-l-red-500 dark:bg-zinc-900/35' : 'border-zinc-200 border-l-zinc-300 bg-white shadow-sm hover:-translate-y-0.5 hover:border-red-200 hover:border-l-red-500 hover:shadow-[0_0_18px_rgba(239,68,68,0.06)] dark:border-white/10 dark:border-l-zinc-700 dark:bg-card-dark dark:hover:border-red-500/25 dark:hover:border-l-red-500'}`}>
 
       {/* MOBILE - ROW PRINCIPAL */}
       <div className="md:hidden px-4 py-3 cursor-pointer select-none" onClick={onRowClick}>
@@ -167,7 +167,7 @@ const SimuladoTableRow = ({ item, onDeleteRequest, onEditRequest, compareMode, i
       {/* EXPANDED */}
       <AnimatePresence>
         {expanded && !compareMode && (
-          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden border-t border-zinc-200 bg-zinc-50/80 dark:border-white/10 dark:bg-zinc-950/70">
+          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden border-t border-zinc-200 bg-zinc-50/80 dark:border-white/10 dark:bg-card-dark/70">
             <div className="p-4 md:p-6">
                 {stats && (
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4 mb-5 md:mb-6">
@@ -192,7 +192,7 @@ const SimuladoTableRow = ({ item, onDeleteRequest, onEditRequest, compareMode, i
                     </div>
 
                     {/* MOBILE - HEADER DO EXPANDED (NOMES COMPLETOS) */}
-                    <div className="md:hidden grid grid-cols-12 gap-2 px-4 py-3 bg-zinc-50 dark:bg-zinc-950 text-[9px] font-black uppercase tracking-tighter text-zinc-400">
+                    <div className="md:hidden grid grid-cols-12 gap-2 px-4 py-3 bg-zinc-50 dark:bg-card-dark text-[9px] font-black uppercase tracking-tighter text-zinc-400">
                       <div className="col-span-6">Disciplina</div>
                       <div className="col-span-2 text-center">Acertos</div>
                       <div className="col-span-2 text-center">Pontos</div>
@@ -267,7 +267,7 @@ const SimuladosList = ({
   };
 
   return (
-    <div className="group relative overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-soft transition-all duration-300 hover:border-accent-light/40 hover:shadow-[0_0_18px_rgba(239,68,68,0.07)] dark:border-white/10 dark:bg-zinc-950 dark:hover:border-accent-light/20 dark:hover:shadow-[0_0_22px_rgba(239,68,68,0.08)]">
+    <div className="group relative overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-soft transition-all duration-300 hover:border-accent-light/40 hover:shadow-[0_0_18px_rgba(239,68,68,0.07)] dark:border-white/10 dark:bg-card-dark dark:hover:border-accent-light/20 dark:hover:shadow-[0_0_22px_rgba(239,68,68,0.08)]">
       <DeleteConfirmationModal
         isOpen={deleteModalOpen}
         onClose={() => setDeleteModalOpen(false)}
@@ -286,7 +286,7 @@ const SimuladosList = ({
         <div className="col-span-1 text-center">Detalhes</div>
       </div>
 
-      <div className="bg-zinc-50/50 py-2 dark:bg-zinc-950/40">
+      <div className="bg-zinc-50/50 py-2 dark:bg-card-dark/40">
         {loading ? (
             <div className="py-16 text-center text-zinc-400 font-medium animate-pulse flex flex-col items-center gap-4">
             <div className="w-8 h-8 border-4 border-red-500 border-t-transparent rounded-full animate-spin" />

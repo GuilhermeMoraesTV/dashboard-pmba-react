@@ -23,7 +23,7 @@ const CloseConfirmationModal = ({ isOpen, onCancel, onConfirm }) => {
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.92, opacity: 0, y: 10 }}
         transition={{ type: "spring", duration: 0.45 }}
-        className="bg-white dark:bg-zinc-950 rounded-2xl md:rounded-3xl shadow-2xl border border-zinc-200 dark:border-zinc-800 w-full max-w-sm md:max-w-md overflow-hidden"
+        className="bg-white dark:bg-card-dark rounded-2xl md:rounded-3xl shadow-2xl border border-zinc-200 dark:border-zinc-800 w-full max-w-sm md:max-w-md overflow-hidden"
       >
         <div className="bg-amber-50 dark:bg-amber-900/10 p-5 md:p-6 flex flex-col items-center border-b border-amber-100 dark:border-amber-800/30">
           <div className="w-14 h-14 md:w-20 md:h-20 bg-amber-100 dark:bg-amber-500/20 rounded-full flex items-center justify-center mb-3 md:mb-4 text-amber-700 dark:text-amber-400 ring-4 md:ring-8 ring-amber-50/50 dark:ring-amber-900/10">
@@ -411,7 +411,7 @@ const SimuladoCreationModal = ({ isOpen, onClose, onSave, disciplinasSugestivas,
         onClick={(e) => e.stopPropagation()}
         className={`
           modal-zoom modal-zoom--simulado-novo simulado-modal-mobile-zoom simulado-modal-mobile-zoom--dense
-          bg-white dark:bg-zinc-950 rounded-3xl shadow-2xl border border-zinc-200 dark:border-zinc-800
+          bg-white dark:bg-card-dark rounded-3xl shadow-2xl border border-zinc-200 dark:border-zinc-800
           w-full max-w-[95%] sm:max-w-2xl md:max-w-4xl lg:max-w-5xl
           h-[92dvh] max-h-[92dvh]
           flex flex-col overflow-hidden relative
@@ -500,7 +500,7 @@ const SimuladoCreationModal = ({ isOpen, onClose, onSave, disciplinasSugestivas,
         </div>
 
         {/* BODY */}
-        <div className="min-h-0 flex-1 overflow-y-auto p-3 md:p-5 bg-white dark:bg-zinc-950 custom-scrollbar">
+        <div className="min-h-0 flex-1 overflow-y-auto p-3 md:p-5 bg-white dark:bg-card-dark custom-scrollbar">
 
           {activeTab === 'details' && (
             <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} className="space-y-5">
@@ -595,7 +595,7 @@ const SimuladoCreationModal = ({ isOpen, onClose, onSave, disciplinasSugestivas,
                           const total = (hh * 60) + mm;
                           setDurationMinutes(total > 0 ? total : null);
                         }}
-                        className="w-16 h-14 md:w-20 md:h-16 text-center text-3xl font-black bg-white dark:bg-zinc-950 rounded-2xl border-2 border-zinc-200 dark:border-zinc-700 focus:border-red-500 outline-none transition-all shadow-sm text-zinc-800 dark:text-white"
+                        className="w-16 h-14 md:w-20 md:h-16 text-center text-3xl font-black bg-white dark:bg-card-dark rounded-2xl border-2 border-zinc-200 dark:border-zinc-700 focus:border-red-500 outline-none transition-all shadow-sm text-zinc-800 dark:text-white"
                         placeholder="00"
                       />
                       <span className="text-[10px] font-bold text-zinc-400 mt-2 uppercase">Horas</span>
@@ -618,7 +618,7 @@ const SimuladoCreationModal = ({ isOpen, onClose, onSave, disciplinasSugestivas,
                           const total = (hh * 60) + mm;
                           setDurationMinutes(total > 0 ? total : null);
                         }}
-                        className="w-16 h-14 md:w-20 md:h-16 text-center text-3xl font-black bg-white dark:bg-zinc-950 rounded-2xl border-2 border-zinc-200 dark:border-zinc-700 focus:border-red-500 outline-none transition-all shadow-sm text-zinc-800 dark:text-white"
+                        className="w-16 h-14 md:w-20 md:h-16 text-center text-3xl font-black bg-white dark:bg-card-dark rounded-2xl border-2 border-zinc-200 dark:border-zinc-700 focus:border-red-500 outline-none transition-all shadow-sm text-zinc-800 dark:text-white"
                         placeholder="00"
                       />
                       <span className="text-[10px] font-bold text-zinc-400 mt-2 uppercase">Min</span>
@@ -720,7 +720,7 @@ const SimuladoCreationModal = ({ isOpen, onClose, onSave, disciplinasSugestivas,
                               list={`edit-sug-${idx}`}
                               value={disc.nome}
                               onChange={e => handleChange(idx, 'nome', e.target.value)}
-                              className={`w-full bg-white dark:bg-zinc-950 border rounded-xl px-3 py-2 text-sm font-bold outline-none transition-colors ${
+                              className={`w-full bg-white dark:bg-card-dark border rounded-xl px-3 py-2 text-sm font-bold outline-none transition-colors ${
                                 isDup ? 'border-amber-400 focus:border-amber-500' : 'border-zinc-200 dark:border-zinc-700 focus:border-red-500'
                               }`}
                               placeholder="Nome da Matéria..."
@@ -735,7 +735,7 @@ const SimuladoCreationModal = ({ isOpen, onClose, onSave, disciplinasSugestivas,
                               type="number"
                               value={disc.questoes}
                               onChange={e => handleChange(idx, 'questoes', e.target.value)}
-                              className="w-full text-center bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-700 rounded-xl py-2 text-sm font-bold outline-none focus:border-zinc-400"
+                              className="w-full text-center bg-white dark:bg-card-dark border border-zinc-200 dark:border-zinc-700 rounded-xl py-2 text-sm font-bold outline-none focus:border-zinc-400"
                               placeholder="0"
                             />
                           </div>
@@ -745,7 +745,7 @@ const SimuladoCreationModal = ({ isOpen, onClose, onSave, disciplinasSugestivas,
                               type="number"
                               value={disc.acertos}
                               onChange={e => handleChange(idx, 'acertos', e.target.value)}
-                              className="w-full text-center bg-white dark:bg-zinc-950 border border-emerald-200 dark:border-emerald-900/50 text-emerald-600 rounded-xl py-2 text-sm font-black outline-none focus:border-emerald-500"
+                              className="w-full text-center bg-white dark:bg-card-dark border border-emerald-200 dark:border-emerald-900/50 text-emerald-600 rounded-xl py-2 text-sm font-black outline-none focus:border-emerald-500"
                               placeholder="0"
                             />
                           </div>
@@ -755,7 +755,7 @@ const SimuladoCreationModal = ({ isOpen, onClose, onSave, disciplinasSugestivas,
                               type="number"
                               value={disc.branco}
                               onChange={e => handleChange(idx, 'branco', e.target.value)}
-                              className="w-full text-center bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-700 rounded-xl py-2 text-sm outline-none focus:border-zinc-400"
+                              className="w-full text-center bg-white dark:bg-card-dark border border-zinc-200 dark:border-zinc-700 rounded-xl py-2 text-sm outline-none focus:border-zinc-400"
                               placeholder="0"
                             />
                           </div>
@@ -765,7 +765,7 @@ const SimuladoCreationModal = ({ isOpen, onClose, onSave, disciplinasSugestivas,
                               type="number"
                               value={disc.peso}
                               onChange={e => handleChange(idx, 'peso', e.target.value)}
-                              className="w-full text-center bg-white dark:bg-zinc-950 border border-amber-200 dark:border-amber-900/50 text-amber-600 rounded-xl py-2 text-xs font-bold outline-none focus:border-amber-500"
+                              className="w-full text-center bg-white dark:bg-card-dark border border-amber-200 dark:border-amber-900/50 text-amber-600 rounded-xl py-2 text-xs font-bold outline-none focus:border-amber-500"
                               placeholder="1"
                             />
                           </div>
@@ -786,7 +786,7 @@ const SimuladoCreationModal = ({ isOpen, onClose, onSave, disciplinasSugestivas,
                                   list={`edit-sug-m-${idx}`}
                                   value={disc.nome}
                                   onChange={e => handleChange(idx, 'nome', e.target.value)}
-                                  className={`w-full bg-white dark:bg-zinc-950 border rounded-xl px-3 py-2.5 text-sm font-bold outline-none shadow-sm ${
+                                  className={`w-full bg-white dark:bg-card-dark border rounded-xl px-3 py-2.5 text-sm font-bold outline-none shadow-sm ${
                                     isDup ? 'border-amber-400 focus:border-amber-500' : 'border-zinc-200 dark:border-zinc-700 focus:border-red-500'
                                   }`}
                                   placeholder="Nome da disciplina..."
@@ -798,7 +798,7 @@ const SimuladoCreationModal = ({ isOpen, onClose, onSave, disciplinasSugestivas,
                              </div>
                              <button
                                 onClick={() => removeMateria(idx)}
-                                className="p-2.5 rounded-xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-700 text-zinc-400 hover:text-red-500 shadow-sm"
+                                className="p-2.5 rounded-xl bg-white dark:bg-card-dark border border-zinc-200 dark:border-zinc-700 text-zinc-400 hover:text-red-500 shadow-sm"
                               >
                                 <Trash2 size={18} />
                               </button>
@@ -813,7 +813,7 @@ const SimuladoCreationModal = ({ isOpen, onClose, onSave, disciplinasSugestivas,
                                   type="number"
                                   value={disc.questoes}
                                   onChange={e => handleChange(idx, 'questoes', e.target.value)}
-                                  className="w-full text-center bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-700 rounded-xl py-2 text-sm font-bold outline-none shadow-sm"
+                                  className="w-full text-center bg-white dark:bg-card-dark border border-zinc-200 dark:border-zinc-700 rounded-xl py-2 text-sm font-bold outline-none shadow-sm"
                                   placeholder="0"
                                 />
                              </div>
@@ -825,7 +825,7 @@ const SimuladoCreationModal = ({ isOpen, onClose, onSave, disciplinasSugestivas,
                                   type="number"
                                   value={disc.acertos}
                                   onChange={e => handleChange(idx, 'acertos', e.target.value)}
-                                  className="w-full text-center bg-white dark:bg-zinc-950 border border-emerald-200 dark:border-emerald-900/30 text-emerald-600 rounded-xl py-2 text-sm font-black outline-none shadow-sm"
+                                  className="w-full text-center bg-white dark:bg-card-dark border border-emerald-200 dark:border-emerald-900/30 text-emerald-600 rounded-xl py-2 text-sm font-black outline-none shadow-sm"
                                   placeholder="0"
                                 />
                              </div>
@@ -837,7 +837,7 @@ const SimuladoCreationModal = ({ isOpen, onClose, onSave, disciplinasSugestivas,
                                   type="number"
                                   value={disc.branco}
                                   onChange={e => handleChange(idx, 'branco', e.target.value)}
-                                  className="w-full text-center bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-700 rounded-xl py-2 text-sm font-bold outline-none shadow-sm"
+                                  className="w-full text-center bg-white dark:bg-card-dark border border-zinc-200 dark:border-zinc-700 rounded-xl py-2 text-sm font-bold outline-none shadow-sm"
                                   placeholder="0"
                                 />
                              </div>
@@ -849,7 +849,7 @@ const SimuladoCreationModal = ({ isOpen, onClose, onSave, disciplinasSugestivas,
                                   type="number"
                                   value={disc.peso}
                                   onChange={e => handleChange(idx, 'peso', e.target.value)}
-                                  className="w-full text-center bg-white dark:bg-zinc-950 border border-amber-200 dark:border-amber-900/30 text-amber-600 rounded-xl py-2 text-sm font-black outline-none shadow-sm"
+                                  className="w-full text-center bg-white dark:bg-card-dark border border-amber-200 dark:border-amber-900/30 text-amber-600 rounded-xl py-2 text-sm font-black outline-none shadow-sm"
                                   placeholder="1"
                                 />
                              </div>
@@ -866,7 +866,7 @@ const SimuladoCreationModal = ({ isOpen, onClose, onSave, disciplinasSugestivas,
         </div>
 
         {/* FOOTER - TOTAIS E AÇÕES */}
-        <div className="bg-white dark:bg-zinc-950 border-t border-zinc-200 dark:border-zinc-800 p-3 md:p-4 relative z-20 shrink-0">
+        <div className="bg-white dark:bg-card-dark border-t border-zinc-200 dark:border-zinc-800 p-3 md:p-4 relative z-20 shrink-0">
           <div className="grid grid-cols-3 md:grid-cols-4 gap-2 md:gap-3 mb-3">
             <div className="text-center bg-zinc-50 dark:bg-zinc-900/50 rounded-xl py-1.5">
                 <span className="text-[9px] md:text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Total</span>

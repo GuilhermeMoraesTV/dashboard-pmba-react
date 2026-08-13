@@ -114,7 +114,7 @@ function Header({ user, activeTab, setActiveTab, variant = 'center' }) {
             <div className="absolute inset-0 bg-gradient-to-b from-zinc-200 to-zinc-100 dark:from-zinc-900 dark:via-zinc-800 dark:to-zinc-900 rounded-xl opacity-60 blur-sm transform scale-95 group-hover:scale-100 transition-all duration-700"></div>
 
             <div className="relative border border-zinc-200 dark:border-zinc-800/50
-                          bg-gradient-to-b from-white to-zinc-50 dark:from-zinc-900 dark:to-zinc-950
+                          bg-gradient-to-b from-white to-zinc-50 dark:from-card-dark dark:to-card-dark
                           rounded-xl p-3 flex flex-col gap-1.5
                           transition-all duration-300 shadow-sm hover:shadow-md hover:-translate-y-0.5">
 

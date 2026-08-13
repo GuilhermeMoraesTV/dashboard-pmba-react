@@ -52,11 +52,11 @@ const CycleSummaryCard = ({ horasTotais, totalSessoesPreview, tempoSessaoMinutos
       </div>
     </div>
     <div className={`mt-3 grid ${compact ? 'grid-cols-2 gap-1.5' : 'grid-cols-2 gap-2'}`}>
-      <div className="rounded-xl border border-zinc-100 bg-zinc-50 px-2 py-1.5 dark:border-zinc-800 dark:bg-zinc-950">
+      <div className="rounded-xl border border-zinc-100 bg-zinc-50 px-2 py-1.5 dark:border-zinc-800 dark:bg-card-dark">
         <p className="text-[7px] font-black uppercase tracking-widest text-zinc-400">Blocos</p>
         <p className="mt-0.5 text-xs font-black text-zinc-900 dark:text-white">{totalSessoesPreview}</p>
       </div>
-      <div className="rounded-xl border border-zinc-100 bg-zinc-50 px-2 py-1.5 dark:border-zinc-800 dark:bg-zinc-950">
+      <div className="rounded-xl border border-zinc-100 bg-zinc-50 px-2 py-1.5 dark:border-zinc-800 dark:bg-card-dark">
         <p className="text-[7px] font-black uppercase tracking-widest text-zinc-400">Cada bloco</p>
         <p className="mt-0.5 text-xs font-black text-zinc-900 dark:text-white">{tempoSessaoMinutos} min</p>
       </div>
@@ -71,7 +71,7 @@ const CycleSummaryCard = ({ horasTotais, totalSessoesPreview, tempoSessaoMinutos
 
 const DisciplineDistributionCard = ({ disciplinasPreview, maxSessoesDisciplina }) => (
   <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:rounded-3xl xl:max-h-[560px]">
-    <div className="border-b border-zinc-100 bg-zinc-50 px-3 py-2.5 dark:border-zinc-800 dark:bg-zinc-950 sm:px-4 sm:py-4">
+    <div className="border-b border-zinc-100 bg-zinc-50 px-3 py-2.5 dark:border-zinc-800 dark:bg-card-dark sm:px-4 sm:py-4">
       <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400 sm:text-[10px]">Disciplinas do ciclo</p>
       <p className="mt-1 text-[10px] font-bold text-zinc-500 dark:text-zinc-400 sm:text-[11px]">
         Quantidade de blocos prevista para cada materia.
@@ -169,7 +169,7 @@ export default function StepPreview({
             />
           </div>
 
-          <div className="order-2 min-h-0 rounded-[24px] border border-zinc-200 bg-white p-1.5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/70 sm:min-h-[760px] sm:p-3 lg:p-4 xl:order-1 xl:min-h-[760px]">
+          <div className="order-2 min-h-0 rounded-[24px] border border-zinc-200 bg-white p-1.5 shadow-sm dark:border-zinc-800 dark:bg-card-dark sm:min-h-[760px] sm:p-3 lg:p-4 xl:order-1 xl:min-h-[760px]">
             <CicloVisual
               selectedDisciplinaId={selectedDisciplinaId}
               onSelectDisciplina={setSelectedDisciplinaId}

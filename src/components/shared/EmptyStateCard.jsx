@@ -3,7 +3,7 @@ import { ArrowRight, Inbox, Loader2 } from 'lucide-react';
 
 const VARIANT_STYLES = {
   default: {
-    shell: 'border-zinc-200/80 bg-white/92 shadow-[0_24px_80px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-zinc-950/82 dark:shadow-[0_24px_80px_rgba(0,0,0,0.28)]',
+    shell: 'border-zinc-200/80 bg-white/92 shadow-[0_24px_80px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-card-dark/82 dark:shadow-[0_24px_80px_rgba(0,0,0,0.28)]',
     icon: 'bg-gradient-to-br from-red-600 to-rose-700 text-white shadow-2xl shadow-red-500/25',
     eyebrow: 'text-red-600 dark:text-red-300',
     title: 'text-zinc-900 dark:text-white',
@@ -17,14 +17,14 @@ const VARIANT_STYLES = {
     cta: 'bg-red-600 text-white hover:bg-red-700 shadow-xl shadow-red-600/24',
   },
   loading: {
-    shell: 'border-red-100 bg-white/90 shadow-[0_24px_80px_rgba(239,68,68,0.10)] dark:border-red-500/20 dark:bg-zinc-950/82',
+    shell: 'border-red-100 bg-white/90 shadow-[0_24px_80px_rgba(239,68,68,0.10)] dark:border-red-500/20 dark:bg-card-dark/82',
     icon: 'bg-gradient-to-br from-red-600 to-rose-700 text-white shadow-2xl shadow-red-500/25',
     eyebrow: 'text-red-500 dark:text-red-300',
     title: 'text-zinc-900 dark:text-white',
     cta: 'bg-red-600 text-white hover:bg-red-700',
   },
   compact: {
-    shell: 'border-red-100/80 bg-white/86 shadow-[0_14px_45px_rgba(15,23,42,0.06)] dark:border-red-500/15 dark:bg-zinc-950/65',
+    shell: 'border-red-100/80 bg-white/86 shadow-[0_14px_45px_rgba(15,23,42,0.06)] dark:border-red-500/15 dark:bg-card-dark/65',
     icon: 'bg-gradient-to-br from-red-600 to-rose-700 text-white shadow-lg shadow-red-500/20',
     eyebrow: 'text-red-500 dark:text-red-300',
     title: 'text-zinc-900 dark:text-white',

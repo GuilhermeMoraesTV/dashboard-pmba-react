@@ -4,7 +4,7 @@ import {
   persistentLocalCache,
   persistentMultipleTabManager,
 } from "firebase/firestore";
-import { getAuth } from "firebase/auth";
+import { browserLocalPersistence, getAuth, setPersistence } from "firebase/auth";
 import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
@@ -27,10 +27,13 @@ console.log("📦 Cache Offline configurado (API v10).");
 
 const auth    = getAuth(app);
 const storage = getStorage(app);
+const authPersistenceReady = setPersistence(auth, browserLocalPersistence).catch((error) => {
+  console.warn('[Firebase] Persistencia local de autenticacao indisponivel:', error);
+});
 
 if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
   // connectAuthEmulator(auth, "http://127.0.0.1:9099");
   // connectFirestoreEmulator(db, '127.0.0.1', 8085);
 }
 
-export { app, db, auth, storage };
+export { app, db, auth, storage, authPersistenceReady };

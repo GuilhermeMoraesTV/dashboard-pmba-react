@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Step1Edital.jsx — REDESIGN CINEMATOGRÁFICO v2
  */
 
@@ -145,8 +145,8 @@ const CardEdital = ({ dados, unico, idConfirmado, aoConfirmar }) => {
         <AnimatePresence>
           {variosCargos && menuAberto && (
             <motion.div initial={{ opacity: 0, y: '100%' }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: '100%' }}
-              className="absolute inset-0 z-30 bg-white dark:bg-zinc-950 flex flex-col rounded-[24px] overflow-hidden">
-              <div className="p-2.5 sm:p-3 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between bg-zinc-50/50 dark:bg-zinc-900/50">
+              className="absolute inset-0 z-30 bg-white dark:bg-card-dark flex flex-col rounded-[24px] overflow-hidden">
+              <div className="p-2.5 sm:p-3 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between bg-zinc-50/50 dark:bg-card-dark">
                 <span className="text-[7px] sm:text-[9px] font-black uppercase tracking-[0.12em] text-zinc-500 flex items-center gap-2"><Briefcase size={12} /> Escolha o Cargo</span>
                 <button onClick={e => { e.stopPropagation(); setMenuAberto(false); }} className="p-1.5 hover:bg-red-50 dark:hover:bg-red-950 text-zinc-400 hover:text-red-500 rounded-lg transition-colors"><X size={14} strokeWidth={2.5} /></button>
               </div>
@@ -156,7 +156,7 @@ const CardEdital = ({ dados, unico, idConfirmado, aoConfirmar }) => {
                   return (
                     <button key={item.id} onClick={e => { e.stopPropagation(); aoConfirmar(item); setMenuAberto(false); }}
                       className={`w-full text-left p-2 sm:p-3 rounded-xl border-2 transition-all active:scale-[0.98] ${
-                        isAtivo ? 'border-red-500 bg-red-50/50 dark:bg-red-950/20' : 'border-zinc-50 dark:border-zinc-900 hover:border-red-200 dark:hover:border-red-800 bg-zinc-50/30 dark:bg-zinc-900/30'
+                        isAtivo ? 'border-red-500 bg-red-50/50 dark:bg-red-950/20' : 'border-zinc-50 dark:border-zinc-700 hover:border-red-200 dark:hover:border-red-800 bg-zinc-50/30 dark:bg-zinc-800/55'
                       }`}>
                       <div className="text-[8px] sm:text-[9px] font-black text-zinc-900 dark:text-white uppercase leading-tight truncate">{item.cargo || 'Cargo Padrão'}</div>
                       <div className="text-[7px] sm:text-[8px] font-bold text-zinc-400 mt-1 uppercase tracking-tighter flex items-center gap-1.5">
@@ -342,7 +342,7 @@ const TelaEscolhaTipo = ({ onManual, onCatalogo }) => {
               className={`group relative flex min-h-[168px] flex-col overflow-hidden rounded-2xl border-2 p-3 text-left shadow-md transition-all duration-500 dark:bg-zinc-900 sm:min-h-[260px] sm:p-6 md:rounded-[2.2rem] md:p-7 md:shadow-xl ${
                 isRed
                   ? 'border-zinc-100 bg-white hover:border-red-600 hover:shadow-red-600/10 dark:border-zinc-800'
-                  : 'border-dashed border-zinc-300 bg-zinc-50 hover:border-zinc-400 hover:bg-white hover:shadow-zinc-900/10 dark:border-zinc-700 dark:bg-zinc-900/60 dark:hover:border-zinc-500 dark:hover:bg-zinc-900'
+                  : 'border-dashed border-zinc-300 bg-zinc-50 hover:border-zinc-400 hover:bg-white hover:shadow-zinc-900/10 dark:border-zinc-700 dark:bg-zinc-800/55 dark:hover:border-zinc-500 dark:hover:bg-zinc-800'
               }`}
             >
               <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[2.2rem]">
@@ -435,7 +435,7 @@ const TelaCatalogo = ({ modelos, carregando, idConfirmado, onConfirmar, onAbrirS
         {carregando ? (
           <div className="flex flex-wrap gap-4 justify-center">{Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)}</div>
         ) : total === 0 ? (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center py-20 bg-zinc-50 dark:bg-zinc-900/50 rounded-[40px] border-2 border-dashed border-zinc-200 dark:border-zinc-800"><Search size={48} className="text-zinc-200 dark:text-zinc-800 mb-4" strokeWidth={1.5} /><h3 className="font-black text-zinc-400 uppercase tracking-widest">Missão não localizada</h3></motion.div>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center py-20 bg-zinc-50 dark:bg-card-dark rounded-[40px] border-2 border-dashed border-zinc-200 dark:border-zinc-800"><Search size={48} className="text-zinc-200 dark:text-zinc-800 mb-4" strokeWidth={1.5} /><h3 className="font-black text-zinc-400 uppercase tracking-widest">Missão não localizada</h3></motion.div>
         ) : (
           <div className={`space-y-2 pb-10 ${cardsClassName}`}>
             {Object.entries(categorias).map(([chave, itens]) => itens.length > 0 && (<SecaoCategoria key={chave} chave={chave} itens={itens} idConfirmado={idConfirmado} onConfirmar={onConfirmar} />))}

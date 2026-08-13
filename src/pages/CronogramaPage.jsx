@@ -33,6 +33,9 @@ import { getDisciplineCardVars, getDisciplineColor, getDisciplineColorForSlot } 
 import { openCronogramaWeekPdf } from './CronogramaWeekPdf';
 import { resolveLogoUrl } from '../components/admin/config/editalAssets';
 import DailyGoalCompletedModal from '../components/shared/DailyGoalCompletedModal.jsx';
+import CronogramaPostponeUndo from '../components/cronograma/CronogramaPostponeUndo.jsx';
+import PostponeDaysField from '../components/cronograma/PostponeDaysField.jsx';
+import { normalizePostponeDays } from '../utils/cronogramaPostponement.js';
 import { getCronogramaSlotRecordedMinutes } from '../utils/studyDayStatus';
 import {
   REGISTRO_PROGRESS_OPTIMISTIC_EVENT,
@@ -91,20 +94,6 @@ const dateToYMDLocal = (date) => {
   const d = new Date(date);
   d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
   return d.toISOString().split('T')[0];
-};
-
-const parseCronogramaDate = (value) => {
-  if (!value) return null;
-  if (value?.toDate) return value.toDate();
-  if (value?.seconds) return new Date(value.seconds * 1000);
-  if (value instanceof Date) return new Date(value);
-  if (typeof value === 'string') {
-    const normalized = /^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T12:00:00` : value;
-    const parsed = new Date(normalized);
-    return Number.isNaN(parsed.getTime()) ? null : parsed;
-  }
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
 
 const getRegistroDateKey = (registro) => {
@@ -345,7 +334,7 @@ const somarDias = (data, dias) => {
 };
 
 // --- MODAL DE CONFIRMAÇÃO ------------------------------------------------------
-const ModalConfirm = ({ msg, onConfirm, onCancel, loading, title = 'Confirmar ação', confirmLabel = 'Confirmar', confirmIcon: ConfirmIcon = Trash2, tone = 'red' }) => (
+const ModalConfirm = ({ msg, onConfirm, onCancel, loading, children = null, confirmDisabled = false, title = 'Confirmar ação', confirmLabel = 'Confirmar', confirmIcon: ConfirmIcon = Trash2, tone = 'red' }) => (
   <motion.div
     initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
     className="fixed inset-0 z-[100120] flex items-center justify-center bg-zinc-950/70 p-4 backdrop-blur-sm"
@@ -358,13 +347,103 @@ const ModalConfirm = ({ msg, onConfirm, onCancel, loading, title = 'Confirmar a�
         <AlertTriangle size={24} className={tone === 'amber' ? 'text-amber-600 dark:text-amber-500' : 'text-red-600 dark:text-red-500'}/>
       </div>
       <h3 className="mb-2 text-center text-sm font-black uppercase tracking-widest text-zinc-900 dark:text-white">{title}</h3>
-      <p className="text-sm font-medium text-zinc-600 dark:text-zinc-300 text-center mb-6 leading-relaxed">{msg}</p>
+      <p className={`text-sm font-medium text-zinc-600 dark:text-zinc-300 text-center leading-relaxed ${children ? 'mb-4' : 'mb-6'}`}>{msg}</p>
+      {children}
       <div className="flex gap-3">
         <button onClick={onCancel} className="flex-1 py-2.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 rounded-xl font-bold text-xs uppercase tracking-wide hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors">Cancelar</button>
-        <button onClick={onConfirm} disabled={loading} className={`flex-1 py-2.5 ${tone === 'amber' ? 'bg-amber-600 hover:bg-amber-700' : 'bg-red-600 hover:bg-red-700'} text-white rounded-xl font-bold text-xs uppercase tracking-wide transition-colors disabled:opacity-60 flex items-center justify-center gap-2 shadow-sm`}>
+        <button onClick={onConfirm} disabled={loading || confirmDisabled} className={`flex-1 py-2.5 ${tone === 'amber' ? 'bg-amber-600 hover:bg-amber-700' : 'bg-red-600 hover:bg-red-700'} text-white rounded-xl font-bold text-xs uppercase tracking-wide transition-colors disabled:cursor-not-allowed disabled:opacity-60 flex items-center justify-center gap-2 shadow-sm`}>
           {loading ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/> : <ConfirmIcon size={14}/>}
           {confirmLabel}
         </button>
+      </div>
+    </motion.div>
+  </motion.div>
+);
+
+const WeekSelectorCard = ({ weekOffset, totalWeeks, weekDates, onWeekChange, className = '' }) => {
+  const safeTotalWeeks = Math.max(1, Number(totalWeeks) || 1);
+  const periodLabel = weekDates.length > 0
+    ? `${weekDates[0].getDate()} ${MESES_PT[weekDates[0].getMonth()]} – ${weekDates[weekDates.length - 1].getDate()} ${MESES_PT[weekDates[weekDates.length - 1].getMonth()]}`
+    : '';
+
+  return (
+    <div className={`flex w-full items-center justify-between gap-2 rounded-xl border border-zinc-200 bg-white px-2.5 py-2 shadow-sm dark:border-zinc-700 dark:bg-card-dark ${className}`}>
+      <button
+        type="button"
+        onClick={() => onWeekChange(Math.max(0, weekOffset - 1))}
+        disabled={weekOffset === 0}
+        className="rounded-lg p-1.5 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-25 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-white"
+        aria-label="Semana anterior"
+      >
+        <ChevronLeft size={16}/>
+      </button>
+      <div className="flex min-w-0 flex-1 flex-col items-center justify-center text-center">
+        <p className="text-[10px] font-black uppercase leading-none tracking-[0.18em] text-zinc-900 dark:text-white">
+          Semana {weekOffset + 1} de {safeTotalWeeks}
+        </p>
+        <p className="mt-1 text-[9px] font-medium leading-none text-zinc-500 dark:text-zinc-400">{periodLabel}</p>
+      </div>
+      <button
+        type="button"
+        onClick={() => onWeekChange(Math.min(safeTotalWeeks - 1, weekOffset + 1))}
+        disabled={weekOffset >= safeTotalWeeks - 1}
+        className="rounded-lg p-1.5 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-25 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-white"
+        aria-label="Próxima semana"
+      >
+        <ChevronRight size={16}/>
+      </button>
+    </div>
+  );
+};
+
+const PdfExportOptionsModal = ({ onClose, onExport, weekOffset, totalWeeks, weekDates, onWeekChange }) => (
+  <motion.div
+    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+    className="fixed inset-0 z-[100130] flex items-center justify-center bg-zinc-950/75 p-4 backdrop-blur-sm"
+    onClick={onClose}
+  >
+    <motion.div
+      initial={{ scale: 0.96, y: 14 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.96, y: 14 }}
+      className="w-full max-w-lg overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-700 dark:bg-card-dark"
+      onClick={(event) => event.stopPropagation()}
+    >
+      <div className="flex items-start justify-between border-b border-zinc-200 px-5 py-4 dark:border-zinc-800">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-red-600">Exportar cronograma</p>
+          <h3 className="mt-1 text-base font-black text-zinc-900 dark:text-white">Escolha a semana do PDF</h3>
+          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Selecione o período e como os blocos devem aparecer.</p>
+        </div>
+        <button onClick={onClose} className="rounded-lg p-2 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200" aria-label="Fechar opções do PDF">
+          <X size={18}/>
+        </button>
+      </div>
+      <div className="p-5">
+        <WeekSelectorCard
+          weekOffset={weekOffset}
+          totalWeeks={totalWeeks}
+          weekDates={weekDates}
+          onWeekChange={onWeekChange}
+          className="mx-auto max-w-[258px]"
+        />
+        <p className="mb-2 mt-5 text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">Conteúdo dos blocos</p>
+        <div className="grid grid-cols-2 gap-2 sm:gap-3">
+          <button
+          onClick={() => onExport(true)}
+          className="group min-w-0 rounded-xl border border-red-200 bg-red-50/60 p-3 text-left transition-all hover:-translate-y-0.5 hover:border-red-400 hover:shadow-md dark:border-red-900/50 dark:bg-zinc-800/55 dark:hover:bg-zinc-800 sm:p-4"
+        >
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-600 text-white shadow-sm sm:h-9 sm:w-9"><BookOpen size={17}/></span>
+          <strong className="mt-2.5 block text-[11px] font-black uppercase leading-tight text-zinc-900 dark:text-white sm:mt-3 sm:text-sm sm:normal-case">Com assunto</strong>
+          <span className="mt-1 block text-[10px] leading-snug text-zinc-500 dark:text-zinc-400 sm:text-xs sm:leading-relaxed">Mostra disciplina, assunto, duração e campo para check.</span>
+          </button>
+          <button
+          onClick={() => onExport(false)}
+          className="group min-w-0 rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-left transition-all hover:-translate-y-0.5 hover:border-zinc-400 hover:shadow-md dark:border-zinc-700 dark:bg-zinc-800/55 sm:p-4"
+        >
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-800 text-white shadow-sm dark:bg-zinc-700 sm:h-9 sm:w-9"><LayoutList size={17}/></span>
+          <strong className="mt-2.5 block text-[11px] font-black uppercase leading-tight text-zinc-900 dark:text-white sm:mt-3 sm:text-sm sm:normal-case">Sem assunto</strong>
+          <span className="mt-1 block text-[10px] leading-snug text-zinc-500 dark:text-zinc-400 sm:text-xs sm:leading-relaxed">Exibe apenas disciplina, duração, revisões e campo para check.</span>
+          </button>
+        </div>
       </div>
     </motion.div>
   </motion.div>
@@ -454,7 +533,7 @@ const ModalRevisaoConsolidada = ({ slot, onClose, onDominar, onStart, onToggle, 
             const desmarcarBloqueado = isDone && Boolean(revisaoTask.bloqueiaDesmarcar);
             return (
               <div key={`${revisaoTask.slotId || idx}-${idx}`} className="px-4 py-3">
-                <div className={`group rounded-2xl border p-3 transition-all ${isDone ? 'border-blue-200 bg-blue-50/80 dark:border-blue-900/40 dark:bg-blue-950/20' : 'border-blue-100 bg-white hover:border-blue-200 hover:bg-blue-50/60 dark:border-blue-900/30 dark:bg-zinc-900/70 dark:hover:bg-blue-950/20'}`}>
+                <div className={`group rounded-2xl border p-3 transition-all ${isDone ? 'border-blue-200 bg-blue-50/80 dark:border-blue-900/40 dark:bg-blue-950/20' : 'border-blue-100 bg-white hover:border-blue-200 hover:bg-blue-50/60 dark:border-zinc-700 dark:bg-zinc-800/55 dark:hover:border-blue-900/40 dark:hover:bg-blue-950/20'}`}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex min-w-0 flex-1 items-start gap-2">
                       <motion.button
@@ -848,7 +927,7 @@ const ModalDetalhesCronograma = ({ slot, cronograma, onClose, onStart, onToggle,
           <div className="mt-3 grid gap-2 sm:mt-4 sm:gap-3">
             <div className="min-w-0 space-y-2 sm:space-y-3">
               <div className="grid grid-cols-3 gap-2 sm:gap-3">
-                <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-2 dark:border-zinc-800 dark:bg-zinc-950/50 sm:rounded-xl sm:p-3">
+                <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-2 dark:border-zinc-700 dark:bg-zinc-800/55 sm:rounded-xl sm:p-3">
                   <p className="text-[7px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400 sm:text-[9px]">Tempo</p>
                   <p className="mt-1 text-base font-black text-zinc-900 dark:text-white sm:text-xl">{formatarDuracao(tempoPlanejado)}</p>
                   {tempoPlanejado > 0 && (
@@ -869,7 +948,7 @@ const ModalDetalhesCronograma = ({ slot, cronograma, onClose, onStart, onToggle,
                   )}
                 </div>
 
-                <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-2 dark:border-zinc-800 dark:bg-zinc-950/50 sm:rounded-xl sm:p-3">
+                <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-2 dark:border-zinc-700 dark:bg-zinc-800/55 sm:rounded-xl sm:p-3">
                   <p className="text-[7px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400 sm:text-[9px]">Dia</p>
                   <p className="mt-1 line-clamp-2 text-[10px] font-black uppercase tracking-wide text-zinc-900 dark:text-white sm:text-sm">
                     {formatarDataLonga(dataSlot)}
@@ -879,7 +958,7 @@ const ModalDetalhesCronograma = ({ slot, cronograma, onClose, onStart, onToggle,
                   </p>
                 </div>
 
-                <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-2 dark:border-zinc-800 dark:bg-zinc-950/50 sm:rounded-xl sm:p-3">
+                <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-2 dark:border-zinc-700 dark:bg-zinc-800/55 sm:rounded-xl sm:p-3">
                   <p className="text-[7px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400 sm:text-[9px]">
                     {isRevisao ? 'Origem' : 'Status'}
                   </p>
@@ -1197,8 +1276,8 @@ const DayDropZone = ({
             ? 'border-emerald-400 bg-emerald-50/60 p-2 shadow-[0_22px_60px_rgba(16,185,129,0.22)] ring-2 ring-emerald-400/35 dark:border-emerald-700 dark:bg-emerald-950/20 dark:shadow-emerald-950/30 dark:ring-emerald-500/25'
             : 'border-emerald-300/70 bg-emerald-50/45 p-2 shadow-2xl shadow-emerald-500/10 dark:border-emerald-800/45 dark:bg-emerald-950/10 dark:shadow-emerald-950/20'
           : isHoje
-          ? 'border-red-500 bg-white/85 p-2 shadow-[0_24px_70px_rgba(239,68,68,0.2)] ring-2 ring-red-500/35 dark:bg-zinc-950/60 dark:ring-red-500/30'
-          : 'border-zinc-200 bg-zinc-50/70 p-2 shadow-sm hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-950/30 dark:hover:border-zinc-700'
+          ? 'border-red-500 bg-white/85 p-2 shadow-[0_24px_70px_rgba(239,68,68,0.2)] ring-2 ring-red-500/35 dark:bg-card-dark dark:ring-red-500/30'
+          : 'border-zinc-200 bg-zinc-50/70 p-2 shadow-sm hover:border-zinc-300 dark:border-zinc-800 dark:bg-card-dark dark:hover:border-zinc-700'
         }`}
     >
       {isHoje && (
@@ -1494,7 +1573,7 @@ const VisualizacaoMensal = ({ cronograma, dataInicio, onStart, registrosEstudo =
             </button>
           </div>
 
-          <div className="hidden rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-zinc-600 sm:flex dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
+          <div className="hidden rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-zinc-600 sm:flex dark:border-zinc-800 dark:bg-card-dark dark:text-zinc-400">
             {agendaMes.metricas.diasComEstudo} dias ativos • {agendaMes.metricas.blocos} blocos • {formatarDuracao(agendaMes.metricas.minutos)}
           </div>
         </div>
@@ -1505,12 +1584,12 @@ const VisualizacaoMensal = ({ cronograma, dataInicio, onStart, registrosEstudo =
           <motion.div
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="grid min-w-[560px] grid-cols-7 gap-1 rounded-2xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white p-2 shadow-soft dark:border-white/10 dark:!border-l-red-500/25 dark:bg-zinc-950 sm:min-w-0 sm:gap-3 sm:p-4"
+            className="grid min-w-[560px] grid-cols-7 gap-1 rounded-2xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white p-2 shadow-soft dark:border-white/10 dark:!border-l-red-500/25 dark:bg-card-dark sm:min-w-0 sm:gap-3 sm:p-4"
           >
             {DIAS_CURTO.map((dia) => (
               <div
                 key={dia}
-                className="rounded-lg border border-zinc-200 bg-zinc-50 px-1 py-2 text-center text-[9px] font-black uppercase tracking-widest text-zinc-500 dark:border-white/10 dark:bg-zinc-900 dark:text-zinc-400 sm:text-[10px]"
+                className="rounded-lg border border-zinc-200 bg-zinc-50 px-1 py-2 text-center text-[9px] font-black uppercase tracking-widest text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800/55 dark:text-zinc-400 sm:text-[10px]"
               >
                 {dia}
               </div>
@@ -1559,16 +1638,16 @@ const VisualizacaoMensal = ({ cronograma, dataInicio, onStart, registrosEstudo =
                   onClick={() => isMesAtual && slots.length > 0 && setDiaSelecionado(isSelected ? null : item)}
                   className={`group relative min-h-[92px] overflow-hidden rounded-xl border p-1.5 text-left transition-all sm:min-h-[150px] sm:p-2 ${
                     diaCompleto
-                      ? 'border-emerald-300 bg-emerald-50/70 shadow-sm dark:border-emerald-900/45 dark:bg-emerald-950/15'
+                      ? 'border-emerald-300 bg-emerald-50/70 shadow-sm dark:border-emerald-900/45 dark:bg-zinc-800/70'
                       : diaAtrasado
-                      ? 'border-red-300 bg-red-50/80 shadow-sm dark:border-red-900/45 dark:bg-red-950/15'
+                      ? 'border-red-300 bg-red-50/80 shadow-sm dark:border-red-900/45 dark:bg-zinc-800/70'
                       : diaPendente
-                      ? 'border-amber-300 bg-amber-50/80 shadow-sm dark:border-amber-900/45 dark:bg-amber-950/15'
+                      ? 'border-amber-300 bg-amber-50/80 shadow-sm dark:border-amber-900/45 dark:bg-zinc-800/70'
                       : isHoje
-                      ? 'border-red-500 bg-red-50 shadow-sm ring-1 ring-red-500/30 dark:bg-red-500/10'
+                      ? 'border-red-500 bg-red-50 shadow-sm ring-1 ring-red-500/30 dark:bg-zinc-800/70'
                       : isMesAtual
-                      ? 'border-zinc-200 bg-white shadow-sm hover:border-zinc-300 hover:shadow-md dark:border-white/10 dark:bg-zinc-900 dark:hover:border-zinc-600'
-                      : 'border-transparent bg-zinc-50 opacity-35 dark:bg-zinc-950'
+                      ? 'border-zinc-200 bg-white shadow-sm hover:border-zinc-300 hover:shadow-md dark:border-zinc-700 dark:bg-zinc-800/55 dark:hover:border-zinc-600 dark:hover:bg-zinc-800'
+                      : 'border-transparent bg-zinc-50 opacity-35 dark:bg-zinc-800/25'
                   } ${isSelected ? 'ring-2 ring-red-500 ring-offset-2 ring-offset-zinc-50 dark:ring-red-500 dark:ring-offset-zinc-950' : ''}`}
                 >
                   {(isHoje || diaCompleto || diaAtrasado || diaPendente) && (
@@ -1657,7 +1736,7 @@ const VisualizacaoMensal = ({ cronograma, dataInicio, onStart, registrosEstudo =
                     )}
 
                     {slots.length === 0 && isMesAtual && (
-                      <div className="flex min-h-[76px] items-center justify-center rounded-lg border border-dashed border-zinc-200 bg-zinc-50/60 text-[9px] font-black uppercase tracking-widest text-zinc-400 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-600">
+                      <div className="flex min-h-[76px] items-center justify-center rounded-lg border border-dashed border-zinc-200 bg-zinc-50/60 text-[9px] font-black uppercase tracking-widest text-zinc-400 dark:border-zinc-700 dark:bg-zinc-800/55 dark:text-zinc-500">
                         {temRevisao ? 'Revisao' : 'Sem blocos'}
                       </div>
                     )}
@@ -1686,7 +1765,7 @@ const VisualizacaoMensal = ({ cronograma, dataInicio, onStart, registrosEstudo =
               className="relative my-auto w-full max-w-2xl overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-900"
             >
               <div className="h-1.5 w-full bg-red-600 rounded-t-2xl" />
-              <div className="border-b border-zinc-100 dark:border-zinc-800 px-5 py-4 bg-zinc-50 dark:bg-zinc-950/50">
+              <div className="border-b border-zinc-100 dark:border-zinc-800 px-5 py-4 bg-zinc-50 dark:bg-card-dark">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-[10px] font-black uppercase tracking-widest text-red-600 dark:text-red-500">{DIAS_LONGO[diaSelecionado.date.getDay()]}</p>
@@ -1729,7 +1808,7 @@ const VisualizacaoMensal = ({ cronograma, dataInicio, onStart, registrosEstudo =
                 )}
 
                 {slotsDiaSelecionado.length === 0 ? (
-                  <div className="flex min-h-[200px] flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-zinc-300 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950">
+                  <div className="flex min-h-[200px] flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-zinc-300 bg-zinc-50 dark:border-zinc-800 dark:bg-card-dark">
                     <Layers size={24} className="text-zinc-400 dark:text-zinc-600" />
                     <p className="text-center text-[11px] font-bold uppercase tracking-widest text-zinc-500">Nenhum estudo planejado</p>
                   </div>
@@ -1858,7 +1937,7 @@ const VisualizacaoLista = ({ cronograma, weekDates, tarefasPorDia, onStart, onOp
       exit={{ opacity: 0, y: 16 }}
       className="mx-auto w-full max-w-5xl px-1 sm:px-4"
     >
-      <div className="relative mb-5 overflow-hidden rounded-2xl border border-zinc-200/80 bg-white/70 p-4 shadow-lg shadow-red-500/10 backdrop-blur-md dark:border-zinc-800 dark:bg-zinc-950/40 dark:shadow-red-950/20 sm:mb-8 sm:rounded-[32px] sm:p-6 sm:shadow-xl sm:shadow-red-500/15">
+      <div className="relative mb-5 overflow-hidden rounded-2xl border border-zinc-200/80 bg-white/70 p-4 shadow-lg shadow-red-500/10 backdrop-blur-md dark:border-zinc-800 dark:bg-card-dark dark:shadow-red-950/20 sm:mb-8 sm:rounded-[32px] sm:p-6 sm:shadow-xl sm:shadow-red-500/15">
         <div className="pointer-events-none absolute right-0 top-0 h-24 w-24 rounded-full bg-red-500/10 blur-[50px] sm:h-32 sm:w-32 sm:blur-[60px]" />
 
         <div className="relative z-10 flex items-center justify-between gap-3">
@@ -1906,7 +1985,7 @@ const VisualizacaoLista = ({ cronograma, weekDates, tarefasPorDia, onStart, onOp
       </div>
 
       {tarefasTimeline.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-zinc-300 bg-zinc-50/60 p-8 text-center dark:border-zinc-700 dark:bg-zinc-900/30 sm:rounded-[32px]">
+        <div className="rounded-2xl border border-dashed border-zinc-300 bg-zinc-50/60 p-8 text-center dark:border-zinc-700 dark:bg-card-dark sm:rounded-[32px]">
           <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-zinc-100 text-zinc-400 dark:bg-zinc-800">
             <Clock size={22} />
           </div>
@@ -1927,8 +2006,8 @@ const VisualizacaoLista = ({ cronograma, weekDates, tarefasPorDia, onStart, onOp
                   diaCompleto
                       ? 'border-emerald-200 bg-emerald-50/40 dark:border-emerald-900/40 dark:bg-emerald-950/10'
                     : hojeDia
-                      ? 'border-red-200 bg-white shadow-red-500/10 dark:border-red-900/50 dark:bg-zinc-950/50'
-                      : 'border-zinc-200 bg-white/70 dark:border-zinc-800 dark:bg-zinc-950/40'
+                      ? 'border-red-200 bg-white shadow-red-500/10 dark:border-red-900/50 dark:bg-card-dark'
+                      : 'border-zinc-200 bg-white/70 dark:border-zinc-800 dark:bg-card-dark'
                 }`}
               >
                 <div
@@ -1939,7 +2018,7 @@ const VisualizacaoLista = ({ cronograma, weekDates, tarefasPorDia, onStart, onOp
                       ? 'border-emerald-100 bg-emerald-50/70 dark:border-emerald-900/30 dark:bg-emerald-950/10'
                     : hojeDia
                       ? 'border-red-100 bg-red-50/70 dark:border-red-900/40 dark:bg-red-950/10'
-                      : 'border-zinc-100 bg-zinc-50/80 dark:border-zinc-800 dark:bg-zinc-900/40'
+                      : 'border-zinc-100 bg-zinc-50/80 dark:border-zinc-700 dark:bg-zinc-800/55'
                 }`}>
                   <div className="flex min-w-0 items-center gap-3">
                     <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-white shadow-lg ${
@@ -2004,7 +2083,7 @@ const VisualizacaoLista = ({ cronograma, weekDates, tarefasPorDia, onStart, onOp
 
                   <div className="relative z-10 space-y-3 sm:space-y-4">
                     {tarefas.length === 0 && (
-                      <div className="ml-0 rounded-2xl border border-dashed border-zinc-200 bg-white/70 px-4 py-4 text-sm font-semibold text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-400 sm:ml-16">
+                      <div className="ml-0 rounded-2xl border border-dashed border-zinc-200 bg-white/70 px-4 py-4 text-sm font-semibold text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800/55 dark:text-zinc-300 sm:ml-16">
                         Hoje está livre no seu cronograma. Os próximos blocos aparecem abaixo.
                       </div>
                     )}
@@ -2109,7 +2188,7 @@ const VisualizacaoLista = ({ cronograma, weekDates, tarefasPorDia, onStart, onOp
                             ? 'border-amber-200 bg-amber-50/50 text-amber-700 dark:border-amber-900/30 dark:bg-amber-950/20 dark:text-amber-300'
                             : isRevisao
                               ? 'border-blue-100 bg-blue-50/60 text-blue-700 dark:border-blue-900/30 dark:bg-blue-950/20 dark:text-blue-300'
-                              : 'border-zinc-100 bg-zinc-50 text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/30'
+                              : 'border-zinc-100 bg-zinc-50 text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800/55'
                         }`}>
                           <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${
                             tarefa.isPendenciaTeoria ? 'bg-amber-500 text-white' : isRevisao ? 'bg-blue-500 text-white' : 'bg-white shadow-sm dark:bg-zinc-800'
@@ -2215,7 +2294,7 @@ const VisualizacaoLista = ({ cronograma, weekDates, tarefasPorDia, onStart, onOp
                           </div>
                           <button
                             onClick={() => onToggle(tarefa)}
-                            className="flex h-8 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl bg-white/70 px-3 text-[9px] font-black uppercase tracking-wider text-zinc-500 transition-colors hover:text-zinc-800 dark:bg-zinc-900/50 dark:hover:text-white"
+                            className="flex h-8 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl bg-white/70 px-3 text-[9px] font-black uppercase tracking-wider text-zinc-500 transition-colors hover:text-zinc-800 dark:bg-zinc-800/55 dark:hover:text-white"
                           >
                             <MoreHorizontal size={14} />
                             Alterar
@@ -2282,26 +2361,26 @@ const SemanaHojeHero = ({ date, tarefas }) => {
           </p>
 
           <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950/50">
+            <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-800/55">
               <p className="text-[9px] font-black uppercase tracking-widest text-zinc-400">Blocos</p>
               <p className="mt-1 text-xl font-black text-zinc-900 dark:text-white">{total}</p>
             </div>
-            <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950/50">
+            <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-800/55">
               <p className="text-[9px] font-black uppercase tracking-widest text-zinc-400">Tempo</p>
               <p className="mt-1 text-xl font-black text-zinc-900 dark:text-white">{formatarDuracao(totalMinutos)}</p>
             </div>
-            <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950/50">
+            <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-800/55">
               <p className="text-[9px] font-black uppercase tracking-widest text-zinc-400">Revisões</p>
               <p className="mt-1 text-xl font-black text-blue-600 dark:text-blue-400">{revisoes}</p>
             </div>
-            <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950/50">
+            <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-800/55">
               <p className="text-[9px] font-black uppercase tracking-widest text-zinc-400">Pendências</p>
               <p className="mt-1 text-xl font-black text-amber-600 dark:text-amber-400">{pendencias}</p>
             </div>
           </div>
         </div>
 
-        <div className="relative flex min-h-[180px] items-center justify-center overflow-hidden rounded-3xl bg-zinc-950 p-5 text-white dark:bg-zinc-950">
+        <div className="relative flex min-h-[180px] items-center justify-center overflow-hidden rounded-3xl bg-zinc-950 p-5 text-white dark:bg-card-dark">
             <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(127,29,29,0.92),rgba(24,24,27,0.98)_48%,rgba(9,9,11,1))]" />
             <div className="relative z-10 flex flex-col items-center text-center">
               <div className="relative mb-3 h-28 w-28">
@@ -2358,9 +2437,11 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
   const [recordToDelete,    setRecordToDelete]    = useState(null);
   const [showTimerSettings, setShowTimerSettings] = useState(false);
   const [delayConfirmation, setDelayConfirmation] = useState(null);
+  const [postponeDays,      setPostponeDays]      = useState('7');
   const [undoDelayData,     setUndoDelayData]     = useState(null);
   const [optimisticDone,    setOptimisticDone]    = useState({});
   const [configMenuOpen,    setConfigMenuOpen]    = useState(false);
+  const [pdfExportOptionsOpen, setPdfExportOptionsOpen] = useState(false);
   const [editInitialMode,   setEditInitialMode]   = useState('simple');
   const [completionModalData, setCompletionModalData] = useState(null);
   const [editalTemplateData, setEditalTemplateData] = useState(null);
@@ -2383,6 +2464,8 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
     toggleSlotConcluido,
     marcarTeoriaAindaNaoConcluida,
     toggleAssuntoDominado,
+    adiarCronograma,
+    desfazerAdiamentoCronograma,
   } = useCronogramaSystem(user);
 
   const showToast = useCallback((msg) => {
@@ -2417,39 +2500,36 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
     }
   }, [getCurrentWeekOffset, showToast, user?.uid]);
 
-  const adiarCronograma = async (cronogramaId, cronogramaAtual) => {
-    try {
-      const dataAtual = parseCronogramaDate(cronogramaAtual.dataInicio);
-      if (!dataAtual) throw new Error('Data de inicio invalida');
-      const dataAnterior = dateToYMDLocal(dataAtual);
-      dataAtual.setDate(dataAtual.getDate() + 7);
-      const novaData = dateToYMDLocal(dataAtual);
-      const updatePayload = { dataInicio: novaData };
-      const dataFimAtual = parseCronogramaDate(cronogramaAtual.dataFim);
-      if (dataFimAtual) {
-        dataFimAtual.setDate(dataFimAtual.getDate() + 7);
-        updatePayload.dataFim = dateToYMDLocal(dataFimAtual);
-      }
-      await updateDoc(doc(db, 'users', user.uid, 'cronogramas', cronogramaId), updatePayload);
-      setUndoDelayData({ cronogramaId, previousDate: dataAnterior, nextDate: novaData });
-      showToast('?? Cronograma adiado em 1 semana!');
-    } catch (e) {
-      showToast('? Erro ao adiar. Tente novamente.');
+  const handleAdiarCronograma = async (cronogramaId, cronogramaAtual, days) => {
+    const result = await adiarCronograma(cronogramaId, cronogramaAtual, days);
+    if (!result) {
+      showToast('Erro ao adiar. Tente novamente.');
+      return false;
     }
+    setUndoDelayData(result);
+    setCronograma((prev) => (prev?.id === cronogramaId ? { ...prev, ...result.nextDates } : prev));
+    setWeekOffset(getCurrentWeekOffset(result.nextDates.dataInicio));
+    showToast(`Cronograma adiado em ${days} ${days === 1 ? 'dia' : 'dias'}!`);
+    return true;
   };
 
-  const desfazerAdiamentoCronograma = async () => {
-    if (!undoDelayData?.cronogramaId || !undoDelayData?.previousDate) return;
+  const handleDesfazerAdiamentoCronograma = async () => {
+    if (!undoDelayData?.cronogramaId) return;
     setLoadingAction(true);
-    try {
-      await updateDoc(doc(db, 'users', user.uid, 'cronogramas', undoDelayData.cronogramaId), { dataInicio: undoDelayData.previousDate });
+    const ok = await desfazerAdiamentoCronograma(undoDelayData);
+    if (ok) {
+      setCronograma((prev) => (
+        prev?.id === undoDelayData.cronogramaId
+          ? { ...prev, ...undoDelayData.previousDates }
+          : prev
+      ));
+      setWeekOffset(getCurrentWeekOffset(undoDelayData.previousDates.dataInicio));
       setUndoDelayData(null);
-      showToast('?? Adiamento revertido!');
-    } catch (e) {
-      showToast('? Erro ao reverter adiamento.');
-    } finally {
-      setLoadingAction(false);
+      showToast('Adiamento desfeito!');
+    } else {
+      showToast('Erro ao desfazer o adiamento.');
     }
+    setLoadingAction(false);
   };
 
   // Listener Firestore
@@ -2621,7 +2701,8 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
     if (data) setCompletionModalData(data);
   }, [buildCompletionModalData]);
 
-  const handlePrintWeek = useCallback(() => {
+  const handlePrintWeek = useCallback((includeSubjects) => {
+    setPdfExportOptionsOpen(false);
     openCronogramaWeekPdf({
       cronograma,
       weekDates,
@@ -2634,6 +2715,7 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
       getNomeDisc,
       getTextoAssunto,
       getLabelTipo,
+      includeSubjects,
       meses: MESES_PT,
       diasLongo: DIAS_LONGO,
     });
@@ -3042,33 +3124,36 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
   return (
     <div className="desktop-page-zoom desktop-page-zoom--cronograma relative flex min-h-[calc(100vh-120px)] min-w-0 flex-col animate-fade-in">
       {/* -- MODAIS -- */}
+      {delayConfirmation && typeof document !== 'undefined' && createPortal(
+        <ModalConfirm
+          title="Adiar semana"
+          msg="Escolha por quantos dias deseja mover o cronograma. Depois da confirmação, você poderá desfazer e restaurar as datas atuais."
+          confirmLabel="Adiar"
+          confirmIcon={SkipForward}
+          tone="amber"
+          onConfirm={() => {
+            setLoadingAction(true);
+            handleAdiarCronograma(delayConfirmation.id, delayConfirmation, normalizePostponeDays(postponeDays))
+              .finally(() => {
+                setLoadingAction(false);
+                setDelayConfirmation(null);
+              });
+          }}
+          onCancel={() => setDelayConfirmation(null)}
+          loading={loadingAction}
+          confirmDisabled={!normalizePostponeDays(postponeDays)}
+        >
+          <PostponeDaysField value={postponeDays} onChange={setPostponeDays} disabled={loadingAction} />
+        </ModalConfirm>,
+        document.body
+      )}
+
       <AnimatePresence>
         {recordToDelete && typeof document !== 'undefined' && createPortal(
           <ModalConfirm
             msg="Deseja excluir este registro de estudo? As estatísticas serão atualizadas automaticamente."
             onConfirm={handleConfirmDeleteRegistro}
             onCancel={() => setRecordToDelete(null)}
-            loading={loadingAction}
-          />,
-          document.body
-        )}
-
-        {delayConfirmation && typeof document !== 'undefined' && createPortal(
-          <ModalConfirm
-            title="Adiar semana"
-            msg="Deseja empurrar o cronograma uma semana para frente? Depois da confirmação, você poderá desfazer e voltar para a data atual."
-            confirmLabel="Adiar"
-            confirmIcon={SkipForward}
-            tone="amber"
-            onConfirm={() => {
-              setLoadingAction(true);
-              adiarCronograma(delayConfirmation.id, delayConfirmation)
-                .finally(() => {
-                  setLoadingAction(false);
-                  setDelayConfirmation(null);
-                });
-            }}
-            onCancel={() => setDelayConfirmation(null)}
             loading={loadingAction}
           />,
           document.body
@@ -3121,26 +3206,25 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
         )}
 
         {undoDelayData && (
-          <motion.div
-            initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 18 }}
-            className="fixed bottom-5 left-1/2 z-[300] flex w-[calc(100vw-24px)] max-w-md -translate-x-1/2 items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-white px-4 py-3 text-zinc-900 shadow-2xl shadow-amber-900/10 dark:border-amber-900/40 dark:bg-zinc-950 dark:text-white"
-          >
-            <div className="min-w-0">
-              <p className="text-[10px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400">Semana adiada</p>
-              <p className="mt-0.5 truncate text-xs font-semibold text-zinc-500 dark:text-zinc-400">Voltar para {formatarDataHeader(undoDelayData.previousDate)}</p>
-            </div>
-            <button
-              type="button"
-              onClick={desfazerAdiamentoCronograma}
-              disabled={loadingAction}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-amber-600 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white shadow-sm transition-colors hover:bg-amber-700 disabled:opacity-60"
-            >
-              {loadingAction ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
-              Desfazer
-            </button>
-          </motion.div>
+          <CronogramaPostponeUndo
+            postponement={undoDelayData}
+            loading={loadingAction}
+            onUndo={handleDesfazerAdiamentoCronograma}
+          />
         )}
       </AnimatePresence>
+
+      {pdfExportOptionsOpen && typeof document !== 'undefined' && createPortal(
+        <PdfExportOptionsModal
+          onClose={() => setPdfExportOptionsOpen(false)}
+          onExport={handlePrintWeek}
+          weekOffset={weekOffset}
+          totalWeeks={totalSemanas}
+          weekDates={weekDates}
+          onWeekChange={setWeekOffset}
+        />,
+        document.body
+      )}
 
       {/* -- HEADER (MESMO ENVELOPE DO CICLO) -- */}
       <div className="mb-3">
@@ -3162,18 +3246,6 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
           {/* Lado esquerdo — info */}
           <div className="min-w-0 flex-1 z-10">
             <div className="flex flex-col gap-1.5 md:gap-3">
-              {cronograma.ativo ? (
-                <span className="flex w-fit items-center gap-1.5 rounded border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-500 md:px-2 md:text-[10px]">
-                  <span className="relative flex h-1.5 w-1.5 md:h-2 md:w-2">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
-                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500 md:h-2 md:w-2"></span>
-                  </span>
-                  Ativo
-                </span>
-              ) : (
-                <span className="w-fit rounded bg-zinc-200 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-widest text-zinc-500 dark:bg-zinc-800 md:px-2 md:text-[10px]">Arquivado</span>
-              )}
-
               <div className="flex min-w-0 items-center gap-2 md:gap-3">
                 <h1 className="min-w-0 truncate text-sm font-black text-zinc-900 dark:text-white uppercase tracking-tight leading-none sm:text-lg md:text-3xl">{cronograma.nome}</h1>
                 {onGoToEdital && (
@@ -3220,19 +3292,27 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
           </div>
 
           {/* Lado direito — mesmo padrão de progresso do Ciclo */}
-          <div className="z-10 flex w-[132px] shrink-0 items-center justify-between gap-1.5 rounded-xl border border-zinc-200 bg-white/75 p-1.5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/55 sm:w-[164px] md:w-auto md:min-w-[286px] md:gap-3 md:p-2.5">
+          <div className="z-10 flex w-[176px] shrink-0 items-center justify-between gap-1.5 rounded-xl border border-zinc-200 bg-white/75 p-2 shadow-sm dark:border-zinc-800 dark:bg-card-dark sm:w-[190px] md:w-auto md:min-w-[320px] md:gap-4 md:p-3">
             <div className="min-w-0 flex-1">
-              <div className="flex items-center justify-between gap-2 md:gap-5">
+              <div className="md:hidden">
+                <p className="text-[8px] font-black uppercase tracking-widest text-zinc-400">Resumo da semana</p>
+                <p className="mt-0.5 whitespace-nowrap font-mono text-xs font-black text-zinc-900 dark:text-white">
+                  {formatarDuracao(progressoMinutosHeader.totalFeito)} <span className="text-[8px] text-zinc-400">(feito)</span>
+                  <span className="mx-1 text-zinc-300">/</span>
+                  {formatarDuracao(progressoMinutosHeader.totalMeta)} <span className="text-[8px] text-zinc-400">(meta)</span>
+                </p>
+              </div>
+              <div className="hidden items-center justify-between gap-6 md:flex">
                 <div>
-                  <p className="text-[7px] font-black uppercase tracking-wider text-zinc-400 md:text-[8px] md:tracking-widest">Meta</p>
-                  <p className="font-mono text-[10px] font-black text-zinc-900 dark:text-white md:text-sm">{formatarDuracao(progressoMinutosHeader.totalMeta)}</p>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-zinc-400">Meta semanal</p>
+                  <p className="font-mono text-lg font-black text-zinc-900 dark:text-white">{formatarDuracao(progressoMinutosHeader.totalMeta)}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-[7px] font-black uppercase tracking-wider text-zinc-400 md:text-[8px] md:tracking-widest">Feito</p>
-                  <p className="font-mono text-[10px] font-black text-zinc-900 dark:text-white md:text-sm">{formatarDuracao(progressoMinutosHeader.totalFeito)}</p>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-zinc-400">Feito na semana</p>
+                  <p className="font-mono text-lg font-black text-zinc-900 dark:text-white">{formatarDuracao(progressoMinutosHeader.totalFeito)}</p>
                 </div>
               </div>
-              <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-zinc-100 ring-1 ring-zinc-200/70 dark:bg-zinc-800 dark:ring-zinc-700/70 md:mt-2 md:h-1.5">
+              <div className="mt-2 hidden h-1.5 overflow-hidden rounded-full bg-zinc-100 ring-1 ring-zinc-200/70 dark:bg-zinc-800 dark:ring-zinc-700/70 md:block">
                 <motion.div
                   initial={false}
                   animate={{ width: `${Math.min(progressoGeral, 100)}%` }}
@@ -3240,13 +3320,13 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
                   className={`h-full rounded-full ${progressoGeral >= 100 ? 'bg-gradient-to-r from-emerald-500 to-teal-400' : 'bg-gradient-to-r from-red-600 via-rose-500 to-orange-400'}`}
                 />
               </div>
-              <div className="mt-1.5 flex min-w-0 items-center justify-between gap-2 rounded-md bg-emerald-50/90 px-1.5 py-1 dark:bg-emerald-950/20 md:mt-2 md:px-2">
-                <span className="min-w-0 truncate text-[6px] font-black uppercase tracking-wide text-emerald-600 md:text-[8px]">Total do cronograma</span>
-                <span className="shrink-0 font-mono text-[9px] font-black text-emerald-700 dark:text-emerald-300 md:text-xs">{formatarDuracao(totalAcumuladoCronograma)}</span>
+              <div className="mt-2 flex min-w-0 items-center justify-between gap-2 rounded-md bg-emerald-50/90 px-2 py-1.5 dark:bg-emerald-950/20">
+                <span className="whitespace-nowrap text-[8px] font-black uppercase tracking-wide text-emerald-600 md:text-[10px]">Total do cronograma</span>
+                <span className="shrink-0 font-mono text-xs font-black text-emerald-700 dark:text-emerald-300 md:text-sm">{formatarDuracao(totalAcumuladoCronograma)}</span>
               </div>
             </div>
-            <div className="relative shrink-0">
-              <svg className="h-9 w-9 -rotate-90 sm:h-10 sm:w-10 md:h-14 md:w-14" viewBox="0 0 80 80">
+            <div className="relative hidden shrink-0 md:block">
+              <svg className="h-16 w-16 -rotate-90" viewBox="0 0 80 80">
                 <circle cx="40" cy="40" r="34" fill="none" stroke="currentColor" className="text-zinc-200 dark:text-zinc-800" strokeWidth="6"/>
                 <motion.circle
                   cx="40" cy="40" r="34" fill="none" stroke="currentColor"
@@ -3259,7 +3339,7 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
                 />
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className={`text-[9px] font-black sm:text-[10px] md:text-sm ${progressoGeral >= 100 ? 'text-emerald-500' : progressoGeral > 0 ? 'text-yellow-500' : 'text-zinc-400'}`}>
+                <span className={`text-base font-black ${progressoGeral >= 100 ? 'text-emerald-500' : progressoGeral > 0 ? 'text-yellow-500' : 'text-zinc-400'}`}>
                   {progressoGeral}%
                 </span>
               </div>
@@ -3317,7 +3397,7 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
                     initial={{ opacity: 0, y: -6, scale: 0.98 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: -6, scale: 0.98 }}
-                    className="absolute right-0 top-full z-40 mt-2 w-[264px] overflow-hidden rounded-2xl border border-zinc-200/80 bg-white/95 p-2 shadow-[0_18px_55px_-22px_rgba(0,0,0,0.45)] ring-1 ring-white/70 backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-950/95 dark:ring-white/5"
+                    className="absolute right-0 top-full z-40 mt-2 w-[264px] overflow-hidden rounded-2xl border border-zinc-200/80 bg-white/95 p-2 shadow-[0_18px_55px_-22px_rgba(0,0,0,0.45)] ring-1 ring-white/70 backdrop-blur-xl dark:border-zinc-800 dark:bg-card-dark dark:ring-white/5"
                   >
                     <div className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-red-500/10 to-transparent" />
                     <div className="relative mb-1.5 flex items-center gap-2.5 px-2 py-1.5">
@@ -3336,7 +3416,7 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
                         setConfigMenuOpen(false);
                         setMostrandoEditar(true);
                       }}
-                      className="group relative mt-1.5 flex w-full items-center gap-2.5 rounded-xl border border-zinc-200/80 bg-zinc-50/80 p-2.5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-zinc-300 hover:bg-white hover:shadow-md hover:shadow-zinc-900/5 dark:border-zinc-800 dark:bg-zinc-900/60 dark:hover:border-zinc-700 dark:hover:bg-zinc-900"
+                      className="group relative mt-1.5 flex w-full items-center gap-2.5 rounded-xl border border-zinc-200/80 bg-zinc-50/80 p-2.5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-zinc-300 hover:bg-white hover:shadow-md hover:shadow-zinc-900/5 dark:border-zinc-700 dark:bg-zinc-800/55 dark:hover:border-zinc-600 dark:hover:bg-zinc-800"
                     >
                       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-zinc-900 text-white shadow-sm dark:bg-white dark:text-zinc-950"><RefreshCw size={14} /></span>
                       <span className="min-w-0 flex-1">
@@ -3351,7 +3431,7 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
                         setConfigMenuOpen(false);
                         setShowTimerSettings(true);
                       }}
-                      className="group relative mt-1.5 flex w-full items-center gap-2.5 rounded-xl border border-zinc-200/80 bg-white p-2.5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-zinc-300 hover:bg-zinc-50 hover:shadow-md hover:shadow-zinc-900/5 dark:border-zinc-800 dark:bg-zinc-900/70 dark:hover:border-zinc-700 dark:hover:bg-zinc-900"
+                      className="group relative mt-1.5 flex w-full items-center gap-2.5 rounded-xl border border-zinc-200/80 bg-white p-2.5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-zinc-300 hover:bg-zinc-50 hover:shadow-md hover:shadow-zinc-900/5 dark:border-zinc-700 dark:bg-zinc-800/55 dark:hover:border-zinc-600 dark:hover:bg-zinc-800"
                     >
                       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-zinc-100 text-zinc-700 shadow-sm dark:bg-zinc-800 dark:text-zinc-200"><Clock size={14} /></span>
                       <span className="min-w-0 flex-1">
@@ -3368,6 +3448,7 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
             <button
               onClick={(event) => {
                 event.stopPropagation();
+                setPostponeDays('7');
                 setDelayConfirmation(cronograma);
               }}
               disabled={loadingAction}
@@ -3380,7 +3461,7 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
             </button>
 
             <button
-              onClick={handlePrintWeek}
+              onClick={() => setPdfExportOptionsOpen(true)}
               className="group flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 bg-white text-[9px] font-bold uppercase tracking-wide text-zinc-600 shadow-sm transition-all hover:border-red-200 hover:bg-red-50 hover:text-red-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:border-red-900/30 dark:hover:bg-red-900/10 dark:hover:text-red-400 sm:w-auto sm:gap-1.5 sm:px-2.5"
               title="Imprimir semana ou salvar em PDF"
               aria-label="Imprimir semana ou salvar em PDF"
@@ -3403,30 +3484,13 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
           </div>
 
           {(viewMode === 'week' || viewMode === 'list') && (
-            <div className="flex w-full items-center justify-between gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 py-1.5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:w-[258px] lg:col-start-2 lg:row-start-1 lg:mx-0 lg:justify-self-center">
-              <button
-                onClick={() => setWeekOffset(w => Math.max(0, w - 1))}
-                disabled={weekOffset === 0}
-                className="p-1.5 rounded text-zinc-500 hover:text-zinc-900 hover:bg-zinc-200 dark:text-zinc-400 dark:hover:text-white dark:hover:bg-zinc-800 disabled:opacity-30 transition-colors"
-              >
-                <ChevronLeft size={16}/>
-              </button>
-              <div className="flex min-w-0 flex-1 flex-col items-center justify-center text-center">
-                <div className="text-[10px] font-black uppercase tracking-widest text-zinc-900 dark:text-white leading-none mb-1">
-                  Semana {weekOffset + 1} de {totalSemanas}
-                </div>
-                <div className="text-[9px] font-medium text-zinc-500 dark:text-zinc-400">
-                  {weekDates.length > 0 ? `${weekDates[0].getDate()} ${MESES_PT[weekDates[0].getMonth()]} – ${weekDates[6].getDate()} ${MESES_PT[weekDates[6].getMonth()]}` : ''}
-                </div>
-              </div>
-              <button
-                onClick={() => setWeekOffset(w => Math.min(totalSemanas - 1, w + 1))}
-                disabled={weekOffset >= totalSemanas - 1}
-                className="p-1.5 rounded text-zinc-500 hover:text-zinc-900 hover:bg-zinc-200 dark:text-zinc-400 dark:hover:text-white dark:hover:bg-zinc-800 disabled:opacity-30 transition-colors"
-              >
-                <ChevronRight size={16}/>
-              </button>
-            </div>
+            <WeekSelectorCard
+              weekOffset={weekOffset}
+              totalWeeks={totalSemanas}
+              weekDates={weekDates}
+              onWeekChange={setWeekOffset}
+              className="sm:w-[258px] lg:col-start-2 lg:row-start-1 lg:mx-0 lg:justify-self-center"
+            />
           )}
         </div>
           </div>

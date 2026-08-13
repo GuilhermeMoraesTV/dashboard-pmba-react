@@ -132,7 +132,7 @@ function normalizarAssuntosAgenda(assuntos = []) {
   return normalizados;
 }
 
-function expandirSlotsTeoriaAteOrcamento(slots, tetoDia) {
+function expandirSlotsTeoriaAteOrcamento(slots, tetoDia, duracaoUnicaMinutos = null) {
   const teto = Math.floor(Math.max(0, Number(tetoDia) || 0) / 5) * 5;
   if (teto <= 0 || !slots?.length) return slots;
 
@@ -144,6 +144,22 @@ function expandirSlotsTeoriaAteOrcamento(slots, tetoDia) {
 
   const somaAtual = normalizados.reduce((acc, slot) => acc + (slot.minutosEstudo || 0), 0);
   if (somaAtual >= teto || somaAtual <= 0) return normalizados;
+
+  const duracaoAlvo = Math.max(0, Math.floor((Number(duracaoUnicaMinutos) || 0) / 5) * 5);
+  if (duracaoAlvo >= 5) {
+    let restante = teto;
+    return normalizados
+      .map((slot) => {
+        const minutos = Math.min(duracaoAlvo, restante);
+        restante = Math.max(0, restante - minutos);
+        return {
+          ...slot,
+          tempoMinutos: minutos,
+          minutosEstudo: minutos,
+        };
+      })
+      .filter((slot) => slot.minutosEstudo > 0);
+  }
 
   const linhas = normalizados.map((slot, index) => {
     const exato = ((slot.minutosEstudo || 0) / somaAtual) * teto;
@@ -429,7 +445,7 @@ export function getAgendaDia(
   );
   const tetoTeoriaFinal = Math.max(0, minutosBrutoDia - minutosRevisaoReal);
   const slotsTeoriaFinais = opcoes.expandirTeoriaAteBruto
-    ? expandirSlotsTeoriaAteOrcamento(slotsTeoriaBase, tetoTeoriaFinal)
+    ? expandirSlotsTeoriaAteOrcamento(slotsTeoriaBase, tetoTeoriaFinal, opcoes.duracaoUnicaMinutos)
     : slotsTeoriaBase;
 
   const slotsTeoriaNormalizados = slotsTeoriaFinais.map((slot) => {
@@ -739,6 +755,13 @@ export function getAgendaSemana(
     }
 
     // [FIX-7] Passa minutosRevisaoReservados (não o bruto) para getAgendaDia
+    const duracaoMinimaConfigurada = Number(cronograma.duracaoMinimaSessaoMinutos || 0);
+    const duracaoMaximaConfigurada = Number(cronograma.duracaoMaximaSessaoMinutos || 0);
+    const duracaoUnicaMinutos = cronograma.usarDuracaoUnica === true
+      || (duracaoMinimaConfigurada > 0 && duracaoMinimaConfigurada === duracaoMaximaConfigurada)
+      ? Number(cronograma.tempoSessaoMinutos || duracaoMaximaConfigurada || 0)
+      : null;
+
     const slotsDia = getAgendaDia(
       diaAbsoluto,
       slotsEstudoDia,
@@ -746,7 +769,10 @@ export function getAgendaSemana(
       weekOffset,
       tempoRevisaoMinutos,
       minutosRevisaoReservados,  // ← [FIX-7] orçamento CORRETO de revisão (25% do bruto)
-      { expandirTeoriaAteBruto: slotsEstudoDia.length > 0 }
+      {
+        expandirTeoriaAteBruto: slotsEstudoDia.length > 0,
+        duracaoUnicaMinutos,
+      }
     ).map((s) => {
       const progressoRevisao = s.isRevisaoAuto ? Number(progressoRevisoesMinutos?.[s.slotId] || s.progressoMinutos || 0) : 0;
       const tempoPlanejado = Number(s.tempoMinutos || s.minutosEstudo || 0);

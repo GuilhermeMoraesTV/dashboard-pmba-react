@@ -98,7 +98,7 @@ const CustomDatePicker = ({ value, onChange, name, color = 'blue' }) => {
   return (
     <div className="relative" ref={containerRef}>
       <div onClick={(e) => { e.stopPropagation(); setIsOpen(!isOpen); }} className="relative group cursor-pointer h-[52px]">
-        <div className={`flex h-full bg-zinc-50 dark:bg-zinc-950 border-2 ${isOpen ? borderActive : 'border-transparent'} rounded-2xl overflow-hidden shadow-sm transition-all group-hover:border-zinc-300 dark:group-hover:border-zinc-700`}>
+        <div className={`flex h-full bg-zinc-50 dark:bg-card-dark border-2 ${isOpen ? borderActive : 'border-transparent'} rounded-2xl overflow-hidden shadow-sm transition-all group-hover:border-zinc-300 dark:group-hover:border-zinc-700`}>
           <div className={`${bgColorClass} w-14 flex flex-col items-center justify-center border-r border-zinc-200 dark:border-zinc-800`}>
             <span className={`${DATE_MONTH_TEXT_CLASS} font-black uppercase ${colorClass}`}>{monthDisplay}</span>
             <span className={`${DATE_DAY_TEXT_CLASS} font-black leading-none text-zinc-900 dark:text-white`}>{dayDisplay}</span>
@@ -232,7 +232,7 @@ const ModeSelector = ({ options, value, onChange }) => (
             transition-all duration-300 group overflow-hidden
             ${active
               ? `${opt.activeBorder} ${opt.activeBg} shadow-md scale-[1.02] z-10`
-              : 'border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900/50 hover:border-zinc-200 dark:hover:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800/80'
+              : 'border-zinc-100 dark:border-zinc-700 bg-white dark:bg-zinc-800/55 hover:border-zinc-200 dark:hover:border-zinc-600 hover:bg-zinc-50 dark:hover:bg-zinc-800/80'
             }
           `}
         >
@@ -480,7 +480,7 @@ const Step4_Config = ({ config, onConfigChange, editalSelecionado, horarios = {}
                 value={config.nome || ''}
                 onChange={e => setField('nome', e.target.value)}
                 placeholder="Ex: Reta Final PMBA"
-                className="w-full px-3 py-3 sm:px-5 sm:py-4 text-sm sm:text-lg font-black bg-zinc-50 dark:bg-zinc-950 border-2 border-transparent focus:bg-white dark:focus:bg-zinc-900 focus:border-red-500/20 focus:ring-4 focus:ring-red-500/5 rounded-xl sm:rounded-2xl outline-none transition-all text-zinc-900 dark:text-white placeholder:text-zinc-300 dark:placeholder:text-zinc-700"
+                className="w-full px-3 py-3 sm:px-5 sm:py-4 text-sm sm:text-lg font-black bg-zinc-50 dark:bg-card-dark border-2 border-transparent focus:bg-white dark:focus:bg-zinc-900 focus:border-red-500/20 focus:ring-4 focus:ring-red-500/5 rounded-xl sm:rounded-2xl outline-none transition-all text-zinc-900 dark:text-white placeholder:text-zinc-300 dark:placeholder:text-zinc-700"
               />
               <div className="mt-3 hidden sm:flex items-center gap-2 text-[10px] text-zinc-400 font-medium">
                 <span className="w-1 h-1 rounded-full bg-zinc-300 dark:bg-zinc-700" />
@@ -575,7 +575,7 @@ const Step4_Config = ({ config, onConfigChange, editalSelecionado, horarios = {}
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
-                      className="h-[52px] flex items-center justify-center bg-zinc-50/50 dark:bg-zinc-950/30 border-2 border-dashed border-zinc-100 dark:border-zinc-800 rounded-2xl"
+                      className="h-[52px] flex items-center justify-center bg-zinc-50/50 dark:bg-card-dark border-2 border-dashed border-zinc-100 dark:border-zinc-800 rounded-2xl"
                     >
                       <span className="text-[10px] text-zinc-300 dark:text-zinc-700 font-black uppercase tracking-widest">Inativo</span>
                     </motion.div>
@@ -762,7 +762,7 @@ const Step4_Config = ({ config, onConfigChange, editalSelecionado, horarios = {}
                   transition={{ duration: 0.2 }}
                   className="mt-8 relative"
                 >
-                  <div className="absolute inset-0 bg-zinc-50/50 dark:bg-zinc-950/20 rounded-2xl -m-4 pointer-events-none" />
+                  <div className="absolute inset-0 bg-zinc-50/50 dark:bg-card-dark/20 rounded-2xl -m-4 pointer-events-none" />
                   <div className="relative p-1">
                     <div className="flex items-center justify-between mb-4 px-2">
                       <span className="text-[9px] font-black uppercase tracking-widest text-zinc-400">Preview no Cronograma</span>

@@ -1071,7 +1071,7 @@ function SimuladoTimer({
   const clockColor = isPaused ? '#a1a1aa' : (isLowTime ? '#ef4444' : '#18181b');
 
   return (
-    <div className="fixed inset-0 z-[9999] bg-zinc-50 dark:bg-zinc-950 flex flex-col items-center justify-center animate-fade-in overflow-hidden font-sans">
+    <div className="fixed inset-0 z-[9999] bg-zinc-50 dark:bg-background-dark flex flex-col items-center justify-center animate-fade-in overflow-hidden font-sans">
 
       {isCancelModalOpen && (
         <div className="fixed inset-0 z-[10000] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">

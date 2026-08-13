@@ -6,6 +6,7 @@ import { buildInitialAccessProfile, LEGACY_ADMIN_UID } from '../auth/accessContr
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import AuthLayout from './auth/AuthLayout';
 
 // --- Ícones ---
 const IconEmail = () => (
@@ -134,42 +135,8 @@ function Signup() {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#0a0a0a] relative overflow-hidden font-sans items-center justify-center py-4">
-
-      {/* HACK CSS ATUALIZADO:
-         - Adicionei 'border-radius: 0px' para garantir que o autopreencher seja quadrado
-         - A cor do 'box-shadow' agora combina perfeitamente com o fundo #1a1a1a
-      */}
-      <style>{`
-        input:-webkit-autofill,
-        input:-webkit-autofill:hover,
-        input:-webkit-autofill:focus,
-        input:-webkit-autofill:active {
-            -webkit-box-shadow: 0 0 0 30px #1a1a1a inset !important;
-            -webkit-text-fill-color: white !important;
-            caret-color: white !important;
-            border-radius: 0px !important;
-        }
-      `}</style>
-
-      {/* Imagem de fundo */}
-      <div className="absolute inset-0 z-0">
-        <img
-          src="/imagem-login.png"
-          alt="Background Tático"
-          className="w-full h-full object-cover object-top"
-        />
-        <div className="absolute inset-0 bg-black/50 backdrop-blur-[1px]"></div>
-      </div>
-
-      {/* Card Principal */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, ease: "easeOut" }}
-        className="w-full max-w-[360px] relative z-10 max-h-[90vh] overflow-y-auto scrollbar-hide"
-      >
-        <div className="bg-black/60 backdrop-blur-md border border-white/10 rounded-2xl p-5 shadow-2xl">
+    <AuthLayout mode="signup">
+        <div className="rounded-2xl border border-white/10 bg-black/65 p-5 shadow-2xl shadow-black/50 backdrop-blur-xl sm:p-6">
 
           <div className="flex justify-center mb-4">
             <img src="/logoModoQAP.png" alt="Logo ModoQAP" className="h-20 w-auto drop-shadow-2xl" />
@@ -384,8 +351,7 @@ function Signup() {
           </motion.div>
 
         </div>
-      </motion.div>
-    </div>
+    </AuthLayout>
   );
 }
 

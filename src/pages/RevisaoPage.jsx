@@ -117,7 +117,7 @@ const TAB_TONES = {
 };
 
 const ReviewStatCard = ({ icon: Icon, title, value, detail }) => (
-  <article className="group relative flex min-h-[108px] flex-col justify-center overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white px-3 py-2.5 shadow-soft transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/40 hover:!border-l-red-500 hover:shadow-[0_0_18px_rgba(239,68,68,0.07)] dark:border-white/10 dark:!border-l-red-500/25 dark:bg-zinc-950 dark:hover:border-accent-light/20 dark:hover:!border-l-red-500 dark:hover:shadow-[0_0_22px_rgba(239,68,68,0.08)]">
+  <article className="group relative flex min-h-[108px] flex-col justify-center overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white px-3 py-2.5 shadow-soft transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/40 hover:!border-l-red-500 hover:shadow-[0_0_18px_rgba(239,68,68,0.07)] dark:border-white/10 dark:!border-l-red-500/25 dark:bg-card-dark dark:hover:border-accent-light/20 dark:hover:!border-l-red-500 dark:hover:shadow-[0_0_22px_rgba(239,68,68,0.08)]">
     <div className="relative z-20 flex w-full flex-col gap-0.5">
       <h2 className="w-full truncate text-[10.5px] font-bold uppercase leading-none tracking-wider text-text-secondary dark:text-text-dark-secondary">
         {title}
@@ -561,7 +561,7 @@ export function RevisaoPage({
         <Motion.div
           initial={{ opacity: 0, y: 30, scale: 0.95 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          className="group relative w-full max-w-2xl overflow-hidden rounded-[40px] border border-zinc-200 bg-white p-8 text-center shadow-[0_30px_100px_rgba(0,0,0,0.06)] dark:border-white/10 dark:bg-zinc-950 dark:shadow-[0_30px_100px_rgba(0,0,0,0.3)] sm:px-12 sm:pb-9 sm:pt-12"
+          className="group relative w-full max-w-2xl overflow-hidden rounded-[40px] border border-zinc-200 bg-white p-8 text-center shadow-[0_30px_100px_rgba(0,0,0,0.06)] dark:border-white/10 dark:bg-card-dark dark:shadow-[0_30px_100px_rgba(0,0,0,0.3)] sm:px-12 sm:pb-9 sm:pt-12"
         >
           <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-blue-500/5 blur-[80px] transition-all duration-700 group-hover:bg-blue-500/10" />
           <div className="pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-red-500/5 blur-[80px] transition-all duration-700 group-hover:bg-red-500/10" />
@@ -651,7 +651,7 @@ export function RevisaoPage({
             )}
 
             <div className="relative z-10 hidden shrink-0 flex-col items-center gap-1">
-              <div className="relative flex h-10 w-10 items-center justify-center rounded-full border-2 border-white bg-zinc-50 shadow-md dark:border-zinc-800 dark:bg-zinc-950 sm:h-12 sm:w-12 md:h-24 md:w-24 md:border-4 md:shadow-xl">
+              <div className="relative flex h-10 w-10 items-center justify-center rounded-full border-2 border-white bg-zinc-50 shadow-md dark:border-zinc-800 dark:bg-card-dark sm:h-12 sm:w-12 md:h-24 md:w-24 md:border-4 md:shadow-xl">
                 {headerLogo
                   ? <img src={headerLogo} alt="Logo do concurso" className="h-7 w-7 object-contain sm:h-8 sm:w-8 md:h-16 md:w-16" onError={(e) => { e.currentTarget.style.display = "none"; }} />
                   : <ShieldCheck size={22} className="text-zinc-300 dark:text-zinc-600 md:h-9 md:w-9" />}
@@ -722,7 +722,7 @@ export function RevisaoPage({
               </div>
             </div>
 
-            <div className="z-10 flex w-[104px] shrink-0 items-center justify-between gap-1.5 rounded-xl border border-zinc-200 bg-white/75 p-1.5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/55 sm:w-[132px] md:w-auto md:min-w-[240px] md:gap-3 md:p-2.5">
+            <div className="z-10 flex w-[104px] shrink-0 items-center justify-between gap-1.5 rounded-xl border border-zinc-200 bg-white/75 p-1.5 shadow-sm dark:border-zinc-800 dark:bg-card-dark sm:w-[132px] md:w-auto md:min-w-[240px] md:gap-3 md:p-2.5">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between gap-2 md:gap-5">
                   <div>
@@ -844,11 +844,11 @@ export function RevisaoPage({
             </AnimatePresence>
           </div>
           <aside className="space-y-4">
-            <section className="rounded-3xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-zinc-950/45 sm:p-5">
+            <section className="rounded-3xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-card-dark sm:p-5">
               <div className="mb-4 flex items-center gap-2"><BarChart3 size={17} className="text-violet-600" /><div><p className="text-[9px] font-black uppercase tracking-[0.2em] text-violet-600">Diagnóstico</p><h2 className="font-black">Por disciplina</h2></div></div>
               <div className="space-y-3">{central.diagnosticoDisciplinas.slice(0, 6).map((item) => <article key={item.id} className="rounded-2xl bg-zinc-50 p-3 dark:bg-white/[0.04]"><div className="flex items-start justify-between gap-2"><p className="min-w-0 text-sm font-black leading-tight">{item.nome}</p><span className={cx("rounded-md px-2 py-0.5 text-[9px] font-black uppercase", item.risco === "alto" ? "bg-red-100 text-red-700 dark:bg-red-400/10 dark:text-red-300" : item.risco === "medio" ? "bg-amber-100 text-amber-700 dark:bg-amber-400/10 dark:text-amber-300" : "bg-emerald-100 text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-300")}>{item.risco}</span></div><div className="mt-2 flex gap-3 text-[10px] font-bold text-zinc-500"><span>{item.atrasadas} atrasadas</span><span>{item.cobertura}% coberto</span></div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800"><div className="h-full rounded-full bg-violet-600" style={{ width: `${item.cobertura}%` }} /></div></article>)}</div>
             </section>
-            <section className="rounded-3xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-zinc-950/45 sm:p-5">
+            <section className="rounded-3xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-card-dark sm:p-5">
               <div className="flex items-center gap-2"><BookOpen size={17} className="text-blue-600" /><div><p className="text-[9px] font-black uppercase tracking-[0.2em] text-blue-600">Edital + histórico</p><h2 className="font-black">Cobertura real</h2></div></div>
               <p className="mt-3 text-sm font-medium leading-relaxed text-zinc-500 dark:text-zinc-400">{central.cobertura.semRevisaoRecente.length} assunto(s) do planejamento estão sem revisão recente. O cálculo usa os registros compartilhados por Histórico e Desempenho.</p>
               <div className="mt-4 flex items-center justify-between rounded-2xl bg-blue-50 p-3 dark:bg-blue-400/10"><span className="text-xs font-black text-blue-700 dark:text-blue-300">Retenção atual</span><span className="text-xl font-black text-blue-700 dark:text-blue-300">{progressoGeral}%</span></div>

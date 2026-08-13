@@ -1,4 +1,4 @@
-﻿import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ResponsiveContainer,
@@ -87,7 +87,7 @@ const WeeklyStudyTooltip = ({ active, payload, label }) => {
   const questions = Number(data.questions) || 0;
 
   return (
-    <div className="bg-white/95 dark:bg-zinc-950/95 backdrop-blur-md border-2 border-zinc-100 dark:border-white/10 rounded-2xl shadow-2xl px-4 py-3 min-w-[160px]">
+    <div className="bg-white/95 dark:bg-card-dark/95 backdrop-blur-md border-2 border-zinc-100 dark:border-white/10 rounded-2xl shadow-2xl px-4 py-3 min-w-[160px]">
       <p className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-2">
         {label}
       </p>
@@ -118,7 +118,7 @@ const WeeklyStudyTooltip = ({ active, payload, label }) => {
 };
 
 const StatCard = ({ icon: Icon, title, value, subValue, iconColor = 'text-red-500/10 dark:text-red-500/5', compact = false }) => (
-  <div className={`group relative flex flex-col justify-center overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white shadow-soft transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/40 hover:!border-l-red-500 hover:shadow-[0_0_18px_rgba(239,68,68,0.07)] dark:border-white/10 dark:!border-l-red-500/25 dark:bg-zinc-950 dark:hover:border-accent-light/20 dark:hover:!border-l-red-500 dark:hover:shadow-[0_0_22px_rgba(239,68,68,0.08)] ${compact ? 'px-3 py-2.5 h-[86px]' : 'px-3 py-2.5 min-h-[108px]'}`}>
+  <div className={`group relative flex flex-col justify-center overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white shadow-soft transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/40 hover:!border-l-red-500 hover:shadow-[0_0_18px_rgba(239,68,68,0.07)] dark:border-white/10 dark:!border-l-red-500/25 dark:bg-card-dark dark:hover:border-accent-light/20 dark:hover:!border-l-red-500 dark:hover:shadow-[0_0_22px_rgba(239,68,68,0.08)] ${compact ? 'px-3 py-2.5 h-[86px]' : 'px-3 py-2.5 min-h-[108px]'}`}>
     <div className="relative z-20 flex flex-col gap-0.5 w-full">
       <h3 className={`${compact ? 'text-[10px]' : 'text-[10.5px]'} font-bold uppercase tracking-wider text-text-secondary dark:text-text-dark-secondary truncate w-full leading-none`}>
         {title}
@@ -383,7 +383,7 @@ export const WeeklyBarChart = ({ registrosEstudo, compact = false }) => {
   }, [weekData]);
 
   return (
-    <div className={`group relative flex flex-col overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/40 hover:!border-l-red-500 hover:shadow-[0_0_18px_rgba(239,68,68,0.07)] dark:border-white/10 dark:!border-l-red-500/25 dark:hover:border-accent-light/20 dark:hover:!border-l-red-500 dark:bg-zinc-950 dark:hover:shadow-[0_0_22px_rgba(239,68,68,0.08)] ${compact ? 'h-full min-h-[220px]' : 'h-full'} z-20`}>
+    <div className={`group relative flex flex-col overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/40 hover:!border-l-red-500 hover:shadow-[0_0_18px_rgba(239,68,68,0.07)] dark:border-white/10 dark:!border-l-red-500/25 dark:hover:border-accent-light/20 dark:hover:!border-l-red-500 dark:bg-card-dark dark:hover:shadow-[0_0_22px_rgba(239,68,68,0.08)] ${compact ? 'h-full min-h-[220px]' : 'h-full'} z-20`}>
       {/* Decorative Orbs */}
       <div className={`pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full blur-[80px] opacity-10 transition-all duration-700 group-hover:opacity-16 bg-gradient-to-br ${metricConfig.gradient}`} />
       <div className="pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-zinc-500/5 blur-[80px] opacity-40 transition-all duration-700" />
@@ -576,7 +576,7 @@ export default function HomeSessao1({
 
   const streakCard = (
     <div className="min-w-0 h-full">
-      <div className={`group/card relative z-20 flex h-full flex-col gap-2.5 overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-orange-500/25 bg-white transition-all duration-300 hover:-translate-y-0.5 hover:border-orange-400/50 hover:!border-l-orange-500 hover:shadow-[0_0_15px_rgba(249,115,22,0.15)] dark:border-white/10 dark:!border-l-orange-500/30 dark:bg-zinc-950 dark:shadow-[0_0_42px_rgba(249,115,22,0.12)] dark:hover:border-orange-400/30 dark:hover:!border-l-orange-500 dark:hover:shadow-[0_0_52px_rgba(249,115,22,0.2)] ${compact ? 'p-4 min-h-[184px]' : 'p-3 min-h-[118px]'}`}>
+      <div className={`group/card relative z-20 flex h-full flex-col gap-2.5 overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-orange-500/25 bg-white transition-all duration-300 hover:-translate-y-0.5 hover:border-orange-400/50 hover:!border-l-orange-500 hover:shadow-[0_0_15px_rgba(249,115,22,0.15)] dark:border-white/10 dark:!border-l-orange-500/30 dark:bg-card-dark dark:shadow-[0_0_42px_rgba(249,115,22,0.12)] dark:hover:border-orange-400/30 dark:hover:!border-l-orange-500 dark:hover:shadow-[0_0_52px_rgba(249,115,22,0.2)] ${compact ? 'p-4 min-h-[184px]' : 'p-3 min-h-[118px]'}`}>
         <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-gradient-to-br from-orange-600 to-amber-500 opacity-20 blur-[80px] transition-all duration-700 group-hover/card:opacity-40" />
         <div className="pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-zinc-500/5 opacity-40 blur-[80px] transition-all duration-700" />
         <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-orange-500/0 via-orange-500/50 to-orange-500/0" />

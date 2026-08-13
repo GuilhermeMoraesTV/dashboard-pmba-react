@@ -1,0 +1,96 @@
+.welcome-carousel-shell {
+  height: min(720px, 90dvh);
+  max-height: 90dvh;
+}
+
+.welcome-carousel-visual,
+.welcome-carousel-info,
+.welcome-carousel-copy {
+  min-height: 0;
+}
+
+@media (max-width: 767px) {
+  .welcome-carousel-shell {
+    height: min(720px, calc(100dvh - 1rem));
+    max-height: calc(100dvh - 1rem);
+  }
+
+  .welcome-carousel-visual {
+    flex: 0 0 clamp(202px, 38dvh, 258px);
+  }
+
+  .welcome-carousel-preview-scale {
+    zoom: 0.76;
+  }
+
+  .welcome-carousel-info-header {
+    flex: 0 0 auto;
+  }
+
+  .welcome-carousel-footer {
+    flex: 0 0 auto;
+  }
+}
+
+@media (max-width: 370px) {
+  .welcome-carousel-visual {
+    flex-basis: clamp(194px, 36dvh, 238px);
+  }
+
+  .welcome-carousel-preview-scale {
+    zoom: 0.7;
+  }
+
+  .welcome-carousel-info-header {
+    padding-top: 0.45rem;
+    padding-bottom: 0.45rem;
+  }
+
+  .welcome-carousel-copy {
+    padding-top: 0.55rem;
+    padding-bottom: 0.55rem;
+  }
+
+  .welcome-carousel-title {
+    font-size: 1.15rem;
+  }
+
+  .welcome-carousel-description {
+    margin-top: 0.4rem;
+    font-size: 0.72rem;
+    line-height: 1.45;
+  }
+
+  .welcome-carousel-details,
+  .welcome-carousel-welcome-note {
+    margin-top: 0.6rem;
+    padding: 0.6rem;
+  }
+}
+
+@media (min-width: 768px) {
+  .welcome-carousel-preview-scale {
+    width: 100%;
+  }
+
+  .welcome-carousel-slide-copy {
+    display: flex;
+    height: 100%;
+    flex-direction: column;
+  }
+
+  .welcome-carousel-desktop-details {
+    margin-top: auto;
+    padding-top: 1rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .welcome-carousel-shell *,
+  .welcome-carousel-shell *::before,
+  .welcome-carousel-shell *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

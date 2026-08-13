@@ -539,15 +539,15 @@ const Step5_Preview = ({
 
       {/* ── HEADER TOOLBAR ── */}
       <div className="mx-auto grid w-full max-w-3xl grid-cols-3 gap-1.5 px-1 sm:gap-2.5">
-        <div className="min-w-0 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60 px-2 py-2.5 sm:px-3">
+        <div className="min-w-0 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800/55 px-2 py-2.5 sm:px-3">
           <p className="mb-0.5 text-[9px] font-black uppercase tracking-[0.18em] text-zinc-400 dark:text-zinc-500">Início</p>
           <p className="truncate text-[10px] font-black text-zinc-900 dark:text-white sm:text-[13px]">{fmtDate(resultado?.dataInicio || isoKey(startDate))}</p>
         </div>
-        <div className="min-w-0 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60 px-2 py-2.5 sm:px-3">
+        <div className="min-w-0 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800/55 px-2 py-2.5 sm:px-3">
           <p className="mb-0.5 text-[9px] font-black uppercase tracking-[0.18em] text-zinc-400 dark:text-zinc-500">Data Final</p>
           <p className="truncate text-[10px] font-black text-zinc-900 dark:text-white sm:text-[13px]">{fmtDate(dataFinalCronograma)}</p>
         </div>
-        <div className="min-w-0 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60 px-2 py-2.5 sm:px-3">
+        <div className="min-w-0 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800/55 px-2 py-2.5 sm:px-3">
           <p className="mb-0.5 text-[9px] font-black uppercase tracking-[0.18em] text-zinc-400 dark:text-zinc-500">Duração</p>
           <p className="truncate text-[10px] font-black text-zinc-900 dark:text-white sm:text-[13px]">{totalSemanas} sem. · {totalHorasSemanais}h/sem</p>
         </div>
@@ -560,7 +560,7 @@ const Step5_Preview = ({
         </div>
 
         <div className="flex justify-center">
-          <div className="inline-flex w-fit items-center gap-2 rounded-2xl border border-zinc-100 bg-white px-2 py-1.5 shadow-sm dark:border-zinc-800/60 dark:bg-zinc-900/70">
+          <div className="inline-flex w-fit items-center gap-2 rounded-2xl border border-zinc-100 bg-white px-2 py-1.5 shadow-sm dark:border-zinc-700 dark:bg-zinc-800/55">
             <button
               onClick={() => {
                 if (viewMode === 'mes') {
@@ -645,7 +645,7 @@ const Step5_Preview = ({
 
                 return (
                   <div key={diaOffset} onDragOver={(e) => e.preventDefault()} onDrop={(e) => onDrop(e, key)}
-                    className={`relative flex min-h-[280px] min-w-[168px] max-w-[168px] flex-col rounded-[16px] border p-1.5 transition-all duration-300 sm:min-h-[440px] sm:min-w-[260px] sm:max-w-[260px] sm:rounded-[18px] sm:p-2 xl:min-w-[284px] xl:max-w-[284px] ${hoje ? 'border-red-500/60 bg-white/70 shadow-md ring-1 ring-red-500/30 dark:bg-zinc-950/40' : 'border-zinc-200 bg-zinc-50/70 shadow-sm hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-950/30 dark:hover:border-zinc-700'}`}
+                    className={`relative flex min-h-[280px] min-w-[168px] max-w-[168px] flex-col rounded-[16px] border p-1.5 transition-all duration-300 sm:min-h-[440px] sm:min-w-[260px] sm:max-w-[260px] sm:rounded-[18px] sm:p-2 xl:min-w-[284px] xl:max-w-[284px] ${hoje ? 'border-red-500/60 bg-white/70 shadow-md ring-1 ring-red-500/30 dark:bg-card-dark' : 'border-zinc-200 bg-zinc-50/70 shadow-sm hover:border-zinc-300 dark:border-zinc-800 dark:bg-card-dark dark:hover:border-zinc-700'}`}
                   >
                     <div className={`mb-1.5 shrink-0 rounded-[14px] border px-2.5 py-2 shadow-sm transition-all duration-300 sm:mb-3 sm:rounded-[20px] sm:px-4 sm:py-3 ${hoje ? 'border-red-500/60 bg-zinc-950 text-white dark:border-red-500/40 dark:bg-zinc-900' : 'border-zinc-800 bg-zinc-900 text-white dark:border-zinc-800 dark:bg-zinc-900'}`}>
                       {hoje && (
@@ -697,7 +697,7 @@ const Step5_Preview = ({
                         </div>
                       </div>
                       <div className="flex flex-col items-end gap-2">
-                        <div className={`rounded-2xl border px-3 py-2 shadow-sm ${hoje ? 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-900/60' : 'bg-zinc-50 dark:bg-zinc-950/70 border-zinc-200 dark:border-zinc-800'}`}>
+                        <div className={`rounded-2xl border px-3 py-2 shadow-sm ${hoje ? 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-900/60' : 'bg-zinc-50 dark:bg-zinc-800/55 border-zinc-200 dark:border-zinc-700'}`}>
                           <div className="flex items-center gap-2">
                             <Clock size={12} className={hoje ? 'text-red-500 dark:text-red-400' : 'text-zinc-400 dark:text-zinc-500'} />
                             <div className="flex flex-col items-end leading-none">
@@ -728,7 +728,7 @@ const Step5_Preview = ({
 
           {viewMode === 'mes' && (
             <div className="w-full overflow-x-auto pb-2 custom-scrollbar">
-            <motion.div key="mes" initial={{ opacity:0, scale:0.98 }} animate={{ opacity:1, scale:1 }} exit={{ opacity:0, scale:0.98 }} className="grid min-w-[720px] grid-cols-7 gap-1.5 rounded-[24px] border border-red-100/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(254,242,242,0.92))] p-2 shadow-[0_24px_60px_rgba(239,68,68,0.08)] dark:border-zinc-800 dark:bg-zinc-950/70 dark:shadow-none sm:min-w-0 sm:gap-3 sm:rounded-[40px] sm:p-4">
+            <motion.div key="mes" initial={{ opacity:0, scale:0.98 }} animate={{ opacity:1, scale:1 }} exit={{ opacity:0, scale:0.98 }} className="grid min-w-[720px] grid-cols-7 gap-1.5 rounded-2xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white p-2 shadow-soft dark:border-white/10 dark:!border-l-red-500/25 dark:bg-none dark:bg-card-dark sm:min-w-0 sm:gap-3 sm:p-4">
               {monthDays.map((dayObj, i) => {
                 const data = dayObj.date;
                 const key = isoKey(data);
@@ -772,7 +772,7 @@ const Step5_Preview = ({
                       setSemanaOffset(targetWeek);
                       setViewMode('semana');
                     }}
-                    className={`relative min-h-[110px] overflow-hidden rounded-xl border p-1.5 text-left transition-all cursor-pointer group sm:min-h-[110px] sm:rounded-2xl sm:p-2 ${hoje ? 'border-red-300 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(254,226,226,0.95))] ring-2 ring-red-300/40 shadow-[0_18px_40px_rgba(239,68,68,0.18)] dark:border-red-500/50 dark:bg-red-950/20 dark:ring-red-500/20 dark:shadow-lg dark:shadow-red-500/10' : isMesAtual ? 'border-red-100 bg-white/95 shadow-[0_10px_26px_rgba(15,23,42,0.06)] hover:border-red-200 hover:shadow-[0_18px_34px_rgba(239,68,68,0.12)] dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-red-900/40 dark:hover:shadow-md' : 'border-transparent bg-white/20 opacity-30 grayscale dark:bg-zinc-950/20'}`}
+                    className={`relative min-h-[110px] overflow-hidden rounded-xl border p-1.5 text-left transition-all cursor-pointer group sm:min-h-[110px] sm:rounded-2xl sm:p-2 ${hoje ? 'border-red-300 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(254,226,226,0.95))] ring-2 ring-red-300/40 shadow-[0_18px_40px_rgba(239,68,68,0.18)] dark:border-red-500/50 dark:bg-zinc-800/70 dark:ring-red-500/20 dark:shadow-lg dark:shadow-red-500/10' : isMesAtual ? 'border-red-100 bg-white/95 shadow-[0_10px_26px_rgba(15,23,42,0.06)] hover:border-red-200 hover:shadow-[0_18px_34px_rgba(239,68,68,0.12)] dark:border-zinc-700 dark:bg-zinc-800/55 dark:hover:border-red-900/40 dark:hover:bg-zinc-800 dark:hover:shadow-md' : 'border-transparent bg-white/20 opacity-30 grayscale dark:bg-zinc-800/25'}`}
                   >
                     <div className="relative z-10 mb-1 flex items-start justify-between">
                       <span className={`text-[10px] font-black uppercase tracking-tighter ${hoje ? 'text-red-500' : 'text-zinc-400 dark:text-zinc-500'}`}>{diaNome}</span>

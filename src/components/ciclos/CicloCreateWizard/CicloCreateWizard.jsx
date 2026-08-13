@@ -100,7 +100,7 @@ const buildDisciplinaSnapshotCompleto = ({
   extraDisciplinas = [],
   selecaoDisciplinas = {},
   horasTotais = 0,
-  duracaoMinimaSessaoMinutos = 30,
+  duracaoMinimaSessaoMinutos = 60,
   duracaoMaximaSessaoMinutos = 60,
   disciplinaTodosDiasIds = [],
   diasEstudo = {},
@@ -196,7 +196,7 @@ function CicloCreateWizard({
   const [idModeloSelecionado, setIdModeloSelecionado] = useState(null);
   const [dadosModeloSelecionado, setDadosModeloSelecionado] = useState(null);
   const [gradeDisponibilidade, setGradeDisponibilidade] = useState({});
-  const [duracaoMinimaSessaoMinutos, setDuracaoMinimaSessaoMinutos] = useState(30);
+  const [duracaoMinimaSessaoMinutos, setDuracaoMinimaSessaoMinutos] = useState(60);
   const [duracaoMaximaSessaoMinutos, setDuracaoMaximaSessaoMinutos] = useState(60);
   const [disciplinas, setDisciplinas] = useState([]);
   const [extraDisciplinas, setExtraDisciplinas] = useState([]);
@@ -236,9 +236,14 @@ function CicloCreateWizard({
     setIdModeloSelecionado(state.idModeloSelecionado || null);
     setDadosModeloSelecionado(state.dadosModeloSelecionado || null);
     setGradeDisponibilidade(state.gradeDisponibilidade || {});
-    const legacyDuration = Number(state.tempoSessaoMinutos) || 50;
-    setDuracaoMinimaSessaoMinutos(Number(state.duracaoMinimaSessaoMinutos) || legacyDuration);
-    setDuracaoMaximaSessaoMinutos(Number(state.duracaoMaximaSessaoMinutos) || legacyDuration);
+    const singleDuration = Number(
+      state.tempoSessaoMinutos
+      || state.duracaoMaximaSessaoMinutos
+      || state.duracaoMinimaSessaoMinutos
+      || 60
+    );
+    setDuracaoMinimaSessaoMinutos(singleDuration);
+    setDuracaoMaximaSessaoMinutos(singleDuration);
     setDisciplinas(Array.isArray(state.disciplinas) ? state.disciplinas : []);
     setExtraDisciplinas(Array.isArray(state.extraDisciplinas) ? state.extraDisciplinas : []);
     setSelecaoDisciplinas(
@@ -801,7 +806,7 @@ function CicloCreateWizard({
                 initial={{ opacity: 0, y: -8 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
-                className="mx-3 mb-3 rounded-2xl border border-red-200 bg-white px-4 py-3 text-sm font-bold text-red-700 shadow-lg shadow-red-900/5 dark:border-red-900/40 dark:bg-zinc-950 dark:text-red-300 md:mx-0"
+                className="mx-3 mb-3 rounded-2xl border border-red-200 bg-white px-4 py-3 text-sm font-bold text-red-700 shadow-lg shadow-red-900/5 dark:border-red-900/40 dark:bg-card-dark dark:text-red-300 md:mx-0"
               >
                 <div className="flex items-start gap-2">
                   <AlertTriangle size={17} className="mt-0.5 shrink-0" />
@@ -824,7 +829,7 @@ function CicloCreateWizard({
         </div>
       </div>
 
-      <div className={`wizard-navigation-bar inset-x-2 bottom-2 z-[100050] mx-auto max-w-5xl rounded-2xl border border-zinc-200/80 bg-white/92 shadow-2xl shadow-zinc-950/12 backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-900/94 sm:inset-x-3 sm:bottom-4 ${embedded ? 'absolute' : 'fixed'}`}>
+      <div className={`wizard-navigation-bar inset-x-2 bottom-2 z-[100050] mx-auto max-w-5xl rounded-2xl border border-zinc-200/80 bg-white/92 shadow-2xl shadow-zinc-950/12 backdrop-blur-xl dark:border-zinc-800 dark:bg-card-dark sm:inset-x-3 sm:bottom-4 ${embedded ? 'absolute' : 'fixed'}`}>
         <div className="absolute top-0 left-0 right-0 h-[2px] bg-zinc-100 dark:bg-zinc-800">
           <motion.div
             className="h-full bg-red-600"

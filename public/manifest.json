@@ -1,33 +1,19 @@
 {
-  "name": "MODOQAP",
-  "short_name": "MODOQAP",
-  "description": "Plataforma de organização de estudos!",
-  "start_url": "/",
+  "name": "ModoQAP - Plataforma de Estudos",
+  "short_name": "ModoQAP",
+  "description": "Planejamento, ciclos, cronogramas e acompanhamento de estudos.",
+  "start_url": "/app/home",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#0a0a0a",
+  "background_color": "#f7f9fc",
+  "theme_color": "#111827",
   "orientation": "portrait-primary",
   "icons": [
     {
       "src": "/logoModoQAP.png",
-      "sizes": "192x192",
+      "sizes": "1024x1024",
       "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "/logo-pmba2.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any"
-    }
-  ],
-  "screenshots": [
-    {
-      "src": "/logoModoQAP.png",
-      "sizes": "540x720",
-      "type": "image/png",
-      "form_factor": "narrow"
+      "purpose": "any maskable"
     }
   ]
 }
-

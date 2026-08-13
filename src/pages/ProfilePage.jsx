@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom'; // Importante para corrigir a faixa branca
 import { auth, db, storage } from '../firebaseConfig.js';
 import {
@@ -8,11 +8,18 @@ import {
 import {
   collection, query, where, orderBy, onSnapshot, doc, updateDoc, deleteDoc, setDoc, getDocs, writeBatch
 } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CATALOGO_EDITAIS } from './AdminPage/EditaisManager';
 import { useForceUnlock } from '../hooks/useForceUnlock';
 import { deletePlanStudyRecords } from '../services/planDeletion';
+import {
+  DEFAULT_COVER_POSITION,
+  coverPositionToStyle,
+  hasCoverPositionChanged,
+  moveCoverPosition,
+  normalizeCoverPosition,
+} from '../utils/profileCover';
 
 import {
   User, Save, X, Archive, Loader2, Upload, Trash2,
@@ -489,7 +496,14 @@ const ArchivedCycleCard = ({ ciclo, hours, onRestore, onDelete, loading, type = 
     );
 };
 
-function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
+function ProfilePage({
+  user,
+  allRegistrosEstudo = [],
+  onDeleteRegistro,
+  coverURL = null,
+  coverPosition = DEFAULT_COVER_POSITION,
+  coverLoading = false,
+}) {
   const [isEditingEmail, setIsEditingEmail] = useState(false);
   const [newEmail, setNewEmail] = useState(user?.email || '');
 
@@ -504,6 +518,18 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
   const [photo, setPhoto] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(user?.photoURL);
   const [photoLoading, setPhotoLoading] = useState(false);
+  const [coverFile, setCoverFile] = useState(null);
+  const [coverPreview, setCoverPreview] = useState(coverURL);
+  const [coverObjectURL, setCoverObjectURL] = useState(null);
+  const [coverPositionDraft, setCoverPositionDraft] = useState(() => normalizeCoverPosition(coverPosition));
+  const [coverPositionDirty, setCoverPositionDirty] = useState(false);
+  const [isDraggingCover, setIsDraggingCover] = useState(false);
+  const [coverAction, setCoverAction] = useState(null);
+  const coverFrameRef = useRef(null);
+  const coverImageRef = useRef(null);
+  const coverDragRef = useRef(null);
+  const savedCoverPreviewRef = useRef(null);
+  const savedCoverPositionRef = useRef(null);
 
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showArchivesModal, setShowArchivesModal] = useState(false);
@@ -526,6 +552,27 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
   const [cicloActionLoading, setCicloActionLoading] = useState(false);
 
   useEffect(() => { if (message.text) { const timer = setTimeout(() => { setMessage({ type: '', text: '' }); }, 5000); return () => clearTimeout(timer); } }, [message]);
+
+  useEffect(() => {
+    if (coverFile) return;
+    if (savedCoverPreviewRef.current && coverURL !== savedCoverPreviewRef.current) return;
+    savedCoverPreviewRef.current = null;
+    setCoverPreview(coverURL || null);
+  }, [coverFile, coverURL]);
+
+  useEffect(() => {
+    if (coverFile || coverPositionDirty) return;
+    if (
+      savedCoverPositionRef.current
+      && hasCoverPositionChanged(coverPosition, savedCoverPositionRef.current)
+    ) return;
+    savedCoverPositionRef.current = null;
+    setCoverPositionDraft(normalizeCoverPosition(coverPosition));
+  }, [coverFile, coverPosition, coverPositionDirty]);
+
+  useEffect(() => () => {
+    if (coverObjectURL) URL.revokeObjectURL(coverObjectURL);
+  }, [coverObjectURL]);
 
   const stats = useMemo(() => {
     const totalRegistros = allRegistrosEstudo.length;
@@ -668,6 +715,181 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
         }
       };
 
+    const resetCoverDraft = () => {
+      setCoverFile(null);
+      setCoverPreview(coverURL || null);
+      setCoverObjectURL(null);
+      setCoverPositionDraft(normalizeCoverPosition(coverPosition));
+      setCoverPositionDirty(false);
+      savedCoverPreviewRef.current = null;
+      savedCoverPositionRef.current = null;
+    };
+
+    const handleCoverSelection = (event) => {
+      const selectedFile = event.target.files?.[0];
+      event.target.value = '';
+      if (!selectedFile) return;
+
+      const objectURL = URL.createObjectURL(selectedFile);
+      const image = new Image();
+      image.onload = () => {
+        setCoverObjectURL(objectURL);
+        setCoverFile(selectedFile);
+        setCoverPreview(objectURL);
+        setCoverPositionDraft({ ...DEFAULT_COVER_POSITION });
+        setCoverPositionDirty(false);
+      };
+      image.onerror = () => {
+        URL.revokeObjectURL(objectURL);
+        setMessage({ type: 'error', text: 'Não foi possível ler essa imagem.' });
+      };
+      image.src = objectURL;
+    };
+
+    const handleCoverPointerDown = (event) => {
+      if (
+        !coverPreview
+        || coverLoading
+        || coverAction
+        || event.button > 0
+        || event.target.closest('[data-cover-control]')
+      ) return;
+
+      const frame = coverFrameRef.current;
+      const image = coverImageRef.current;
+      if (!frame || !image?.naturalWidth || !image?.naturalHeight) return;
+
+      event.preventDefault();
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+      const bounds = frame.getBoundingClientRect();
+      coverDragRef.current = {
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        startPosition: normalizeCoverPosition(coverPositionDraft),
+        containerWidth: bounds.width,
+        containerHeight: bounds.height,
+        imageWidth: image.naturalWidth,
+        imageHeight: image.naturalHeight,
+        moved: false,
+      };
+      setIsDraggingCover(true);
+    };
+
+    const handleCoverPointerMove = (event) => {
+      const drag = coverDragRef.current;
+      if (!drag || drag.pointerId !== event.pointerId) return;
+
+      const deltaX = event.clientX - drag.startX;
+      const deltaY = event.clientY - drag.startY;
+      if (!drag.moved && Math.hypot(deltaX, deltaY) < 2) return;
+
+      drag.moved = true;
+      event.preventDefault();
+      const nextPosition = moveCoverPosition({
+        position: drag.startPosition,
+        deltaX,
+        deltaY,
+        containerWidth: drag.containerWidth,
+        containerHeight: drag.containerHeight,
+        imageWidth: drag.imageWidth,
+        imageHeight: drag.imageHeight,
+      });
+      setCoverPositionDraft(nextPosition);
+      setCoverPositionDirty(
+        Boolean(coverFile) || hasCoverPositionChanged(nextPosition, coverPosition),
+      );
+    };
+
+    const stopCoverDrag = (event) => {
+      const drag = coverDragRef.current;
+      if (!drag || drag.pointerId !== event.pointerId) return;
+      event.currentTarget.releasePointerCapture?.(event.pointerId);
+      coverDragRef.current = null;
+      setIsDraggingCover(false);
+    };
+
+    const deleteStoredCover = async (url) => {
+      if (!url) return;
+      try {
+        await deleteObject(ref(storage, url));
+      } catch (error) {
+        if (error?.code !== 'storage/object-not-found') {
+          console.warn('Não foi possível limpar o arquivo antigo da capa:', error);
+        }
+      }
+    };
+
+    const handleSaveCover = async () => {
+      if ((!coverFile && !coverPositionDirty) || coverAction) return;
+      setCoverAction('saving');
+      let uploadedRef = null;
+      try {
+        let nextCoverURL = coverURL;
+        if (coverFile) {
+          const safeName = coverFile.name.replace(/[^a-zA-Z0-9._-]/g, '-');
+          uploadedRef = ref(storage, `profile_images/${user.uid}/covers/${Date.now()}-${safeName}`);
+          const snapshot = await uploadBytes(uploadedRef, coverFile, { contentType: coverFile.type });
+          nextCoverURL = await getDownloadURL(snapshot.ref);
+        }
+
+        const nextCoverPosition = normalizeCoverPosition(coverPositionDraft);
+        await updateDoc(doc(db, 'users', user.uid), {
+          ...(coverFile ? { coverURL: nextCoverURL } : {}),
+          coverPosition: nextCoverPosition,
+          updatedAt: new Date(),
+        });
+
+        const previousCoverURL = coverURL;
+        if (coverFile) savedCoverPreviewRef.current = nextCoverURL;
+        savedCoverPositionRef.current = nextCoverPosition;
+        setCoverFile(null);
+        setCoverPreview(nextCoverURL);
+        setCoverObjectURL(null);
+        setCoverPositionDirty(false);
+        setMessage({
+          type: 'success',
+          text: uploadedRef
+            ? (previousCoverURL ? 'Capa do perfil substituída.' : 'Capa do perfil salva.')
+            : 'Posição da capa salva.',
+        });
+        if (uploadedRef && previousCoverURL && previousCoverURL !== nextCoverURL) {
+          deleteStoredCover(previousCoverURL);
+        }
+      } catch (error) {
+        console.error('Erro ao salvar capa do perfil:', error);
+        if (uploadedRef) deleteObject(uploadedRef).catch(() => {});
+        setMessage({ type: 'error', text: 'Falha ao salvar a capa do perfil.' });
+      } finally {
+        setCoverAction(null);
+      }
+    };
+
+    const handleRemoveCover = async () => {
+      if (!coverURL || coverAction) return;
+      setCoverAction('removing');
+      try {
+        await updateDoc(doc(db, 'users', user.uid), {
+          coverURL: null,
+          coverPosition: { ...DEFAULT_COVER_POSITION },
+          updatedAt: new Date(),
+        });
+        setCoverFile(null);
+        setCoverPreview(null);
+        setCoverObjectURL(null);
+        setCoverPositionDraft({ ...DEFAULT_COVER_POSITION });
+        setCoverPositionDirty(false);
+        savedCoverPositionRef.current = { ...DEFAULT_COVER_POSITION };
+        setMessage({ type: 'success', text: 'Capa do perfil removida.' });
+        deleteStoredCover(coverURL);
+      } catch (error) {
+        console.error('Erro ao remover capa do perfil:', error);
+        setMessage({ type: 'error', text: 'Falha ao remover a capa do perfil.' });
+      } finally {
+        setCoverAction(null);
+      }
+    };
+
     const handleUpdateEmail = async () => {
       if (!newEmail || newEmail === user.email) return;
       try {
@@ -737,56 +959,136 @@ function ProfilePage({ user, allRegistrosEstudo = [], onDeleteRegistro }) {
 
   return (
     <div className="space-y-8 animate-fade-in max-w-6xl mx-auto pb-20 pt-10 px-4">
-      {/* HEADER PERFIL - RESTAURADO (Original) */}
-      <div className="flex flex-col md:flex-row items-center md:items-center gap-8 mb-12">
-          <div className="relative group/avatar flex-shrink-0">
-              <div className="w-32 h-32 md:w-40 md:h-40 rounded-full border-4 border-white dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-900 shadow-2xl overflow-hidden relative ring-4 ring-zinc-100 dark:ring-zinc-900/50">
-                  {photoPreview ? (<img src={photoPreview} alt="User" className="w-full h-full object-cover transition-transform duration-500 group-hover/avatar:scale-110" />) : (<div className="w-full h-full flex items-center justify-center text-zinc-400 bg-zinc-200 dark:bg-zinc-800"><User size={48}/></div>)}
-                  <label className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center text-white opacity-0 group-hover/avatar:opacity-100 transition-all cursor-pointer backdrop-blur-sm">
-                      <Camera size={24} className="mb-1" /><span className="text-[9px] font-bold uppercase tracking-widest">Editar</span><input type="file" accept="image/*" onChange={(e) => { if(e.target.files?.[0]) { setPhoto(e.target.files[0]); setPhotoPreview(URL.createObjectURL(e.target.files[0])); } }} className="hidden" />
-                  </label>
-              </div>
-              <div className="absolute bottom-2 right-2 w-6 h-6 bg-emerald-500 border-4 border-white dark:border-zinc-950 rounded-full shadow-sm z-10"></div>
-          </div>
-          <div className="flex-1 text-center md:text-left space-y-2">
-              <div className="inline-block px-3 py-1 bg-zinc-100 dark:bg-zinc-800 rounded-full text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Ficha do Usuario</div>
-
-              {/* --- EDIÇÃO DE NOME --- */}
-              {!isEditingName ? (
-                  <div className="flex items-center justify-center md:justify-start gap-3 group">
-                      <h1 className="text-4xl md:text-5xl font-black text-zinc-900 dark:text-white tracking-tight leading-none">
-                          {user.displayName || 'Usuário'}
-                      </h1>
-                      <button
-                          onClick={() => setIsEditingName(true)}
-                          className="p-2 text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-all bg-zinc-100 dark:bg-zinc-800 rounded-lg"
-                          title="Editar Nome"
-                      >
-                          <Edit2 size={18} />
-                      </button>
-                  </div>
+      <section className="mb-12" aria-labelledby="profile-cover-title">
+          <h2 id="profile-cover-title" className="sr-only">Capa e foto do perfil</h2>
+          <div
+              ref={coverFrameRef}
+              data-testid="profile-cover-banner"
+              className={`relative h-40 w-full overflow-hidden rounded-[1.75rem] bg-gradient-to-br from-zinc-800 via-zinc-900 to-red-950 shadow-xl shadow-zinc-950/10 touch-none select-none md:h-64 ${coverPreview ? (isDraggingCover ? 'cursor-grabbing' : 'cursor-grab') : ''}`}
+              aria-busy={coverLoading || Boolean(coverAction)}
+              onPointerDown={handleCoverPointerDown}
+              onPointerMove={handleCoverPointerMove}
+              onPointerUp={stopCoverDrag}
+              onPointerCancel={stopCoverDrag}
+              onLostPointerCapture={() => {
+                coverDragRef.current = null;
+                setIsDraggingCover(false);
+              }}
+          >
+              {coverLoading ? (
+                  <div className="absolute inset-0 animate-pulse bg-zinc-200 dark:bg-zinc-800" />
+              ) : coverPreview ? (
+                  <img
+                      ref={coverImageRef}
+                      src={coverPreview}
+                      alt="Capa do perfil"
+                      draggable="false"
+                      className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+                      style={{ objectPosition: coverPositionToStyle(coverPositionDraft) }}
+                  />
               ) : (
-                  <div className="flex items-center justify-center md:justify-start gap-2 animate-fade-in">
-                      <input
-                          type="text"
-                          value={newName}
-                          onChange={(e) => setNewName(e.target.value)}
-                          className="text-3xl md:text-4xl font-black bg-transparent border-b-2 border-indigo-500 text-zinc-900 dark:text-white outline-none w-full max-w-sm"
-                          autoFocus
-                      />
-                      <button onClick={handleUpdateName} disabled={nameLoading} className="p-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 shadow-md transition-colors">
-                          {nameLoading ? <Loader2 size={20} className="animate-spin" /> : <Check size={20} />}
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(220,38,38,0.38),transparent_48%)]" />
+              )}
+
+              {coverPreview && <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/5 via-transparent to-black/35" />}
+
+              <div data-cover-control className="absolute right-3 top-3 z-20 flex flex-col gap-2 sm:right-4 sm:top-4">
+                  <label
+                      className={`inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl bg-black/55 text-white shadow-lg backdrop-blur-md transition-colors hover:bg-black/75 ${coverAction || coverLoading ? 'pointer-events-none opacity-50' : ''}`}
+                      title={coverURL || coverFile ? 'Substituir capa' : 'Adicionar capa'}
+                      aria-label={coverURL || coverFile ? 'Substituir capa' : 'Adicionar capa'}
+                  >
+                      <Camera size={18}/>
+                      <input type="file" accept="image/*" onChange={handleCoverSelection} className="hidden" disabled={Boolean(coverAction) || coverLoading}/>
+                  </label>
+
+                  {!coverFile && coverURL && (
+                      <button
+                          type="button"
+                          onClick={handleRemoveCover}
+                          disabled={Boolean(coverAction)}
+                          className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-black/55 text-white shadow-lg backdrop-blur-md transition-colors hover:bg-red-600 disabled:opacity-50"
+                          title="Remover capa"
+                          aria-label="Remover capa"
+                      >
+                          {coverAction === 'removing' ? <Loader2 size={18} className="animate-spin"/> : <Trash2 size={18}/>}
                       </button>
-                      <button onClick={() => { setIsEditingName(false); setNewName(user.displayName); }} className="p-2.5 bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 rounded-lg hover:bg-zinc-300 transition-colors">
-                          <X size={20} />
-                      </button>
+                  )}
+              </div>
+
+              {coverPreview && !coverAction && (
+                  <div className="pointer-events-none absolute bottom-3 left-1/2 z-20 -translate-x-1/2 rounded-full bg-black/50 px-3 py-1.5 text-center text-[9px] font-black uppercase tracking-wider text-white/90 backdrop-blur-sm sm:text-[10px]">
+                      Arraste para reposicionar
                   </div>
               )}
 
-              <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400 flex items-center justify-center md:justify-start gap-2"><Mail size={14} className="text-red-600" /> {user.email}</p>
-              <AnimatePresence>{photo && (<motion.div initial={{opacity:0, y:10}} animate={{opacity:1, y:0}} exit={{opacity:0, y:10}} className="pt-2"><button onClick={handleUpdatePhoto} disabled={photoLoading} className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-xs shadow-lg shadow-red-900/20 flex items-center gap-2 transition-all mx-auto md:mx-0">{photoLoading ? <Loader2 size={14} className="animate-spin"/> : <Save size={14}/>} Confirmar Foto</button></motion.div>)}</AnimatePresence>
+              {coverAction && (
+                  <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/55 text-white backdrop-blur-sm">
+                      <Loader2 size={26} className="animate-spin"/>
+                      <span className="ml-3 text-xs font-black uppercase tracking-wider">{coverAction === 'removing' ? 'Removendo' : 'Salvando'}</span>
+                  </div>
+              )}
           </div>
-      </div>
+
+          <div className="relative z-10 -mt-12 px-4 sm:px-6 md:-mt-16">
+              <div className="flex flex-col items-center gap-5 md:flex-row md:items-start md:gap-8">
+                  <div className="relative group/avatar flex-shrink-0">
+                      <div className="w-32 h-32 md:w-40 md:h-40 rounded-full border-4 border-white dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-900 shadow-2xl overflow-hidden relative ring-4 ring-zinc-100 dark:ring-zinc-900/50">
+                          {photoPreview ? (<img src={photoPreview} alt="User" className="w-full h-full object-cover transition-transform duration-500 group-hover/avatar:scale-110" />) : (<div className="w-full h-full flex items-center justify-center text-zinc-400 bg-zinc-200 dark:bg-zinc-800"><User size={48}/></div>)}
+                          <label className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center text-white opacity-0 group-hover/avatar:opacity-100 transition-all cursor-pointer backdrop-blur-sm">
+                              <Camera size={24} className="mb-1" /><span className="text-[9px] font-bold uppercase tracking-widest">Editar</span><input type="file" accept="image/*" onChange={(e) => { if(e.target.files?.[0]) { setPhoto(e.target.files[0]); setPhotoPreview(URL.createObjectURL(e.target.files[0])); } }} className="hidden" />
+                          </label>
+                      </div>
+                      <div className="absolute bottom-2 right-2 w-6 h-6 bg-emerald-500 border-4 border-white dark:border-zinc-950 rounded-full shadow-sm z-10"></div>
+                  </div>
+
+                  <div className="flex-1 space-y-2 text-center md:pt-20 md:text-left">
+                      {!isEditingName ? (
+                          <div className="flex items-center justify-center md:justify-start gap-3 group">
+                              <h1 className="text-4xl md:text-5xl font-black text-zinc-900 dark:text-white tracking-tight leading-none">
+                                  {user.displayName || 'Usuário'}
+                              </h1>
+                              <button
+                                  onClick={() => setIsEditingName(true)}
+                                  className="p-2 text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-all bg-zinc-100 dark:bg-zinc-800 rounded-lg"
+                                  title="Editar Nome"
+                              >
+                                  <Edit2 size={18} />
+                              </button>
+                          </div>
+                      ) : (
+                          <div className="flex items-center justify-center md:justify-start gap-2 animate-fade-in">
+                              <input
+                                  type="text"
+                                  value={newName}
+                                  onChange={(e) => setNewName(e.target.value)}
+                                  className="text-3xl md:text-4xl font-black bg-transparent border-b-2 border-indigo-500 text-zinc-900 dark:text-white outline-none w-full max-w-sm"
+                                  autoFocus
+                              />
+                              <button onClick={handleUpdateName} disabled={nameLoading} className="p-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 shadow-md transition-colors">
+                                  {nameLoading ? <Loader2 size={20} className="animate-spin" /> : <Check size={20} />}
+                              </button>
+                              <button onClick={() => { setIsEditingName(false); setNewName(user.displayName); }} className="p-2.5 bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 rounded-lg hover:bg-zinc-300 transition-colors">
+                                  <X size={20} />
+                              </button>
+                          </div>
+                      )}
+
+                      <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400 flex items-center justify-center md:justify-start gap-2"><Mail size={14} className="text-red-600" /> {user.email}</p>
+                      <AnimatePresence>{photo && (<motion.div initial={{opacity:0, y:10}} animate={{opacity:1, y:0}} exit={{opacity:0, y:10}} className="pt-2"><button onClick={handleUpdatePhoto} disabled={photoLoading} className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-xs shadow-lg shadow-red-900/20 flex items-center gap-2 transition-all mx-auto md:mx-0">{photoLoading ? <Loader2 size={14} className="animate-spin"/> : <Save size={14}/>} Confirmar Foto</button></motion.div>)}</AnimatePresence>
+
+                      <AnimatePresence>
+                          {(coverFile || coverPositionDirty) && (
+                              <motion.div initial={{opacity:0, y:8}} animate={{opacity:1, y:0}} exit={{opacity:0, y:8}} className="flex flex-wrap items-center justify-center gap-2 pt-2 md:justify-start">
+                                  <button type="button" onClick={handleSaveCover} disabled={Boolean(coverAction)} className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-xs font-black text-white shadow-md shadow-red-900/20 transition-colors hover:bg-red-700 disabled:opacity-60">{coverAction === 'saving' ? <Loader2 size={15} className="animate-spin"/> : <Save size={15}/>} Salvar capa</button>
+                                  <button type="button" onClick={resetCoverDraft} disabled={Boolean(coverAction)} className="rounded-xl px-3 py-2.5 text-xs font-bold text-zinc-500 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800">Cancelar</button>
+                              </motion.div>
+                          )}
+                      </AnimatePresence>
+                  </div>
+              </div>
+          </div>
+      </section>
 
       <AnimatePresence>{message.text && (<motion.div initial={{opacity: 0, y: -20}} animate={{opacity: 1, y: 0}} exit={{opacity: 0}} className="fixed top-6 right-6 z-[100]"><div className={`px-4 py-3 rounded-xl border shadow-2xl flex items-center gap-3 backdrop-blur-md ${message.type === 'success' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 'bg-red-500/10 border-red-500/20 text-red-600 dark:text-red-400'}`}>{message.type === 'success' ? <CheckSquare size={18}/> : <AlertTriangle size={18}/>}<span className="font-bold text-sm">{message.text}</span><button onClick={() => setMessage({type:'', text:''})} className="ml-2 hover:opacity-50"><X size={14}/></button></div></motion.div>)}</AnimatePresence>
 

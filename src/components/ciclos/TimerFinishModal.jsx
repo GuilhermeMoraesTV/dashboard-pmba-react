@@ -240,7 +240,7 @@ const ComboBox = ({
   return (
     <div className="relative" ref={containerRef}>
       <div
-        className={`w-full flex items-center bg-white dark:bg-zinc-950 border rounded-xl transition-all
+        className={`w-full flex items-center bg-white dark:bg-card-dark border rounded-xl transition-all
           ${isOpen || focused ? 'border-red-500' : 'border-zinc-300 dark:border-zinc-700'}
           ${disabled ? 'opacity-60 cursor-not-allowed' : ''}
         `}
@@ -278,7 +278,7 @@ const ComboBox = ({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -5 }}
             transition={{ duration: 0.12 }}
-            className="fixed z-[100300] bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-2xl overflow-y-auto custom-scrollbar"
+            className="fixed z-[100300] bg-white dark:bg-card-dark border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-2xl overflow-y-auto custom-scrollbar"
             style={{ ...dropdownPosition, '--scrollbar-thumb': '#e4e4e7' }}
           >
             <div className="p-1">
@@ -1278,7 +1278,7 @@ function TimerFinishModal({
         exit={{ opacity: 0, scale: 0.96, y: 8 }}
         transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
         style={{ width: '100%', maxWidth: '720px', maxHeight: 'min(705px, calc(100dvh - 40px))' }}
-        className="group relative bg-[#e6e6e8] dark:bg-[#070707] rounded-[26px] shadow-[0_28px_90px_rgba(0,0,0,0.42)] border border-zinc-300/80 dark:border-zinc-800 overflow-hidden flex flex-col"
+        className="group relative bg-[#e6e6e8] dark:bg-card-dark rounded-[26px] shadow-[0_28px_90px_rgba(0,0,0,0.42)] border border-zinc-300/80 dark:border-zinc-800 overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="registro-flow-strip h-1 w-full shrink-0" />
@@ -1593,7 +1593,7 @@ function TimerFinishModal({
                                     max="365"
                                     value={topic.revisaoPersonalizadaDias ?? 14}
                                     onChange={(e) => updateTopicData(index, { revisaoPersonalizadaDias: Math.max(1, Number(e.target.value) || 1) })}
-                                    className="h-9 w-20 rounded-xl border border-zinc-200 bg-zinc-50 px-2 text-center font-black text-zinc-900 outline-none focus:border-red-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-white"
+                                    className="h-9 w-20 rounded-xl border border-zinc-200 bg-zinc-50 px-2 text-center font-black text-zinc-900 outline-none focus:border-red-500 dark:border-zinc-700 dark:bg-card-dark dark:text-white"
                                   />
                                   <span className="shrink-0 text-zinc-500">dia(s)</span>
                                 </label>
@@ -1606,7 +1606,7 @@ function TimerFinishModal({
                               onClick={() => updateTopicData(index, { markAsFinished: !topic.markAsFinished, teoriaNaoFinalizadaCiclo: false })}
                               className={`relative w-full min-h-[44px] overflow-hidden flex items-center gap-2.5 px-3 py-2 rounded-xl border cursor-pointer transition-all duration-300 text-left md:col-start-2 ${topic.markAsFinished ? 'bg-emerald-600 border-emerald-500 text-white shadow-sm' : 'bg-emerald-50/70 dark:bg-emerald-950/25 border-emerald-200 dark:border-emerald-800/60 hover:border-emerald-400 dark:hover:border-emerald-500 text-zinc-700 dark:text-zinc-300'}`}
                             >
-                              <div className={`relative w-7 h-7 md:h-6 md:w-6 rounded-lg border-2 flex items-center justify-center transition-all duration-300 shrink-0 ${topic.markAsFinished ? 'bg-white border-white text-emerald-600 scale-105 shadow-sm' : 'bg-white/70 dark:bg-zinc-950/70 border-emerald-400 dark:border-emerald-600 text-emerald-500'}`}>
+                              <div className={`relative w-7 h-7 md:h-6 md:w-6 rounded-lg border-2 flex items-center justify-center transition-all duration-300 shrink-0 ${topic.markAsFinished ? 'bg-white border-white text-emerald-600 scale-105 shadow-sm' : 'bg-white/70 dark:bg-card-dark/70 border-emerald-400 dark:border-emerald-600 text-emerald-500'}`}>
                                 {topic.markAsFinished ? <CheckSquare size={15} strokeWidth={3} /> : <CheckCircle2 size={15} strokeWidth={3} />}
                               </div>
                               <div className="relative min-w-0">
@@ -1709,7 +1709,7 @@ function TimerFinishModal({
                 </div>
               )}
 
-              <div className="sticky bottom-0 bg-[#dedee1]/96 dark:bg-[#080808]/96 border-t border-zinc-300/80 dark:border-zinc-800 -mx-4 -mb-3 mt-3 p-3 md:p-3 shrink-0 z-50 flex items-center gap-3 backdrop-blur">
+              <div className="sticky bottom-0 bg-[#dedee1]/96 dark:bg-card-dark/96 border-t border-zinc-300/80 dark:border-zinc-800 -mx-4 -mb-3 mt-3 p-3 md:p-3 shrink-0 z-50 flex items-center gap-3 backdrop-blur">
                 <button
                   type="button"
                   onClick={() => {

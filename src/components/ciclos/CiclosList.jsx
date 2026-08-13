@@ -22,17 +22,15 @@ import {
 import {
   collection,
   doc,
-  getDocs,
   onSnapshot,
   query,
   updateDoc,
-  where,
   writeBatch,
 } from 'firebase/firestore';
 
 import { db } from '../../firebaseConfig';
-import { CATALOGO_EDITAIS } from '../../pages/AdminPage/EditaisManager';
-import { buildEditaisMap, resolveLogoUrl } from '../admin/config/editalAssets';
+import { resolveLogoUrl } from '../admin/config/editalAssets';
+import { useEditaisCatalog } from '../../hooks/useEditaisCatalog';
 import EmptyStateCard from '../shared/EmptyStateCard';
 import CicloCreateWizard from './CicloCreateWizard/CicloCreateWizard';
 import CicloEditModal from './CicloEditModal';
@@ -71,9 +69,9 @@ const ModalConfirmacao = ({ item, title, description, icon: Icon, tone = 'red', 
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" onClick={onClose}>
-      <div className="w-full max-w-md overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-950" onClick={(event) => event.stopPropagation()}>
+      <div className="w-full max-w-md overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-card-dark" onClick={(event) => event.stopPropagation()}>
         <div className={`${toneClass} flex flex-col items-center border-b p-6`}>
-          <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-white/50 dark:bg-black/20">
+          <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-white/50 dark:bg-zinc-800/55">
             <Icon size={32} />
           </div>
           <h2 className="text-xl font-black uppercase tracking-tight text-zinc-900 dark:text-white">{title}</h2>
@@ -121,10 +119,11 @@ const CicloCard = ({ ciclo, editaisMap, registrosEstudo = [], onOpen, onMenuTogg
   const canOpen = typeof onOpen === 'function' && ciclo.ativo;
   const dataInicio = ciclo.dataInicio || ciclo.inicio || ciclo.dataCriacao || ciclo.criadoEm;
   const dataFim = ciclo.dataFim || ciclo.termino || ciclo.dataProva || ciclo.dataFinal;
+  const terminoLabel = dataFim ? formatDate(dataFim) : 'Em aberto';
   const cargaSemanal = Number(ciclo.cargaHorariaSemanalTotal || ciclo.cargaHorariaSemanal || ciclo.horasSemanais || ciclo.horasTotais || 0);
 
   return (
-    <div onClick={() => canOpen && onOpen(ciclo.id, ciclo)} className={`group relative flex h-full min-h-[170px] flex-col justify-between overflow-hidden rounded-2xl border border-zinc-200 bg-white p-4 transition-all duration-500 hover:-translate-y-1 hover:shadow-2xl dark:border-zinc-800 dark:bg-zinc-900/50 sm:min-h-[220px] sm:p-5 ${canOpen ? 'cursor-pointer' : 'cursor-default'}`}>
+    <div onClick={() => canOpen && onOpen(ciclo.id, ciclo)} className={`group relative flex h-full min-h-[170px] flex-col justify-between overflow-hidden rounded-2xl border border-zinc-200 bg-white p-4 transition-all duration-500 hover:-translate-y-1 hover:shadow-2xl dark:border-zinc-800 dark:bg-card-dark sm:min-h-[220px] sm:p-5 ${canOpen ? 'cursor-pointer' : 'cursor-default'}`}>
       <div className="absolute bottom-0 top-0 left-0 z-20 w-1 bg-transparent transition-colors duration-300 group-hover:bg-red-500" />
 
       {logo ? (
@@ -154,7 +153,7 @@ const CicloCard = ({ ciclo, editaisMap, registrosEstudo = [], onOpen, onMenuTogg
             </button>
             <AnimatePresence>
               {isMenuOpen && (
-                <motion.div initial={{ opacity: 0, y: 5, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} onClick={(event) => event.stopPropagation()} className="absolute right-0 top-8 z-50 w-44 overflow-hidden rounded-xl border border-zinc-200 bg-white py-1 shadow-xl ring-1 ring-black/5 dark:border-zinc-800 dark:bg-zinc-950 sm:w-52">
+                <motion.div initial={{ opacity: 0, y: 5, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} onClick={(event) => event.stopPropagation()} className="absolute right-0 top-8 z-50 w-44 overflow-hidden rounded-xl border border-zinc-200 bg-white py-1 shadow-xl ring-1 ring-black/5 dark:border-zinc-800 dark:bg-card-dark sm:w-52">
                   {ciclo.ativo && <button type="button" onClick={(event) => onAction(event, 'desativar', ciclo)} className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-zinc-500 transition-colors hover:bg-zinc-50 dark:text-zinc-400 dark:hover:bg-zinc-800/60"><PauseCircle size={14} /> Desativar</button>}
                   <button type="button" onClick={(event) => onAction(event, 'arquivar', ciclo)} className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-zinc-500 transition-colors hover:bg-zinc-50 dark:text-zinc-400 dark:hover:bg-zinc-800/60"><Archive size={14} /> Arquivar</button>
                   <div className="my-1 h-px bg-zinc-100 dark:bg-zinc-800" />
@@ -169,21 +168,21 @@ const CicloCard = ({ ciclo, editaisMap, registrosEstudo = [], onOpen, onMenuTogg
           <h3 className="mb-2 line-clamp-2 text-lg font-black leading-tight text-zinc-900 transition-colors group-hover:text-red-600 dark:text-white dark:group-hover:text-red-500 sm:text-xl md:text-2xl">{ciclo.nome || 'Ciclo sem nome'}</h3>
           <div className="mb-4 hidden h-1 w-8 rounded-full bg-red-500 transition-all duration-500 group-hover:w-16 sm:block" />
           <div className="mb-3 grid grid-cols-2 gap-1.5 sm:mb-4 sm:gap-2">
-            <div className="flex min-w-0 items-center gap-1.5 rounded-lg border border-zinc-200/70 bg-zinc-50/80 px-2 py-1.5 text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-400">
+            <div className="flex min-w-0 items-center gap-1.5 rounded-lg border border-zinc-200/70 bg-zinc-50/80 px-2 py-1.5 text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800/55 dark:text-zinc-300">
               <CalendarClock size={14} className="shrink-0 text-red-500/70" />
-              <span className="min-w-0 truncate text-[11px] font-bold sm:text-xs">Inicio: {formatDate(dataInicio)}</span>
+              <span className="min-w-0 text-[10px] font-bold sm:text-xs">INÍCIO: {formatDate(dataInicio)}</span>
             </div>
-            <div className="flex min-w-0 items-center gap-1.5 rounded-lg border border-zinc-200/70 bg-zinc-50/80 px-2 py-1.5 text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-400">
+            <div className="flex min-w-0 items-center gap-1.5 rounded-lg border border-zinc-200/70 bg-zinc-50/80 px-2 py-1.5 text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800/55 dark:text-zinc-300">
               <Target size={14} className="shrink-0 text-red-500/70" />
-              <span className="min-w-0 truncate text-[11px] font-bold sm:text-xs">Termino: {formatDate(dataFim)}</span>
+              <span className="min-w-0 whitespace-nowrap text-[10px] font-bold sm:text-xs">TÉRMINO: {terminoLabel}</span>
             </div>
-            <div className="flex min-w-0 items-center gap-1.5 rounded-lg border border-zinc-200/70 bg-zinc-50/80 px-2 py-1.5 text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-400">
+            <div className="flex min-w-0 items-center gap-1.5 rounded-lg border border-zinc-200/70 bg-zinc-50/80 px-2 py-1.5 text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800/55 dark:text-zinc-300">
               <Clock size={14} className="shrink-0 text-red-500/70" />
-              <span className="min-w-0 truncate text-[11px] font-bold sm:text-xs">{formatHours(totalHoras)} estudadas</span>
+              <span className="min-w-0 text-[10px] font-bold sm:text-xs">TEMPO TOTAL: {formatHours(totalHoras)}</span>
             </div>
-            <div className="flex min-w-0 items-center gap-1.5 rounded-lg border border-zinc-200/70 bg-zinc-50/80 px-2 py-1.5 text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-400">
+            <div className="flex min-w-0 items-center gap-1.5 rounded-lg border border-zinc-200/70 bg-zinc-50/80 px-2 py-1.5 text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800/55 dark:text-zinc-300">
               <Calendar size={14} className="shrink-0 text-red-500/70" />
-              <span className="min-w-0 truncate text-[11px] font-bold sm:text-xs">{formatHours(cargaSemanal)}/sem</span>
+              <span className="min-w-0 text-[10px] font-bold sm:text-xs">CARGA SEMANAL: {formatHours(cargaSemanal)}</span>
             </div>
           </div>
 
@@ -242,7 +241,7 @@ export default function CiclosList({
   const [timerWarning, setTimerWarning] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [actionError, setActionError] = useState('');
-  const [editaisMap, setEditaisMap] = useState(() => buildEditaisMap(CATALOGO_EDITAIS));
+  const editaisMap = useEditaisCatalog();
 
   const { ativarCiclo, desativarCiclo, loading: actionLoading, error } = useCiclos(user);
   const canUseInlineCreate = typeof onRequestCreate !== 'function';
@@ -264,32 +263,21 @@ export default function CiclosList({
 
     setLoadingList(true);
     const ciclosRef = collection(db, 'users', user.uid, 'ciclos');
-    return onSnapshot(query(ciclosRef), (snapshot) => {
+    return onSnapshot(query(ciclosRef), { includeMetadataChanges: true }, (snapshot) => {
       const list = snapshot.docs
         .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
         .filter((ciclo) => !ciclo.arquivado)
         .sort((a, b) => getTs(b) - getTs(a));
       setCiclos(list);
-      setLoadingList(false);
+      const awaitingServerConfirmation = snapshot.metadata.fromCache
+        && list.length === 0
+        && navigator.onLine;
+      if (!awaitingServerConfirmation) setLoadingList(false);
     }, (err) => {
       console.error('Erro ao buscar ciclos:', err);
       setLoadingList(false);
     });
   }, [user?.uid]);
-
-  useEffect(() => onSnapshot(collection(db, 'editais_templates'), (snapshot) => {
-    const merged = new Map(CATALOGO_EDITAIS.map((item) => [String(item.id), item]));
-    snapshot.docs.forEach((docSnap) => {
-      const stored = { id: docSnap.id, ...docSnap.data() };
-      const local = merged.get(String(docSnap.id));
-      merged.set(String(docSnap.id), {
-        ...local,
-        ...stored,
-        logoUrl: stored.logoUrl || stored.logo || local?.logoUrl || local?.logo || null,
-      });
-    });
-    setEditaisMap(buildEditaisMap([...merged.values()]));
-  }, () => setEditaisMap(buildEditaisMap(CATALOGO_EDITAIS))), []);
 
   const sortedCiclos = useMemo(() => [...ciclos].sort((a, b) => {
     if (a.ativo && !b.ativo) return -1;
@@ -393,7 +381,7 @@ export default function CiclosList({
       <AnimatePresence>
         {timerWarning && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" onClick={() => setTimerWarning(false)}>
-            <div className="w-full max-w-md overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-950" onClick={(event) => event.stopPropagation()}>
+            <div className="w-full max-w-md overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-card-dark" onClick={(event) => event.stopPropagation()}>
               <div className="flex flex-col items-center border-b border-amber-500/20 bg-amber-500/10 p-6">
                 <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-amber-500/20 text-amber-600"><AlertOctagon size={32} /></div>
                 <h2 className="text-xl font-black uppercase tracking-tight text-zinc-900 dark:text-white">Cronometro ativo</h2>

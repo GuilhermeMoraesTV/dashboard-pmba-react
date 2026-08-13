@@ -33,6 +33,10 @@ import {
   FieldPath,
 } from 'firebase/firestore';
 import { deletePlanStudyRecords } from '../services/planDeletion';
+import {
+  buildCronogramaPostponement,
+  getCronogramaPostponementRestorePayload,
+} from '../utils/cronogramaPostponement';
 
 import {
   getAgendaSemana as _getAgendaSemana,
@@ -51,19 +55,6 @@ export function chaveAssuntoDominado(disciplinaId, assunto) {
 }
 
 const getPendenciaDisciplinaKey = (disciplinaId) => String(disciplinaId || '').trim();
-
-const parseCronogramaStartDate = (value) => {
-  if (!value) return null;
-  if (value?.toDate) return value.toDate();
-  if (value?.seconds) return new Date(value.seconds * 1000);
-  if (value instanceof Date) return new Date(value);
-  if (typeof value === 'string') {
-    const parsed = /^\d{4}-\d{2}-\d{2}$/.test(value) ? parseDateOnlyLocal(value) : new Date(value);
-    return Number.isNaN(parsed?.getTime?.()) ? null : parsed;
-  }
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-};
 
 const updateDocFieldEntries = async (docRef, entries = []) => {
   const args = entries.flatMap(([segments, value]) => [
@@ -447,26 +438,39 @@ export const useCronogramaSystem = (user) => {
   /**
    * Adia o início do cronograma em 1 semana.
    */
-  const adiarCronograma = async (cronogramaId, cronogramaAtual) => {
+  const adiarCronograma = async (cronogramaId, cronogramaAtual, days = 7) => {
     if (!cronogramaId || !cronogramaAtual?.dataInicio) return false;
     setLoading(true);
     try {
-      const dataAtual = parseCronogramaStartDate(cronogramaAtual.dataInicio);
-      if (!dataAtual) throw new Error('Data de inicio invalida');
-      dataAtual.setDate(dataAtual.getDate() + 7);
-      const novaDataInicio = formatDateKeyLocal(dataAtual);
-      const atualizacao = {
-        dataInicio: novaDataInicio,
-      };
-      const dataFimAtual = parseCronogramaStartDate(cronogramaAtual.dataFim);
-      if (dataFimAtual) {
-        dataFimAtual.setDate(dataFimAtual.getDate() + 7);
-        atualizacao.dataFim = formatDateKeyLocal(dataFimAtual);
-      }
-      await updateDoc(doc(db, 'users', user.uid, 'cronogramas', cronogramaId), atualizacao);
-      return true;
+      const postponement = buildCronogramaPostponement(cronogramaAtual, days);
+      await updateDoc(
+        doc(db, 'users', user.uid, 'cronogramas', cronogramaId),
+        postponement.nextDates
+      );
+      return { cronogramaId, ...postponement };
     } catch (e) {
       console.error('Erro ao adiar cronograma:', e);
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /**
+   * Restaura todas as datas modificadas pelo ultimo adiamento.
+   */
+  const desfazerAdiamentoCronograma = async (postponement) => {
+    if (!postponement?.cronogramaId) return false;
+    setLoading(true);
+    try {
+      const restorePayload = getCronogramaPostponementRestorePayload(postponement);
+      await updateDoc(
+        doc(db, 'users', user.uid, 'cronogramas', postponement.cronogramaId),
+        restorePayload
+      );
+      return true;
+    } catch (e) {
+      console.error('Erro ao desfazer adiamento do cronograma:', e);
       return false;
     } finally {
       setLoading(false);
@@ -635,6 +639,7 @@ export const useCronogramaSystem = (user) => {
     ativarCronograma,
     desativarCronograma,
     adiarCronograma,
+    desfazerAdiamentoCronograma,
     salvarCronogramaUnificado,
     atualizarCronogramaUnificado,
     editarCronograma,

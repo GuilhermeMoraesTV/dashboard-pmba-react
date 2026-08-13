@@ -8,12 +8,11 @@
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="/logoModoQAP.png" />
   <link rel="apple-touch-icon" href="/logoModoQAP.png" />
-
   <!-- Preconnect para Performance -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 
-  <!-- Google Fonts - Inter (mais militar e moderno) -->
+  <!-- Fonte principal do sistema -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
 
   <!-- Theme Color - Dark Militar -->
@@ -21,7 +20,7 @@
   <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#000000" />
 
   <!-- PWA Support -->
-  <link rel="manifest" href="/manifest.json" />
+  <link rel="manifest" href="/manifest.webmanifest" />
 
   <title>ModoQAP</title>
 
@@ -99,6 +98,11 @@
       pointer-events: none;
     }
 
+    #loading-screen::before,
+    #loading-screen::after {
+      display: none;
+    }
+
     .loading-container {
       position: relative;
       z-index: 10;
@@ -110,11 +114,10 @@
 
     /* Logo com efeito militar */
     .loading-logo {
-      width: 140px;
-      height: 140px;
-      margin-bottom: 40px;
+      width: 118px;
+      height: 118px;
       filter: drop-shadow(0 0 30px rgba(220, 38, 38, 0.4));
-      animation: logoEntrance 1s ease-out, logoPulse 3s ease-in-out infinite 1s;
+      animation: logoPulse 1.8s ease-in-out infinite;
     }
 
     @keyframes logoEntrance {
@@ -335,8 +338,8 @@
       }
 
       .loading-logo {
-        width: 250px;
-        height: 250px;
+        width: 104px;
+        height: 104px;
       }
 
       .loading-subtitle {
@@ -415,29 +418,8 @@
 <body>
 <!-- Loading Screen -->
 <div id="loading-screen">
-  <!-- Cantos decorativos -->
-  <div class="corner-decoration top-left"></div>
-  <div class="corner-decoration top-right"></div>
-  <div class="corner-decoration bottom-left"></div>
-  <div class="corner-decoration bottom-right"></div>
-
-  <!-- Container principal -->
   <div class="loading-container">
     <img src="/logoModoQAP.png" alt="Logo ModoQAP" class="loading-logo" />
-
-    <div class="loading-spinner-container">
-      <div class="loading-spinner"></div>
-      <div class="loading-spinner-inner"></div>
-    </div>
-
-    <p class="loading-text">
-      Carregando<span class="loading-dots"><span>.</span><span>.</span><span>.</span></span>
-    </p>
-  </div>
-
-  <!-- Barra de progresso -->
-  <div class="loading-progress">
-    <div class="loading-progress-bar"></div>
   </div>
 </div>
 
@@ -446,22 +428,20 @@
 
 <!-- Loading Script -->
 <script>
-  // Remove loading screen when app is ready
-  window.addEventListener('load', function() {
+  window.__dismissModoQapLoading = function() {
     const loadingScreen = document.getElementById('loading-screen');
     const root = document.getElementById('root');
+    if (!loadingScreen || loadingScreen.dataset.dismissed === 'true') return;
 
-    // Tempo mínimo de exibição para melhor UX
+    loadingScreen.dataset.dismissed = 'true';
+    loadingScreen.classList.add('fade-out');
+    root.classList.add('loaded');
+
     setTimeout(function() {
-      loadingScreen.classList.add('fade-out');
-      root.classList.add('loaded');
-
-      setTimeout(function() {
-        loadingScreen.style.display = 'none';
-        document.body.style.overflow = 'auto';
-      }, 500);
-    }, 1500); // Aumentado para 1.5s para mostrar as animações
-  });
+      loadingScreen.remove();
+      document.body.style.overflow = 'auto';
+    }, 500);
+  };
 
 
 

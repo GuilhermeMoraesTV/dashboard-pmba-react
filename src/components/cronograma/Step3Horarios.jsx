@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Clock, Target, Coffee, Zap, AlertCircle, Trash2, Moon, Flame, Check, Wand2, SlidersHorizontal } from 'lucide-react';
 
@@ -24,11 +24,17 @@ const formatHorasTexto = (val) => {
 };
 
 const minutesToHourParts = (minutes) => {
-  const rounded = Math.round(Math.max(0, Number(minutes) || 0) / 10) * 10;
+  const rounded = Math.round(Math.max(0, Number(minutes) || 0) / 5) * 5;
   return {
     horas: Math.floor(rounded / 60),
     minutos: rounded % 60,
   };
+};
+
+const formatMinutosTexto = (minutes) => {
+  const { horas, minutos } = minutesToHourParts(minutes);
+  if (horas === 0) return `${minutos}min`;
+  return minutos > 0 ? `${horas}h ${minutos}min` : `${horas}h`;
 };
 
 // ─── CARTÃO DE DIA (COMPACTO) ─────────────────────────────────────────────────
@@ -207,6 +213,22 @@ const Step3_Horarios = ({ horarios, onHorariosChange, editalSelecionado, config 
   const podeEscolherModo = typeof onConfigChange === 'function' && config?.mostrarModoMontagem !== false;
   const duracaoMinima = Math.max(5, Number(config?.duracaoMinimaSessaoMinutos) || 30);
   const duracaoMaxima = Math.max(duracaoMinima, Number(config?.duracaoMaximaSessaoMinutos) || 60);
+  const usarDuracaoUnica = config?.usarDuracaoUnica === true;
+  const duracaoUnica = Math.max(5, Number(config?.tempoSessaoMinutos) || duracaoMaxima);
+  const maxDuracaoUnica = Math.max(5, Number(config?.maxDuracaoSessaoMinutos) || 240);
+  const duracaoUnicaLimitada = Math.min(duracaoUnica, maxDuracaoUnica);
+  const duracaoUnicaPartes = minutesToHourParts(duracaoUnicaLimitada);
+  const [duracaoUnicaDraft, setDuracaoUnicaDraft] = useState(() => ({
+    horas: String(duracaoUnicaPartes.horas),
+    minutos: String(duracaoUnicaPartes.minutos),
+  }));
+
+  useEffect(() => {
+    setDuracaoUnicaDraft({
+      horas: String(duracaoUnicaPartes.horas),
+      minutos: String(duracaoUnicaPartes.minutos),
+    });
+  }, [duracaoUnicaPartes.horas, duracaoUnicaPartes.minutos]);
 
   const totalHoras = useMemo(
     () => Object.values(horarios).reduce((a, h) => a + (parseFloat(h) || 0), 0),
@@ -258,6 +280,26 @@ const Step3_Horarios = ({ horarios, onHorariosChange, editalSelecionado, config 
       [part]: part === 'horas' ? Math.min(4, numeric) : Math.min(50, Math.floor(numeric / 10) * 10),
     };
     handleDuracaoChange(field, (nextParts.horas * 60) + nextParts.minutos);
+  };
+
+  const handleDuracaoUnicaChange = (rawValue) => {
+    if (typeof onConfigChange !== 'function') return;
+    const value = Math.max(5, Math.min(maxDuracaoUnica, Math.round(Number(rawValue) || 0)));
+    onConfigChange({ ...(config || {}), tempoSessaoMinutos: value });
+  };
+
+  const handleDuracaoUnicaDraftChange = (part, rawValue) => {
+    if (!/^\d*$/.test(rawValue)) return;
+    setDuracaoUnicaDraft((current) => ({ ...current, [part]: rawValue }));
+  };
+
+  const commitDuracaoUnicaDraft = () => {
+    const horas = Math.max(0, Math.round(Number(duracaoUnicaDraft.horas) || 0));
+    const minutos = Math.max(0, Math.min(59, Math.round(Number(duracaoUnicaDraft.minutos) || 0)));
+    const total = Math.max(5, Math.min(maxDuracaoUnica, (horas * 60) + minutos));
+    const normalized = minutesToHourParts(total);
+    setDuracaoUnicaDraft({ horas: String(normalized.horas), minutos: String(normalized.minutos) });
+    handleDuracaoUnicaChange(total);
   };
 
   return (
@@ -315,7 +357,7 @@ const Step3_Horarios = ({ horarios, onHorariosChange, editalSelecionado, config 
                       className={`flex items-center gap-3 rounded-xl border px-3 py-3 text-left transition-all ${
                         active
                           ? 'border-red-300 bg-red-50/70 text-red-700 shadow-sm dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-300'
-                          : 'border-zinc-200 bg-zinc-50 text-zinc-600 hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300 dark:hover:border-zinc-700'
+                          : 'border-zinc-200 bg-zinc-50 text-zinc-600 hover:border-zinc-300 dark:border-zinc-800 dark:bg-card-dark dark:text-zinc-300 dark:hover:border-zinc-700'
                       }`}
                     >
                       <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
@@ -339,6 +381,65 @@ const Step3_Horarios = ({ horarios, onHorariosChange, editalSelecionado, config 
             </div>
           )}
 
+          {usarDuracaoUnica ? (
+            <div className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-red-100 bg-gradient-to-br from-white via-white to-red-50/70 p-3 shadow-sm shadow-red-950/5 dark:border-red-950/50 dark:from-zinc-900 dark:via-zinc-900 dark:to-red-950/20 sm:p-4">
+              <div aria-hidden="true" className="absolute -right-8 -top-10 h-24 w-24 rounded-full bg-red-500/10 blur-2xl" />
+              <div className="relative flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-600 text-white shadow-md shadow-red-600/20">
+                    <Clock size={17} strokeWidth={2.5} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-black leading-snug text-zinc-900 dark:text-white sm:text-sm">
+                      Quanto tempo você gostaria de estudar por bloco?
+                    </p>
+                    <p className="mt-0.5 text-[9px] font-bold text-zinc-500 dark:text-zinc-400 sm:text-[10px]">
+                      Máximo de {formatMinutosTexto(maxDuracaoUnica)} conforme sua carga diária.
+                    </p>
+                  </div>
+                </div>
+                <div className="grid w-full shrink-0 grid-cols-2 gap-2 sm:w-[190px]">
+                  <label className="rounded-xl border border-zinc-200 bg-white px-2.5 py-1.5 shadow-sm transition-colors focus-within:border-red-400 focus-within:ring-2 focus-within:ring-red-500/10 dark:border-zinc-700 dark:bg-card-dark">
+                    <span className="block text-[8px] font-black uppercase tracking-widest text-zinc-400">Horas</span>
+                    <span className="flex items-baseline gap-1">
+                      <input
+                        id="cycle-block-duration"
+                        type="number"
+                        min="0"
+                        max={Math.floor(maxDuracaoUnica / 60)}
+                        step="1"
+                        value={duracaoUnicaDraft.horas}
+                        onChange={(event) => handleDuracaoUnicaDraftChange('horas', event.target.value)}
+                        onBlur={commitDuracaoUnicaDraft}
+                        onKeyDown={(event) => event.key === 'Enter' && event.currentTarget.blur()}
+                        aria-label="Tempo de estudo por bloco em horas"
+                        className="duration-number-input w-full min-w-0 bg-transparent text-center text-lg font-black tabular-nums text-zinc-900 outline-none dark:text-white"
+                      />
+                      <span className="text-[10px] font-black text-zinc-400">h</span>
+                    </span>
+                  </label>
+                  <label className="rounded-xl border border-zinc-200 bg-white px-2.5 py-1.5 shadow-sm transition-colors focus-within:border-red-400 focus-within:ring-2 focus-within:ring-red-500/10 dark:border-zinc-700 dark:bg-card-dark">
+                    <span className="block text-[8px] font-black uppercase tracking-widest text-zinc-400">Minutos</span>
+                    <span className="flex items-baseline gap-1">
+                      <input
+                        type="number"
+                        min="0"
+                        max="59"
+                        step="5"
+                        value={duracaoUnicaDraft.minutos}
+                        onChange={(event) => handleDuracaoUnicaDraftChange('minutos', event.target.value)}
+                        onBlur={commitDuracaoUnicaDraft}
+                        onKeyDown={(event) => event.key === 'Enter' && event.currentTarget.blur()}
+                        aria-label="Tempo de estudo por bloco em minutos"
+                        className="duration-number-input w-full min-w-0 bg-transparent text-center text-lg font-black tabular-nums text-zinc-900 outline-none dark:text-white"
+                      />
+                      <span className="text-[10px] font-black text-zinc-400">min</span>
+                    </span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          ) : (
           <div>
             <div className="mb-2">
               <p className="text-xs font-black uppercase tracking-widest text-zinc-700 dark:text-zinc-200">Duração dos blocos de estudo</p>
@@ -351,7 +452,7 @@ const Step3_Horarios = ({ horarios, onHorariosChange, editalSelecionado, config 
               ].map((item) => {
                 const parts = minutesToHourParts(item.value);
                 return (
-                  <div key={item.field} className="flex min-w-0 flex-col gap-1.5 rounded-lg bg-zinc-50 px-1.5 py-2 dark:bg-zinc-950 sm:px-2.5">
+                  <div key={item.field} className="flex min-w-0 flex-col gap-1.5 rounded-lg bg-zinc-50 px-1.5 py-2 dark:bg-card-dark sm:px-2.5">
                     <span className="text-center text-[9px] font-black uppercase tracking-wide text-zinc-500 dark:text-zinc-400 sm:text-[10px]">Duração {item.label.toLowerCase()}</span>
                     <div className="grid min-w-0 grid-cols-2 gap-1 sm:gap-1.5">
                       <label className="flex min-w-0 items-center gap-0.5 rounded-md border border-zinc-200 bg-white px-1 py-1 dark:border-zinc-800 dark:bg-zinc-900 sm:px-2">
@@ -389,6 +490,7 @@ const Step3_Horarios = ({ horarios, onHorariosChange, editalSelecionado, config 
               </p>
             </div>
           </div>
+          )}
 
           <div className="flex items-end justify-between gap-3">
             <div>
@@ -405,7 +507,7 @@ const Step3_Horarios = ({ horarios, onHorariosChange, editalSelecionado, config 
             </button>
           </div>
 
-          <div className="grid grid-cols-2 items-start gap-2 sm:grid-cols-3 xl:grid-cols-4">
+          <div className="grid grid-cols-2 items-start gap-2 sm:grid-cols-3">
             {DIAS.map((dia) => (
               <DiaCard
                 key={dia.idx}

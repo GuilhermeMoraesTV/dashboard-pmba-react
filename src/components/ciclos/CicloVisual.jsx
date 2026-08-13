@@ -125,7 +125,7 @@ const centerButtonStyle = (width) => ({
 const CicloSegment = ({
   startAngle,
   angle,
-  radius,
+  radius = 42.5,
   color,
   disciplina,
   progressPercentage,
@@ -336,7 +336,7 @@ const CycleResetAnimation = ({ conclusoes = 0 }) => (
     className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center"
   >
     <motion.div
-      className="absolute inset-0 rounded-full bg-white/75 backdrop-blur-[2px] dark:bg-zinc-950/70"
+      className="absolute inset-0 rounded-full bg-white/75 backdrop-blur-[2px] dark:bg-card-dark/70"
       initial={{ opacity: 0 }}
       animate={{ opacity: [0, 0.92, 0.86] }}
       exit={{ opacity: 0 }}
@@ -381,7 +381,7 @@ const CycleResetAnimation = ({ conclusoes = 0 }) => (
       animate={{ scale: [0.78, 1.04, 1], y: [12, -4, 0], opacity: 1 }}
       exit={{ scale: 0.92, opacity: 0 }}
       transition={{ type: 'spring', stiffness: 240, damping: 18 }}
-      className="relative flex h-36 w-36 flex-col items-center justify-center rounded-full border border-emerald-200 bg-white text-center shadow-2xl shadow-emerald-500/25 dark:border-emerald-900/50 dark:bg-zinc-950"
+      className="relative flex h-36 w-36 flex-col items-center justify-center rounded-full border border-emerald-200 bg-white text-center shadow-2xl shadow-emerald-500/25 dark:border-emerald-900/50 dark:bg-card-dark"
     >
       <motion.div
         className="absolute inset-2 rounded-full border-4 border-emerald-500"
@@ -410,7 +410,7 @@ const CycleResetAnimation = ({ conclusoes = 0 }) => (
 
 export function CicloViewToggle({ value = 'completo', onChange, className = '' }) {
   return (
-    <div className={`flex items-center justify-center gap-1 rounded-full bg-white/75 p-0.5 shadow-sm ring-1 ring-zinc-200/70 backdrop-blur-md dark:bg-zinc-950/60 dark:ring-zinc-800/70 ${className}`}>
+    <div className={`flex items-center justify-center gap-1 rounded-full bg-white/75 p-0.5 shadow-sm ring-1 ring-zinc-200/70 backdrop-blur-md dark:bg-card-dark/60 dark:ring-zinc-800/70 ${className}`}>
       <button
         type="button"
         onClick={() => onChange?.('completo')}
@@ -770,7 +770,7 @@ function CicloVisual({
               {disciplinaFocada && viewCiclo === 'disciplina' && (
                 <button
                   onClick={() => { setDisciplinaFocada(null); onSelectDisciplina(null); }}
-                  className="mt-1 flex items-center gap-1 rounded-full bg-white/80 px-2 py-0.5 text-[8px] font-bold text-zinc-500 shadow-sm ring-1 ring-zinc-200/70 transition-colors hover:text-zinc-800 dark:bg-zinc-950/60 dark:ring-zinc-800/70 dark:hover:text-white"
+                  className="mt-1 flex items-center gap-1 rounded-full bg-white/80 px-2 py-0.5 text-[8px] font-bold text-zinc-500 shadow-sm ring-1 ring-zinc-200/70 transition-colors hover:text-zinc-800 dark:bg-card-dark/60 dark:ring-zinc-800/70 dark:hover:text-white"
                 >
                   ← Voltar às disciplinas
                 </button>
@@ -788,8 +788,8 @@ function CicloVisual({
                 return (
                   <CicloSegment
                     key={key}
-                    radius={42.5}
                     {...props}
+                    radius={42.5}
                     progressPercentage={seg.percentage}
                     concluida={!!seg.concluida}
                     isActive={activeDisciplina?.key === seg.key}
@@ -815,21 +815,23 @@ function CicloVisual({
                   >
                     {/* Fundo verde translúcido no centro */}
                     <motion.circle
-                      cx="50" cy="50" r="29"
+                      cx="50" cy="50" r={29}
                       fill={CICLO_CONCLUIDO_COLOR}
-                      initial={{ opacity: 0, r: 0 }}
-                      animate={{ opacity: 0.12, r: 29 }}
+                      initial={{ opacity: 0, scale: 0 }}
+                      animate={{ opacity: 0.12, scale: 1 }}
                       transition={{ duration: 0.6, ease: 'easeOut' }}
+                      style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
                     />
                     {/* Anel pulsante externo */}
                     <motion.circle
-                      cx="50" cy="50" r="29"
+                      cx="50" cy="50" r={29}
                       fill="none"
                       stroke={CICLO_CONCLUIDO_COLOR}
                       strokeWidth="0.5"
                       strokeOpacity={0.4}
-                      animate={{ r: [29, 31, 29], opacity: [0.4, 0.1, 0.4] }}
+                      animate={{ scale: [1, 1.07, 1], opacity: [0.4, 0.1, 0.4] }}
                       transition={{ repeat: Infinity, duration: 2.5, ease: 'easeInOut' }}
+                      style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
                     />
                     <CicloConcluídoCenter
                       onConcluir={onConcluirCiclo}
@@ -840,7 +842,7 @@ function CicloVisual({
                 ) : (
                   <foreignObject key="center-info" id="ciclo-center-info" x="17" y="17" width="66" height="66" className="pointer-events-none">
                     <div
-                      className="pointer-events-none w-full h-full flex flex-col items-center justify-center overflow-hidden text-center rounded-full bg-white/88 p-[3px] shadow-[0_14px_45px_rgba(15,23,42,0.14)] ring-[0.6px] ring-zinc-200/80 backdrop-blur-md dark:bg-zinc-950/82 dark:ring-zinc-800/80"
+                      className="pointer-events-none w-full h-full flex flex-col items-center justify-center overflow-hidden text-center rounded-full bg-white/88 p-[3px] shadow-[0_14px_45px_rgba(15,23,42,0.14)] ring-[0.6px] ring-zinc-200/80 backdrop-blur-md dark:bg-card-dark/82 dark:ring-zinc-800/80"
                       style={{ clipPath: 'circle(50% at 50% 50%)' }}
                     >
                       <AnimatePresence mode="wait">
@@ -1385,7 +1387,7 @@ function CicloVisual({
               </motion.div>
             ) : (
               // Painel Central Tática (Vazio)
-              <div className="flex flex-col items-center justify-center h-full bg-zinc-50 dark:bg-zinc-900/30 rounded-2xl border-2 border-dashed border-zinc-300 dark:border-zinc-800 text-zinc-400 p-8 text-center">
+              <div className="flex flex-col items-center justify-center h-full bg-zinc-50 dark:bg-card-dark rounded-2xl border-2 border-dashed border-zinc-300 dark:border-zinc-800 text-zinc-400 p-8 text-center">
                 <div className="w-12 h-12 bg-zinc-200 dark:bg-zinc-800 rounded-full flex items-center justify-center mb-3 text-zinc-400">
                   <Target size={24} />
                 </div>

@@ -67,6 +67,15 @@ describe('cicloDistribution rotativo livre', () => {
     });
   });
 
+  it('mantem blocos no tempo unico escolhido e usa apenas uma sobra final', () => {
+    const [disciplina] = calcularDistribuicao([
+      { id: 'a', conhecimentoNivel: 3, importanciaNivel: 3, assuntos: ['A'] },
+    ], 170, 60, { duracaoMinimaSessaoMinutos: 60, duracaoMaximaSessaoMinutos: 60 });
+
+    assert.deepEqual(disciplina.duracoesSessoes, [60, 60, 50]);
+    assert.equal(disciplina.duracoesSessoes.reduce((total, minutos) => total + minutos, 0), 170);
+  });
+
   it('gera fila estavel em round-robin sem reservar dias ou criar atraso', () => {
     const distribuicao = calcularDistribuicao([
       { id: 'a', conhecimentoNivel: 3, importanciaNivel: 3, assuntos: ['A'] },

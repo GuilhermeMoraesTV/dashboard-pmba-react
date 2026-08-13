@@ -39,7 +39,7 @@ import { isHighRelevance } from '../utils/planningPriority';
 // ----------------------------------------------------------------------
 // Helpers
 // ----------------------------------------------------------------------
-const systemCardClass = 'group relative overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white shadow-soft transition-all duration-300 hover:border-accent-light/40 hover:!border-l-red-500 hover:shadow-[0_0_18px_rgba(239,68,68,0.07)] dark:border-white/10 dark:!border-l-red-500/25 dark:bg-zinc-950 dark:hover:border-accent-light/20 dark:hover:!border-l-red-500 dark:hover:shadow-[0_0_22px_rgba(239,68,68,0.08)]';
+const systemCardClass = 'group relative overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white shadow-soft transition-all duration-300 hover:border-accent-light/40 hover:!border-l-red-500 hover:shadow-[0_0_18px_rgba(239,68,68,0.07)] dark:border-white/10 dark:!border-l-red-500/25 dark:bg-card-dark dark:hover:border-accent-light/20 dark:hover:!border-l-red-500 dark:hover:shadow-[0_0_22px_rgba(239,68,68,0.08)]';
 const systemPanelClass = 'rounded-xl border border-zinc-200 bg-zinc-50/80 dark:border-white/10 dark:bg-zinc-900/65';
 
 const getTemplateIdDoCiclo = (ciclo) => {
@@ -394,7 +394,7 @@ const DownloadEditalModal = ({
       disabled={generating}
       className={`flex min-h-[88px] w-full items-start gap-3 rounded-2xl border-2 p-3.5 text-left transition-all disabled:cursor-wait disabled:opacity-70 ${active
         ? 'border-red-500 bg-red-50 text-red-900 shadow-sm shadow-red-500/10 dark:border-red-500 dark:bg-red-500/10 dark:text-red-100'
-        : 'border-zinc-200 bg-white text-zinc-700 hover:border-red-200 hover:bg-red-50/40 dark:border-white/10 dark:bg-zinc-950 dark:text-zinc-300 dark:hover:border-red-500/40'}`}
+        : 'border-zinc-200 bg-white text-zinc-700 hover:border-red-200 hover:bg-red-50/40 dark:border-white/10 dark:bg-card-dark dark:text-zinc-300 dark:hover:border-red-500/40'}`}
     >
       <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${active ? 'bg-red-600 text-white' : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400'}`}>
         {React.createElement(icon, { size: 19 })}
@@ -416,9 +416,9 @@ const DownloadEditalModal = ({
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.96, y: 14 }}
         onClick={(event) => event.stopPropagation()}
-        className="flex max-h-[calc(100vh-1.5rem)] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-zinc-200 bg-zinc-50 shadow-2xl dark:border-white/10 dark:bg-zinc-950 sm:max-h-[calc(100vh-2.5rem)]"
+        className="flex max-h-[calc(100vh-1.5rem)] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-zinc-200 bg-zinc-50 shadow-2xl dark:border-white/10 dark:bg-card-dark sm:max-h-[calc(100vh-2.5rem)]"
       >
-        <div className="flex items-start gap-4 border-b border-zinc-200 bg-white p-5 dark:border-white/10 dark:bg-zinc-950 sm:p-6">
+        <div className="flex items-start gap-4 border-b border-zinc-200 bg-white p-5 dark:border-white/10 dark:bg-card-dark sm:p-6">
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-red-600 text-white shadow-lg shadow-red-600/25">
             <Download size={23} />
           </div>
@@ -464,7 +464,7 @@ const DownloadEditalModal = ({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 border-t border-zinc-200 bg-white p-4 dark:border-white/10 dark:bg-zinc-950 sm:p-5">
+        <div className="grid grid-cols-2 gap-3 border-t border-zinc-200 bg-white p-4 dark:border-white/10 dark:bg-card-dark sm:p-5">
           <button type="button" onClick={onClose} disabled={generating} className="rounded-2xl bg-zinc-100 px-4 py-3 text-xs font-black uppercase tracking-wider text-zinc-700 transition-colors hover:bg-zinc-200 disabled:opacity-50 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800">Cancelar</button>
           <button type="button" onClick={onGenerate} disabled={generating} className="flex items-center justify-center gap-2 rounded-2xl bg-red-600 px-4 py-3 text-xs font-black uppercase tracking-wider text-white shadow-lg shadow-red-600/25 transition-all hover:bg-red-700 disabled:cursor-wait disabled:opacity-75">
             {generating ? <Loader2 size={17} className="animate-spin" /> : <Download size={17} />}
@@ -498,9 +498,9 @@ const EditalLibraryModal = ({
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.97, y: 12 }}
         onClick={(event) => event.stopPropagation()}
-        className="edital-library-modal relative flex max-h-[calc(100vh-1rem)] w-full max-w-7xl flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl dark:border-white/10 dark:bg-zinc-950 sm:max-h-[calc(100vh-2.5rem)]"
+        className="edital-library-modal relative flex max-h-[calc(100vh-1rem)] w-full max-w-7xl flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl dark:border-white/10 dark:bg-card-dark sm:max-h-[calc(100vh-2.5rem)]"
       >
-        <button type="button" onClick={onClose} className="absolute right-3 top-3 z-20 rounded-xl border border-zinc-200 bg-white/95 p-2 text-zinc-500 shadow-sm backdrop-blur hover:bg-zinc-100 hover:text-zinc-800 dark:border-white/10 dark:bg-zinc-950/95 dark:text-zinc-300 dark:hover:bg-zinc-900 dark:hover:text-white" aria-label="Fechar biblioteca de editais">
+        <button type="button" onClick={onClose} className="absolute right-3 top-3 z-20 rounded-xl border border-zinc-200 bg-white/95 p-2 text-zinc-500 shadow-sm backdrop-blur hover:bg-zinc-100 hover:text-zinc-800 dark:border-white/10 dark:bg-card-dark/95 dark:text-zinc-300 dark:hover:bg-zinc-900 dark:hover:text-white" aria-label="Fechar biblioteca de editais">
           <X size={20} />
         </button>
 
@@ -515,7 +515,7 @@ const EditalLibraryModal = ({
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-2 border-t border-zinc-200 bg-white p-3 dark:border-white/10 dark:bg-zinc-950 sm:grid-cols-3 sm:gap-3 sm:p-4">
+        <div className="grid grid-cols-2 gap-2 border-t border-zinc-200 bg-white p-3 dark:border-white/10 dark:bg-card-dark sm:grid-cols-3 sm:gap-3 sm:p-4">
           <button
             type="button"
             disabled={!selectedEdital}
@@ -566,20 +566,31 @@ function EditalPage({
   loadingEditalUpdate,
   // Novos props opcionais para suporte ao cronograma
   activeCronogramaId,   // ID do cronograma ativo (pode vir do Dashboard)
+  activeCicloData = null,
+  activeCronogramaData = null,
+  registrosEstudo = [],
 }) {
   useForceUnlock();
 
   // ── Dados do CICLO ────────────────────────────────────────────────────────
-  const [ciclo,       setCiclo]       = useState(null);
+  const [ciclo,       setCiclo]       = useState(() => activeCicloData
+    ? { ...activeCicloData, computedLogo: getLogo(activeCicloData) }
+    : null);
   const [disciplinas, setDisciplinas] = useState([]);
-  const [registros,   setRegistros]   = useState([]);
+  const registros = useMemo(() => (
+    activeCicloId
+      ? registrosEstudo.filter((registro) => String(registro.cicloId || '') === String(activeCicloId))
+      : []
+  ), [activeCicloId, registrosEstudo]);
 
   // ── Dados do CRONOGRAMA ───────────────────────────────────────────────────
-  const [cronograma,             setCronograma]             = useState(null);
-  const [registrosCronograma,    setRegistrosCronograma]    = useState([]);
+  const [cronograma,             setCronograma]             = useState(() => activeCronogramaData
+    ? { ...activeCronogramaData, computedLogo: getCronogramaLogo(activeCronogramaData) }
+    : null);
+  const registrosCronograma = registrosEstudo;
 
   // ── UI state ──────────────────────────────────────────────────────────────
-  const [loading,               setLoading]               = useState(true);
+  const [loading,               setLoading]               = useState(Boolean(activeCicloId && !activeCicloData));
   const [expandedDisciplinas,   setExpandedDisciplinas]   = useState({});
   const [searchTerm,            setSearchTerm]            = useState('');
   const [optimisticChecks,      setOptimisticChecks]      = useState({});
@@ -658,7 +669,6 @@ function EditalPage({
 
     let unsubCiclo = () => {};
     let unsubDisc  = () => {};
-    let unsubReg   = () => {};
 
     setLoading(true);
 
@@ -682,12 +692,7 @@ function EditalPage({
       }
     );
 
-    unsubReg = onSnapshot(
-      query(collection(db, 'users', user.uid, 'registrosEstudo'), where('cicloId', '==', activeCicloId)),
-      (snapshot) => setRegistros(snapshot.docs.map(d => ({ id: d.id, ...d.data() })))
-    );
-
-    return () => { unsubCiclo(); unsubDisc(); unsubReg(); };
+    return () => { unsubCiclo(); unsubDisc(); };
   }, [user, activeCicloId]);
 
   // ── Subscription: CRONOGRAMA ──────────────────────────────────────────────
@@ -695,7 +700,6 @@ function EditalPage({
     if (!user) return;
 
     let unsubCrono = () => {};
-    let unsubRegC  = () => {};
 
     // Se recebemos um cronogramaId explícito, usamos ele;
     // caso contrário, ouvimos o cronograma ativo do usuário.
@@ -730,12 +734,7 @@ function EditalPage({
     // Registros de estudo vinculados ao cronograma (por cronogramaId OU sem cicloId, mas com disciplinaNome)
     // Para o cronograma usamos registros que têm cronogramaId ou são gerais (sem cicloId)
     // A estratégia mais robusta: ouvir todos os registros e filtrar no useMemo.
-    unsubRegC = onSnapshot(
-      collection(db, 'users', user.uid, 'registrosEstudo'),
-      (snapshot) => setRegistrosCronograma(snapshot.docs.map(d => ({ id: d.id, ...d.data() })))
-    );
-
-    return () => { unsubCrono(); unsubRegC(); };
+    return () => { unsubCrono(); };
   }, [user, activeCronogramaId]);
 
   // ── Decide se há dois editais distintos ───────────────────────────────────
@@ -1260,7 +1259,7 @@ function EditalPage({
       <motion.div
         initial={{ opacity: 0, y: 30, scale: 0.95 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
-        className="group relative w-full max-w-2xl overflow-hidden rounded-[40px] border border-zinc-200 bg-white p-8 text-center shadow-[0_30px_100px_rgba(0,0,0,0.06)] dark:border-white/10 dark:bg-zinc-950 dark:shadow-[0_30px_100px_rgba(0,0,0,0.3)] sm:px-12 sm:pb-9 sm:pt-12"
+        className="group relative w-full max-w-2xl overflow-hidden rounded-[40px] border border-zinc-200 bg-white p-8 text-center shadow-[0_30px_100px_rgba(0,0,0,0.06)] dark:border-white/10 dark:bg-card-dark dark:shadow-[0_30px_100px_rgba(0,0,0,0.3)] sm:px-12 sm:pb-9 sm:pt-12"
       >
         {/* Decorative background elements */}
         <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-red-500/5 blur-[80px] transition-all duration-700 group-hover:bg-red-500/10" />
@@ -1323,7 +1322,7 @@ function EditalPage({
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className="fixed left-1/2 top-4 z-[90] flex w-[calc(100%-2rem)] max-w-md -translate-x-1/2 items-center gap-3 rounded-2xl border border-red-200 bg-white px-4 py-3 text-sm font-bold text-red-700 shadow-2xl shadow-red-900/10 dark:border-red-900/40 dark:bg-zinc-950 dark:text-red-300"
+            className="fixed left-1/2 top-4 z-[90] flex w-[calc(100%-2rem)] max-w-md -translate-x-1/2 items-center gap-3 rounded-2xl border border-red-200 bg-white px-4 py-3 text-sm font-bold text-red-700 shadow-2xl shadow-red-900/10 dark:border-red-900/40 dark:bg-card-dark dark:text-red-300"
           >
             <AlertTriangle size={18} className="shrink-0" />
             <span>{toastMessage}</span>
@@ -1337,7 +1336,7 @@ function EditalPage({
               initial={{ opacity: 0, scale: 0.94, y: 12 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.94, y: 12 }}
-              className="w-full max-w-md overflow-hidden rounded-3xl border border-red-200 bg-white shadow-2xl dark:border-red-900/40 dark:bg-zinc-950"
+              className="w-full max-w-md overflow-hidden rounded-3xl border border-red-200 bg-white shadow-2xl dark:border-red-900/40 dark:bg-card-dark"
               onClick={(event) => event.stopPropagation()}
             >
               <div className="border-b border-red-100 bg-red-50 p-6 text-center dark:border-red-900/30 dark:bg-red-950/20">
@@ -1367,7 +1366,7 @@ function EditalPage({
               initial={{ opacity: 0, scale: 0.94, y: 12 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.94, y: 12 }}
-              className="w-full max-w-md overflow-hidden rounded-3xl border border-amber-200 bg-white shadow-2xl dark:border-amber-900/40 dark:bg-zinc-950"
+              className="w-full max-w-md overflow-hidden rounded-3xl border border-amber-200 bg-white shadow-2xl dark:border-amber-900/40 dark:bg-card-dark"
               onClick={(event) => event.stopPropagation()}
             >
               <div className="border-b border-amber-100 bg-amber-50 p-6 text-center dark:border-amber-900/30 dark:bg-amber-950/20">
@@ -1768,7 +1767,7 @@ function EditalPage({
             </button>
             <AnimatePresence>
               {showInactive && (
-                <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden bg-white dark:bg-zinc-950 divide-y divide-zinc-100 dark:divide-white/10">
+                <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden bg-white dark:bg-card-dark divide-y divide-zinc-100 dark:divide-white/10">
                   {inativeAtivos.map(disc => (
                     <div key={disc.id} className="p-4 flex flex-col md:flex-row items-center justify-between gap-4 opacity-75 hover:opacity-100 transition-opacity">
                       <div className="flex-1 min-w-0 flex items-center gap-3">

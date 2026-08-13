@@ -335,7 +335,7 @@ function DisciplinaDetalheModal({ disciplina, registrosEstudo, activeCicloId, on
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95, y: 20 }}
                     onClick={(e) => e.stopPropagation()}
-                    className="relative w-full max-w-4xl bg-zinc-50 dark:bg-zinc-950 rounded-[2rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] border border-white/50 dark:border-zinc-800"
+                    className="relative w-full max-w-4xl bg-zinc-50 dark:bg-card-dark rounded-[2rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] border border-white/50 dark:border-zinc-800"
                 >
                     {/* --- HEADER --- */}
                     <div className="bg-red-50 dark:bg-red-900/10 border-b border-red-100 dark:border-red-900/30 p-4 sm:px-6 shrink-0 relative overflow-hidden">
@@ -363,7 +363,7 @@ function DisciplinaDetalheModal({ disciplina, registrosEstudo, activeCicloId, on
                     </div>
 
                     {/* --- BODY --- */}
-                    <div className="overflow-y-auto flex-1 p-4 sm:p-5 custom-scrollbar bg-zinc-50/50 dark:bg-black/20">
+                    <div className="overflow-y-auto flex-1 p-4 sm:p-5 custom-scrollbar bg-zinc-50/50 dark:bg-card-dark">
 
                         {/* 1. SEÇÃO HERO */}
                         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 mb-6 items-stretch">

@@ -373,7 +373,7 @@ const InterfacePrincipalTimer = ({
     const showLabels = !viewMode.startsWith('compact');
 
     return (
-        <div className="fixed inset-0 z-[9999] bg-zinc-50 dark:bg-zinc-950 flex flex-col items-center justify-center animate-fade-in overflow-hidden font-sans">
+        <div className="fixed inset-0 z-[9999] bg-zinc-50 dark:bg-background-dark flex flex-col items-center justify-center animate-fade-in overflow-hidden font-sans">
 
             {/* Background */}
             <div

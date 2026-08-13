@@ -337,10 +337,10 @@ const DisciplinaCard = ({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.95 }}
       className={`relative overflow-hidden rounded-xl border transition-all duration-300 group ${isFaltandoNivel
-        ? 'border-amber-300 bg-amber-50/30 shadow-sm dark:border-amber-800/60 dark:bg-amber-950/10'
+        ? 'border-amber-300 bg-amber-50/30 shadow-sm dark:border-amber-800/60 dark:bg-card-dark'
         : isAtivo
-        ? 'border-emerald-400/80 bg-emerald-50/35 shadow-sm dark:border-emerald-800/70 dark:bg-emerald-950/10'
-        : 'border-zinc-200 bg-zinc-50/90 dark:border-zinc-800 dark:bg-zinc-900/70 hover:border-zinc-300 dark:hover:border-zinc-700 hover:bg-white dark:hover:bg-zinc-900'
+        ? 'border-emerald-400/80 bg-emerald-50/35 shadow-sm dark:border-emerald-800/70 dark:bg-card-dark'
+        : 'border-zinc-200 bg-zinc-50/90 dark:border-zinc-700 dark:bg-card-dark hover:border-zinc-300 dark:hover:border-zinc-600 hover:bg-white dark:hover:bg-zinc-800'
       }`}
     >
       <div className="px-3.5 py-3.5 sm:px-5 sm:py-4">
@@ -470,7 +470,7 @@ const AssuntosModal = ({
           exit={{ opacity: 0, y: 16, scale: 0.98 }}
           transition={{ type: 'spring', stiffness: 420, damping: 34 }}
           onClick={(event) => event.stopPropagation()}
-          className="flex max-h-[86vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-950"
+          className="flex max-h-[86vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-card-dark"
         >
           <div className="border-b border-zinc-100 px-4 py-4 dark:border-zinc-800 sm:px-5">
             <div className="flex items-start justify-between gap-4">
@@ -553,7 +553,7 @@ const AssuntosModal = ({
                   />
                 ))
               ) : (
-                <div className="rounded-xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-8 text-center dark:border-zinc-700 dark:bg-zinc-900/60">
+                <div className="rounded-xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-8 text-center dark:border-zinc-700 dark:bg-card-dark">
                   <p className="text-sm font-semibold text-zinc-500">Nenhum tópico cadastrado.</p>
                 </div>
               )}

@@ -1,4 +1,4 @@
-﻿import React, { useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { ArrowDownRight, ArrowUpRight, Clock3, Minus, TrendingUp, Zap } from 'lucide-react';
 import { motion } from 'framer-motion';
 import HomeCardTitle from './HomeCardTitle.jsx';
@@ -167,7 +167,7 @@ function WeekEvolutionCard({ currentWeek, previousWeek, className = '' }) {
   );
 
   return (
-    <div className={`group relative flex flex-col overflow-hidden rounded-xl border-2 border-l-4 bg-gradient-to-br ${evolutionTone.glow} p-4 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl dark:bg-zinc-950 ${evolutionTone.card} ${className}`}>
+    <div className={`group relative flex flex-col overflow-hidden rounded-xl border-2 border-l-4 bg-gradient-to-br ${evolutionTone.glow} p-4 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl dark:bg-card-dark ${evolutionTone.card} ${className}`}>
       <div className={`pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full ${evolutionTone.glowSpot} blur-[80px] opacity-70 transition-all duration-700 group-hover:opacity-100`} />
       <div className="pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-zinc-500/5 blur-[80px] transition-all duration-700 opacity-60" />
 

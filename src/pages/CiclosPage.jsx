@@ -30,13 +30,14 @@ function CiclosPage({ user, addRegistroEstudo, deleteCompletionRegistro, onDelet
         onGoToRevisao={onGoToRevisao}
         onCreateNewCycle={onCreateNewCycle}
         onRegistroModalOpenChange={onRegistroModalOpenChange}
+        registrosEstudo={registrosEstudo}
       />
     );
   }
 
   return (
     <div className="mx-auto flex min-h-[55vh] w-full max-w-3xl items-center justify-center px-4 py-10">
-      <div className="w-full rounded-3xl border border-zinc-200 bg-white p-6 shadow-xl shadow-zinc-200/40 dark:border-zinc-800 dark:bg-zinc-950 dark:shadow-none sm:p-8">
+      <div className="w-full rounded-3xl border border-zinc-200 bg-white p-6 shadow-xl shadow-zinc-200/40 dark:border-zinc-800 dark:bg-card-dark dark:shadow-none sm:p-8">
         <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
             <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-red-50 text-red-600 dark:bg-red-950/30 dark:text-red-300">

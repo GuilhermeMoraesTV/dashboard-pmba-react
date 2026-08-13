@@ -68,7 +68,7 @@ const DeleteConfirmationModal = ({ isOpen, onClose, onConfirm, loading }) => {
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.9 }}
-                className="bg-white dark:bg-zinc-950 w-full max-w-xs rounded-2xl p-5 border border-zinc-200 dark:border-zinc-800 shadow-2xl text-center relative overflow-hidden max-h-[90vh] overflow-y-auto"
+                className="bg-white dark:bg-card-dark w-full max-w-xs rounded-2xl p-5 border border-zinc-200 dark:border-zinc-800 shadow-2xl text-center relative overflow-hidden max-h-[90vh] overflow-y-auto"
             >
                 <div className="flex justify-center mb-3">
                     <div className="w-12 h-12 bg-red-50 dark:bg-red-900/20 text-red-600 rounded-full flex items-center justify-center shadow-inner">
@@ -125,7 +125,7 @@ const CicloLegacyUpgradeModal = ({ ciclo, logoUrl, onClose, onConfirm, onRecalcu
         initial={{ opacity: 0, y: 16, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 16, scale: 0.98 }}
-        className="relative flex max-h-[calc(100dvh-24px)] w-full max-w-4xl flex-col overflow-hidden rounded-[32px] border border-zinc-200 bg-zinc-50 shadow-2xl dark:border-zinc-800 dark:bg-zinc-950"
+        className="relative flex max-h-[calc(100dvh-24px)] w-full max-w-4xl flex-col overflow-hidden rounded-[32px] border border-zinc-200 bg-zinc-50 shadow-2xl dark:border-zinc-800 dark:bg-card-dark"
       >
         <div className="relative overflow-hidden border-b border-zinc-200 bg-white px-4 py-4 dark:border-zinc-800 dark:bg-zinc-900 sm:px-6">
           {logoUrl && (
@@ -147,13 +147,13 @@ const CicloLegacyUpgradeModal = ({ ciclo, logoUrl, onClose, onConfirm, onRecalcu
                 <p className="mt-1 max-w-xl text-xs font-semibold leading-relaxed text-zinc-500 dark:text-zinc-400">Atualize os detalhes visuais do ciclo sem redistribuir sessoes, dias ou disciplinas.</p>
               </div>
             </div>
-            <button onClick={onClose} className="shrink-0 rounded-2xl border border-zinc-200 bg-zinc-50 p-2 text-zinc-400 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:border-red-900/50 dark:hover:bg-red-950/20">
+            <button onClick={onClose} className="shrink-0 rounded-2xl border border-zinc-200 bg-zinc-50 p-2 text-zinc-400 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 dark:border-zinc-800 dark:bg-card-dark dark:hover:border-red-900/50 dark:hover:bg-red-950/20">
               <X size={18} />
             </button>
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3 dark:bg-zinc-950 sm:p-4">
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3 dark:bg-card-dark sm:p-4">
             <div className="grid gap-3 md:grid-cols-2">
               <label className="group block rounded-3xl border border-zinc-100 bg-white p-4 shadow-sm transition-all focus-within:border-red-200 focus-within:ring-4 focus-within:ring-red-500/5 dark:border-zinc-800 dark:bg-zinc-900">
                 <span className="flex items-center gap-3 text-[10px] font-black uppercase tracking-wider text-zinc-500">
@@ -163,7 +163,7 @@ const CicloLegacyUpgradeModal = ({ ciclo, logoUrl, onClose, onConfirm, onRecalcu
                 <input
                   value={nome}
                   onChange={(event) => setNome(event.target.value)}
-                  className="mt-3 h-11 w-full rounded-2xl border-2 border-zinc-200 bg-zinc-50 px-4 text-sm font-black text-zinc-900 outline-none transition-all focus:border-red-500 focus:bg-white dark:border-zinc-700 dark:bg-zinc-950 dark:text-white"
+                  className="mt-3 h-11 w-full rounded-2xl border-2 border-zinc-200 bg-zinc-50 px-4 text-sm font-black text-zinc-900 outline-none transition-all focus:border-red-500 focus:bg-white dark:border-zinc-700 dark:bg-card-dark dark:text-white"
                   placeholder="Ex: Ciclo PMBA"
                 />
               </label>
@@ -177,7 +177,7 @@ const CicloLegacyUpgradeModal = ({ ciclo, logoUrl, onClose, onConfirm, onRecalcu
                   type="date"
                   value={dataFim}
                   onChange={(event) => setDataFim(event.target.value)}
-                  className="mt-3 h-11 w-full rounded-2xl border-2 border-zinc-200 bg-zinc-50 px-4 text-sm font-black text-zinc-900 outline-none transition-all focus:border-red-500 focus:bg-white dark:border-zinc-700 dark:bg-zinc-950 dark:text-white"
+                  className="mt-3 h-11 w-full rounded-2xl border-2 border-zinc-200 bg-zinc-50 px-4 text-sm font-black text-zinc-900 outline-none transition-all focus:border-red-500 focus:bg-white dark:border-zinc-700 dark:bg-card-dark dark:text-white"
                 />
               </label>
             </div>
@@ -374,15 +374,15 @@ const CicloRevisoesOperacionaisCard = ({
           </div>
 
           <div className="shrink-0 flex items-center gap-1.5 self-start">
-            <div className="rounded-2xl border border-red-200/80 bg-white/80 px-3 py-1.5 text-center shadow-sm dark:border-red-900/40 dark:bg-zinc-900/80">
+            <div className="rounded-2xl border border-red-200/80 bg-white/80 px-3 py-1.5 text-center shadow-sm dark:border-red-900/40 dark:bg-zinc-800/55">
               <p className="text-sm font-black tabular-nums text-red-600 dark:text-red-400 leading-none">{totalAtrasadas}</p>
               <p className="text-[8px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400 mt-0.5">Atraso</p>
             </div>
-            <div className="rounded-2xl border border-blue-200/80 bg-white/80 px-3 py-1.5 text-center shadow-sm dark:border-blue-900/40 dark:bg-zinc-900/80">
+            <div className="rounded-2xl border border-blue-200/80 bg-white/80 px-3 py-1.5 text-center shadow-sm dark:border-blue-900/40 dark:bg-zinc-800/55">
               <p className="text-sm font-black tabular-nums text-blue-600 dark:text-blue-400 leading-none">{totalHoje}</p>
               <p className="text-[8px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400 mt-0.5">Hoje</p>
             </div>
-            <div className="rounded-2xl border border-zinc-200/80 bg-white/80 px-3 py-1.5 text-center shadow-sm dark:border-zinc-800 dark:bg-zinc-900/80">
+            <div className="rounded-2xl border border-zinc-200/80 bg-white/80 px-3 py-1.5 text-center shadow-sm dark:border-zinc-700 dark:bg-zinc-800/55">
               <p className="text-sm font-black tabular-nums text-zinc-900 dark:text-white leading-none">{totalPendentes}</p>
               <p className="text-[8px] font-black uppercase tracking-widest text-zinc-400 mt-0.5">Total</p>
             </div>
@@ -412,7 +412,7 @@ const CicloRevisoesOperacionaisCard = ({
                     className={`group flex flex-col gap-2 rounded-xl border p-2.5 transition-all hover:-translate-y-0.5 md:flex-row md:items-center sm:gap-3 sm:rounded-2xl sm:p-3 ${
                       isAtrasada
                         ? 'border-red-200/60 bg-white/90 shadow-sm hover:border-red-300 hover:shadow-red-500/10 dark:border-red-900/20 dark:bg-red-950/10 dark:hover:border-red-800/40'
-                        : 'border-zinc-200/80 bg-white/80 shadow-sm hover:border-blue-200 hover:shadow-blue-500/10 dark:border-zinc-800 dark:bg-zinc-900/40 dark:hover:border-blue-900/30'
+                        : 'border-zinc-200/80 bg-white/80 shadow-sm hover:border-blue-200 hover:shadow-blue-500/10 dark:border-zinc-700 dark:bg-zinc-800/55 dark:hover:border-blue-900/30'
                     }`}
                   >
                     <div className="min-w-0 flex-1">
@@ -1073,17 +1073,6 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
               <div className="min-w-0 flex-1 z-10">
                   <div className="flex flex-col gap-3">
                       <div className="flex flex-col gap-1.5 md:gap-3">
-                          {ciclo.ativo ? (
-                              <span className="flex w-fit items-center gap-1.5 rounded border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-500 md:px-2 md:text-[10px]">
-                                  <span className="relative flex h-1.5 w-1.5 md:h-2 md:w-2">
-                                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
-                                      <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500 md:h-2 md:w-2"></span>
-                                  </span>
-                                  Ativo
-                              </span>
-                          ) : (
-                              <span className="w-fit rounded bg-zinc-200 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-widest text-zinc-500 dark:bg-zinc-800 md:px-2 md:text-[10px]">Arquivado</span>
-                          )}
                           <div className="flex min-w-0 items-center gap-2 md:gap-3">
                               <h1 className="min-w-0 truncate text-sm font-black text-zinc-900 dark:text-white uppercase tracking-tight leading-none sm:text-lg md:text-3xl">{ciclo.nome}</h1>
                               <button onClick={onGoToEdital} className="flex shrink-0 items-center gap-1 rounded-lg border border-zinc-200 bg-white/90 px-2 py-1 text-[8px] font-black uppercase tracking-widest text-zinc-600 shadow-sm transition-all hover:border-red-200 hover:bg-red-50 hover:text-red-700 dark:border-zinc-700 dark:bg-zinc-800/90 dark:text-zinc-300 dark:hover:border-red-900/30 dark:hover:bg-red-900/10 dark:hover:text-red-400 md:gap-2 md:px-3 md:py-1.5 md:text-[11px]">
@@ -1185,19 +1174,27 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
                   </div>
               </div>
 
-              <div className="z-10 flex w-[132px] shrink-0 items-center justify-between gap-1.5 rounded-xl border border-zinc-200 bg-white/75 p-1.5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/55 sm:w-[164px] md:w-auto md:min-w-[286px] md:gap-3 md:p-2.5">
+              <div className="z-10 flex w-[176px] shrink-0 items-center justify-between gap-1.5 rounded-xl border border-zinc-200 bg-white/75 p-2 shadow-sm dark:border-zinc-800 dark:bg-card-dark sm:w-[190px] md:w-auto md:min-w-[320px] md:gap-4 md:p-3">
                   <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-2 md:gap-5">
+                      <div className="md:hidden">
+                          <p className="text-[8px] font-black uppercase tracking-widest text-zinc-400">Resumo da semana</p>
+                          <p className="mt-0.5 whitespace-nowrap font-mono text-xs font-black text-zinc-900 dark:text-white">
+                              {formatVisualNumber(totalEstudado)}
+                              <span className="mx-1 text-zinc-300">/</span>
+                              {formatVisualNumber(totalMeta)}
+                          </p>
+                      </div>
+                      <div className="hidden items-center justify-between gap-6 md:flex">
                           <div>
-                              <p className="text-[7px] font-black uppercase tracking-wider text-zinc-400 md:text-[8px] md:tracking-widest">Meta</p>
-                              <p className="font-mono text-[10px] font-black text-zinc-900 dark:text-white md:text-sm">{formatVisualNumber(totalMeta)}</p>
+                              <p className="text-[9px] font-black uppercase tracking-widest text-zinc-400">Meta semanal</p>
+                              <p className="font-mono text-lg font-black text-zinc-900 dark:text-white">{formatVisualNumber(totalMeta)}</p>
                           </div>
                           <div className="text-right">
-                              <p className="text-[7px] font-black uppercase tracking-wider text-zinc-400 md:text-[8px] md:tracking-widest">Feito</p>
-                              <p className="font-mono text-[10px] font-black text-zinc-900 dark:text-white md:text-sm">{formatVisualNumber(totalEstudado)}</p>
+                              <p className="text-[9px] font-black uppercase tracking-widest text-zinc-400">Feito na semana</p>
+                              <p className="font-mono text-lg font-black text-zinc-900 dark:text-white">{formatVisualNumber(totalEstudado)}</p>
                           </div>
                       </div>
-                      <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-zinc-100 ring-1 ring-zinc-200/70 dark:bg-zinc-800 dark:ring-zinc-700/70 md:mt-2 md:h-1.5">
+                      <div className="mt-2 hidden h-1.5 overflow-hidden rounded-full bg-zinc-100 ring-1 ring-zinc-200/70 dark:bg-zinc-800 dark:ring-zinc-700/70 md:block">
                           <motion.div
                               initial={false}
                               animate={{ width: `${Math.min(progressoGeral, 100)}%` }}
@@ -1205,17 +1202,17 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
                               className={`h-full rounded-full ${progressoGeral >= 100 && isAllDisciplinesMet ? 'bg-gradient-to-r from-emerald-500 to-teal-400' : 'bg-gradient-to-r from-red-600 via-rose-500 to-orange-400'}`}
                           />
                       </div>
-                      <div className="mt-1.5 flex min-w-0 items-center justify-between gap-2 rounded-md bg-red-50/90 px-1.5 py-1 dark:bg-red-950/20 md:mt-2 md:px-2">
-                          <span className="min-w-0 truncate text-[6px] font-black uppercase tracking-wide text-red-500 md:text-[8px]">Total do ciclo</span>
-                          <span className="shrink-0 font-mono text-[9px] font-black text-red-700 dark:text-red-300 md:text-xs">{formatVisualNumber(totalAcumuladoCiclo)}</span>
+                      <div className="mt-2 flex min-w-0 items-center justify-between gap-2 rounded-md bg-red-50/90 px-2 py-1.5 dark:bg-red-950/20">
+                          <span className="whitespace-nowrap text-[8px] font-black uppercase tracking-wide text-red-500 md:text-[10px]">Total do ciclo</span>
+                          <span className="shrink-0 font-mono text-xs font-black text-red-700 dark:text-red-300 md:text-sm">{formatVisualNumber(totalAcumuladoCiclo)}</span>
                       </div>
                   </div>
-                  <div className="relative shrink-0">
-                      <svg className="h-9 w-9 -rotate-90 sm:h-10 sm:w-10 md:h-14 md:w-14" viewBox="0 0 80 80">
+                  <div className="relative hidden shrink-0 md:block">
+                      <svg className="h-16 w-16 -rotate-90" viewBox="0 0 80 80">
                           <circle cx="40" cy="40" r="34" fill="none" stroke="currentColor" className="text-zinc-200 dark:text-zinc-800" strokeWidth="6" />
                           <motion.circle cx="40" cy="40" r="34" fill="none" stroke="currentColor" className={progressoGeral >= 100 && isAllDisciplinesMet ? 'text-emerald-500' : progressoGeral > 0 ? 'text-yellow-500' : 'text-zinc-400'} strokeWidth="6" strokeLinecap="round" strokeDasharray={2 * Math.PI * 34} initial={{ strokeDashoffset: 2 * Math.PI * 34 }} animate={{ strokeDashoffset: 2 * Math.PI * 34 * (1 - Math.min(progressoGeral, 100) / 100) }} transition={{ duration: 1.5, ease: "easeOut" }} />
                       </svg>
-                      <div className="absolute inset-0 flex flex-col items-center justify-center"><span className={`text-[9px] font-black sm:text-[10px] md:text-sm ${progressoGeral >= 100 && isAllDisciplinesMet ? 'text-emerald-500' : progressoGeral > 0 ? 'text-yellow-500' : 'text-zinc-400'}`}>{progressoGeral.toFixed(0)}%</span></div>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center"><span className={`text-base font-black ${progressoGeral >= 100 && isAllDisciplinesMet ? 'text-emerald-500' : progressoGeral > 0 ? 'text-yellow-500' : 'text-zinc-400'}`}>{progressoGeral.toFixed(0)}%</span></div>
                   </div>
               </div>
           </div>
@@ -1243,7 +1240,7 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
                                   initial={{ opacity: 0, y: -6, scale: 0.98 }}
                                   animate={{ opacity: 1, y: 0, scale: 1 }}
                                   exit={{ opacity: 0, y: -6, scale: 0.98 }}
-                                  className="absolute right-0 top-full z-40 mt-2 w-[264px] overflow-hidden rounded-2xl border border-zinc-200/80 bg-white/95 p-2 shadow-[0_18px_55px_-22px_rgba(0,0,0,0.45)] ring-1 ring-white/70 backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-950/95 dark:ring-white/5"
+                                  className="absolute right-0 top-full z-40 mt-2 w-[264px] overflow-hidden rounded-2xl border border-zinc-200/80 bg-white/95 p-2 shadow-[0_18px_55px_-22px_rgba(0,0,0,0.45)] ring-1 ring-white/70 backdrop-blur-xl dark:border-zinc-800 dark:bg-card-dark dark:ring-white/5"
                               >
                                   <div className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-red-500/10 to-transparent" />
                                   <div className="relative mb-1.5 flex items-center gap-2.5 px-2 py-1.5">
@@ -1261,7 +1258,7 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
                                           setConfigMenuOpen(false);
                                           setShowTimerSettings(true);
                                       }}
-                                      className="group relative mt-1.5 flex w-full items-center gap-2.5 rounded-xl border border-zinc-200/80 bg-white p-2.5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-zinc-300 hover:bg-zinc-50 hover:shadow-md hover:shadow-zinc-900/5 dark:border-zinc-800 dark:bg-zinc-900/70 dark:hover:border-zinc-700 dark:hover:bg-zinc-900"
+                                      className="group relative mt-1.5 flex w-full items-center gap-2.5 rounded-xl border border-zinc-200/80 bg-white p-2.5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-zinc-300 hover:bg-zinc-50 hover:shadow-md hover:shadow-zinc-900/5 dark:border-zinc-700 dark:bg-zinc-800/55 dark:hover:border-zinc-600 dark:hover:bg-zinc-800"
                                   >
                                       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-zinc-100 text-zinc-700 shadow-sm dark:bg-zinc-800 dark:text-zinc-200"><Clock3 size={14} /></span>
                                       <span className="min-w-0 flex-1">
@@ -1276,7 +1273,7 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
                                           setConfigMenuOpen(false);
                                           setShowUpgradeWizard(true);
                                       }}
-                                      className="group relative mt-1.5 flex w-full items-center gap-2.5 rounded-xl border border-zinc-200/80 bg-zinc-50/80 p-2.5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-zinc-300 hover:bg-white hover:shadow-md hover:shadow-zinc-900/5 dark:border-zinc-800 dark:bg-zinc-900/60 dark:hover:border-zinc-700 dark:hover:bg-zinc-900"
+                                      className="group relative mt-1.5 flex w-full items-center gap-2.5 rounded-xl border border-zinc-200/80 bg-zinc-50/80 p-2.5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-zinc-300 hover:bg-white hover:shadow-md hover:shadow-zinc-900/5 dark:border-zinc-700 dark:bg-zinc-800/55 dark:hover:border-zinc-600 dark:hover:bg-zinc-800"
                                   >
                                       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-zinc-900 text-white shadow-sm dark:bg-white dark:text-zinc-950"><RotateCw size={14} /></span>
                                       <span className="min-w-0 flex-1">
@@ -1305,7 +1302,7 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
       {!showEmptyMessage && (
           <div className="-mx-2 min-h-0 sm:-mx-4 md:-mx-6 lg:-mx-8">
               <div className="grid min-h-0 grid-cols-1 items-stretch gap-3 xl:grid-cols-[minmax(0,1.08fr)_minmax(380px,0.62fr)] 2xl:grid-cols-[minmax(0,1.12fr)_minmax(410px,0.64fr)]">
-                  <section className="ciclo-visual-card-shell relative flex h-full w-full flex-col overflow-hidden rounded-2xl border border-zinc-200/70 bg-white/80 px-2.5 py-2.5 shadow-lg shadow-zinc-200/30 backdrop-blur-xl dark:border-zinc-800/70 dark:bg-zinc-950/35 dark:shadow-none sm:px-4 sm:py-3">
+                  <section className="ciclo-visual-card-shell relative flex h-full w-full flex-col overflow-hidden rounded-2xl border border-zinc-200/70 bg-white/80 px-2.5 py-2.5 shadow-lg shadow-zinc-200/30 backdrop-blur-xl dark:border-zinc-800/70 dark:bg-card-dark dark:shadow-none sm:px-4 sm:py-3">
                       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-red-500/40 to-transparent" />
                       <div className="relative mb-2 flex items-center justify-between gap-2 px-1 sm:px-2">
                           <div className="min-w-0">
@@ -1375,7 +1372,7 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
       )}
 
       {showEmptyMessage && (
-        <div className="flex flex-col items-center justify-center py-20 text-center bg-zinc-50 dark:bg-zinc-900/50 rounded-3xl border-2 border-dashed border-zinc-200 dark:border-zinc-800 mt-8">
+        <div className="flex flex-col items-center justify-center py-20 text-center bg-zinc-50 dark:bg-card-dark rounded-3xl border-2 border-dashed border-zinc-200 dark:border-zinc-800 mt-8">
             <Target size={48} className="text-zinc-300 mb-4" />
             <h3 className="text-xl font-bold text-zinc-700 dark:text-zinc-300 mb-1">Ciclo Sem Disciplinas</h3>
             <p className="text-zinc-500 text-sm mb-6">Adicione matérias para começar.</p>

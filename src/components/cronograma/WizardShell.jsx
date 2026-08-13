@@ -16,7 +16,7 @@ import {
 import Step1_Edital from './Step1Edital';
 import StepModoMontagem from './StepModoMontagem';
 import Step2_Disciplinas from './Step2Disciplinas';
-import Step3_Horarios from './Step3Horarios';
+import StepHorariosDuracaoUnica from '../ciclos/CicloCreateWizard/steps/StepHorarios';
 import StepMetodologiaRevisao from './StepMetodologiaRevisao';
 import Step4_Config from './Step4Config';
 import Step5_Preview from './Step5Preview';
@@ -250,12 +250,30 @@ const WizardShell = ({
         />
       );
       case 3: return (
-        <Step3_Horarios
+        <StepHorariosDuracaoUnica
           horarios={horarios}
-          onHorariosChange={setHorarios}
+          setHorarios={setHorarios}
           editalSelecionado={edital}
-          config={cronConfig}
-          onConfigChange={setCronConfig}
+          duracaoMinimaSessaoMinutos={cronConfig.duracaoMinimaSessaoMinutos}
+          setDuracaoMinimaSessaoMinutos={(value) => {
+            setCronConfig((prev) => ({
+              ...prev,
+              usarDuracaoUnica: true,
+              tempoSessaoMinutos: value,
+              duracaoMinimaSessaoMinutos: value,
+              duracaoMaximaSessaoMinutos: value,
+            }));
+          }}
+          duracaoMaximaSessaoMinutos={cronConfig.duracaoMaximaSessaoMinutos}
+          setDuracaoMaximaSessaoMinutos={(value) => {
+            setCronConfig((prev) => ({
+              ...prev,
+              usarDuracaoUnica: true,
+              tempoSessaoMinutos: value,
+              duracaoMinimaSessaoMinutos: value,
+              duracaoMaximaSessaoMinutos: value,
+            }));
+          }}
         />
       );
       case 4: return (
@@ -339,7 +357,7 @@ const WizardShell = ({
       </main>
 
       {/* ── Footer Navigation ── */}
-      <div className={`wizard-navigation-bar inset-x-2 bottom-2 z-[100050] mx-auto max-w-5xl rounded-2xl border border-zinc-200/80 bg-white/92 p-1.5 shadow-2xl shadow-zinc-950/12 backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-900/94 sm:inset-x-3 sm:bottom-4 sm:p-3 ${embedded ? 'absolute' : 'fixed'}`}>
+      <div className={`wizard-navigation-bar inset-x-2 bottom-2 z-[100050] mx-auto max-w-5xl rounded-2xl border border-zinc-200/80 bg-white/92 p-1.5 shadow-2xl shadow-zinc-950/12 backdrop-blur-xl dark:border-zinc-800 dark:bg-card-dark sm:inset-x-3 sm:bottom-4 sm:p-3 ${embedded ? 'absolute' : 'fixed'}`}>
         <div className="flex items-center justify-between gap-2 sm:gap-3">
           
           <div className="flex items-center gap-2">

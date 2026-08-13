@@ -98,7 +98,7 @@ const StatCard = ({
   iconHoverColorClass = 'group-hover:text-red-500/15 dark:group-hover:text-red-500/10',
   iconExtraClasses = '',
 }) => (
-  <div className={`group relative flex min-h-[75px] flex-col items-start justify-center overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white px-3 py-2.5 shadow-soft transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/40 hover:!border-l-red-500 hover:shadow-[0_0_18px_rgba(239,68,68,0.07)] dark:border-white/10 dark:!border-l-red-500/25 dark:bg-zinc-950 dark:hover:border-accent-light/20 dark:hover:!border-l-red-500 dark:hover:shadow-[0_0_22px_rgba(239,68,68,0.08)] md:min-h-[85px] ${className}`}>
+  <div className={`group relative flex min-h-[75px] flex-col items-start justify-center overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white px-3 py-2.5 shadow-soft transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/40 hover:!border-l-red-500 hover:shadow-[0_0_18px_rgba(239,68,68,0.07)] dark:border-white/10 dark:!border-l-red-500/25 dark:bg-card-dark dark:hover:border-accent-light/20 dark:hover:!border-l-red-500 dark:hover:shadow-[0_0_22px_rgba(239,68,68,0.08)] md:min-h-[85px] ${className}`}>
     <div className="relative z-20 flex flex-col gap-0.5 w-full">
       <h3 className="text-[9px] md:text-[10px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 truncate w-full leading-none">
         {title}
@@ -134,7 +134,7 @@ const MiniMonthGrid = ({ monthIndex, year, studyDaysMap, monthlyTotals, onClick,
     <motion.div
       whileHover={{ y: -2 }}
       className={`
-        flex flex-col overflow-hidden rounded-xl border-2 border-zinc-200 bg-white shadow-soft transition-all duration-300 dark:border-white/10 dark:bg-zinc-950
+        flex flex-col overflow-hidden rounded-xl border-2 border-zinc-200 bg-white shadow-soft transition-all duration-300 dark:border-white/10 dark:bg-card-dark
         ${hasActivity ? 'hover:-translate-y-0.5 hover:border-red-200 hover:shadow-[0_0_18px_rgba(239,68,68,0.07)] dark:hover:border-red-500/25 dark:hover:shadow-[0_0_22px_rgba(239,68,68,0.08)]' : 'opacity-70 hover:opacity-100'}
       `}
       onClick={onClick}
@@ -186,10 +186,10 @@ const MiniMonthGrid = ({ monthIndex, year, studyDaysMap, monthlyTotals, onClick,
       </div>
 
       <div className="grid grid-cols-2 gap-1 border-t border-zinc-100 bg-zinc-50/90 px-2 py-2 text-[10px] font-black text-zinc-700 dark:border-white/10 dark:bg-zinc-900/70 dark:text-zinc-200 sm:text-[11px]">
-        <div className="flex min-w-0 items-center justify-center gap-1 rounded-md bg-white px-1.5 py-1 shadow-sm ring-1 ring-zinc-200/70 dark:bg-zinc-950/80 dark:ring-white/10">
+        <div className="flex min-w-0 items-center justify-center gap-1 rounded-md bg-white px-1.5 py-1 shadow-sm ring-1 ring-zinc-200/70 dark:bg-card-dark/80 dark:ring-white/10">
           <Clock size={11} className="shrink-0 text-red-500" /> <span className="truncate">{formatDecimalHours(totals.hours)}</span>
         </div>
-        <div className="flex min-w-0 items-center justify-center gap-1 rounded-md bg-white px-1.5 py-1 shadow-sm ring-1 ring-zinc-200/70 dark:bg-zinc-950/80 dark:ring-white/10">
+        <div className="flex min-w-0 items-center justify-center gap-1 rounded-md bg-white px-1.5 py-1 shadow-sm ring-1 ring-zinc-200/70 dark:bg-card-dark/80 dark:ring-white/10">
           <Target size={11} className="shrink-0 text-red-500" /> <span className="truncate">{totals.questions}</span>
         </div>
       </div>
@@ -373,7 +373,7 @@ function CalendarTab({
 
   return (
     <div className="space-y-6 animate-fade-in pb-12">
-      <div className="group relative mb-2 overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white p-4 shadow-soft transition-all duration-300 hover:border-accent-light/40 hover:!border-l-red-500 hover:shadow-[0_0_18px_rgba(239,68,68,0.07)] dark:border-white/10 dark:!border-l-red-500/25 dark:bg-zinc-950 dark:hover:border-accent-light/20 dark:hover:!border-l-red-500 dark:hover:shadow-[0_0_22px_rgba(239,68,68,0.08)]">
+      <div className="group relative mb-2 overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white p-4 shadow-soft transition-all duration-300 hover:border-accent-light/40 hover:!border-l-red-500 hover:shadow-[0_0_18px_rgba(239,68,68,0.07)] dark:border-white/10 dark:!border-l-red-500/25 dark:bg-card-dark dark:hover:border-accent-light/20 dark:hover:!border-l-red-500 dark:hover:shadow-[0_0_22px_rgba(239,68,68,0.08)]">
         <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-red-500/5 blur-[80px] transition-all duration-700 group-hover:bg-red-500/10" />
         <div className="pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-zinc-500/5 blur-[80px]" />
         <div className="relative z-10 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
@@ -429,12 +429,12 @@ function CalendarTab({
         />
       </motion.div>
 
-      <div id="calendar-container" className="group relative min-h-[500px] overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white shadow-soft transition-all duration-300 hover:border-accent-light/40 hover:!border-l-red-500 hover:shadow-[0_0_18px_rgba(239,68,68,0.07)] dark:border-white/10 dark:!border-l-red-500/25 dark:bg-zinc-950 dark:hover:border-accent-light/20 dark:hover:!border-l-red-500 dark:hover:shadow-[0_0_22px_rgba(239,68,68,0.08)]">
+      <div id="calendar-container" className="group relative min-h-[500px] overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white shadow-soft transition-all duration-300 hover:border-accent-light/40 hover:!border-l-red-500 hover:shadow-[0_0_18px_rgba(239,68,68,0.07)] dark:border-white/10 dark:!border-l-red-500/25 dark:bg-card-dark dark:hover:border-accent-light/20 dark:hover:!border-l-red-500 dark:hover:shadow-[0_0_22px_rgba(239,68,68,0.08)]">
         <div className="absolute top-[-30px] right-[-10px] opacity-[0.03] dark:opacity-[0.05] pointer-events-none">
           {viewMode === 'year' ? <LayoutGrid size={200} className="text-red-600" /> : <CalendarIcon size={200} className="text-red-600" />}
         </div>
 
-        <div className="relative z-10 grid gap-3 border-b border-zinc-200 bg-zinc-50/80 p-4 dark:border-white/10 dark:bg-zinc-950/70 md:grid-cols-[1fr_auto_1fr] md:items-center">
+        <div className="relative z-10 grid gap-3 border-b border-zinc-200 bg-zinc-50/80 p-4 dark:border-white/10 dark:bg-card-dark/70 md:grid-cols-[1fr_auto_1fr] md:items-center">
           {viewMode === 'month' && (
             <button
               onClick={() => setViewMode('year')}
@@ -482,7 +482,7 @@ function CalendarTab({
           </div>
         </div>
 
-        <div className="relative z-10 bg-zinc-50/70 p-4 dark:bg-zinc-950/40">
+        <div className="relative z-10 bg-zinc-50/70 p-4 dark:bg-card-dark/40">
           <AnimatePresence mode="wait">
             {viewMode === 'year' ? (
               <motion.div

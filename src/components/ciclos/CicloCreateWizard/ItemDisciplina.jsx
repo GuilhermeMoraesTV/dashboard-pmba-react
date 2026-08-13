@@ -32,7 +32,7 @@ const ConfirmModal = ({ isOpen, onClose, onConfirm, title, description, confirmL
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.88, y: 16 }}
           transition={{ type: 'spring', stiffness: 380, damping: 28 }}
-          className="bg-white dark:bg-zinc-950 w-full max-w-xs rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden"
+          className="bg-white dark:bg-card-dark w-full max-w-xs rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="bg-red-50 dark:bg-red-900/10 px-5 pt-6 pb-5 flex flex-col items-center border-b border-red-100 dark:border-red-900/20">
@@ -277,7 +277,7 @@ const ItemDisciplina = ({
                       onChange={(e) => setNomeTemp(e.target.value)}
                       onBlur={salvarNome}
                       onKeyDown={(e) => e.key === 'Enter' && salvarNome()}
-                      className="w-full bg-zinc-100 dark:bg-black border border-zinc-300 dark:border-zinc-700 rounded-xl px-3 py-2 text-sm font-bold text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500"
+                      className="w-full bg-zinc-100 dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-xl px-3 py-2 text-sm font-bold text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500"
                     />
                     <button onClick={salvarNome} className="p-1 text-emerald-500 hover:bg-emerald-50 rounded shrink-0">
                       <CheckCircle2 size={16} />
@@ -340,7 +340,7 @@ const ItemDisciplina = ({
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              className="border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-black/20"
+              className="border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-card-dark"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="p-4 sm:p-5 space-y-5">
@@ -365,7 +365,7 @@ const ItemDisciplina = ({
                     </button>
                   </form>
 
-                  <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-1 bg-zinc-100/50 dark:bg-black/20 p-2 rounded-xl border border-zinc-200/50 dark:border-zinc-800">
+                  <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-1 bg-zinc-100/50 dark:bg-zinc-800/35 p-2 rounded-xl border border-zinc-200/50 dark:border-zinc-700">
                     {disciplina.assuntos?.map((assunto, index) => (
                       <div
                         key={index}

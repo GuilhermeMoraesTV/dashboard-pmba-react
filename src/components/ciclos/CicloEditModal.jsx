@@ -194,7 +194,7 @@ function CicloEditModal({ onClose, user, ciclo, onCicloAtivado, upgradeMode = fa
       <motion.div
         initial={{ opacity: 0, y: 12, scale: 0.985 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
-        className="flex h-[calc(100dvh-1rem)] w-full max-w-7xl flex-col overflow-hidden rounded-[28px] border border-zinc-200 bg-zinc-50 shadow-2xl dark:border-zinc-800 dark:bg-zinc-950 sm:h-[calc(100dvh-2rem)]"
+        className="flex h-[calc(100dvh-1rem)] w-full max-w-7xl flex-col overflow-hidden rounded-[28px] border border-zinc-200 bg-zinc-50 shadow-2xl dark:border-zinc-800 dark:bg-card-dark sm:h-[calc(100dvh-2rem)]"
       >
       <div className="relative flex shrink-0 items-center justify-between gap-3 border-b border-zinc-200 bg-white px-4 py-3 pr-14 dark:border-zinc-800 dark:bg-zinc-900 sm:px-6 sm:pr-16">
         <div className="min-w-0">
@@ -203,7 +203,7 @@ function CicloEditModal({ onClose, user, ciclo, onCicloAtivado, upgradeMode = fa
             {tituloModal}
           </h2>
         </div>
-        <button onClick={pedirConfirmacaoFechamento} className="absolute right-3 top-3 shrink-0 rounded-2xl border border-zinc-200 bg-zinc-50 p-2 text-zinc-400 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:border-red-900/50 dark:hover:bg-red-950/20 sm:right-4">
+        <button onClick={pedirConfirmacaoFechamento} className="absolute right-3 top-3 shrink-0 rounded-2xl border border-zinc-200 bg-zinc-50 p-2 text-zinc-400 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 dark:border-zinc-800 dark:bg-card-dark dark:hover:border-red-900/50 dark:hover:bg-red-950/20 sm:right-4">
           <X size={18} />
         </button>
       </div>

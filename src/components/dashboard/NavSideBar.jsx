@@ -13,6 +13,7 @@ import ProfileLevelRing from '../gamification/ProfileLevelRing';
 import { NotificationBell } from '../shared/NotificationPanel';
 import { calcularStatusEstudoHoje, contarRevisoesPendentes, contarRevisoesPendentesHoje } from '../../hooks/useCronogramaSystem';
 import { buildStudyDaysMap, calculateCurrentStudyStreak } from '../../utils/studyDayStatus';
+import { coverPositionToStyle } from '../../utils/profileCover';
 import { getAgendaSemana } from '../../services/scheduling/review';
 
 const NAV_ICON_SIZE  = 20;
@@ -281,7 +282,7 @@ function StreakInfoPortal({ streak, anchorRef, onClose }) {
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: 10, scale: 0.95 }}
       style={{ top: coords.top, right: coords.right }}
-      className="fixed z-[9999] w-60 overflow-hidden rounded-2xl border border-zinc-200 bg-white p-4 shadow-2xl dark:border-zinc-800 dark:bg-zinc-950"
+      className="fixed z-[9999] w-60 overflow-hidden rounded-2xl border border-zinc-200 bg-white p-4 shadow-2xl dark:border-zinc-800 dark:bg-card-dark"
     >
       {/* Fundo Decorativo */}
       <div className="absolute inset-0 bg-gradient-to-b from-orange-500/5 to-transparent dark:from-orange-500/10 pointer-events-none" />
@@ -385,6 +386,9 @@ function StreakInfoPortal({ streak, anchorRef, onClose }) {
 
 function NavSideBar({
   user,
+  coverURL,
+  coverPosition,
+  coverLoading = false,
   userAccess,
   activeTab,
   setActiveTab,
@@ -792,7 +796,7 @@ function NavSideBar({
     <div
       className={`
         fixed top-0 right-0 h-[60px] z-[60]
-        bg-white/70 dark:bg-zinc-950/70 backdrop-blur-xl border-b border-white/60 dark:border-white/10
+        bg-white/70 dark:bg-card-dark border-b border-white/60 dark:border-white/10
         flex items-center justify-between px-2 sm:px-4 shadow-sm shadow-black/5 dark:shadow-black/30 transition-all duration-300
         left-0 lg:left-[64px]
         ${isDesktopExpanded ? 'lg:left-[184px]' : 'lg:left-[64px]'}
@@ -866,39 +870,50 @@ function NavSideBar({
                 initial={{ opacity:0, y:10, scale:0.95 }}
                 animate={{ opacity:1, y:0, scale:1 }}
                 exit={{ opacity:0, y:10, scale:0.95 }}
-                className="absolute right-0 top-full mt-2 w-60 overflow-hidden rounded-2xl border border-red-100 bg-white shadow-2xl shadow-red-950/10 ring-1 ring-red-500/10 dark:border-red-950/50 dark:bg-zinc-950 dark:ring-red-500/20 sm:w-64 z-[100]"
+                className="absolute right-0 top-full mt-2 w-60 overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl shadow-zinc-950/10 ring-1 ring-black/5 dark:border-zinc-700 dark:bg-card-dark dark:ring-white/5 sm:w-64 z-[100]"
               >
-                <div className="relative flex flex-col items-center overflow-hidden border-b border-red-100 bg-gradient-to-b from-red-50 via-white to-white px-4 pb-3 pt-4 dark:border-red-950/50 dark:from-red-950/35 dark:via-zinc-950 dark:to-zinc-950">
-                  <div className="pointer-events-none absolute -top-16 left-1/2 h-40 w-40 -translate-x-1/2 rounded-full bg-red-500/20 blur-3xl dark:bg-red-500/15"/>
-                  <div className="pointer-events-none absolute left-0 right-0 top-0 h-1 bg-gradient-to-r from-red-700 via-red-500 to-orange-500"/>
+                <div className="relative flex min-h-[142px] flex-col items-center justify-end overflow-hidden border-b border-zinc-200 bg-zinc-50 px-4 pb-3 pt-4 dark:border-zinc-700 dark:bg-zinc-800/45">
+                  {coverURL && (
+                    <img
+                      src={coverURL}
+                      alt=""
+                      aria-hidden="true"
+                      className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+                      style={{ objectPosition: coverPositionToStyle(coverPosition) }}
+                    />
+                  )}
+                  {coverURL && <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/25 via-black/45 to-black/80" />}
+                  {!coverURL && !coverLoading && <div className="pointer-events-none absolute -top-16 left-1/2 h-40 w-40 -translate-x-1/2 rounded-full bg-zinc-400/15 blur-3xl dark:bg-white/5"/>}
+                  {coverLoading && <div className="pointer-events-none absolute inset-0 animate-pulse bg-zinc-200 dark:bg-zinc-800" />}
+                  <div className="pointer-events-none absolute left-0 right-0 top-0 h-0.5 bg-red-600/70"/>
                   <motion.div
                     animate={{ scale: [1, 1.12, 1], opacity: [0.35, 0.55, 0.35] }}
                     transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-                    className="pointer-events-none absolute top-8 h-20 w-20 rounded-full bg-red-500/15 blur-2xl"
+                    className="pointer-events-none absolute top-8 h-20 w-20 rounded-full bg-zinc-400/10 blur-2xl dark:bg-white/5"
                   />
                   <div
                     className="relative z-10 mb-2 cursor-pointer drop-shadow-xl transition-transform duration-500 hover:scale-105"
                     onClick={() => { setActiveTab('profile'); setIsProfileMenuOpen(false); }}
                   >
-                    <div className="rounded-full bg-white/80 p-1 shadow-xl shadow-red-900/10 ring-4 ring-red-100/80 dark:bg-zinc-950/70 dark:ring-red-950/70">
+                    <div className="rounded-full bg-white/80 p-1 shadow-xl shadow-zinc-900/10 ring-4 ring-zinc-200/80 dark:bg-card-dark dark:ring-zinc-700/80">
                       <ProfileLevelRing userPhotoURL={user?.photoURL} size={56} strokeWidth={3.5}/>
                     </div>
                   </div>
-                  <h3 className="relative z-10 mb-1 w-full truncate text-center text-sm font-black leading-tight tracking-tight text-zinc-950 dark:text-white">
+                  <h3 className={`relative z-10 mb-1 w-full truncate text-center text-sm font-black leading-tight tracking-tight ${coverURL ? 'text-white drop-shadow-md' : 'text-zinc-950 dark:text-white'}`}>
                     {user?.displayName || 'Guerreiro'}
                   </h3>
-                  <div className="relative z-10 rounded-full border border-red-200 bg-white/75 px-2.5 py-0.5 text-[8px] font-black uppercase tracking-[0.18em] text-red-600 shadow-sm dark:border-red-900/70 dark:bg-red-950/20 dark:text-red-300">
+                  <div className={`relative z-10 rounded-full px-2.5 py-0.5 text-[8px] font-black uppercase tracking-[0.18em] shadow-sm ${coverURL ? 'border border-white/25 bg-black/35 text-white backdrop-blur-sm' : 'border border-zinc-200 bg-white/75 text-zinc-600 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300'}`}>
                     Central do aluno
                   </div>
                 </div>
 
-                <div className="space-y-1 bg-white p-2 dark:bg-zinc-950">
+                <div className="space-y-1 bg-white p-2 dark:bg-card-dark">
                   <button
                     onClick={() => { setActiveTab('profile'); setIsProfileMenuOpen(false); }}
-                    className="group flex w-full items-center justify-between rounded-xl border border-transparent px-3 py-2 text-xs font-bold text-zinc-700 transition-all hover:border-red-100 hover:bg-red-50/70 hover:text-zinc-950 dark:text-zinc-300 dark:hover:border-red-950/60 dark:hover:bg-red-950/20 dark:hover:text-white"
+                    className="group flex w-full items-center justify-between rounded-xl border border-transparent px-3 py-2 text-xs font-bold text-zinc-700 transition-all hover:border-zinc-200 hover:bg-zinc-100 hover:text-zinc-950 dark:text-zinc-300 dark:hover:border-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-white"
                   >
                     <div className="flex items-center gap-4">
-                      <div className="rounded-lg bg-red-50 p-1.5 text-red-600 transition-all group-hover:bg-red-600 group-hover:text-white dark:bg-red-950/30 dark:text-red-300">
+                      <div className="rounded-lg bg-zinc-100 p-1.5 text-zinc-600 transition-all group-hover:bg-zinc-200 group-hover:text-zinc-900 dark:bg-zinc-800 dark:text-zinc-300 dark:group-hover:bg-zinc-700 dark:group-hover:text-white">
                         <Settings size={16}/>
                       </div>
                       <span>Configurações</span>
@@ -908,10 +923,10 @@ function NavSideBar({
 
                   <button
                     onClick={() => { onOpenFeedback(); setIsProfileMenuOpen(false); }}
-                    className="group flex w-full items-center justify-between rounded-xl border border-transparent px-3 py-2 text-xs font-bold text-zinc-700 transition-all hover:border-red-100 hover:bg-red-50/70 hover:text-zinc-950 dark:text-zinc-300 dark:hover:border-red-950/60 dark:hover:bg-red-950/20 dark:hover:text-white"
+                    className="group flex w-full items-center justify-between rounded-xl border border-transparent px-3 py-2 text-xs font-bold text-zinc-700 transition-all hover:border-zinc-200 hover:bg-zinc-100 hover:text-zinc-950 dark:text-zinc-300 dark:hover:border-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-white"
                   >
                     <div className="flex items-center gap-4">
-                      <div className="relative rounded-lg bg-red-50 p-1.5 text-red-600 transition-all group-hover:bg-red-600 group-hover:text-white dark:bg-red-950/30 dark:text-red-300">
+                      <div className="relative rounded-lg bg-zinc-100 p-1.5 text-zinc-600 transition-all group-hover:bg-zinc-200 group-hover:text-zinc-900 dark:bg-zinc-800 dark:text-zinc-300 dark:group-hover:bg-zinc-700 dark:group-hover:text-white">
                         <Radio size={16} className={hasUnreadSupport ? 'animate-pulse' : ''}/>
                         {hasUnreadSupport && (
                           <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white dark:border-zinc-900"/>
@@ -922,14 +937,14 @@ function NavSideBar({
                     <ChevronRight size={16} className="text-zinc-300 group-hover:text-zinc-500"/>
                   </button>
 
-                  <div className="mx-4 h-px bg-red-100 dark:bg-red-950/50"/>
+                  <div className="mx-4 h-px bg-zinc-200 dark:bg-zinc-700"/>
 
                   <button
                     onClick={handleLogout}
-                    className="group flex w-full items-center rounded-xl px-3 py-2 text-xs font-bold text-red-600 transition-all hover:bg-red-50 dark:hover:bg-red-950/20"
+                    className="group flex w-full items-center rounded-xl px-3 py-2 text-xs font-bold text-zinc-600 transition-all hover:bg-zinc-100 hover:text-red-600 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-red-400"
                   >
                     <div className="flex items-center gap-4">
-                      <div className="rounded-lg bg-red-100 p-1.5 text-red-600 transition-all group-hover:bg-red-600 group-hover:text-white dark:bg-red-950/40 dark:text-red-300">
+                      <div className="rounded-lg bg-zinc-100 p-1.5 text-zinc-600 transition-all group-hover:bg-red-600 group-hover:text-white dark:bg-zinc-800 dark:text-zinc-300">
                         <LogOut size={16}/>
                       </div>
                       <span>Sair do Sistema</span>
@@ -954,7 +969,7 @@ function NavSideBar({
       <nav
         className={`
           fixed top-0 bottom-0 z-[80] flex h-[100dvh] min-h-dvh flex-col
-          bg-white dark:bg-zinc-950 border-r border-zinc-200 dark:border-white/10
+          bg-white dark:bg-card-dark border-r border-zinc-200 dark:border-white/10
           transition-all duration-300 shadow-2xl lg:shadow-none
           ${isMobileOpen ? 'translate-x-0 w-[260px]' : '-translate-x-full lg:translate-x-0'}
           lg:left-0 ${isDesktopExpanded ? 'lg:w-[184px]' : 'lg:w-[64px]'}
@@ -1141,7 +1156,7 @@ function NavSideBar({
           })}
         </div>
 
-        <div className="nav-sidebar-content-zoom shrink-0 border-t border-zinc-100 bg-white p-2.5 dark:border-zinc-800 dark:bg-zinc-950">
+        <div className="nav-sidebar-content-zoom shrink-0 border-t border-zinc-100 bg-white p-2.5 dark:border-zinc-800 dark:bg-card-dark">
           <button
             type="button"
             onClick={() => {

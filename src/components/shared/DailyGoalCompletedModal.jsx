@@ -26,6 +26,7 @@ export default function DailyGoalCompletedModal({
   planName = 'Plano de estudos',
   editalName = 'Edital ativo',
   editalLogo = null,
+  largeEditalLogo = false,
   systemLogo = '/logoModoQAP.png',
   achievementLabel = 'ESTUDO DO DIA CONCLUIDO',
   title = 'ESTUDO DO DIA CONCLUIDO',
@@ -79,7 +80,7 @@ export default function DailyGoalCompletedModal({
             role="dialog"
             aria-modal="true"
             aria-label={ariaLabel}
-            className={`relative max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-[352px] overflow-hidden rounded-[22px] border border-emerald-200/90 bg-white/95 shadow-2xl shadow-emerald-950/25 backdrop-blur-sm dark:border-emerald-900/40 dark:bg-zinc-950/95 sm:max-h-none sm:w-full sm:rounded-[30px] ${compactStatsLayout ? 'sm:max-w-[480px]' : 'sm:aspect-square sm:max-w-[520px]'}`}
+            className={`relative max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-[352px] overflow-hidden rounded-[22px] border border-emerald-200/90 bg-white/95 shadow-2xl shadow-emerald-950/25 backdrop-blur-sm dark:border-emerald-900/40 dark:bg-card-dark/95 sm:max-h-none sm:w-full sm:rounded-[30px] ${compactStatsLayout ? 'sm:max-w-[480px]' : 'sm:aspect-square sm:max-w-[520px]'}`}
             initial={{ opacity: 0, y: 34, scale: 0.9, rotateX: 10 }}
             animate={{ opacity: 1, y: 0, scale: 1, rotateX: 0 }}
             exit={{ opacity: 0, y: 24, scale: 0.98 }}
@@ -203,8 +204,8 @@ export default function DailyGoalCompletedModal({
                 >
                   <div className="absolute inset-x-3 top-0 h-1 rounded-b-full bg-gradient-to-r from-amber-400 via-emerald-500 to-cyan-400" />
                   <p className="mt-1.5 text-[7px] font-black uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400 sm:mt-2 sm:text-[8px] sm:tracking-[0.24em]">Edital</p>
-                  <div className="flex min-h-0 flex-1 items-center gap-3 text-left">
-                    <div className={`flex shrink-0 items-center justify-center rounded-[16px] border border-zinc-100 bg-white p-1.5 shadow-sm dark:border-white/10 dark:bg-zinc-950 sm:rounded-[18px] sm:p-2 ${compactStatsLayout ? 'h-12 w-12 sm:h-14 sm:w-14' : 'h-14 w-14 sm:h-16 sm:w-16'}`}>
+                  <div className={`flex min-h-0 flex-1 gap-3 ${largeEditalLogo ? 'flex-col items-center justify-center text-center' : 'items-center text-left'}`}>
+                    <div className={`flex shrink-0 items-center justify-center rounded-[16px] border border-zinc-100 bg-white p-1.5 shadow-sm dark:border-white/10 dark:bg-card-dark sm:rounded-[18px] sm:p-2 ${largeEditalLogo ? 'h-20 w-full max-w-[180px] sm:h-24 sm:max-w-[220px]' : compactStatsLayout ? 'h-12 w-12 sm:h-14 sm:w-14' : 'h-14 w-14 sm:h-16 sm:w-16'}`}>
                       {editalLogo ? (
                         <img src={editalLogo} alt="" className="h-full w-full object-contain" />
                       ) : (

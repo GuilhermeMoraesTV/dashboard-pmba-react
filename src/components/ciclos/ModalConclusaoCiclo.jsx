@@ -97,6 +97,7 @@ function ModalConclusaoCiclo({
             planName={nomeEdital}
             editalName={nomeEdital}
             editalLogo={editalLogo || ciclo?.editalLogo || ciclo?.logoUrl || ciclo?.logo || null}
+            largeEditalLogo
             heroIcon={CheckCircle2}
             stats={stats}
             progressLabel="100%"

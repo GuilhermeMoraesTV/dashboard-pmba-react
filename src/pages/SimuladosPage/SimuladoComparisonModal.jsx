@@ -225,7 +225,7 @@ const SimuladoComparisonModal = ({ simuladosSelecionados, onClose }) => {
         onClick={(e) => e.stopPropagation()}
         className={`
             simulado-modal-mobile-zoom simulado-modal-mobile-zoom--dense
-            bg-white dark:bg-zinc-950
+            bg-white dark:bg-card-dark
             w-full max-w-[96vw] sm:max-w-xl md:max-w-3xl lg:max-w-4xl
             h-auto max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-2.5rem)] md:max-h-[calc(100dvh-3.5rem)]
             rounded-3xl border-2 border-zinc-200/50 dark:border-zinc-800/50 shadow-2xl
@@ -272,7 +272,7 @@ const SimuladoComparisonModal = ({ simuladosSelecionados, onClose }) => {
         )}
 
         {/* CONTEÚDO SCROLLÁVEL */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar bg-zinc-50/30 dark:bg-zinc-950/30 p-4 sm:p-5">
+        <div className="flex-1 overflow-y-auto custom-scrollbar bg-zinc-50/30 dark:bg-card-dark/30 p-4 sm:p-5">
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-6 mb-6">
 
@@ -348,7 +348,7 @@ const SimuladoComparisonModal = ({ simuladosSelecionados, onClose }) => {
                 <div className="space-y-4 relative z-10">
                   {topGrowth[0] && (<div className="flex items-start gap-3 p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-800/30"><div className="p-2.5 bg-emerald-100 dark:bg-emerald-800 rounded-xl text-emerald-700 dark:text-emerald-300"><ArrowUpRight size={20} /></div><div className="min-w-0"><p className="text-[10px] font-bold text-emerald-600 uppercase">Maior ganho</p><p className="font-bold text-zinc-800 dark:text-white text-sm truncate mt-0.5">{topGrowth[0].name}</p><p className="text-sm font-black text-emerald-600 mt-1">+{topGrowth[0].diff.toFixed(1)} pts</p></div></div>)}
                   {topDrops[0] && (<div className="flex items-start gap-3 p-4 rounded-2xl bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-800/30"><div className="p-2.5 bg-red-100 dark:bg-red-800 rounded-xl text-red-700 dark:text-red-300"><ArrowDownRight size={20} /></div><div className="min-w-0"><p className="text-[10px] font-bold text-red-600 uppercase">Maior queda</p><p className="font-bold text-zinc-800 dark:text-white text-sm truncate mt-0.5">{topDrops[0].name}</p><p className="text-sm font-black text-red-600 mt-1">{topDrops[0].diff.toFixed(1)} pts</p></div></div>)}
-                  {(!topGrowth[0] && !topDrops[0]) && (<div className="p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-950/40 border border-zinc-200 dark:border-zinc-800 text-sm text-zinc-500">Sem variações relevantes — continue registrando.</div>)}
+                  {(!topGrowth[0] && !topDrops[0]) && (<div className="p-4 rounded-2xl bg-zinc-50 dark:bg-card-dark/40 border border-zinc-200 dark:border-zinc-800 text-sm text-zinc-500">Sem variações relevantes — continue registrando.</div>)}
                 </div>
                 {/* Visual extra para preencher espaço */}
                 <div className="mt-8 pt-6 border-t border-zinc-100 dark:border-zinc-800">

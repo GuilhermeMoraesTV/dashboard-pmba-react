@@ -396,7 +396,7 @@ const CustomSelect = ({
     <div className="relative" ref={dropdownRef}>
       <div
         onClick={() => !disabled && setIsOpen(!isOpen)}
-        className={`w-full pl-3 pr-8 py-2 bg-white dark:bg-zinc-950 border ${isOpen ? 'border-red-500' : 'border-zinc-300 dark:border-zinc-700'} rounded-xl flex items-center justify-between cursor-pointer transition-all ${disabled ? 'opacity-50 cursor-not-allowed' : 'hover:border-zinc-400 dark:hover:border-zinc-500'}`}
+        className={`w-full pl-3 pr-8 py-2 bg-white dark:bg-card-dark border ${isOpen ? 'border-red-500' : 'border-zinc-300 dark:border-zinc-700'} rounded-xl flex items-center justify-between cursor-pointer transition-all ${disabled ? 'opacity-50 cursor-not-allowed' : 'hover:border-zinc-400 dark:hover:border-zinc-500'}`}
       >
         <span className={`truncate text-sm normal-case ${selectedOption ? 'text-zinc-800 dark:text-white font-medium' : 'text-zinc-400 dark:text-zinc-500'}`}>
           {selectedOption ? selectedOption.label : (loading ? 'Carregando...' : placeholder)}
@@ -418,7 +418,7 @@ const CustomSelect = ({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -4, scale: 0.98 }}
             transition={{ duration: 0.12 }}
-            className="fixed z-[100300] bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-2xl overflow-y-auto custom-scrollbar"
+            className="fixed z-[100300] bg-white dark:bg-card-dark border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-2xl overflow-y-auto custom-scrollbar"
             style={dropdownPosition}
           >
             <div className="p-1 space-y-0.5">
@@ -1275,7 +1275,7 @@ function RegistroEstudoModal({
         exit={{ opacity: 0, scale: 0.96, y: 8 }}
         transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
         style={{ maxHeight: finalHeight, width: '100%', maxWidth: `${modalMaxWidth}px` }}
-        className="registro-modal-mobile-zoom group relative bg-[#e6e6e8] dark:bg-[#070707] rounded-[26px] shadow-[0_28px_90px_rgba(0,0,0,0.42)] border border-zinc-300/80 dark:border-zinc-800 overflow-hidden flex flex-col"
+        className="registro-modal-mobile-zoom group relative bg-[#e6e6e8] dark:bg-card-dark rounded-[26px] shadow-[0_28px_90px_rgba(0,0,0,0.42)] border border-zinc-300/80 dark:border-zinc-800 overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="registro-flow-strip h-1 w-full shrink-0" />
@@ -1530,7 +1530,7 @@ function RegistroEstudoModal({
                               max="365"
                               value={revisaoPersonalizadaDias}
                               onChange={(event) => setRevisaoPersonalizadaDias(Math.max(1, Number(event.target.value) || 1))}
-                              className="h-9 w-20 rounded-xl border border-zinc-200 bg-zinc-50 px-2 text-center font-black text-zinc-900 outline-none focus:border-red-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-white"
+                              className="h-9 w-20 rounded-xl border border-zinc-200 bg-zinc-50 px-2 text-center font-black text-zinc-900 outline-none focus:border-red-500 dark:border-zinc-700 dark:bg-card-dark dark:text-white"
                             />
                             <span className="shrink-0 text-zinc-500">dia(s)</span>
                           </label>
@@ -1557,7 +1557,7 @@ function RegistroEstudoModal({
                         <div className={`relative w-7 h-7 md:h-6 md:w-6 rounded-lg border-2 flex items-center justify-center shrink-0 transition-all duration-300 ${
                           markAsFinished
                             ? 'bg-white border-white text-emerald-600 scale-105 shadow-sm'
-                            : 'bg-white/70 dark:bg-zinc-950/70 border-emerald-400 dark:border-emerald-600 text-emerald-500'
+                            : 'bg-white/70 dark:bg-card-dark/70 border-emerald-400 dark:border-emerald-600 text-emerald-500'
                         }`}>
                           {checkingFinishedStatus
                             ? <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
@@ -1608,14 +1608,14 @@ function RegistroEstudoModal({
                             className={`absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full border transition-colors ${
                               naoConcluidoCronograma
                                 ? 'border-white/40 bg-white/15 text-white hover:bg-white/25'
-                                : 'border-amber-300 bg-white/80 text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:bg-zinc-950/80 dark:text-amber-400'
+                                : 'border-amber-300 bg-white/80 text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:bg-card-dark/80 dark:text-amber-400'
                             }`}
                             aria-label="Explicar manter pendente"
                           >
                             <Info size={12} strokeWidth={2.5} />
                           </button>
                           {showPendenciaInfo && (
-                            <div className="absolute right-0 top-[calc(100%+0.45rem)] z-[260] w-64 rounded-xl border border-amber-200 bg-white p-3 text-[11px] font-semibold leading-snug text-zinc-600 shadow-2xl shadow-zinc-950/10 dark:border-amber-800/60 dark:bg-zinc-950 dark:text-zinc-300">
+                            <div className="absolute right-0 top-[calc(100%+0.45rem)] z-[260] w-64 rounded-xl border border-amber-200 bg-white p-3 text-[11px] font-semibold leading-snug text-zinc-600 shadow-2xl shadow-zinc-950/10 dark:border-amber-800/60 dark:bg-card-dark dark:text-zinc-300">
                               Use quando você estudou, mas ainda não concluiu o assunto. Ele fica pendente no cronograma e volta em um próximo bloco de estudo.
                             </div>
                           )}
@@ -1628,7 +1628,7 @@ function RegistroEstudoModal({
             )}
 
             {/* ── SEÇÃO: TEMPO + QUESTÕES ── */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 relative z-0">
+            <div className="relative z-0 grid grid-cols-2 gap-2 md:gap-3">
 
               {/* Tempo */}
               <div className="registro-modal-form-section p-2 md:p-2 space-y-1.5">
@@ -1736,7 +1736,7 @@ function RegistroEstudoModal({
 
           {/* ── FILA LATERAL ── */}
           {queue.length > 0 && (
-            <div className="w-full lg:w-80 bg-[#dedee1]/95 dark:bg-[#080808] border-t lg:border-t-0 lg:border-l border-zinc-300/80 dark:border-zinc-800 p-4 flex flex-col shrink-0 overflow-hidden h-40 lg:h-auto backdrop-blur">
+            <div className="w-full lg:w-80 bg-[#dedee1]/95 dark:bg-card-dark border-t lg:border-t-0 lg:border-l border-zinc-300/80 dark:border-zinc-800 p-4 flex flex-col shrink-0 overflow-hidden h-40 lg:h-auto backdrop-blur">
               <div className="flex items-center justify-between mb-4">
                 <h4 className="registro-section-kicker">
                   Sessões ({queue.length})
@@ -1813,7 +1813,7 @@ function RegistroEstudoModal({
         </div>
 
         {/* ── FOOTER ── */}
-        <div className={`${FOOTER_PADDING_MOBILE} ${FOOTER_PADDING_DESKTOP} bg-[#dedee1]/96 dark:bg-[#080808]/96 border-t border-zinc-300/80 dark:border-zinc-800 shrink-0 relative z-50 flex items-center gap-3`}>
+        <div className={`${FOOTER_PADDING_MOBILE} ${FOOTER_PADDING_DESKTOP} bg-[#dedee1]/96 dark:bg-card-dark/96 border-t border-zinc-300/80 dark:border-zinc-800 shrink-0 relative z-50 flex items-center gap-3`}>
           {/* Adicionar outro */}
           <button
             type="button"
