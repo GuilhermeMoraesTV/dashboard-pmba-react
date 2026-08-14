@@ -128,18 +128,6 @@ const globalStyles = `
     color: #e4e4e7;
   }
 
-  .registro-ambient-grid {
-    background-image:
-      linear-gradient(rgba(161, 161, 170, 0.18) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(161, 161, 170, 0.18) 1px, transparent 1px);
-    background-size: 28px 28px;
-  }
-  .dark .registro-ambient-grid {
-    background-image:
-      linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
-  }
-
   .registro-flow-strip {
     background: linear-gradient(90deg, #ef4444, #dc2626, #991b1b, #ef4444);
     background-size: 220% 100%;
@@ -1262,7 +1250,7 @@ function RegistroEstudoModal({
 
   return (
     <div
-      className="fixed inset-0 z-[200] flex items-center justify-center p-4 md:p-5 bg-zinc-950/78 backdrop-blur-xl registro-ambient-grid"
+      className="fixed inset-0 z-[200] flex items-center justify-center p-4 md:p-5 bg-zinc-950/78 backdrop-blur-xl"
       onClick={handleCloseRequest}
     >
       <style>{globalStyles}</style>

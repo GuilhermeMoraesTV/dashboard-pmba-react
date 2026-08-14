@@ -27,13 +27,21 @@ service cloud.firestore {
       return get(currentUserDocPath()).data;
     }
 
+    function currentUserAccess() {
+      return currentUserDoc().get('access', {});
+    }
+
+    function currentUserPermissions() {
+      return currentUserAccess().get('permissions', {});
+    }
+
     // Papel administrativo baseado no documento users/{uid}.
     function hasAdminRoleDoc() {
       return currentUserDocExists()
         && (
-          currentUserDoc().access.permissions.adminPanel == true
-          || currentUserDoc().access.adminRole in ['admin', 'super_admin']
-          || currentUserDoc().access.role == 'admin'
+          currentUserPermissions().get('adminPanel', false) == true
+          || currentUserAccess().get('adminRole', null) in ['admin', 'super_admin']
+          || currentUserAccess().get('role', null) == 'admin'
         );
     }
 

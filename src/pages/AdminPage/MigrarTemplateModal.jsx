@@ -286,12 +286,12 @@ const MigrarTemplateModal = ({ isOpen, onClose }) => {
 
   return (
     // z-[9999] garante que fica acima de TUDO (EditaisManager está em z-[200], CustomEditalModal em z-[250])
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/75 backdrop-blur-md">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-zinc-900/75 p-4 backdrop-blur-md">
       <motion.div
         initial={{ scale: 0.95, opacity: 0, y: 10 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.95, opacity: 0 }}
-        className="bg-white dark:bg-zinc-950 w-full max-w-xl rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-2xl overflow-hidden"
+        className="w-full max-w-xl overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-700 dark:bg-zinc-900"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50">

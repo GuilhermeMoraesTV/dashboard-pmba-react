@@ -121,7 +121,7 @@ const ExpandedModal = ({ isOpen, onClose, title, children }) => {
   useBodyScrollLock(isOpen, { fixed: false });
   if (!isOpen) return null;
   return createPortal(
-    <div className="fixed inset-0 z-[10020] flex items-center justify-center p-3 sm:p-5 md:p-7 bg-zinc-950/70 backdrop-blur-md animate-fade-in">
+    <div className="fixed inset-0 z-[10020] flex items-center justify-center bg-zinc-900/70 p-3 backdrop-blur-md animate-fade-in sm:p-5 md:p-7">
       <motion.div
         initial={{ scale: 0.95, opacity: 0, y: 20 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
@@ -408,8 +408,8 @@ const HeaderFrases = ({ isOpen, onClose }) => {
           isEditingThis ? 'bg-red-50 dark:bg-red-900/10 border-red-300 dark:border-red-700/50 ring-1 ring-red-400/30'
             : isThisFeatured ? 'bg-amber-50 dark:bg-amber-900/10 border-amber-300 dark:border-amber-700/50 ring-1 ring-amber-400/30'
             : isTodayCard ? 'bg-emerald-50 dark:bg-emerald-900/10 border-emerald-300 dark:border-emerald-700/50 ring-1 ring-emerald-400/30'
-            : isPastCard ? 'bg-zinc-50 dark:bg-zinc-900/30 border-zinc-200 dark:border-zinc-800 opacity-60'
-            : 'bg-white dark:bg-zinc-900/60 border-zinc-200 dark:border-zinc-800 hover:border-red-300 dark:hover:border-red-700 hover:shadow-sm'
+            : isPastCard ? 'bg-zinc-50 dark:bg-zinc-800/35 border-zinc-200 dark:border-zinc-700 opacity-60'
+            : 'bg-white dark:bg-card-dark border-zinc-200 dark:border-zinc-700 hover:border-red-300 dark:hover:border-red-700 hover:shadow-sm'
         }`}
       >
         <div className="flex items-start justify-between gap-2 mb-2">
@@ -493,7 +493,7 @@ const HeaderFrases = ({ isOpen, onClose }) => {
     <>
     <ExpandedModal isOpen={isOpen} onClose={onClose} title="Gerenciar Frases">
       <div className="admin-frases-modal-content flex flex-col w-full h-full overflow-hidden">
-        <div className="admin-modal-tabs flex items-center justify-between px-6 pt-4 pb-0 bg-white dark:bg-zinc-950 border-b border-zinc-100 dark:border-zinc-800 shrink-0 gap-4">
+        <div className="admin-modal-tabs flex shrink-0 items-center justify-between gap-4 border-b border-zinc-100 bg-white px-6 pb-0 pt-4 dark:border-zinc-700 dark:bg-card-dark">
           <div className="flex gap-1 overflow-x-auto">
             {tabs.map(t => (
               <button key={t.key} onClick={() => setActiveTab(t.key)} className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold uppercase tracking-wide border-b-2 transition-all -mb-px whitespace-nowrap ${activeTab === t.key ? 'border-red-500 text-red-600 dark:text-red-400' : 'border-transparent text-zinc-400 hover:text-zinc-700'}`}>
@@ -528,7 +528,7 @@ const HeaderFrases = ({ isOpen, onClose }) => {
               <div className="flex gap-3 items-center">
                 <div className="relative flex-1">
                   <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
-                  <input type="text" placeholder="Buscar frases..." value={search} onChange={e => setSearch(e.target.value)} className="w-full pl-9 pr-4 py-2.5 text-sm bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl outline-none dark:text-white focus:border-red-500 transition-colors" />
+                  <input type="text" placeholder="Buscar frases..." value={search} onChange={e => setSearch(e.target.value)} className="w-full pl-9 pr-4 py-2.5 text-sm bg-white dark:bg-zinc-800/70 border border-zinc-200 dark:border-zinc-700 rounded-xl outline-none dark:text-white focus:border-red-500 transition-colors" />
                 </div>
                 <div className="flex gap-2 shrink-0">
                   <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 rounded-xl"><span className="w-2 h-2 rounded-full bg-emerald-500"></span><span className="text-[10px] font-black text-emerald-700">{todayQuotes.length} hoje</span></div>
@@ -555,19 +555,19 @@ const HeaderFrases = ({ isOpen, onClose }) => {
                 </div>
               </div>
 
-              <div className="bg-white dark:bg-zinc-900/60 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 space-y-5">
+              <div className="bg-white dark:bg-card-dark border border-zinc-200 dark:border-zinc-700 rounded-xl p-6 space-y-5">
                 <div className="grid sm:grid-cols-3 gap-3">
-                  <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/40 p-4">
+                  <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-800/60">
                     <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-1">Estoque atual</p>
                     <p className="text-2xl font-black text-zinc-900 dark:text-white">{futureQuotes.length}</p>
                     <p className="text-[11px] text-zinc-500">frases futuras</p>
                   </div>
-                  <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/40 p-4">
+                  <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-800/60">
                     <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-1">Meta</p>
                     <p className="text-2xl font-black text-zinc-900 dark:text-white">21</p>
                     <p className="text-[11px] text-zinc-500">dias abastecidos</p>
                   </div>
-                  <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/40 p-4">
+                  <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-800/60">
                     <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-1">Ultimo status</p>
                     <p className={`text-sm font-black uppercase ${automationConfig?.status === 'error' ? 'text-red-600' : 'text-emerald-600'}`}>
                       {automationConfig?.status || 'Aguardando'}
@@ -609,7 +609,7 @@ const HeaderFrases = ({ isOpen, onClose }) => {
           {activeTab === 'add' && (
             <div className="max-w-2xl mx-auto w-full space-y-6">
               <div className="p-5 bg-red-50 dark:bg-red-900/10 border border-red-100 rounded-2xl flex items-start gap-3"><Sparkles size={16} className="text-red-500 shrink-0 mt-0.5" /><p className="text-xs font-medium text-red-700 dark:text-red-300">A data é preenchida automaticamente com o próximo dia disponível.</p></div>
-              <div className="space-y-4 bg-white dark:bg-zinc-900/60 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6">
+              <div className="space-y-4 bg-white dark:bg-card-dark border border-zinc-200 dark:border-zinc-700 rounded-xl p-6">
                 <div className="space-y-2"><label className="text-xs font-black uppercase tracking-widest text-zinc-400 ml-1">Texto da Frase *</label><textarea value={newText} onChange={e => setNewText(e.target.value)} placeholder='"A consistência bate o talento..."' rows={4} className="w-full bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 rounded-xl px-4 py-3 text-sm outline-none resize-none dark:text-white focus:border-red-500 transition-colors" /></div>
                 <div className="flex flex-col sm:flex-row gap-3">
                     <div className="flex-1 space-y-2"><label className="text-xs font-black uppercase tracking-widest text-zinc-400 ml-1">Autor</label><input type="text" value={newAuthor} onChange={e => setNewAuthor(e.target.value)} className="w-full bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 rounded-xl px-4 py-2.5 text-sm outline-none dark:text-white focus:border-red-500 transition-colors" /></div>
@@ -628,7 +628,7 @@ const HeaderFrases = ({ isOpen, onClose }) => {
           {activeTab === 'bulk' && (
             <div className="max-w-3xl mx-auto w-full space-y-6">
               <div className="p-5 bg-blue-50 dark:bg-blue-900/10 border border-blue-100 rounded-2xl flex items-start gap-3"><Upload size={16} className="text-blue-500 shrink-0 mt-0.5" /><div><p className="text-xs font-black text-blue-700 mb-1 uppercase">Formato aceito</p><p className="text-xs font-medium text-blue-600">Uma frase por linha. Use <code className="bg-blue-100 px-1 rounded">|</code> para separar texto do autor.</p></div></div>
-              <div className="bg-white dark:bg-zinc-900/60 border border-zinc-200 rounded-2xl p-6 space-y-4">
+              <div className="bg-white dark:bg-card-dark border border-zinc-200 dark:border-zinc-700 rounded-xl p-6 space-y-4">
                 <textarea value={bulkText} onChange={e => setBulkText(e.target.value)} placeholder="Frase... | Autor" rows={12} className="w-full bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 rounded-xl px-4 py-3 text-sm outline-none dark:text-white font-mono focus:border-red-500 transition-colors" />
                 {bulkParsed.length > 0 && <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400 flex items-center gap-1.5"><CheckCircle2 size={11} className="text-emerald-500" /> {bulkParsed.length} frases detectadas</p>}
                 {bulkSaved && <p className="text-emerald-600 font-bold">Importadas com sucesso!</p>}

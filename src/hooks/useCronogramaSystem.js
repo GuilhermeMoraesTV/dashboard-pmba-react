@@ -390,19 +390,25 @@ export const useCronogramaSystem = (user) => {
   /**
    * Ativa um cronograma e desativa os demais ativos do usuário.
    */
-  const ativarCronograma = async (cronogramaId) => {
+  const ativarCronograma = async (cronogramaId, activeCronogramaIds = null) => {
     if (!cronogramaId) return false;
     if (!user?.uid) return false;
     setLoading(true);
     try {
       const batch = writeBatch(db);
       const cronogramaRef = doc(db, 'users', user.uid, 'cronogramas', cronogramaId);
-      const ativosSnap = await getDocs(
-        query(collection(db, 'users', user.uid, 'cronogramas'), where('ativo', '==', true))
-      );
-      ativosSnap.docs.forEach((d) => {
-        if (d.id !== cronogramaId) batch.update(d.ref, { ativo: false });
-      });
+      if (Array.isArray(activeCronogramaIds)) {
+        activeCronogramaIds
+          .filter((id) => id && id !== cronogramaId)
+          .forEach((id) => batch.update(doc(db, 'users', user.uid, 'cronogramas', id), { ativo: false }));
+      } else {
+        const ativosSnap = await getDocs(
+          query(collection(db, 'users', user.uid, 'cronogramas'), where('ativo', '==', true))
+        );
+        ativosSnap.docs.forEach((d) => {
+          if (d.id !== cronogramaId) batch.update(d.ref, { ativo: false });
+        });
+      }
       batch.update(cronogramaRef, {
         ativo: true,
         revisoesReagendadas: {},

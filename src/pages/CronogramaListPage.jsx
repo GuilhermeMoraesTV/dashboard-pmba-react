@@ -391,9 +391,23 @@ function CronogramaListPage({
     e.stopPropagation(); setMenuAberto(null);
     if (action === 'ativar') {
       setActionLoading(true);
-      const ok = await ativarCronograma(cronograma.id);
+      const previousCronogramas = cronogramas;
+      const activeCronogramaIds = cronogramas.filter((item) => item.ativo && item.id !== cronograma.id).map((item) => item.id);
+      const activeCronograma = { ...cronograma, ativo: true, arquivado: false };
+      setCronogramas((current) => current.map((item) => ({
+        ...item,
+        ativo: item.id === cronograma.id,
+        arquivado: item.id === cronograma.id ? false : item.arquivado,
+      })));
+      const activationPromise = ativarCronograma(cronograma.id, activeCronogramaIds);
+      const ok = await activationPromise;
       setActionLoading(false);
-      if (ok) onCronogramaAberto?.(cronograma.id, { ...cronograma, ativo: true });
+      if (ok) {
+        onCronogramaAberto?.(cronograma.id, activeCronograma);
+      } else {
+        setCronogramas(previousCronogramas);
+        setActionError('Erro ao ativar cronograma. Tente novamente.');
+      }
     }
     else if (action === 'desativar') { setCronogramaParaDesativar(cronograma); }
     else if (action === 'editar') {

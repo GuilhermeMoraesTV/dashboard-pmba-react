@@ -411,17 +411,6 @@ const timerFinishStyles = `
   .dark .registro-small-label {
     color: #e4e4e7;
   }
-  .registro-ambient-grid {
-    background-image:
-      linear-gradient(rgba(161, 161, 170, 0.18) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(161, 161, 170, 0.18) 1px, transparent 1px);
-    background-size: 28px 28px;
-  }
-  .dark .registro-ambient-grid {
-    background-image:
-      linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
-  }
   .revisao-chip {
     position: relative;
     overflow: hidden;
@@ -1250,7 +1239,7 @@ function TimerFinishModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 md:p-5 bg-zinc-950/78 backdrop-blur-xl registro-ambient-grid">
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 md:p-5 bg-zinc-950/78 backdrop-blur-xl">
       <style>{timerFinishStyles}</style>
       <AnimatePresence>
         {showDiscardModal && (

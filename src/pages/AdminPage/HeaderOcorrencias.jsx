@@ -30,7 +30,7 @@ const ExpandedModal = ({ isOpen, onClose, title, children }) => {
   useBodyScrollLock(isOpen, { fixed: false });
   if (!isOpen) return null;
   return createPortal(
-    <div className="fixed inset-0 z-[10020] flex items-center justify-center p-3 sm:p-5 md:p-7 bg-zinc-950/70 backdrop-blur-md animate-fade-in">
+    <div className="fixed inset-0 z-[10020] flex items-center justify-center bg-zinc-900/70 p-3 backdrop-blur-md animate-fade-in sm:p-5 md:p-7">
       <motion.div
         initial={{ scale: 0.95, opacity: 0, y: 20 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
@@ -199,9 +199,9 @@ const HeaderOcorrencias = ({ isOpen, onClose }) => {
   return (
     <>
     <ExpandedModal isOpen={isOpen} onClose={onClose} title="Central de Ocorrências">
-      <div className="admin-ocorrencias-modal-content flex w-full h-full overflow-hidden bg-zinc-50 dark:bg-zinc-950">
-        <div className={`admin-ocorrencias-list flex flex-col w-full md:w-80 lg:w-[400px] border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 z-20 absolute md:relative inset-0 transition-transform duration-300 ease-in-out ${activeTicketId ? '-translate-x-full md:translate-x-0' : 'translate-x-0'}`}>
-          <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 space-y-3 bg-white dark:bg-zinc-950 z-10">
+      <div className="admin-ocorrencias-modal-content flex h-full w-full overflow-hidden bg-zinc-50 dark:bg-zinc-900">
+        <div className={`admin-ocorrencias-list absolute inset-0 z-20 flex w-full flex-col border-r border-zinc-200 bg-white transition-transform duration-300 ease-in-out dark:border-zinc-700 dark:bg-zinc-900 md:relative md:w-80 lg:w-[400px] ${activeTicketId ? '-translate-x-full md:translate-x-0' : 'translate-x-0'}`}>
+          <div className="z-10 space-y-3 border-b border-zinc-100 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
             <div className="relative group">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within:text-red-500 transition-colors" />
               <input type="text" placeholder="Buscar ticket..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full pl-9 pr-4 py-3 text-xs bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl outline-none dark:text-white" />
@@ -212,7 +212,7 @@ const HeaderOcorrencias = ({ isOpen, onClose }) => {
               ))}
             </div>
           </div>
-          <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-2 bg-zinc-50/30 dark:bg-zinc-950">
+          <div className="flex-1 space-y-2 overflow-y-auto bg-zinc-50/30 p-3 custom-scrollbar dark:bg-zinc-800/45">
             {filteredTickets.map(t => (
               <button key={t.id} onClick={() => setActiveTicketId(t.id)} className={`w-full text-left p-4 rounded-2xl border transition-all relative group overflow-hidden shadow-sm ${activeTicketId === t.id ? 'bg-white dark:bg-zinc-900 border-red-500/30 ring-1 ring-red-500/20' : 'bg-white dark:bg-zinc-900/60 border-zinc-200 dark:border-zinc-800 hover:border-red-200 hover:shadow-md'}`}>
                 {t.unreadAdmin && <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-red-600"></div>}
@@ -234,10 +234,10 @@ const HeaderOcorrencias = ({ isOpen, onClose }) => {
             ))}
           </div>
         </div>
-        <div className={`admin-ocorrencias-chat flex flex-col flex-1 bg-white dark:bg-zinc-950 z-10 absolute md:relative inset-0 transition-transform duration-300 ${activeTicketId ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}`}>
+        <div className={`admin-ocorrencias-chat absolute inset-0 z-10 flex flex-1 flex-col bg-white transition-transform duration-300 dark:bg-zinc-900 md:relative ${activeTicketId ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}`}>
           {activeTicket ? (
             <>
-              <div className="px-6 py-4 border-b border-zinc-100 dark:border-zinc-800 bg-white/90 dark:bg-zinc-950/90 backdrop-blur-md flex justify-between items-center z-20">
+              <div className="z-20 flex items-center justify-between border-b border-zinc-100 bg-white/90 px-6 py-4 backdrop-blur-md dark:border-zinc-700 dark:bg-zinc-900/90">
                 <div className="flex items-center gap-4">
                   <button onClick={() => setActiveTicketId(null)} className="md:hidden p-2 -ml-2 text-zinc-500"><ArrowLeft size={20} /></button>
                   <div className="relative">
@@ -253,7 +253,7 @@ const HeaderOcorrencias = ({ isOpen, onClose }) => {
                   <button onClick={(e) => handleDeleteTicket(activeTicket.id, e)} className="p-2.5 rounded-xl bg-white border border-zinc-200 text-zinc-400 hover:text-red-600"><Trash2 size={18} /></button>
                 </div>
               </div>
-              <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 custom-scrollbar bg-slate-50/50 dark:bg-zinc-950/50">
+              <div ref={scrollRef} className="flex-1 space-y-6 overflow-y-auto bg-slate-50/50 p-4 custom-scrollbar dark:bg-zinc-800/45 md:p-8">
                 {(!messages.length && activeTicket.message) && (
                   <div className="flex justify-start animate-fade-in-up">
                     <div className="max-w-[85%] md:max-w-[70%] p-5 rounded-3xl rounded-tl-sm bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-sm shadow-sm text-zinc-700 dark:text-zinc-200 leading-relaxed">
@@ -277,7 +277,7 @@ const HeaderOcorrencias = ({ isOpen, onClose }) => {
                 })}
                 {activeTicket.userTyping && <div className="flex justify-start"><TypingIndicator /></div>}
               </div>
-              <form onSubmit={handleSendOrUpdate} className="p-4 md:p-6 bg-white dark:bg-zinc-950 border-t border-zinc-100 dark:border-zinc-800 flex gap-3 shrink-0 items-end z-30">
+              <form onSubmit={handleSendOrUpdate} className="z-30 flex shrink-0 items-end gap-3 border-t border-zinc-100 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900 md:p-6">
                 {editingMessage && <button type="button" onClick={cancelEditing} className="p-4 bg-zinc-100 rounded-full"><X size={20} /></button>}
                 <div className={`flex-1 rounded-3xl border transition-all flex items-center px-2 ${editingMessage ? 'bg-amber-50 border-amber-200' : 'bg-zinc-100 border-transparent focus-within:bg-white focus-within:shadow-md'}`}>
                   <textarea className="w-full bg-transparent border-none px-4 py-4 text-sm focus:ring-0 outline-none resize-none max-h-32 min-h-[56px] leading-relaxed" placeholder={editingMessage ? "Editando mensagem..." : "Escreva uma resposta..."} value={reply} onChange={handleTyping} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendOrUpdate(e); } }} rows={1} disabled={activeTicket.status === 'resolvido' && !editingMessage} />
@@ -286,7 +286,7 @@ const HeaderOcorrencias = ({ isOpen, onClose }) => {
               </form>
             </>
           ) : (
-            <div className="hidden md:flex flex-col items-center justify-center h-full text-zinc-400 bg-zinc-50/50 dark:bg-black/20 p-10 text-center">
+            <div className="hidden h-full flex-col items-center justify-center bg-zinc-50/50 p-10 text-center text-zinc-400 dark:bg-zinc-800/45 md:flex">
               <MessageSquare size={48} className="text-zinc-300 mb-6" /><h3 className="text-xl font-bold text-zinc-800 dark:text-zinc-200">Central de Atendimento</h3>
             </div>
           )}

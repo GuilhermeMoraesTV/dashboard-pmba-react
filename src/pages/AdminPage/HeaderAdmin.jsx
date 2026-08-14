@@ -80,7 +80,7 @@ const HeaderAdmin = ({
       <HeaderFrases      isOpen={showQuotes}    onClose={() => setShowQuotes(false)} />
       <MigrarTemplateModal isOpen={showMigrar}  onClose={() => setShowMigrar(false)} />
 
-      <header className="admin-control-header relative sticky top-3 z-40 flex flex-col items-start justify-between gap-5 overflow-visible rounded-[30px] border border-zinc-200/80 bg-white/95 px-5 py-5 shadow-[0_22px_55px_-34px_rgba(24,24,27,0.45)] backdrop-blur-xl dark:border-zinc-800/80 dark:bg-zinc-950/95 sm:px-6 lg:flex-row lg:items-center">
+      <header className="admin-control-header relative sticky top-3 z-40 flex flex-col items-start justify-between gap-5 overflow-visible rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white/95 px-5 py-5 shadow-soft backdrop-blur-xl dark:border-white/10 dark:!border-l-red-500/25 dark:bg-card-dark/95 sm:px-6 lg:flex-row lg:items-center">
         <div className="flex min-w-0 items-center gap-4">
           <div className="hidden h-14 w-14 shrink-0 items-center justify-center rounded-[20px] bg-gradient-to-br from-red-500 to-red-700 text-white shadow-lg shadow-red-600/20 sm:flex">
             <ShieldCheck size={27} />
@@ -196,7 +196,7 @@ const HeaderAdmin = ({
         </div>
 
         {showFilters && filters && (
-          <div className="absolute left-0 right-0 top-[calc(100%+0.65rem)] z-50 rounded-[26px] border border-zinc-200 bg-white p-4 shadow-2xl dark:border-zinc-800 dark:bg-zinc-950 md:left-auto md:right-0 md:w-[760px]">
+          <div className="absolute left-0 right-0 top-[calc(100%+0.65rem)] z-50 rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white p-4 shadow-2xl dark:border-white/10 dark:!border-l-red-500/25 dark:bg-card-dark md:left-auto md:right-0 md:w-[760px]">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-black text-zinc-900 dark:text-white">Filtrar indicadores</p>
@@ -207,13 +207,13 @@ const HeaderAdmin = ({
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
               <label className="space-y-1">
                 <span className="text-[10px] font-black uppercase tracking-[0.14em] text-zinc-400">Período</span>
-                <select value={filters.windowDays} onChange={(event) => onFilterChange?.('windowDays', Number(event.target.value))} className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-xs font-bold text-zinc-700 outline-none dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200">
+                <select value={filters.windowDays} onChange={(event) => onFilterChange?.('windowDays', Number(event.target.value))} className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-xs font-bold text-zinc-700 outline-none dark:border-zinc-700 dark:bg-zinc-800/70 dark:text-zinc-200">
                   {[30, 60, 90].map((days) => <option key={days} value={days}>{days} dias</option>)}
                 </select>
               </label>
               <label className="space-y-1">
                 <span className="text-[10px] font-black uppercase tracking-[0.14em] text-zinc-400">Origem</span>
-                <select value={filters.contextType} onChange={(event) => onFilterChange?.('contextType', event.target.value)} className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-xs font-bold text-zinc-700 outline-none dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200">
+                <select value={filters.contextType} onChange={(event) => onFilterChange?.('contextType', event.target.value)} className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-xs font-bold text-zinc-700 outline-none dark:border-zinc-700 dark:bg-zinc-800/70 dark:text-zinc-200">
                   <option value="all">Todas</option>
                   <option value="ciclo">Ciclos</option>
                   <option value="cronograma">Cronogramas</option>
@@ -222,20 +222,20 @@ const HeaderAdmin = ({
               </label>
               <label className="space-y-1">
                 <span className="text-[10px] font-black uppercase tracking-[0.14em] text-zinc-400">Perfil</span>
-                <select value={filters.userProfile} onChange={(event) => onFilterChange?.('userProfile', event.target.value)} className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-xs font-bold text-zinc-700 outline-none dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200">
+                <select value={filters.userProfile} onChange={(event) => onFilterChange?.('userProfile', event.target.value)} className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-xs font-bold text-zinc-700 outline-none dark:border-zinc-700 dark:bg-zinc-800/70 dark:text-zinc-200">
                   <option value="all">Todos</option>
                   {(filterOptions.userProfiles || []).map((profile) => <option key={profile} value={profile}>{profile}</option>)}
                 </select>
               </label>
               <label className="space-y-1">
                 <span className="text-[10px] font-black uppercase tracking-[0.14em] text-zinc-400">Edital</span>
-                <select value={filters.templateId} onChange={(event) => onFilterChange?.('templateId', event.target.value)} className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-xs font-bold text-zinc-700 outline-none dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200">
+                <select value={filters.templateId} onChange={(event) => onFilterChange?.('templateId', event.target.value)} className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-xs font-bold text-zinc-700 outline-none dark:border-zinc-700 dark:bg-zinc-800/70 dark:text-zinc-200">
                   <option value="all">Todos</option>
                   {(filterOptions.templateIds || []).map((templateId) => <option key={templateId} value={templateId}>{templateId === 'manual' ? 'Manual' : templateId}</option>)}
                 </select>
               </label>
               <div className="flex items-end">
-                <button type="button" onClick={onResetFilters} className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-xs font-black uppercase tracking-[0.12em] text-zinc-500 hover:text-red-600 dark:border-zinc-800 dark:bg-zinc-900">Limpar</button>
+                <button type="button" onClick={onResetFilters} className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-xs font-black uppercase tracking-[0.12em] text-zinc-500 hover:text-red-600 dark:border-zinc-700 dark:bg-zinc-800/70">Limpar</button>
               </div>
             </div>
           </div>

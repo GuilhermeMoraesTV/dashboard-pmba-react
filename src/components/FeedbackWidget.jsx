@@ -107,42 +107,65 @@ const FeedbackWidget = ({
 
   // ── Carrega tickets do usuário ────────────────────────────────────────────
   useEffect(() => {
-    if (!user) return;
+    if (!user?.uid || !isOpen) return undefined;
     const q = query(
       collection(db, 'system_feedback'),
       where('uid', '==', user.uid),
       orderBy('timestamp', 'desc')
     );
-    return onSnapshot(q, (snap) => {
-      const tickets = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      setMyTickets(tickets);
-      if (activeTicket) {
-        const updated = tickets.find(t => t.id === activeTicket.id);
-        if (updated && (
-          updated.status        !== activeTicket.status ||
-          updated.adminTyping   !== activeTicket.adminTyping ||
-          updated.unreadUser    !== activeTicket.unreadUser
-        )) setActiveTicket(prev => ({ ...prev, ...updated }));
+    return onSnapshot(
+      q,
+      (snap) => {
+        const tickets = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        setMyTickets(tickets);
+        setActiveTicket((current) => {
+          if (!current) return current;
+          const updated = tickets.find(t => t.id === current.id);
+          if (!updated) return current;
+          if (
+            updated.status === current.status
+            && updated.adminTyping === current.adminTyping
+            && updated.unreadUser === current.unreadUser
+          ) return current;
+          return { ...current, ...updated };
+        });
+      },
+      (error) => {
+        setMyTickets([]);
+        setErrorMessage('Nao foi possivel carregar seus chamados agora. Tente novamente mais tarde.');
+        console.warn('[Suporte] Falha ao carregar chamados:', error.code || error);
       }
-    });
-  }, [user, activeTicket]);
+    );
+  }, [user?.uid, isOpen]);
 
   // ── Carrega mensagens do ticket ativo ─────────────────────────────────────
   useEffect(() => {
-    if (!activeTicket) return;
-    if (activeTicket.unreadUser)
-      updateDoc(doc(db, 'system_feedback', activeTicket.id), { unreadUser: false });
+    if (!activeTicket?.id) return undefined;
     const q = query(
       collection(db, 'system_feedback', activeTicket.id, 'messages'),
       orderBy('timestamp', 'asc')
     );
-    return onSnapshot(q, (snap) => {
-      setChatMessages(snap.docs.map(d => d.data()));
-      setTimeout(() => {
-        if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-      }, 100);
-    });
+    return onSnapshot(
+      q,
+      (snap) => {
+        setChatMessages(snap.docs.map(d => d.data()));
+        setTimeout(() => {
+          if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        }, 100);
+      },
+      (error) => {
+        setChatMessages([]);
+        setErrorMessage('Nao foi possivel carregar as mensagens deste chamado.');
+        console.warn('[Suporte] Falha ao carregar mensagens:', error.code || error);
+      }
+    );
   }, [activeTicket?.id]);
+
+  useEffect(() => {
+    if (!activeTicket?.id || !activeTicket.unreadUser) return;
+    updateDoc(doc(db, 'system_feedback', activeTicket.id), { unreadUser: false })
+      .catch((error) => console.warn('[Suporte] Falha ao marcar chamado como lido:', error.code || error));
+  }, [activeTicket?.id, activeTicket?.unreadUser]);
 
   const handleTyping = (e) => {
     const text = e.target.value;

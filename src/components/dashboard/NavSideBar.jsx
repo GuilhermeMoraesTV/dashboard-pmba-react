@@ -521,7 +521,14 @@ function NavSideBar({
       where('uid', '==', user.uid),
       where('unreadUser', '==', true)
     );
-    const unsub = onSnapshot(q, (snap) => setHasUnreadSupport(!snap.empty));
+    const unsub = onSnapshot(
+      q,
+      (snap) => setHasUnreadSupport(!snap.empty),
+      (error) => {
+        setHasUnreadSupport(false);
+        console.warn('[Suporte] Nao foi possivel acompanhar chamados nao lidos:', error.code || error);
+      }
+    );
     return () => unsub();
   }, [user]);
 
@@ -534,16 +541,24 @@ function NavSideBar({
       where('ativo', '==', true)
     );
 
-    const unsub = onSnapshot(q, (snap) => {
-      if (!snap.empty) {
-        const cronograma = { id: snap.docs[0].id, ...snap.docs[0].data() };
-        setCronogramaAtivo(cronograma);
-        setRevisoesPendentes(contarRevisoesPendentes(cronograma));
-      } else {
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        if (!snap.empty) {
+          const cronograma = { id: snap.docs[0].id, ...snap.docs[0].data() };
+          setCronogramaAtivo(cronograma);
+          setRevisoesPendentes(contarRevisoesPendentes(cronograma));
+          return;
+        }
         setCronogramaAtivo(null);
         setRevisoesPendentes(0);
+      },
+      (error) => {
+        setCronogramaAtivo(null);
+        setRevisoesPendentes(0);
+        console.warn('[Planejamento] Nao foi possivel acompanhar o cronograma ativo:', error.code || error);
       }
-    });
+    );
 
     return () => unsub();
   }, [user?.uid]);

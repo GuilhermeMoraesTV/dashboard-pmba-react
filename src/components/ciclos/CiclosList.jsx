@@ -300,8 +300,21 @@ export default function CiclosList({
         setTimerWarning(true);
         return;
       }
-      const success = await ativarCiclo(ciclo.id);
-      if (success) onCicloAtivado?.(ciclo.id);
+      const previousCiclos = ciclos;
+      const activeCicloIds = ciclos.filter((item) => item.ativo && item.id !== ciclo.id).map((item) => item.id);
+      setCiclos((current) => current.map((item) => ({
+        ...item,
+        ativo: item.id === ciclo.id,
+        arquivado: item.id === ciclo.id ? false : item.arquivado,
+      })));
+      const activationPromise = ativarCiclo(ciclo.id, activeCicloIds);
+      const success = await activationPromise;
+      if (success) {
+        onCicloAtivado?.(ciclo.id);
+      } else {
+        setCiclos(previousCiclos);
+        setActionError('Erro ao ativar ciclo. Tente novamente.');
+      }
       return;
     }
 
@@ -380,7 +393,7 @@ export default function CiclosList({
     <div className={containerClassName}>
       <AnimatePresence>
         {timerWarning && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" onClick={() => setTimerWarning(false)}>
+          <div key="timer-warning" className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" onClick={() => setTimerWarning(false)}>
             <div className="w-full max-w-md overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-card-dark" onClick={(event) => event.stopPropagation()}>
               <div className="flex flex-col items-center border-b border-amber-500/20 bg-amber-500/10 p-6">
                 <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-amber-500/20 text-amber-600"><AlertOctagon size={32} /></div>
@@ -394,6 +407,7 @@ export default function CiclosList({
           </div>
         )}
         <ModalConfirmacao
+          key="deactivate-cycle"
           item={cicloParaDesativar}
           title="Desativar ciclo?"
           description={`O ciclo "${cicloParaDesativar?.nome || ''}" sera pausado. Seu progresso fica preservado.`}
@@ -405,6 +419,7 @@ export default function CiclosList({
           loading={actionLoading}
         />
         <ModalConfirmacao
+          key="delete-cycle"
           item={cicloParaExcluir}
           title="Excluir ciclo?"
           description={`O ciclo "${cicloParaExcluir?.nome || ''}" e os registros vinculados serao apagados permanentemente.`}

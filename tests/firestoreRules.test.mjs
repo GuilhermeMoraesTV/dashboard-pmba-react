@@ -7,14 +7,17 @@ import {
   initializeTestEnvironment,
 } from '@firebase/rules-unit-testing';
 import {
+  collection,
   collectionGroup,
   deleteDoc,
   doc,
   getDoc,
   getDocs,
+  orderBy,
   query,
   setDoc,
   updateDoc,
+  where,
 } from 'firebase/firestore';
 
 const projectId = 'dashboard-pmba';
@@ -39,9 +42,19 @@ before(async () => {
       uid: 'admin-user',
       access: { role: 'admin', adminRole: 'admin', permissions: { adminPanel: true } },
     });
+    await setDoc(doc(db, 'users', 'role-only-admin'), {
+      uid: 'role-only-admin',
+      access: { role: 'admin' },
+    });
+    await setDoc(doc(db, 'users', 'permission-only-admin'), {
+      uid: 'permission-only-admin',
+      access: { permissions: { adminPanel: true } },
+    });
     await setDoc(doc(db, 'system_feedback', 'ticket-owner'), {
       uid: 'owner-user',
       status: 'pendente',
+      timestamp: '2026-08-13T00:00:00.000Z',
+      unreadUser: true,
     });
     await setDoc(doc(db, 'users', 'owner-user'), { uid: 'owner-user', name: 'Aluno' });
     await setDoc(doc(db, 'users', 'legacy-owner'), { name: 'Aluno legado' });
@@ -78,6 +91,16 @@ test('system_feedback restringe chamados ao dono e libera gestão ao admin', asy
   const strangerDb = environment.authenticatedContext('stranger-user').firestore();
   const adminDb = environment.authenticatedContext('admin-user').firestore();
   await assertSucceeds(getDoc(doc(ownerDb, 'system_feedback', 'ticket-owner')));
+  await assertSucceeds(getDocs(query(
+    collection(ownerDb, 'system_feedback'),
+    where('uid', '==', 'owner-user'),
+    orderBy('timestamp', 'desc'),
+  )));
+  await assertSucceeds(getDocs(query(
+    collection(ownerDb, 'system_feedback'),
+    where('uid', '==', 'owner-user'),
+    where('unreadUser', '==', true),
+  )));
   await assertFails(getDoc(doc(strangerDb, 'system_feedback', 'ticket-owner')));
   await assertSucceeds(updateDoc(doc(ownerDb, 'system_feedback', 'ticket-owner'), { userTyping: true }));
   await assertFails(updateDoc(doc(ownerDb, 'system_feedback', 'ticket-owner'), { status: 'resolvido' }));
@@ -134,8 +157,12 @@ test('system_ai_usage é somente leitura para admin no cliente', async () => {
 test('collection groups acadêmicos são legíveis somente pelo admin', async () => {
   const ownerDb = environment.authenticatedContext('owner-user').firestore();
   const adminDb = environment.authenticatedContext('admin-user').firestore();
+  const roleOnlyAdminDb = environment.authenticatedContext('role-only-admin').firestore();
+  const permissionOnlyAdminDb = environment.authenticatedContext('permission-only-admin').firestore();
   for (const collectionName of ['registrosEstudo', 'simulados', 'ciclos', 'cronogramas']) {
     await assertSucceeds(getDocs(query(collectionGroup(adminDb, collectionName))));
+    await assertSucceeds(getDocs(query(collectionGroup(roleOnlyAdminDb, collectionName))));
+    await assertSucceeds(getDocs(query(collectionGroup(permissionOnlyAdminDb, collectionName))));
     await assertFails(getDocs(query(collectionGroup(ownerDb, collectionName))));
   }
 });

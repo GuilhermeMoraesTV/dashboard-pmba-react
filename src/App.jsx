@@ -76,6 +76,19 @@ function App() {
     authPersistenceReady.finally(() => {
       if (!active) return;
       unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+        if (currentUser?.uid) {
+          const themeInitializedKey = `modoqap_initial_theme_${currentUser.uid}`;
+          const createdAt = Date.parse(currentUser.metadata?.creationTime || '');
+          const lastSignInAt = Date.parse(currentUser.metadata?.lastSignInTime || '');
+          const isFirstSignIn = Number.isFinite(createdAt)
+            && Number.isFinite(lastSignInAt)
+            && Math.abs(lastSignInAt - createdAt) <= 5000;
+
+          if (isFirstSignIn && localStorage.getItem(themeInitializedKey) !== 'true') {
+            localStorage.setItem(themeInitializedKey, 'true');
+            setIsDarkMode(false);
+          }
+        }
         setUser(currentUser);
         setLoading(false);
       });
@@ -117,7 +130,7 @@ function App() {
               />
               <Route
                 path="/signup"
-                element={<PublicRoute user={user}><Signup /></PublicRoute>}
+                element={<PublicRoute user={user}><Signup onSetLightTheme={() => setIsDarkMode(false)} /></PublicRoute>}
               />
               <Route
                 path="/forgot-password"

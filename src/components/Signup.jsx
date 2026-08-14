@@ -53,7 +53,7 @@ const IconEyeSlash = () => (
   </svg>
 );
 
-function Signup() {
+function Signup({ onSetLightTheme }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -99,6 +99,10 @@ function Signup() {
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
+      localStorage.setItem('theme', 'light');
+      localStorage.setItem(`modoqap_initial_theme_${user.uid}`, 'true');
+      window.document.documentElement.classList.remove('dark');
+      onSetLightTheme?.();
       let photoURL = null;
 
       if (photo) {

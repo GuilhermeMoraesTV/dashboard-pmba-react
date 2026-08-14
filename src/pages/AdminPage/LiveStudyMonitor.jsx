@@ -641,7 +641,7 @@ const SessionCard = ({ s, getUser, cicloNameByKey, isExpanded, toggleExpand, onO
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50/80 dark:bg-black/20"
+            className="border-t border-zinc-100 bg-zinc-50/80 dark:border-zinc-700 dark:bg-zinc-800/45"
           >
             <div className="p-4 pl-6 grid grid-cols-1 md:grid-cols-2 gap-4">
                <div className="space-y-2">
@@ -957,7 +957,7 @@ const StudyingNowPanel = ({ sessions = [], getUser, cicloNameByKey, onOpenUser }
         }
       `}} />
 
-      <div className="relative h-full flex flex-col overflow-hidden rounded-3xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 shadow-2xl">
+      <div className="relative flex h-full flex-col overflow-hidden rounded-3xl border border-zinc-200 bg-zinc-50 shadow-2xl dark:border-zinc-700 dark:bg-zinc-900">
 
       {/* BACKGROUND DECORATIVO */}
       <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">

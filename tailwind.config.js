@@ -22,11 +22,11 @@ export default {
         // Cores Semânticas
         background: {
           light: '#f4f4f5', // Zinc-100
-          dark: '#09090b',  // Zinc-950 (Cinza muito escuro, não preto)
+          dark: '#0B090B',  // Preto original do fundo geral
         },
         card: {
           light: '#ffffff',
-          dark: '#18181b',  // Zinc-900
+          dark: '#18181b',  // Zinc-900: tom escuro original dos cards
         },
         border: {
           light: colors.zinc[200],

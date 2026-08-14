@@ -230,12 +230,18 @@ export const useCiclos = (user) => {
     }
   };
 
-  const ativarCiclo = async (cicloId) => {
+  const ativarCiclo = async (cicloId, activeCicloIds = null) => {
     if (!user) { setError('Usuario nao autenticado'); return false; }
     setLoading(true); setError(null);
     try {
       const batch = writeBatch(db);
-      await desativarCiclosAntigos(batch, user.uid);
+      if (Array.isArray(activeCicloIds)) {
+        activeCicloIds
+          .filter((id) => id && id !== cicloId)
+          .forEach((id) => batch.update(doc(db, 'users', user.uid, 'ciclos', id), { ativo: false }));
+      } else {
+        await desativarCiclosAntigos(batch, user.uid);
+      }
       const cicloRef = doc(db, 'users', user.uid, 'ciclos', cicloId);
       batch.update(cicloRef, { ativo: true, arquivado: false });
       await batch.commit();

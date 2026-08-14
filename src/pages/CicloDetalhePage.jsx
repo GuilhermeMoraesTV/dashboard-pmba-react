@@ -518,6 +518,7 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
   const [loadingCicloSessoes, setLoadingCicloSessoes] = useState({});
   const [loadingTeoriaSessao, setLoadingTeoriaSessao] = useState(null);
   const [sessionCompletionOverrides, setSessionCompletionOverrides] = useState({});
+  const [assuntosToggleLoading, setAssuntosToggleLoading] = useState(false);
   const [acaoRevisaoCiclo, setAcaoRevisaoCiclo] = useState(null);
   const [cicloResetAnimation, setCicloResetAnimation] = useState(false);
   const [optimisticReviewDone, setOptimisticReviewDone] = useState({});
@@ -983,6 +984,22 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
   const canConcludeCiclo = ciclo?.ativo && progressoGeral >= 100 && isAllDisciplinesMet;
   const showEmptyMessage = !disciplinas.length;
   const showAssuntosCiclo = ciclo?.modoExibirAssuntos !== false;
+  const handleToggleAssuntosCiclo = async () => {
+    if (!user?.uid || !cicloId || assuntosToggleLoading) return;
+    const nextValue = !showAssuntosCiclo;
+    setAssuntosToggleLoading(true);
+    setCiclo((current) => current ? { ...current, modoExibirAssuntos: nextValue } : current);
+    try {
+      await updateDoc(doc(db, 'users', user.uid, 'ciclos', cicloId), {
+        modoExibirAssuntos: nextValue,
+      });
+    } catch (error) {
+      setCiclo((current) => current ? { ...current, modoExibirAssuntos: !nextValue } : current);
+      console.error('Erro ao atualizar exibicao de assuntos do ciclo:', error);
+    } finally {
+      setAssuntosToggleLoading(false);
+    }
+  };
 
   if (loading) return <div className="min-h-[calc(100vh-120px)]" />;
   if (!ciclo) return <div className="p-10 text-center text-zinc-500">Ciclo não encontrado.</div>;
@@ -1174,7 +1191,7 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
                   </div>
               </div>
 
-              <div className="z-10 flex w-[176px] shrink-0 items-center justify-between gap-1.5 rounded-xl border border-zinc-200 bg-white/75 p-2 shadow-sm dark:border-zinc-800 dark:bg-card-dark sm:w-[190px] md:w-auto md:min-w-[320px] md:gap-4 md:p-3">
+          <div className="z-10 flex w-[176px] shrink-0 items-center justify-between gap-1.5 rounded-xl border border-zinc-200 bg-white/75 p-2 shadow-sm backdrop-blur-sm dark:border-zinc-700 dark:bg-zinc-900/70 sm:w-[190px] md:w-auto md:min-w-[320px] md:gap-4 md:p-3">
                   <div className="min-w-0 flex-1">
                       <div className="md:hidden">
                           <p className="text-[8px] font-black uppercase tracking-widest text-zinc-400">Resumo da semana</p>
@@ -1362,6 +1379,9 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
                             registrosEstudo={allRegistrosEstudo}
                             fillAvailableHeight
                             sessionCompletionOverrides={sessionCompletionOverrides}
+                            showAssuntos={showAssuntosCiclo}
+                            onToggleAssuntos={handleToggleAssuntosCiclo}
+                            assuntosToggleLoading={assuntosToggleLoading}
                         />
                         </div>
                   </div>

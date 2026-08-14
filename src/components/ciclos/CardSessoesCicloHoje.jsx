@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Check, Play } from 'lucide-react';
+import { Check, Eye, EyeOff, Play } from 'lucide-react';
 import { getCycleFreeQueue } from '../../utils/studyDayStatus';
 import { getDisciplineColorForSlot } from '../../utils/disciplineColors';
 
@@ -24,6 +24,9 @@ function CardSessoesCicloHoje({
   registrosEstudo = [],
   fillAvailableHeight = false,
   sessionCompletionOverrides = {},
+  showAssuntos = true,
+  onToggleAssuntos,
+  assuntosToggleLoading = false,
 }) {
   const cicloComDisciplinas = useMemo(
     () => ({ ...(ciclo || {}), disciplinas }),
@@ -44,7 +47,27 @@ function CardSessoesCicloHoje({
         <p className="text-[10px] font-black uppercase tracking-[0.2em] text-red-600 dark:text-red-400">Fila do ciclo</p>
         <div className="mt-1 flex items-end justify-between gap-3">
           <h3 className="text-base font-black text-zinc-900 dark:text-white">Blocos do ciclo</h3>
-          <span className="text-xs font-bold text-zinc-400">{queue.sessions.length} blocos</span>
+          <div className="flex shrink-0 items-center gap-2">
+            {onToggleAssuntos && (
+              <button
+                type="button"
+                role="switch"
+                aria-checked={showAssuntos}
+                aria-label={showAssuntos ? 'Ocultar assuntos sugeridos' : 'Exibir assuntos sugeridos'}
+                title={showAssuntos ? 'Ocultar assuntos sugeridos' : 'Exibir assuntos sugeridos'}
+                disabled={assuntosToggleLoading}
+                onClick={onToggleAssuntos}
+                className={`inline-flex h-7 items-center gap-1.5 rounded-full border px-2 text-[9px] font-black uppercase tracking-wide transition-colors disabled:cursor-wait disabled:opacity-60 ${showAssuntos
+                  ? 'border-red-200 bg-red-50 text-red-600 dark:border-red-900/50 dark:bg-red-950/25 dark:text-red-400'
+                  : 'border-zinc-200 bg-zinc-50 text-zinc-400 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300'
+                }`}
+              >
+                {showAssuntos ? <Eye size={12} /> : <EyeOff size={12} />}
+                <span className="hidden sm:inline">Assuntos</span>
+              </button>
+            )}
+            <span className="text-xs font-bold text-zinc-400">{queue.sessions.length} blocos</span>
+          </div>
         </div>
       </div>
 
@@ -97,6 +120,9 @@ function CardSessoesCicloHoje({
               concluido: completed,
               progressoMinutos: progressMinutes,
             };
+            const assuntoSugerido = typeof session.assuntoSugerido === 'string'
+              ? session.assuntoSugerido
+              : (session.assuntoSugerido?.nome || session.assunto || '');
 
             return (
               <div
@@ -135,6 +161,11 @@ function CardSessoesCicloHoje({
                     <p className="min-w-0 break-words text-sm font-black leading-snug text-zinc-900 dark:text-white">
                       {disciplina?.nome || session.disciplinaNome || 'Disciplina'}
                     </p>
+                    {showAssuntos && assuntoSugerido && (
+                      <p className="mt-0.5 line-clamp-2 min-w-0 break-words text-[10px] font-semibold leading-snug text-zinc-500 dark:text-zinc-300">
+                        {assuntoSugerido}
+                      </p>
+                    )}
                     <div className="mt-1.5 grid min-w-0 max-w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-2.5">
                       <div className="min-w-0">
                         <div className="h-1.5 min-w-0 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">

@@ -97,7 +97,7 @@ function WeekEvolutionCard({ currentWeek, previousWeek, className = '' }) {
   
   const TrendIcon = isBetter ? ArrowUpRight : isWorse ? ArrowDownRight : Minus;
   const evolutionTone = {
-    card: 'border-zinc-200 !border-l-red-500/20 hover:border-accent-light/50 hover:!border-l-red-500 hover:shadow-red-500/10 dark:border-white/10 dark:!border-l-red-500/25 dark:hover:border-accent-light/30',
+    card: 'border-zinc-200 !border-l-red-500/20 hover:border-accent-light/50 hover:!border-l-red-500 hover:shadow-lg dark:border-white/10 dark:!border-l-red-500/25 dark:hover:border-accent-light/30',
     glow: 'from-white via-white to-red-50 dark:from-zinc-950 dark:via-zinc-950 dark:to-red-950/10',
     icon: 'from-red-600 to-rose-700 shadow-red-500/20',
     activePanel: 'border-red-500/20 bg-red-500/5 dark:border-red-500/20 dark:bg-red-500/10',

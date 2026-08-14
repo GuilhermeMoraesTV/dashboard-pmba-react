@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Activity,
@@ -84,7 +85,7 @@ const Avatar = ({ user }) => (
 
 const StatCard = ({ icon: Icon, label, value, subtext, tone = 'zinc' }) => {
   const tones = {
-    zinc: 'bg-zinc-50 dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300',
+    zinc: 'bg-zinc-50 dark:bg-zinc-800/70 border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300',
     red: 'bg-red-50 dark:bg-red-950/30 border-red-100 dark:border-red-900/40 text-red-600 dark:text-red-300',
     blue: 'bg-blue-50 dark:bg-blue-950/30 border-blue-100 dark:border-blue-900/40 text-blue-600 dark:text-blue-300',
     green: 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-100 dark:border-emerald-900/40 text-emerald-600 dark:text-emerald-300',
@@ -99,7 +100,7 @@ const StatCard = ({ icon: Icon, label, value, subtext, tone = 'zinc' }) => {
           <p className="text-2xl font-black tracking-tight text-zinc-900 dark:text-white">{value}</p>
           {subtext ? <p className="text-xs font-semibold opacity-70 mt-1">{subtext}</p> : null}
         </div>
-        <div className="p-2.5 rounded-2xl bg-white/70 dark:bg-black/20 border border-white/70 dark:border-zinc-800">
+        <div className="rounded-2xl border border-white/70 bg-white/70 p-2.5 dark:border-zinc-700 dark:bg-zinc-800/60">
           <Icon size={16} />
         </div>
       </div>
@@ -108,7 +109,7 @@ const StatCard = ({ icon: Icon, label, value, subtext, tone = 'zinc' }) => {
 };
 
 const SectionCard = ({ title, subtitle, action, children }) => (
-  <div className="rounded-[28px] border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 shadow-sm overflow-hidden">
+  <div className="overflow-hidden rounded-[28px] border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-800/70">
     <div className="px-5 py-4 border-b border-zinc-100 dark:border-zinc-900/70 flex items-center justify-between gap-4">
       <div className="min-w-0">
         <p className="text-sm font-black text-zinc-900 dark:text-white uppercase tracking-tight">{title}</p>
@@ -122,7 +123,7 @@ const SectionCard = ({ title, subtitle, action, children }) => (
 
 const EmptyState = ({ icon: Icon, title, description }) => (
   <div className="rounded-[28px] border border-dashed border-zinc-200 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/20 px-6 py-12 text-center">
-    <div className="w-14 h-14 mx-auto rounded-2xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 flex items-center justify-center text-zinc-300 dark:text-zinc-600">
+    <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-zinc-200 bg-white text-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-600">
       <Icon size={24} />
     </div>
     <p className="text-sm font-black text-zinc-700 dark:text-zinc-200 mt-4">{title}</p>
@@ -194,7 +195,7 @@ const MiniMetric = ({ label, value, hint, tone = 'zinc' }) => {
 };
 
 const TimelineEntryCard = ({ entry }) => (
-  <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4">
+  <div className="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-800/70">
     <div className="flex items-start justify-between gap-4">
       <div className="min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
@@ -590,7 +591,7 @@ const ScheduleTab = ({ data }) => {
         {disciplineInsights.length ? (
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
             {disciplineInsights.map((item) => (
-              <div key={item.id} className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4">
+              <div key={item.id} className="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-800/70">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="text-sm font-bold text-zinc-900 dark:text-white truncate">{item.name}</p>
@@ -723,7 +724,7 @@ const HistoryTabLegacy = ({ data }) => (
       {data.analytics.timeline.length ? (
         <div className="space-y-3">
           {data.analytics.timeline.slice(0, 80).map((entry) => (
-            <div key={entry.id} className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4">
+            <div key={entry.id} className="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-800/70">
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -810,7 +811,7 @@ const HistoryTab = ({ data }) => {
 
       <SectionCard title="Filtros da Timeline" subtitle="Refine a leitura cronologica sem perder hierarquia">
         <div className="grid grid-cols-1 xl:grid-cols-4 gap-3">
-          <label className="xl:col-span-2 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-4 py-3 flex items-center gap-3">
+          <label className="flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-700 dark:bg-zinc-800/70 xl:col-span-2">
             <Search size={16} className="text-zinc-400" />
             <input
               value={search}
@@ -820,21 +821,21 @@ const HistoryTab = ({ data }) => {
             />
           </label>
 
-          <label className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-4 py-3 flex items-center gap-3">
+          <label className="flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-700 dark:bg-zinc-800/70">
             <Filter size={16} className="text-zinc-400" />
             <select value={selectedContext} onChange={(event) => setSelectedContext(event.target.value)} className="w-full bg-transparent text-sm font-medium text-zinc-900 dark:text-white outline-none">
               {data.analytics.historyFilters.contexts.map((option) => <option key={option} value={option}>{option}</option>)}
             </select>
           </label>
 
-          <label className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-4 py-3 flex items-center gap-3">
+          <label className="flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-700 dark:bg-zinc-800/70">
             <FileText size={16} className="text-zinc-400" />
             <select value={selectedType} onChange={(event) => setSelectedType(event.target.value)} className="w-full bg-transparent text-sm font-medium text-zinc-900 dark:text-white outline-none">
               {data.analytics.historyFilters.types.map((option) => <option key={option} value={option}>{option}</option>)}
             </select>
           </label>
 
-          <label className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-4 py-3 flex items-center gap-3">
+          <label className="flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-700 dark:bg-zinc-800/70">
             <BookOpen size={16} className="text-zinc-400" />
             <select value={selectedDiscipline} onChange={(event) => setSelectedDiscipline(event.target.value)} className="w-full bg-transparent text-sm font-medium text-zinc-900 dark:text-white outline-none">
               {data.analytics.historyFilters.disciplines.map((option) => <option key={option} value={option}>{option}</option>)}
@@ -1127,15 +1128,15 @@ const AdminUserProfileModal = ({ isOpen, onClose, user }) => {
     return <RiskTab data={data} />;
   }, [activeTab, data]);
 
-  if (!isOpen || !user) return null;
+  if (!isOpen || !user || typeof document === 'undefined') return null;
 
   const totalMinutes = data.records.reduce((acc, record) => acc + getMinutes(record), 0);
   const totalQuestions = data.records.reduce((acc, record) => acc + getQuestions(record), 0);
   const totalCorrect = data.records.reduce((acc, record) => acc + getCorrect(record), 0);
   const accuracy = totalQuestions > 0 ? Math.round((totalCorrect / totalQuestions) * 100) : 0;
 
-  return (
-    <div className="fixed inset-0 z-[250] flex items-center justify-center p-4">
+  return createPortal(
+    <div className="fixed inset-0 z-[10030] flex items-center justify-center p-3 sm:p-5">
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -1147,9 +1148,9 @@ const AdminUserProfileModal = ({ isOpen, onClose, user }) => {
       <motion.div
         initial={{ scale: 0.94, opacity: 0, y: 20 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
-        className="relative bg-white dark:bg-zinc-950 w-full max-w-7xl max-h-[92vh] rounded-[32px] border border-white/20 shadow-2xl flex flex-col overflow-hidden"
+        className="relative flex max-h-[calc(100dvh-24px)] w-full max-w-7xl flex-col overflow-hidden rounded-[32px] border border-zinc-200 bg-white shadow-2xl dark:border-zinc-700 dark:bg-zinc-900 sm:max-h-[calc(100dvh-40px)]"
       >
-        <div className="relative z-10 p-6 pb-0 flex flex-col xl:flex-row xl:items-end justify-between gap-6 bg-gradient-to-b from-zinc-50/90 to-white/0 dark:from-zinc-900/80 dark:to-zinc-950/0">
+        <div className="relative z-10 flex flex-col justify-between gap-6 bg-gradient-to-b from-zinc-50/90 to-white/0 p-6 pb-0 dark:from-zinc-800/80 dark:to-zinc-900/0 xl:flex-row xl:items-end">
           <div className="flex items-center gap-5 min-w-0">
             <Avatar user={user} />
             <div className="min-w-0">
@@ -1189,7 +1190,7 @@ const AdminUserProfileModal = ({ isOpen, onClose, user }) => {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-6 bg-zinc-50/50 dark:bg-black/20 relative">
+        <div className="relative flex-1 overflow-y-auto bg-zinc-50/50 p-6 custom-scrollbar dark:bg-zinc-800/45">
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}
@@ -1206,7 +1207,8 @@ const AdminUserProfileModal = ({ isOpen, onClose, user }) => {
           <h1 className="text-red-600 font-black tracking-widest uppercase text-xs opacity-80">MODOQAP 360</h1>
         </div>
       </motion.div>
-    </div>
+    </div>,
+    document.body,
   );
 };
 

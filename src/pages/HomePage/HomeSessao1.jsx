@@ -118,7 +118,7 @@ const WeeklyStudyTooltip = ({ active, payload, label }) => {
 };
 
 const StatCard = ({ icon: Icon, title, value, subValue, iconColor = 'text-red-500/10 dark:text-red-500/5', compact = false }) => (
-  <div className={`group relative flex flex-col justify-center overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white shadow-soft transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/40 hover:!border-l-red-500 hover:shadow-[0_0_18px_rgba(239,68,68,0.07)] dark:border-white/10 dark:!border-l-red-500/25 dark:bg-card-dark dark:hover:border-accent-light/20 dark:hover:!border-l-red-500 dark:hover:shadow-[0_0_22px_rgba(239,68,68,0.08)] ${compact ? 'px-3 py-2.5 h-[86px]' : 'px-3 py-2.5 min-h-[108px]'}`}>
+  <div className={`group relative flex flex-col justify-center overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white shadow-soft transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/40 hover:!border-l-red-500 hover:shadow-lg dark:border-white/10 dark:!border-l-red-500/25 dark:bg-card-dark dark:hover:border-accent-light/20 dark:hover:!border-l-red-500 ${compact ? 'px-3 py-2.5 h-[86px]' : 'px-3 py-2.5 min-h-[108px]'}`}>
     <div className="relative z-20 flex flex-col gap-0.5 w-full">
       <h3 className={`${compact ? 'text-[10px]' : 'text-[10.5px]'} font-bold uppercase tracking-wider text-text-secondary dark:text-text-dark-secondary truncate w-full leading-none`}>
         {title}
@@ -200,7 +200,7 @@ const ActiveContextCard = ({ activeCicloData, activeCronogramaData, preferredCon
       <button
         type="button"
         onClick={() => onGoToCiclo?.()}
-        className={`relative overflow-hidden group flex items-center rounded-xl cursor-pointer transition-all duration-300 bg-card-light dark:bg-card-dark border-2 border-dashed border-border-light dark:border-border-dark text-text-secondary dark:text-text-dark-secondary hover:border-red-500/50 hover:bg-zinc-50 dark:hover:bg-[#2a2a2a] hover:-translate-y-0.5 active:scale-95 ${compact ? 'h-[86px] px-4' : 'px-4 py-3 min-h-[108px] h-full'}`}
+        className={`relative w-full overflow-hidden group flex items-center rounded-xl cursor-pointer transition-all duration-300 bg-card-light dark:bg-card-dark border-2 border-dashed border-border-light dark:border-border-dark text-text-secondary dark:text-text-dark-secondary hover:border-red-500/50 hover:bg-zinc-50 dark:hover:bg-[#2a2a2a] hover:-translate-y-0.5 active:scale-95 ${compact ? 'h-[86px] px-4' : 'px-4 py-3 min-h-[108px] h-full'}`}
       >
         <div className="flex flex-col items-center justify-center w-full gap-1.5 text-center">
           <div className="p-2 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-400 group-hover:text-red-500 group-hover:bg-red-500/10 transition-colors">
@@ -219,7 +219,7 @@ const ActiveContextCard = ({ activeCicloData, activeCronogramaData, preferredCon
   const activeData = isCiclo ? activeCicloData : activeCronogramaData;
   const Icon = isCiclo ? RotateCw : CalendarDays;
   const clickHandler = isCiclo ? onGoToCiclo : onGoToCronograma;
-  const cardTone = 'border-red-400/30 bg-gradient-to-br from-red-500 via-red-600 to-rose-800 text-white shadow-red-900/20';
+  const cardTone = 'border-red-400/30 bg-gradient-to-br from-red-500 via-red-600 to-rose-800 text-white shadow-black/20';
   const playTone = 'text-red-600';
   const logoUrl = activeData?.logoUrl || activeData?.logo || resolveLogoUrl({ ciclo: activeData });
   const destinoData = isCiclo ? activeCronogramaData : activeCicloData;
@@ -383,7 +383,7 @@ export const WeeklyBarChart = ({ registrosEstudo, compact = false }) => {
   }, [weekData]);
 
   return (
-    <div className={`group relative flex flex-col overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/40 hover:!border-l-red-500 hover:shadow-[0_0_18px_rgba(239,68,68,0.07)] dark:border-white/10 dark:!border-l-red-500/25 dark:hover:border-accent-light/20 dark:hover:!border-l-red-500 dark:bg-card-dark dark:hover:shadow-[0_0_22px_rgba(239,68,68,0.08)] ${compact ? 'h-full min-h-[220px]' : 'h-full'} z-20`}>
+    <div className={`group relative z-20 flex flex-col overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/40 hover:!border-l-red-500 hover:shadow-lg dark:border-white/10 dark:!border-l-red-500/25 dark:bg-card-dark dark:hover:border-accent-light/20 dark:hover:!border-l-red-500 ${compact ? 'h-full min-h-[220px]' : 'h-full'}`}>
       {/* Decorative Orbs */}
       <div className={`pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full blur-[80px] opacity-10 transition-all duration-700 group-hover:opacity-16 bg-gradient-to-br ${metricConfig.gradient}`} />
       <div className="pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-zinc-500/5 blur-[80px] opacity-40 transition-all duration-700" />
@@ -538,7 +538,7 @@ export default function HomeSessao1({
   const badgeConfig = getMultiplierBadge(homeStats.multiplier);
 
   const statsGrid = (
-    <div id="home-stats-grid" className={`grid grid-cols-2 auto-rows-[86px] gap-2.5 md:gap-3 pt-0 ${variant === 'full' && !headerSlot ? 'md:grid-cols-4' : ''} ${headerSlot ? 'xl:grid-cols-2 xl:max-w-[320px] xl:justify-self-end' : ''}`}>
+    <div id="home-stats-grid" className={`grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] auto-rows-[86px] gap-2.5 pt-0 md:gap-3 ${variant === 'full' && !headerSlot ? 'md:grid-cols-4' : ''} ${headerSlot ? 'xl:grid-cols-2 xl:max-w-[320px] xl:justify-self-end' : ''}`}>
       <StatCard compact={compact} icon={Clock} title="Tempo de Estudo" value={formatDecimalHours(homeStats.totalTimeMinutes)} />
       <StatCard compact={compact} icon={Target} title="Questoes Feitas" value={homeStats.performance.total} />
       <StatCard

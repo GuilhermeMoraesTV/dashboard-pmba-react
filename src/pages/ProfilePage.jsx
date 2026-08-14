@@ -40,6 +40,21 @@ const formatTime = (min) => {
   return `${m}m`;
 };
 
+const getCoverSaveErrorMessage = (error) => {
+  const code = String(error?.code || 'erro-desconhecido');
+  const detailByCode = {
+    'storage/unauthorized': 'A sessao nao tem permissao para gravar neste caminho do Storage.',
+    'storage/canceled': 'O envio foi cancelado antes de terminar.',
+    'storage/retry-limit-exceeded': 'O Storage nao respondeu dentro do limite de tentativas.',
+    'storage/unknown': 'O Storage recusou o envio sem detalhar a causa.',
+    'permission-denied': 'O perfil nao permitiu salvar os dados da capa.',
+    'firestore/permission-denied': 'O perfil nao permitiu salvar os dados da capa.',
+    'unavailable': 'O servico esta indisponivel no momento.',
+    'firestore/unavailable': 'O servico esta indisponivel no momento.',
+  };
+  return `Falha ao salvar a capa (${code}). ${detailByCode[code] || error?.message || 'Tente novamente.'}`;
+};
+
 const parseDateLocal = (dateString) => {
   if (!dateString) return new Date();
   const [year, month, day] = dateString.split('-').map(Number);
@@ -827,6 +842,10 @@ function ProfilePage({
       try {
         let nextCoverURL = coverURL;
         if (coverFile) {
+          if (!auth.currentUser || auth.currentUser.uid !== user.uid) {
+            throw Object.assign(new Error('Sessao autenticada indisponivel para o upload.'), { code: 'auth/user-mismatch' });
+          }
+          await auth.currentUser.getIdToken(true);
           const safeName = coverFile.name.replace(/[^a-zA-Z0-9._-]/g, '-');
           uploadedRef = ref(storage, `profile_images/${user.uid}/covers/${Date.now()}-${safeName}`);
           const snapshot = await uploadBytes(uploadedRef, coverFile, { contentType: coverFile.type });
@@ -834,11 +853,11 @@ function ProfilePage({
         }
 
         const nextCoverPosition = normalizeCoverPosition(coverPositionDraft);
-        await updateDoc(doc(db, 'users', user.uid), {
+        await setDoc(doc(db, 'users', user.uid), {
           ...(coverFile ? { coverURL: nextCoverURL } : {}),
           coverPosition: nextCoverPosition,
           updatedAt: new Date(),
-        });
+        }, { merge: true });
 
         const previousCoverURL = coverURL;
         if (coverFile) savedCoverPreviewRef.current = nextCoverURL;
@@ -859,7 +878,7 @@ function ProfilePage({
       } catch (error) {
         console.error('Erro ao salvar capa do perfil:', error);
         if (uploadedRef) deleteObject(uploadedRef).catch(() => {});
-        setMessage({ type: 'error', text: 'Falha ao salvar a capa do perfil.' });
+        setMessage({ type: 'error', text: getCoverSaveErrorMessage(error) });
       } finally {
         setCoverAction(null);
       }

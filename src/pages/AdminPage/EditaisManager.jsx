@@ -360,8 +360,8 @@ const CustomEditalModal = ({ onClose, editalToEdit, showToast, allEditais }) => 
   const nomeFormatado = formData.titulo ? formatarNomeEditalLegivel(formData.titulo) : '';
 
   return (
-    <div className="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-      <div className={`modal-zoom modal-zoom--admin-editais bg-white dark:bg-zinc-950 w-full rounded-3xl shadow-2xl border border-zinc-200 dark:border-zinc-800 flex overflow-hidden transition-all duration-500 ${showSidebar ? 'max-w-6xl' : 'max-w-3xl'} h-[92vh]`}>
+    <div className="fixed inset-0 z-[250] flex items-center justify-center bg-zinc-900/80 p-4 backdrop-blur-md">
+      <div className={`modal-zoom modal-zoom--admin-editais flex h-[92vh] w-full overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-2xl transition-all duration-500 dark:border-zinc-700 dark:bg-zinc-900 ${showSidebar ? 'max-w-6xl' : 'max-w-3xl'}`}>
         <div className="flex-1 flex flex-col min-w-0">
 
           <div className="px-6 py-4 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 flex items-center justify-between">
@@ -445,7 +445,7 @@ const CustomEditalModal = ({ onClose, editalToEdit, showToast, allEditais }) => 
               </button>
 
               {mostrarBlocoIA && (
-                <div className="p-4 bg-white dark:bg-zinc-950 space-y-4">
+                <div className="space-y-4 bg-white p-4 dark:bg-zinc-900">
 
                   {/* Tipo de atualização — cards visuais */}
                   <div className="space-y-2">
@@ -514,7 +514,7 @@ const CustomEditalModal = ({ onClose, editalToEdit, showToast, allEditais }) => 
 
             {/* Logo */}
             <div className="flex items-center gap-4 p-3 bg-zinc-50 dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800">
-              <div onClick={() => fileInputRef.current?.click()} className="w-12 h-12 rounded-xl bg-white dark:bg-black border border-zinc-200 dark:border-zinc-700 flex items-center justify-center cursor-pointer hover:border-red-500 overflow-hidden">
+              <div onClick={() => fileInputRef.current?.click()} className="flex h-12 w-12 cursor-pointer items-center justify-center overflow-hidden rounded-xl border border-zinc-200 bg-white hover:border-red-500 dark:border-zinc-700 dark:bg-zinc-800">
                 {formData.logoPreview ? <img src={formData.logoPreview} className="w-full h-full object-contain p-1" alt="" /> : <ImageIcon size={20} className="text-zinc-300" />}
                 <input type="file" ref={fileInputRef} onChange={e => { const f = e.target.files[0]; if (f) { setManualOverride(p => ({ ...p, logo: true })); setFormData(p => ({ ...p, logoFile: f, logoPreview: URL.createObjectURL(f) })); }}} className="hidden" accept="image/*" />
               </div>
@@ -542,7 +542,7 @@ const CustomEditalModal = ({ onClose, editalToEdit, showToast, allEditais }) => 
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-zinc-400 uppercase">Nome do Cargo</label>
                   {cargosDisponiveis.length > 0 && !isCustomCargo ? (
-                    <select className="w-full p-2 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl text-xs font-bold" value={cargos[activeCargoIndex].nome}
+                    <select className="w-full rounded-xl border border-zinc-200 bg-white p-2 text-xs font-bold dark:border-zinc-700 dark:bg-zinc-800" value={cargos[activeCargoIndex].nome}
                       onChange={e => { if (e.target.value === 'Outro') { setIsCustomCargo(true); updateCargo('nome', ''); } else updateCargo('nome', e.target.value); }}>
                       <option value="">Selecione...</option>
                       {cargosDisponiveis.map(c => <option key={c} value={c}>{c}</option>)}
@@ -550,14 +550,14 @@ const CustomEditalModal = ({ onClose, editalToEdit, showToast, allEditais }) => 
                     </select>
                   ) : (
                     <div className="flex gap-2">
-                      <input className="flex-1 p-2 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl text-xs font-bold" placeholder="Ex: Soldado..." value={cargos[activeCargoIndex].nome} onChange={e => updateCargo('nome', e.target.value)} />
+                      <input className="flex-1 rounded-xl border border-zinc-200 bg-white p-2 text-xs font-bold dark:border-zinc-700 dark:bg-zinc-800" placeholder="Ex: Soldado..." value={cargos[activeCargoIndex].nome} onChange={e => updateCargo('nome', e.target.value)} />
                       {cargosDisponiveis.length > 0 && <button onClick={() => setIsCustomCargo(false)} className="p-2 bg-zinc-200 dark:bg-zinc-800 rounded-lg"><X size={14} /></button>}
                     </div>
                   )}
                 </div>
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-zinc-400 uppercase">Disciplinas (JSON)</label>
-                  <textarea className="w-full h-32 p-3 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl font-mono text-[10px] leading-relaxed resize-none focus:ring-1 focus:ring-red-500 outline-none custom-scrollbar"
+                  <textarea className="h-32 w-full resize-none rounded-xl border border-zinc-200 bg-white p-3 font-mono text-[10px] leading-relaxed outline-none custom-scrollbar focus:ring-1 focus:ring-red-500 dark:border-zinc-700 dark:bg-zinc-800"
                     value={cargos[activeCargoIndex].json} onChange={e => updateCargo('json', e.target.value)}
                     placeholder={`[\n  { "nome": "Português", "assuntos": ["Crase"] }\n]`} />
                 </div>
@@ -565,7 +565,7 @@ const CustomEditalModal = ({ onClose, editalToEdit, showToast, allEditais }) => 
             </div>
           </div>
 
-          <div className="px-6 py-4 border-t border-zinc-100 dark:border-zinc-800 flex justify-end gap-3 bg-white dark:bg-zinc-950 rounded-b-3xl">
+          <div className="flex justify-end gap-3 rounded-b-3xl border-t border-zinc-100 bg-white px-6 py-4 dark:border-zinc-700 dark:bg-zinc-900">
             <button onClick={onClose} className="px-5 py-2 text-xs font-bold text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl">Cancelar</button>
             <button onClick={handleSave} disabled={loading} className="px-6 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold shadow-lg flex items-center gap-2">
               {loading ? 'Salvando...' : <><Save size={14} /> Salvar {cargos.length} Cargo(s)</>}
@@ -581,7 +581,7 @@ const CustomEditalModal = ({ onClose, editalToEdit, showToast, allEditais }) => 
             </div>
             <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar">
               {editaisLaterais.length > 0 ? editaisLaterais.map(template => (
-                <div key={template.id} className="p-3 bg-white dark:bg-zinc-950 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:border-red-300 transition-all">
+                <div key={template.id} className="rounded-xl border border-zinc-200 bg-white p-3 transition-all hover:border-red-300 dark:border-zinc-700 dark:bg-zinc-800">
                   <div className="flex items-center gap-3 mb-2">
                     <img src={template.logoUrl || template.logo} className="w-8 h-8 object-contain opacity-80" alt="" />
                     <div className="min-w-0">
@@ -734,7 +734,7 @@ const EditaisManagerModal = ({ isOpen, onClose }) => {
         {!isAtivo && <div className="absolute top-0 right-0 bg-zinc-500 text-white text-[9px] font-black px-3 py-1 rounded-bl-xl z-20">ARQUIVADO</div>}
         {isSeed && isAtivo && <div className="absolute top-0 left-0 bg-indigo-500/80 text-white text-[8px] font-black px-2 py-0.5 rounded-br-lg z-20">SEED</div>}
         <div className="flex items-start gap-4 mb-4">
-          <div className="w-16 h-16 shrink-0 bg-zinc-50 dark:bg-zinc-950 rounded-2xl border border-zinc-100 dark:border-zinc-800 flex items-center justify-center p-2 shadow-inner group-hover:scale-105 transition-transform duration-500">
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-zinc-100 bg-zinc-50 p-2 shadow-inner transition-transform duration-500 group-hover:scale-105 dark:border-zinc-700 dark:bg-zinc-800">
             <img src={edital.logoUrl || edital.logo} className="w-full h-full object-contain drop-shadow-sm" alt="logo" onError={e => { e.target.src = '/vite.svg'; }} />
           </div>
           <div className="pt-1 overflow-hidden">
@@ -764,7 +764,7 @@ const EditaisManagerModal = ({ isOpen, onClose }) => {
 
   return createPortal(
     <>
-    <div className="fixed inset-0 z-[10020] flex items-center justify-center p-3 sm:p-5 md:p-7 bg-black/60 backdrop-blur-md font-sans">
+    <div className="fixed inset-0 z-[10020] flex items-center justify-center bg-zinc-900/70 p-3 font-sans backdrop-blur-md sm:p-5 md:p-7">
       <style>{`.custom-scrollbar{scrollbar-width:thin;scrollbar-color:#ef4444 transparent}.custom-scrollbar::-webkit-scrollbar{width:6px}.custom-scrollbar::-webkit-scrollbar-thumb{background:linear-gradient(180deg,#ef4444,#991b1b);border-radius:10px}`}</style>
 
       {seedAtual && (
@@ -779,7 +779,7 @@ const EditaisManagerModal = ({ isOpen, onClose }) => {
       <AnimatePresence>{showCustomModal && <CustomEditalModal onClose={() => { setShowCustomModal(false); setEditalToEdit(null); }} editalToEdit={editalToEdit} showToast={triggerToast} allEditais={allEditais} />}</AnimatePresence>
 
       <motion.div initial={{ scale: 0.95, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }}
-        className="admin-modal-shell admin-modal-shell--editais modal-zoom modal-zoom--admin-editais bg-zinc-50 dark:bg-zinc-950 w-full md:w-[96vw] md:max-w-[1500px] h-[calc(100dvh-1.5rem)] sm:h-[calc(100dvh-2.5rem)] md:h-[calc(100dvh-3.5rem)] lg:h-[88dvh] rounded-2xl md:rounded-[2rem] border border-zinc-200 dark:border-zinc-800 shadow-2xl flex flex-col overflow-hidden">
+        className="admin-modal-shell admin-modal-shell--editais modal-zoom modal-zoom--admin-editais flex h-[calc(100dvh-1.5rem)] w-full flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-50 shadow-2xl dark:border-zinc-700 dark:bg-zinc-900 sm:h-[calc(100dvh-2.5rem)] md:h-[calc(100dvh-3.5rem)] md:w-[96vw] md:max-w-[1500px] md:rounded-[2rem] lg:h-[88dvh]">
 
         <div className="admin-modal-heading admin-editais-heading px-5 py-4 sm:px-6 flex flex-col md:flex-row justify-between items-center gap-4 z-10">
           <div className="flex items-center gap-4">

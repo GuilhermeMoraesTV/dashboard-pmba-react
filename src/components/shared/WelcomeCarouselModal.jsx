@@ -56,7 +56,7 @@ const iconMap = {
 const welcomeSlides = [
   {
     id: 'hello',
-    eyebrow: 'Sua preparação começa aqui',
+    eyebrow: 'Boas-vindas',
     title: 'Bem-vindo ao MODOQAP',
     text: 'Um espaço feito para transformar seu edital em uma rotina clara, acompanhar sua evolução e manter o foco até a aprovação.',
     icon: 'Sparkles',
@@ -67,7 +67,7 @@ const welcomeSlides = [
   },
   {
     id: 'planning',
-    eyebrow: 'O ponto de partida',
+    eyebrow: 'Planejamento',
     title: 'Crie seu planejamento',
     text: 'Escolha entre um cronograma por datas ou um ciclo contínuo por matérias. O sistema organiza o caminho sem engessar sua rotina.',
     icon: 'Compass',
@@ -79,7 +79,7 @@ const welcomeSlides = [
   },
   {
     id: 'today',
-    eyebrow: 'Seu dia, sem confusao',
+    eyebrow: 'Estudo de hoje',
     title: 'Veja exatamente o que estudar',
     text: 'A tela inicial transforma o planejamento em uma sequência objetiva, com matéria, assunto, tempo previsto e acesso direto ao estudo.',
     icon: 'CalendarClock',
@@ -91,7 +91,7 @@ const welcomeSlides = [
   },
   {
     id: 'cronograma-pdf',
-    eyebrow: 'Planejamento completo',
+    eyebrow: 'Cronograma em PDF',
     title: 'Seu cronograma também pode virar PDF',
     text: 'Visualize a semana com matérias, assuntos, revisões e tempo previsto. Quando quiser, baixe o cronograma em PDF para consultar ou imprimir.',
     icon: 'Download',
@@ -101,7 +101,7 @@ const welcomeSlides = [
   },
   {
     id: 'records',
-    eyebrow: 'Registro rapido',
+    eyebrow: 'Registro de estudo',
     title: 'Conte tempo, questoes e acertos',
     text: 'Ao finalizar, registre tempo, questões e acertos. Esses dados alimentam suas metas, seu histórico e a leitura real da evolução.',
     icon: 'NotebookPen',
@@ -113,7 +113,7 @@ const welcomeSlides = [
   },
   {
     id: 'revision',
-    eyebrow: 'Nao deixe conteudo esfriar',
+    eyebrow: 'Revisões',
     title: 'Revisoes entram na sua rotina',
     text: 'A central reúne o que precisa ser revisto hoje, o que atrasou e o que vem depois, sempre com a origem e o assunto visíveis.',
     icon: 'BookOpenCheck',
@@ -125,7 +125,7 @@ const welcomeSlides = [
   },
   {
     id: 'edital-verticalizado',
-    eyebrow: 'Edital sob controle',
+    eyebrow: 'Edital verticalizado',
     title: 'Acompanhe o edital verticalizado',
     text: 'Veja disciplinas e assuntos em uma estrutura clara, marque o que já avançou e identifique rapidamente o que ainda precisa estudar.',
     icon: 'FileText',
@@ -135,7 +135,7 @@ const welcomeSlides = [
   },
   {
     id: 'news',
-    eyebrow: 'Radar de concursos',
+    eyebrow: 'Notícias de concursos',
     title: 'Acompanhe as notícias importantes',
     text: 'Editais, bancas, inscrições e movimentações dos concursos ficam reunidos em uma área própria para você não perder nenhuma atualização.',
     icon: 'Newspaper',
@@ -145,7 +145,7 @@ const welcomeSlides = [
   },
   {
     id: 'performance',
-    eyebrow: 'Evolucao visivel',
+    eyebrow: 'Desempenho',
     title: 'Acompanhe sua virada',
     text: 'Desempenho, simulados e calendário revelam seu ritmo, sua precisão e os pontos que merecem mais atenção.',
     icon: 'Trophy',
@@ -160,7 +160,7 @@ const welcomeSlides = [
 const updateSlides = [
   {
     id: 'update-main',
-    eyebrow: 'Atualizacao do sistema',
+    eyebrow: 'Novidades',
     title: 'Bem-vindo à nova fase do MODOQAP',
     text: 'Preparamos uma experiência mais clara e visual para você planejar, estudar e revisar com menos esforço. Veja o que mudou.',
     icon: 'Sparkles',
@@ -171,7 +171,7 @@ const updateSlides = [
   },
   {
     id: 'update-cronograma',
-    eyebrow: 'Novo cronograma',
+    eyebrow: 'Cronograma',
     title: 'Cronograma agora vira rotina do dia',
     text: 'O cronograma transforma edital, disponibilidade e data da prova em uma trilha diária com teoria, revisões e tempo previsto.',
     icon: 'CalendarClock',
@@ -186,7 +186,7 @@ const updateSlides = [
   },
   {
     id: 'update-ciclo',
-    eyebrow: 'Novo ciclo',
+    eyebrow: 'Ciclo de estudos',
     title: 'Ciclo agora tem guia por assunto',
     text: 'O ciclo ficou mais visual: matérias, assuntos e progresso aparecem em uma roda que deixa clara a sequência de estudo.',
     icon: 'RotateCcw',
@@ -201,7 +201,7 @@ const updateSlides = [
   },
   {
     id: 'update-revisao',
-    eyebrow: 'Revisao',
+    eyebrow: 'Revisões',
     title: 'Revisoes ganharam uma central propria',
     text: 'As revisões agora ficam em uma central própria: hoje, atrasadas e próximas, com origem e assunto sempre visíveis.',
     icon: 'BookOpenCheck',
@@ -241,7 +241,7 @@ const updateSlides = [
   },
   {
     id: 'update-news',
-    eyebrow: 'Noticias',
+    eyebrow: 'Notícias de concursos',
     title: 'Notícias agora fazem parte da preparação',
     text: 'A página de notícias reúne edital, banca e movimentações do concurso em um espaço próprio e fácil de acompanhar.',
     icon: 'Newspaper',
@@ -317,7 +317,7 @@ const MiniLogo = () => (
 
 const PreviewCard = ({ children, className = '' }) => (
   <div className={`welcome-carousel-preview overflow-hidden rounded-[1.1rem] border border-zinc-200 bg-zinc-100 shadow-2xl shadow-zinc-900/15 dark:border-white/10 dark:bg-zinc-900 ${className}`}>
-    <div className="flex h-7 items-center justify-between border-b border-zinc-200 bg-white px-2.5 dark:border-white/10 dark:bg-zinc-950">
+    <div className="flex h-7 items-center justify-between border-b border-zinc-200 bg-white px-2.5 dark:border-white/10 dark:bg-zinc-900">
       <div className="flex items-center gap-1">
         <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
         <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
@@ -326,8 +326,8 @@ const PreviewCard = ({ children, className = '' }) => (
       <img src={LOGO} alt="" className="h-4 w-auto object-contain" />
       <div className="h-4 w-4 rounded-full bg-zinc-100 ring-1 ring-zinc-200 dark:bg-zinc-800 dark:ring-zinc-700" />
     </div>
-    <div className="flex min-h-[206px] bg-zinc-50 dark:bg-zinc-950">
-      <aside className="flex w-8 shrink-0 flex-col items-center gap-2.5 bg-zinc-950 py-3 dark:bg-black">
+    <div className="flex min-h-[206px] bg-zinc-50 dark:bg-zinc-900">
+      <aside className="flex w-8 shrink-0 flex-col items-center gap-2.5 bg-zinc-800 py-3 dark:bg-zinc-800">
         <span className="h-4 w-4 rounded-md bg-red-600" />
         {[0, 1, 2, 3].map((item) => <span key={item} className={`h-2.5 w-2.5 rounded-sm ${item === 1 ? 'bg-red-500' : 'bg-white/25'}`} />)}
       </aside>
@@ -663,7 +663,7 @@ const PreviewEdital = ({ tone }) => (
         </motion.div>
       ))}
     </div>
-    <div className="mt-2 flex items-center justify-between rounded-lg bg-zinc-950 px-2.5 py-1.5 text-white dark:bg-white dark:text-zinc-950">
+    <div className="mt-2 flex items-center justify-between rounded-lg bg-zinc-800 px-2.5 py-1.5 text-white dark:bg-zinc-700 dark:text-white">
       <span className="text-[7px] font-black uppercase tracking-wider">Completo ou planejamento</span>
       <span className="flex items-center gap-1 text-[7px] font-black uppercase"><Download size={9} /> Baixar PDF</span>
     </div>
@@ -840,7 +840,7 @@ const DesktopSlideDetails = ({ slide, mode, tone }) => {
           );
         })}
       </div>
-      <div className="mt-2.5 flex items-center gap-2.5 rounded-xl bg-zinc-950 px-3.5 py-2.5 text-white dark:bg-white dark:text-zinc-950">
+      <div className="mt-2.5 flex items-center gap-2.5 rounded-xl bg-zinc-800 px-3.5 py-2.5 text-white dark:bg-zinc-700 dark:text-white">
         <Sparkles size={14} className="shrink-0 text-red-400" />
         <p className="text-[10px] font-bold leading-snug">{content.note}</p>
       </div>
@@ -857,7 +857,7 @@ const WelcomeVisual = ({ mode, firstName }) => (
     className="relative flex w-full max-w-md flex-col items-center text-center"
   >
     <div className="absolute inset-x-12 top-2 h-24 rounded-full bg-red-600/20 blur-3xl" />
-    <div className="relative flex h-20 w-20 items-center justify-center rounded-[1.75rem] border border-white/70 bg-white shadow-2xl shadow-red-900/15 dark:border-white/10 dark:bg-zinc-950 sm:h-24 sm:w-24">
+    <div className="relative flex h-20 w-20 items-center justify-center rounded-[1.75rem] border border-white/70 bg-white shadow-2xl shadow-red-900/15 dark:border-white/10 dark:bg-zinc-800 sm:h-24 sm:w-24">
       <img src={LOGO} alt="MODOQAP" className="h-12 w-auto object-contain sm:h-14" />
     </div>
     <p className="relative mt-5 text-[10px] font-black uppercase tracking-[0.32em] text-red-600 dark:text-red-400">
@@ -889,7 +889,7 @@ const VisualPanel = ({ slide, totalSlides, index, firstName }) => {
 
       <div className="relative z-10 flex items-center justify-between">
         <MiniLogo />
-        <div className="rounded-full bg-white/80 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500 shadow-sm ring-1 ring-zinc-900/5 dark:bg-zinc-950/70 dark:text-zinc-300 dark:ring-white/10">
+        <div className="rounded-full bg-white/80 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500 shadow-sm ring-1 ring-zinc-900/5 dark:bg-zinc-800/80 dark:text-zinc-300 dark:ring-white/10">
           {String(index + 1).padStart(2, '0')} / {String(totalSlides).padStart(2, '0')}
         </div>
       </div>
@@ -943,7 +943,7 @@ function WelcomeCarouselModal({ mode = 'welcome', userName = '', isOpen, onCompl
     <AnimatePresence>
       <div className="fixed inset-0 z-[100000] flex items-center justify-center p-2 font-sans sm:p-5">
         <motion.div
-          className="absolute inset-0 bg-zinc-950/80 backdrop-blur-md"
+          className="absolute inset-0 bg-zinc-900/80 backdrop-blur-md"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -953,7 +953,7 @@ function WelcomeCarouselModal({ mode = 'welcome', userName = '', isOpen, onCompl
           role="dialog"
           aria-modal="true"
           aria-label={mode === 'update' ? 'Novidades do MODOQAP' : 'Boas-vindas ao MODOQAP'}
-          className="welcome-carousel-shell relative flex w-full max-w-5xl flex-col overflow-hidden rounded-[1.25rem] border border-white/15 bg-white shadow-2xl dark:bg-zinc-950 md:flex-row"
+          className="welcome-carousel-shell relative flex w-full max-w-5xl flex-col overflow-hidden rounded-[1.25rem] border border-white/15 bg-white shadow-2xl dark:bg-zinc-900 md:flex-row"
           initial={{ opacity: 0, scale: 0.94, y: 26 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.96, y: 12 }}
@@ -961,7 +961,7 @@ function WelcomeCarouselModal({ mode = 'welcome', userName = '', isOpen, onCompl
         >
           <VisualPanel slide={slide} totalSlides={slides.length} index={index} firstName={firstName} />
 
-          <div className="welcome-carousel-info flex min-h-0 flex-1 flex-col bg-white dark:bg-zinc-950">
+          <div className="welcome-carousel-info flex min-h-0 flex-1 flex-col bg-white dark:bg-zinc-900">
             <div className="welcome-carousel-info-header flex items-center justify-between border-b border-zinc-100 px-4 py-2.5 dark:border-white/10 sm:px-6 sm:py-3">
               <div className="flex min-w-0 items-center gap-3">
                 <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl shadow-lg ${tone.icon}`}>
@@ -1011,7 +1011,7 @@ function WelcomeCarouselModal({ mode = 'welcome', userName = '', isOpen, onCompl
                       </div>
                       <div className="grid gap-2 sm:grid-cols-2">
                         {(slide.details || []).slice(0, 2).map((detail, detailIndex) => (
-                          <motion.div key={detail} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: detailIndex * 0.06 }} className="flex items-start gap-2 rounded-lg bg-white p-2.5 text-[0.7rem] font-bold leading-snug text-zinc-700 ring-1 ring-red-100 dark:bg-zinc-950 dark:text-zinc-200 dark:ring-red-950/60 sm:text-xs">
+                          <motion.div key={detail} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: detailIndex * 0.06 }} className="flex items-start gap-2 rounded-lg bg-white p-2.5 text-[0.7rem] font-bold leading-snug text-zinc-700 ring-1 ring-red-100 dark:bg-zinc-800 dark:text-zinc-200 dark:ring-red-950/60 sm:text-xs">
                             <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${tone.accent} text-white`}><Check size={12} strokeWidth={3} /></span>
                             {detail}
                           </motion.div>
@@ -1025,7 +1025,7 @@ function WelcomeCarouselModal({ mode = 'welcome', userName = '', isOpen, onCompl
             </div>
 
             <div className="welcome-carousel-footer border-t border-zinc-100 bg-zinc-50 px-4 py-2.5 dark:border-white/10 dark:bg-zinc-900/70 sm:px-6 sm:py-3">
-              <div className="mb-2.5 flex items-center gap-1.5 sm:mb-4">
+              <div className="mb-2.5 flex items-center justify-center gap-1.5 sm:mb-4">
                 {slides.map((item, itemIndex) => (
                   <div
                     key={item.id}
@@ -1040,7 +1040,7 @@ function WelcomeCarouselModal({ mode = 'welcome', userName = '', isOpen, onCompl
                   onClick={goPrev}
                   disabled={index === 0}
                   aria-label="Voltar ao slide anterior"
-                  className="inline-flex h-9 min-w-9 items-center justify-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-2.5 text-[10px] font-black uppercase tracking-[0.1em] text-zinc-600 transition-all hover:border-zinc-300 disabled:pointer-events-none disabled:opacity-40 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-300 sm:h-11 sm:px-4 sm:text-xs"
+                  className="inline-flex h-9 min-w-9 items-center justify-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-2.5 text-[10px] font-black uppercase tracking-[0.1em] text-zinc-600 transition-all hover:border-zinc-300 disabled:pointer-events-none disabled:opacity-40 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 sm:h-11 sm:px-4 sm:text-xs"
                 >
                   <ChevronLeft size={16} /> <span className="hidden min-[390px]:inline">Voltar</span>
                 </button>
@@ -1050,7 +1050,7 @@ function WelcomeCarouselModal({ mode = 'welcome', userName = '', isOpen, onCompl
                     <button
                       type="button"
                       onClick={() => finish('skip')}
-                      className="inline-flex h-9 items-center justify-center rounded-xl border border-zinc-200 bg-white px-2.5 text-[9px] font-black uppercase tracking-[0.08em] text-zinc-600 transition-all hover:border-zinc-300 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-300 sm:h-11 sm:px-4 sm:text-xs sm:tracking-[0.12em]"
+                      className="inline-flex h-9 items-center justify-center rounded-xl border border-zinc-200 bg-white px-2.5 text-[9px] font-black uppercase tracking-[0.08em] text-zinc-600 transition-all hover:border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 sm:h-11 sm:px-4 sm:text-xs sm:tracking-[0.12em]"
                     >
                       {mode === 'update' ? 'Continuar' : 'Agora não'}
                     </button>
@@ -1066,7 +1066,7 @@ function WelcomeCarouselModal({ mode = 'welcome', userName = '', isOpen, onCompl
                   <button
                     type="button"
                     onClick={goNext}
-                    className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-zinc-950 px-4 text-[10px] font-black uppercase tracking-[0.1em] text-white shadow-lg shadow-zinc-950/20 transition-all hover:-translate-y-0.5 active:translate-y-0 dark:bg-white dark:text-zinc-950 sm:h-11 sm:px-5 sm:text-xs sm:tracking-[0.12em]"
+                    className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-zinc-800 px-4 text-[10px] font-black uppercase tracking-[0.1em] text-white shadow-lg shadow-zinc-900/20 transition-all hover:-translate-y-0.5 hover:bg-zinc-700 active:translate-y-0 dark:bg-zinc-700 dark:text-white dark:hover:bg-zinc-600 sm:h-11 sm:px-5 sm:text-xs sm:tracking-[0.12em]"
                   >
                     Próximo <ChevronRight size={16} />
                   </button>

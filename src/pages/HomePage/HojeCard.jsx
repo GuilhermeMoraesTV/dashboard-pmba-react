@@ -311,6 +311,8 @@ function HojeCard({
   const lastCycleReviewSlotsRef = useRef([]);
   const [completionModalOpen, setCompletionModalOpen] = useState(false);
   const [pendingCompletionModal, setPendingCompletionModal] = useState(false);
+  const [showCycleSubjects, setShowCycleSubjects] = useState(activeCicloData?.modoExibirAssuntos !== false);
+  const [cycleSubjectsLoading, setCycleSubjectsLoading] = useState(false);
   const completionStateRef = useRef({ initialized: false, wasDone: false });
   const cycleToggleInFlightRef = useRef(new Set());
 
@@ -325,6 +327,28 @@ function HojeCard({
 
   const hojeIdx = useMemo(() => new Date().getDay(), []);
   const { revisoesHoje, concluirRevisao, reagendarRevisao } = useCicloRevisoes(user, activeCicloData?.id || null);
+
+  useEffect(() => {
+    setShowCycleSubjects(activeCicloData?.modoExibirAssuntos !== false);
+  }, [activeCicloData?.id, activeCicloData?.modoExibirAssuntos]);
+
+  const handleToggleCycleSubjects = useCallback(async () => {
+    if (!user?.uid || !activeCicloData?.id || cycleSubjectsLoading) return;
+    const previousValue = showCycleSubjects;
+    const nextValue = !previousValue;
+    setShowCycleSubjects(nextValue);
+    setCycleSubjectsLoading(true);
+    try {
+      await updateDoc(doc(db, 'users', user.uid, 'ciclos', activeCicloData.id), {
+        modoExibirAssuntos: nextValue,
+      });
+    } catch (error) {
+      setShowCycleSubjects(previousValue);
+      console.error('Erro ao atualizar exibicao de assuntos do ciclo:', error);
+    } finally {
+      setCycleSubjectsLoading(false);
+    }
+  }, [activeCicloData?.id, cycleSubjectsLoading, showCycleSubjects, user?.uid]);
 
   useEffect(() => () => {
     if (sucessoRevisaoCicloRef.current) clearTimeout(sucessoRevisaoCicloRef.current);
@@ -895,7 +919,7 @@ function HojeCard({
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        className={`group relative z-20 flex min-h-[400px] flex-col overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white p-6 transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/50 hover:!border-l-red-500 hover:shadow-glow dark:border-white/10 dark:!border-l-red-500/25 dark:bg-card-dark dark:shadow-[0_0_24px_rgba(239,68,68,0.1)] dark:hover:border-accent-light/30 dark:hover:!border-l-red-500 dark:hover:shadow-[0_0_36px_rgba(239,68,68,0.16)] ${className}`}
+        className={`group relative z-20 flex min-h-[400px] flex-col overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white p-6 transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/50 hover:!border-l-red-500 hover:shadow-lg dark:border-white/10 dark:!border-l-red-500/25 dark:bg-card-dark dark:hover:border-accent-light/30 dark:hover:!border-l-red-500 ${className}`}
       >
         <div className="pointer-events-none absolute inset-0 z-0 bg-white dark:bg-card-dark" />
 
@@ -967,7 +991,7 @@ function HojeCard({
         if (!completionGlowActive || isInteractiveClick(event.target)) return;
         openCompletionModal();
       }}
-      className={`group relative z-20 flex min-h-[400px] flex-col overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 bg-white p-6 transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/50 hover:shadow-glow dark:border-white/10 dark:bg-card-dark ${completionGlowActive ? '!border-l-emerald-500/35 hover:!border-l-emerald-500 dark:!border-l-emerald-500/35 dark:hover:!border-l-emerald-500 dark:shadow-[0_0_24px_rgba(16,185,129,0.1)] dark:hover:shadow-[0_0_36px_rgba(16,185,129,0.16)] cursor-pointer' : '!border-l-red-500/20 hover:!border-l-red-500 dark:!border-l-red-500/25 dark:hover:!border-l-red-500 dark:shadow-[0_0_24px_rgba(239,68,68,0.1)] dark:hover:shadow-[0_0_36px_rgba(239,68,68,0.16)]'} ${className}`}
+      className={`group relative z-20 flex min-h-[400px] flex-col overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 bg-white p-6 transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/50 hover:shadow-lg dark:border-white/10 dark:bg-card-dark ${completionGlowActive ? '!border-l-emerald-500/35 hover:!border-l-emerald-500 dark:!border-l-emerald-500/35 dark:hover:!border-l-emerald-500 dark:shadow-[0_0_24px_rgba(16,185,129,0.1)] dark:hover:shadow-[0_0_36px_rgba(16,185,129,0.16)] cursor-pointer' : '!border-l-red-500/20 hover:!border-l-red-500 dark:!border-l-red-500/25 dark:hover:!border-l-red-500'} ${className}`}
     >
       <div className="pointer-events-none absolute inset-0 z-0 bg-white dark:bg-card-dark" />
 
@@ -981,7 +1005,7 @@ function HojeCard({
           completionGlowActive
             ? 'border-emerald-200/80 bg-white/90 shadow-emerald-500/10 dark:shadow-emerald-950/20'
             : activePanel === 'estudo'
-              ? 'border-zinc-200/80 bg-white/90 shadow-red-500/10 dark:shadow-red-950/20'
+              ? 'border-zinc-200/80 bg-white/90 shadow-zinc-500/10 dark:shadow-black/20'
               : 'border-zinc-200/80 bg-white/90 shadow-blue-500/10 dark:shadow-blue-950/20'
         }`}>
           <div className="relative z-10 flex items-start justify-between gap-3">
@@ -1159,6 +1183,9 @@ function HojeCard({
                 loadingSessionId={loadingCicloSessao}
                 useDisciplineColors={activeCicloData?.coresDisciplinasAtivas !== false}
                 registrosEstudo={registrosEstudo}
+                showAssuntos={showCycleSubjects}
+                onToggleAssuntos={handleToggleCycleSubjects}
+                assuntosToggleLoading={cycleSubjectsLoading}
               />
             ) : estudosVisiveis.length > 0 ? estudosVisiveis.map((s) => {
               const key = s.slotIdBase || s.slotId || s.globalIndex;

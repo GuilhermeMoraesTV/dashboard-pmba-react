@@ -16,7 +16,7 @@
   }
 
   .welcome-carousel-visual {
-    flex: 0 0 clamp(202px, 38dvh, 258px);
+    flex: 0 0 clamp(242px, 52dvh, 330px);
   }
 
   .welcome-carousel-preview-scale {
@@ -30,11 +30,16 @@
   .welcome-carousel-footer {
     flex: 0 0 auto;
   }
+
+  .welcome-carousel-details,
+  .welcome-carousel-welcome-note {
+    display: none;
+  }
 }
 
 @media (max-width: 370px) {
   .welcome-carousel-visual {
-    flex-basis: clamp(194px, 36dvh, 238px);
+    flex-basis: clamp(226px, 50dvh, 292px);
   }
 
   .welcome-carousel-preview-scale {
@@ -69,6 +74,10 @@
 }
 
 @media (min-width: 768px) {
+  .welcome-carousel-details {
+    display: none;
+  }
+
   .welcome-carousel-preview-scale {
     width: 100%;
   }
@@ -76,12 +85,13 @@
   .welcome-carousel-slide-copy {
     display: flex;
     height: 100%;
+    min-height: 0;
     flex-direction: column;
   }
 
   .welcome-carousel-desktop-details {
-    margin-top: auto;
-    padding-top: 1rem;
+    margin-top: 0.5rem;
+    padding-top: 0;
   }
 }
 

@@ -3292,7 +3292,7 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
           </div>
 
           {/* Lado direito — mesmo padrão de progresso do Ciclo */}
-          <div className="z-10 flex w-[176px] shrink-0 items-center justify-between gap-1.5 rounded-xl border border-zinc-200 bg-white/75 p-2 shadow-sm dark:border-zinc-800 dark:bg-card-dark sm:w-[190px] md:w-auto md:min-w-[320px] md:gap-4 md:p-3">
+          <div className="z-10 flex w-[176px] shrink-0 items-center justify-between gap-1.5 rounded-xl border border-zinc-200 bg-white/75 p-2 shadow-sm backdrop-blur-sm dark:border-zinc-700 dark:bg-zinc-900/70 sm:w-[190px] md:w-auto md:min-w-[320px] md:gap-4 md:p-3">
             <div className="min-w-0 flex-1">
               <div className="md:hidden">
                 <p className="text-[8px] font-black uppercase tracking-widest text-zinc-400">Resumo da semana</p>

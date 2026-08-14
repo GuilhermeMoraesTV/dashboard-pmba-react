@@ -21,17 +21,21 @@ function Header({ user, activeTab, setActiveTab, variant = 'center' }) {
     const todayStr = dateToYMD(new Date());
 
     // 1. Ouve destaque manual em quotes_settings
-    const unsubSettings = onSnapshot(doc(db, 'system_config', 'quotes_settings'), (snap) => {
-      if (snap.exists()) {
-        const data = snap.data();
-        if (data.featuredDate === todayStr && data.featuredText) {
-          setTodayQuote({ text: data.featuredText, author: data.featuredAuthor || '' });
-          return;
+    const unsubSettings = onSnapshot(
+      doc(db, 'system_config', 'quotes_settings'),
+      (snap) => {
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data.featuredDate === todayStr && data.featuredText) {
+            setTodayQuote({ text: data.featuredText, author: data.featuredAuthor || '', _isManual: true });
+            return;
+          }
         }
-      }
-      // 2. Sem destaque manual — busca frase agendada para hoje
-      setTodayQuote(null); // reseta para que a query abaixo assuma
-    });
+        // 2. Sem destaque manual — busca frase agendada para hoje
+        setTodayQuote(null); // reseta para que a query abaixo assuma
+      },
+      (error) => console.warn('[Frases] Falha ao carregar destaque manual:', error.code || error)
+    );
 
     // 3. Busca frase com scheduledDate === hoje
     const q = query(
@@ -39,36 +43,25 @@ function Header({ user, activeTab, setActiveTab, variant = 'center' }) {
       where('scheduledDate', '==', todayStr),
       limit(1)
     );
-    const unsubQuote = onSnapshot(q, (snap) => {
-      // só aplica se não há destaque manual ativo
-      if (snap.empty) return;
-      const data = snap.docs[0].data();
-      setTodayQuote(prev => {
-        // mantém destaque manual se já setado pelo unsubSettings
-        if (prev && prev._isManual) return prev;
-        return { text: data.text, author: data.author || '' };
-      });
-    });
+    const unsubQuote = onSnapshot(
+      q,
+      (snap) => {
+        // só aplica se não há destaque manual ativo
+        if (snap.empty) return;
+        const data = snap.docs[0].data();
+        setTodayQuote(prev => {
+          // mantém destaque manual se já setado pelo unsubSettings
+          if (prev && prev._isManual) return prev;
+          return { text: data.text, author: data.author || '' };
+        });
+      },
+      (error) => console.warn('[Frases] Falha ao carregar frase agendada:', error.code || error)
+    );
 
     return () => {
       unsubSettings();
       unsubQuote();
     };
-  }, []);
-
-  // Ouve destaque manual em tempo real e marca com _isManual para prioridade
-  useEffect(() => {
-    const todayStr = dateToYMD(new Date());
-    const unsub = onSnapshot(doc(db, 'system_config', 'quotes_settings'), (snap) => {
-      if (snap.exists()) {
-        const data = snap.data();
-        if (data.featuredDate === todayStr && data.featuredText) {
-          setTodayQuote({ text: data.featuredText, author: data.featuredAuthor || '', _isManual: true });
-        }
-        // Se não há destaque manual, deixa a frase agendada assumir (não reseta)
-      }
-    });
-    return () => unsub();
   }, []);
 
   const headerData = useMemo(() => {

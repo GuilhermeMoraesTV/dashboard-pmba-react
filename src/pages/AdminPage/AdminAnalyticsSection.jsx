@@ -18,8 +18,8 @@ import {
 import { Activity, BarChart3, Clock3, Loader2, ScatterChart as ScatterIcon } from 'lucide-react';
 
 const Surface = ({ title, subtitle, icon, children }) => (
-  <section className="overflow-hidden rounded-[28px] border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-    <div className="flex items-center gap-3 border-b border-zinc-100 px-4 py-4 dark:border-zinc-900/70 sm:px-5">
+  <section className="overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white shadow-soft dark:border-white/10 dark:!border-l-red-500/25 dark:bg-card-dark">
+    <div className="flex items-center gap-3 border-b border-zinc-100 px-4 py-4 dark:border-zinc-800 sm:px-5">
       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-zinc-200 bg-zinc-100 text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900">
         {React.createElement(icon, { size: 18 })}
       </div>
@@ -36,7 +36,7 @@ const ChartTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
   const resolvedLabel = label || payload[0]?.payload?.day || payload[0]?.payload?.context;
   return (
-    <div className="rounded-2xl border border-zinc-200 bg-white/95 px-3 py-2 shadow-xl backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/95">
+    <div className="rounded-2xl border border-zinc-200 bg-white/95 px-3 py-2 shadow-xl backdrop-blur dark:border-zinc-700 dark:bg-zinc-900/95">
       <p className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">{resolvedLabel}</p>
       <div className="space-y-1">
         {payload.map((item) => (
@@ -66,7 +66,7 @@ export default function AdminAnalyticsSection({ datasets, loading = false, error
 
   if (loading) {
     return (
-      <div className="flex min-h-[360px] items-center justify-center rounded-[28px] border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
+      <div className="flex min-h-[360px] items-center justify-center rounded-[28px] border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
         <div className="flex items-center gap-3 text-sm font-bold text-zinc-500"><Loader2 className="animate-spin text-red-600" size={20} /> Carregando analytics...</div>
       </div>
     );

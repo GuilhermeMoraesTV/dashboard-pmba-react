@@ -33,7 +33,7 @@ const ExpandedModal = ({ isOpen, onClose, title, children }) => {
   if (!isOpen) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[10020] flex items-center justify-center p-3 sm:p-5 md:p-7 bg-zinc-950/70 backdrop-blur-md animate-fade-in">
+    <div className="fixed inset-0 z-[10020] flex items-center justify-center bg-zinc-900/70 p-3 backdrop-blur-md animate-fade-in sm:p-5 md:p-7">
       <motion.div
         initial={{ scale: 0.95, opacity: 0, y: 20 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
@@ -219,7 +219,7 @@ const HeaderBroadcast = ({ isOpen, onClose, segmentDraft = null }) => {
   return (
     <>
     <ExpandedModal isOpen={isOpen} onClose={onClose} title="Estúdio de Transmissão">
-      <div className="admin-broadcast-modal-content flex flex-col h-full bg-zinc-50 dark:bg-zinc-950 w-full">
+      <div className="admin-broadcast-modal-content flex h-full w-full flex-col bg-zinc-50 dark:bg-zinc-900">
 
         {/* --- ABAS --- */}
         <div className="admin-modal-tabs flex items-center gap-6 px-8 py-4 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shrink-0">
@@ -235,7 +235,7 @@ const HeaderBroadcast = ({ isOpen, onClose, segmentDraft = null }) => {
           <div className="admin-broadcast-create flex flex-col lg:flex-row flex-1 overflow-hidden">
 
             {/* --- EDITOR (ESQUERDA) --- */}
-            <div className="admin-broadcast-editor flex-1 p-6 lg:p-10 overflow-y-auto space-y-8 custom-scrollbar bg-white dark:bg-zinc-950">
+            <div className="admin-broadcast-editor flex-1 space-y-8 overflow-y-auto bg-white p-6 custom-scrollbar dark:bg-zinc-900 lg:p-10">
 
               {/* Seletor de Categoria (Só se não tiver imagens) */}
               {images.length === 0 && (
@@ -340,7 +340,7 @@ const HeaderBroadcast = ({ isOpen, onClose, segmentDraft = null }) => {
             </div>
 
             {/* --- LIVE PREVIEW (DIREITA) --- */}
-            <div className="admin-broadcast-preview flex-1 bg-zinc-950/90 border-l border-zinc-800 p-8 flex flex-col items-center justify-center relative overflow-hidden">
+            <div className="admin-broadcast-preview relative flex flex-1 flex-col items-center justify-center overflow-hidden border-l border-zinc-700 bg-zinc-800/95 p-8">
               <div className="absolute top-6 right-6 flex bg-zinc-900 rounded-lg p-1 shadow-sm border border-zinc-800 z-10">
                 <button onClick={() => setPreviewMode('mobile')} className={`p-2 rounded-md transition-all ${previewMode === 'mobile' ? 'bg-red-600 text-white' : 'text-zinc-500 hover:text-white'}`}><Smartphone size={16} /></button>
                 <button onClick={() => setPreviewMode('desktop')} className={`p-2 rounded-md transition-all ${previewMode === 'desktop' ? 'bg-red-600 text-white' : 'text-zinc-500 hover:text-white'}`}><Monitor size={16} /></button>
@@ -455,7 +455,7 @@ const HeaderBroadcast = ({ isOpen, onClose, segmentDraft = null }) => {
             </div>
           </div>
         ) : (
-          <div className="admin-modal-scroll flex-1 overflow-y-auto custom-scrollbar p-6 lg:p-10 bg-white dark:bg-zinc-950">
+          <div className="admin-modal-scroll flex-1 overflow-y-auto bg-white p-6 custom-scrollbar dark:bg-zinc-900 lg:p-10">
             <div className="max-w-4xl mx-auto w-full space-y-4">
               {history.length === 0 && <div className="text-center py-20 opacity-50"><p>Nenhum broadcast enviado.</p></div>}
               {history.map((msg) => (

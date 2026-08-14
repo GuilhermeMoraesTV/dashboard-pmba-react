@@ -65,33 +65,52 @@ const Avatar = ({ user }) => (
   </div>
 );
 
-const SummaryCard = ({ title, value, subtitle, icon, accent = 'zinc', onClick, children }) => {
+const AdminStatCard = ({ title, value, subtitle, icon: Icon }) => (
+  <article className="group relative flex min-h-[138px] flex-col justify-center overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white px-2.5 py-3 shadow-soft transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/40 hover:!border-l-red-500 hover:shadow-[0_0_18px_rgba(239,68,68,0.07)] dark:border-white/10 dark:!border-l-red-500/25 dark:bg-card-dark dark:hover:border-accent-light/20 dark:hover:!border-l-red-500 dark:hover:shadow-[0_0_22px_rgba(239,68,68,0.08)] sm:min-h-[168px] sm:px-5 sm:py-5">
+    <div className="relative z-20 flex w-full flex-col">
+      <h3 className="text-[8px] font-bold uppercase leading-tight tracking-[0.08em] text-text-secondary dark:text-text-dark-secondary sm:text-sm sm:tracking-[0.1em]">
+        {title}
+      </h3>
+      <div className="mt-2 flex flex-col gap-1 sm:mt-3 sm:gap-2">
+        <p className="text-2xl font-black leading-none tracking-tight text-text-primary dark:text-text-dark-primary sm:text-4xl">
+          {value}
+        </p>
+        <p className="text-[8px] font-semibold leading-tight text-zinc-500 dark:text-zinc-400 sm:max-w-[80%] sm:text-sm sm:leading-snug">{subtitle}</p>
+      </div>
+    </div>
+    <div className="pointer-events-none absolute -bottom-4 -right-4 z-10 text-red-500/10 transition-all duration-700 ease-out group-hover:scale-125 group-hover:rotate-[-10deg] dark:text-red-500/5">
+      {React.createElement(Icon, { strokeWidth: 1.5, className: 'h-16 w-16 md:h-20 md:w-20' })}
+    </div>
+  </article>
+);
+
+const SummaryCard = ({ title, subtitle, icon, accent = 'zinc', onClick, children }) => {
   const accents = {
     zinc: 'bg-zinc-100 text-zinc-600 dark:bg-zinc-900 dark:text-zinc-300',
     red: 'bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400',
-    dark: 'bg-white/10 text-red-400',
+    dark: 'bg-white/10 text-red-400 dark:bg-zinc-900/10 dark:text-red-600',
   };
   const Component = onClick ? 'button' : 'article';
   return (
     <Component
       type={onClick ? 'button' : undefined}
       onClick={onClick}
-      className={`group relative min-h-[168px] overflow-hidden rounded-[28px] border p-5 text-left shadow-sm transition-all ${accent === 'dark' ? 'border-zinc-800 bg-zinc-950 text-white hover:-translate-y-0.5' : 'border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950'} ${onClick ? 'hover:-translate-y-0.5 hover:shadow-lg' : ''}`}
+      className={`group relative min-h-[138px] overflow-hidden rounded-xl border p-2.5 text-left shadow-sm transition-all sm:min-h-[168px] sm:rounded-[28px] sm:p-5 ${accent === 'dark' ? 'border-zinc-800 bg-zinc-900 text-white hover:-translate-y-0.5 dark:border-zinc-200 dark:bg-zinc-100 dark:text-zinc-950' : 'border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900'} ${onClick ? 'hover:-translate-y-0.5 hover:shadow-lg' : ''}`}
     >
       <div className="flex items-start justify-between gap-4">
-        <div className={`flex h-11 w-11 items-center justify-center rounded-2xl ${accents[accent]}`}>{React.createElement(icon, { size: 20 })}</div>
+        <div className={`flex h-8 w-8 items-center justify-center rounded-xl sm:h-11 sm:w-11 sm:rounded-2xl ${accents[accent]}`}>{React.createElement(icon, { size: 20 })}</div>
         {onClick ? <ChevronRight size={20} className="text-zinc-400 transition-transform group-hover:translate-x-1" /> : null}
       </div>
-      <p className={`mt-5 text-[10px] font-black uppercase tracking-[0.18em] ${accent === 'dark' ? 'text-zinc-400' : 'text-zinc-400'}`}>{title}</p>
-      {value !== undefined ? <p className="mt-1 text-3xl font-black tracking-tight">{value}</p> : children}
-      <p className={`mt-2 text-xs font-semibold ${accent === 'dark' ? 'text-zinc-400' : 'text-zinc-500 dark:text-zinc-400'}`}>{subtitle}</p>
+      <p className={`mt-3 text-[8px] font-black uppercase leading-tight tracking-[0.08em] sm:mt-5 sm:text-sm sm:tracking-[0.12em] ${accent === 'dark' ? 'text-zinc-400 dark:text-zinc-600' : 'text-zinc-400'}`}>{title}</p>
+      {children}
+      <p className={`mt-1 text-[8px] font-semibold leading-tight sm:mt-2 sm:text-sm sm:leading-snug ${accent === 'dark' ? 'text-zinc-400 dark:text-zinc-600' : 'text-zinc-500 dark:text-zinc-400'}`}>{subtitle}</p>
     </Component>
   );
 };
 
 const SectionCard = ({ title, subtitle, icon, action, children }) => (
-  <section className="overflow-hidden rounded-[30px] border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-    <div className="flex flex-col gap-3 border-b border-zinc-100 px-4 py-4 dark:border-zinc-900/70 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+  <section className="overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white shadow-soft dark:border-white/10 dark:!border-l-red-500/25 dark:bg-card-dark">
+    <div className="flex flex-col gap-3 border-b border-zinc-100 px-4 py-4 dark:border-zinc-800 sm:flex-row sm:items-center sm:justify-between sm:px-5">
       <div className="flex items-center gap-3">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-zinc-200 bg-zinc-100 text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900">{React.createElement(icon, { size: 18 })}</div>
         <div>
@@ -105,8 +124,8 @@ const SectionCard = ({ title, subtitle, icon, action, children }) => (
   </section>
 );
 
-const RankingCard = ({ title, subtitle, users, metric, loading, onOpenUser }) => (
-  <SectionCard title={title} subtitle={subtitle} icon={Trophy}>
+const RankingCard = ({ title, subtitle, users, metric, loading, onOpenUser, action }) => (
+  <SectionCard title={title} subtitle={subtitle} icon={Trophy} action={action}>
     {loading ? (
       <div className="flex h-48 items-center justify-center gap-3 text-sm font-bold text-zinc-500"><Loader2 size={20} className="animate-spin text-red-600" /> Calculando ranking...</div>
     ) : !users.length ? (
@@ -144,6 +163,7 @@ function AdminPage() {
   const [broadcastDraft] = useState(null);
   const [adminFeedback, setAdminFeedback] = useState(null);
   const [globalFilters, setGlobalFilters] = useState(DEFAULT_FILTERS);
+  const [mobileRankingMetric, setMobileRankingMetric] = useState('hours');
 
   const analyticsFilters = useMemo(() => ({
     recordFrom: new Date(Date.now() - (globalFilters.windowDays * 24 * 60 * 60 * 1000)),
@@ -260,11 +280,11 @@ function AdminPage() {
           <AdminAnalyticsSection datasets={analytics.datasets} loading={loading} error={error} />
         ) : (
           <div key="overview" className="space-y-6">
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-              <SummaryCard title="Usuários registrados" value={loading ? '—' : dashboardData.totalUsers} subtitle="Total da base cadastrada" icon={Users} />
-              <SummaryCard title="Ativos no último dia" value={loading ? '—' : dashboardData.active24h} subtitle="Com atividade acadêmica real nas últimas 24h" icon={Radio} accent="red" />
+            <div className="grid grid-cols-3 gap-2 sm:gap-4">
+              <AdminStatCard title="Usuários registrados" value={loading ? '—' : dashboardData.totalUsers} subtitle="Total da base cadastrada" icon={Users} />
+              <AdminStatCard title="Ativos no último dia" value={loading ? '—' : dashboardData.active24h} subtitle="Com atividade acadêmica real nas últimas 24h" icon={Radio} />
               <SummaryCard title="Gerenciar editais" subtitle="Templates, seeds e operação administrativa" icon={Server} accent="dark" onClick={() => setShowEditaisModal(true)}>
-                <p className="mt-1 text-xl font-black tracking-tight">Abrir gerenciador</p>
+                <p className="mt-1 text-sm font-black leading-tight tracking-tight sm:text-2xl">Abrir gerenciador</p>
               </SummaryCard>
             </div>
 
@@ -319,7 +339,37 @@ function AdminPage() {
 
             </div>
 
-            <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
+            <div className="md:hidden">
+              <RankingCard
+                title="Ranking geral"
+                subtitle={mobileRankingMetric === 'hours' ? 'Top 10 por tempo estudado' : 'Top 10 por questões realizadas'}
+                users={mobileRankingMetric === 'hours' ? hoursRanking : questionsRanking}
+                metric={mobileRankingMetric}
+                loading={loading}
+                onOpenUser={setDetailUser}
+                action={(
+                  <div className="flex w-full rounded-xl bg-zinc-100 p-1 dark:bg-zinc-900" role="tablist" aria-label="Métrica do ranking">
+                    {[
+                      ['hours', 'Tempo'],
+                      ['questions', 'Questões'],
+                    ].map(([metric, label]) => (
+                      <button
+                        key={metric}
+                        type="button"
+                        role="tab"
+                        aria-selected={mobileRankingMetric === metric}
+                        onClick={() => setMobileRankingMetric(metric)}
+                        className={`flex-1 rounded-lg px-3 py-2 text-[10px] font-black uppercase tracking-[0.1em] transition-colors ${mobileRankingMetric === metric ? 'bg-white text-red-600 shadow-sm dark:bg-zinc-800 dark:text-red-400' : 'text-zinc-500 dark:text-zinc-400'}`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              />
+            </div>
+
+            <div className="hidden grid-cols-2 items-start gap-6 md:grid">
               <RankingCard title="Ranking por horas" subtitle="Top 10 por tempo efetivamente estudado" users={hoursRanking} metric="hours" loading={loading} onOpenUser={setDetailUser} />
               <RankingCard title="Ranking por questões" subtitle="Top 10 por questões efetivamente realizadas" users={questionsRanking} metric="questions" loading={loading} onOpenUser={setDetailUser} />
             </div>

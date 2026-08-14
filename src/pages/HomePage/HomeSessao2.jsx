@@ -219,7 +219,7 @@ const TodayChart = ({ registrosEstudo, wide = false, compact = false, expandedVi
 
   return (
     <>
-    <div className={`group relative flex flex-col overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white transition-all duration-300 hover:border-accent-light/40 hover:!border-l-red-500 hover:shadow-[0_0_18px_rgba(239,68,68,0.07)] dark:border-white/10 dark:!border-l-red-500/25 dark:hover:border-accent-light/20 dark:hover:!border-l-red-500 dark:bg-card-dark dark:hover:shadow-[0_0_22px_rgba(239,68,68,0.08)] ${expandedView ? 'w-full shadow-2xl shadow-red-950/15' : 'hover:-translate-y-0.5'} ${cardHeightClass} z-20`}>
+    <div className={`group relative z-20 flex flex-col overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white transition-all duration-300 hover:border-accent-light/40 hover:!border-l-red-500 hover:shadow-lg dark:border-white/10 dark:!border-l-red-500/25 dark:bg-card-dark dark:hover:border-accent-light/20 dark:hover:!border-l-red-500 ${expandedView ? 'w-full shadow-2xl shadow-zinc-950/15' : 'hover:-translate-y-0.5'} ${cardHeightClass}`}>
       {/* Decorative Orbs */}
       <div className={`pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full blur-[80px] opacity-10 transition-all duration-700 group-hover:opacity-16 bg-gradient-to-br ${metricConfig.gradient}`} />
       <div className="pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-zinc-500/5 blur-[80px] opacity-40 transition-all duration-700" />

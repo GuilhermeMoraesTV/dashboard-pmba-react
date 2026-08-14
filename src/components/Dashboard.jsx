@@ -912,6 +912,12 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     isNovoUsuarioPlanejamento,
   ]);
 
+  useEffect(() => {
+    if (welcomeCarousel.mode === 'welcome' && isDarkMode) {
+      toggleTheme();
+    }
+  }, [welcomeCarousel.mode, isDarkMode, toggleTheme]);
+
   const dayToShareData = useMemo(() => {
     const recs = mergedAllRegistrosEstudo.filter(r => r.data === todayStr);
     return {
@@ -2658,7 +2664,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         onClick={handleOpenGlobalRegistro}
         disabled={!hasActiveStudyContext}
         disabledMessage="Ative um ciclo ou cronograma para registrar estudo"
-        hidden={showGlobalRegistroModal}
+        hidden={showGlobalRegistroModal || welcomeCarousel.loading || Boolean(welcomeCarousel.mode)}
       />
       <PlanningSuccessCelebration />
 
