@@ -5,6 +5,14 @@ import { readFileSync } from 'node:fs';
 const profileSource = readFileSync(new URL('../src/pages/ProfilePage.jsx', import.meta.url), 'utf8');
 const dashboardSource = readFileSync(new URL('../src/components/Dashboard.jsx', import.meta.url), 'utf8');
 const sidebarSource = readFileSync(new URL('../src/components/dashboard/NavSideBar.jsx', import.meta.url), 'utf8');
+const firebaseConfig = JSON.parse(readFileSync(new URL('../firebase.json', import.meta.url), 'utf8'));
+
+test('CSP permite a pre-visualizacao blob da capa no Firebase Hosting', () => {
+  const globalHeaders = firebaseConfig.hosting.headers.find(({ source }) => source === '**');
+  const csp = globalHeaders?.headers.find(({ key }) => key === 'Content-Security-Policy')?.value;
+
+  assert.match(csp, /img-src[^;]*\bblob:/);
+});
 
 test('Configuracoes integra capa, avatar sobreposto e controles sem card branco separado', () => {
   const bannerIndex = profileSource.indexOf('data-testid="profile-cover-banner"');
@@ -23,6 +31,11 @@ test('Configuracoes integra capa, avatar sobreposto e controles sem card branco 
   assert.doesNotMatch(profileHeader, />Remover capa</);
   assert.doesNotMatch(profileHeader, /border-zinc-200 bg-white shadow-sm/);
   assert.doesNotMatch(profileHeader, /Ficha do Usuario/);
+});
+
+test('capa cresce para cima sem empurrar o cabecalho do perfil para baixo', () => {
+  assert.match(profileSource, /<section className="-mt-10 mb-12"/);
+  assert.match(profileSource, /relative h-48 w-full[\s\S]*md:h-72/);
 });
 
 test('capa usa Pointer Events compartilhados por mouse e toque e mantem object-cover', () => {

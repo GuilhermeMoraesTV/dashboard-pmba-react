@@ -978,12 +978,12 @@ function ProfilePage({
 
   return (
     <div className="space-y-8 animate-fade-in max-w-6xl mx-auto pb-20 pt-10 px-4">
-      <section className="mb-12" aria-labelledby="profile-cover-title">
+      <section className="-mt-10 mb-12" aria-labelledby="profile-cover-title">
           <h2 id="profile-cover-title" className="sr-only">Capa e foto do perfil</h2>
           <div
               ref={coverFrameRef}
               data-testid="profile-cover-banner"
-              className={`relative h-40 w-full overflow-hidden rounded-[1.75rem] bg-gradient-to-br from-zinc-800 via-zinc-900 to-red-950 shadow-xl shadow-zinc-950/10 touch-none select-none md:h-64 ${coverPreview ? (isDraggingCover ? 'cursor-grabbing' : 'cursor-grab') : ''}`}
+              className={`relative h-48 w-full overflow-hidden rounded-[1.75rem] bg-gradient-to-br from-zinc-800 via-zinc-900 to-red-950 shadow-xl shadow-zinc-950/10 touch-none select-none md:h-72 ${coverPreview ? (isDraggingCover ? 'cursor-grabbing' : 'cursor-grab') : ''}`}
               aria-busy={coverLoading || Boolean(coverAction)}
               onPointerDown={handleCoverPointerDown}
               onPointerMove={handleCoverPointerMove}
