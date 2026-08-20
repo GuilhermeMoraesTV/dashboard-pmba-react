@@ -111,6 +111,7 @@ const WizardShell = ({
   const lastVisibleStepId = visibleSteps[visibleSteps.length - 1]?.id ?? STEPS.length - 1;
   const isUltimoStep  = passo === lastVisibleStepId;
   const isPassoEdital = passo === 0;
+  const isPassoDisciplinas = passo === 2;
   const isPrimeiroStep = passo === firstVisibleStepId;
   const ctaFinalLabel = isEditMode ? 'Salvar Alteracoes' : 'Ativar Cronograma';
   const isMontagemPersonalizada = cronConfig.modoMontagem === 'personalizado';
@@ -254,23 +255,21 @@ const WizardShell = ({
           horarios={horarios}
           setHorarios={setHorarios}
           editalSelecionado={edital}
+          usarDuracaoUnica={false}
+          ocultarConfiguracaoDuracao
           duracaoMinimaSessaoMinutos={cronConfig.duracaoMinimaSessaoMinutos}
           setDuracaoMinimaSessaoMinutos={(value) => {
             setCronConfig((prev) => ({
               ...prev,
-              usarDuracaoUnica: true,
-              tempoSessaoMinutos: value,
+              ...(prev.usarDuracaoUnica !== false ? { tempoSessaoMinutos: value } : {}),
               duracaoMinimaSessaoMinutos: value,
-              duracaoMaximaSessaoMinutos: value,
             }));
           }}
           duracaoMaximaSessaoMinutos={cronConfig.duracaoMaximaSessaoMinutos}
           setDuracaoMaximaSessaoMinutos={(value) => {
             setCronConfig((prev) => ({
               ...prev,
-              usarDuracaoUnica: true,
-              tempoSessaoMinutos: value,
-              duracaoMinimaSessaoMinutos: value,
+              ...(prev.usarDuracaoUnica !== false ? { tempoSessaoMinutos: value } : {}),
               duracaoMaximaSessaoMinutos: value,
             }));
           }}
@@ -340,7 +339,7 @@ const WizardShell = ({
           data-wizard-type="cronograma"
           data-wizard-step={currentStepZoomKey}
           data-wizard-embedded={embedded ? 'true' : undefined}
-          className={`wizard-step-frame ${isPassoEdital || isUltimoStep || isPassoMontagemPersonalizada ? 'w-full mx-auto' : wideStepFrame ? 'w-full max-w-7xl mx-auto' : 'max-w-5xl mx-auto'}`}
+          className={`wizard-step-frame ${isPassoEdital || isPassoDisciplinas || isUltimoStep || isPassoMontagemPersonalizada ? 'w-full mx-auto' : wideStepFrame ? 'w-full max-w-7xl mx-auto' : 'max-w-5xl mx-auto'}`}
         >
           <AnimatePresence mode="wait">
             <motion.div
@@ -435,21 +434,21 @@ const WizardShell = ({
       <AnimatePresence>
         {mostrandoRascunho && (
           <div className="fixed inset-0 z-[220] flex items-center justify-center p-4 bg-zinc-900/60 backdrop-blur-sm">
-            <motion.div initial={{ opacity: 0, scale: 0.94, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} className="wizard-confirm-card bg-white dark:bg-zinc-900 p-7 rounded-[32px] border-2 border-zinc-100 dark:border-zinc-800 shadow-2xl max-w-md w-full text-center">
-              <div className="w-16 h-16 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center mx-auto mb-5">
-                <RefreshCw size={28} className="text-red-600" />
+            <motion.div initial={{ opacity: 0, scale: 0.94, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} className="wizard-confirm-card w-full max-w-sm rounded-3xl border-2 border-zinc-100 bg-white p-5 text-center shadow-2xl dark:border-zinc-800 dark:bg-zinc-900 sm:p-6">
+              <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-red-50 dark:bg-red-900/20">
+                <RefreshCw size={20} className="text-red-600" />
               </div>
-              <h3 className="text-xl font-black text-zinc-900 dark:text-white uppercase mb-2">Recuperar Rascunho?</h3>
-              <p className="text-sm text-zinc-500 mb-7">
+              <h3 className="mb-1.5 text-base font-black uppercase text-zinc-900 dark:text-white">Recuperar Rascunho?</h3>
+              <p className="mb-5 text-xs leading-relaxed text-zinc-500">
                 Encontramos um planejamento de cronograma salvo. Você pode continuar de onde parou ou começar do zero.
               </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={() => {
                     limparDraft();
                     setMostrandoRascunho(false);
                   }}
-                  className="py-3 rounded-2xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white font-bold text-xs uppercase tracking-widest hover:bg-zinc-200 transition-all"
+                  className="rounded-xl bg-zinc-100 px-2 py-2.5 text-[10px] font-bold uppercase tracking-wider text-zinc-900 transition-all hover:bg-zinc-200 dark:bg-zinc-800 dark:text-white"
                 >
                   Comecar do Zero
                 </button>
@@ -458,7 +457,7 @@ const WizardShell = ({
                     const passoRestaurado = restaurarDraft();
                     setPasso(passoRestaurado);
                   }}
-                  className="py-3 rounded-2xl bg-red-600 text-white font-bold text-xs uppercase tracking-widest hover:bg-red-700 transition-all"
+                  className="rounded-xl bg-red-600 px-2 py-2.5 text-[10px] font-bold uppercase tracking-wider text-white transition-all hover:bg-red-700"
                 >
                   Recuperar
                 </button>

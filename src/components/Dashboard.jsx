@@ -83,6 +83,7 @@ import { getAgendaSemana, getWeekOffsetFromDate } from '../services/scheduling/r
 import { upsertCicloRevisao } from '../services/cicloRevisoes';
 import { resolveLogoUrl } from './admin/config/editalAssets';
 import { isCicloLegacyForGuide } from '../utils/cicloLegacyUpgrade';
+import { buildCicloWeeklyAlert, getCicloWeeklyStatus } from '../utils/cicloWeeklyStatus';
 import { DEFAULT_COVER_POSITION, normalizeCoverPosition } from '../utils/profileCover';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import {
@@ -548,16 +549,11 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   );
   const cicloFinalizacaoMessage = 'Seu ciclo chegou a 100%. Finalize a rodada antes de registrar novos estudos.';
   const cicloFinalizacaoAlert = useMemo(() => {
-    if (!cicloPendenteFinalizacao) return null;
-    return {
-      id: `alerta_finalizar_ciclo_${activeCicloId || activeCicloData?.id || 'ativo'}`,
-      type: 'ciclo_finalizacao',
-      title: 'Finalize seu ciclo',
-      message: `${activeCicloData?.nome || 'Seu ciclo'} foi concluido. Registre a finalizacao para liberar uma nova rodada de estudos.`,
-      actionLabel: 'Finalizar Ciclo',
-      navigateTo: 'ciclos',
-    };
-  }, [activeCicloData?.id, activeCicloData?.nome, activeCicloId, cicloPendenteFinalizacao]);
+    if (!activeCicloData?.ativo) return null;
+    const cycle = { ...activeCicloData, id: activeCicloId || activeCicloData.id };
+    const status = getCicloWeeklyStatus({ ciclo: cycle, isRoundComplete: cicloPendenteFinalizacao });
+    return buildCicloWeeklyAlert(cycle, status);
+  }, [activeCicloData, activeCicloId, cicloPendenteFinalizacao]);
   const cicloLegacyUpgradeAlert = useMemo(() => {
     if (!isCicloLegacyForGuide(activeCicloData)) return null;
     return {

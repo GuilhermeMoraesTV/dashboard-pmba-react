@@ -207,7 +207,7 @@ const PlanningLevelSelector = ({
       </div>
       )}
 
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+      <div className="grid grid-cols-2 gap-1 sm:gap-2">
       {[
         { key: 'conhecimento', label: 'Conhecimento', icon: Brain, value: conhecimentoNivel, onChange: onConhecimentoChange, help: LEVEL_HELP.conhecimento },
         { key: 'importancia', label: 'Importância no edital', icon: Scale, value: importanciaNivel, onChange: onImportanciaChange, help: LEVEL_HELP.importancia },
@@ -221,8 +221,8 @@ const PlanningLevelSelector = ({
             className="relative min-w-0 rounded-lg px-2 py-1.5 transition-colors"
             style={{ '--planning-level-color': levelColor }}
           >
-            <div className="mb-0.5 flex items-center justify-between gap-2">
-              <span className="flex min-w-0 items-center gap-1 text-[10px] font-black uppercase tracking-wider text-zinc-500 dark:text-zinc-400 sm:text-[11px]">
+            <div className="mb-0.5 flex min-w-0 items-center justify-between gap-2">
+              <span className="flex min-w-0 items-center gap-1 text-[8px] font-black uppercase leading-tight tracking-wide text-zinc-500 dark:text-zinc-400 sm:text-[10px] sm:tracking-wider">
                 <Icon size={13} style={{ color: levelColor }} /> {control.label}
                 <button
                   type="button"
@@ -239,7 +239,7 @@ const PlanningLevelSelector = ({
                 key={`${control.key}-${control.value || 0}`}
                 initial={{ opacity: 0, y: 2 }}
                 animate={{ opacity: 1, y: 0, scale: activeControl === control.key ? 1.04 : 1 }}
-                className="shrink-0 rounded-md px-1.5 py-0.5 text-[9px] font-black text-white shadow-sm sm:text-[10px]"
+                className="shrink-0 rounded-md px-1.5 py-0.5 text-[9px] font-black leading-tight text-white shadow-sm sm:text-[10px]"
                 style={{ backgroundColor: levelColor }}
               >
                 {control.value ? LEVEL_BAR_LABELS[control.value] : 'Não definido'}
@@ -336,6 +336,7 @@ const DisciplinaCard = ({
       initial={{ opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.95 }}
+      onClick={() => !editandoNome && onToggleDisc()}
       className={`relative overflow-hidden rounded-xl border transition-all duration-300 group ${isFaltandoNivel
         ? 'border-amber-300 bg-amber-50/30 shadow-sm dark:border-amber-800/60 dark:bg-card-dark'
         : isAtivo
@@ -343,54 +344,58 @@ const DisciplinaCard = ({
         : 'border-zinc-200 bg-zinc-50/90 dark:border-zinc-700 dark:bg-card-dark hover:border-zinc-300 dark:hover:border-zinc-600 hover:bg-white dark:hover:bg-zinc-800'
       }`}
     >
-      <div className="px-3.5 py-3.5 sm:px-5 sm:py-4">
-        <div className="flex gap-3 cursor-pointer select-none" onClick={() => !editandoNome && onToggleDisc()}>
-          <div className="flex-1 min-w-0 z-10 flex flex-col justify-center">
+      <div className="px-3 py-2.5 sm:px-4 sm:py-3">
+        <div
+          className="flex w-full cursor-pointer select-none items-center gap-2"
+        >
+          <div className="z-10 flex min-w-0 flex-1 items-center gap-2">
             {editandoNome ? (
-              <input value={nomeTemp} onChange={e => setNomeTemp(e.target.value)} onBlur={confirmarNome} onKeyDown={e => { if (e.key === 'Enter') confirmarNome(); if (e.key === 'Escape') setEditandoNome(false); }} autoFocus onClick={e => e.stopPropagation()} className="w-full text-sm sm:text-base font-bold bg-zinc-50 dark:bg-zinc-800 border-2 border-red-400 rounded-lg px-3 py-1 outline-none text-zinc-900 dark:text-white" />
+              <input value={nomeTemp} onChange={e => setNomeTemp(e.target.value)} onBlur={confirmarNome} onKeyDown={e => { if (e.key === 'Enter') confirmarNome(); if (e.key === 'Escape') setEditandoNome(false); }} autoFocus onClick={e => e.stopPropagation()} className="min-w-0 flex-1 rounded-lg border-2 border-red-400 bg-zinc-50 px-3 py-1 text-sm font-bold text-zinc-900 outline-none dark:bg-zinc-800 dark:text-white sm:text-base" />
             ) : (
-              <div className="flex flex-wrap items-center gap-2">
-                <h4 className={`min-w-0 break-words text-base font-black leading-tight tracking-tight transition-colors sm:text-lg ${isAtivo ? 'text-zinc-950 dark:text-white' : 'text-zinc-600 dark:text-zinc-400'}`}>
+              <>
+                <h4 title={disciplina.nome} className={`min-w-0 flex-1 truncate text-sm font-black leading-tight tracking-tight transition-colors sm:text-base ${isAtivo ? 'text-zinc-950 dark:text-white' : 'text-zinc-600 dark:text-zinc-400'}`}>
                   {disciplina.nome}
                 </h4>
                 {isExtra && (
-                  <span className="shrink-0 text-[9px] font-black px-2 py-0.5 rounded-md bg-zinc-100 dark:bg-zinc-800 text-zinc-500 uppercase tracking-widest mt-0.5">Extra</span>
+                  <span className="shrink-0 rounded-md bg-zinc-100 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider text-zinc-500 dark:bg-zinc-800">Extra</span>
                 )}
-              </div>
+                {parcial && <MinusSquare size={12} className="shrink-0 text-orange-500" />}
+              </>
             )}
-
-            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-              <span className="text-sm font-semibold text-zinc-400">{totalAssuntos} {totalAssuntos === 1 ? 'tópico' : 'tópicos'}</span>
-              {parcial && <><span className="w-1 h-1 rounded-full bg-zinc-300 dark:bg-zinc-600" /><MinusSquare size={12} className="text-orange-500" /></>}
-              {qtdMarcados > 0 && !discChecked && (
-                <><span className="w-1 h-1 rounded-full bg-zinc-300 dark:bg-zinc-600" /><span className="text-xs font-bold text-orange-500">{qtdMarcados} selecionados</span></>
-              )}
-            </div>
           </div>
 
-          <div className="z-10 flex max-w-[174px] shrink-0 items-start gap-0.5">
+          <div className="z-10 ml-auto flex shrink-0 items-center gap-0.5">
+            <span className="whitespace-nowrap px-1 text-[9px] font-semibold text-zinc-400 sm:text-xs">
+              <span className="sm:hidden">{totalAssuntos} tóp.</span>
+              <span className="hidden sm:inline">{totalAssuntos} {totalAssuntos === 1 ? 'tópico' : 'tópicos'}</span>
+            </span>
+            {qtdMarcados > 0 && !discChecked && (
+              <span className="hidden whitespace-nowrap text-[9px] font-bold text-orange-500 lg:inline">{qtdMarcados} selecionados</span>
+            )}
             <button
               type="button"
               onClick={(event) => { event.stopPropagation(); onToggleExpand(); }}
-              className="inline-flex min-w-0 items-center gap-1 rounded-lg px-1.5 py-2 text-[9px] font-black uppercase tracking-normal text-zinc-500 transition-all hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-white sm:px-2.5 sm:text-[10px] sm:tracking-wide"
+              title="Ver assuntos"
+              aria-label={`Ver assuntos de ${disciplina.nome}`}
+              className="inline-flex h-8 items-center gap-1 rounded-lg px-1.5 text-[9px] font-black uppercase tracking-normal text-zinc-500 transition-all hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-white sm:px-2 sm:text-[10px] sm:tracking-wide"
             >
               <BookOpen size={14} />
-              <span>Ver assuntos</span>
+              <span className="hidden md:inline">Ver assuntos</span>
             </button>
             {onEditar && (
-              <button onClick={e => { e.stopPropagation(); setEditandoNome(true); setNomeTemp(disciplina.nome); }} className="p-2 rounded-xl text-zinc-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all opacity-0 group-hover:opacity-100 md:opacity-100">
-                <Edit2 size={16} />
+              <button title="Editar disciplina" aria-label={`Editar ${disciplina.nome}`} onClick={e => { e.stopPropagation(); setEditandoNome(true); setNomeTemp(disciplina.nome); }} className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-400 transition-all hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/20">
+                <Edit2 size={15} />
               </button>
             )}
             {onRemover && (
-              <button onClick={(e) => { e.stopPropagation(); onRemover?.(disciplina.id); }} className="p-2 rounded-xl text-zinc-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all opacity-0 group-hover:opacity-100 md:opacity-100">
-                <Trash2 size={16} />
+              <button title="Excluir disciplina" aria-label={`Excluir ${disciplina.nome}`} onClick={(e) => { e.stopPropagation(); onRemover?.(disciplina.id); }} className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-400 transition-all hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20">
+                <Trash2 size={15} />
               </button>
             )}
           </div>
         </div>
 
-        {/* Seletor de nível FORA do flex row — ocupa largura total do card */}
+        {/* A seleção expande os níveis abaixo da linha compacta do card. */}
         <AnimatePresence>
           {isAtivo && (
             <motion.div
@@ -817,7 +822,7 @@ const ModoGeral = ({
                 <p className="text-lg font-bold text-zinc-600">Seu cronograma está vazio</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-3 2xl:grid-cols-2">
+              <div className="grid grid-cols-1 items-start gap-3 2xl:grid-cols-2">
                 {extraDisciplinas.map(disc => (
                   <DisciplinaCard key={disc.id} disciplina={disc} isExpanded={false} onToggleExpand={() => abrirAssuntosModal(disc, true)} isExtra={true} estadoDisc={selecao[disc.id]} onToggleDisc={() => handleToggleDisc(disc)} onToggleAssunto={idx => handleToggleAssunto(disc, idx)} onRemover={(id) => remover(id, true)} onEditar={(id, novo) => editar(id, novo, true)} onAdicionarAssunto={adicionarAssunto} onRemoverAssunto={(dId, idx) => removerAssunto(dId, idx, true)} onEditarAssunto={(dId, idx, novo) => editarAssunto(dId, idx, novo, true)} onConhecimentoChange={(id, nivel) => handlePlanningLevelChange(id, 'conhecimentoNivel', nivel)} onImportanciaChange={(id, nivel) => handlePlanningLevelChange(id, 'importanciaNivel', nivel)} canToggleTodosDias={mostrarPreferenciaDiaria} todosDiasAtivo={idsTodosDias.includes(String(disc.id))} onToggleTodosDias={toggleDisciplinaTodosDias} activeStudyDaysCount={activeStudyDaysCount} />
                 ))}

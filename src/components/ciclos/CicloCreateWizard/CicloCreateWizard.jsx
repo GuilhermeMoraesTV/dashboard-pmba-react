@@ -21,6 +21,7 @@ import {
   hasCompletePlanningLevels,
   normalizePlanningLevel,
 } from '../../../utils/planningPriority';
+import { clampPlanningStartDate, getLocalTodayKey } from '../../../utils/planningDates';
 
 const CICLO_DRAFT_KEY = 'planejamento_ciclo_wizard_draft_v1';
 
@@ -193,6 +194,8 @@ function CicloCreateWizard({
   const isEditMode = mode === 'edit';
   const [passo, setPasso] = useState(() => clampWizardStep(initialStep, isEditMode));
   const [nomeCiclo, setNomeCiclo] = useState('');
+  const [dataInicioPlanejamento, setDataInicioPlanejamento] = useState(getLocalTodayKey);
+  const [dataInicioBloqueada, setDataInicioBloqueada] = useState(false);
   const [idModeloSelecionado, setIdModeloSelecionado] = useState(null);
   const [dadosModeloSelecionado, setDadosModeloSelecionado] = useState(null);
   const [gradeDisponibilidade, setGradeDisponibilidade] = useState({});
@@ -233,6 +236,13 @@ function CicloCreateWizard({
 
     setPasso(clampWizardStep(stepOverride ?? state.passo ?? (isEditMode ? 2 : 1), isEditMode));
     setNomeCiclo(state.nomeCiclo || '');
+    const inicioBloqueado = state.dataInicioBloqueada === true;
+    setDataInicioPlanejamento(
+      inicioBloqueado
+        ? (state.dataInicioPlanejamento || getLocalTodayKey())
+        : clampPlanningStartDate(state.dataInicioPlanejamento),
+    );
+    setDataInicioBloqueada(inicioBloqueado);
     setIdModeloSelecionado(state.idModeloSelecionado || null);
     setDadosModeloSelecionado(state.dadosModeloSelecionado || null);
     setGradeDisponibilidade(state.gradeDisponibilidade || {});
@@ -264,6 +274,9 @@ function CicloCreateWizard({
     const payload = {
       passo,
       nomeCiclo,
+      dataInicioPlanejamento: dataInicioBloqueada
+        ? dataInicioPlanejamento
+        : clampPlanningStartDate(dataInicioPlanejamento),
       idModeloSelecionado,
       dadosModeloSelecionado,
       gradeDisponibilidade,
@@ -364,6 +377,7 @@ function CicloCreateWizard({
     possuiDadosParaRascunho,
     passo,
     nomeCiclo,
+    dataInicioPlanejamento,
     idModeloSelecionado,
     dadosModeloSelecionado,
     gradeDisponibilidade,
@@ -584,6 +598,9 @@ function CicloCreateWizard({
 
     const dadosCiclo = {
       nome: nomeCiclo.trim(),
+      dataInicioPlanejamento: dataInicioBloqueada
+        ? dataInicioPlanejamento
+        : clampPlanningStartDate(dataInicioPlanejamento),
       cargaHorariaTotal: Number(horasTotais),
       diasEstudo: gradeDisponibilidade,
       templateId: isManual ? 'manual' : idModeloSelecionado,
@@ -757,6 +774,9 @@ function CicloCreateWizard({
         <StepConfig
           nomeCiclo={nomeCiclo}
           setNomeCiclo={setNomeCiclo}
+          dataInicioPlanejamento={dataInicioPlanejamento}
+          setDataInicioPlanejamento={(value) => setDataInicioPlanejamento(clampPlanningStartDate(value))}
+          dataInicioBloqueada={dataInicioBloqueada}
           coresDisciplinasAtivas={coresDisciplinasAtivas}
           setCoresDisciplinasAtivas={setCoresDisciplinasAtivas}
           disciplinasPreview={disciplinasPreview}
@@ -908,7 +928,7 @@ function CicloCreateWizard({
                   isEditMode ? 'Salvando...' : 'Criando...'
                 ) : (
                   <>
-                    <CheckCircle2 size={16} strokeWidth={2.5} className="group-hover:scale-110 transition-transform" /> {upgradeMode ? 'Atualizar Ciclo' : isEditMode ? 'Salvar Alteracoes' : 'Finalizar Ciclo'}
+                    <CheckCircle2 size={16} strokeWidth={2.5} className="group-hover:scale-110 transition-transform" /> {upgradeMode ? 'Atualizar ciclo semanal' : isEditMode ? 'Salvar alteracoes' : 'Criar ciclo semanal'}
                   </>
                 )}
               </button>
@@ -920,27 +940,27 @@ function CicloCreateWizard({
       <AnimatePresence>
         {!isEditMode && mostrandoRascunho && (
           <div className="fixed inset-0 z-[220] flex items-center justify-center p-4 bg-zinc-900/60 backdrop-blur-sm">
-            <motion.div initial={{ opacity: 0, scale: 0.94, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} className="wizard-confirm-card bg-white dark:bg-zinc-900 p-7 rounded-[32px] border-2 border-zinc-100 dark:border-zinc-800 shadow-2xl max-w-md w-full text-center">
-              <div className="w-16 h-16 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center mx-auto mb-5">
-                <RefreshCw size={28} className="text-red-600" />
+            <motion.div initial={{ opacity: 0, scale: 0.94, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} className="wizard-confirm-card w-full max-w-sm rounded-3xl border-2 border-zinc-100 bg-white p-5 text-center shadow-2xl dark:border-zinc-800 dark:bg-zinc-900 sm:p-6">
+              <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-red-50 dark:bg-red-900/20">
+                <RefreshCw size={20} className="text-red-600" />
               </div>
-              <h3 className="text-xl font-black text-zinc-900 dark:text-white uppercase mb-2">Recuperar Rascunho?</h3>
-              <p className="text-sm text-zinc-500 mb-7">
+              <h3 className="mb-1.5 text-base font-black uppercase text-zinc-900 dark:text-white">Recuperar Rascunho?</h3>
+              <p className="mb-5 text-xs leading-relaxed text-zinc-500">
                 Encontramos um ciclo salvo no meio da criacao. Voce pode retomar de onde parou ou iniciar um novo.
               </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={() => {
                     limparCicloDraft();
                     setMostrandoRascunho(false);
                   }}
-                  className="py-3 rounded-2xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white font-bold text-xs uppercase tracking-widest hover:bg-zinc-200 transition-all"
+                  className="rounded-xl bg-zinc-100 px-2 py-2.5 text-[10px] font-bold uppercase tracking-wider text-zinc-900 transition-all hover:bg-zinc-200 dark:bg-zinc-800 dark:text-white"
                 >
                   Comecar do Zero
                 </button>
                 <button
                   onClick={restaurarRascunho}
-                  className="py-3 rounded-2xl bg-red-600 text-white font-bold text-xs uppercase tracking-widest hover:bg-red-700 transition-all"
+                  className="rounded-xl bg-red-600 px-2 py-2.5 text-[10px] font-bold uppercase tracking-wider text-white transition-all hover:bg-red-700"
                 >
                   Recuperar
                 </button>
@@ -962,13 +982,13 @@ function CicloCreateWizard({
               <div className="grid grid-cols-2 gap-3">
                 <button
                   onClick={() => setConfirmandoSaida(false)}
-                  className="py-3 rounded-2xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white font-bold text-xs uppercase tracking-widest hover:bg-zinc-200 transition-all"
+                  className="rounded-xl bg-zinc-100 px-2 py-2.5 text-[10px] font-bold uppercase tracking-wider text-zinc-900 transition-all hover:bg-zinc-200 dark:bg-zinc-800 dark:text-white"
                 >
                   Ficar
                 </button>
                 <button
                   onClick={descartarEFechar}
-                  className="py-3 rounded-2xl bg-red-600 text-white font-bold text-xs uppercase tracking-widest hover:bg-red-700 transition-all"
+                  className="rounded-xl bg-red-600 px-2 py-2.5 text-[10px] font-bold uppercase tracking-wider text-white transition-all hover:bg-red-700"
                 >
                   Descartar
                 </button>

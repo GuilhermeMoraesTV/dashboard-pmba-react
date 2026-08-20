@@ -40,6 +40,7 @@ export default function DailyGoalCompletedModal({
   progressLabel = '100%',
   footer = null,
   notice = null,
+  instant = false,
 }) {
   if (typeof document === 'undefined') return null;
 
@@ -64,16 +65,18 @@ export default function DailyGoalCompletedModal({
   const stats = Array.isArray(customStats) && customStats.length ? customStats : defaultStats;
   const compactStatsLayout = Array.isArray(customStats) && customStats.length <= 2;
 
-  const statDelay = 0.58;
+  const statDelay = instant ? 0 : 0.58;
+  const modalTransition = (transition) => instant ? { duration: 0 } : transition;
 
   return createPortal(
-    <AnimatePresence>
+    <AnimatePresence initial={!instant}>
       {open && (
         <motion.div
           className="fixed inset-0 z-[10000] flex items-center justify-center bg-zinc-950/25 p-2 backdrop-blur-[3px] sm:p-6"
-          initial={{ opacity: 0 }}
+          initial={instant ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
+          transition={modalTransition({ duration: 0.2 })}
           onClick={onClose}
         >
           <motion.div
@@ -81,10 +84,10 @@ export default function DailyGoalCompletedModal({
             aria-modal="true"
             aria-label={ariaLabel}
             className={`relative max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-[352px] overflow-hidden rounded-[22px] border border-emerald-200/90 bg-white/95 shadow-2xl shadow-emerald-950/25 backdrop-blur-sm dark:border-emerald-900/40 dark:bg-card-dark/95 sm:max-h-none sm:w-full sm:rounded-[30px] ${compactStatsLayout ? 'sm:max-w-[480px]' : 'sm:aspect-square sm:max-w-[520px]'}`}
-            initial={{ opacity: 0, y: 34, scale: 0.9, rotateX: 10 }}
+            initial={instant ? false : { opacity: 0, y: 34, scale: 0.9, rotateX: 10 }}
             animate={{ opacity: 1, y: 0, scale: 1, rotateX: 0 }}
             exit={{ opacity: 0, y: 24, scale: 0.98 }}
-            transition={{ type: 'spring', stiffness: 330, damping: 28 }}
+            transition={modalTransition({ type: 'spring', stiffness: 330, damping: 28 })}
             style={{ transformPerspective: 1200 }}
             onClick={(event) => event.stopPropagation()}
           >
@@ -95,13 +98,13 @@ export default function DailyGoalCompletedModal({
               className="pointer-events-none absolute -inset-y-20 -left-40 z-10 w-28 rotate-12 bg-gradient-to-r from-transparent via-white/75 to-transparent dark:via-white/25"
               initial={{ x: '-40%' }}
               animate={{ x: ['-40%', '720%'] }}
-              transition={{ duration: 1.25, delay: 0.35, ease: 'easeOut', repeat: Infinity, repeatDelay: 5.4 }}
+              transition={modalTransition({ duration: 1.25, delay: 0.35, ease: 'easeOut', repeat: Infinity, repeatDelay: 5.4 })}
             />
             <motion.div
               className="pointer-events-none absolute inset-3 rounded-[26px] border border-amber-200/55 dark:border-amber-500/15"
               initial={{ opacity: 0, scale: 0.96 }}
               animate={{ opacity: [0, 1, 0.72], scale: 1 }}
-              transition={{ duration: 0.9, delay: 0.18, ease: 'easeOut' }}
+              transition={modalTransition({ duration: 0.9, delay: 0.18, ease: 'easeOut' })}
             />
             <motion.img
               src={systemLogo}
@@ -109,11 +112,11 @@ export default function DailyGoalCompletedModal({
               className="absolute left-3 top-3 z-20 h-9 w-9 object-contain drop-shadow-xl sm:left-6 sm:top-6 sm:h-[86px] sm:w-[86px]"
               initial={{ opacity: 0, y: -8, scale: 0.9 }}
               animate={{ opacity: 1, y: [0, -4, 0], scale: 1 }}
-              transition={{
+              transition={modalTransition({
                 opacity: { duration: 0.35, delay: 0.22 },
                 scale: { duration: 0.35, delay: 0.22 },
                 y: { duration: 3.4, repeat: Infinity, ease: 'easeInOut' },
-              }}
+              })}
             />
 
             <button
@@ -130,7 +133,7 @@ export default function DailyGoalCompletedModal({
                 className="mx-auto mb-1.5 flex max-w-[290px] items-center justify-center gap-2 bg-transparent text-center sm:mb-2 sm:max-w-[360px]"
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.35, delay: 0.18, ease: 'easeOut' }}
+                transition={modalTransition({ duration: 0.35, delay: 0.18, ease: 'easeOut' })}
               >
 
                 <div className="min-w-0 leading-none">
@@ -147,7 +150,7 @@ export default function DailyGoalCompletedModal({
                   className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-emerald-200 bg-white/90 px-2.5 py-1 text-[7px] font-black uppercase tracking-[0.18em] text-emerald-700 shadow-sm dark:border-emerald-900/50 dark:bg-zinc-900/80 dark:text-emerald-300 sm:gap-2 sm:px-3 sm:text-[8px] sm:tracking-[0.26em]"
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.35, delay: 0.24, ease: 'easeOut' }}
+                  transition={modalTransition({ duration: 0.35, delay: 0.24, ease: 'easeOut' })}
                 >
                   <CheckCircle2 size={15} />
                   {achievementLabel}
@@ -156,21 +159,21 @@ export default function DailyGoalCompletedModal({
                   className="relative mt-2 flex h-12 w-12 items-center justify-center rounded-full border border-amber-200 bg-gradient-to-br from-amber-50 via-white to-emerald-50 shadow-xl shadow-emerald-900/10 dark:border-amber-500/20 dark:from-amber-500/10 dark:via-zinc-900 dark:to-emerald-500/10 sm:mt-5 sm:h-20 sm:w-20"
                   initial={{ opacity: 0, scale: 0.55, rotate: -14 }}
                   animate={{ opacity: 1, scale: 1, rotate: 0 }}
-                  transition={{ type: 'spring', stiffness: 420, damping: 20, delay: 0.32 }}
+                  transition={modalTransition({ type: 'spring', stiffness: 420, damping: 20, delay: 0.32 })}
                 >
                   <motion.div
                     className="absolute inset-0 rounded-full border border-amber-300/55"
                     animate={{ scale: [1, 1.18, 1], opacity: [0.65, 0, 0.65] }}
-                    transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
+                    transition={modalTransition({ duration: 2.4, repeat: Infinity, ease: 'easeInOut' })}
                   />
                   <motion.div
                     className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500 to-teal-500 text-white shadow-lg shadow-emerald-500/30 sm:h-14 sm:w-14"
                     animate={{ y: [0, -3, 0], boxShadow: ['0 18px 30px rgba(16,185,129,0.25)', '0 22px 42px rgba(16,185,129,0.36)', '0 18px 30px rgba(16,185,129,0.25)'] }}
-                    transition={{ duration: 2.8, repeat: Infinity, ease: 'easeInOut' }}
+                    transition={modalTransition({ duration: 2.8, repeat: Infinity, ease: 'easeInOut' })}
                   >
                     <motion.div
                       animate={{ rotate: [0, -7, 7, -3, 0], scale: [1, 1.08, 1] }}
-                      transition={{ duration: 2.6, repeat: Infinity, repeatDelay: 0.45, ease: 'easeInOut' }}
+                      transition={modalTransition({ duration: 2.6, repeat: Infinity, repeatDelay: 0.45, ease: 'easeInOut' })}
                     >
                       <HeroIcon className="h-5 w-5 sm:h-[30px] sm:w-[30px]" strokeWidth={2.5} />
                     </motion.div>
@@ -180,7 +183,7 @@ export default function DailyGoalCompletedModal({
                   className="mt-2 inline-flex max-w-full flex-wrap items-center justify-center gap-1.5 text-center text-[0.92rem] font-black uppercase leading-tight tracking-normal text-zinc-950 dark:text-white sm:mt-4 sm:gap-2.5 sm:text-[1.55rem]"
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.35, delay: 0.46, ease: 'easeOut' }}
+                  transition={modalTransition({ duration: 0.35, delay: 0.46, ease: 'easeOut' })}
                 >
                   <span>{title}</span>
 
@@ -189,7 +192,7 @@ export default function DailyGoalCompletedModal({
                   className="mt-1.5 max-w-full truncate text-[8px] font-black uppercase tracking-[0.16em] text-emerald-600 dark:text-emerald-400 sm:mt-2 sm:text-[9px] sm:tracking-[0.22em]"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  transition={{ duration: 0.35, delay: 0.58 }}
+                  transition={modalTransition({ duration: 0.35, delay: 0.58 })}
                 >
                   {contextLabel}
                 </motion.p>
@@ -200,7 +203,7 @@ export default function DailyGoalCompletedModal({
                   className={`relative flex min-h-[100px] flex-col rounded-[18px] border border-zinc-200 bg-white/80 p-3 shadow-sm dark:border-white/10 dark:bg-zinc-900/80 sm:rounded-[24px] ${compactStatsLayout ? 'sm:min-h-[152px] sm:p-4' : 'sm:min-h-0 sm:p-3.5'}`}
                   initial={{ opacity: 0, y: 16, scale: 0.96 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
-                  transition={{ duration: 0.42, delay: statDelay, ease: 'easeOut' }}
+                  transition={modalTransition({ duration: 0.42, delay: statDelay, ease: 'easeOut' })}
                 >
                   <div className="absolute inset-x-3 top-0 h-1 rounded-b-full bg-gradient-to-r from-amber-400 via-emerald-500 to-cyan-400" />
                   <p className="mt-1.5 text-[7px] font-black uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400 sm:mt-2 sm:text-[8px] sm:tracking-[0.24em]">Edital</p>
@@ -233,7 +236,7 @@ export default function DailyGoalCompletedModal({
                       }`}
                       initial={{ opacity: 0, y: 14, scale: 0.94 }}
                       animate={{ opacity: 1, y: 0, scale: 1 }}
-                      transition={{ duration: 0.34, delay: statDelay + 0.08 + index * 0.06, ease: 'easeOut' }}
+                      transition={modalTransition({ duration: 0.34, delay: statDelay + 0.08 + index * 0.06, ease: 'easeOut' })}
                     >
                       <div className="flex items-center justify-between gap-1.5">
                         <p className="min-w-0 pr-1 text-[6px] font-black uppercase leading-tight tracking-[0.08em] text-zinc-500 dark:text-zinc-400 sm:text-[8px] sm:tracking-widest">{label}</p>
@@ -264,14 +267,14 @@ export default function DailyGoalCompletedModal({
                 className="mt-2 flex shrink-0 items-center gap-2 sm:mt-4"
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.32, delay: statDelay + 0.34, ease: 'easeOut' }}
+                transition={modalTransition({ duration: 0.32, delay: statDelay + 0.34, ease: 'easeOut' })}
               >
                 <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-zinc-100 dark:bg-white/10">
                   <motion.div
                     className="h-full rounded-full bg-gradient-to-r from-amber-400 via-emerald-500 to-cyan-400"
                     initial={{ width: '0%' }}
                     animate={{ width: '100%' }}
-                    transition={{ duration: 0.8, delay: statDelay + 0.42, ease: 'easeOut' }}
+                    transition={modalTransition({ duration: 0.8, delay: statDelay + 0.42, ease: 'easeOut' })}
                   />
                 </div>
                 <span className="text-[8px] font-black uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400">{progressLabel}</span>
@@ -282,7 +285,7 @@ export default function DailyGoalCompletedModal({
                   className="mt-1.5 shrink-0 sm:mt-2"
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.32, delay: statDelay + 0.4, ease: 'easeOut' }}
+                  transition={modalTransition({ duration: 0.32, delay: statDelay + 0.4, ease: 'easeOut' })}
                 >
                   {notice}
                 </motion.div>
@@ -293,7 +296,7 @@ export default function DailyGoalCompletedModal({
                   className="mt-2 shrink-0 sm:mt-3"
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.32, delay: statDelay + 0.46, ease: 'easeOut' }}
+                  transition={modalTransition({ duration: 0.32, delay: statDelay + 0.46, ease: 'easeOut' })}
                 >
                   {footer}
                 </motion.div>

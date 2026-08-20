@@ -79,5 +79,9 @@ test('analytics usa os mesmos registros consolidados do ranking', () => {
   assert.equal(today.activeUsers, 2);
   assert.equal(today.studyMinutes, 90);
   assert.equal(today.questions, 15);
+  assert.equal(datasets.summary.activeUsers, 2);
+  assert.equal(datasets.summary.totalStudyMinutes, 135);
+  assert.equal(datasets.summary.totalQuestions, 35);
+  assert.equal(datasets.summary.totalRecords, 3);
   assert.equal(datasets.contextDistribution.find((item) => item.context === 'Simulados').records, 1);
 });

@@ -71,7 +71,12 @@ export async function gerarCronogramaIA(
 export async function gerarCronogramaExpressoIA(disciplinas, horasPorDia, onProgress = null) {
   if (!disciplinas?.length) return null;
   const horarios = { 1: horasPorDia, 2: horasPorDia, 3: horasPorDia, 4: horasPorDia, 5: horasPorDia };
-  return gerarCronogramaIA(disciplinas, horarios, { tempoRevisaoMinutos: 20 }, {}, onProgress);
+  return gerarCronogramaIA(disciplinas, horarios, {
+    tempoRevisaoMinutos: 20,
+    usarDuracaoUnica: false,
+    duracaoMinimaSessaoMinutos: 40,
+    duracaoMaximaSessaoMinutos: 80,
+  }, {}, onProgress);
 }
 
 // cache eliminado — gerarSchedule é determinístico e não precisa de memoização

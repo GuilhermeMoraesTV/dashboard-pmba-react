@@ -26,6 +26,7 @@ function ModalConclusaoCiclo({
     revisoesProgramadas = 0,
     editalLogo = null,
     editalName = null,
+    instant = false,
 }) {
     const proximaConclusao = Number(ciclo?.conclusoes || 0) + 1;
     const tempoSemanalMeta = Number(totalMeta || 0)
@@ -37,14 +38,14 @@ function ModalConclusaoCiclo({
         {
             label: 'Tempo',
             value: `${fmtMin(tempoSemanalFeito)} / ${fmtMin(tempoSemanalMeta)}`,
-            description: 'Nesta volta',
+            description: 'Nesta rodada',
             icon: Clock3,
             tone: 'zinc',
         },
         {
             label: 'Conclusoes',
             value: proximaConclusao,
-            description: 'Voltas finalizadas',
+            description: 'Rodadas finalizadas',
             icon: Trophy,
             tone: 'emerald',
         },
@@ -53,14 +54,14 @@ function ModalConclusaoCiclo({
     const footer = (
         <div className="space-y-2">
             <p className="truncate text-center text-[9px] font-bold uppercase tracking-wide text-zinc-500 dark:text-zinc-400 sm:text-[10px]">
-                Confirmar salva a conclusao e abre uma nova volta.
+                Confirmar salva as estatisticas e abre uma nova rodada.
             </p>
             <div className="grid grid-cols-2 gap-2">
                 <button
                     type="button"
                     onClick={onClose}
                     disabled={loading}
-                    className="rounded-xl bg-zinc-100 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-zinc-700 transition-all hover:bg-zinc-200 active:scale-[0.98] disabled:opacity-60 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700 sm:rounded-2xl sm:py-2.5 sm:text-xs"
+                    className="rounded-xl bg-zinc-100 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-zinc-700 hover:bg-zinc-200 disabled:opacity-60 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700 sm:rounded-2xl sm:py-2.5 sm:text-xs"
                 >
                     Cancelar
                 </button>
@@ -68,7 +69,7 @@ function ModalConclusaoCiclo({
                     type="button"
                     onClick={() => onConfirm?.({ resetarRevisoesPendentes: false })}
                     disabled={loading}
-                    className="group flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-white shadow-xl shadow-emerald-600/25 transition-all hover:-translate-y-0.5 hover:bg-emerald-500 hover:shadow-emerald-600/35 active:translate-y-0 disabled:pointer-events-none disabled:opacity-70 sm:rounded-2xl sm:py-2.5 sm:text-xs"
+                    className="group flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-white shadow-xl shadow-emerald-600/25 hover:bg-emerald-500 hover:shadow-emerald-600/35 disabled:pointer-events-none disabled:opacity-70 sm:rounded-2xl sm:py-2.5 sm:text-xs"
                 >
                     {loading ? (
                         <>
@@ -103,6 +104,7 @@ function ModalConclusaoCiclo({
             progressLabel="100%"
             notice={null}
             footer={footer}
+            instant={instant}
         />
     );
 }

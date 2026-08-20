@@ -631,8 +631,8 @@ export default function HomeSessao1({
               </span>
             </div>
             {diasEstudo && (
-              <p className="text-[9px] text-zinc-400 mt-1 flex items-center gap-1">
-                <Coffee size={9} className="text-zinc-300" />
+              <p className="text-[10px] text-zinc-400 mt-1 flex items-center gap-1">
+                <Coffee size={12} className="text-zinc-300" />
                 Dias de descanso não quebram a sequência
               </p>
             )}

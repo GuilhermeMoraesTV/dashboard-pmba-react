@@ -27,6 +27,7 @@ function CardSessoesCicloHoje({
   showAssuntos = true,
   onToggleAssuntos,
   assuntosToggleLoading = false,
+  hideHeader = false,
 }) {
   const cicloComDisciplinas = useMemo(
     () => ({ ...(ciclo || {}), disciplinas }),
@@ -42,34 +43,36 @@ function CardSessoesCicloHoje({
   );
 
   return (
-    <section className={`cycle-block-list-card-zoom ${fillAvailableHeight ? 'cycle-block-list-card-zoom--fill h-full max-h-none' : 'max-h-[430px] sm:max-h-[460px]'} box-border flex min-h-0 w-full max-w-full flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900`}>
-      <div className="border-b border-zinc-100 px-3 py-2.5 dark:border-zinc-800 sm:px-4">
-        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-red-600 dark:text-red-400">Fila do ciclo</p>
-        <div className="mt-1 flex items-end justify-between gap-3">
-          <h3 className="text-base font-black text-zinc-900 dark:text-white">Blocos do ciclo</h3>
-          <div className="flex shrink-0 items-center gap-2">
-            {onToggleAssuntos && (
-              <button
-                type="button"
-                role="switch"
-                aria-checked={showAssuntos}
-                aria-label={showAssuntos ? 'Ocultar assuntos sugeridos' : 'Exibir assuntos sugeridos'}
-                title={showAssuntos ? 'Ocultar assuntos sugeridos' : 'Exibir assuntos sugeridos'}
-                disabled={assuntosToggleLoading}
-                onClick={onToggleAssuntos}
-                className={`inline-flex h-7 items-center gap-1.5 rounded-full border px-2 text-[9px] font-black uppercase tracking-wide transition-colors disabled:cursor-wait disabled:opacity-60 ${showAssuntos
-                  ? 'border-red-200 bg-red-50 text-red-600 dark:border-red-900/50 dark:bg-red-950/25 dark:text-red-400'
-                  : 'border-zinc-200 bg-zinc-50 text-zinc-400 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300'
-                }`}
-              >
-                {showAssuntos ? <Eye size={12} /> : <EyeOff size={12} />}
-                <span className="hidden sm:inline">Assuntos</span>
-              </button>
-            )}
-            <span className="text-xs font-bold text-zinc-400">{queue.sessions.length} blocos</span>
+    <section className={`cycle-block-list-card-zoom ${fillAvailableHeight || hideHeader ? 'cycle-block-list-card-zoom--fill h-full max-h-none' : 'max-h-[430px] sm:max-h-[460px]'} box-border flex min-h-0 w-full max-w-full flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900`}>
+      {!hideHeader && (
+        <div className="border-b border-zinc-100 px-3 py-2.5 dark:border-zinc-800 sm:px-4">
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-red-600 dark:text-red-400">Fila do ciclo</p>
+          <div className="mt-1 flex items-end justify-between gap-3">
+            <h3 className="text-base font-black text-zinc-900 dark:text-white">Blocos do ciclo</h3>
+            <div className="flex shrink-0 items-center gap-2">
+              {onToggleAssuntos && (
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={showAssuntos}
+                  aria-label={showAssuntos ? 'Ocultar assuntos sugeridos' : 'Exibir assuntos sugeridos'}
+                  title={showAssuntos ? 'Ocultar assuntos sugeridos' : 'Exibir assuntos sugeridos'}
+                  disabled={assuntosToggleLoading}
+                  onClick={onToggleAssuntos}
+                  className={`inline-flex h-7 items-center gap-1.5 rounded-full border px-2 text-[9px] font-black uppercase tracking-wide transition-colors disabled:cursor-wait disabled:opacity-60 ${showAssuntos
+                    ? 'border-red-200 bg-red-50 text-red-600 dark:border-red-900/50 dark:bg-red-950/25 dark:text-red-400'
+                    : 'border-zinc-200 bg-zinc-50 text-zinc-400 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300'
+                  }`}
+                >
+                  {showAssuntos ? <Eye size={12} /> : <EyeOff size={12} />}
+                  <span className="hidden sm:inline">Assuntos</span>
+                </button>
+              )}
+              <span className="text-xs font-bold text-zinc-400">{queue.sessions.length} blocos</span>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {queue.sessions.length === 0 ? (
         <div className="px-5 py-10 text-center text-sm font-semibold text-zinc-400">

@@ -27,6 +27,7 @@ import {
 } from '../utils/cicloDistribution';
 import { getKnowledgeLevel, getImportanceLevel } from '../utils/planningPriority';
 import { deletePlanStudyRecords } from '../services/planDeletion';
+import { buildCycleRoundSummary } from '../utils/cicloWeeklyStatus';
 
 export {
   calcularDistribuicao,
@@ -37,6 +38,7 @@ export {
 };
 
 const dateToYMDLocal = (date = new Date()) => {
+  if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) return date;
   const d = date instanceof Date ? date : new Date(date);
   if (Number.isNaN(d.getTime())) return dateToYMDLocal(new Date());
   const year = d.getFullYear();
@@ -170,6 +172,7 @@ export const useCiclos = (user) => {
 
       batch.set(cicloRef, {
         nome: cicloData.nome,
+        dataInicioPlanejamento: dateToYMDLocal(cicloData.dataInicioPlanejamento || new Date()),
         cargaHorariaSemanalTotal: cargaHorariaTotal,
         diasEstudo: cicloData.diasEstudo || null,
         tempoSessaoMinutos,
@@ -309,6 +312,26 @@ export const useCiclos = (user) => {
         duracaoMaximaSessaoMinutos,
         embaralharOffset: 0,
       };
+
+      if (cicloData.dataInicioPlanejamento) {
+        const cicloAtualSnap = await getDoc(cicloRef);
+        const cicloAtualData = cicloAtualSnap.data() || {};
+        const hasProgress = (Array.isArray(cicloAtualData.sessoesConcluidas) && cicloAtualData.sessoesConcluidas.length > 0)
+          || Object.values(cicloAtualData.progressoSessoes || {}).some((value) => Number(value || 0) > 0);
+        let hasCurrentRoundRecords = hasProgress;
+
+        if (!hasCurrentRoundRecords) {
+          const registrosAtuaisSnap = await getDocs(query(
+            collection(db, 'users', user.uid, 'registrosEstudo'),
+            where('cicloId', '==', cicloId),
+          ));
+          hasCurrentRoundRecords = registrosAtuaisSnap.docs.some((registroDoc) => registroDoc.data()?.conclusaoId == null);
+        }
+
+        if (!hasCurrentRoundRecords) {
+          updateData.dataInicioPlanejamento = dateToYMDLocal(cicloData.dataInicioPlanejamento);
+        }
+      }
 
       if (cicloData.logoUrl !== undefined) updateData.logoUrl = cicloData.logoUrl;
       if (cicloData.tipo !== undefined) updateData.tipo = cicloData.tipo;
@@ -560,6 +583,9 @@ export const useCiclos = (user) => {
         const sessoesPorCiclo = Number(discData.sessoesPorCiclo) || Math.max(1, Math.round(tempoAlocado / tempoSessaoMinutos));
         return {
           id: discDoc.id,
+          nome: discData.nome || 'Materia sem nome',
+          inCiclo: discData.inCiclo !== false,
+          tempoAlocadoSemanalMinutos: tempoAlocado,
           sessoesPorCiclo,
           duracoesSessoes: Array.isArray(discData.duracoesSessoes) ? discData.duracoesSessoes : [],
           estudarTodosDias: discData.estudarTodosDias === true,
@@ -589,6 +615,21 @@ export const useCiclos = (user) => {
       const registrosRef = collection(db, 'users', user.uid, 'registrosEstudo');
       const q = query(registrosRef, where('cicloId', '==', cicloId));
       const registrosSnapshot = await getDocs(q);
+      const resumoRodada = buildCycleRoundSummary({
+        ciclo: cicloData,
+        disciplinas,
+        registros: registrosSnapshot.docs.map((registroDoc) => registroDoc.data() || {}),
+        closedAt: new Date(),
+      });
+      const rodadaRef = doc(
+        collection(db, 'users', user.uid, 'ciclos', cicloId, 'rodadas'),
+        `rodada-${String(proximaConclusaoId).padStart(6, '0')}`,
+      );
+      batch.set(rodadaRef, {
+        ...resumoRodada,
+        fechamentoReal: serverTimestamp(),
+        criadoEm: serverTimestamp(),
+      });
       registrosSnapshot.forEach((document) => {
         const data = document.data();
         if (data.conclusaoId == null) {
@@ -752,6 +793,9 @@ export const useCiclos = (user) => {
       const disciplinasRef = collection(db, 'users', user.uid, 'ciclos', cicloId, 'disciplinas');
       const disciplinasSnapshot = await getDocs(disciplinasRef);
       disciplinasSnapshot.docs.forEach(docItem => { batch.delete(docItem.ref); });
+      const rodadasRef = collection(db, 'users', user.uid, 'ciclos', cicloId, 'rodadas');
+      const rodadasSnapshot = await getDocs(rodadasRef);
+      rodadasSnapshot.docs.forEach(docItem => { batch.delete(docItem.ref); });
       batch.delete(cicloRef);
       await batch.commit();
       setLoading(false); return true;

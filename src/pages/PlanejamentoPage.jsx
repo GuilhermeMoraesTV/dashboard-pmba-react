@@ -20,7 +20,7 @@ import PlanejamentoNovoPage from './PlanejamentoNovoPage';
 
 const ABAS = [
   { id: 'todos', label: 'Todos', icon: LayoutGrid },
-  { id: 'ciclos', label: 'Ciclos', icon: RefreshCw },
+  { id: 'ciclos', label: 'Ciclo semanal', icon: RefreshCw },
   { id: 'cronogramas', label: 'Cronogramas', icon: CalendarClock },
 ];
 
@@ -70,7 +70,7 @@ const CiclosCentralizadosPanel = ({ user, activeCicloId, onOpenActive, onRequest
             <RefreshCw size={20} />
           </div>
           <div className="min-w-0">
-            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-zinc-400">Ciclos</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-zinc-400">Ciclo semanal</p>
             <h2 className="mt-1 text-lg font-black uppercase tracking-tight text-zinc-900 dark:text-white">Lista de ciclos</h2>
           </div>
         </div>
@@ -80,7 +80,7 @@ const CiclosCentralizadosPanel = ({ user, activeCicloId, onOpenActive, onRequest
           className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-red-600 px-4 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-red-600/20 transition hover:bg-red-700 active:scale-95"
         >
           <Plus size={15} />
-          Novo ciclo
+          Novo ciclo semanal
         </button>
       </div>
 
@@ -409,7 +409,7 @@ function PlanejamentoPage({
       {aba === 'todos' && (
         <div className="space-y-8">
           <section>
-            <h2 className="text-lg md:text-xl font-black text-zinc-800 dark:text-white tracking-tight uppercase mb-3">Ciclos</h2>
+            <h2 className="text-lg md:text-xl font-black text-zinc-800 dark:text-white tracking-tight uppercase mb-3">Ciclo semanal</h2>
             <CiclosList
               user={user}
               onCicloClick={(id) => setSelectedCicloId(id)}

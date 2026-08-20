@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { BookOpen, Clock, EyeOff, Hash, LayoutList, Palette, Settings2, Shuffle, Target, Timer } from 'lucide-react';
+import { BookOpen, CalendarDays, Clock, EyeOff, Hash, LayoutList, LockKeyhole, Palette, Settings2, Shuffle, Target, Timer } from 'lucide-react';
 import ColorisSwatch from '../../../shared/ColorisSwatch';
+import { clampPlanningStartDate, getLocalTodayKey } from '../../../../utils/planningDates';
 
 const EditalSidebarCard = ({ editalSelecionado }) => (
   <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 flex flex-col items-center text-center relative overflow-hidden shadow-[0_8px_30px_rgba(239,68,68,0.15)] dark:shadow-[0_8px_30px_rgba(239,68,68,0.08)]">
@@ -16,7 +17,7 @@ const EditalSidebarCard = ({ editalSelecionado }) => (
     </div>
     <div className="relative z-10 w-full">
       <h3 className="text-base font-black text-zinc-900 dark:text-white uppercase leading-tight line-clamp-2">
-        {editalSelecionado?.titulo || editalSelecionado?.nome || 'Novo Ciclo'}
+        {editalSelecionado?.titulo || editalSelecionado?.nome || 'Novo ciclo semanal'}
       </h3>
       {editalSelecionado?.cargo && (
         <p className="text-xs font-bold text-zinc-500 dark:text-zinc-400 mt-1.5 line-clamp-1">
@@ -173,6 +174,9 @@ const PageHeader = () => (
 export default function StepConfig({
   nomeCiclo,
   setNomeCiclo,
+  dataInicioPlanejamento,
+  setDataInicioPlanejamento,
+  dataInicioBloqueada = false,
   coresDisciplinasAtivas = true,
   setCoresDisciplinasAtivas,
   disciplinasPreview = [],
@@ -248,6 +252,47 @@ export default function StepConfig({
                 </div>
               </motion.div>
             </div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.08 }}
+              className="rounded-2xl border border-zinc-100 bg-white p-4 shadow-sm dark:border-zinc-800/60 dark:bg-zinc-900 sm:rounded-3xl sm:p-6"
+            >
+              <div className="mb-3 flex items-start gap-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-600 dark:bg-red-950/30 dark:text-red-400">
+                  <CalendarDays size={17} />
+                </div>
+                <div className="min-w-0">
+                  <label htmlFor="ciclo-weekly-start" className="text-[10px] font-black uppercase tracking-[0.14em] text-zinc-900 dark:text-white sm:text-xs">
+                    Início do ciclo semanal
+                  </label>
+                  <p className="mt-1 text-[10px] font-medium leading-relaxed text-zinc-500 dark:text-zinc-400 sm:text-[11px]">
+                    A meta de 7 dias começa nesta data. Se o prazo passar, a rodada continua aberta até todas as pendências serem concluídas.
+                  </p>
+                </div>
+              </div>
+              <div className="relative">
+                <input
+                  id="ciclo-weekly-start"
+                  type="date"
+                  min={dataInicioBloqueada ? undefined : getLocalTodayKey()}
+                  value={dataInicioPlanejamento || ''}
+                  onChange={(event) => setDataInicioPlanejamento?.(clampPlanningStartDate(event.target.value))}
+                  disabled={dataInicioBloqueada}
+                  className="w-full rounded-xl border-2 border-transparent bg-zinc-50 px-3 py-3 text-sm font-black text-zinc-900 outline-none transition-all focus:border-red-500/20 focus:bg-white focus:ring-4 focus:ring-red-500/5 disabled:cursor-not-allowed disabled:opacity-70 dark:bg-card-dark dark:text-white dark:focus:bg-zinc-900 sm:rounded-2xl sm:px-5 sm:py-4"
+                />
+                {dataInicioBloqueada && (
+                  <LockKeyhole size={15} className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400" />
+                )}
+              </div>
+              <p className={`mt-2 flex items-center gap-1.5 text-[10px] font-semibold ${dataInicioBloqueada ? 'text-amber-600 dark:text-amber-400' : 'text-zinc-400'}`}>
+                {dataInicioBloqueada && <LockKeyhole size={11} />}
+                {dataInicioBloqueada
+                  ? 'Data apenas informativa: esta rodada já possui registros e suas métricas foram preservadas.'
+                  : 'Escolha hoje ou uma data futura; os 7 dias serão contados a partir dela.'}
+              </p>
+            </motion.div>
 
               <div className="rounded-3xl border border-zinc-100 bg-white p-5 shadow-sm dark:border-zinc-800/60 dark:bg-zinc-900">
                 <div className="mb-4 flex items-start justify-between gap-4">

@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { AlertTriangle, Loader2, X } from 'lucide-react';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 import { createPortal } from 'react-dom';
 
 import { db } from '../../firebaseConfig';
 import { CATALOGO_EDITAIS } from '../../pages/AdminPage/EditaisManager';
 import { normalizeRevisaoModoCiclo } from '../../utils/cicloReviewMode';
 import { getKnowledgeLevel, getImportanceLevel } from '../../utils/planningPriority';
+import { getCicloRoundStartKey } from '../../utils/cicloWeeklyStatus';
 import CicloCreateWizard from './CicloCreateWizard/CicloCreateWizard';
 
 const normalizarAssuntos = (assuntos = []) =>
@@ -31,7 +32,7 @@ const normalizarDiasEstudo = (ciclo = {}) => {
   return {};
 };
 
-const montarInitialState = ({ ciclo, disciplinas }) => {
+const montarInitialState = ({ ciclo, disciplinas, hasCurrentRoundRecords = false }) => {
   const templateId = ciclo?.editalId || ciclo?.templateId || ciclo?.templateOrigem || 'manual';
   const isManual = templateId === 'manual';
   const editalCatalogado = CATALOGO_EDITAIS.find((item) => item.id === templateId) || null;
@@ -68,6 +69,8 @@ const montarInitialState = ({ ciclo, disciplinas }) => {
 
   return {
     nomeCiclo: ciclo?.nome || '',
+    dataInicioPlanejamento: getCicloRoundStartKey(ciclo),
+    dataInicioBloqueada: hasCurrentRoundRecords,
     idModeloSelecionado: isManual ? 'manual' : templateId,
     dadosModeloSelecionado: isManual
       ? null
@@ -158,7 +161,13 @@ function CicloEditModal({ onClose, user, ciclo, onCicloAtivado, upgradeMode = fa
 
       try {
         const disciplinasRef = collection(db, 'users', user.uid, 'ciclos', ciclo.id, 'disciplinas');
-        const snap = await getDocs(disciplinasRef);
+        const [snap, registrosSnap] = await Promise.all([
+          getDocs(disciplinasRef),
+          getDocs(query(
+            collection(db, 'users', user.uid, 'registrosEstudo'),
+            where('cicloId', '==', ciclo.id),
+          )),
+        ]);
 
         const disciplinas = snap.docs
           .map((docSnap) => ({
@@ -172,7 +181,8 @@ function CicloEditModal({ onClose, user, ciclo, onCicloAtivado, upgradeMode = fa
           });
 
         if (!ignore) {
-          setInitialState(montarInitialState({ ciclo, disciplinas }));
+          const hasCurrentRoundRecords = registrosSnap.docs.some((registroDoc) => registroDoc.data()?.conclusaoId == null);
+          setInitialState(montarInitialState({ ciclo, disciplinas, hasCurrentRoundRecords }));
         }
       } catch (error) {
         console.error('Erro ao carregar ciclo para edicao:', error);

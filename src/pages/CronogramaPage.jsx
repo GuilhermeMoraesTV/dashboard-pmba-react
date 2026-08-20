@@ -4,17 +4,17 @@ import {
   Layers, Bookmark, Plus, Zap, Map as MapIcon, CalendarDays, Shield,
   TrendingUp, Target, SkipForward, Trash2, AlertTriangle, X,
   BookOpen, Clock, Star, Flame, BarChart2, Sun, LayoutList,
-  GripVertical, Calendar, LayoutGrid, Check, MoreHorizontal,
+  GripVertical, Calendar, LayoutGrid, Check, MoreHorizontal, ZoomIn, ZoomOut,
   BadgeCheck, Loader2, Trophy, History, Cog, RefreshCw, Printer,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createPortal } from 'react-dom';
 import {
-  DndContext, DragOverlay, PointerSensor, closestCorners, pointerWithin, rectIntersection,
+  DndContext, DragOverlay, KeyboardSensor, MouseSensor, TouchSensor, closestCorners, pointerWithin, rectIntersection,
   useDroppable, useSensor, useSensors,
 } from '@dnd-kit/core';
 import {
-  SortableContext, arrayMove, useSortable, verticalListSortingStrategy,
+  SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import {
@@ -256,7 +256,7 @@ const buildCronogramaTaskState = ({
 
 const isWeekPanIgnoredTarget = (target) => {
   if (!target?.closest) return false;
-  return Boolean(target.closest('button, input, textarea, select, a, [role="button"], [data-no-week-pan]'));
+  return Boolean(target.closest('button, input, textarea, select, a, [role="button"], [data-no-week-pan], [data-cronograma-task-card]'));
 };
 
 const cronogramaCollisionDetection = (args) => {
@@ -470,6 +470,12 @@ const EstadoVazio = ({ onNovo }) => (
 
 // --- MODAL DE REVISÃO CONSOLIDADA ---------------------------------------------
 const ModalRevisaoConsolidada = ({ slot, onClose, onDominar, onStart, onToggle, dominiosLocal, toggleLoadingId, optimisticDone = {} }) => {
+  const [modalZoom, setModalZoom] = useState(1);
+
+  useEffect(() => {
+    setModalZoom(1);
+  }, [slot?.slotId]);
+
   if (!slot?.isConsolidada) return null;
 
   const buildReviewTask = (topico, idx) => ({
@@ -489,7 +495,7 @@ const ModalRevisaoConsolidada = ({ slot, onClose, onDominar, onStart, onToggle, 
     bloqueiaDesmarcar: Boolean(topico.bloqueiaDesmarcar || slot.bloqueiaDesmarcar),
   });
 
-  return (
+  return createPortal(
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       className="fixed inset-0 z-[250] flex items-end justify-center bg-zinc-950/70 p-0 backdrop-blur-sm sm:items-center sm:p-4"
@@ -498,7 +504,7 @@ const ModalRevisaoConsolidada = ({ slot, onClose, onDominar, onStart, onToggle, 
       <motion.div
         initial={{ y: 60, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 60, opacity: 0 }}
         transition={{ type: 'spring', stiffness: 350, damping: 30 }}
-        className="w-full overflow-hidden rounded-t-3xl border border-blue-200 bg-white shadow-2xl shadow-blue-950/20 dark:border-blue-900/40 dark:bg-zinc-900 sm:max-w-xl sm:rounded-2xl"
+        className="flex max-h-[100dvh] w-full flex-col overflow-hidden rounded-t-3xl border border-blue-200 bg-white shadow-2xl shadow-blue-950/20 dark:border-blue-900/40 dark:bg-zinc-900 sm:max-h-[calc(100dvh-2rem)] sm:max-w-xl sm:rounded-2xl"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-blue-100 bg-blue-50/75 px-5 pb-4 pt-5 dark:border-blue-900/35 dark:bg-blue-950/20">
@@ -511,12 +517,39 @@ const ModalRevisaoConsolidada = ({ slot, onClose, onDominar, onStart, onToggle, 
               <p className="text-sm font-bold text-zinc-900 dark:text-zinc-100">{slot.topicosRevisao?.length || 0} tópicos agendados</p>
             </div>
           </div>
-          <button onClick={onClose} className="rounded-xl p-2 text-zinc-500 transition-colors hover:bg-blue-100 hover:text-blue-700 dark:hover:bg-blue-900/35 dark:hover:text-blue-200">
-            <X size={18}/>
-          </button>
+          <div className="flex shrink-0 items-center gap-1">
+            <div className="mr-1 flex items-center rounded-xl border border-blue-200 bg-white/80 p-1 dark:border-blue-900/40 dark:bg-zinc-900/60 sm:hidden">
+              <button
+                type="button"
+                onClick={() => setModalZoom((value) => Math.max(0.9, Number((value - 0.1).toFixed(1))))}
+                disabled={modalZoom <= 0.9}
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-500 hover:bg-blue-50 hover:text-blue-700 disabled:opacity-35 dark:hover:bg-blue-950/40 dark:hover:text-blue-200"
+                aria-label="Diminuir zoom"
+              >
+                <ZoomOut size={15} />
+              </button>
+              <span className="w-9 text-center text-[9px] font-black tabular-nums text-zinc-600 dark:text-zinc-300">{Math.round(modalZoom * 100)}%</span>
+              <button
+                type="button"
+                onClick={() => setModalZoom((value) => Math.min(1.2, Number((value + 0.1).toFixed(1))))}
+                disabled={modalZoom >= 1.2}
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-500 hover:bg-blue-50 hover:text-blue-700 disabled:opacity-35 dark:hover:bg-blue-950/40 dark:hover:text-blue-200"
+                aria-label="Aumentar zoom"
+              >
+                <ZoomIn size={15} />
+              </button>
+            </div>
+            <button onClick={onClose} className="rounded-xl p-2 text-zinc-500 transition-colors hover:bg-blue-100 hover:text-blue-700 dark:hover:bg-blue-900/35 dark:hover:text-blue-200">
+              <X size={18}/>
+            </button>
+          </div>
         </div>
 
-        <div className="max-h-[60vh] overflow-y-auto divide-y divide-blue-100/70 dark:divide-blue-900/25">
+        <div className="min-h-0 flex-1 overflow-auto">
+          <div
+            className="divide-y divide-blue-100/70 dark:divide-blue-900/25"
+            style={{ zoom: modalZoom, width: `${100 / modalZoom}%` }}
+          >
           {(slot.topicosRevisao || []).map((t, idx) => {
             const chave    = chaveAssuntoDominado(t.disciplinaId, t.assunto);
             const dominado = !!(dominiosLocal[chave]);
@@ -609,6 +642,7 @@ const ModalRevisaoConsolidada = ({ slot, onClose, onDominar, onStart, onToggle, 
               </div>
             );
           })}
+          </div>
         </div>
 
         <div className="border-t border-blue-100 bg-blue-50/70 px-5 py-4 dark:border-blue-900/35 dark:bg-blue-950/20">
@@ -617,7 +651,8 @@ const ModalRevisaoConsolidada = ({ slot, onClose, onDominar, onStart, onToggle, 
           </p>
         </div>
       </motion.div>
-    </motion.div>
+    </motion.div>,
+    document.body,
   );
 };
 
@@ -1145,18 +1180,9 @@ const SortableTarefaCard = ({ tarefa, diaSemanaIdx, ...props }) => {
   );
 };
 
-const RevisoesAgrupadasCard = ({ revisoes = [], onOpenConsolidada, mostrarTempo = true }) => {
+const RevisoesAgrupadasCard = ({ revisoes = [], onOpenConsolidada }) => {
   if (!revisoes.length) return null;
 
-  const concluidas = revisoes.filter((tarefa) => tarefa.concluido).length;
-  const totalMinutos = revisoes.reduce((acc, tarefa) => (
-    acc + Number(tarefa.tempoMinutos ?? tarefa.tempoPlanejadoMinutos ?? tarefa.minutosEstudo ?? 0)
-  ), 0);
-  const totalFeito = revisoes.reduce((acc, tarefa) => {
-    const planned = Number(tarefa.tempoMinutos ?? tarefa.tempoPlanejadoMinutos ?? tarefa.minutosEstudo ?? 0);
-    const done = Number(tarefa.progressoMinutos || 0);
-    return acc + (tarefa.concluido ? Math.max(done, planned) : done);
-  }, 0);
   const topicosRevisao = revisoes.flatMap((tarefa) => {
     const dadosSlot = {
       slotId: tarefa.slotId,
@@ -1184,11 +1210,6 @@ const RevisoesAgrupadasCard = ({ revisoes = [], onOpenConsolidada, mostrarTempo 
       intervaloDias: tarefa.intervaloDias ?? '?',
     }];
   });
-  const preview = topicosRevisao
-    .slice(0, 2)
-    .map((topico) => topico.disciplinaNome || topico.assunto)
-    .join(' · ');
-
   return (
     <motion.button
       type="button"
@@ -1202,37 +1223,9 @@ const RevisoesAgrupadasCard = ({ revisoes = [], onOpenConsolidada, mostrarTempo 
         titulo: 'Revisões do Dia',
         topicosRevisao,
       })}
-      className="mb-2.5 w-full overflow-hidden rounded-2xl border border-blue-200 bg-blue-50/70 text-left shadow-sm transition-all hover:border-blue-300 hover:bg-blue-50 hover:shadow-lg hover:shadow-blue-500/10 dark:border-blue-900/40 dark:bg-blue-950/10 dark:hover:border-blue-800"
+      className="mb-2.5 flex h-11 w-full items-center justify-center rounded-xl border border-blue-200 bg-blue-50/70 px-3 text-[10px] font-black uppercase tracking-[0.2em] text-blue-700 shadow-sm transition-all hover:border-blue-300 hover:bg-blue-50 hover:shadow-md hover:shadow-blue-500/10 dark:border-blue-900/40 dark:bg-blue-950/15 dark:text-blue-300 dark:hover:border-blue-800 dark:hover:bg-blue-950/30"
     >
-      <div className="flex items-center gap-3 px-3 py-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-md shadow-blue-600/20">
-          <BarChart2 size={18} />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <p className="text-[11px] font-black uppercase leading-tight tracking-wide text-blue-800 dark:text-blue-300">
-              Revisões agrupadas
-            </p>
-            <span className="rounded bg-blue-600 px-1.5 py-0.5 text-[9px] font-black uppercase leading-none text-white">
-              {concluidas}/{revisoes.length}
-            </span>
-          </div>
-          <p className="mt-1 truncate text-[11px] font-semibold text-blue-700/80 dark:text-blue-300/80">
-            {preview || 'Clique para ver os tópicos'}
-          </p>
-        </div>
-        <div className="flex shrink-0 flex-col items-end gap-1">
-          {mostrarTempo && totalMinutos > 0 && (
-            <span className="inline-flex items-center gap-1 rounded bg-white/80 px-1.5 py-0.5 text-[9px] font-black text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
-              <Clock size={10} />
-              {formatarDuracao(totalFeito)} / {formatarDuracao(totalMinutos)}
-            </span>
-          )}
-          <span className="text-[9px] font-black uppercase tracking-wide text-blue-500">
-            Ver
-          </span>
-        </div>
-      </div>
+      Revisões
     </motion.button>
   );
 };
@@ -1380,7 +1373,6 @@ const DayDropZone = ({
                   key={`reviews-${diaSemanaIdx}`}
                   revisoes={revisoesAgrupadas}
                   onOpenConsolidada={onOpenConsolidada}
-                  mostrarTempo={mostrarBarrasTempo}
                 />
               )}
               {tarefasVisiveis.map(t => (
@@ -2452,11 +2444,11 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
   const didInitWeekOffsetRef = useRef(false);
   const toggleQueueRef = useRef({});
   const toggleIntentRef = useRef({});
-  const dragSensors = useSensors(useSensor(PointerSensor, {
-    activationConstraint: {
-      distance: 6,
-    },
-  }));
+  const dragSensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
 
   const {
     getWeekDates,

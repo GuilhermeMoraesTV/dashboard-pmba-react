@@ -11,6 +11,7 @@ import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
 import ProfileLevelRing from '../gamification/ProfileLevelRing';
 import { NotificationBell } from '../shared/NotificationPanel';
+import InstallAppButton from '../shared/InstallAppButton';
 import { calcularStatusEstudoHoje, contarRevisoesPendentes, contarRevisoesPendentesHoje } from '../../hooks/useCronogramaSystem';
 import { buildStudyDaysMap, calculateCurrentStudyStreak } from '../../utils/studyDayStatus';
 import { coverPositionToStyle } from '../../utils/profileCover';
@@ -611,6 +612,11 @@ function NavSideBar({
       setMobileOpen(false);
       return;
     }
+    if (String(alert.type || '').startsWith('ciclo_')) {
+      onGoToCicloAtivo?.();
+      setMobileOpen(false);
+      return;
+    }
     if (alert.navigateTo) {
       setActiveTab(alert.navigateTo);
       setMobileOpen(false);
@@ -672,11 +678,11 @@ function NavSideBar({
 
   const navItems = useMemo(() => {
     const items = [
-      { id: 'noticias',  label: 'Notícias',   icon: <Newspaper size={NAV_ICON_SIZE}/>,    isNew: true },
       { id: 'home',      label: 'Home',        icon: <Home size={NAV_ICON_SIZE}/> },
+      { id: 'noticias',  label: 'Notícias',   icon: <Newspaper size={NAV_ICON_SIZE}/>,    isNew: true },
       { id: 'planejamento', label: 'Planejamento', icon: <Layers size={NAV_ICON_SIZE}/> },
-      { id: 'revisoes',  label: 'Revisões',    icon: <BookOpen size={NAV_ICON_SIZE}/> },
       { id: 'edital',    label: 'Edital',      icon: <LayoutList size={NAV_ICON_SIZE}/> },
+      { id: 'revisoes',  label: 'Revisões',    icon: <BookOpen size={NAV_ICON_SIZE}/> },
       { id: 'stats',     label: 'Desempenho',  icon: <BarChart3 size={NAV_ICON_SIZE}/> },
       { id: 'simulados', label: 'Simulados',   icon: <ClipboardList size={NAV_ICON_SIZE}/> },
       { id: 'calendar',  label: 'Calendário',  icon: <Calendar size={NAV_ICON_SIZE}/> },
@@ -805,6 +811,45 @@ function NavSideBar({
         <div className="absolute right-1.5 top-1.5 w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"/>
       )}
     </button>
+  );
+
+  const StudyPlanShortcuts = () => (
+    <>
+      <AnimatePresence>
+        {hasCicloAtivo && (
+          <motion.div key="atalho-ciclo" initial={{ opacity:0, height:0 }} animate={{ opacity:1, height:'auto' }} exit={{ opacity:0, height:0 }} transition={{ duration:0.2 }} className="mb-0.5">
+            <NavButton
+              label="Ciclo semanal"
+              icon={<RotateCw size={NAV_ICON_SIZE}/>}
+              isActive={activeTab === 'ciclos'}
+              isAtalho={true}
+              onClick={() => {
+                setMobileOpen(false);
+                if (onGoToCicloAtivo) onGoToCicloAtivo();
+                else setActiveTab('ciclos');
+              }}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {hasCronogramaAtivo && (
+          <motion.div key="atalho-cronograma" initial={{ opacity:0, height:0 }} animate={{ opacity:1, height:'auto' }} exit={{ opacity:0, height:0 }} transition={{ duration:0.2 }} className="mb-0.5">
+            <NavButton
+              label="Cronograma"
+              icon={<CalendarDays size={NAV_ICON_SIZE}/>}
+              isActive={activeTab === 'cronograma'}
+              isAtalho={true}
+              onClick={() => { setActiveTab('cronograma'); setMobileOpen(false); }}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {(hasCicloAtivo || hasCronogramaAtivo) && (
+        <div className="h-px bg-zinc-100 dark:bg-zinc-800 mx-1 my-1"/>
+      )}
+    </>
   );
 
   const TopBar = () => (
@@ -984,7 +1029,7 @@ function NavSideBar({
       <nav
         className={`
           fixed top-0 bottom-0 z-[80] flex h-[100dvh] min-h-dvh flex-col
-          bg-white dark:bg-card-dark border-r border-zinc-200 dark:border-white/10
+          bg-white dark:bg-card-dark border-r border-zinc-200 dark:border-white/10 lg:border-r-0
           transition-all duration-300 shadow-2xl lg:shadow-none
           ${isMobileOpen ? 'translate-x-0 w-[260px]' : '-translate-x-full lg:translate-x-0'}
           lg:left-0 ${isDesktopExpanded ? 'lg:w-[184px]' : 'lg:w-[64px]'}
@@ -1002,81 +1047,11 @@ function NavSideBar({
         </div>
 
         <div className={`nav-sidebar-content-zoom min-h-0 flex-1 overflow-y-auto px-2.5 pb-3 pt-3 ${NAV_GAP}`} style={{scrollbarWidth:'none'}}>
-          <AnimatePresence>
-            {hasCicloAtivo && (
-              <motion.div key="atalho-ciclo" initial={{ opacity:0, height:0 }} animate={{ opacity:1, height:'auto' }} exit={{ opacity:0, height:0 }} transition={{ duration:0.2 }} className="mb-0.5">
-                <NavButton
-                  label="Ciclo de Estudos"
-                  icon={<RotateCw size={NAV_ICON_SIZE}/>}
-                  isActive={activeTab === 'ciclos'}
-                  isAtalho={true}
-                  onClick={() => {
-                    setMobileOpen(false);
-                    if (onGoToCicloAtivo) onGoToCicloAtivo();
-                    else setActiveTab('ciclos');
-                  }}
-                />
-              </motion.div>
-            )}
-          </AnimatePresence>
-          <AnimatePresence>
-            {hasCronogramaAtivo && (
-              <motion.div key="atalho-cronograma" initial={{ opacity:0, height:0 }} animate={{ opacity:1, height:'auto' }} exit={{ opacity:0, height:0 }} transition={{ duration:0.2 }} className="mb-0.5">
-                <NavButton
-                  label="Cronograma"
-                  icon={<CalendarDays size={NAV_ICON_SIZE}/>}
-                  isActive={activeTab === 'cronograma'}
-                  isAtalho={true}
-                  onClick={() => { setActiveTab('cronograma'); setMobileOpen(false); }}
-                />
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {(hasCicloAtivo || hasCronogramaAtivo) && (
-            <div className="h-px bg-zinc-100 dark:bg-zinc-800 mx-1 my-1"/>
-          )}
-
           {navItems.map((item) => {
             if (item.subItems) {
               const isActiveParent = item.subItems.some(sub => sub.id === activeTab);
               return (
                 <div key={item.id} className="flex flex-col w-full">
-                  <AnimatePresence>
-                    {hasCicloAtivo && (
-                      <motion.div key="atalho-ciclo" initial={{ opacity:0, height:0 }} animate={{ opacity:1, height:'auto' }} exit={{ opacity:0, height:0 }} transition={{ duration:0.2 }} className="mb-0.5">
-                        <NavButton
-                          label="Ciclo de Estudos"
-                          icon={<RotateCw size={NAV_ICON_SIZE}/>}
-                          isActive={activeTab === 'ciclos'}
-                          isAtalho={true}
-                          onClick={() => {
-                            setMobileOpen(false);
-                            if (onGoToCicloAtivo) onGoToCicloAtivo();
-                            else setActiveTab('ciclos');
-                          }}
-                        />
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                  <AnimatePresence>
-                    {hasCronogramaAtivo && (
-                      <motion.div key="atalho-cronograma" initial={{ opacity:0, height:0 }} animate={{ opacity:1, height:'auto' }} exit={{ opacity:0, height:0 }} transition={{ duration:0.2 }} className="mb-0.5">
-                        <NavButton
-                          label="Cronograma"
-                          icon={<CalendarDays size={NAV_ICON_SIZE}/>}
-                          isActive={activeTab === 'cronograma'}
-                          isAtalho={true}
-                          onClick={() => { setActiveTab('cronograma'); setMobileOpen(false); }}
-                        />
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-
-                  {(hasCicloAtivo || hasCronogramaAtivo) && (
-                    <div className="h-px bg-zinc-100 dark:bg-zinc-800 mx-1 my-1"/>
-                  )}
-
                   <button
                     onClick={() => {
                       setIsPlanejamentoOpen(v => !v);
@@ -1145,33 +1120,41 @@ function NavSideBar({
                       </motion.div>
                     )}
                   </AnimatePresence>
+                  {item.id === 'planejamento' && <StudyPlanShortcuts />}
                 </div>
               );
             }
 
             const isActive = activeTab === item.id;
             return (
-              <NavButton
-                key={item.id}
-                label={item.label}
-                icon={item.icon}
-                isActive={isActive}
-                isAdmin={item.isAdmin}
-                isNew={item.isNew}
-                isPlanningGuide={shouldGuidePlanning && item.id === 'planejamento'}
-                // Passa o badge apenas para o item de revisões
-                badgeCount={item.id === 'revisoes' ? revisoesPendentesBadge : 0}
-                onClick={() => {
-                  setActiveTab(item.id);
-                  setMobileOpen(false);
-                  if (item.id === 'home') scrollWindowToTopInstant();
-                }}
-              />
+              <React.Fragment key={item.id}>
+                <NavButton
+                  label={item.label}
+                  icon={item.icon}
+                  isActive={isActive}
+                  isAdmin={item.isAdmin}
+                  isNew={item.isNew}
+                  isPlanningGuide={shouldGuidePlanning && item.id === 'planejamento'}
+                  // Passa o badge apenas para o item de revisões
+                  badgeCount={item.id === 'revisoes' ? revisoesPendentesBadge : 0}
+                  onClick={() => {
+                    setActiveTab(item.id);
+                    setMobileOpen(false);
+                    if (item.id === 'home') scrollWindowToTopInstant();
+                  }}
+                />
+                {item.id === 'planejamento' && <StudyPlanShortcuts />}
+              </React.Fragment>
             );
           })}
         </div>
 
         <div className="nav-sidebar-content-zoom shrink-0 border-t border-zinc-100 bg-white p-2.5 dark:border-zinc-800 dark:bg-card-dark">
+          <InstallAppButton
+            expanded={isFullyExpanded}
+            onNavigate={() => setMobileOpen(false)}
+          />
+          <div className="h-1" />
           <button
             type="button"
             onClick={() => {

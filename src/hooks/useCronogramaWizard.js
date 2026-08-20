@@ -48,11 +48,22 @@ import {
   hasCompletePlanningLevels,
   normalizePlanningLevel,
 } from '../utils/planningPriority';
+import { clampPlanningStartDate, getLocalTodayKey } from '../utils/planningDates';
 import confetti from 'canvas-confetti';
 
 // ─── CONSTANTES ───────────────────────────────────────────────────────────────
 
 const METODOLOGIA_REVISAO = 'revisao_espacada';
+const DURACAO_AUTOMATICA_MINUTOS = 40;
+const DURACAO_AUTOMATICA_MAXIMA_MINUTOS = 80;
+
+const aplicarDivisaoAutomatica = (config = {}) => ({
+  ...config,
+  usarDuracaoUnica: false,
+  tempoSessaoMinutos: null,
+  duracaoMinimaSessaoMinutos: DURACAO_AUTOMATICA_MINUTOS,
+  duracaoMaximaSessaoMinutos: DURACAO_AUTOMATICA_MAXIMA_MINUTOS,
+});
 const DRAFT_KEY           = 'protocolo_zero_cronograma_draft';
 const DRAFT_VERSION       = 3;
 
@@ -90,21 +101,15 @@ export function _getPrimeiroDiaUtil(horarios = {}) {
 }
 
 export const defaultConfig = () => {
-  // Sem horários configurados ainda, usa hoje como placeholder.
-  // Será corrigido assim que o usuário definir os horários (via setHorarios).
-  const hoje = new Date();
-  const yyyy = hoje.getFullYear();
-  const mm   = String(hoje.getMonth() + 1).padStart(2, '0');
-  const dd   = String(hoje.getDate()).padStart(2, '0');
   return {
     nome:                '',
-    dataInicio:          `${yyyy}-${mm}-${dd}`,
+    dataInicio:          getLocalTodayKey(),
     dataInicioManual:    false,
     tempoRevisaoMinutos: 20,
-    usarDuracaoUnica: true,
-    tempoSessaoMinutos: 60,
-    duracaoMinimaSessaoMinutos: 60,
-    duracaoMaximaSessaoMinutos: 60,
+    usarDuracaoUnica: false,
+    tempoSessaoMinutos: null,
+    duracaoMinimaSessaoMinutos: DURACAO_AUTOMATICA_MINUTOS,
+    duracaoMaximaSessaoMinutos: DURACAO_AUTOMATICA_MAXIMA_MINUTOS,
     retaFinal:           false,
     dataProva:           '',
     modoMontagem:        'inteligente',
@@ -185,9 +190,9 @@ const _montarDadosParaSalvar = (config, edital, horarios, result, geradoPorIA_) 
   metodologiaRevisao:      METODOLOGIA_REVISAO,
   tempoRevisaoMinutos:     config.tempoRevisaoMinutos || 20,
   usarDuracaoUnica:        config.usarDuracaoUnica !== false,
-  tempoSessaoMinutos:      Number(config.tempoSessaoMinutos || config.duracaoMaximaSessaoMinutos) || 60,
-  duracaoMinimaSessaoMinutos: Number(config.duracaoMinimaSessaoMinutos) || 30,
-  duracaoMaximaSessaoMinutos: Number(config.duracaoMaximaSessaoMinutos) || 60,
+  tempoSessaoMinutos:      Number(config.tempoSessaoMinutos || config.duracaoMaximaSessaoMinutos) || DURACAO_AUTOMATICA_MAXIMA_MINUTOS,
+  duracaoMinimaSessaoMinutos: Number(config.duracaoMinimaSessaoMinutos) || DURACAO_AUTOMATICA_MINUTOS,
+  duracaoMaximaSessaoMinutos: Number(config.duracaoMaximaSessaoMinutos) || DURACAO_AUTOMATICA_MAXIMA_MINUTOS,
   retaFinal:               config.retaFinal           || false,
   dataProva:               config.dataProva           || null,
   modoMontagem:            config.modoMontagem        || 'inteligente',
@@ -455,9 +460,9 @@ const _normalizarInitialStateEdicao = (source = {}, modelos = []) => {
       dataInicioManual: true,
       tempoRevisaoMinutos: Number(cronograma.tempoRevisaoMinutos ?? 20) || 20,
       usarDuracaoUnica: cronograma.usarDuracaoUnica !== false,
-      tempoSessaoMinutos: Number(cronograma.tempoSessaoMinutos || cronograma.duracaoMaximaSessaoMinutos) || 60,
-      duracaoMinimaSessaoMinutos: Number(cronograma.duracaoMinimaSessaoMinutos) || 30,
-      duracaoMaximaSessaoMinutos: Number(cronograma.duracaoMaximaSessaoMinutos) || 60,
+      tempoSessaoMinutos: Number(cronograma.tempoSessaoMinutos || cronograma.duracaoMaximaSessaoMinutos) || DURACAO_AUTOMATICA_MAXIMA_MINUTOS,
+      duracaoMinimaSessaoMinutos: Number(cronograma.duracaoMinimaSessaoMinutos) || DURACAO_AUTOMATICA_MINUTOS,
+      duracaoMaximaSessaoMinutos: Number(cronograma.duracaoMaximaSessaoMinutos) || DURACAO_AUTOMATICA_MAXIMA_MINUTOS,
       retaFinal: Boolean(cronograma.retaFinal),
       dataProva: cronograma.dataProva || '',
       modoMontagem: cronograma.modoMontagem || 'inteligente',
@@ -529,14 +534,18 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
 
   const setCronConfig = useCallback((value) => {
     setCronConfigState((prev) => {
-      const next = typeof value === 'function' ? value(prev) : value;
-      if (!next) return next;
+      const rawNext = typeof value === 'function' ? value(prev) : value;
+      if (!rawNext) return rawNext;
+      const dataInicioMudou = rawNext.dataInicio != null && rawNext.dataInicio !== prev.dataInicio;
+      const next = aplicarDivisaoAutomatica({
+        ...rawNext,
+        ...(dataInicioMudou ? { dataInicio: clampPlanningStartDate(rawNext.dataInicio) } : {}),
+      });
 
       if (typeof next.dataInicioManual === 'boolean') {
         return next;
       }
 
-      const dataInicioMudou = next.dataInicio != null && next.dataInicio !== prev.dataInicio;
       return {
         ...next,
         dataInicioManual: dataInicioMudou ? true : Boolean(prev.dataInicioManual),
@@ -625,7 +634,7 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
       setExtraDisciplinas(estado.extraDisciplinas || []);
       setSelecao(estado.selecao || {});
       setHorariosState({ ...defaultHorarios, ...(estado.horarios || {}) });
-      setCronConfigState({ ...defaultConfig(), ...(estado.cronConfig || {}), dataInicioManual: true });
+      setCronConfigState(aplicarDivisaoAutomatica({ ...defaultConfig(), ...(estado.cronConfig || {}), dataInicioManual: true }));
       setResultadoGeracao(null);
       setErroGeracao(null);
       setMostrandoRascunho(false);
@@ -671,7 +680,12 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
       if (draft.extraDisciplinas)  setExtraDisciplinas(draft.extraDisciplinas);
       if (draft.selecao)           setSelecao(draft.selecao);
       const cronConfigDraft = draft.cronConfig
-        ? { ...defaultConfig(), ...draft.cronConfig, dataInicioManual: Boolean(draft.cronConfig.dataInicioManual) }
+        ? aplicarDivisaoAutomatica({
+            ...defaultConfig(),
+            ...draft.cronConfig,
+            dataInicio: clampPlanningStartDate(draft.cronConfig.dataInicio),
+            dataInicioManual: Boolean(draft.cronConfig.dataInicioManual),
+          })
         : null;
 
       if (draft.horarios) {
@@ -811,9 +825,9 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
           retaFinal:           cronConfig.retaFinal           || false,
           tempoRevisaoMinutos: cronConfig.tempoRevisaoMinutos || 20,
           usarDuracaoUnica: cronConfig.usarDuracaoUnica !== false,
-          tempoSessaoMinutos: cronConfig.tempoSessaoMinutos || cronConfig.duracaoMaximaSessaoMinutos || 60,
-          duracaoMinimaSessaoMinutos: cronConfig.duracaoMinimaSessaoMinutos || 30,
-          duracaoMaximaSessaoMinutos: cronConfig.duracaoMaximaSessaoMinutos || 60,
+          tempoSessaoMinutos: cronConfig.tempoSessaoMinutos || cronConfig.duracaoMaximaSessaoMinutos || DURACAO_AUTOMATICA_MAXIMA_MINUTOS,
+          duracaoMinimaSessaoMinutos: cronConfig.duracaoMinimaSessaoMinutos || DURACAO_AUTOMATICA_MINUTOS,
+          duracaoMaximaSessaoMinutos: cronConfig.duracaoMaximaSessaoMinutos || DURACAO_AUTOMATICA_MAXIMA_MINUTOS,
           limitarMaterias:     cronConfig.limitarMaterias     || false,
           limitesPorDia:       cronConfig.limitesPorDia       || {},
         },
@@ -1053,6 +1067,10 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
             dataProva:           cronConfig.dataProva           || null,
             retaFinal:           cronConfig.retaFinal           || false,
             tempoRevisaoMinutos: cronConfig.tempoRevisaoMinutos || 20,
+            usarDuracaoUnica: cronConfig.usarDuracaoUnica !== false,
+            tempoSessaoMinutos: cronConfig.tempoSessaoMinutos || cronConfig.duracaoMaximaSessaoMinutos || DURACAO_AUTOMATICA_MAXIMA_MINUTOS,
+            duracaoMinimaSessaoMinutos: cronConfig.duracaoMinimaSessaoMinutos || DURACAO_AUTOMATICA_MINUTOS,
+            duracaoMaximaSessaoMinutos: cronConfig.duracaoMaximaSessaoMinutos || DURACAO_AUTOMATICA_MAXIMA_MINUTOS,
             limitarMaterias:     cronConfig.limitarMaterias     || false,
             limitesPorDia:       cronConfig.limitesPorDia       || {},
           },
@@ -1344,8 +1362,8 @@ function _gerarCronogramaDeGradePersonalizada(grade, disciplinas = [], config = 
       revisao: METODOLOGIA_REVISAO,
       estudo: ['grade_manual'],
       tempoRevisaoMinutos: config.tempoRevisaoMinutos || 20,
-      duracaoMinimaSessaoMinutos: config.duracaoMinimaSessaoMinutos || 30,
-      duracaoMaximaSessaoMinutos: config.duracaoMaximaSessaoMinutos || 60,
+      duracaoMinimaSessaoMinutos: config.duracaoMinimaSessaoMinutos || DURACAO_AUTOMATICA_MINUTOS,
+      duracaoMaximaSessaoMinutos: config.duracaoMaximaSessaoMinutos || DURACAO_AUTOMATICA_MAXIMA_MINUTOS,
     },
     geradoPorIA: false,
     modoMontagem: 'personalizado',
@@ -1364,6 +1382,10 @@ function _gerarFallbackLocal(discs, horariosNumerados, config) {
       dataProva:           config.dataProva           || undefined,
       retaFinal:           config.retaFinal           || false,
       tempoRevisaoMinutos: config.tempoRevisaoMinutos || 20,
+      usarDuracaoUnica: config.usarDuracaoUnica === true,
+      tempoSessaoMinutos: config.tempoSessaoMinutos || config.duracaoMaximaSessaoMinutos || DURACAO_AUTOMATICA_MAXIMA_MINUTOS,
+      duracaoMinimaSessaoMinutos: config.duracaoMinimaSessaoMinutos || DURACAO_AUTOMATICA_MINUTOS,
+      duracaoMaximaSessaoMinutos: config.duracaoMaximaSessaoMinutos || DURACAO_AUTOMATICA_MAXIMA_MINUTOS,
       limitarMaterias:     config.limitarMaterias     || false,
       limitesPorDia:       config.limitesPorDia       || {},
     });

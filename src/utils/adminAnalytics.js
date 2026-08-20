@@ -256,6 +256,11 @@ export const buildAdminAnalyticsDatasets = (activities, now = new Date(), days =
   const countDays = Math.max(7, Number(days) || 30);
   const buckets = new Map();
   const daily = [];
+  const activeUserIds = new Set();
+  let totalStudyMinutes = 0;
+  let totalQuestions = 0;
+  let totalCorrect = 0;
+  let totalRecords = 0;
 
   for (let offset = countDays - 1; offset >= 0; offset -= 1) {
     const date = new Date(now);
@@ -276,9 +281,17 @@ export const buildAdminAnalyticsDatasets = (activities, now = new Date(), days =
   activities.forEach((record) => {
     const bucket = buckets.get(dayKey(getAdminRecordDate(record)));
     if (bucket) {
-      bucket.studyMinutes += normalizeStudyMinutes(record);
-      bucket.questions += normalizeQuestions(record);
+      const studyMinutes = normalizeStudyMinutes(record);
+      const questions = normalizeQuestions(record);
+      const correct = Math.min(questions, normalizeCorrect(record));
+      bucket.studyMinutes += studyMinutes;
+      bucket.questions += questions;
       if (record.uid) bucket.activeUserIds.add(record.uid);
+      if (record.uid) activeUserIds.add(record.uid);
+      totalStudyMinutes += studyMinutes;
+      totalQuestions += questions;
+      totalCorrect += correct;
+      totalRecords += 1;
     }
     const context = contextMap.get(record.sourceType);
     if (context) {
@@ -295,6 +308,15 @@ export const buildAdminAnalyticsDatasets = (activities, now = new Date(), days =
   }));
 
   return {
+    summary: {
+      activeUsers: activeUserIds.size,
+      totalStudyMinutes,
+      totalStudyHours: Number((totalStudyMinutes / 60).toFixed(1)),
+      totalQuestions,
+      totalCorrect,
+      accuracy: totalQuestions > 0 ? Math.round((totalCorrect / totalQuestions) * 100) : 0,
+      totalRecords,
+    },
     daily: normalizedDaily,
     contextDistribution: [...contextMap.values()].map((item) => ({
       ...item,

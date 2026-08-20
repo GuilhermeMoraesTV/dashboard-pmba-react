@@ -6,6 +6,7 @@ import {
   Target, AlertCircle, Clock, Timer, Eye,
   LayoutList, Shuffle, ChevronLeft, ChevronRight, Calendar, Flame
 } from 'lucide-react';
+import { clampPlanningStartDate, getLocalTodayKey } from '../../utils/planningDates';
 
 // ─── CONSTANTES E AUXILIARES DO CALENDÁRIO ─────────────────────────────────────
 const DATE_MONTH_TEXT_CLASS = 'text-[9px]';
@@ -29,7 +30,7 @@ const DIAS_SEMANA = [
 ];
 
 // ─── CUSTOM DATE PICKER (DESIGN REGISTRO ESTUDO MODAL) ──────────────────────
-const CustomDatePicker = ({ value, onChange, name, color = 'blue' }) => {
+const CustomDatePicker = ({ value, onChange, name, color = 'blue', minDate = null }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [viewDate, setViewDate] = useState(parseDateLocal(value));
   const containerRef = useRef(null);
@@ -65,6 +66,7 @@ const CustomDatePicker = ({ value, onChange, name, color = 'blue' }) => {
     const month = String(viewDate.getMonth() + 1).padStart(2, '0');
     const d = String(day).padStart(2, '0');
     const dateStr = `${year}-${month}-${d}`;
+    if (minDate && dateStr < minDate) return;
     onChange(dateStr);
     setIsOpen(false);
   };
@@ -78,11 +80,14 @@ const CustomDatePicker = ({ value, onChange, name, color = 'blue' }) => {
     for (let i = 0; i < firstDay; i++) slots.push(<div key={`empty-${i}`} className="w-8 h-8" />);
     for (let i = 1; i <= daysInMonth; i++) {
       const isSelected = dateObj.getDate() === i && dateObj.getMonth() === month && dateObj.getFullYear() === year;
+      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+      const isDisabled = Boolean(minDate && dateStr < minDate);
       slots.push(
         <button
           key={i}
+          disabled={isDisabled}
           onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleSelectDay(i); }}
-          className={`w-8 h-8 rounded-full text-[10px] font-bold flex items-center justify-center transition-all ${isSelected ? (color === 'red' ? 'bg-red-600 text-white shadow-md' : 'bg-blue-600 text-white shadow-md') : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'}`}
+          className={`flex h-8 w-8 items-center justify-center rounded-full text-[10px] font-bold transition-all ${isDisabled ? 'cursor-not-allowed text-zinc-200 dark:text-zinc-700' : isSelected ? (color === 'red' ? 'bg-red-600 text-white shadow-md' : 'bg-blue-600 text-white shadow-md') : 'text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800'}`}
         >
           {i}
         </button>
@@ -265,7 +270,10 @@ const ModeSelector = ({ options, value, onChange }) => (
 
 // ─── COMPONENTE PRINCIPAL ─────────────────────────────────────────────────────
 const Step4_Config = ({ config, onConfigChange, editalSelecionado, horarios = {}, disciplinas = [], extraDisciplinas = [], selecao = {} }) => {
-  const setField = (key, val) => onConfigChange({ ...config, [key]: val });
+  const setField = (key, val) => onConfigChange({
+    ...config,
+    [key]: key === 'dataInicio' ? clampPlanningStartDate(val) : val,
+  });
 
   useEffect(() => {
     const updates = {};
@@ -516,6 +524,7 @@ const Step4_Config = ({ config, onConfigChange, editalSelecionado, horarios = {}
                   value={config.dataInicio || ''}
                   onChange={val => setField('dataInicio', val)}
                   color="blue"
+                  minDate={getLocalTodayKey()}
                 />
               </div>
             </motion.div>

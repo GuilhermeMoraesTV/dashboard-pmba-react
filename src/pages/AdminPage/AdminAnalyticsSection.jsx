@@ -15,7 +15,27 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { Activity, BarChart3, Clock3, Loader2, ScatterChart as ScatterIcon } from 'lucide-react';
+import { Activity, BarChart3, CheckCircle2, Clock3, ListChecks, Loader2, ScatterChart as ScatterIcon, Users } from 'lucide-react';
+
+const formatHours = (minutes) => {
+  const total = Math.max(0, Math.round(Number(minutes) || 0));
+  const hours = Math.floor(total / 60);
+  const rest = total % 60;
+  if (hours && rest) return `${hours}h ${rest}min`;
+  if (hours) return `${hours}h`;
+  return `${rest}min`;
+};
+
+const AnalyticsStatCard = ({ title, value, subtitle, icon: Icon, accent }) => (
+  <article className="relative min-h-[118px] overflow-hidden rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-card-dark sm:min-h-[132px] sm:p-5">
+    <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${accent}`}>
+      {React.createElement(Icon, { size: 17 })}
+    </div>
+    <p className="mt-3 text-[9px] font-black uppercase tracking-[0.14em] text-zinc-400 sm:text-[10px]">{title}</p>
+    <p className="mt-1 text-xl font-black tracking-tight text-zinc-950 dark:text-white sm:text-2xl">{value}</p>
+    <p className="mt-1 text-[10px] font-semibold leading-snug text-zinc-500 dark:text-zinc-400 sm:text-[11px]">{subtitle}</p>
+  </article>
+);
 
 const Surface = ({ title, subtitle, icon, children }) => (
   <section className="overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white shadow-soft dark:border-white/10 dark:!border-l-red-500/25 dark:bg-card-dark">
@@ -62,6 +82,7 @@ export default function AdminAnalyticsSection({ datasets, loading = false, error
   const daily = datasets?.daily || [];
   const contextDistribution = datasets?.contextDistribution || [];
   const timeVsQuestions = datasets?.timeVsQuestions || [];
+  const summary = datasets?.summary || {};
   const hasData = hasActivity(daily);
 
   if (loading) {
@@ -85,6 +106,37 @@ export default function AdminAnalyticsSection({ datasets, loading = false, error
       <div>
         <h2 className="text-xl font-black tracking-tight text-zinc-900 dark:text-white">Analytics</h2>
         <p className="mt-1 text-sm font-medium text-zinc-500 dark:text-zinc-400">Indicadores acadêmicos consolidados com a mesma regra usada no ranking.</p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+        <AnalyticsStatCard
+          title="Usuários ativos"
+          value={Number(summary.activeUsers || 0).toLocaleString('pt-BR')}
+          subtitle="Com atividade válida no período"
+          icon={Users}
+          accent="bg-red-50 text-red-600 dark:bg-red-950/30 dark:text-red-400"
+        />
+        <AnalyticsStatCard
+          title="Tempo estudado"
+          value={formatHours(summary.totalStudyMinutes)}
+          subtitle={`${Number(summary.totalRecords || 0).toLocaleString('pt-BR')} registros consolidados`}
+          icon={Clock3}
+          accent="bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400"
+        />
+        <AnalyticsStatCard
+          title="Questões realizadas"
+          value={Number(summary.totalQuestions || 0).toLocaleString('pt-BR')}
+          subtitle="Somente questões de atividades válidas"
+          icon={ListChecks}
+          accent="bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400"
+        />
+        <AnalyticsStatCard
+          title="Aproveitamento"
+          value={`${Number(summary.accuracy || 0)}%`}
+          subtitle={`${Number(summary.totalCorrect || 0).toLocaleString('pt-BR')} acertos registrados`}
+          icon={CheckCircle2}
+          accent="bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400"
+        />
       </div>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">

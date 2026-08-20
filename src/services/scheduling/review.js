@@ -38,11 +38,10 @@
  *           recomprimia a teoria — causando slots de teoria menores que o planejado
  *           OU revisão tomando mais de 25% do tempo real disponível.
  *
- *           SOLUÇÃO: getAgendaDia recebe minutosTeoriaOriginal (75% do bruto)
- *           e minutosRevisaoReservados (25% do bruto) separadamente.
- *           A revisão usa APENAS os minutosRevisaoReservados.
- *           A teoria usa APENAS os minutosTeoriaOriginal (sem recompressão).
- *           SOMA = teoria + revisão ≤ bruto SEMPRE.
+ *           SOLUÇÃO: getAgendaDia recebe o orçamento bruto e a reserva-base de
+ *           revisão separadamente. Em dias carregados, a revisão pode crescer
+ *           em blocos de 5min até 60min, e a teoria é reajustada dentro do
+ *           restante disponível. SOMA = teoria + revisão ≤ bruto SEMPRE.
  */
 
 import {
@@ -51,6 +50,43 @@ import {
   chaveAssuntoDominado,
   normalizarNivel,
 } from './core.js';
+
+const MIN_MINUTOS_REVISAO_AGENDADA = 5;
+const MAX_MINUTOS_REVISAO_DIA = 60;
+
+function calcularCapacidadeRevisaoDia({
+  quantidadeRevisoes,
+  limiteBaseMinutos,
+  minutosBrutoDia,
+  minutosTeoriaDisponivel = null,
+}) {
+  const quantidade = Math.max(0, Number(quantidadeRevisoes) || 0);
+  if (quantidade === 0) return { tetoMinutos: 0, capacidade: 0 };
+
+  const limiteBase = Math.min(
+    MAX_MINUTOS_REVISAO_DIA,
+    Math.max(0, Number(limiteBaseMinutos) || 20),
+  );
+  const necessidade = quantidade * MIN_MINUTOS_REVISAO_AGENDADA;
+  const metadeDoDia = Math.floor(Math.max(0, Number(minutosBrutoDia) || 0) / 2);
+  const limitePelaTeoria = minutosTeoriaDisponivel == null
+    ? metadeDoDia
+    : Math.max(0, Number(minutosTeoriaDisponivel) || 0);
+  const limiteOperacional = Math.min(
+    MAX_MINUTOS_REVISAO_DIA,
+    metadeDoDia,
+    limitePelaTeoria,
+  );
+  const tetoMinutos = Math.min(
+    Math.max(limiteBase, Math.min(necessidade, MAX_MINUTOS_REVISAO_DIA)),
+    limiteOperacional,
+  );
+
+  return {
+    tetoMinutos,
+    capacidade: Math.max(0, Math.floor(tetoMinutos / MIN_MINUTOS_REVISAO_AGENDADA)),
+  };
+}
 
 export function parseDateOnlyLocal(date) {
   if (!date) return new Date();
@@ -132,8 +168,8 @@ function normalizarAssuntosAgenda(assuntos = []) {
   return normalizados;
 }
 
-function expandirSlotsTeoriaAteOrcamento(slots, tetoDia, duracaoUnicaMinutos = null) {
-  const teto = Math.floor(Math.max(0, Number(tetoDia) || 0) / 5) * 5;
+function expandirSlotsTeoriaAteOrcamento(slots, tetoDia, duracaoMaximaBlocoMinutos = null, preservarDuracaoUnica = false) {
+  const teto = Math.floor(Math.max(0, Number(tetoDia) || 0));
   if (teto <= 0 || !slots?.length) return slots;
 
   const normalizados = slots.map((slot) => ({
@@ -145,44 +181,61 @@ function expandirSlotsTeoriaAteOrcamento(slots, tetoDia, duracaoUnicaMinutos = n
   const somaAtual = normalizados.reduce((acc, slot) => acc + (slot.minutosEstudo || 0), 0);
   if (somaAtual >= teto || somaAtual <= 0) return normalizados;
 
-  const duracaoAlvo = Math.max(0, Math.floor((Number(duracaoUnicaMinutos) || 0) / 5) * 5);
-  if (duracaoAlvo >= 5) {
+  const duracaoMaxima = Math.max(5, Math.floor((Number(duracaoMaximaBlocoMinutos) || teto) / 5) * 5);
+  if (preservarDuracaoUnica) {
     let restante = teto;
     return normalizados
       .map((slot) => {
-        const minutos = Math.min(duracaoAlvo, restante);
+        const minutos = Math.min(duracaoMaxima, restante);
         restante = Math.max(0, restante - minutos);
-        return {
-          ...slot,
-          tempoMinutos: minutos,
-          minutosEstudo: minutos,
-        };
+        return { ...slot, tempoMinutos: minutos, minutosEstudo: minutos };
       })
       .filter((slot) => slot.minutosEstudo > 0);
   }
 
-  const linhas = normalizados.map((slot, index) => {
-    const exato = ((slot.minutosEstudo || 0) / somaAtual) * teto;
-    const inteiro = Math.max(5, Math.floor(exato / 5) * 5);
-    return { index, inteiro, resto: exato % 5 };
-  });
+  const linhas = normalizados.map((slot, index) => ({
+    index,
+    peso: Math.max(1, Number(slot.pesoEfetivo) || 1),
+    minutos: Math.min(duracaoMaxima, Math.max(5, Math.floor((slot.minutosEstudo || 0) / 5) * 5)),
+    acrescimos: 0,
+  }));
+  const tetoDistribuivel = Math.min(teto, linhas.length * duracaoMaxima);
+  let restante = tetoDistribuivel - linhas.reduce((acc, linha) => acc + linha.minutos, 0);
 
-  let restante = teto - linhas.reduce((acc, linha) => acc + linha.inteiro, 0);
-  linhas
-    .slice()
-    .sort((a, b) => b.resto - a.resto)
-    .forEach((linha) => {
-      if (restante < 5) return;
-      linha.inteiro += 5;
-      restante -= 5;
-    });
-
-  if (restante >= 5 && linhas.length > 0) {
-    linhas[linhas.length - 1].inteiro += restante;
+  // Usa os pesos de conhecimento/importância para ocupar o tempo livre sem
+  // transformar todos os blocos no mesmo teto. Cada passo de 5 minutos vai
+  // para a maior necessidade relativa que ainda tenha espaço.
+  let guard = 0;
+  while (restante >= 5 && guard < 2000) {
+    guard += 1;
+    const receptor = linhas
+      .filter((linha) => linha.minutos + 5 <= duracaoMaxima)
+      .sort((a, b) => (
+        (b.peso / (b.acrescimos + 1)) - (a.peso / (a.acrescimos + 1))
+        || a.minutos - b.minutos
+        || a.index - b.index
+      ))[0];
+    if (!receptor) break;
+    receptor.minutos += 5;
+    receptor.acrescimos += 1;
+    restante -= 5;
   }
 
-  const minutosPorIndex = new Map(linhas.map((linha) => [linha.index, linha.inteiro]));
-  return normalizados.map((slot, index) => {
+  // Conserva tambem saldos que nao sejam multiplos de cinco. Isso evita que
+  // uma disponibilidade fracionada perca de 1 a 4 minutos no preview.
+  if (restante > 0) {
+    const receptorResidual = linhas
+      .filter((linha) => linha.minutos < duracaoMaxima)
+      .sort((a, b) => b.peso - a.peso || a.minutos - b.minutos || a.index - b.index)[0];
+    if (receptorResidual) {
+      const acrescimo = Math.min(restante, duracaoMaxima - receptorResidual.minutos);
+      receptorResidual.minutos += acrescimo;
+      restante -= acrescimo;
+    }
+  }
+
+  const minutosPorIndex = new Map(linhas.map((linha) => [linha.index, linha.minutos]));
+  const resultado = normalizados.map((slot, index) => {
     const minutos = minutosPorIndex.get(index) || slot.minutosEstudo || slot.tempoMinutos || 0;
     return {
       ...slot,
@@ -190,6 +243,32 @@ function expandirSlotsTeoriaAteOrcamento(slots, tetoDia, duracaoUnicaMinutos = n
       minutosEstudo: minutos,
     };
   });
+
+  // Cronogramas antigos podem ter sido salvos com poucos slots para comportar
+  // o total diario. Cria blocos residuais deterministas em vez de deixar o dia
+  // incompleto ou ultrapassar o teto de uma sessao.
+  let saldoSemCapacidade = teto - resultado.reduce((acc, slot) => acc + slot.minutosEstudo, 0);
+  let extraIndex = 0;
+  while (!preservarDuracaoUnica && saldoSemCapacidade > 0 && resultado.length > 0 && extraIndex < 100) {
+    const origem = resultado
+      .slice()
+      .sort((a, b) => (Number(b.pesoEfetivo) || 1) - (Number(a.pesoEfetivo) || 1))[extraIndex % resultado.length];
+    const minutos = Math.min(duracaoMaxima, saldoSemCapacidade);
+    const sufixo = `-residual-${extraIndex + 1}`;
+    resultado.push({
+      ...origem,
+      slotId: `${origem.slotId || origem.slotIdBase || 'slot'}${sufixo}`,
+      slotIdBase: `${origem.slotIdBase || origem.slotId || 'slot'}${sufixo}`,
+      ordemNoDia: Number(origem.ordemNoDia || 0) + extraIndex + 1,
+      tempoMinutos: minutos,
+      minutosEstudo: minutos,
+      isBlocoResidual: true,
+    });
+    saldoSemCapacidade -= minutos;
+    extraIndex += 1;
+  }
+
+  return resultado;
 }
 
 function getPendenciaSkipDateKey(pendencia) {
@@ -319,10 +398,10 @@ export function getRevisoesParaDia(
  *   - minutosTeoriaDisponivel  = bruto × 75% (já alocado nos slots de teoria pelo gerador)
  *   - minutosRevisaoDisponivel = bruto × 25% (reservado para revisões espaçadas)
  *
- *   A função NÃO redistribui o orçamento entre teoria e revisão.
- *   A função APENAS:
- *     1. Distribui minutosRevisaoDisponivel entre os slots de revisão do dia.
- *     2. Mantém os slots de teoria com seus minutosEstudo originais (sem recompressão).
+ *   A função distribui o orçamento entre teoria e revisão de forma adaptativa:
+ *     1. Cada tópico de revisão recebe 5 minutos úteis.
+ *     2. A revisão cresce até 60 minutos quando a fila exigir.
+ *     3. A teoria ocupa o restante sem ultrapassar o orçamento bruto do dia.
  *
  *   Resultado: teoria + revisão ≤ bruto SEMPRE, sem compressão indevida.
  *
@@ -330,7 +409,7 @@ export function getRevisoesParaDia(
  * @param {Array}  slotsEstudoDia            - Slots de teoria do dia (gerados pelo template).
  * @param {Array}  revisoesDoDia             - Revisões espaçadas do dia.
  * @param {number} weekOffset                - Semana relativa ao início.
- * @param {number} tempoRevisaoMinutos       - Tempo padrão por slot de revisão (default 20).
+ * @param {number} tempoRevisaoMinutos       - Limite total de revisão no dia (default 20).
  * @param {number} minutosRevisaoDisponivel  - Orçamento de revisão do dia (25% do bruto).
  *                                            Se não fornecido, usa BASE_CAP_REVISAO × soma_teoria.
  * @returns {Array<Object>} Slots do dia mesclados (teoria + revisão).
@@ -387,56 +466,22 @@ export function getAgendaDia(
     (acc, s) => acc + (s.minutosEstudo || s.tempoMinutos || 0), 0
   );
 
-  let orcamentoRevisao;
-  if (minutosRevisaoDisponivel !== null && minutosRevisaoDisponivel > 0) {
-    orcamentoRevisao = minutosRevisaoDisponivel;
-  } else {
-    orcamentoRevisao = Math.round(minutosTeoriaOriginal * (BASE_CAP_REVISAO / (1 - BASE_CAP_REVISAO)));
-  }
-
-  const arredondarRevisaoParaBaixo = (minutos) => Math.floor(Math.max(0, minutos) / 5) * 5;
-
-  const tetoLivreNoDia = Math.max(0, minutosBrutoDia - minutosTeoriaOriginal);
-  const tetoRevisaoPorTeoria = Math.max(0, minutosTeoriaOriginal);
-
-  // Tempo necessario para revisoes respeitando limite, total do dia e teoria.
-  const tempoNecessarioRevisao = revisoesDoDia.length * tempoRevisaoMinutos;
-  const tetoRevisaoFinal = revisoesDoDia.length > 0 ? Math.min(
-    tempoNecessarioRevisao,
-    orcamentoRevisao,
-    tetoLivreNoDia,
-    tetoRevisaoPorTeoria
-  ) : 0;
+  // O valor escolhido representa um limite-base diario. Quando a fila cresce,
+  // a revisao aumenta em blocos reais de 5min, ate 60min, sem ocupar mais da
+  // metade do tempo disponivel no dia.
+  const { capacidade: capacidadeRevisoesDia } = calcularCapacidadeRevisaoDia({
+    quantidadeRevisoes: revisoesDoDia.length,
+    limiteBaseMinutos: tempoRevisaoMinutos,
+    minutosBrutoDia,
+  });
 
   // Monta slots de revisao.
   let slotsRevisao = [];
 
-  if (revisoesDoDia.length > 0 && tetoRevisaoFinal > 0) {
-    let minutosRestantes = arredondarRevisaoParaBaixo(tetoRevisaoFinal);
-
-    slotsRevisao = revisoesDoDia.map((r, index) => {
-      const itensRestantes = revisoesDoDia.length - index;
-      let tempoRev;
-
-      if (index === revisoesDoDia.length - 1) {
-        tempoRev = arredondarRevisaoParaBaixo(minutosRestantes);
-      } else {
-        const quotaBruta = itensRestantes > 0 ? minutosRestantes / itensRestantes : 0;
-        tempoRev = arredondarRevisaoParaBaixo(quotaBruta);
-      }
-
-      minutosRestantes = Math.max(0, minutosRestantes - tempoRev);
-      return { ...r, tempoMinutos: tempoRev };
-    });
-
-    if (minutosRestantes > 0 && slotsRevisao.length > 0) {
-      const ultimoIndex = slotsRevisao.length - 1;
-      slotsRevisao[ultimoIndex] = {
-        ...slotsRevisao[ultimoIndex],
-        tempoMinutos: (slotsRevisao[ultimoIndex].tempoMinutos || 0) + arredondarRevisaoParaBaixo(minutosRestantes),
-      };
-    }
-    slotsRevisao = slotsRevisao.filter((slot) => (slot.tempoMinutos || 0) > 0);
+  if (revisoesDoDia.length > 0 && capacidadeRevisoesDia > 0) {
+    slotsRevisao = revisoesDoDia
+      .slice(0, capacidadeRevisoesDia)
+      .map((r) => ({ ...r, tempoMinutos: MIN_MINUTOS_REVISAO_AGENDADA }));
   }
 
   const minutosRevisaoReal = slotsRevisao.reduce(
@@ -444,9 +489,15 @@ export function getAgendaDia(
     0
   );
   const tetoTeoriaFinal = Math.max(0, minutosBrutoDia - minutosRevisaoReal);
+  const slotsTeoriaDentroDoTeto = ajustarSlotsTeoriaAoOrcamento(slotsTeoriaBase, tetoTeoriaFinal);
   const slotsTeoriaFinais = opcoes.expandirTeoriaAteBruto
-    ? expandirSlotsTeoriaAteOrcamento(slotsTeoriaBase, tetoTeoriaFinal, opcoes.duracaoUnicaMinutos)
-    : slotsTeoriaBase;
+    ? expandirSlotsTeoriaAteOrcamento(
+      slotsTeoriaDentroDoTeto,
+      tetoTeoriaFinal,
+      opcoes.duracaoUnicaMinutos,
+      opcoes.usarDuracaoUnica === true,
+    )
+    : slotsTeoriaDentroDoTeto;
 
   const slotsTeoriaNormalizados = slotsTeoriaFinais.map((slot) => {
     const minutosOriginais = Number(slot.minutosEstudo || slot.tempoMinutos || 0);
@@ -555,10 +606,15 @@ export function getAgendaSemana(
     const assuntos = normalizarAssuntosAgenda(disc?.assuntos || []);
 
     const topicIdx  = weekOffset * (slot.totalSlotsParaDisc || 1) + (slot.slotIndexParaDisc || 0);
-    if (topicIdx >= assuntos.length) return null;
+    const cicloConteudo = assuntos.length > 0 ? Math.floor(topicIdx / assuntos.length) : 0;
 
-    // Mantem o assunto real no dado; a UI decide se exibe ou oculta.
-    let assunto = assuntos[topicIdx] ?? `Tópico ${topicIdx + 1}`;
+    // Um slot representa carga horaria da disciplina e nao pode desaparecer
+    // apenas porque a primeira passagem pelos topicos terminou. Nas passagens
+    // seguintes, o assunto volta como reforco/questoes e o orcamento diario e
+    // preservado integralmente.
+    let assunto = assuntos.length > 0
+      ? assuntos[topicIdx % assuntos.length]
+      : slot.assunto || 'Conteudo Base';
 
     const progressoDisc = assuntos.length
       ? Math.min(100, Math.round((Math.min(topicIdx, assuntos.length) / assuntos.length) * 100))
@@ -605,6 +661,8 @@ export function getAgendaSemana(
       assuntoOriginal,
       isRevisao: false,
       isRevisaoAuto:    false,
+      isReforcoConteudo: cicloConteudo > 0,
+      cicloConteudo,
       isPendenciaTeoria,
       origemPendenciaTeoriaSlotIdBase: origemPendencia,
       pendenciaTeoriaCriadoEm: pendenciaAtiva?.criadoEm || pendenciaAtiva?.ultimaMarcacaoEm || null,
@@ -648,23 +706,41 @@ export function getAgendaSemana(
 
   const tempoRevisaoMinutos = cronograma.tempoRevisaoMinutos ?? 20;
   const isDiaDisponivelRevisao = criarVerificadorDisponibilidade(semanaTemplate, horariosDiarios);
+  const filaRevisoesPendentes = [];
 
   const resultado = [];
 
-  // [FIX-5] Itera pelos 7 dias absolutos da semana (0=Dom…6=Sáb)
+  // A fila precisa sobreviver a viradas de semana. Comeca no primeiro periodo
+  // coberto pelo historico reconstruido e simula os dias cronologicamente ate
+  // a semana solicitada. Assim, um excedente de sabado reaparece no proximo dia
+  // disponivel, mesmo quando esse dia pertence a outra semana do preview.
+  const offsetsHistorico = historico
+    .map((entrada) => Math.floor((_startOfDay(new Date(entrada.dataEstudo)) - dataInicioMidnight) / (7 * 86400000)))
+    .filter((offset) => Number.isInteger(offset) && offset >= 0 && offset <= weekOffset);
+  const primeiroOffsetProcessamento = offsetsHistorico.length > 0
+    ? Math.min(...offsetsHistorico)
+    : weekOffset;
+
+  // [FIX-5] Itera os dias em ordem cronologica. O template guarda o dia
+  // absoluto (0=Dom…6=Sab), mas a semana pode comecar em qualquer dia.
   // [FIX-7] Extrai minutosRevisaoReservados do primeiro slot do dia (metadado do template)
   //         ou calcula como 25% do bruto via horariosDiarios.
-  for (let diaAbsoluto = 0; diaAbsoluto <= 6; diaAbsoluto++) {
-    const slotsEstudoDia = slotsPorDia[diaAbsoluto] || [];
+  for (let periodoOffset = primeiroOffsetProcessamento; periodoOffset <= weekOffset; periodoOffset++) {
+    const inicioPeriodo = new Date(dataInicioDate);
+    inicioPeriodo.setDate(inicioPeriodo.getDate() + periodoOffset * 7);
+    const isSemanaAlvo = periodoOffset === weekOffset;
+    const diasPeriodo = Array.from({ length: 7 }, (_, diaAbsoluto) => ({
+      diaAbsoluto,
+      dataAlvoDia: _startOfDay(_dataDoSlotNaSemana(inicioPeriodo, diaAbsoluto)),
+    })).sort((a, b) => a.dataAlvoDia - b.dataAlvoDia);
 
-    // [FIX-5] Data real do dia absoluto na semana atual
-    const dataAlvoDia = _dataDoSlotNaSemana(semanaAtualInicio, diaAbsoluto);
-    dataAlvoDia.setHours(0, 0, 0, 0);
+    for (const { diaAbsoluto, dataAlvoDia } of diasPeriodo) {
+      const slotsEstudoDia = isSemanaAlvo ? (slotsPorDia[diaAbsoluto] || []) : [];
 
-    // [FIX-2] BLOQUEIO: não exibe nenhum slot anterior à data de início.
-    if (dataAlvoDia.getTime() < dataInicioMidnight.getTime()) {
-      continue;
-    }
+      // [FIX-2] BLOQUEIO: não exibe nenhum slot anterior à data de início.
+      if (dataAlvoDia.getTime() < dataInicioMidnight.getTime()) {
+        continue;
+      }
 
     // [FIX-7] Calcular minutosRevisaoReservados (25% do bruto do dia).
     // Ordem de prioridade:
@@ -699,9 +775,9 @@ export function getAgendaSemana(
       continue;
     }
 
-    // Filtra entradas da semana atual que ocorreram ANTES desse dia
+    // Uma revisao so pode nascer depois do respectivo estudo. A verificacao
+    // vale para qualquer periodo simulado, inclusive nas viradas de semana.
     const historicoFiltrado = historico.filter((h) => {
-      if (!h._semanaAtual) return true;
       const dEstudo = _startOfDay(new Date(h.dataEstudo));
       return dEstudo.getTime() < dataAlvoDia.getTime();
     });
@@ -730,28 +806,35 @@ export function getAgendaSemana(
       };
     });
 
-    if (slotsEstudoDia.length === 0 && revisoesDoDia.length === 0) {
+    if (slotsEstudoDia.length === 0 && revisoesDoDia.length === 0 && filaRevisoesPendentes.length === 0) {
       continue;
     }
 
     // No primeiro dia do cronograma, não há revisões espaçadas de estudos passados
-    const isDiaZero = weekOffset === 0 && dataSlotStr === dataInicio;
-    let revisoesEfetivas = isDiaZero ? [] : revisoesDoDia;
-    if (cronograma?.limitarMaterias && cronograma?.limitesPorDia) {
-      const limiteDisciplinasDia = Number(
-        cronograma.limitesPorDia[diaAbsoluto] ?? cronograma.limitesPorDia[String(diaAbsoluto)] ?? 0
-      );
-      if (limiteDisciplinasDia > 0) {
-        const disciplinasDoDia = new Set(slotsEstudoDia.map((slot) => slot.disciplinaId).filter(Boolean));
-        revisoesEfetivas = revisoesEfetivas.filter((revisao) => {
-          const disciplinaId = revisao.disciplinaId;
-          if (!disciplinaId) return true;
-          if (disciplinasDoDia.has(disciplinaId)) return true;
-          if (disciplinasDoDia.size >= limiteDisciplinasDia) return false;
-          disciplinasDoDia.add(disciplinaId);
-          return true;
-        });
-      }
+    const isDiaZero = periodoOffset === 0 && dataSlotStr === dataInicio;
+    const revisoesCandidatas = isDiaZero ? [] : [
+      ...filaRevisoesPendentes.splice(0),
+      ...revisoesDoDia,
+    ];
+    const { capacidade: capacidadeRevisoesDia } = calcularCapacidadeRevisaoDia({
+      quantidadeRevisoes: revisoesCandidatas.length,
+      limiteBaseMinutos: tempoRevisaoMinutos,
+      minutosBrutoDia: minutosDisponiveisBruto,
+    });
+    const revisoesEfetivas = revisoesCandidatas
+      .slice(0, capacidadeRevisoesDia)
+      .map((revisao) => ({
+        ...revisao,
+        dataSlot: dataSlotStr,
+        dataOriginalFila: revisao.dataOriginalFila || revisao.dataSlot || revisao.dataAgendadaRevisao || dataSlotStr,
+        reagendadaPorFila: Boolean((revisao.dataSlot || revisao.dataAgendadaRevisao) && (revisao.dataSlot || revisao.dataAgendadaRevisao) !== dataSlotStr),
+      }));
+    filaRevisoesPendentes.push(...revisoesCandidatas.slice(capacidadeRevisoesDia));
+
+    // Semanas anteriores sao processadas apenas para manter a fila integra.
+    // Somente a semana solicitada deve compor o retorno publico da funcao.
+    if (!isSemanaAlvo) {
+      continue;
     }
 
     // [FIX-7] Passa minutosRevisaoReservados (não o bruto) para getAgendaDia
@@ -761,6 +844,7 @@ export function getAgendaSemana(
       || (duracaoMinimaConfigurada > 0 && duracaoMinimaConfigurada === duracaoMaximaConfigurada)
       ? Number(cronograma.tempoSessaoMinutos || duracaoMaximaConfigurada || 0)
       : null;
+    const duracaoMaximaBlocoMinutos = duracaoUnicaMinutos || duracaoMaximaConfigurada || null;
 
     const slotsDia = getAgendaDia(
       diaAbsoluto,
@@ -771,7 +855,8 @@ export function getAgendaSemana(
       minutosRevisaoReservados,  // ← [FIX-7] orçamento CORRETO de revisão (25% do bruto)
       {
         expandirTeoriaAteBruto: slotsEstudoDia.length > 0,
-        duracaoUnicaMinutos,
+        duracaoUnicaMinutos: duracaoMaximaBlocoMinutos,
+        usarDuracaoUnica: Boolean(duracaoUnicaMinutos),
       }
     ).map((s) => {
       const progressoRevisao = s.isRevisaoAuto ? Number(progressoRevisoesMinutos?.[s.slotId] || s.progressoMinutos || 0) : 0;
@@ -794,6 +879,7 @@ export function getAgendaSemana(
     });
 
     resultado.push(...slotsDia);
+    }
   }
 
   return resultado;
@@ -911,10 +997,9 @@ function _reconstruirHistorico(
       const assuntos  = normalizarAssuntosAgenda(disc?.assuntos || []);
       const topicIdx  = semAnt * (slot.totalSlotsParaDisc || 1) + (slot.slotIndexParaDisc || 0);
 
-      const isPostEsgotamento = topicIdx >= assuntos.length;
-      if (isPostEsgotamento) continue;
-
-      const assuntoUsado = assuntos[topicIdx] ?? `Tópico ${topicIdx + 1}`;
+      const assuntoUsado = assuntos.length > 0
+        ? assuntos[topicIdx % assuntos.length]
+        : slot.assunto || `Tópico ${topicIdx + 1}`;
 
       if (!assuntoUsado) continue;
 
@@ -946,10 +1031,9 @@ function _reconstruirHistorico(
     const assuntos  = normalizarAssuntosAgenda(disc?.assuntos || []);
     const topicIdx  = weekOffsetAtual * (slot.totalSlotsParaDisc || 1) + (slot.slotIndexParaDisc || 0);
 
-    const isPostEsgotamento = topicIdx >= assuntos.length;
-    if (isPostEsgotamento) continue;
-
-    const assuntoUsado = assuntos[topicIdx] ?? `Tópico ${topicIdx + 1}`;
+    const assuntoUsado = assuntos.length > 0
+      ? assuntos[topicIdx % assuntos.length]
+      : slot.assunto || `Tópico ${topicIdx + 1}`;
 
     if (!assuntoUsado) continue;
 

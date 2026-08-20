@@ -597,7 +597,18 @@ export function gerarSchedule(disciplinas, disponibilidade, opcoes = {}) {
     } else {
       nBlocos = calcularMateriasPorDia(horasBrutas, numDisciplinas);
     }
-    const minutosBaseParaQuantidade = usarDuracaoUnica ? minBrutos : minTeoria;
+    // No modo automatico, 60 minutos e o centro da distribuicao, nao o teto.
+    // Assim um dia de 5h nasce com pelo menos 5 blocos e pode variar entre
+    // sessoes curtas e longas conforme a carga de cada disciplina, em vez de
+    // depender de quatro blocos quase sempre esticados ate 1h20.
+    if (!usarDuracaoUnica) {
+      const blocosParaVariacao = Math.max(1, Math.ceil(minBrutos / Math.min(60, maxMinutosSlot)));
+      nBlocos = Math.max(nBlocos, blocosParaVariacao);
+    }
+    // A quantidade de blocos precisa comportar o dia bruto também no modo
+    // automático. Depois as revisões ocupam apenas o seu pequeno teto diário e
+    // o restante volta para teoria sem esticar nenhum bloco além do máximo.
+    const minutosBaseParaQuantidade = minBrutos;
     const blocosMinPorDuracao = Math.max(1, Math.ceil(minutosBaseParaQuantidade / maxMinutosSlot));
     const blocosMaxPorDuracao = Math.max(1, Math.floor(minTeoria / minMinutosSlot));
     nBlocos = opcoes.limitarMaterias

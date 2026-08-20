@@ -217,6 +217,8 @@ const Step3_Horarios = ({ horarios, onHorariosChange, editalSelecionado, config 
   const duracaoUnica = Math.max(5, Number(config?.tempoSessaoMinutos) || duracaoMaxima);
   const maxDuracaoUnica = Math.max(5, Number(config?.maxDuracaoSessaoMinutos) || 240);
   const duracaoUnicaLimitada = Math.min(duracaoUnica, maxDuracaoUnica);
+  const duracaoAutomaticaMaxima = Math.max(5, Math.min(60, maxDuracaoUnica));
+  const duracaoAutomaticaMinima = Math.min(30, duracaoAutomaticaMaxima);
   const duracaoUnicaPartes = minutesToHourParts(duracaoUnicaLimitada);
   const [duracaoUnicaDraft, setDuracaoUnicaDraft] = useState(() => ({
     horas: String(duracaoUnicaPartes.horas),
@@ -302,6 +304,22 @@ const Step3_Horarios = ({ horarios, onHorariosChange, editalSelecionado, config 
     handleDuracaoUnicaChange(total);
   };
 
+  const handleModoDuracao = (modo) => {
+    if (typeof onConfigChange !== 'function') return;
+    const personalizado = modo === 'personalizado';
+    const next = {
+      ...(config || {}),
+      usarDuracaoUnica: personalizado,
+    };
+
+    if (!personalizado && duracaoMinima === duracaoMaxima) {
+      next.duracaoMinimaSessaoMinutos = duracaoAutomaticaMinima;
+      next.duracaoMaximaSessaoMinutos = duracaoAutomaticaMaxima;
+    }
+
+    onConfigChange(next);
+  };
+
   return (
     <div className="flex flex-col h-full overflow-hidden w-full">
 
@@ -374,6 +392,55 @@ const Step3_Horarios = ({ horarios, onHorariosChange, editalSelecionado, config 
                         </span>
                       </span>
                       {active && <Check size={16} className="ml-auto shrink-0" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {!config?.ocultarConfiguracaoDuracao && (<>
+          {config?.mostrarModoDuracao && (
+            <div className="w-full max-w-2xl rounded-2xl border border-zinc-200 bg-white p-2 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+              <p className="px-1 pb-2 text-[10px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400">
+                Como definir a duração dos blocos?
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  {
+                    id: 'automatico',
+                    label: 'Automático',
+                    desc: `O sistema ajusta cada bloco entre ${duracaoAutomaticaMinima} e ${duracaoAutomaticaMaxima} min.`,
+                    icon: Wand2,
+                  },
+                  {
+                    id: 'personalizado',
+                    label: 'Definido por mim',
+                    desc: 'Você escolhe o tempo máximo de cada bloco.',
+                    icon: SlidersHorizontal,
+                  },
+                ].map((opcao) => {
+                  const active = opcao.id === (usarDuracaoUnica ? 'personalizado' : 'automatico');
+                  const Icon = opcao.icon;
+                  return (
+                    <button
+                      key={opcao.id}
+                      type="button"
+                      onClick={() => handleModoDuracao(opcao.id)}
+                      className={`flex min-w-0 items-center gap-2 rounded-xl border px-2.5 py-2.5 text-left transition-all sm:px-3 ${
+                        active
+                          ? 'border-red-300 bg-red-50 text-red-700 dark:border-red-900/60 dark:bg-red-950/25 dark:text-red-300'
+                          : 'border-zinc-200 bg-zinc-50 text-zinc-600 hover:border-zinc-300 dark:border-zinc-800 dark:bg-card-dark dark:text-zinc-300'
+                      }`}
+                    >
+                      <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${active ? 'bg-red-600 text-white' : 'bg-white text-zinc-400 dark:bg-zinc-900'}`}>
+                        <Icon size={15} />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block text-[10px] font-black uppercase tracking-wide sm:text-xs">{opcao.label}</span>
+                        <span className="mt-0.5 block text-[9px] font-semibold leading-snug opacity-75 sm:text-[10px]">{opcao.desc}</span>
+                      </span>
+                      {active && <Check size={15} className="ml-auto hidden shrink-0 sm:block" />}
                     </button>
                   );
                 })}
@@ -491,6 +558,7 @@ const Step3_Horarios = ({ horarios, onHorariosChange, editalSelecionado, config 
             </div>
           </div>
           )}
+          </>)}
 
           <div className="flex items-end justify-between gap-3">
             <div>

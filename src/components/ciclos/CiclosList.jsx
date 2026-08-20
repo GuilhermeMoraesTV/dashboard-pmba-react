@@ -30,6 +30,7 @@ import {
 
 import { db } from '../../firebaseConfig';
 import { resolveLogoUrl } from '../admin/config/editalAssets';
+import { getCicloWeeklyStatus } from '../../utils/cicloWeeklyStatus';
 import { useEditaisCatalog } from '../../hooks/useEditaisCatalog';
 import EmptyStateCard from '../shared/EmptyStateCard';
 import CicloCreateWizard from './CicloCreateWizard/CicloCreateWizard';
@@ -39,7 +40,9 @@ import { deletePlanStudyRecords } from '../../services/planDeletion';
 
 const formatDate = (value) => {
   if (!value) return '-';
-  const date = value?.toDate ? value.toDate() : new Date(value);
+  const date = typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
+    ? new Date(...value.split('-').map((part, index) => Number(part) - (index === 1 ? 1 : 0)))
+    : (value?.toDate ? value.toDate() : new Date(value));
   if (Number.isNaN(date.getTime())) return '-';
   return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' });
 };
@@ -117,9 +120,9 @@ const CicloCard = ({ ciclo, editaisMap, registrosEstudo = [], onOpen, onMenuTogg
 
   const progresso = Math.max(progressoPorSessao, progressoHoras);
   const canOpen = typeof onOpen === 'function' && ciclo.ativo;
-  const dataInicio = ciclo.dataInicio || ciclo.inicio || ciclo.dataCriacao || ciclo.criadoEm;
-  const dataFim = ciclo.dataFim || ciclo.termino || ciclo.dataProva || ciclo.dataFinal;
-  const terminoLabel = dataFim ? formatDate(dataFim) : 'Em aberto';
+  const weeklyStatus = getCicloWeeklyStatus({ ciclo });
+  const dataInicio = weeklyStatus.inicioRodada || ciclo.dataInicio || ciclo.inicio || ciclo.dataCriacao || ciclo.criadoEm;
+  const terminoLabel = weeklyStatus.fechamentoIdeal ? formatDate(weeklyStatus.fechamentoIdeal) : 'Em aberto';
   const cargaSemanal = Number(ciclo.cargaHorariaSemanalTotal || ciclo.cargaHorariaSemanal || ciclo.horasSemanais || ciclo.horasTotais || 0);
 
   return (
@@ -144,7 +147,7 @@ const CicloCard = ({ ciclo, editaisMap, registrosEstudo = [], onOpen, onMenuTogg
               {ciclo.ativo ? 'ATIVO' : 'INATIVO'}
             </div>
             <div className="flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-zinc-100 px-2 py-1 text-[10px] font-black uppercase tracking-widest text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800/50 sm:text-[11px]">
-              <RotateCw size={10} /> {concluidoCount} voltas
+              <RotateCw size={10} /> {concluidoCount} rodadas
             </div>
           </div>
           <div className="relative">
@@ -174,7 +177,7 @@ const CicloCard = ({ ciclo, editaisMap, registrosEstudo = [], onOpen, onMenuTogg
             </div>
             <div className="flex min-w-0 items-center gap-1.5 rounded-lg border border-zinc-200/70 bg-zinc-50/80 px-2 py-1.5 text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800/55 dark:text-zinc-300">
               <Target size={14} className="shrink-0 text-red-500/70" />
-              <span className="min-w-0 whitespace-nowrap text-[10px] font-bold sm:text-xs">TÉRMINO: {terminoLabel}</span>
+              <span className="min-w-0 whitespace-nowrap text-[10px] font-bold sm:text-xs">META: {terminoLabel}</span>
             </div>
             <div className="flex min-w-0 items-center gap-1.5 rounded-lg border border-zinc-200/70 bg-zinc-50/80 px-2 py-1.5 text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800/55 dark:text-zinc-300">
               <Clock size={14} className="shrink-0 text-red-500/70" />
@@ -182,7 +185,7 @@ const CicloCard = ({ ciclo, editaisMap, registrosEstudo = [], onOpen, onMenuTogg
             </div>
             <div className="flex min-w-0 items-center gap-1.5 rounded-lg border border-zinc-200/70 bg-zinc-50/80 px-2 py-1.5 text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800/55 dark:text-zinc-300">
               <Calendar size={14} className="shrink-0 text-red-500/70" />
-              <span className="min-w-0 text-[10px] font-bold sm:text-xs">CARGA SEMANAL: {formatHours(cargaSemanal)}</span>
+              <span className="min-w-0 text-[10px] font-bold sm:text-xs">CARGA 7 DIAS: {formatHours(cargaSemanal)}</span>
             </div>
           </div>
 
@@ -446,7 +449,7 @@ export default function CiclosList({
           <button type="button" onClick={handleCreateRequest} className="group relative flex w-full shrink-0 items-center justify-center gap-2 overflow-hidden rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-bold text-white shadow-lg transition-all hover:-translate-y-0.5 hover:shadow-xl active:translate-y-0 dark:bg-white dark:text-zinc-900 md:w-auto md:px-5 md:py-3 md:text-base">
             <span className="absolute inset-0 translate-x-[-100%] bg-white/20 transition-transform duration-500 group-hover:translate-x-[100%]" />
             <Plus size={18} className="relative z-10 transition-transform group-hover:rotate-90 md:h-5 md:w-5" />
-            <span className="relative z-10">Novo Ciclo</span>
+            <span className="relative z-10">Novo ciclo semanal</span>
           </button>
         </div>
       )}

@@ -9,13 +9,7 @@ import { normalizarDuracaoSessao } from '../../utils/cicloDistribution';
 const formatVisualHours = (minutes) => {
   if (!minutes || isNaN(minutes)) return '0h';
 
-  let totalMinutes = Math.round(Number(minutes));
-
-  // Lógica de arredondamento visual (imã)
-  const remainder = totalMinutes % 60;
-  if (remainder > 50) {
-    totalMinutes = Math.ceil(totalMinutes / 60) * 60;
-  }
+  const totalMinutes = Math.round(Number(minutes));
 
   const hours = Math.floor(totalMinutes / 60);
   const mins = totalMinutes % 60;
@@ -244,7 +238,7 @@ const CicloSegment = ({
 };
 
 // --- CÍRCULO INTERNO SEMANAL ---
-const WeeklyProgressRing = ({ percentage, isConcluido }) => {
+const WeeklyProgressRing = ({ percentage, isConcluido, instant = false }) => {
   const radius = 32;
   const circumference = 2 * Math.PI * radius;
   const safePercentage = Math.min(100, Math.max(0, Number(percentage) || 0));
@@ -268,9 +262,9 @@ const WeeklyProgressRing = ({ percentage, isConcluido }) => {
         strokeWidth={isConcluido ? '3.5' : '2.5'}
         strokeLinecap="round"
         strokeDasharray={circumference}
-        initial={{ strokeDashoffset: circumference }}
+        initial={instant ? false : { strokeDashoffset: circumference }}
         animate={{ strokeDashoffset: isConcluido ? 0 : strokeDashoffset }}
-        transition={{ duration: 1.5, ease: 'easeOut' }}
+        transition={{ duration: instant ? 0 : 1.5, ease: 'easeOut' }}
         transform="rotate(-90 50 50)"
       />
     </g>
@@ -278,21 +272,21 @@ const WeeklyProgressRing = ({ percentage, isConcluido }) => {
 };
 
 // --- OVERLAY DE CICLO CONCLUÍDO (centro do SVG via foreignObject) ---
-const CicloConcluídoCenter = ({ onConcluir, loading, conclusoes }) => (
+const CicloConcluídoCenter = ({ onConcluir, loading, conclusoes, instant = false }) => (
   <foreignObject x="15" y="15" width="70" height="70" className="pointer-events-auto">
     <div className="w-full h-full flex flex-col items-center justify-center text-center rounded-full">
       <motion.div
         key="concluido"
-        initial={{ opacity: 0, scale: 0.7 }}
+        initial={instant ? false : { opacity: 0, scale: 0.7 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.7 }}
-        transition={{ type: 'spring', stiffness: 320, damping: 22 }}
+        transition={instant ? { duration: 0 } : { type: 'spring', stiffness: 320, damping: 22 }}
         className="flex flex-col items-center justify-center w-full h-full px-1"
       >
         {/* Ícone de check pulsante */}
         <motion.div
-          animate={{ scale: [1, 1.15, 1] }}
-          transition={{ repeat: Infinity, duration: 2, ease: 'easeInOut' }}
+          animate={{ scale: instant ? 1 : [1, 1.15, 1] }}
+          transition={{ repeat: instant ? 0 : Infinity, duration: instant ? 0 : 2, ease: 'easeInOut' }}
           className="mb-0.5"
         >
           <CheckCircle2
@@ -460,6 +454,7 @@ function CicloVisual({
   showViewToggle = true,
   sessionCompletionOverrides = {},
   loadingSessionIds = {},
+  instantStateChanges = false,
 }) {
   const [hoveredId, setHoveredId] = useState(null);
   const [internalViewCiclo, setInternalViewCiclo] = useState('completo');
@@ -594,6 +589,7 @@ function CicloVisual({
         {
           min: ciclo?.duracaoMinimaSessaoMinutos || 10,
           max: ciclo?.duracaoMaximaSessaoMinutos || 240,
+          allowPartial: true,
         },
       );
       const completionOverride = sessionCompletionOverrides?.[globalIndex];
@@ -800,26 +796,26 @@ function CicloVisual({
                 );
               })}
 
-              <WeeklyProgressRing percentage={progressoGeral} isConcluido={isConcluido} />
+              <WeeklyProgressRing percentage={progressoGeral} isConcluido={isConcluido} instant={instantStateChanges} />
 
               {/* --- INFO CENTRAL --- */}
-              <AnimatePresence mode="wait">
+              <AnimatePresence mode={instantStateChanges ? "sync" : "wait"} initial={!instantStateChanges}>
                 {isConcluido ? (
                   // OVERLAY DE CICLO CONCLUÍDO — substitui o conteúdo central
                   <motion.g
                     key="concluido-overlay"
-                    initial={{ opacity: 0 }}
+                    initial={instantStateChanges ? false : { opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    transition={{ duration: 0.4 }}
+                    transition={{ duration: instantStateChanges ? 0 : 0.4 }}
                   >
                     {/* Fundo verde translúcido no centro */}
                     <motion.circle
                       cx="50" cy="50" r={29}
                       fill={CICLO_CONCLUIDO_COLOR}
-                      initial={{ opacity: 0, scale: 0 }}
+                      initial={instantStateChanges ? false : { opacity: 0, scale: 0 }}
                       animate={{ opacity: 0.12, scale: 1 }}
-                      transition={{ duration: 0.6, ease: 'easeOut' }}
+                      transition={{ duration: instantStateChanges ? 0 : 0.6, ease: 'easeOut' }}
                       style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
                     />
                     {/* Anel pulsante externo */}
@@ -829,14 +825,15 @@ function CicloVisual({
                       stroke={CICLO_CONCLUIDO_COLOR}
                       strokeWidth="0.5"
                       strokeOpacity={0.4}
-                      animate={{ scale: [1, 1.07, 1], opacity: [0.4, 0.1, 0.4] }}
-                      transition={{ repeat: Infinity, duration: 2.5, ease: 'easeInOut' }}
+                      animate={{ scale: instantStateChanges ? 1 : [1, 1.07, 1], opacity: instantStateChanges ? 0.4 : [0.4, 0.1, 0.4] }}
+                      transition={{ repeat: instantStateChanges ? 0 : Infinity, duration: instantStateChanges ? 0 : 2.5, ease: 'easeInOut' }}
                       style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
                     />
                     <CicloConcluídoCenter
                       onConcluir={onConcluirCiclo}
                       loading={cicloActionLoading}
                       conclusoes={ciclo?.conclusoes || 0}
+                      instant={instantStateChanges}
                     />
                   </motion.g>
                 ) : (

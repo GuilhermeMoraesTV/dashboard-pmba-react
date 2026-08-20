@@ -30,17 +30,17 @@ const INTERVALOS = [
   },
 ];
 
-const OPCOES_TEMPO = [10, 15, 20, 30];
+const OPCOES_TEMPO = [10, 15, 20, 30, 45, 60];
 
 const BENEFICIOS = [];
 
 
-// ─── COMPONENTE DE SPLIT VISUAL (75% estudo / 25% revisão) ───────────────────
-const SplitVisual = () => (
+// ─── COMPONENTE DE PRIORIDADE VISUAL ─────────────────────────────────────────
+const SplitVisual = ({ limiteRevisao }) => (
   <div className="w-full rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-700">
     <div className="flex h-3">
-      <div className="bg-red-500 dark:bg-red-600" style={{ width: '75%' }} />
-      <div className="bg-zinc-300 dark:bg-zinc-600" style={{ width: '25%' }} />
+      <div className="flex-1 bg-red-500 dark:bg-red-600" />
+      <div className="w-16 bg-zinc-300 dark:bg-zinc-600" />
     </div>
     <div className="grid grid-cols-2 divide-x divide-zinc-200 bg-white dark:divide-zinc-700 dark:bg-zinc-900">
       <div className="min-w-0 px-2.5 py-3 sm:px-4 flex items-center gap-2 sm:gap-3">
@@ -48,8 +48,8 @@ const SplitVisual = () => (
           <BookOpen size={14} className="text-red-600 dark:text-red-400" />
         </div>
         <div className="min-w-0">
-          <div className="text-xs sm:text-sm font-black text-zinc-900 dark:text-white whitespace-nowrap">75% Estudo</div>
-          <div className="text-[10px] text-zinc-500 dark:text-zinc-400">Conteúdo novo</div>
+          <div className="text-xs sm:text-sm font-black text-zinc-900 dark:text-white whitespace-nowrap">Estudo em foco</div>
+          <div className="text-[10px] text-zinc-500 dark:text-zinc-400">Recebe todo o tempo restante</div>
         </div>
       </div>
       <div className="min-w-0 flex items-center gap-2 sm:gap-3 px-2.5 py-3 sm:px-4">
@@ -57,8 +57,8 @@ const SplitVisual = () => (
           <Zap size={14} className="text-zinc-500 dark:text-zinc-400" />
         </div>
         <div className="min-w-0">
-          <div className="text-xs sm:text-sm font-black text-zinc-900 dark:text-white whitespace-nowrap">25% Revisão</div>
-          <div className="text-[10px] text-zinc-500 dark:text-zinc-400">Fixação</div>
+          <div className="text-xs sm:text-sm font-black text-zinc-900 dark:text-white whitespace-nowrap">Base {limiteRevisao} min</div>
+          <div className="text-[10px] text-zinc-500 dark:text-zinc-400">Teto automático de 60 min</div>
         </div>
       </div>
     </div>
@@ -86,11 +86,11 @@ const StepMetodologiaRevisao = ({ config = {}, onConfigChange = () => {} }) => {
           Revisão <span className="text-red-600">Espaçada</span>
         </h2>
         <p className="text-base text-zinc-500 dark:text-zinc-400 font-semibold leading-relaxed max-w-md mx-auto sm:text-sm">
-          Seu cronograma reserva automaticamente 25% do seu tempo diário para
-          revisões — nos momentos exatos em que o esquecimento começa.
+          Seu cronograma mantém as revisões curtas e devolve o restante do tempo
+          para o estudo de conteúdo novo.
         </p>
         <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-zinc-400 sm:mt-3 sm:text-[11px] sm:tracking-[0.16em]">
-          Este passo nao escolhe modo de revisao. Ele apenas define o tempo de cada revisao.
+          Cada tópico recebe 5 min; dias cheios podem subir até 60 min.
         </p>
       </motion.div>
 
@@ -101,10 +101,10 @@ const StepMetodologiaRevisao = ({ config = {}, onConfigChange = () => {} }) => {
         transition={{ delay: 0.08 }}
         className="w-full mb-2 sm:mb-4"
       >
-        <SplitVisual />
+        <SplitVisual limiteRevisao={tempoSelecionado} />
         <p className="text-[10px] text-zinc-400 text-center mt-2 leading-relaxed sm:mt-3 sm:text-[11px]">
-          O tempo de revisão é fluido — se não houver revisões pendentes num dia,
-          aquele tempo é automaticamente devolvido ao estudo.
+          Este é o limite-base diário. Se a fila ficar cheia, o sistema aumenta
+          em blocos de 5 min até o teto de 60 min, sem ocupar mais da metade do dia.
         </p>
       </motion.div>
 
@@ -192,17 +192,17 @@ const StepMetodologiaRevisao = ({ config = {}, onConfigChange = () => {} }) => {
         <div className="flex items-center gap-2 mb-1">
           <Timer size={14} className="text-red-500" />
           <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">
-            Tempo por revisão
+            Limite diário de revisão
           </span>
         </div>
         <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mb-3 sm:mb-4 sm:text-[12px]">
-          Escolha quanto tempo cada revisao deve ocupar quando ela existir no dia.
+          Escolha a base diária. Cada revisão ocupa 5 min, e a fila pode usar até 60 min no dia.
         </p>
 
         <div className="mb-3 hidden rounded-xl bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-100 dark:border-zinc-700 px-4 py-3 sm:block">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed">
-              O sistema agenda revisoes apos o estudo e usa esse tempo apenas quando houver revisao pendente.
+              O sistema agenda revisões após o estudo, prioriza pendências antigas e leva o excedente para o próximo dia disponível. Em cada bloco, tente recordar primeiro e confira depois.
             </p>
             <div className="flex gap-1.5 shrink-0">
               {['1d', '7d', '30d'].map((intervalo) => (
@@ -217,7 +217,7 @@ const StepMetodologiaRevisao = ({ config = {}, onConfigChange = () => {} }) => {
           </div>
         </div>
 
-        <div className="flex gap-1.5 sm:gap-2">
+        <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-6 sm:gap-2">
           {OPCOES_TEMPO.map((min) => {
             const ativo = tempoSelecionado === min;
             return (
@@ -228,7 +228,7 @@ const StepMetodologiaRevisao = ({ config = {}, onConfigChange = () => {} }) => {
                   onConfigChange((prev) => ({ ...prev, tempoRevisaoMinutos: min }))
                 }
                 className={`
-                  flex-1 py-2 rounded-xl text-xs font-black transition-all duration-150 sm:py-2.5 sm:text-sm
+                  py-2 rounded-xl text-xs font-black transition-all duration-150 sm:py-2.5 sm:text-sm
                   border focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50
                   ${ativo
                     ? 'bg-red-600 text-white border-red-600 shadow-md shadow-red-600/20'
@@ -243,7 +243,7 @@ const StepMetodologiaRevisao = ({ config = {}, onConfigChange = () => {} }) => {
         </div>
 
         <p className="hidden text-[10px] text-zinc-400 dark:text-zinc-500 mt-3 leading-relaxed sm:block">
-          Padrão: 20 minutos por revisão.
+          Padrão: base de 20 minutos. O sistema só aumenta quando houver revisões suficientes.
         </p>
       </motion.div>
 

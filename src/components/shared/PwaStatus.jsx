@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { CheckCircle2, CloudOff, Download, X } from 'lucide-react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
+import '../../utils/pwaInstall';
 
 const STATUS_HIDE_DELAY = 3500;
 

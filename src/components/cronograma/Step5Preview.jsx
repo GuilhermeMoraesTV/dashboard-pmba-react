@@ -19,11 +19,20 @@
 
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { createPortal } from 'react-dom';
+import {
+  DndContext, DragOverlay, KeyboardSensor, MouseSensor, TouchSensor,
+  closestCorners, pointerWithin, rectIntersection, useDroppable, useSensor, useSensors,
+} from '@dnd-kit/core';
+import {
+  SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import {
   ChevronLeft, ChevronRight, BookOpen, RefreshCw,
   Clock, Target, Calendar, Sparkles,
   CheckCircle2, Brain, AlertCircle, CalendarDays,
-  X, List, GripVertical, Moon, Sun, Zap,
+  X, List, GripVertical, Moon, Sun, Zap, ZoomIn, ZoomOut,
   Shield, Check, LayoutGrid, LayoutList, Flame,
   ArrowDownCircle, Flag, MapPin, Cpu, Bot, Loader2
 } from 'lucide-react';
@@ -124,6 +133,7 @@ function getLabelTipo(item) {
 }
 
 const isReviewSlot = (item) => Boolean(item?.isRevisao || item?.isRevisaoAuto || item?.isConsolidada);
+const getPreviewDragId = (item) => `preview-task-${item?.idUnique || item?.slotId}`;
 const getStudyItems = (items = []) => items.filter((item) => !isReviewSlot(item));
 const getItemMinutes = (item) => Number(item?.tempoMinutos ?? item?.minutosEstudo ?? item?.tempoPlanejadoMinutos ?? 0) || 0;
 const getDayMinutesTotal = (items = []) => items.reduce((acc, item) => acc + getItemMinutes(item), 0);
@@ -137,6 +147,8 @@ const topicosFromReviewSlot = (item) => {
     intervaloDias: item.intervaloDias ?? '?',
     tempoMinutos: item.tempoMinutos ?? item.minutosEstudo ?? 0,
     isRevisaoAuto: true,
+    reagendadaPorFila: Boolean(item.reagendadaPorFila),
+    dataOriginalFila: item.dataOriginalFila || null,
   };
 
   if (Array.isArray(item.topicosRevisao) && item.topicosRevisao.length > 0) {
@@ -151,9 +163,38 @@ const topicosFromReviewSlot = (item) => {
   }];
 };
 
+const agruparTopicosRevisaoPorDisciplina = (topicos = [], colorMap = null) => {
+  const grupos = new Map();
+
+  topicos.forEach((topico) => {
+    const nome = topico.disciplinaNome || topico.disciplina || 'Disciplina';
+    const chave = getDisciplineKey(topico.disciplinaId || nome);
+    if (!grupos.has(chave)) {
+      const cor = getDisciplineColorForSlot({
+        disciplinaId: topico.disciplinaId,
+        disciplinaNome: nome,
+      }, colorMap);
+      grupos.set(chave, {
+        chave,
+        nome,
+        cor,
+        topicos: [],
+        tempoMinutos: 0,
+      });
+    }
+
+    const grupo = grupos.get(chave);
+    const tempoMinutos = Number(topico.tempoMinutos || 0);
+    grupo.topicos.push(topico);
+    grupo.tempoMinutos += tempoMinutos;
+  });
+
+  return Array.from(grupos.values());
+};
+
 const agruparRevisoesDoDia = (items = [], dayKey = '') => {
   const revisoes = items.filter(isReviewSlot);
-  if (revisoes.length <= 1) return items;
+  if (revisoes.length === 0) return items;
 
   const teorias = items.filter((item) => !isReviewSlot(item));
   const primeiraRevisaoIndex = items.findIndex(isReviewSlot);
@@ -179,7 +220,7 @@ const agruparRevisoesDoDia = (items = [], dayKey = '') => {
 
 // ─── COMPONENTES ──────────────────────────────────────────────────────────────
 
-const SlotCard = ({ item, onDragStart, onClick, compact = false, config = {}, colorMap = null, isToday = false }) => {
+const SlotCard = ({ item, onClick, compact = false, config = {}, colorMap = null, isToday = false, dragRef = null, dragStyle = {}, dragAttributes = {}, dragListeners = {}, isDragging = false }) => {
   const isRev = item.isRevisao || item.isRevisaoAuto || item.isConsolidada;
   const modoTempo = normalizarModoTempo(config.modoExibirTempo);
   const mostrarTempoBloco = modoTempo === 'detalhado';
@@ -197,6 +238,9 @@ const SlotCard = ({ item, onDragStart, onClick, compact = false, config = {}, co
   // [FIX-A] Usa helpers para nome e assunto — funciona para teoria E revisão
   const nomeDisc   = getNomeDisc(item);
   const assuntoTxt = getTextoAssunto(item, config);
+  const gruposRevisao = item.isConsolidada
+    ? agruparTopicosRevisaoPorDisciplina(item.topicosRevisao || [], colorMap)
+    : [];
 
   if (compact) {
     return (
@@ -210,41 +254,69 @@ const SlotCard = ({ item, onDragStart, onClick, compact = false, config = {}, co
     );
   }
 
+  if (item.isConsolidada) {
+    return (
+      <motion.button
+        type="button"
+        onClick={() => onClick(item)}
+        whileHover={{ y: -1 }}
+        whileTap={{ scale: 0.98 }}
+        className="flex h-11 w-full items-center justify-center rounded-xl border border-blue-200 bg-blue-50/70 px-3 text-[10px] font-black uppercase tracking-[0.2em] text-blue-700 shadow-sm transition-colors hover:border-blue-300 hover:bg-blue-50 dark:border-blue-900/40 dark:bg-blue-950/15 dark:text-blue-300 dark:hover:bg-blue-950/30"
+      >
+        Revisões
+      </motion.button>
+    );
+  }
+
   return (
     <motion.div
-      draggable={!item.isConsolidada}
-      onDragStart={(e) => {
-        if (item.isConsolidada) {
-          e.preventDefault();
-          return;
-        }
-        onDragStart?.(e, item);
-      }}
-      onClick={() => onClick(item)}
+      data-preview-task-card
+      ref={dragRef}
+      {...dragAttributes}
+      {...dragListeners}
+      onClick={!isDragging ? () => onClick(item) : undefined}
       whileHover={{ y: -1, scale: 1.01 }}
-      style={cardStyle}
-      className={`discipline-tinted-card ${isDone ? 'discipline-completed-card' : ''} group relative min-h-[104px] ${item.isConsolidada ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'} select-none overflow-hidden rounded-2xl border transition-all duration-200 shadow-sm ${isToday ? (isRev ? 'ring-1 ring-blue-500/45' : 'ring-1 ring-red-500/45') : ''}`}
+      style={{ ...cardStyle, ...dragStyle }}
+      className={`discipline-tinted-card ${isDone ? 'discipline-completed-card' : ''} group relative min-h-[104px] cursor-grab select-none overflow-hidden rounded-2xl border transition-all duration-200 shadow-sm active:cursor-grabbing ${isDragging ? 'z-20 opacity-70 shadow-2xl' : ''} ${isToday ? (isRev ? 'ring-1 ring-blue-500/45' : 'ring-1 ring-red-500/45') : ''}`}
     >
       <div className="flex h-full flex-col gap-2 px-3.5 py-3">
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-0.5">
-            <div className={`w-2.5 h-2.5 rounded-full shrink-0 shadow-sm ${isRev ? 'bg-blue-500' : disciplinaColor.bg || 'bg-zinc-400'}`} />
+            {item.isConsolidada ? (
+              <div className="flex shrink-0 -space-x-1">
+                {gruposRevisao.slice(0, 3).map((grupo) => (
+                  <span key={grupo.chave} className={`h-2.5 w-2.5 rounded-full border border-white shadow-sm dark:border-zinc-900 ${grupo.cor.bg}`} />
+                ))}
+              </div>
+            ) : (
+              <div className={`w-2.5 h-2.5 rounded-full shrink-0 shadow-sm ${isRev ? 'bg-blue-500' : disciplinaColor.bg || 'bg-zinc-400'}`} />
+            )}
             {/* [FIX-A] Nome da disciplina — funciona para revisões individuais e consolidadas */}
-            <h4 className={`text-[12px] font-black uppercase tracking-wide truncate ${isDone ? `${isRev ? 'text-blue-700' : disciplinaColor.text} line-through opacity-75` : isRev ? 'text-blue-700 dark:text-blue-300' : disciplinaColor.text}`}>
+            <h4 className={`text-[12px] font-black uppercase tracking-wide truncate ${isDone ? `${isRev ? 'text-blue-700' : disciplinaColor.text} line-through opacity-75` : item.isConsolidada ? 'text-zinc-800 dark:text-zinc-100' : isRev ? 'text-blue-700 dark:text-blue-300' : disciplinaColor.text}`}>
               {nomeDisc}
             </h4>
             {isRev && (
-              <span className="shrink-0 rounded-md bg-blue-600 px-1.5 py-0.5 text-[7px] font-black uppercase tracking-wider text-white">
+              <span className={`shrink-0 rounded-md px-1.5 py-0.5 text-[7px] font-black uppercase tracking-wider text-white ${item.isConsolidada ? 'bg-zinc-800 dark:bg-zinc-600' : 'bg-blue-600'}`}>
                 Revisão
               </span>
             )}
             {isDone && <CheckCircle2 size={11} className="shrink-0 text-emerald-500" strokeWidth={3} />}
           </div>
           {/* [FIX-B] Assunto — para revisões exibe o assunto revisado */}
-          <p className={`line-clamp-2 text-[11px] font-semibold leading-snug ${isToday ? 'text-zinc-700 dark:text-red-50/90' : 'text-zinc-600 dark:text-zinc-300'}`}>
-            {assuntoTxt}
-          </p>
+          {item.isConsolidada ? (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {gruposRevisao.map((grupo) => (
+                <span key={grupo.chave} className={`rounded-lg border px-2 py-1 text-[9px] font-black uppercase tracking-wide ${grupo.cor.soft}`}>
+                  {grupo.nome} · {grupo.topicos.length}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className={`line-clamp-2 text-[11px] font-semibold leading-snug ${isToday ? 'text-zinc-700 dark:text-red-50/90' : 'text-zinc-600 dark:text-zinc-300'}`}>
+              {assuntoTxt}
+            </p>
+          )}
         </div>
         {mostrarTempoBloco && (
           <span className={`pt-0.5 text-[10px] font-black tabular-nums ${isToday ? 'text-red-950 dark:text-white' : 'text-zinc-900 dark:text-white'}`}>
@@ -267,7 +339,7 @@ const SlotCard = ({ item, onDragStart, onClick, compact = false, config = {}, co
               initial={false}
               animate={{ width: `${isDone ? 100 : progressoPercentual}%` }}
               transition={{ duration: 0.25 }}
-              className={`h-full rounded-full ${isRev ? REVIEW_COLOR.progress : isDone ? disciplinaColor.progress : emAndamento ? 'bg-orange-500' : disciplinaColor.progress}`}
+              className={`h-full rounded-full ${item.isConsolidada ? 'bg-gradient-to-r from-zinc-500 to-zinc-800' : isRev ? REVIEW_COLOR.progress : isDone ? disciplinaColor.progress : emAndamento ? 'bg-orange-500' : disciplinaColor.progress}`}
             />
           </div>
         </div>
@@ -275,6 +347,53 @@ const SlotCard = ({ item, onDragStart, onClick, compact = false, config = {}, co
       </div>
     </motion.div>
   );
+};
+
+const SortablePreviewSlotCard = ({ item, dayKey, ...props }) => {
+  const sortable = useSortable({
+    id: getPreviewDragId(item),
+    data: { type: 'preview-task', dayKey, item },
+  });
+
+  return (
+    <SlotCard
+      item={item}
+      dragRef={sortable.setNodeRef}
+      dragStyle={{
+        transform: CSS.Transform.toString(sortable.transform),
+        transition: sortable.isDragging ? undefined : sortable.transition,
+      }}
+      dragAttributes={sortable.attributes}
+      dragListeners={sortable.listeners}
+      isDragging={sortable.isDragging}
+      {...props}
+    />
+  );
+};
+
+const PreviewDayDropZone = ({ dayKey, className, children }) => {
+  const { isOver, setNodeRef } = useDroppable({
+    id: `preview-day-${dayKey}`,
+    data: { type: 'preview-day', dayKey },
+  });
+
+  return (
+    <div ref={setNodeRef} className={`${className} ${isOver ? 'border-red-500 ring-2 ring-red-500/20' : ''}`}>
+      {children}
+    </div>
+  );
+};
+
+const previewCollisionDetection = (args) => {
+  const pointerCollisions = pointerWithin(args);
+  const dayCollision = pointerCollisions.find((collision) => String(collision.id).startsWith('preview-day-'));
+  if (dayCollision) return [dayCollision];
+
+  const rectCollisions = rectIntersection(args);
+  const rectDayCollision = rectCollisions.find((collision) => String(collision.id).startsWith('preview-day-'));
+  if (rectDayCollision) return [rectDayCollision];
+
+  return closestCorners(args);
 };
 
 const Step5_Preview = ({
@@ -300,6 +419,8 @@ const Step5_Preview = ({
   });
   const [modalSlot,    setModalSlot]    = useState(null);
   const [agendaOverride, setAgendaOverride] = useState(null);
+  const [activeDragItem, setActiveDragItem] = useState(null);
+  const [reviewModalZoom, setReviewModalZoom] = useState(1);
   const modoTempo = normalizarModoTempo(config?.modoExibirTempo);
   const mostrarTempoTotal = modoTempo !== 'nenhum';
   const mostrarTempoBloco = modoTempo === 'detalhado';
@@ -308,10 +429,15 @@ const Step5_Preview = ({
   const isDraggingScroll = useRef(false);
   const startX = useRef(0);
   const scrollLeft = useRef(0);
+  const dragSensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
 
   // ── Mouse Grab Scroll ──────────────────────────────────────────────────────
   const handleMouseDown = (e) => {
-    if (e.target.closest('[draggable]')) return;
+    if (e.target.closest('[data-preview-task-card]')) return;
     isDraggingScroll.current = true;
     startX.current = e.pageX - scrollRef.current.offsetLeft;
     scrollLeft.current = scrollRef.current.scrollLeft;
@@ -358,10 +484,20 @@ const Step5_Preview = ({
       });
 
     return buildDisciplineColorMap(disciplinasPresentes, {
-      preserveStored: false,
-      excludeReviewBlue: true,
+      preserveStored: true,
+      excludeReviewBlue: false,
     });
   }, [disciplinas, resultado?.semanaTemplate]);
+
+  const gruposRevisaoModal = useMemo(() => (
+    modalSlot?.isConsolidada
+      ? agruparTopicosRevisaoPorDisciplina(modalSlot.topicosRevisao || [], colorMap)
+      : []
+  ), [modalSlot, colorMap]);
+
+  useEffect(() => {
+    setReviewModalZoom(1);
+  }, [modalSlot?.slotId]);
 
   // CORREÇÃO: startDate é o primeiro dia com horas > 0 a partir de hoje.
   const startDate = useMemo(() => {
@@ -402,6 +538,10 @@ const Step5_Preview = ({
       historicoRevisoes: {},
       dataInicio: isoKey(startDate),
       tempoRevisaoMinutos: config?.tempoRevisaoMinutos ?? 20,
+      usarDuracaoUnica: config?.usarDuracaoUnica === true,
+      tempoSessaoMinutos: Number(config?.tempoSessaoMinutos || 0) || null,
+      duracaoMinimaSessaoMinutos: Number(config?.duracaoMinimaSessaoMinutos || 0) || null,
+      duracaoMaximaSessaoMinutos: Number(config?.duracaoMaximaSessaoMinutos || 0) || null,
       modoExibirAssuntos: config?.modoExibirAssuntos !== false,
       limitarMaterias: config?.limitarMaterias || false,
       limitesPorDia: config?.limitesPorDia || {},
@@ -483,8 +623,8 @@ const Step5_Preview = ({
       if (minutosConfigurados <= 0) return;
 
       const totalRenderizado = getDayMinutesTotal(items);
-      if (totalRenderizado > minutosConfigurados + 5) {
-        console.warn('[Step5Preview] Total diario acima do configurado no preview.', {
+      if (Math.abs(totalRenderizado - minutosConfigurados) > 0.5) {
+        console.warn('[Step5Preview] Total diario diferente do configurado no preview.', {
           data: key,
           totalRenderizado,
           minutosConfigurados,
@@ -499,18 +639,49 @@ const Step5_Preview = ({
   }, [displayAgenda, horarios]);
 
   // ── Drag and Drop ──────────────────────────────────────────────────────────
-  const onDragStart = (e, item) => { e.dataTransfer.setData('text/plain', JSON.stringify(item)); };
-  const onDrop = (e, targetDayKey) => {
-    e.preventDefault();
-    const itemStr = e.dataTransfer.getData('text/plain');
-    if (!itemStr) return;
-    const item = JSON.parse(itemStr);
-    const sourceDayKey = Object.keys(displayAgenda).find(key => displayAgenda[key].some(i => i.idUnique === item.idUnique));
-    if (!sourceDayKey || sourceDayKey === targetDayKey) return;
-    const newAgenda = { ...displayAgenda };
-    newAgenda[sourceDayKey] = newAgenda[sourceDayKey].filter(i => i.idUnique !== item.idUnique);
-    newAgenda[targetDayKey] = [...(newAgenda[targetDayKey] || []), { ...item, idUnique: `${targetDayKey}-${Date.now()}` }];
-    setAgendaOverride(newAgenda);
+  const handlePreviewDragStart = ({ active }) => {
+    setActiveDragItem(active.data.current?.item || null);
+  };
+
+  const handlePreviewDragEnd = ({ active, over }) => {
+    setActiveDragItem(null);
+    if (!over) return;
+
+    const activeData = active.data.current;
+    const overData = over.data.current;
+    const item = activeData?.item;
+    const sourceDayKey = activeData?.dayKey;
+    const targetDayKey = overData?.dayKey;
+    if (!item || !sourceDayKey || !targetDayKey || isReviewSlot(item)) return;
+
+    const sourceItems = [...(displayAgenda[sourceDayKey] || [])];
+    const oldIndex = sourceItems.findIndex((candidate) => candidate.idUnique === item.idUnique);
+    if (oldIndex < 0) return;
+
+    if (sourceDayKey === targetDayKey) {
+      const targetItem = overData?.item;
+      const newIndex = targetItem
+        ? sourceItems.findIndex((candidate) => candidate.idUnique === targetItem.idUnique)
+        : sourceItems.length - 1;
+      if (newIndex < 0 || newIndex === oldIndex) return;
+      setAgendaOverride({ ...displayAgenda, [sourceDayKey]: arrayMove(sourceItems, oldIndex, newIndex) });
+      return;
+    }
+
+    const nextSourceItems = sourceItems.filter((candidate) => candidate.idUnique !== item.idUnique);
+    const targetItems = [...(displayAgenda[targetDayKey] || [])];
+    const targetItem = overData?.item;
+    const insertAt = targetItem
+      ? targetItems.findIndex((candidate) => candidate.idUnique === targetItem.idUnique)
+      : -1;
+    if (insertAt >= 0) targetItems.splice(insertAt, 0, item);
+    else targetItems.push(item);
+
+    setAgendaOverride({
+      ...displayAgenda,
+      [sourceDayKey]: nextSourceItems,
+      [targetDayKey]: targetItems,
+    });
   };
 
   if (loadingIA) return <AILoadingState statusMsg={statusIA} percent={percent} />;
@@ -627,13 +798,20 @@ const Step5_Preview = ({
       <div className="w-full">
         <AnimatePresence mode="wait">
           {viewMode === 'semana' && (
-            <motion.div
-              key="semana" initial={{ opacity:0, x: 20 }} animate={{ opacity:1, x:0 }} exit={{ opacity:0, x:-20 }}
-              ref={scrollRef}
-              onMouseDown={handleMouseDown} onMouseLeave={handleMouseLeave} onMouseUp={handleMouseUp} onMouseMove={handleMouseMove}
-              className="flex gap-2 sm:gap-4 overflow-x-auto custom-scrollbar pb-5 cursor-grab active:cursor-grabbing px-1 select-none sm:pb-6"
-              style={{ scrollBehavior: isDraggingScroll.current ? 'auto' : 'smooth', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y' }}
+            <DndContext
+              sensors={dragSensors}
+              collisionDetection={previewCollisionDetection}
+              onDragStart={handlePreviewDragStart}
+              onDragEnd={handlePreviewDragEnd}
+              onDragCancel={() => setActiveDragItem(null)}
             >
+              <motion.div
+                key="semana" initial={{ opacity:0, x: 20 }} animate={{ opacity:1, x:0 }} exit={{ opacity:0, x:-20 }}
+                ref={scrollRef}
+                onMouseDown={handleMouseDown} onMouseLeave={handleMouseLeave} onMouseUp={handleMouseUp} onMouseMove={handleMouseMove}
+                className="flex gap-2 sm:gap-4 overflow-x-auto custom-scrollbar pb-5 cursor-grab active:cursor-grabbing px-1 select-none sm:pb-6"
+                style={{ scrollBehavior: isDraggingScroll.current ? 'auto' : 'smooth', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y' }}
+              >
               {[0, 1, 2, 3, 4, 5, 6].map((diaOffset) => {
                 const data = addDias(startDate, (semanaOffset * 7) + diaOffset);
                 const diaNome = DIAS_CURTO[data.getDay()];
@@ -644,7 +822,7 @@ const Step5_Preview = ({
                 const totalBlocos = items.length;
 
                 return (
-                  <div key={diaOffset} onDragOver={(e) => e.preventDefault()} onDrop={(e) => onDrop(e, key)}
+                  <PreviewDayDropZone key={diaOffset} dayKey={key}
                     className={`relative flex min-h-[280px] min-w-[168px] max-w-[168px] flex-col rounded-[16px] border p-1.5 transition-all duration-300 sm:min-h-[440px] sm:min-w-[260px] sm:max-w-[260px] sm:rounded-[18px] sm:p-2 xl:min-w-[284px] xl:max-w-[284px] ${hoje ? 'border-red-500/60 bg-white/70 shadow-md ring-1 ring-red-500/30 dark:bg-card-dark' : 'border-zinc-200 bg-zinc-50/70 shadow-sm hover:border-zinc-300 dark:border-zinc-800 dark:bg-card-dark dark:hover:border-zinc-700'}`}
                   >
                     <div className={`mb-1.5 shrink-0 rounded-[14px] border px-2.5 py-2 shadow-sm transition-all duration-300 sm:mb-3 sm:rounded-[20px] sm:px-4 sm:py-3 ${hoje ? 'border-red-500/60 bg-zinc-950 text-white dark:border-red-500/40 dark:bg-zinc-900' : 'border-zinc-800 bg-zinc-900 text-white dark:border-zinc-800 dark:bg-zinc-900'}`}>
@@ -710,20 +888,34 @@ const Step5_Preview = ({
                       </div>
                       </div>
                     </div>
-                    <div className="flex flex-col gap-2 sm:gap-3">
-                      {items.length > 0 ? items.map((item) => (
-                        <SlotCard key={item.idUnique} item={item} onDragStart={onDragStart} onClick={setModalSlot} config={config} colorMap={colorMap} isToday={hoje} />
-                      )) : (
+                    <SortableContext items={items.filter((item) => !isReviewSlot(item)).map(getPreviewDragId)} strategy={verticalListSortingStrategy}>
+                      <div className="flex flex-col gap-2 sm:gap-3">
+                        {items.length > 0 ? items.map((item) => (
+                          isReviewSlot(item) ? (
+                            <SlotCard key={item.idUnique} item={item} onClick={setModalSlot} config={config} colorMap={colorMap} isToday={hoje} />
+                          ) : (
+                            <SortablePreviewSlotCard key={item.idUnique} item={item} dayKey={key} onClick={setModalSlot} config={config} colorMap={colorMap} isToday={hoje} />
+                          )
+                        )) : (
                         <div className="flex flex-col items-center justify-center py-16 opacity-30 border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-3xl">
                           <Moon size={24} className="text-zinc-400 mb-2" />
                           <span className="text-[9px] font-black uppercase tracking-widest">Recuperação</span>
                         </div>
-                      )}
-                    </div>
-                  </div>
+                        )}
+                      </div>
+                    </SortableContext>
+                  </PreviewDayDropZone>
                 );
               })}
-            </motion.div>
+              </motion.div>
+              <DragOverlay dropAnimation={{ duration: 180, easing: 'ease' }}>
+                {activeDragItem ? (
+                  <div className="w-[168px] sm:w-[260px] xl:w-[284px]">
+                    <SlotCard item={activeDragItem} onClick={() => {}} config={config} colorMap={colorMap} isDragging />
+                  </div>
+                ) : null}
+              </DragOverlay>
+            </DndContext>
           )}
 
           {viewMode === 'mes' && (
@@ -908,19 +1100,26 @@ const Step5_Preview = ({
       </div>
 
       {/* MODAL DE DETALHES */}
-      <AnimatePresence>
+      {createPortal(<AnimatePresence>
         {modalSlot && (
-          <div className="fixed inset-0 z-[20000] flex items-center justify-center px-4">
+          <div className="fixed inset-0 z-[100100] flex items-center justify-center px-4 py-5 sm:py-8">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setModalSlot(null)} className="absolute inset-0 bg-zinc-950/80 backdrop-blur-sm" />
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-sm bg-white dark:bg-zinc-900 rounded-[40px] overflow-hidden shadow-2xl border border-zinc-200 dark:border-zinc-800"
+              className={`relative flex max-h-[calc(100dvh-2.5rem)] w-full flex-col overflow-hidden bg-white shadow-2xl shadow-zinc-950/25 border border-zinc-200 dark:border-zinc-800 dark:bg-zinc-900 ${(modalSlot.isConsolidada && modalSlot.topicosRevisao?.length > 0) ? 'max-w-4xl rounded-[28px] sm:rounded-[32px]' : 'max-w-md rounded-[32px]'}`}
             >
               <div className={`h-2 w-full ${(modalSlot.isRevisao || modalSlot.isRevisaoAuto || modalSlot.isConsolidada) ? 'bg-blue-600 shadow-[0_0_15px_rgba(37,99,235,0.5)]' : (modalSlot.cor?.bg || 'bg-red-600 shadow-[0_0_15px_rgba(220,38,38,0.5)]')}`} />
-              <div className="p-8">
-                <div className="flex justify-between items-start mb-6">
+              <div className="min-h-0 flex-1 overflow-auto">
+                <div
+                  className="p-5 sm:p-7"
+                  style={modalSlot.isConsolidada ? {
+                    zoom: reviewModalZoom,
+                    width: `${100 / reviewModalZoom}%`,
+                  } : undefined}
+                >
+                <div className="flex justify-between items-start gap-4 mb-5">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 mb-2">
                       {/* [FIX-C] Label do tipo com intervalo de revisão */}
@@ -932,12 +1131,47 @@ const Step5_Preview = ({
                     <h3 className="text-2xl font-black uppercase tracking-tight text-zinc-900 dark:text-white leading-tight">
                       {getNomeDisc(modalSlot)}
                     </h3>
+                    {modalSlot.isConsolidada && modalSlot.topicosRevisao?.length > 0 && (
+                      <p className="mt-2 text-xs font-bold text-zinc-500 dark:text-zinc-400">
+                        {modalSlot.topicosRevisao.length} tópicos organizados para revisar nesta missão.
+                        {modalSlot.topicosRevisao.some((topico) => topico.reagendadaPorFila) && (
+                          <span className="ml-1 text-amber-600 dark:text-amber-400">Pendências antigas vêm primeiro.</span>
+                        )}
+                      </p>
+                    )}
                   </div>
-                  <button onClick={() => setModalSlot(null)} className="p-2 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-400 hover:text-red-500 transition-all">
-                    <X size={20} />
-                  </button>
+                  <div className="flex shrink-0 items-center gap-1">
+                    {modalSlot.isConsolidada && (
+                      <div className="mr-1 flex items-center rounded-xl border border-zinc-200 bg-zinc-50 p-1 dark:border-zinc-700 dark:bg-zinc-800 sm:hidden">
+                        <button
+                          type="button"
+                          onClick={() => setReviewModalZoom((value) => Math.max(0.9, Number((value - 0.1).toFixed(1))))}
+                          disabled={reviewModalZoom <= 0.9}
+                          className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-500 hover:bg-white hover:text-blue-600 disabled:opacity-35 dark:hover:bg-zinc-700"
+                          aria-label="Diminuir zoom"
+                        >
+                          <ZoomOut size={15} />
+                        </button>
+                        <span className="w-9 text-center text-[9px] font-black tabular-nums text-zinc-600 dark:text-zinc-300">
+                          {Math.round(reviewModalZoom * 100)}%
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setReviewModalZoom((value) => Math.min(1.2, Number((value + 0.1).toFixed(1))))}
+                          disabled={reviewModalZoom >= 1.2}
+                          className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-500 hover:bg-white hover:text-blue-600 disabled:opacity-35 dark:hover:bg-zinc-700"
+                          aria-label="Aumentar zoom"
+                        >
+                          <ZoomIn size={15} />
+                        </button>
+                      </div>
+                    )}
+                    <button onClick={() => setModalSlot(null)} className="p-2 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-400 hover:text-red-500 transition-all">
+                      <X size={20} />
+                    </button>
+                  </div>
                 </div>
-                <div className="space-y-4">
+                <div className={`grid gap-3 ${(modalSlot.isConsolidada && modalSlot.topicosRevisao?.length > 0) ? 'sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]' : ''}`}>
                   <div className="flex items-center gap-4 bg-zinc-50 dark:bg-zinc-800/50 p-4 rounded-2xl border border-zinc-100 dark:border-zinc-700">
                     <div className="w-12 h-12 rounded-2xl bg-white dark:bg-zinc-900 flex items-center justify-center shadow-md shadow-zinc-200/50 dark:shadow-none">
                       <Clock size={24} className="text-red-500" />
@@ -947,25 +1181,76 @@ const Step5_Preview = ({
                       <p className="text-xl font-black text-zinc-900 dark:text-white leading-none">{fmtMin(modalSlot.tempoMinutos)}</p>
                     </div>
                   </div>
+                  {modalSlot.isConsolidada && modalSlot.topicosRevisao?.length > 0 && (
+                    <div className="flex items-center gap-4 bg-blue-50 p-4 rounded-2xl border border-blue-100 dark:border-blue-500/20 dark:bg-blue-500/10">
+                      <div className="w-12 h-12 rounded-2xl bg-white dark:bg-zinc-900 flex items-center justify-center shadow-md shadow-blue-200/50 dark:shadow-none">
+                        <RefreshCw size={23} className="text-blue-600 dark:text-blue-300" />
+                      </div>
+                      <div>
+                        <p className="text-[9px] font-black uppercase tracking-widest text-blue-500/80 dark:text-blue-300/80 mb-0.5">Carga da Revisão</p>
+                        <p className="text-xl font-black text-zinc-900 dark:text-white leading-none">{modalSlot.topicosRevisao.length} tópicos</p>
+                      </div>
+                    </div>
+                  )}
 
-                  <div className="p-5 rounded-2xl bg-zinc-50 dark:bg-zinc-800/50 border border-dashed border-zinc-200 dark:border-zinc-700">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-zinc-400 mb-2">
-                      {modalSlot.isConsolidada ? 'Tópicos para Revisar' : 'Objetivo do Estudo'}
+                  <div className="sm:col-span-2 p-4 sm:p-5 rounded-2xl bg-zinc-50 dark:bg-zinc-800/50 border border-dashed border-zinc-200 dark:border-zinc-700">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-zinc-400 mb-3">
+                      {modalSlot.isConsolidada ? 'Tópicos para revisar' : 'Objetivo do Estudo'}
                     </p>
 
                     {/* [FIX-C] Revisão consolidada: lista os tópicos */}
                     {modalSlot.isConsolidada && modalSlot.topicosRevisao?.length > 0 ? (
-                      <ul className="space-y-2">
-                        {modalSlot.topicosRevisao.map((t, i) => (
-                          <li key={i} className="flex items-start gap-2">
-                            <div className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1.5 shrink-0" />
-                            <div>
-                              <p className="text-[10px] font-black uppercase text-zinc-700 dark:text-zinc-300">{t.disciplinaNome}</p>
-                              <p className="text-xs text-zinc-500 dark:text-zinc-400">{t.assunto}</p>
+                      <div className="grid gap-3 lg:grid-cols-2">
+                        {gruposRevisaoModal.map((grupo) => (
+                          <section
+                            key={grupo.chave}
+                            style={getDisciplineCardVars(grupo.cor)}
+                            className="discipline-tinted-card min-w-0 overflow-hidden rounded-2xl border shadow-sm"
+                          >
+                            <div className="flex items-center justify-between gap-3 border-b border-black/5 px-3.5 py-3 dark:border-white/10">
+                              <div className="flex min-w-0 items-center gap-2.5">
+                                <span className={`h-3 w-3 shrink-0 rounded-full shadow-sm ${grupo.cor.bg}`} />
+                                <div className="min-w-0">
+                                  <h4 className={`truncate text-[11px] font-black uppercase tracking-wide ${grupo.cor.text} dark:text-white`}>
+                                    {grupo.nome}
+                                  </h4>
+                                  <p className="mt-0.5 text-[9px] font-bold text-zinc-500 dark:text-zinc-400">
+                                    {grupo.topicos.length} {grupo.topicos.length === 1 ? 'assunto' : 'assuntos'}
+                                  </p>
+                                </div>
+                              </div>
+                              <span className={`shrink-0 rounded-lg border px-2 py-1 text-[9px] font-black ${grupo.cor.soft}`}>
+                                {grupo.tempoMinutos} min
+                              </span>
                             </div>
-                          </li>
+
+                            <ul className="space-y-1.5 p-2.5">
+                              {grupo.topicos.map((topico, indice) => (
+                                <li key={`${topico.slotId || grupo.chave}-${indice}`} className="flex min-w-0 items-start gap-2.5 rounded-xl border border-white/70 bg-white/80 px-2.5 py-2.5 dark:border-white/5 dark:bg-zinc-900/65">
+                                  <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[9px] font-black text-white ${grupo.cor.bg}`}>
+                                    {indice + 1}
+                                  </span>
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex min-w-0 items-start justify-between gap-2">
+                                      <p className="line-clamp-2 text-[11px] font-semibold leading-snug text-zinc-700 dark:text-zinc-200">
+                                        {topico.assunto}
+                                      </p>
+                                      <span className={`shrink-0 rounded-md px-1.5 py-0.5 text-[9px] font-black tabular-nums ${grupo.cor.soft}`}>
+                                        {Number(topico.tempoMinutos || 5)} min
+                                      </span>
+                                    </div>
+                                    {topico.reagendadaPorFila && (
+                                      <span className="mt-1 inline-flex rounded-full bg-amber-100 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">
+                                        Pendente priorizada
+                                      </span>
+                                    )}
+                                  </div>
+                                </li>
+                              ))}
+                            </ul>
+                          </section>
                         ))}
-                      </ul>
+                      </div>
                     ) : (
                       /* [FIX-B] Revisão individual: mostra assunto revisado */
                       <p className="text-sm font-bold text-zinc-700 dark:text-zinc-300 leading-relaxed">
@@ -976,14 +1261,17 @@ const Step5_Preview = ({
                     )}
                   </div>
                 </div>
-                <button onClick={() => setModalSlot(null)} className="w-full mt-8 py-4 bg-red-600 hover:bg-red-700 text-white rounded-2xl font-black uppercase text-xs tracking-[0.2em] active:scale-95 transition-all shadow-xl shadow-red-500/20">
+                </div>
+              </div>
+              <div className="shrink-0 border-t border-zinc-100 bg-white/95 p-4 backdrop-blur dark:border-zinc-800 dark:bg-zinc-900/95">
+                <button onClick={() => setModalSlot(null)} className="w-full py-3.5 bg-red-600 hover:bg-red-700 text-white rounded-2xl font-black uppercase text-xs tracking-[0.2em] active:scale-95 transition-all shadow-xl shadow-red-500/20">
                   {modalSlot.isConsolidada ? 'Fechar' : 'Confirmar Leitura'}
                 </button>
               </div>
             </motion.div>
           </div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>, document.body)}
     </div>
   );
 };

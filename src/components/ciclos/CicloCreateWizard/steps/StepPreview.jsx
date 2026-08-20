@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { CalendarCheck2, Clock3, Target } from 'lucide-react';
 
 import CicloVisual from '../../CicloVisual';
+import { PLANNING_LEVEL_LABELS } from '../../../../utils/planningPriority';
 
 const formatarHoras = (horasDecimais) => {
   if (!horasDecimais || isNaN(horasDecimais)) return '0h';
@@ -26,7 +27,7 @@ const EditalSidebarCard = ({ editalSelecionado, nomeCiclo }) => (
     </div>
     <div className="relative z-10 min-w-0 flex-1 pt-5 sm:w-full sm:pt-8">
       <h3 className="text-[10px] font-black uppercase leading-tight text-zinc-900 line-clamp-3 dark:text-white sm:text-base sm:line-clamp-2">
-        {nomeCiclo || editalSelecionado?.titulo || editalSelecionado?.nome || 'Novo Ciclo'}
+        {nomeCiclo || editalSelecionado?.titulo || editalSelecionado?.nome || 'Novo ciclo semanal'}
       </h3>
       {(editalSelecionado?.cargo || editalSelecionado?.titulo || editalSelecionado?.nome) && (
         <p className="hidden sm:block text-xs font-bold text-zinc-500 dark:text-zinc-400 mt-1.5 line-clamp-2">
@@ -63,14 +64,14 @@ const CycleSummaryCard = ({ horasTotais, totalSessoesPreview, tempoSessaoMinutos
     </div>
     {!compact && (
       <p className="mt-3 text-[11px] font-bold text-zinc-500 dark:text-zinc-400">
-        O ciclo planeja {formatarHoras(totalPlanejadoMinutos / 60)} dentro da sua carga semanal.
+        O ciclo planeja {formatarHoras(totalPlanejadoMinutos / 60)} como meta para cada rodada de 7 dias.
       </p>
     )}
   </div>
 );
 
 const DisciplineDistributionCard = ({ disciplinasPreview, maxSessoesDisciplina }) => (
-  <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:rounded-3xl xl:max-h-[560px]">
+  <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:rounded-3xl">
     <div className="border-b border-zinc-100 bg-zinc-50 px-3 py-2.5 dark:border-zinc-800 dark:bg-card-dark sm:px-4 sm:py-4">
       <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400 sm:text-[10px]">Disciplinas do ciclo</p>
       <p className="mt-1 text-[10px] font-bold text-zinc-500 dark:text-zinc-400 sm:text-[11px]">
@@ -78,14 +79,15 @@ const DisciplineDistributionCard = ({ disciplinasPreview, maxSessoesDisciplina }
       </p>
     </div>
 
-    <div className="grid max-h-[220px] grid-cols-1 gap-1.5 overflow-y-auto p-2.5 pr-1 custom-scrollbar sm:max-h-[300px] sm:grid-cols-2 sm:gap-2 sm:p-4 xl:max-h-[445px] xl:grid-cols-1">
+    <div className="grid max-h-[220px] min-h-0 grid-cols-1 gap-1.5 overflow-y-auto p-2.5 pr-1 custom-scrollbar sm:max-h-[300px] sm:grid-cols-2 sm:gap-2 sm:p-4 xl:max-h-none xl:flex-1 xl:grid-cols-1">
       {disciplinasPreview.map((disciplina) => (
         <div key={disciplina.id} className="rounded-lg border border-zinc-100 bg-zinc-50 px-2 py-1.5 dark:border-zinc-800 dark:bg-zinc-800/60 sm:rounded-xl sm:px-3 sm:py-2">
           <div className="flex items-center justify-between gap-2">
             <div className="min-w-0">
               <p className="text-[10px] font-black leading-tight text-zinc-900 line-clamp-1 dark:text-white sm:text-[13px]">{disciplina.nome}</p>
-              <p className="hidden items-center gap-1 text-[10px] text-zinc-500 mt-0.5 capitalize line-clamp-1 sm:flex">
-                Conhecimento {disciplina.conhecimentoNivel || 0} / Importancia {disciplina.importanciaNivel || 0}
+              <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[8px] leading-tight text-zinc-500 sm:text-[10px]">
+                <span>Conhecimento: {PLANNING_LEVEL_LABELS[disciplina.conhecimentoNivel] || PLANNING_LEVEL_LABELS[0]}</span>
+                <span>Importância: {PLANNING_LEVEL_LABELS[disciplina.importanciaNivel] || PLANNING_LEVEL_LABELS[0]}</span>
                 {disciplina.estudarTodosDias && <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-1.5 py-0.5 text-[7px] font-black uppercase text-red-600 dark:bg-red-950/40 dark:text-red-300"><CalendarCheck2 size={8} /> diaria</span>}
               </p>
             </div>
@@ -102,7 +104,7 @@ const DisciplineDistributionCard = ({ disciplinasPreview, maxSessoesDisciplina }
               }}
             />
           </div>
-          <div className="hidden items-center justify-between mt-1.5 text-[10px] font-semibold text-zinc-500 sm:flex">
+          <div className="mt-1.5 flex items-center justify-between text-[9px] font-semibold text-zinc-500 sm:text-[10px]">
             <span>{formatarHoras((disciplina.tempoAlocadoMinutos || 0) / 60)}</span>
             <span>{disciplina.sessoesPorCiclo} blocos</span>
           </div>
@@ -157,7 +159,7 @@ export default function StepPreview({
       </div>
 
       <div className="w-full px-2 sm:px-4 lg:px-8 overflow-y-auto custom-scrollbar pb-10">
-        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_340px] gap-4 md:gap-5 items-start">
+        <div className="grid grid-cols-1 items-start gap-4 md:gap-5 xl:grid-cols-[minmax(0,1fr)_340px] xl:items-stretch">
           <div className="order-1 grid grid-cols-[minmax(0,0.86fr)_minmax(0,1.14fr)] items-stretch gap-2 sm:hidden">
             <EditalSidebarCard editalSelecionado={editalSelecionado} nomeCiclo={nomeCiclo} />
             <CycleSummaryCard
@@ -169,7 +171,7 @@ export default function StepPreview({
             />
           </div>
 
-          <div className="order-2 min-h-0 rounded-[24px] border border-zinc-200 bg-white p-1.5 shadow-sm dark:border-zinc-800 dark:bg-card-dark sm:min-h-[760px] sm:p-3 lg:p-4 xl:order-1 xl:min-h-[760px]">
+          <div className="order-2 min-h-0 rounded-[24px] border border-zinc-200 bg-white p-1.5 shadow-sm dark:border-zinc-800 dark:bg-card-dark sm:p-3 lg:p-4 xl:order-1 xl:h-[760px]">
             <CicloVisual
               selectedDisciplinaId={selectedDisciplinaId}
               onSelectDisciplina={setSelectedDisciplinaId}
@@ -190,11 +192,11 @@ export default function StepPreview({
             />
           </div>
 
-          <div className="order-3 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:order-2 xl:block xl:space-y-4">
-            <div className="hidden sm:block">
+          <div className="order-3 grid min-h-0 grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:order-2 xl:flex xl:h-[760px] xl:flex-col">
+            <div className="hidden shrink-0 sm:block">
               <EditalSidebarCard editalSelecionado={editalSelecionado} nomeCiclo={nomeCiclo} />
             </div>
-            <div className="hidden sm:block">
+            <div className="hidden shrink-0 sm:block xl:mt-4">
               <CycleSummaryCard
                 horasTotais={horasTotais}
                 totalSessoesPreview={totalSessoesPreview}
@@ -202,7 +204,7 @@ export default function StepPreview({
                 totalPlanejadoMinutos={totalPlanejadoMinutos}
               />
             </div>
-            <div className="sm:col-span-2 xl:col-span-1">
+            <div className="min-h-0 sm:col-span-2 xl:mt-4 xl:flex-1 xl:overflow-hidden">
               <DisciplineDistributionCard
                 disciplinasPreview={disciplinasPreview}
                 maxSessoesDisciplina={maxSessoesDisciplina}

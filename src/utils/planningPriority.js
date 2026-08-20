@@ -2,10 +2,10 @@ export const PLANNING_LEVEL_MIN = 1;
 export const PLANNING_LEVEL_MAX = 5;
 
 export const PLANNING_LEVEL_LABELS = {
-  0: 'Nao definido',
+  0: 'Não definido',
   1: 'Muito baixo',
   2: 'Baixo',
-  3: 'Medio',
+  3: 'Médio',
   4: 'Alto',
   5: 'Muito alto',
 };

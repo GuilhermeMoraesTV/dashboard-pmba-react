@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import {
   Target, BookOpen, Check, CheckCircle2, Play, ChevronRight,
   Sword, Flame, ShieldAlert, Trophy,
-  ListTodo, Clock, Loader2, CalendarPlus
+  ListTodo, Clock, Loader2, CalendarPlus, Eye, EyeOff
 } from 'lucide-react';
 import { formatDateKeyLocal, getAgendaSemana, getCronogramaReviewBuckets, getWeekOffsetFromDate } from '../../services/scheduling/review';
 import { collection, deleteField, doc, onSnapshot, serverTimestamp, updateDoc } from 'firebase/firestore';
@@ -991,7 +991,7 @@ function HojeCard({
         if (!completionGlowActive || isInteractiveClick(event.target)) return;
         openCompletionModal();
       }}
-      className={`group relative z-20 flex min-h-[400px] flex-col overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 bg-white p-6 transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/50 hover:shadow-lg dark:border-white/10 dark:bg-card-dark ${completionGlowActive ? '!border-l-emerald-500/35 hover:!border-l-emerald-500 dark:!border-l-emerald-500/35 dark:hover:!border-l-emerald-500 dark:shadow-[0_0_24px_rgba(16,185,129,0.1)] dark:hover:shadow-[0_0_36px_rgba(16,185,129,0.16)] cursor-pointer' : '!border-l-red-500/20 hover:!border-l-red-500 dark:!border-l-red-500/25 dark:hover:!border-l-red-500'} ${className}`}
+      className={`group relative z-20 flex min-h-[400px] flex-col overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 bg-white p-4 transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/50 hover:shadow-lg dark:border-white/10 dark:bg-card-dark sm:p-5 ${completionGlowActive ? '!border-l-emerald-500/35 hover:!border-l-emerald-500 dark:!border-l-emerald-500/35 dark:hover:!border-l-emerald-500 dark:shadow-[0_0_24px_rgba(16,185,129,0.1)] dark:hover:shadow-[0_0_36px_rgba(16,185,129,0.16)] cursor-pointer' : '!border-l-red-500/20 hover:!border-l-red-500 dark:!border-l-red-500/25 dark:hover:!border-l-red-500'} ${className}`}
     >
       <div className="pointer-events-none absolute inset-0 z-0 bg-white dark:bg-card-dark" />
 
@@ -1001,7 +1001,7 @@ function HojeCard({
       <div className="pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-zinc-500/5 opacity-40 blur-[80px] transition-all duration-700" />
 
       <div className="relative z-20 flex h-full w-full min-h-0 flex-col">
-        <div className={`mb-4 shrink-0 overflow-hidden rounded-2xl border p-3 shadow-md backdrop-blur-xl transition-all duration-500 dark:border-zinc-800 dark:bg-card-dark/85 ${
+        <div className={`mb-3 shrink-0 overflow-hidden rounded-2xl border p-2.5 shadow-md backdrop-blur-xl transition-all duration-500 dark:border-zinc-800 dark:bg-card-dark/85 sm:p-3 ${
           completionGlowActive
             ? 'border-emerald-200/80 bg-white/90 shadow-emerald-500/10 dark:shadow-emerald-950/20'
             : activePanel === 'estudo'
@@ -1050,7 +1050,27 @@ function HojeCard({
             )}
           </div>
 
-          <div className="relative z-10 mt-2 flex items-center justify-end">
+          <div className="relative z-10 mt-2 flex items-center justify-between gap-2">
+            {modoCicloAtivo && activePanel === 'estudo' ? (
+              <button
+                type="button"
+                role="switch"
+                aria-checked={showCycleSubjects}
+                aria-label={showCycleSubjects ? 'Ocultar assuntos sugeridos' : 'Exibir assuntos sugeridos'}
+                title={showCycleSubjects ? 'Ocultar assuntos sugeridos' : 'Exibir assuntos sugeridos'}
+                disabled={cycleSubjectsLoading}
+                onClick={handleToggleCycleSubjects}
+                className={`inline-flex h-7 shrink-0 items-center gap-1.5 rounded-xl border px-2 text-[8px] font-black uppercase tracking-wider transition-colors disabled:cursor-wait disabled:opacity-60 sm:text-[9px] ${showCycleSubjects
+                  ? 'border-red-200 bg-red-50 text-red-600 dark:border-red-900/50 dark:bg-red-950/25 dark:text-red-400'
+                  : 'border-zinc-200 bg-zinc-50 text-zinc-400 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300'
+                }`}
+              >
+                {showCycleSubjects ? <Eye size={12} /> : <EyeOff size={12} />}
+                <span>Assuntos</span>
+              </button>
+            ) : (
+              <span aria-hidden="true" className="min-w-0" />
+            )}
             <div className="flex shrink-0 items-center rounded-xl border border-zinc-100 bg-zinc-50 p-0.5 dark:border-white/5 dark:bg-white/5">
               <button
                 type="button"
@@ -1173,7 +1193,7 @@ function HojeCard({
           </div>
         </div>
         {activePanel === 'estudo' ? (
-          <div className="study-guide-scroll custom-scrollbar min-h-0 flex-1 space-y-4 overflow-y-auto pr-2">
+          <div className="study-guide-scroll custom-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto pr-1.5">
             {modoCicloAtivo ? (
               <CardSessoesCicloHoje
                 ciclo={activeCicloData}
@@ -1186,6 +1206,7 @@ function HojeCard({
                 showAssuntos={showCycleSubjects}
                 onToggleAssuntos={handleToggleCycleSubjects}
                 assuntosToggleLoading={cycleSubjectsLoading}
+                hideHeader
               />
             ) : estudosVisiveis.length > 0 ? estudosVisiveis.map((s) => {
               const key = s.slotIdBase || s.slotId || s.globalIndex;
@@ -1243,7 +1264,7 @@ function HojeCard({
             )}
           </div>
         )}
-        <div className="mt-4 shrink-0 border-t border-zinc-100 pt-4 dark:border-white/5">
+        <div className="mt-3 shrink-0 border-t border-zinc-100 pt-3 dark:border-white/5">
           <button
             onClick={() => {
               if (activePanel === 'estudo') {

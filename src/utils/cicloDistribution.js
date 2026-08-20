@@ -37,6 +37,9 @@ export const normalizarDuracaoSessao = (duration, options = {}) => {
   const min = Math.ceil(rawMin / 10) * 10;
   const max = Math.max(min, Math.floor(rawMax / 10) * 10);
   const rounded = Math.round(Math.max(1, Number(duration) || min) / 10) * 10;
+  if (options.allowPartial === true && Number(duration) > 0) {
+    return Math.min(max, Math.max(1, rounded));
+  }
   return Math.min(max, Math.max(min, rounded));
 };
 

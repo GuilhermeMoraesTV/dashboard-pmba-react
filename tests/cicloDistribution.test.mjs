@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { calcularDistribuicao, gerarOrdemSessoes } from '../src/utils/cicloDistribution.js';
+import { calcularDistribuicao, gerarOrdemSessoes, normalizarDuracaoSessao } from '../src/utils/cicloDistribution.js';
 
 describe('cicloDistribution rotativo livre', () => {
   it('prioriza menor conhecimento quando a importancia e igual', () => {
@@ -106,5 +106,10 @@ describe('cicloDistribution rotativo livre', () => {
       ordem.filter((sessao) => sessao.disciplinaId === 'b').map((sessao) => sessao.tempoPlanejadoMinutos),
       [35, 55],
     );
+  });
+
+  it('preserva uma sessao parcial explicita no ciclo visual', () => {
+    assert.equal(normalizarDuracaoSessao(10, { min: 50, max: 50, allowPartial: true }), 10);
+    assert.equal(normalizarDuracaoSessao(10, { min: 50, max: 50 }), 50);
   });
 });

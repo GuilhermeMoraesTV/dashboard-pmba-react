@@ -5,6 +5,8 @@ export default function StepHorarios({
   horarios,
   setHorarios,
   editalSelecionado,
+  usarDuracaoUnica = true,
+  ocultarConfiguracaoDuracao = false,
   duracaoMinimaSessaoMinutos,
   setDuracaoMinimaSessaoMinutos,
   duracaoMaximaSessaoMinutos,
@@ -22,6 +24,7 @@ export default function StepHorarios({
   }, [horarios]);
 
   useEffect(() => {
+    if (!usarDuracaoUnica) return;
     const proximoTempo = Math.max(5, Math.min(tempoBlocoMinutos, limiteDiarioMinutos));
     if (
       Number(duracaoMinimaSessaoMinutos) === proximoTempo
@@ -36,12 +39,16 @@ export default function StepHorarios({
     setDuracaoMaximaSessaoMinutos,
     setDuracaoMinimaSessaoMinutos,
     tempoBlocoMinutos,
+    usarDuracaoUnica,
   ]);
 
   const config = {
     mostrarModoMontagem: false,
-    usarDuracaoUnica: true,
+    ocultarConfiguracaoDuracao,
+    usarDuracaoUnica,
     tempoSessaoMinutos: Math.min(tempoBlocoMinutos, limiteDiarioMinutos),
+    duracaoMinimaSessaoMinutos,
+    duracaoMaximaSessaoMinutos,
     maxDuracaoSessaoMinutos: limiteDiarioMinutos,
   };
 
@@ -52,6 +59,12 @@ export default function StepHorarios({
       editalSelecionado={editalSelecionado}
       config={config}
       onConfigChange={(next) => {
+        if (next.usarDuracaoUnica !== true) {
+          setDuracaoMinimaSessaoMinutos(Math.max(5, Number(next.duracaoMinimaSessaoMinutos) || 30));
+          setDuracaoMaximaSessaoMinutos(Math.max(5, Number(next.duracaoMaximaSessaoMinutos) || 60));
+          return;
+        }
+
         const proximoTempo = Math.max(
           5,
           Math.min(Number(next.tempoSessaoMinutos) || 5, limiteDiarioMinutos),
