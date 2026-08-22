@@ -27,6 +27,7 @@ import EditaisManagerModal from './EditaisManager';
 import HeaderAdmin from './HeaderAdmin';
 import StudyingNowPanel from './LiveStudyMonitor';
 import UserDetailModal from './UserDetailModal';
+import { LEAGUES_ENABLED } from '../../config/featureFlags';
 
 const DEFAULT_FILTERS = {
   windowDays: 30,
@@ -250,7 +251,7 @@ function AdminPage() {
             { id: 'analytics', label: 'Analytics' },
             { id: 'users', label: 'Usuários' },
             { id: 'gamification', label: 'Gamificação' },
-            { id: 'leagues', label: 'Ligas' },
+            ...(LEAGUES_ENABLED ? [{ id: 'leagues', label: 'Ligas' }] : []),
             { id: 'groups', label: 'Grupos' },
             { id: 'moderation', label: 'Moderação' },
             { id: 'communications', label: 'Comunicações' },
@@ -281,7 +282,7 @@ function AdminPage() {
           <AdminUsersSection users={users} loading={loading} onOpenUser={setDetailUser} onFeedback={setAdminFeedback} />
         ) : activeTab === 'gamification' ? (
           <AdminGamificationSection users={users} loading={loading} onOpenUser={setDetailUser} onFeedback={setAdminFeedback} />
-        ) : activeTab === 'leagues' ? (
+        ) : activeTab === 'leagues' && LEAGUES_ENABLED ? (
           <AdminLeaguesSection users={users} onOpenUser={setDetailUser} onFeedback={setAdminFeedback} />
         ) : activeTab === 'groups' ? (
           <AdminGroupsSection users={users} onOpenUser={setDetailUser} onFeedback={setAdminFeedback} />

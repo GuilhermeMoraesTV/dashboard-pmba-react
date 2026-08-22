@@ -7,6 +7,7 @@ import {
 import { CATALOGO_EDITAIS } from '../pages/AdminPage/EditaisManager';
 import { normalizeNotification } from '../services/notificationContract';
 import { respondToGroupEntryRequest } from '../services/groupMembership';
+import { isLeagueOnlyNotification, sanitizeLeagueXPEvent } from '../config/featureFlags';
 
 // =======================================================
 // HELPERS E ALGORITMOS DE MATCHING (INTELIGÊNCIA)
@@ -579,11 +580,11 @@ export const useNotifications = (user) => {
     const xpQuery = query(collection(db, 'users', user.uid, 'gamification', 'profile', 'xp_events'), orderBy('occurredAt', 'desc'), limit(40));
     const personalQuery = query(collection(db, 'users', user.uid, 'notifications'), orderBy('createdAt', 'desc'), limit(40));
     const stopXP = onSnapshot(xpQuery, (snapshot) => {
-      state.xp = snapshot.docs.map((item) => ({ id: item.id, ...item.data(), _type: 'operational', operationalKind: 'xp', sourceCollection: 'xp_events', title: `+${Number(item.data().xpTotal || 0)} XP`, timestamp: item.data().occurredAt?.toDate?.() || new Date(), requiresAction: false })).filter((item) => item.isRead !== true);
+      state.xp = snapshot.docs.map((item) => sanitizeLeagueXPEvent({ id: item.id, ...item.data(), _type: 'operational', operationalKind: 'xp', sourceCollection: 'xp_events', title: `+${Number(item.data().xpTotal || 0)} XP`, timestamp: item.data().occurredAt?.toDate?.() || new Date(), requiresAction: false })).filter((item) => item.isRead !== true);
       publish();
     }, (error) => console.warn('[Notificações] XP indisponível:', error.code || error));
     const stopPersonal = onSnapshot(personalQuery, (snapshot) => {
-      state.personal = snapshot.docs.map((item) => ({ id: item.id, ...item.data(), _type: 'operational', operationalKind: item.data().type || 'system', sourceCollection: 'notifications', timestamp: item.data().createdAt?.toDate?.() || new Date() })).filter((item) => item.isRead !== true);
+      state.personal = snapshot.docs.map((item) => ({ id: item.id, ...item.data(), _type: 'operational', operationalKind: item.data().type || 'system', sourceCollection: 'notifications', timestamp: item.data().createdAt?.toDate?.() || new Date() })).filter((item) => item.isRead !== true && !isLeagueOnlyNotification(item));
       publish();
     }, (error) => console.warn('[Notificações] Feed pessoal indisponível:', error.code || error));
     return () => { stopXP(); stopPersonal(); };

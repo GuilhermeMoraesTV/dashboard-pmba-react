@@ -444,31 +444,21 @@ const ModalConfirmacaoExclusaoCiclo = ({ ciclo, onClose, onConfirm, loading }) =
   );
 };
 
-const ProfileMetricCard = ({ icon: Icon, label, value, subtext, tone = 'zinc', delay = 0, className = '' }) => {
-  const tones = {
-    zinc: 'bg-zinc-50 dark:bg-zinc-800/70 border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300',
-    red: 'bg-red-50 dark:bg-red-950/30 border-red-100 dark:border-red-900/40 text-red-600 dark:text-red-300',
-    blue: 'bg-blue-50 dark:bg-blue-950/30 border-blue-100 dark:border-blue-900/40 text-blue-600 dark:text-blue-300',
-    green: 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-100 dark:border-emerald-900/40 text-emerald-600 dark:text-emerald-300',
-    amber: 'bg-amber-50 dark:bg-amber-950/30 border-amber-100 dark:border-amber-900/40 text-amber-600 dark:text-amber-300',
-  };
-
+const ProfileMetricCard = ({ icon: Icon, label, value, subtext, delay = 0, className = '' }) => {
   return (
     <motion.article
       initial={{ opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay }}
-      className={`min-h-[112px] rounded-[24px] border p-4 shadow-sm ${tones[tone]} ${className}`}
+      className={`group relative min-h-[108px] overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white px-3 py-2.5 shadow-soft transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/40 hover:!border-l-red-500 hover:shadow-lg dark:border-white/10 dark:!border-l-red-500/25 dark:bg-card-dark dark:hover:border-accent-light/20 dark:hover:!border-l-red-500 ${className}`}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="mb-1 text-[9px] font-black uppercase tracking-[0.16em] opacity-70">{label}</p>
-          <p className="truncate text-xl font-black tracking-tight text-zinc-900 dark:text-white sm:text-2xl">{value}</p>
-          {subtext ? <p className="mt-1 text-[10px] font-semibold opacity-70">{subtext}</p> : null}
-        </div>
-        <div className="rounded-2xl border border-white/70 bg-white/70 p-2.5 shadow-sm dark:border-zinc-700 dark:bg-zinc-800/60">
-          <Icon size={16}/>
-        </div>
+      <div className="relative z-20 flex h-full min-w-0 flex-col justify-center gap-0.5">
+        <p className="w-full truncate text-[10.5px] font-bold uppercase leading-none tracking-wider text-text-secondary dark:text-text-dark-secondary">{label}</p>
+        <p className="mt-1 truncate text-xl font-extrabold leading-none tracking-tight text-text-primary dark:text-text-dark-primary md:text-2xl">{value}</p>
+        {subtext ? <p className="mt-1 truncate text-[9px] font-semibold text-zinc-400 dark:text-zinc-500">{subtext}</p> : null}
+      </div>
+      <div className="pointer-events-none absolute -bottom-4 -right-4 z-10 text-red-500/10 transition-all duration-700 ease-out group-hover:scale-125 group-hover:rotate-[-10deg] dark:text-red-500/5">
+        <Icon strokeWidth={1.5} className="h-16 w-16 md:h-20 md:w-20"/>
       </div>
     </motion.article>
   );
@@ -1173,11 +1163,11 @@ function ProfilePage({
       <AnimatePresence>{message.text && (<motion.div initial={{opacity: 0, y: -20}} animate={{opacity: 1, y: 0}} exit={{opacity: 0}} className="fixed top-6 right-6 z-[100]"><div className={`px-4 py-3 rounded-xl border shadow-2xl flex items-center gap-3 backdrop-blur-md ${message.type === 'success' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 'bg-red-500/10 border-red-500/20 text-red-600 dark:text-red-400'}`}>{message.type === 'success' ? <CheckSquare size={18}/> : <AlertTriangle size={18}/>}<span className="font-bold text-sm">{message.text}</span><button onClick={() => setMessage({type:'', text:''})} className="ml-2 hover:opacity-50"><X size={14}/></button></div></motion.div>)}</AnimatePresence>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
-          <ProfileMetricCard icon={Clock} label="Tempo Total" value={`${stats.horasTotais}h ${stats.minutosRestantes}m`} subtext="Acumulado" tone="green" delay={0.05}/>
-          <ProfileMetricCard icon={ListChecks} label="Questões" value={stats.questoes.toLocaleString('pt-BR')} subtext="Resolvidas" tone="blue" delay={0.1}/>
-          <ProfileMetricCard icon={CircleCheckBig} label="Acertos" value={stats.acertos.toLocaleString('pt-BR')} subtext="Respostas certas" tone="green" delay={0.15}/>
-          <ProfileMetricCard icon={CircleX} label="Erros" value={stats.erros.toLocaleString('pt-BR')} subtext="Respostas erradas" tone="red" delay={0.2}/>
-          <ProfileMetricCard icon={CalendarIcon} label="Dias Ativos" value={stats.diasAtivos.toLocaleString('pt-BR')} subtext="Com estudo registrado" tone="amber" delay={0.25} className="col-span-2 sm:col-span-1"/>
+          <ProfileMetricCard icon={Clock} label="Tempo Total" value={`${stats.horasTotais}h ${stats.minutosRestantes}m`} subtext="Acumulado" delay={0.05}/>
+          <ProfileMetricCard icon={ListChecks} label="Questões" value={stats.questoes.toLocaleString('pt-BR')} subtext="Resolvidas" delay={0.1}/>
+          <ProfileMetricCard icon={CircleCheckBig} label="Acertos" value={stats.acertos.toLocaleString('pt-BR')} subtext="Respostas certas" delay={0.15}/>
+          <ProfileMetricCard icon={CircleX} label="Erros" value={stats.erros.toLocaleString('pt-BR')} subtext="Respostas erradas" delay={0.2}/>
+          <ProfileMetricCard icon={CalendarIcon} label="Dias Ativos" value={stats.diasAtivos.toLocaleString('pt-BR')} subtext="Com estudo registrado" delay={0.25} className="col-span-2 sm:col-span-1"/>
       </div>
 
       <motion.button initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} onClick={() => { setShowHistoryModal(true); setSelectedCycleId(null); setSelectedDate(dateToYMD(new Date())); }} className="group flex w-full items-center justify-between overflow-hidden rounded-2xl border border-zinc-900 bg-zinc-900 px-4 py-3 text-left shadow-sm transition-all hover:shadow-lg dark:border-white dark:bg-white sm:px-5">

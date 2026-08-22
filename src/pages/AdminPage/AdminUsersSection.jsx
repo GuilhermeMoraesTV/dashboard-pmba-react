@@ -58,7 +58,7 @@ const formatDuration = (minutes) => {
 
 const normalized = (value) => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
-const filterAdminUsers = (users, { search = '', activity = 'all', status = 'all', league = 'all', group = 'all' } = {}, now = new Date()) => {
+const filterAdminUsers = (users, { search = '', activity = 'all', status = 'all', group = 'all' } = {}, now = new Date()) => {
   const query = normalized(search);
   const nowMillis = now.getTime();
   return (users || []).filter((user) => {
@@ -67,7 +67,6 @@ const filterAdminUsers = (users, { search = '', activity = 'all', status = 'all'
     const userStatus = user.status || 'active';
     const matchesSearch = !query || [user.name, user.email, user.id, user.uid].some((value) => normalized(value).includes(query));
     const matchesStatus = status === 'all' || userStatus === status;
-    const matchesLeague = league === 'all' || String(user.league || '') === league;
     const matchesGroup = group === 'all' || String(user.mainGroupId || '') === group;
     const matchesActivity = activity === 'all'
       || (activity === 'active24h' && inactiveDays < 1)
@@ -78,7 +77,7 @@ const filterAdminUsers = (users, { search = '', activity = 'all', status = 'all'
       || (activity === 'noSchedule' && !user.hasActiveSchedule)
       || (activity === 'noCycle' && !user.hasActiveCycle)
       || (activity === 'noGamification' && !user.hasGamification);
-    return matchesSearch && matchesStatus && matchesLeague && matchesGroup && matchesActivity;
+    return matchesSearch && matchesStatus && matchesGroup && matchesActivity;
   });
 };
 
@@ -119,14 +118,13 @@ const ActionButton = ({ icon: Icon, label, onClick, disabled, danger = false }) 
 );
 
 const AdminUsersSection = ({ users = [], loading, onOpenUser, onFeedback }) => {
-  const [filters, setFilters] = useState({ search: '', activity: 'all', status: 'all', league: 'all', group: 'all' });
+  const [filters, setFilters] = useState({ search: '', activity: 'all', status: 'all', group: 'all' });
   const [visibleCount, setVisibleCount] = useState(50);
   const [runningKey, setRunningKey] = useState('');
   const [draggingTable, setDraggingTable] = useState(false);
   const tableScrollRef = useRef(null);
   const dragStateRef = useRef({ pointerId: null, startX: 0, startScrollLeft: 0 });
 
-  const leagues = useMemo(() => [...new Set(users.map((user) => user.league).filter((value) => value && value !== 'Sem liga'))].sort(), [users]);
   const groups = useMemo(() => [...new Map(users.filter((user) => user.mainGroupId).map((user) => [user.mainGroupId, user.mainGroupName || user.mainGroupId])).entries()].sort((a, b) => a[1].localeCompare(b[1])), [users]);
   const filteredUsers = useMemo(() => filterAdminUsers(users, filters), [filters, users]);
   const visibleUsers = filteredUsers.slice(0, visibleCount);
@@ -219,7 +217,7 @@ const AdminUsersSection = ({ users = [], loading, onOpenUser, onFeedback }) => {
           </button>
         </div>
 
-        <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(260px,1.4fr)_repeat(4,minmax(150px,0.7fr))]">
+        <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(260px,1.4fr)_repeat(3,minmax(150px,0.7fr))]">
           <label className="relative">
             <span className="sr-only">Buscar usuario</span>
             <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
@@ -227,7 +225,6 @@ const AdminUsersSection = ({ users = [], loading, onOpenUser, onFeedback }) => {
           </label>
           <select value={filters.activity} onChange={(event) => updateFilter('activity', event.target.value)} className="h-11 rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-xs font-bold dark:border-zinc-700 dark:bg-zinc-900">{FILTERS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
           <select value={filters.status} onChange={(event) => updateFilter('status', event.target.value)} className="h-11 rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-xs font-bold dark:border-zinc-700 dark:bg-zinc-900"><option value="all">Todos os status</option><option value="active">Ativos</option><option value="blocked">Bloqueados</option><option value="disabled">Desativados</option></select>
-          <select value={filters.league} onChange={(event) => updateFilter('league', event.target.value)} className="h-11 rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-xs font-bold dark:border-zinc-700 dark:bg-zinc-900"><option value="all">Todas as ligas</option>{leagues.map((league) => <option key={league} value={league}>{league}</option>)}</select>
           <select value={filters.group} onChange={(event) => updateFilter('group', event.target.value)} className="h-11 rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-xs font-bold dark:border-zinc-700 dark:bg-zinc-900"><option value="all">Todos os grupos</option>{groups.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select>
         </div>
       </div>
@@ -262,7 +259,7 @@ const AdminUsersSection = ({ users = [], loading, onOpenUser, onFeedback }) => {
                       <td className="px-3 py-3"><StatusBadge status={user.status} /><p className="mt-1 text-[10px] font-bold text-zinc-500">{user.perfil || user.access?.role || user.role || 'Nao informado'}</p></td>
                       <td className="px-3 py-3 text-[10px] font-semibold text-zinc-500"><p>{formatDate(user.createdAt)}</p><p className="mt-1">{formatDate(user.lastStudy, true)}</p></td>
                       <td className="px-3 py-3"><p className="text-xs font-black text-zinc-800 dark:text-zinc-100">{formatDuration(user.totalMinutes)}</p><p className="mt-1 text-[10px] font-semibold text-zinc-500">{user.totalQuestions}q · {user.accuracy}%</p></td>
-                      <td className="px-3 py-3"><p className="text-xs font-black text-zinc-800 dark:text-zinc-100">Nivel {user.level || '-'}</p><p className="mt-1 text-[10px] font-semibold text-zinc-500">{user.league}</p></td>
+                      <td className="px-3 py-3"><p className="text-xs font-black text-zinc-800 dark:text-zinc-100">Nivel {user.level || '-'}</p><p className="mt-1 text-[10px] font-semibold text-zinc-500">{Number(user.gamification?.totalXP || 0).toLocaleString('pt-BR')} XP</p></td>
                       <td className="px-3 py-3"><p className="max-w-[160px] truncate text-xs font-bold text-zinc-700 dark:text-zinc-200">{user.mainGroupName}</p><p className="mt-1 text-[9px] text-zinc-400">{user.mainGroupId || 'Sem grupo principal'}</p></td>
                       <td className="px-3 py-3"><RiskBadge risk={user.risk} /></td>
                       <td className="sticky right-0 z-10 min-w-[260px] bg-white px-4 py-3 shadow-[-12px_0_18px_-18px_rgba(0,0,0,0.55)] group-hover:bg-zinc-50 dark:bg-card-dark dark:group-hover:bg-zinc-900">{renderActions(user)}</td>
@@ -277,7 +274,7 @@ const AdminUsersSection = ({ users = [], loading, onOpenUser, onFeedback }) => {
             {visibleUsers.map((user) => (
               <article key={user.id} className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-card-dark">
                 <div className="flex items-start gap-3"><UserAvatar user={user} /><button type="button" onClick={() => onOpenUser(user)} className="min-w-0 flex-1 text-left"><p className="truncate text-sm font-black text-zinc-900 dark:text-white">{user.name}</p><p className="truncate text-[11px] font-semibold text-zinc-500">{user.email}</p><p className="mt-1 truncate font-mono text-[9px] text-zinc-400">{user.id}</p></button><StatusBadge status={user.status} /></div>
-                <div className="mt-4 grid grid-cols-2 gap-2 text-[10px]"><div className="rounded-xl bg-zinc-50 p-3 dark:bg-zinc-900/60"><p className="font-black uppercase tracking-wider text-zinc-400">Desempenho</p><p className="mt-1 font-bold text-zinc-800 dark:text-zinc-100">{formatDuration(user.totalMinutes)} · {user.totalQuestions}q · {user.accuracy}%</p></div><div className="rounded-xl bg-zinc-50 p-3 dark:bg-zinc-900/60"><p className="font-black uppercase tracking-wider text-zinc-400">Gamificacao</p><p className="mt-1 font-bold text-zinc-800 dark:text-zinc-100">Nivel {user.level || '-'} · {user.league}</p></div></div>
+                <div className="mt-4 grid grid-cols-2 gap-2 text-[10px]"><div className="rounded-xl bg-zinc-50 p-3 dark:bg-zinc-900/60"><p className="font-black uppercase tracking-wider text-zinc-400">Desempenho</p><p className="mt-1 font-bold text-zinc-800 dark:text-zinc-100">{formatDuration(user.totalMinutes)} · {user.totalQuestions}q · {user.accuracy}%</p></div><div className="rounded-xl bg-zinc-50 p-3 dark:bg-zinc-900/60"><p className="font-black uppercase tracking-wider text-zinc-400">Gamificacao</p><p className="mt-1 font-bold text-zinc-800 dark:text-zinc-100">Nivel {user.level || '-'} · {Number(user.gamification?.totalXP || 0).toLocaleString('pt-BR')} XP</p></div></div>
                 <div className="mt-3 flex items-center justify-between gap-3"><RiskBadge risk={user.risk} />{renderActions(user)}</div>
               </article>
             ))}

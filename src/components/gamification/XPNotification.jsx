@@ -1,8 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { collection, doc, onSnapshot, serverTimestamp, writeBatch } from 'firebase/firestore';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { collection, doc, getDocFromServer, onSnapshot, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Gift, Trophy, Zap } from 'lucide-react';
 import { db } from '../../firebaseConfig';
+import { GAMIFICATION_SOURCE_SAVED_EVENT, getAcademicXPEventId } from '../../utils/gamificationRealtime';
+import { sanitizeLeagueXPEvent } from '../../config/featureFlags';
 
 const eventMillis = (event) => event.occurredAt?.toMillis?.() || event.createdAt?.toMillis?.() || 0;
 const BULK_EVENT_THRESHOLD = 8;
@@ -40,6 +42,17 @@ const XPNotification = ({ user }) => {
   const knownIdsRef = useRef(new Set());
   const tourActiveRef = useRef(false);
 
+  const enqueueEvents = useCallback((events) => {
+    const incoming = events
+      .map(sanitizeLeagueXPEvent)
+      .filter((item) => item?.id && item.isRead !== true && !knownIdsRef.current.has(item.id))
+      .sort((a, b) => eventMillis(a) - eventMillis(b) || a.id.localeCompare(b.id));
+    if (!incoming.length) return false;
+    incoming.forEach((item) => knownIdsRef.current.add(item.id));
+    setQueue((current) => [...current, ...collapseIncomingEvents(incoming)]);
+    return true;
+  }, []);
+
   useEffect(() => {
     const handleTour = (event) => {
       tourActiveRef.current = Boolean(event.detail);
@@ -55,16 +68,40 @@ const XPNotification = ({ user }) => {
     setActive(null);
     if (!user?.uid) return undefined;
     const eventsRef = collection(db, 'users', user.uid, 'gamification', 'profile', 'xp_events');
-    return onSnapshot(eventsRef, (snapshot) => {
-      const incoming = snapshot.docs
-        .map((item) => ({ id: item.id, ...item.data() }))
-        .filter((item) => item.isRead !== true && !knownIdsRef.current.has(item.id))
-        .sort((a, b) => eventMillis(a) - eventMillis(b) || a.id.localeCompare(b.id));
-      if (!incoming.length) return;
-      incoming.forEach((item) => knownIdsRef.current.add(item.id));
-      setQueue((current) => [...current, ...collapseIncomingEvents(incoming)]);
+    return onSnapshot(eventsRef, { includeMetadataChanges: true }, (snapshot) => {
+      enqueueEvents(snapshot.docs.map((item) => ({ id: item.id, ...item.data() })));
     }, (error) => console.error('[Gamification] Erro ao carregar fila de XP:', error));
-  }, [user?.uid]);
+  }, [enqueueEvents, user?.uid]);
+
+  useEffect(() => {
+    if (!user?.uid) return undefined;
+    let disposed = false;
+    const wait = (delay) => new Promise((resolve) => window.setTimeout(resolve, delay));
+    const handleSourceSaved = async (event) => {
+      if (event.detail?.uid !== user.uid) return;
+      const eventId = getAcademicXPEventId(event.detail);
+      if (!eventId) return;
+      const eventRef = doc(db, 'users', user.uid, 'gamification', 'profile', 'xp_events', eventId);
+
+      for (const delay of [0, 400, 800, 1200, 2000, 3200]) {
+        if (knownIdsRef.current.has(eventId)) return;
+        if (delay) await wait(delay);
+        if (disposed) return;
+        try {
+          const snapshot = await getDocFromServer(eventRef);
+          if (snapshot.exists() && enqueueEvents([{ id: snapshot.id, ...snapshot.data() }])) return;
+        } catch (error) {
+          if (delay === 3200) console.warn('[Gamification] Atualização direta da notificação indisponível:', error);
+        }
+      }
+    };
+
+    window.addEventListener(GAMIFICATION_SOURCE_SAVED_EVENT, handleSourceSaved);
+    return () => {
+      disposed = true;
+      window.removeEventListener(GAMIFICATION_SOURCE_SAVED_EVENT, handleSourceSaved);
+    };
+  }, [enqueueEvents, user?.uid]);
 
   useEffect(() => {
     if (active || !queue.length || tourActiveRef.current) return undefined;

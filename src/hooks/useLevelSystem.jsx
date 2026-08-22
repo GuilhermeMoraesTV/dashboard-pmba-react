@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { doc, getDocFromServer, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { ACHIEVEMENTS, getLeague, getLevelProgress } from '../utils/gamification';
+import { GAMIFICATION_SOURCE_SAVED_EVENT } from '../utils/gamificationRealtime';
 
 const EMPTY_PROFILE = {
   totalXP: 0,
@@ -23,6 +24,14 @@ export const useLevelSystem = (user) => {
   const uid = user?.uid || null;
   const [profile, setProfile] = useState(EMPTY_PROFILE);
   const [loading, setLoading] = useState(Boolean(uid));
+  const profileRef = useRef(EMPTY_PROFILE);
+
+  const applyProfile = useCallback((nextProfile) => {
+    const normalized = { ...EMPTY_PROFILE, ...(nextProfile || {}) };
+    profileRef.current = normalized;
+    setProfile(normalized);
+    setLoading(false);
+  }, []);
 
   useEffect(() => {
     if (!uid) {
@@ -31,14 +40,54 @@ export const useLevelSystem = (user) => {
       return undefined;
     }
     setLoading(true);
-    return onSnapshot(doc(db, 'users', uid, 'gamification', 'profile'), (snapshot) => {
-      setProfile({ ...EMPTY_PROFILE, ...(snapshot.exists() ? snapshot.data() : {}) });
-      setLoading(false);
+    const profileDoc = doc(db, 'users', uid, 'gamification', 'profile');
+    return onSnapshot(profileDoc, { includeMetadataChanges: true }, (snapshot) => {
+      applyProfile(snapshot.exists() ? snapshot.data() : null);
     }, (error) => {
       console.error('[Gamification] Erro ao carregar perfil:', error);
       setLoading(false);
     });
-  }, [uid]);
+  }, [applyProfile, uid]);
+
+  useEffect(() => {
+    if (!uid) return undefined;
+    let refreshGeneration = 0;
+    let disposed = false;
+    const profileDoc = doc(db, 'users', uid, 'gamification', 'profile');
+
+    const timestampMillis = (value) => value?.toMillis?.() || value?.toDate?.()?.getTime?.() || 0;
+    const wait = (delay) => new Promise((resolve) => window.setTimeout(resolve, delay));
+    const handleSourceSaved = async (event) => {
+      if (event.detail?.uid !== uid) return;
+      const generation = ++refreshGeneration;
+      const baselineUpdatedAt = timestampMillis(profileRef.current.updatedAt);
+      const baselineTotalXP = Number(profileRef.current.totalXP || 0);
+
+      for (const delay of [0, 400, 800, 1200, 2000, 3200]) {
+        if (delay) await wait(delay);
+        if (disposed || generation !== refreshGeneration) return;
+        try {
+          const snapshot = await getDocFromServer(profileDoc);
+          if (!snapshot.exists()) continue;
+          const nextProfile = snapshot.data();
+          applyProfile(nextProfile);
+          if (
+            timestampMillis(nextProfile.updatedAt) > baselineUpdatedAt
+            || Number(nextProfile.totalXP || 0) !== baselineTotalXP
+          ) return;
+        } catch (error) {
+          if (delay === 3200) console.warn('[Gamification] Atualização direta do perfil indisponível:', error);
+        }
+      }
+    };
+
+    window.addEventListener(GAMIFICATION_SOURCE_SAVED_EVENT, handleSourceSaved);
+    return () => {
+      disposed = true;
+      refreshGeneration += 1;
+      window.removeEventListener(GAMIFICATION_SOURCE_SAVED_EVENT, handleSourceSaved);
+    };
+  }, [applyProfile, uid]);
 
   const levelData = useMemo(() => {
     const progress = getLevelProgress(profile.totalXP);

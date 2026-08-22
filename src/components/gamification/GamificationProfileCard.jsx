@@ -1,6 +1,7 @@
 import React from 'react';
 import { Award, Clock3, Flame, Lock, Shield, Trophy, Users, Zap } from 'lucide-react';
 import { ACHIEVEMENTS } from '../../utils/gamification';
+import { LEAGUES_ENABLED } from '../../config/featureFlags';
 
 const iconByType = {
   clock: Clock3,
@@ -18,7 +19,7 @@ const GamificationProfileCard = ({ levelData }) => {
       <div className="grid gap-5 bg-gradient-to-br from-zinc-950 via-zinc-900 to-red-950 p-5 text-white sm:grid-cols-[1fr_auto] sm:items-center">
         <div>
           <span className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-[0.18em] text-red-300"><Zap size={12} fill="currentColor"/> Progressão ModoQAP</span>
-          <div className="mt-2 flex flex-wrap items-end gap-3"><strong className="text-4xl font-black leading-none">Nível {levelData?.currentLevel || 1}</strong><span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-zinc-300">Liga {levelData?.leagueName || 'Ferro'}</span></div>
+          <div className="mt-2 flex flex-wrap items-end gap-3"><strong className="text-4xl font-black leading-none">Nível {levelData?.currentLevel || 1}</strong>{LEAGUES_ENABLED ? <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-zinc-300">Liga {levelData?.leagueName || 'Ferro'}</span> : null}</div>
           <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-red-500 transition-all" style={{ width: `${Math.max(0, Math.min(100, levelData?.progressPercent || 0))}%` }}/></div>
           <div className="mt-2 flex justify-between text-[9px] font-bold uppercase tracking-wider text-zinc-400"><span>{levelData?.totalXP || 0} XP total</span><span>{levelData?.xpToNextLevel || 0} para o próximo</span></div>
         </div>

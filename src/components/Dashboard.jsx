@@ -60,7 +60,7 @@ const PATH_TO_TAB = {
   profile: 'profile',
   noticias: 'noticias',
   ranking: 'ranking',
-  ligas: 'ligas',
+  ligas: resolveLeagueFeatureTab('ligas'),
   conquistas: 'conquistas',
   grupos: 'grupos',
   admin: 'admin',
@@ -108,6 +108,7 @@ import {
   isPlanningAssessmentReady,
 } from '../utils/appHydration';
 import { dismissInitialLoadingScreen } from '../utils/initialLoadingScreen';
+import { LEAGUES_ENABLED, resolveLeagueFeatureTab } from '../config/featureFlags';
 import {
   buildStudyDaysMap,
   getCronogramaSlotRecordedMinutes,
@@ -122,6 +123,7 @@ import {
   applyCronogramaRegistroProgress,
   emitRegistroProgressOptimisticUpdate,
 } from '../services/reviewOptimisticUpdates';
+import { requestGamificationRefresh } from '../utils/gamificationRealtime';
 
 const dateToYMD = (date) => {
   const d = date.getDate();
@@ -458,6 +460,10 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     const resolvedTab = PATH_TO_TAB[String(routeTab || 'home').toLowerCase()];
     if (!resolvedTab) {
       if (location.pathname.startsWith('/app/')) navigate('/app/home', { replace: true });
+      return;
+    }
+    if (!LEAGUES_ENABLED && String(routeTab || '').toLowerCase() === 'ligas') {
+      navigate('/app/ranking', { replace: true });
       return;
     }
     setActiveTabState((current) => (current === resolvedTab ? current : resolvedTab));
@@ -1356,11 +1362,13 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
 
       const completionDocId = getCompletionDocId(payload.origemConclusaoId);
       let registroJaExistia = false;
+      let savedRegistroId = null;
       if (completionDocId) {
         const registroRef = doc(db,'users',user.uid,'registrosEstudo',completionDocId);
         const existingRegistro = await getDoc(registroRef);
         registroJaExistia = existingRegistro.exists();
         await setDoc(registroRef, payload);
+        savedRegistroId = completionDocId;
         setAllRegistrosEstudo((prev) => {
           const normalized = normalizeRegistroPayload(completionDocId, payload);
           const withoutCurrent = prev.filter((item) => item.id !== completionDocId);
@@ -1368,10 +1376,19 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         });
       } else {
         const registroRef = await addDoc(collection(db,'users',user.uid,'registrosEstudo'), payload);
+        savedRegistroId = registroRef.id;
         setAllRegistrosEstudo((prev) => sortRegistrosEstudo([
           normalizeRegistroPayload(registroRef.id, payload),
           ...prev.filter((item) => item.id !== registroRef.id),
         ]));
+      }
+
+      if (!registroJaExistia && savedRegistroId) {
+        requestGamificationRefresh({
+          uid: user.uid,
+          sourceType: 'study',
+          sourceId: savedRegistroId,
+        });
       }
 
       if (registroJaExistia) {
@@ -2555,7 +2572,9 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       case 'ranking':
         return <div className="w-full min-w-0"><RankingPage user={user} levelData={levelData}/></div>;
       case 'ligas':
-        return <div className="mobile-page-zoom mobile-page-zoom--ligas"><LeaguesPage user={user} levelData={levelData}/></div>;
+        return LEAGUES_ENABLED
+          ? <div className="mobile-page-zoom mobile-page-zoom--ligas"><LeaguesPage user={user} levelData={levelData}/></div>
+          : <div className="w-full min-w-0"><RankingPage user={user} levelData={levelData}/></div>;
       case 'conquistas':
         return <div className="mobile-page-zoom mobile-page-zoom--conquistas"><AchievementsPage user={user} levelData={levelData}/></div>;
       case 'grupos':

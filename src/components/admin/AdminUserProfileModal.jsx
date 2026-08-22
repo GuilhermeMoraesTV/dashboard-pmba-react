@@ -1109,11 +1109,10 @@ const GamificationTab = ({ data }) => {
   const unlockedAchievements = data.achievements.filter((item) => item.unlocked !== false);
   return (
     <div className="space-y-5 pb-10">
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
         <StatCard icon={Zap} label="XP total" value={Number(profile.totalXP || 0).toLocaleString('pt-BR')} subtext={`XP base ${Number(profile.baseXP || 0).toLocaleString('pt-BR')}`} tone="red" />
         <StatCard icon={TrendingUp} label="XP semanal" value={Number(profile.weeklyCompetitiveXP || profile.weeklyXP || 0).toLocaleString('pt-BR')} subtext={profile.competitiveWeekId || 'Semana nao iniciada'} tone="blue" />
         <StatCard icon={Gamepad2} label="Nivel" value={profile.level || '-'} subtext={profile.ruleVersion ? `Regra ${profile.ruleVersion}` : 'Sem perfil calculado'} tone="green" />
-        <StatCard icon={Trophy} label="Liga atual" value={profile.leagueName || profile.currentLeague || 'Sem liga'} subtext={profile.currentCohortId || 'Sem coorte ativa'} tone="amber" />
       </div>
 
       {!data.gamificationProfile ? (

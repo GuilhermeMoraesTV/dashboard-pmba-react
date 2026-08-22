@@ -5,7 +5,7 @@ import {
   LayoutList, BarChart3, ClipboardList, Sun, Moon, Radio, X, ChevronRight,
   CalendarClock, Layers, ChevronDown, Newspaper, RotateCw, CalendarDays, BookOpen,
   Clock, AlertTriangle, ArrowRight, Bell, Flame, Settings, HelpCircle,
-  Trophy, Users, Gem, Award, Shield, Medal, Crown, Diamond,
+  Trophy, Users, Award, Shield, Medal, Crown, Gem, Diamond,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
@@ -17,6 +17,7 @@ import { calcularStatusEstudoHoje, contarRevisoesPendentes, contarRevisoesPenden
 import { buildStudyDaysMap, calculateCurrentStudyStreak } from '../../utils/studyDayStatus';
 import { coverPositionToStyle } from '../../utils/profileCover';
 import { getAgendaSemana } from '../../services/scheduling/review';
+import { LEAGUES_ENABLED } from '../../config/featureFlags';
 
 const NAV_ICON_SIZE  = 18;
 const NAV_LABEL_SIZE = 'text-[10px]';
@@ -31,7 +32,6 @@ const LeagueIcon = ({ league, size = 13, className = '', style }) => {
   const Icon = leagueIconByType[league?.icon] || Shield;
   return <Icon size={size} strokeWidth={1.9} className={className} style={style}/>;
 };
-
 // ─────────────────────────────────────────────────────────────────────
 // Pill de lembrete — aparece abaixo do sino quando o usuário entra na Home.
 // Usa um wrapper fixed com largura total na linha do sino, e o card
@@ -692,7 +692,7 @@ function NavSideBar({
       { id: 'edital',    label: 'Edital',      icon: <LayoutList size={NAV_ICON_SIZE}/> },
       { id: 'revisoes',  label: 'Revisões',    icon: <BookOpen size={NAV_ICON_SIZE}/> },
       { id: 'stats',     label: 'Desempenho',  icon: <BarChart3 size={NAV_ICON_SIZE}/> },
-      { id: 'ligas',     label: 'Ligas',        icon: <Gem size={NAV_ICON_SIZE}/> },
+      ...(LEAGUES_ENABLED ? [{ id: 'ligas', label: 'Ligas', icon: <Trophy size={NAV_ICON_SIZE}/> }] : []),
       { id: 'ranking',   label: 'Ranking',      icon: <Trophy size={NAV_ICON_SIZE}/> },
       { id: 'grupos',    label: 'Grupos de Estudo', icon: <Users size={NAV_ICON_SIZE}/> },
       { id: 'simulados', label: 'Simulados',   icon: <ClipboardList size={NAV_ICON_SIZE}/> },
@@ -729,9 +729,11 @@ function NavSideBar({
     const profile = levelData?.profile || {};
     const progressPercent = Math.max(0, Math.min(100, Number(levelData?.progressPercent || 0)));
     const rankValue = [
-      profile.currentLeaguePosition,
-      profile.leaguePosition,
-      profile.lastNotifiedLeaguePosition,
+      ...(LEAGUES_ENABLED ? [
+        profile.currentLeaguePosition,
+        profile.leaguePosition,
+        profile.lastNotifiedLeaguePosition,
+      ] : []),
       profile.generalPosition,
       profile.position,
     ].find((value) => Number.isFinite(Number(value)) && Number(value) > 0);
@@ -1003,7 +1005,7 @@ function NavSideBar({
                     {user?.displayName || 'Guerreiro'}
                   </h3>
                   <div className={`relative z-10 rounded-full px-2.5 py-0.5 text-[8px] font-black uppercase tracking-[0.18em] shadow-sm ${coverURL ? 'border border-white/25 bg-black/35 text-white backdrop-blur-sm' : 'border border-zinc-200 bg-white/75 text-zinc-600 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300'}`}>
-                    Nível {levelData?.currentLevel || 1} · Liga {levelData?.leagueName || 'Ferro'}
+                    Nível {levelData?.currentLevel || 1}{LEAGUES_ENABLED ? ` · Liga ${levelData?.leagueName || 'Ferro'}` : ''}
                   </div>
                   <div className="relative z-10 mt-2 h-1.5 w-full overflow-hidden rounded-full bg-black/15 dark:bg-white/10">
                     <div className="h-full rounded-full bg-red-600" style={{ width: `${Math.max(0, Math.min(100, levelData?.progressPercent || 0))}%` }}/>
@@ -1112,7 +1114,7 @@ function NavSideBar({
             <span className="relative shrink-0">
               <span
                 className="block rounded-full bg-white p-0.5 shadow-lg ring-2 ring-white transition-transform group-hover/profile:scale-105 dark:bg-zinc-900 dark:ring-red-500/20"
-                style={isFullyExpanded ? { boxShadow: `0 12px 30px -18px ${profileCardData.leagueGlow}` } : undefined}
+                style={LEAGUES_ENABLED && isFullyExpanded ? { boxShadow: `0 12px 30px -18px ${profileCardData.leagueGlow}` } : undefined}
               >
                 <ProfileLevelRing userPhotoURL={user?.photoURL} levelData={levelData} size={isFullyExpanded ? 54 : 38} strokeWidth={3.2}/>
               </span>
@@ -1120,11 +1122,13 @@ function NavSideBar({
             <span className={`relative min-w-0 flex-1 transition-opacity ${isFullyExpanded ? 'opacity-100' : 'hidden opacity-0'}`}>
               <span className="block truncate text-[14px] font-black leading-tight tracking-tight text-zinc-950 dark:text-white">{profileCardData.displayName}</span>
               <span className="mt-1.5 flex min-w-0 items-center gap-2 text-[10px] font-black uppercase tracking-[0.06em] text-zinc-600 dark:text-zinc-300">
-                <span className="flex min-w-0 items-center gap-1.5">
-                  <LeagueIcon league={profileCardData.league} size={13} style={{ color: profileCardData.leagueColor }}/>
-                  <span className="truncate">{profileCardData.leagueName}</span>
-                </span>
-                <span className="text-zinc-300 dark:text-zinc-600">•</span>
+                {LEAGUES_ENABLED ? <>
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    <LeagueIcon league={profileCardData.league} size={13} style={{ color: profileCardData.leagueColor }}/>
+                    <span className="truncate">{profileCardData.leagueName}</span>
+                  </span>
+                  <span className="text-zinc-300 dark:text-zinc-600">•</span>
+                </> : null}
                 <span className="flex shrink-0 items-center gap-1.5 text-zinc-700 dark:text-zinc-200">
                   <Trophy size={13} className="text-amber-500"/>
                   <span className="text-[13px] font-black leading-none">{profileCardData.rankLabel}</span>

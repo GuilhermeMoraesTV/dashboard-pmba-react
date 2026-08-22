@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { formatStudyMinutes, getLeague } from '../../utils/gamification';
 import { coverPositionToStyle } from '../../utils/profileCover';
+import { LEAGUES_ENABLED } from '../../config/featureFlags';
 
 const leagueIcons = {
   shield: Shield,
@@ -180,7 +181,7 @@ const UserProfileModal = ({ member, onClose }) => {
     member.publicRankingPosition
     || member.positions?.questions
     || member.generalPosition
-    || member.leaguePosition
+    || (LEAGUES_ENABLED ? member.leaguePosition : 0)
     || member.position,
   ) || 0);
   const rankingLabel = member.publicRankingLabel
@@ -237,12 +238,12 @@ const UserProfileModal = ({ member, onClose }) => {
                 {displayName}
               </h2>
               <div className="mt-3 flex max-w-full flex-wrap items-center justify-center gap-2 sm:justify-start">
-                <span
+                {LEAGUES_ENABLED ? <span
                   className="inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.14em]"
                   style={{ color: league.color, borderColor: `${league.color}66`, backgroundColor: `${league.color}14` }}
                 >
                   <LeagueIcon size={13}/> Liga {league.name}
-                </span>
+                </span> : null}
                 {visibleEditais.map((edital, index) => <CompactEdital key={`${edital.id || edital.name || 'edital'}-${index}`} edital={edital}/>)}
                 {remainingEditais > 0 && <span className="text-[8px] font-black uppercase tracking-wider text-zinc-400">+{remainingEditais}</span>}
               </div>

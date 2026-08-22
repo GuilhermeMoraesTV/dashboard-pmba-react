@@ -4,6 +4,7 @@ import { motion as Motion } from 'framer-motion';
 import { Award, Check, Lock, Search, Sparkles, Trophy, Zap } from 'lucide-react';
 import { db } from '../firebaseConfig';
 import { ACHIEVEMENTS, getAchievementProgress, getLeague } from '../utils/gamification';
+import { isLeagueAchievement } from '../config/featureFlags';
 
 const AchievementsPage = ({ user, levelData }) => {
   const [items, setItems] = useState([]);
@@ -54,7 +55,7 @@ const AchievementsPage = ({ user, levelData }) => {
   }, [levelData]);
   const catalog = useMemo(() => {
     const unlockedIds = new Set(levelData?.profile?.achievementIds || []);
-    return ACHIEVEMENTS.map((achievement) => {
+    return ACHIEVEMENTS.filter((achievement) => !isLeagueAchievement(achievement)).map((achievement) => {
       const saved = state.get(achievement.id) || {};
       const derived = getAchievementProgress(achievement, progressState);
       return {
@@ -67,7 +68,7 @@ const AchievementsPage = ({ user, levelData }) => {
       };
     });
   }, [levelData?.profile?.achievementIds, progressState, state]);
-  const categories = useMemo(() => ['Todas', ...new Set(ACHIEVEMENTS.map((item) => item.category))], []);
+  const categories = useMemo(() => ['Todas', ...new Set(catalog.map((item) => item.category))], [catalog]);
   const filtered = useMemo(() => catalog.filter((item) => {
     const matchesCategory = category === 'Todas' || item.category === category;
     const term = search.trim().toLocaleLowerCase('pt-BR');
