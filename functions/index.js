@@ -658,6 +658,7 @@ exports.chamarGemini = onCall(
     secrets: [GOOGLE_SERVICE_ACCOUNT_JSON_BASE64],
     timeoutSeconds: 120,
     region: 'us-central1',
+    maxInstances: 2,
   },
   async (request) => {
     const {
@@ -694,6 +695,7 @@ exports.salvarNoticiaCache = onCall(
   {
     timeoutSeconds: 30,
     region: 'us-central1',
+    maxInstances: 2,
   },
   async (request) => {
     const uid = request.auth?.uid;
@@ -745,6 +747,7 @@ exports.buscarConteudoNoticia = onCall(
   {
     timeoutSeconds: 30,
     region: 'us-central1',
+    maxInstances: 2,
   },
   async (request) => {
     const uid = request.auth?.uid;
@@ -792,6 +795,7 @@ exports.abastecerFrasesMotivacionais = onCall(
     secrets: [GOOGLE_SERVICE_ACCOUNT_JSON_BASE64],
     timeoutSeconds: 180,
     region: 'us-central1',
+    maxInstances: 1,
   },
   async (request) => {
     await assertAdminCaller(request);
@@ -816,6 +820,7 @@ exports.abastecerFrasesMotivacionaisAgendado = onSchedule(
     secrets: [GOOGLE_SERVICE_ACCOUNT_JSON_BASE64],
     timeoutSeconds: 180,
     region: 'us-central1',
+    maxInstances: 1,
   },
   async () => {
     try {
@@ -837,6 +842,7 @@ const gamificationWriteOptions = {
   retry: true,
   timeoutSeconds: 300,
   memory: '512MiB',
+  maxInstances: 2,
 };
 
 const recomputeGamificationFromEvent = async (event) => {
@@ -902,7 +908,7 @@ exports.processarConquistaEntradaGrupo = onDocumentCreated(
   async (event) => gamification.recomputeUserGamification(event.params.memberId),
 );
 
-const groupCallableOptions = { region: 'us-central1', timeoutSeconds: 60, memory: '256MiB' };
+const groupCallableOptions = { region: 'us-central1', timeoutSeconds: 60, memory: '256MiB', maxInstances: 3 };
 const requireGroupAuth = (request) => {
   if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
   return request.auth.uid;
@@ -935,7 +941,7 @@ exports.sairGrupoEstudo = onCall(groupCallableOptions, async (request) => {
   } catch (error) { throw mapGroupError(error); }
 });
 
-const adminCallableOptions = { region: 'us-central1', timeoutSeconds: 540, memory: '1GiB' };
+const adminCallableOptions = { region: 'us-central1', timeoutSeconds: 540, memory: '1GiB', maxInstances: 1 };
 const adminCallable = (handler) => onCall(adminCallableOptions, async (request) => {
   try {
     const actor = await adminOperations.assertAdmin({ uid: request.auth?.uid, token: request.auth?.token || {} });
@@ -968,6 +974,7 @@ exports.fecharLigasSemanais = onSchedule(
     retryCount: 3,
     timeoutSeconds: 540,
     memory: '1GiB',
+    maxInstances: 1,
   },
   async () => gamification.closeWeeklyGamification(),
 );
@@ -980,12 +987,13 @@ exports.avisarFechamentoLigas = onSchedule(
     retryCount: 2,
     timeoutSeconds: 300,
     memory: '512MiB',
+    maxInstances: 1,
   },
   async () => gamification.notifyWeeklyClosing(),
 );
 
 exports.migrarGamificacaoV2 = onCall(
-  { region: 'us-central1', timeoutSeconds: 540, memory: '1GiB' },
+  { region: 'us-central1', timeoutSeconds: 540, memory: '1GiB', maxInstances: 1 },
   async (request) => {
     if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Autenticacao obrigatoria.');
     const caller = await admin.firestore().collection('users').doc(request.auth.uid).get();
