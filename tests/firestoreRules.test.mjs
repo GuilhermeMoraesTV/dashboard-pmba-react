@@ -497,7 +497,10 @@ test('função recalcula estudo, edição e exclusão sem duplicar XP ou ranking
   const preservedAchievement = await adminDb.collection('users').doc(uid).collection('gamification').doc('profile').collection('achievements').doc('first_study').get();
   const finalProfile = (await adminDb.collection('users').doc(uid).collection('gamification').doc('profile').get()).data();
   assert.equal(deletedEvent.exists, false);
-  assert.equal(deletedRanking.exists, false);
+  assert.equal(deletedRanking.exists, true);
+  assert.equal(deletedRanking.data().minutes, 0);
+  assert.equal(deletedRanking.data().questions, 0);
+  assert.equal(deletedRanking.data().accountActive, true);
   assert.equal(deletedGroupRanking.exists, false);
   assert.equal(finalProfile.weeklyCompetitiveXP, 0);
   assert.equal(preservedAchievement.data().unlocked, true);

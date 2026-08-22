@@ -7,15 +7,9 @@ import UserProfileModal from '../components/gamification/UserProfileModal';
 import { formatStudyMinutes, getLeague, getWeekId, sortGeneralRankingMembers } from '../utils/gamification';
 import { LEAGUES_ENABLED } from '../config/featureFlags';
 
-const ACTIVE_WINDOW_MS = 7 * 86400000;
 const initials = (name = 'E') => String(name).split(' ').filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase();
 const Avatar = ({ member, className = 'h-10 w-10' }) => <div className={`${className} flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-zinc-200 text-xs font-black text-zinc-600 ring-2 ring-white dark:bg-zinc-800 dark:text-zinc-300 dark:ring-zinc-900`}>{member?.photoURL ? <img src={member.photoURL} alt="" className="h-full w-full object-cover"/> : initials(member?.displayName)}</div>;
 const metricValue = (member, metric) => metric === 'minutes' ? formatStudyMinutes(member?.minutes || 0) : Number(member?.questions || 0).toLocaleString('pt-BR');
-const isActiveMember = (member, scope) => {
-  const lastStudy = Number(member?.lastStudyAtMillis || member?.lastStudyAt?.toMillis?.() || 0);
-  if (lastStudy) return lastStudy >= Date.now() - ACTIVE_WINDOW_MS;
-  return scope === 'weekly';
-};
 
 const podiumStyle = {
   1: { badge: 'bg-amber-500', block: 'h-24 bg-gradient-to-b from-amber-300 to-amber-600 text-amber-950 sm:h-28', ring: 'ring-4 ring-amber-300', icon: Crown, glow: 'shadow-[0_0_40px_rgba(245,158,11,.24)]' },
@@ -68,7 +62,7 @@ const RankingPage = ({ user, levelData }) => {
     setLoading(true);
     const rankingRef = scope === 'weekly' ? collection(db, 'weekly_rankings', weekId, 'members') : collection(db, 'general_rankings', 'all', 'members');
     return onSnapshot(rankingRef, (snapshot) => {
-      setMembers(snapshot.docs.map((item) => ({ id: item.id, ...item.data() })).filter((item) => isActiveMember(item, scope)));
+      setMembers(snapshot.docs.map((item) => ({ id: item.id, ...item.data() })).filter((item) => item.accountActive !== false));
       setLoading(false);
       setAccessBlocked(false);
     }, (error) => {
@@ -78,6 +72,7 @@ const RankingPage = ({ user, levelData }) => {
   }, [scope, user?.uid, weekId]);
 
   const sorted = useMemo(() => sortGeneralRankingMembers(members, metric), [members, metric]);
+  const periodLabel = scope === 'weekly' ? 'Desempenho da semana atual' : 'Desempenho acumulado';
   const ownIndex = sorted.findIndex((member) => (member.uid || member.id) === user?.uid);
   const own = ownIndex >= 0 ? sorted[ownIndex] : { displayName: user?.displayName || 'Você', level: levelData?.currentLevel || 1, leagueId: levelData?.leagueId || 'iron', minutes: 0, questions: 0, accuracy: 0 };
   const openPublicProfile = (member, position) => setSelectedMember({
@@ -90,10 +85,10 @@ const RankingPage = ({ user, levelData }) => {
     {accessBlocked && <div className="mb-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-bold text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-200">Os agregados deste ranking ainda não estão liberados pelas regras publicadas.</div>}
     <header className="mb-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div><p className="text-[9px] font-black uppercase tracking-[0.22em] text-zinc-400">Ativos nos últimos 7 dias</p><h1 className="mt-1 text-3xl font-black uppercase tracking-tight text-zinc-950 dark:text-white sm:text-4xl">Ranking</h1></div>
+        <div><p className="text-[9px] font-black uppercase tracking-[0.22em] text-zinc-400">{periodLabel}</p><h1 className="mt-1 text-3xl font-black uppercase tracking-tight text-zinc-950 dark:text-white sm:text-4xl">Ranking</h1></div>
         <div className="flex flex-wrap items-center justify-end gap-2"><Segmented value={metric} onChange={setMetric} items={[["minutes", "Tempo", Clock3], ["questions", "Questões", ListChecks]]}/><Segmented value={scope} onChange={setScope} items={[["weekly", "Semanal"], ["general", "Geral"]]}/></div>
       </div>
-      <p className="mt-1 text-xs font-semibold text-zinc-500 dark:text-zinc-400">{metric === 'minutes' ? 'Ordenado pelo tempo de estudo' : 'Ordenado pelo total de questões'} · somente estudantes com atividade recente</p>
+      <p className="mt-1 text-xs font-semibold text-zinc-500 dark:text-zinc-400">{metric === 'minutes' ? 'Ordenado pelo tempo de estudo' : 'Ordenado pelo total de questões'} · todos os usuários com conta ativa</p>
     </header>
     <section className="min-w-0 overflow-hidden rounded-[1.5rem] border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900 sm:rounded-[1.75rem]">
       <div className="relative bg-gradient-to-b from-zinc-50 to-zinc-100 px-2 pt-4 dark:from-zinc-900 dark:to-zinc-950 sm:px-7 sm:pt-6">
@@ -102,7 +97,7 @@ const RankingPage = ({ user, levelData }) => {
       </div>
       <div className="border-t border-zinc-200 dark:border-zinc-800">
         <div className="flex items-center justify-between px-4 py-3"><div><h2 className="text-xs font-black uppercase tracking-[0.14em] text-zinc-700 dark:text-zinc-200">Classificação completa</h2><p className="text-[8px] font-bold uppercase tracking-wider text-zinc-400">Clique em um estudante para ver o perfil</p></div><span className="inline-flex items-center gap-1 text-[8px] font-black text-zinc-400"><Sparkles size={11}/>{members.length} ativos</span></div>
-        {loading ? <div className="p-10 text-center text-xs font-bold text-zinc-400">Carregando...</div> : !sorted.length ? <div className="p-10 text-center"><BarChart3 className="mx-auto mb-2 text-zinc-300"/><p className="text-xs font-black text-zinc-600 dark:text-zinc-300">Nenhum estudante ativo nos últimos 7 dias</p></div> : <div className="space-y-2 bg-zinc-50/70 p-2 dark:bg-zinc-950/30 sm:p-3">{sorted.map((member, index) => {
+        {loading ? <div className="p-10 text-center text-xs font-bold text-zinc-400">Carregando...</div> : !sorted.length ? <div className="p-10 text-center"><BarChart3 className="mx-auto mb-2 text-zinc-300"/><p className="text-xs font-black text-zinc-600 dark:text-zinc-300">Nenhum usuário ativo no ranking</p></div> : <div className="space-y-2 bg-zinc-50/70 p-2 dark:bg-zinc-950/30 sm:p-3">{sorted.map((member, index) => {
           const ownRow = (member.uid || member.id) === user?.uid;
           const league = getLeague(member.leagueId);
           return <button type="button" onClick={() => openPublicProfile(member, index + 1)} key={member.uid || member.id} className={`grid w-full grid-cols-[32px_1fr] items-center gap-2 rounded-xl border px-2.5 py-2.5 text-left transition hover:-translate-y-0.5 hover:shadow-md sm:grid-cols-[40px_minmax(160px,1fr)_90px_78px_70px] sm:gap-3 sm:px-4 ${index < 3 ? topRowTone[index] : 'border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900'} ${ownRow ? 'ring-2 ring-red-500/25' : ''}`}>

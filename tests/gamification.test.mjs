@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   ACHIEVEMENTS,
   buildAcademicXPEvents,
+  calculateRankingPeriodMetrics,
   calculateActivityXP,
   evaluateAchievements,
   GAMIFICATION_CONFIG,
@@ -147,6 +148,32 @@ test('ranking geral alterna entre questões e tempo sem usar liga ou XP', () => 
   ];
   assert.deepEqual(sortGeneralRankingMembers(members, 'questions').map((member) => member.uid), ['questions', 'time', 'xp']);
   assert.deepEqual(sortGeneralRankingMembers(members, 'minutes').map((member) => member.uid), ['time', 'xp', 'questions']);
+});
+
+test('ranking semanal usa a semana atual e ranking geral preserva os totais acumulados', () => {
+  const now = new Date('2026-08-22T12:00:00-03:00');
+  const periods = calculateRankingPeriodMetrics({
+    records: [
+      { id: 'week', data: '2026-08-20', tempoEstudadoMinutos: 60, questoesFeitas: 20, acertos: 15 },
+      { id: 'month', data: '2026-08-02', tempoEstudadoMinutos: 120, questoesFeitas: 40, acertos: 30 },
+      { id: 'old', data: '2026-07-01', tempoEstudadoMinutos: 300, questoesFeitas: 100, acertos: 80 },
+      { id: 'invalid', data: '2026-08-21', tempoEstudadoMinutos: 999, questoesFeitas: 999, status: 'cancelado' },
+    ],
+    simulations: [
+      { id: 'sim', data: '2026-08-10', durationMinutes: 30, resumo: { totalQuestoes: 10, totalAcertos: 8 } },
+    ],
+    now,
+  });
+  assert.deepEqual(
+    { minutes: periods.weekly.minutes, questions: periods.weekly.questions, correct: periods.weekly.correct },
+    { minutes: 60, questions: 20, correct: 15 },
+  );
+  assert.deepEqual(
+    { minutes: periods.lifetime.minutes, questions: periods.lifetime.questions, correct: periods.lifetime.correct },
+    { minutes: 510, questions: 170, correct: 133 },
+  );
+  assert.equal(periods.weekly.hasActivity, true);
+  assert.equal(periods.lifetime.hasActivity, true);
 });
 
 test('ranking de grupos alterna entre tempo e questões sem misturar métricas', () => {

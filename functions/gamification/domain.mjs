@@ -253,6 +253,28 @@ const sourceMillis = (source = {}) => {
   return Number.isNaN(date.getTime()) ? 0 : date.getTime();
 };
 
+const sumRankingMetrics = (sources) => sources.reduce((sum, source) => ({
+  minutes: sum.minutes + source.metrics.minutes,
+  questions: sum.questions + source.metrics.questions,
+  correct: sum.correct + source.metrics.correct,
+}), { minutes: 0, questions: 0, correct: 0 });
+
+export const calculateRankingPeriodMetrics = ({ records = [], simulations = [], now = new Date() } = {}) => {
+  const nowMillis = now instanceof Date ? now.getTime() : Number(now);
+  const weekId = getWeekId(new Date(nowMillis));
+  const sources = [
+    ...records.filter(isValidGamificationRecord).map((data) => ({ metrics: getStudyMetrics(data) })),
+    ...simulations.filter(isValidGamificationRecord).map((data) => ({ metrics: getSimuladoMetrics(data) })),
+  ].map((source) => ({ ...source, millis: sourceMillis({ ...source.metrics, date: source.metrics.date }) }))
+    .filter((source) => source.millis > 0 && source.millis <= nowMillis);
+  const weeklySources = sources.filter((source) => getWeekId(new Date(source.millis)) === weekId);
+  return {
+    lastStudyAtMillis: Math.max(0, ...sources.map((source) => source.millis)),
+    weekly: { ...sumRankingMetrics(weeklySources), hasActivity: weeklySources.length > 0, weekId },
+    lifetime: { ...sumRankingMetrics(sources), hasActivity: sources.length > 0 },
+  };
+};
+
 const xpDeltaForBlocks = (before, after, block, xpPerBlock) => (
   (Math.floor(after / block) - Math.floor(before / block)) * xpPerBlock
 );

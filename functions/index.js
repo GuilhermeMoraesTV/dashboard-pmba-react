@@ -992,6 +992,19 @@ exports.avisarFechamentoLigas = onSchedule(
   async () => gamification.notifyWeeklyClosing(),
 );
 
+exports.atualizarRankingsAtivos = onSchedule(
+  {
+    schedule: 'every day 03:20',
+    timeZone: 'America/Bahia',
+    region: 'us-central1',
+    retryCount: 2,
+    timeoutSeconds: 540,
+    memory: '1GiB',
+    maxInstances: 1,
+  },
+  async () => gamification.refreshActiveUserRankings(),
+);
+
 exports.migrarGamificacaoV2 = onCall(
   { region: 'us-central1', timeoutSeconds: 540, memory: '1GiB', maxInstances: 1 },
   async (request) => {
