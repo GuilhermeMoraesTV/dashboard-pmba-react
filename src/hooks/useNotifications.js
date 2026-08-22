@@ -6,6 +6,7 @@ import {
 } from 'firebase/firestore';
 import { CATALOGO_EDITAIS } from '../pages/AdminPage/EditaisManager';
 import { normalizeNotification } from '../services/notificationContract';
+import { respondToGroupEntryRequest } from '../services/groupMembership';
 
 // =======================================================
 // HELPERS E ALGORITMOS DE MATCHING (INTELIGÊNCIA)
@@ -326,6 +327,7 @@ export const useNotifications = (user) => {
   const [readBroadcasts, setReadBroadcasts] = useState(new Set());
   const [deletedNotifs, setDeletedNotifs] = useState(new Set());
   const [loading, setLoading] = useState(false);
+  const [operationalNotifications, setOperationalNotifications] = useState([]);
   const [userCreatedAtMillis, setUserCreatedAtMillis] = useState(null);
 
   const ciclosRef = useRef([]);
@@ -570,6 +572,23 @@ export const useNotifications = (user) => {
     };
   }, [user]);
 
+  useEffect(() => {
+    if (!user?.uid) { setOperationalNotifications([]); return undefined; }
+    const state = { xp: [], personal: [] };
+    const publish = () => setOperationalNotifications([...state.xp, ...state.personal].sort((a, b) => (toMillisSafe(b.timestamp) || 0) - (toMillisSafe(a.timestamp) || 0)));
+    const xpQuery = query(collection(db, 'users', user.uid, 'gamification', 'profile', 'xp_events'), orderBy('occurredAt', 'desc'), limit(40));
+    const personalQuery = query(collection(db, 'users', user.uid, 'notifications'), orderBy('createdAt', 'desc'), limit(40));
+    const stopXP = onSnapshot(xpQuery, (snapshot) => {
+      state.xp = snapshot.docs.map((item) => ({ id: item.id, ...item.data(), _type: 'operational', operationalKind: 'xp', sourceCollection: 'xp_events', title: `+${Number(item.data().xpTotal || 0)} XP`, timestamp: item.data().occurredAt?.toDate?.() || new Date(), requiresAction: false })).filter((item) => item.isRead !== true);
+      publish();
+    }, (error) => console.warn('[Notificações] XP indisponível:', error.code || error));
+    const stopPersonal = onSnapshot(personalQuery, (snapshot) => {
+      state.personal = snapshot.docs.map((item) => ({ id: item.id, ...item.data(), _type: 'operational', operationalKind: item.data().type || 'system', sourceCollection: 'notifications', timestamp: item.data().createdAt?.toDate?.() || new Date() })).filter((item) => item.isRead !== true);
+      publish();
+    }, (error) => console.warn('[Notificações] Feed pessoal indisponível:', error.code || error));
+    return () => { stopXP(); stopPersonal(); };
+  }, [user?.uid]);
+
   // Exclui os apagados da visão
   const rawActiveEditalUpdates = editalUpdates.filter((u) => !u.isDismissed && !deletedNotifs.has(u.id));
   const activeEditalUpdates = agruparAtualizacoesPorEdital(rawActiveEditalUpdates).map(normalizeNotification);
@@ -584,11 +603,11 @@ export const useNotifications = (user) => {
       id: h.id || `edital_${h.cicloId}_${h.versionKey}`,
   }));
 
-  const notifications = [...activeBroadcasts, ...activeEditalUpdates].sort(
+  const notifications = [...operationalNotifications, ...activeBroadcasts, ...activeEditalUpdates].sort(
     (a, b) => (b.timestamp?.getTime?.() || 0) - (a.timestamp?.getTime?.() || 0)
   );
 
-  const unreadCount = activeBroadcasts.filter((b) => !readBroadcasts.has(b.id)).length + activeEditalUpdates.length;
+  const unreadCount = operationalNotifications.length + activeBroadcasts.filter((b) => !readBroadcasts.has(b.id)).length + activeEditalUpdates.length;
 
   // AÇÕES
   const addItemsToHistory = useCallback((items = []) => {
@@ -646,9 +665,22 @@ export const useNotifications = (user) => {
       });
   }, [user, broadcasts, addItemsToHistory]);
 
+  const markOperationalRead = useCallback(async (item) => {
+    if (!user?.uid || !item?.id) return;
+    const target = item.sourceCollection === 'xp_events'
+      ? doc(db, 'users', user.uid, 'gamification', 'profile', 'xp_events', item.id)
+      : doc(db, 'users', user.uid, 'notifications', item.id);
+    await updateDoc(target, { isRead: true, readAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  }, [user?.uid]);
+
+  const respondGroupRequest = useCallback(async (item, approve) => {
+    if (!item?.groupId || !item?.requestUid) return;
+    await respondToGroupEntryRequest({ groupId: item.groupId, requestUid: item.requestUid, approve });
+  }, []);
+
   const markAllRead = useCallback(async () => {
     if (!user) return;
-    addItemsToHistory([...activeBroadcasts, ...activeEditalUpdates]);
+    addItemsToHistory([...operationalNotifications, ...activeBroadcasts, ...activeEditalUpdates]);
     setReadBroadcasts((prev) => {
       const next = new Set([...prev, ...activeBroadcasts.map((b) => b.id)]);
       try { localStorage.setItem(`notif_read_${user.uid}`, JSON.stringify([...next])); } catch {}
@@ -667,8 +699,9 @@ export const useNotifications = (user) => {
           dismissedUpdateVersion: item.versionKey,
         })
       )));
+      await Promise.all(operationalNotifications.map(markOperationalRead));
     } catch {}
-  }, [user, activeBroadcasts, activeEditalUpdates, rawActiveEditalUpdates, addItemsToHistory]);
+  }, [user, operationalNotifications, activeBroadcasts, activeEditalUpdates, rawActiveEditalUpdates, addItemsToHistory, markOperationalRead]);
 
   const deleteBroadcast = useCallback((id) => {
       if (!user) return;
@@ -906,6 +939,8 @@ export const useNotifications = (user) => {
     dismissedHistory: activeHistory,
     readBroadcasts,
     markBroadcastRead,
+    markOperationalRead,
+    respondGroupRequest,
     markAllRead,
     deleteBroadcast,
     deleteHistoryItem,

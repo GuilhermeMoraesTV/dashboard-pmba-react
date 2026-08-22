@@ -677,4 +677,28 @@ describe('scheduling daily disciplines', () => {
       87,
     );
   });
+
+  it('does not clone a block after a manual move into an otherwise empty day', () => {
+    const agenda = getAgendaSemana({
+      semanaTemplate: [{
+        slotId: 'moved-once',
+        dia: 2,
+        disciplinaId: 'pt',
+        disciplinaNome: 'Portugues',
+        minutosEstudo: 60,
+        minutosBrutoDia: 180,
+        layoutManual: true,
+        ordemManual: 0,
+      }],
+      disciplinasSnapshot: [{ id: 'pt', nome: 'Portugues', assuntos: ['Crase'] }],
+      progresso: {},
+      historicoRevisoes: {},
+      dataInicio: '2026-08-03',
+      duracaoMaximaSessaoMinutos: 60,
+    }, 0, null, null, { 2: 3 });
+
+    const moved = agenda.filter((slot) => !slot.isRevisaoAuto && slot.dia === 2);
+    assert.equal(moved.length, 1);
+    assert.equal(moved[0].slotIdBase || moved[0].slotId, 'moved-once');
+  });
 });

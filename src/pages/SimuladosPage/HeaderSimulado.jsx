@@ -47,7 +47,7 @@ const StatCard = ({ icon: Icon, title, value, subValue, color = 'red', className
   return (
     <div className={`group relative flex min-h-[104px] flex-col justify-center overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white px-4 py-3 shadow-soft transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/40 hover:!border-l-red-500 hover:shadow-[0_0_18px_rgba(239,68,68,0.07)] dark:border-white/10 dark:!border-l-red-500/25 dark:bg-card-dark dark:hover:border-accent-light/20 dark:hover:!border-l-red-500 dark:hover:shadow-[0_0_22px_rgba(239,68,68,0.08)] ${className}`}>
       <div className="relative z-20 flex w-full flex-col gap-1">
-        <h3 className="w-full truncate text-[10px] font-semibold uppercase leading-none tracking-wide text-zinc-500 dark:text-zinc-400">
+        <h3 className="w-full truncate text-xs font-bold uppercase leading-none tracking-wide text-zinc-500 dark:text-zinc-400 md:text-[13px]">
           {title}
         </h3>
         <div className="mt-1.5 flex flex-row items-baseline gap-1.5">

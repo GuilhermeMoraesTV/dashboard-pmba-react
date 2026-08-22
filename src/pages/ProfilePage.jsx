@@ -20,6 +20,12 @@ import {
   moveCoverPosition,
   normalizeCoverPosition,
 } from '../utils/profileCover';
+import {
+  getAdminRecordDate,
+  normalizeCorrect,
+  normalizeQuestions,
+  normalizeStudyMinutes,
+} from '../utils/adminAnalytics';
 
 import {
   User, Save, X, Archive, Loader2, Upload, Trash2,
@@ -27,7 +33,8 @@ import {
   AlertTriangle, ChevronDown, ChevronUp, Camera, Target, Zap,
   ArchiveRestore, Search, LayoutDashboard, ArrowLeft,
   Edit2, AlertOctagon, RotateCw, BookOpen, ChevronLeft, ChevronRight,
-  CornerDownRight, Check, History, Calendar
+  CornerDownRight, Check, History, Calendar, Award, ListChecks,
+  CircleCheckBig, CircleX
 } from 'lucide-react';
 
 // --- UTILITÁRIOS ---
@@ -437,12 +444,35 @@ const ModalConfirmacaoExclusaoCiclo = ({ ciclo, onClose, onConfirm, loading }) =
   );
 };
 
-const StatCard = ({ icon: Icon, label, value, subtext, colorClass, delay }) => (
-  <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay }} className="relative min-h-[128px] overflow-hidden bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 md:p-6 rounded-2xl shadow-sm group hover:border-zinc-300 dark:hover:border-zinc-700 transition-all">
-    <div className={`absolute -right-4 -bottom-4 opacity-10 group-hover:opacity-20 transition-opacity ${colorClass} rotate-12`}><Icon size={92} /></div>
-    <div className="relative z-10"><div className={`w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center mb-3 md:mb-4 ${colorClass.replace('text-', 'bg-').replace('600', '100').replace('500', '100')} dark:bg-opacity-10`}><Icon size={20} className={colorClass} /></div><h4 className="text-xl md:text-3xl font-black text-zinc-900 dark:text-white tracking-tight leading-none">{value}</h4><p className="text-[10px] md:text-xs font-bold text-zinc-500 uppercase tracking-wide mt-1">{label}</p>{subtext && <p className="text-[9px] md:text-[10px] text-zinc-400 mt-1.5 md:mt-2 font-medium">{subtext}</p>}</div>
-  </motion.div>
-);
+const ProfileMetricCard = ({ icon: Icon, label, value, subtext, tone = 'zinc', delay = 0, className = '' }) => {
+  const tones = {
+    zinc: 'bg-zinc-50 dark:bg-zinc-800/70 border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300',
+    red: 'bg-red-50 dark:bg-red-950/30 border-red-100 dark:border-red-900/40 text-red-600 dark:text-red-300',
+    blue: 'bg-blue-50 dark:bg-blue-950/30 border-blue-100 dark:border-blue-900/40 text-blue-600 dark:text-blue-300',
+    green: 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-100 dark:border-emerald-900/40 text-emerald-600 dark:text-emerald-300',
+    amber: 'bg-amber-50 dark:bg-amber-950/30 border-amber-100 dark:border-amber-900/40 text-amber-600 dark:text-amber-300',
+  };
+
+  return (
+    <motion.article
+      initial={{ opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay }}
+      className={`min-h-[112px] rounded-[24px] border p-4 shadow-sm ${tones[tone]} ${className}`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="mb-1 text-[9px] font-black uppercase tracking-[0.16em] opacity-70">{label}</p>
+          <p className="truncate text-xl font-black tracking-tight text-zinc-900 dark:text-white sm:text-2xl">{value}</p>
+          {subtext ? <p className="mt-1 text-[10px] font-semibold opacity-70">{subtext}</p> : null}
+        </div>
+        <div className="rounded-2xl border border-white/70 bg-white/70 p-2.5 shadow-sm dark:border-zinc-700 dark:bg-zinc-800/60">
+          <Icon size={16}/>
+        </div>
+      </div>
+    </motion.article>
+  );
+};
 
 // --- NOVO CARD DE CICLO ARQUIVADO (LAYOUT ESTILO MINI CICLO CARD) ---
 const ArchivedCycleCard = ({ ciclo, hours, onRestore, onDelete, loading, type = 'ciclo' }) => {
@@ -518,6 +548,8 @@ function ProfilePage({
   coverURL = null,
   coverPosition = DEFAULT_COVER_POSITION,
   coverLoading = false,
+  levelData,
+  onGoToAchievements,
 }) {
   const [isEditingEmail, setIsEditingEmail] = useState(false);
   const [newEmail, setNewEmail] = useState(user?.email || '');
@@ -590,13 +622,26 @@ function ProfilePage({
   }, [coverObjectURL]);
 
   const stats = useMemo(() => {
-    const totalRegistros = allRegistrosEstudo.length;
-    const totalMinutos = allRegistrosEstudo.reduce((acc, curr) => acc + (curr.tempoEstudadoMinutos || 0), 0);
+    const totalMinutos = allRegistrosEstudo.reduce((acc, curr) => acc + normalizeStudyMinutes(curr), 0);
+    const questoes = allRegistrosEstudo.reduce((acc, curr) => acc + normalizeQuestions(curr), 0);
+    const acertos = allRegistrosEstudo.reduce((acc, curr) => acc + normalizeCorrect(curr), 0);
+    const erros = Math.max(0, questoes - acertos - allRegistrosEstudo.reduce((acc, curr) => (
+      acc + Math.max(0, Number(curr?.brancos ?? curr?.totalBrancos ?? curr?.resumo?.totalBrancos ?? 0))
+    ), 0));
     const horasTotais = Math.floor(totalMinutos / 60);
     const minutosRestantes = totalMinutos % 60;
-    const diasAtivos = Math.floor((Date.now() - new Date(user?.metadata.creationTime).getTime()) / (1000 * 60 * 60 * 24));
-    return { totalRegistros, horasTotais, minutosRestantes, diasAtivos };
-  }, [allRegistrosEstudo, user]);
+    const diasAtivos = new Set(allRegistrosEstudo.map((registro) => {
+      const date = getAdminRecordDate(registro);
+      return date ? dateToYMD(date) : null;
+    }).filter(Boolean)).size;
+    return { horasTotais, minutosRestantes, questoes, acertos, erros, diasAtivos };
+  }, [allRegistrosEstudo]);
+
+  const achievementCount = Number(
+    levelData?.achievementsSummary?.unlocked
+      ?? levelData?.profile?.achievementIds?.length
+      ?? 0,
+  );
 
   useEffect(() => {
     if (!user) return;
@@ -1051,47 +1096,63 @@ function ProfilePage({
 
           <div className="relative z-10 -mt-12 px-4 sm:px-6 md:-mt-16">
               <div className="flex flex-col items-center gap-5 md:flex-row md:items-start md:gap-8">
-                  <div className="relative group/avatar flex-shrink-0">
-                      <div className="w-32 h-32 md:w-40 md:h-40 rounded-full border-4 border-white dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-900 shadow-2xl overflow-hidden relative ring-4 ring-zinc-100 dark:ring-zinc-900/50">
-                          {photoPreview ? (<img src={photoPreview} alt="User" className="w-full h-full object-cover transition-transform duration-500 group-hover/avatar:scale-110" />) : (<div className="w-full h-full flex items-center justify-center text-zinc-400 bg-zinc-200 dark:bg-zinc-800"><User size={48}/></div>)}
-                          <label className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center text-white opacity-0 group-hover/avatar:opacity-100 transition-all cursor-pointer backdrop-blur-sm">
-                              <Camera size={24} className="mb-1" /><span className="text-[9px] font-bold uppercase tracking-widest">Editar</span><input type="file" accept="image/*" onChange={(e) => { if(e.target.files?.[0]) { setPhoto(e.target.files[0]); setPhotoPreview(URL.createObjectURL(e.target.files[0])); } }} className="hidden" />
-                          </label>
+                  <div className="flex flex-shrink-0 flex-col items-center">
+                      <div className="relative group/avatar">
+                          <div className="relative h-32 w-32 overflow-hidden rounded-full border-4 border-white bg-zinc-100 shadow-2xl ring-4 ring-zinc-100 dark:border-zinc-800 dark:bg-zinc-900 dark:ring-zinc-900/50 md:h-40 md:w-40">
+                              {photoPreview ? (<img src={photoPreview} alt="User" className="h-full w-full object-cover transition-transform duration-500 group-hover/avatar:scale-110" />) : (<div className="flex h-full w-full items-center justify-center bg-zinc-200 text-zinc-400 dark:bg-zinc-800"><User size={48}/></div>)}
+                              <label className="absolute inset-0 flex cursor-pointer flex-col items-center justify-center bg-black/60 text-white opacity-0 backdrop-blur-sm transition-all group-hover/avatar:opacity-100">
+                                  <Camera size={24} className="mb-1" /><span className="text-[9px] font-bold uppercase tracking-widest">Editar</span><input type="file" accept="image/*" onChange={(e) => { if(e.target.files?.[0]) { setPhoto(e.target.files[0]); setPhotoPreview(URL.createObjectURL(e.target.files[0])); } }} className="hidden" />
+                              </label>
+                          </div>
+                          <div className="absolute bottom-2 right-2 z-10 h-6 w-6 rounded-full border-4 border-white bg-emerald-500 shadow-sm dark:border-zinc-950"></div>
                       </div>
-                      <div className="absolute bottom-2 right-2 w-6 h-6 bg-emerald-500 border-4 border-white dark:border-zinc-950 rounded-full shadow-sm z-10"></div>
+                      <span className="-mt-1 inline-flex items-center rounded-full border border-zinc-200 bg-white px-3 py-1 text-[9px] font-black uppercase tracking-[0.16em] text-zinc-700 shadow-md dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200">
+                          Nível {levelData?.currentLevel || 1}
+                      </span>
                   </div>
 
-                  <div className="flex-1 space-y-2 text-center md:pt-20 md:text-left">
-                      {!isEditingName ? (
-                          <div className="flex items-center justify-center md:justify-start gap-3 group">
-                              <h1 className="text-4xl md:text-5xl font-black text-zinc-900 dark:text-white tracking-tight leading-none">
-                                  {user.displayName || 'Usuário'}
-                              </h1>
-                              <button
-                                  onClick={() => setIsEditingName(true)}
-                                  className="p-2 text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-all bg-zinc-100 dark:bg-zinc-800 rounded-lg"
-                                  title="Editar Nome"
-                              >
-                                  <Edit2 size={18} />
-                              </button>
-                          </div>
-                      ) : (
-                          <div className="flex items-center justify-center md:justify-start gap-2 animate-fade-in">
-                              <input
-                                  type="text"
-                                  value={newName}
-                                  onChange={(e) => setNewName(e.target.value)}
-                                  className="text-3xl md:text-4xl font-black bg-transparent border-b-2 border-indigo-500 text-zinc-900 dark:text-white outline-none w-full max-w-sm"
-                                  autoFocus
-                              />
-                              <button onClick={handleUpdateName} disabled={nameLoading} className="p-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 shadow-md transition-colors">
-                                  {nameLoading ? <Loader2 size={20} className="animate-spin" /> : <Check size={20} />}
-                              </button>
-                              <button onClick={() => { setIsEditingName(false); setNewName(user.displayName); }} className="p-2.5 bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 rounded-lg hover:bg-zinc-300 transition-colors">
-                                  <X size={20} />
-                              </button>
-                          </div>
-                      )}
+                  <div className="w-full min-w-0 flex-1 space-y-2 text-center md:pt-20 md:text-left">
+                      <div className="flex w-full items-end justify-between gap-2">
+                          {!isEditingName ? (
+                              <div className="group flex min-w-0 items-center gap-2 sm:gap-3">
+                                  <h1 className="truncate text-3xl font-black leading-none tracking-tight text-zinc-900 dark:text-white sm:text-4xl md:text-5xl">
+                                      {user.displayName || 'Usuário'}
+                                  </h1>
+                                  <button
+                                      onClick={() => setIsEditingName(true)}
+                                      className="shrink-0 rounded-lg bg-zinc-100 p-2 text-zinc-400 transition-all hover:text-indigo-600 dark:bg-zinc-800 dark:hover:text-indigo-400"
+                                      title="Editar Nome"
+                                  >
+                                      <Edit2 size={18} />
+                                  </button>
+                              </div>
+                          ) : (
+                              <div className="flex min-w-0 flex-1 animate-fade-in items-center gap-2">
+                                  <input
+                                      type="text"
+                                      value={newName}
+                                      onChange={(e) => setNewName(e.target.value)}
+                                      className="w-full min-w-0 max-w-sm border-b-2 border-indigo-500 bg-transparent text-3xl font-black text-zinc-900 outline-none dark:text-white md:text-4xl"
+                                      autoFocus
+                                  />
+                                  <button onClick={handleUpdateName} disabled={nameLoading} className="rounded-lg bg-indigo-600 p-2.5 text-white shadow-md transition-colors hover:bg-indigo-700">
+                                      {nameLoading ? <Loader2 size={20} className="animate-spin" /> : <Check size={20} />}
+                                  </button>
+                                  <button onClick={() => { setIsEditingName(false); setNewName(user.displayName); }} className="rounded-lg bg-zinc-200 p-2.5 text-zinc-600 transition-colors hover:bg-zinc-300 dark:bg-zinc-800 dark:text-zinc-400">
+                                      <X size={20} />
+                                  </button>
+                              </div>
+                          )}
+                          <button
+                              type="button"
+                              onClick={onGoToAchievements}
+                              className="group/achievement flex shrink-0 items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50/95 px-2.5 py-2 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-amber-300 hover:shadow-md dark:border-amber-900/60 dark:bg-amber-950/30 sm:px-3"
+                              aria-label={`Abrir ${achievementCount} conquistas desbloqueadas`}
+                          >
+                              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-500 text-white shadow-md shadow-amber-500/20"><Award size={16}/></span>
+                              <span className="block"><strong className="block text-sm font-black leading-none text-zinc-900 dark:text-white">{achievementCount}</strong><span className="mt-1 hidden text-[7px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-300 sm:block">Conquistas</span></span>
+                          </button>
+                      </div>
 
                       <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400 flex items-center justify-center md:justify-start gap-2"><Mail size={14} className="text-red-600" /> {user.email}</p>
                       <AnimatePresence>{photo && (<motion.div initial={{opacity:0, y:10}} animate={{opacity:1, y:0}} exit={{opacity:0, y:10}} className="pt-2"><button onClick={handleUpdatePhoto} disabled={photoLoading} className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-xs shadow-lg shadow-red-900/20 flex items-center gap-2 transition-all mx-auto md:mx-0">{photoLoading ? <Loader2 size={14} className="animate-spin"/> : <Save size={14}/>} Confirmar Foto</button></motion.div>)}</AnimatePresence>
@@ -1111,19 +1172,17 @@ function ProfilePage({
 
       <AnimatePresence>{message.text && (<motion.div initial={{opacity: 0, y: -20}} animate={{opacity: 1, y: 0}} exit={{opacity: 0}} className="fixed top-6 right-6 z-[100]"><div className={`px-4 py-3 rounded-xl border shadow-2xl flex items-center gap-3 backdrop-blur-md ${message.type === 'success' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 'bg-red-500/10 border-red-500/20 text-red-600 dark:text-red-400'}`}>{message.type === 'success' ? <CheckSquare size={18}/> : <AlertTriangle size={18}/>}<span className="font-bold text-sm">{message.text}</span><button onClick={() => setMessage({type:'', text:''})} className="ml-2 hover:opacity-50"><X size={14}/></button></div></motion.div>)}</AnimatePresence>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-2 md:gap-4 lg:grid-cols-4">
-          <StatCard icon={Clock} label="Tempo Total" value={`${stats.horasTotais}h ${stats.minutosRestantes}m`} subtext="Acumulado" colorClass="text-emerald-600" delay={0.1} />
-          <StatCard icon={CheckSquare} label="Registros" value={stats.totalRegistros} subtext="Estudos" colorClass="text-indigo-600" delay={0.2} />
-          <StatCard icon={CalendarIcon} label="Dias Ativo" value={stats.diasAtivos} subtext="Desde cadastro" colorClass="text-amber-600" delay={0.3} />
-           <motion.button initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} onClick={() => { setShowHistoryModal(true); setSelectedCycleId(null); setSelectedDate(dateToYMD(new Date())); }} className="relative min-h-[128px] overflow-hidden bg-zinc-900 dark:bg-white border border-zinc-900 dark:border-white p-4 md:p-6 rounded-2xl shadow-sm group hover:shadow-xl transition-all text-left flex flex-col justify-between md:min-h-[140px]">
-                <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><LayoutDashboard size={80} className="text-white dark:text-zinc-900" /></div>
-                <div className="relative z-10">
-                    <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 bg-white/20 dark:bg-zinc-900/10"><LayoutDashboard size={24} className="text-white dark:text-zinc-900" /></div>
-                    <h4 className="text-lg font-black text-white dark:text-zinc-900 uppercase leading-none">Histórico de Estudos</h4>
-                    <p className="text-[10px] font-bold text-white/60 dark:text-zinc-500 uppercase tracking-wide mt-1 group-hover:translate-x-1 transition-transform">Ver Registros →</p>
-                </div>
-           </motion.button>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+          <ProfileMetricCard icon={Clock} label="Tempo Total" value={`${stats.horasTotais}h ${stats.minutosRestantes}m`} subtext="Acumulado" tone="green" delay={0.05}/>
+          <ProfileMetricCard icon={ListChecks} label="Questões" value={stats.questoes.toLocaleString('pt-BR')} subtext="Resolvidas" tone="blue" delay={0.1}/>
+          <ProfileMetricCard icon={CircleCheckBig} label="Acertos" value={stats.acertos.toLocaleString('pt-BR')} subtext="Respostas certas" tone="green" delay={0.15}/>
+          <ProfileMetricCard icon={CircleX} label="Erros" value={stats.erros.toLocaleString('pt-BR')} subtext="Respostas erradas" tone="red" delay={0.2}/>
+          <ProfileMetricCard icon={CalendarIcon} label="Dias Ativos" value={stats.diasAtivos.toLocaleString('pt-BR')} subtext="Com estudo registrado" tone="amber" delay={0.25} className="col-span-2 sm:col-span-1"/>
       </div>
+
+      <motion.button initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} onClick={() => { setShowHistoryModal(true); setSelectedCycleId(null); setSelectedDate(dateToYMD(new Date())); }} className="group flex w-full items-center justify-between overflow-hidden rounded-2xl border border-zinc-900 bg-zinc-900 px-4 py-3 text-left shadow-sm transition-all hover:shadow-lg dark:border-white dark:bg-white sm:px-5">
+          <span className="flex min-w-0 items-center gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/15 text-white dark:bg-zinc-900/10 dark:text-zinc-900"><LayoutDashboard size={18}/></span><span className="min-w-0"><strong className="block truncate text-xs font-black uppercase text-white dark:text-zinc-900">Histórico de Estudos</strong><span className="mt-0.5 block text-[9px] font-bold uppercase tracking-wide text-white/55 dark:text-zinc-500">Consultar e gerenciar registros</span></span></span><span className="shrink-0 text-[10px] font-black uppercase text-white/70 transition-transform group-hover:translate-x-1 dark:text-zinc-600">Abrir →</span>
+      </motion.button>
 
       {/* Configurações e Arquivos */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pt-4">

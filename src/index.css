@@ -1312,6 +1312,10 @@ body.registro-modal-open .app-global-footer {
   --zoom-mobile-profile: 0.86;
   --zoom-mobile-noticias: 1;
   --zoom-mobile-admin: 0.75;
+  --zoom-mobile-ranking: 0.84;
+  --zoom-mobile-ligas: 0.82;
+  --zoom-mobile-conquistas: 0.84;
+  --zoom-mobile-grupos: 0.84;
   --zoom-mobile-cronograma-blocos: 0.78;
 
   --zoom-mobile-modal-historico-estudo: 0.74;
@@ -1332,7 +1336,7 @@ body.registro-modal-open .app-global-footer {
   --zoom-mobile-modal-archive: 0.84;
   --zoom-mobile-modal-notifications: 0.86;
   --zoom-mobile-support-card: 0.86;
-  --zoom-mobile-sidebar: 0.92;
+  --zoom-mobile-sidebar: 0.86;
   --zoom-mobile-desempenho-discipline-card: 0.90;
 
   --zoom-mobile-wizard-header: 0.70;
@@ -1913,6 +1917,26 @@ body.registro-modal-open .app-global-footer {
 
   .mobile-page-zoom--admin {
     --page-mobile-zoom: var(--zoom-mobile-admin);
+  }
+
+  .mobile-page-zoom--ranking {
+    --page-mobile-zoom: var(--zoom-mobile-ranking);
+    padding-bottom: 3rem;
+  }
+
+  .mobile-page-zoom--ligas {
+    --page-mobile-zoom: var(--zoom-mobile-ligas);
+    padding-bottom: 3rem;
+  }
+
+  .mobile-page-zoom--conquistas {
+    --page-mobile-zoom: var(--zoom-mobile-conquistas);
+    padding-bottom: 3rem;
+  }
+
+  .mobile-page-zoom--grupos {
+    --page-mobile-zoom: var(--zoom-mobile-grupos);
+    padding-bottom: 3rem;
   }
 
   .cronograma-blocks-mobile-zoom {

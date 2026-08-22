@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
-import { collection, doc, getDocs, query, setDoc, Timestamp } from 'firebase/firestore';
 import {
   Activity,
   ChevronRight,
@@ -10,10 +9,20 @@ import {
   Trophy,
   Users,
 } from 'lucide-react';
-import { db } from '../../firebaseConfig';
 import { useAdminAnalytics } from '../../hooks/useAdminAnalytics';
 import { useForceUnlock } from '../../hooks/useForceUnlock';
+import { adminRecalculateUserStats } from '../../services/adminApi';
 import AdminAnalyticsSection from './AdminAnalyticsSection';
+import AdminGamificationSection from './AdminGamificationSection';
+import AdminGroupsSection from './AdminGroupsSection';
+import AdminLeaguesSection from './AdminLeaguesSection';
+import {
+  AdminAuditSection,
+  AdminCommunicationsSection,
+  AdminMaintenanceSection,
+  AdminModerationSection,
+} from './AdminOperationsSections';
+import AdminUsersSection from './AdminUsersSection';
 import EditaisManagerModal from './EditaisManager';
 import HeaderAdmin from './HeaderAdmin';
 import StudyingNowPanel from './LiveStudyMonitor';
@@ -160,7 +169,7 @@ function AdminPage() {
   const [showEditaisModal, setShowEditaisModal] = useState(false);
   const [detailUser, setDetailUser] = useState(null);
   const [feedLimit, setFeedLimit] = useState(30);
-  const [broadcastDraft] = useState(null);
+  const [broadcastDraft, setBroadcastDraft] = useState(null);
   const [adminFeedback, setAdminFeedback] = useState(null);
   const [globalFilters, setGlobalFilters] = useState(DEFAULT_FILTERS);
   const [mobileRankingMetric, setMobileRankingMetric] = useState('hours');
@@ -177,6 +186,7 @@ function AdminPage() {
   const {
     loading,
     error,
+    users,
     studyRecords,
     cicloNameByKey,
     getUser,
@@ -200,29 +210,10 @@ function AdminPage() {
   };
 
   const handleRecalculateAllUsersStats = async () => {
+    if (!window.confirm('Recalcular as estatisticas de toda a base no servidor? A operacao sera auditada.')) return;
     try {
-      const usersSnapshot = await getDocs(collection(db, 'users'));
-      let processedCount = 0;
-      for (const userDoc of usersSnapshot.docs) {
-        const recordsSnapshot = await getDocs(query(collection(db, 'users', userDoc.id, 'registrosEstudo')));
-        let totalMinutes = 0;
-        let totalQuestions = 0;
-        let totalCorrect = 0;
-        recordsSnapshot.forEach((recordDoc) => {
-          const record = recordDoc.data();
-          totalMinutes += Number(record.tempoEstudadoMinutos || record.duracaoMinutos || 0);
-          totalQuestions += Number(record.questoesFeitas || 0);
-          totalCorrect += Number(record.acertos || 0);
-        });
-        await setDoc(doc(db, 'users', userDoc.id, 'stats', 'geral'), {
-          totalHorasMinutos: totalMinutes,
-          totalQuestoes: totalQuestions,
-          totalAcertos: totalCorrect,
-          lastUpdated: Timestamp.now(),
-        });
-        processedCount += 1;
-      }
-      setAdminFeedback({ type: 'success', message: `${processedCount} usuários recalibrados com sucesso.` });
+      const result = await adminRecalculateUserStats();
+      setAdminFeedback({ type: 'success', message: `${result.processedCount} usuários recalibrados no servidor.` });
     } catch (recalculationError) {
       console.error('Erro no recálculo administrativo:', recalculationError);
       setAdminFeedback({ type: 'error', message: 'Não foi possível recalcular as estatísticas.' });
@@ -253,17 +244,25 @@ function AdminPage() {
           onResetFilters={() => { setGlobalFilters(DEFAULT_FILTERS); setFeedLimit(30); }}
         />
 
-        <nav aria-label="Seções do painel administrativo" className="flex w-full gap-1 rounded-2xl border border-zinc-200 bg-zinc-100 p-1 dark:border-zinc-800 dark:bg-zinc-900 sm:w-fit">
+        <nav aria-label="Seções do painel administrativo" className="flex w-full gap-1 overflow-x-auto rounded-2xl border border-zinc-200 bg-zinc-100 p-1 dark:border-zinc-800 dark:bg-zinc-900">
           {[
             { id: 'overview', label: 'Visão geral' },
             { id: 'analytics', label: 'Analytics' },
+            { id: 'users', label: 'Usuários' },
+            { id: 'gamification', label: 'Gamificação' },
+            { id: 'leagues', label: 'Ligas' },
+            { id: 'groups', label: 'Grupos' },
+            { id: 'moderation', label: 'Moderação' },
+            { id: 'communications', label: 'Comunicações' },
+            { id: 'maintenance', label: 'Manutenção' },
+            { id: 'audit', label: 'Auditoria' },
           ].map((tab) => (
             <button
               key={tab.id}
               type="button"
               onClick={() => setActiveTab(tab.id)}
               aria-current={activeTab === tab.id ? 'page' : undefined}
-              className={`flex-1 rounded-xl px-5 py-2.5 text-xs font-black uppercase tracking-[0.12em] transition-all sm:flex-none ${activeTab === tab.id ? 'bg-white text-red-600 shadow-sm dark:bg-zinc-800 dark:text-red-400' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'}`}
+              className={`shrink-0 rounded-xl px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.1em] transition-all sm:px-5 sm:text-xs ${activeTab === tab.id ? 'bg-white text-red-600 shadow-sm dark:bg-zinc-800 dark:text-red-400' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'}`}
             >
               {tab.label}
             </button>
@@ -278,6 +277,27 @@ function AdminPage() {
 
         {activeTab === 'analytics' ? (
           <AdminAnalyticsSection datasets={analytics.datasets} loading={loading} error={error} />
+        ) : activeTab === 'users' ? (
+          <AdminUsersSection users={users} loading={loading} onOpenUser={setDetailUser} onFeedback={setAdminFeedback} />
+        ) : activeTab === 'gamification' ? (
+          <AdminGamificationSection users={users} loading={loading} onOpenUser={setDetailUser} onFeedback={setAdminFeedback} />
+        ) : activeTab === 'leagues' ? (
+          <AdminLeaguesSection users={users} onOpenUser={setDetailUser} onFeedback={setAdminFeedback} />
+        ) : activeTab === 'groups' ? (
+          <AdminGroupsSection users={users} onOpenUser={setDetailUser} onFeedback={setAdminFeedback} />
+        ) : activeTab === 'moderation' ? (
+          <AdminModerationSection users={users} onOpenUser={setDetailUser} onFeedback={setAdminFeedback} onNavigate={setActiveTab} />
+        ) : activeTab === 'communications' ? (
+          <AdminCommunicationsSection
+            users={users}
+            dashboardData={dashboardData}
+            filters={globalFilters}
+            onBroadcast={(segment) => setBroadcastDraft({ key: Date.now(), segment })}
+          />
+        ) : activeTab === 'maintenance' ? (
+          <AdminMaintenanceSection users={users} onFeedback={setAdminFeedback} onNavigate={setActiveTab} />
+        ) : activeTab === 'audit' ? (
+          <AdminAuditSection users={users} />
         ) : (
           <div key="overview" className="space-y-6">
             <div className="grid grid-cols-3 gap-2 sm:gap-4">

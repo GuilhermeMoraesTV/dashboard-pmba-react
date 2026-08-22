@@ -58,10 +58,28 @@ test('offline usa cache recebido sem classificar usuario como novo', () => {
   assert.equal(isPlanningAssessmentReady(state), false);
 });
 
-test('timeout evita bloqueio infinito sem autorizar onboarding incorreto', () => {
+test('timeout não libera shell online enquanto planejamento ainda vem só do cache', () => {
   const state = fillState(Object.fromEntries(
     HYDRATION_RESOURCE_KEYS.map((key) => [key, { authoritative: false }])
   ));
+  const status = getCoreHydrationStatus({
+    hydrationState: state,
+    isOnline: true,
+    timedOut: true,
+    legacyReadyFlags: false,
+  });
+
+  assert.equal(status.ready, false);
+  assert.equal(isPlanningAssessmentReady(state), false);
+});
+
+test('timeout libera shell online quando ciclo e cronograma já foram resolvidos', () => {
+  const state = fillState({
+    registros: { authoritative: false },
+    simulados: { authoritative: false },
+    disciplinasCiclo: { authoritative: false },
+    metas: { authoritative: false },
+  });
   const status = getCoreHydrationStatus({
     hydrationState: state,
     isOnline: true,

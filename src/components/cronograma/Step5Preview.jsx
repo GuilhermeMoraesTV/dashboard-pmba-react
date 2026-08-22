@@ -220,7 +220,7 @@ const agruparRevisoesDoDia = (items = [], dayKey = '') => {
 
 // ─── COMPONENTES ──────────────────────────────────────────────────────────────
 
-const SlotCard = ({ item, onClick, compact = false, config = {}, colorMap = null, isToday = false, dragRef = null, dragStyle = {}, dragAttributes = {}, dragListeners = {}, isDragging = false }) => {
+const SlotCard = ({ item, onClick, compact = false, config = {}, colorMap = null, isToday = false, dragRef = null, dragStyle = {}, dragAttributes = {}, dragListeners = {}, isDragging = false, isDragOverlay = false }) => {
   const isRev = item.isRevisao || item.isRevisaoAuto || item.isConsolidada;
   const modoTempo = normalizarModoTempo(config.modoExibirTempo);
   const mostrarTempoBloco = modoTempo === 'detalhado';
@@ -276,8 +276,8 @@ const SlotCard = ({ item, onClick, compact = false, config = {}, colorMap = null
       {...dragListeners}
       onClick={!isDragging ? () => onClick(item) : undefined}
       whileHover={{ y: -1, scale: 1.01 }}
-      style={{ ...cardStyle, ...dragStyle }}
-      className={`discipline-tinted-card ${isDone ? 'discipline-completed-card' : ''} group relative min-h-[104px] cursor-grab select-none overflow-hidden rounded-2xl border transition-all duration-200 shadow-sm active:cursor-grabbing ${isDragging ? 'z-20 opacity-70 shadow-2xl' : ''} ${isToday ? (isRev ? 'ring-1 ring-blue-500/45' : 'ring-1 ring-red-500/45') : ''}`}
+      style={{ ...cardStyle, ...dragStyle, touchAction: 'none' }}
+      className={`discipline-tinted-card ${isDone ? 'discipline-completed-card' : ''} group relative min-h-[104px] cursor-grab select-none overflow-hidden rounded-2xl border transition-shadow duration-150 shadow-sm active:cursor-grabbing ${isDragging ? (isDragOverlay ? 'z-[10001] shadow-2xl' : 'z-20 opacity-20') : ''} ${isToday ? (isRev ? 'ring-1 ring-blue-500/45' : 'ring-1 ring-red-500/45') : ''}`}
     >
       <div className="flex h-full flex-col gap-2 px-3.5 py-3">
       <div className="flex items-start justify-between gap-2">
@@ -386,10 +386,16 @@ const PreviewDayDropZone = ({ dayKey, className, children }) => {
 
 const previewCollisionDetection = (args) => {
   const pointerCollisions = pointerWithin(args);
+  const taskCollision = pointerCollisions.find((collision) => !String(collision.id).startsWith('preview-day-'));
+  if (taskCollision) return [taskCollision];
+
   const dayCollision = pointerCollisions.find((collision) => String(collision.id).startsWith('preview-day-'));
   if (dayCollision) return [dayCollision];
 
   const rectCollisions = rectIntersection(args);
+  const rectTaskCollision = rectCollisions.find((collision) => !String(collision.id).startsWith('preview-day-'));
+  if (rectTaskCollision) return [rectTaskCollision];
+
   const rectDayCollision = rectCollisions.find((collision) => String(collision.id).startsWith('preview-day-'));
   if (rectDayCollision) return [rectDayCollision];
 
@@ -420,6 +426,7 @@ const Step5_Preview = ({
   const [modalSlot,    setModalSlot]    = useState(null);
   const [agendaOverride, setAgendaOverride] = useState(null);
   const [activeDragItem, setActiveDragItem] = useState(null);
+  const [activeDragSize, setActiveDragSize] = useState(null);
   const [reviewModalZoom, setReviewModalZoom] = useState(1);
   const modoTempo = normalizarModoTempo(config?.modoExibirTempo);
   const mostrarTempoTotal = modoTempo !== 'nenhum';
@@ -430,8 +437,8 @@ const Step5_Preview = ({
   const startX = useRef(0);
   const scrollLeft = useRef(0);
   const dragSensors = useSensors(
-    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 8 } }),
+    useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 110, tolerance: 10 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
@@ -641,10 +648,13 @@ const Step5_Preview = ({
   // ── Drag and Drop ──────────────────────────────────────────────────────────
   const handlePreviewDragStart = ({ active }) => {
     setActiveDragItem(active.data.current?.item || null);
+    const initialRect = active.rect.current?.initial;
+    setActiveDragSize(initialRect ? { width: initialRect.width, height: initialRect.height } : null);
   };
 
   const handlePreviewDragEnd = ({ active, over }) => {
     setActiveDragItem(null);
+    setActiveDragSize(null);
     if (!over) return;
 
     const activeData = active.data.current;
@@ -803,7 +813,7 @@ const Step5_Preview = ({
               collisionDetection={previewCollisionDetection}
               onDragStart={handlePreviewDragStart}
               onDragEnd={handlePreviewDragEnd}
-              onDragCancel={() => setActiveDragItem(null)}
+              onDragCancel={() => { setActiveDragItem(null); setActiveDragSize(null); }}
             >
               <motion.div
                 key="semana" initial={{ opacity:0, x: 20 }} animate={{ opacity:1, x:0 }} exit={{ opacity:0, x:-20 }}
@@ -908,13 +918,16 @@ const Step5_Preview = ({
                 );
               })}
               </motion.div>
-              <DragOverlay dropAnimation={{ duration: 180, easing: 'ease' }}>
-                {activeDragItem ? (
-                  <div className="w-[168px] sm:w-[260px] xl:w-[284px]">
-                    <SlotCard item={activeDragItem} onClick={() => {}} config={config} colorMap={colorMap} isDragging />
-                  </div>
-                ) : null}
-              </DragOverlay>
+              {typeof document !== 'undefined' && createPortal(
+                <DragOverlay dropAnimation={{ duration: 90, easing: 'ease-out' }} zIndex={10000}>
+                  {activeDragItem ? (
+                    <div style={{ width: activeDragSize?.width, height: activeDragSize?.height }}>
+                      <SlotCard item={activeDragItem} onClick={() => {}} config={config} colorMap={colorMap} isDragging isDragOverlay />
+                    </div>
+                  ) : null}
+                </DragOverlay>,
+                document.body,
+              )}
             </DndContext>
           )}
 

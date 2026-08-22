@@ -1,5 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
-import { collection, collectionGroup, limit, onSnapshot, orderBy, query } from 'firebase/firestore';
+import {
+  collection,
+  collectionGroup,
+  doc,
+  getDoc,
+  limit,
+  onSnapshot,
+  orderBy,
+  query,
+} from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import {
   buildAdminAnalyticsDatasets,
@@ -9,6 +18,7 @@ import {
   prepareAdminActivities,
   toAdminDate,
 } from '../utils/adminAnalytics';
+import { getLeague } from '../utils/gamification';
 
 const INITIAL_LOADED = {
   users: false,
@@ -17,6 +27,7 @@ const INITIAL_LOADED = {
   cycles: false,
   schedules: false,
   timers: false,
+  gamification: false,
 };
 
 const userCreatedAt = (user) => (
@@ -57,6 +68,8 @@ export const useAdminAnalytics = ({
   const [rawStudyRecords, setRawStudyRecords] = useState([]);
   const [rawSimulations, setRawSimulations] = useState([]);
   const [activeSessions, setActiveSessions] = useState([]);
+  const [gamificationByUid, setGamificationByUid] = useState(new Map());
+  const [gamificationCollectionDenied, setGamificationCollectionDenied] = useState(false);
   const [cicloMetaByKey, setCicloMetaByKey] = useState(new Map());
   const [cronogramaMetaByKey, setCronogramaMetaByKey] = useState(new Map());
   const [loaded, setLoaded] = useState(INITIAL_LOADED);
@@ -144,6 +157,82 @@ export const useAdminAnalytics = ({
     })));
   }), []);
 
+  useEffect(() => onSnapshot(
+    query(collectionGroup(db, 'gamification'), limit(5000)),
+    (snapshot) => {
+      const next = new Map();
+      snapshot.docs.forEach((docSnap) => {
+        if (docSnap.id !== 'profile') return;
+        const parts = docSnap.ref.path.split('/');
+        const uid = parts[0] === 'users' ? parts[1] : null;
+        if (uid) next.set(uid, { id: docSnap.id, ...docSnap.data() });
+      });
+      setGamificationByUid(next);
+      setGamificationCollectionDenied(false);
+      setLoaded((current) => ({ ...current, gamification: true }));
+      setErrors((current) => {
+        if (!current.gamification) return current;
+        const nextErrors = { ...current };
+        delete nextErrors.gamification;
+        return nextErrors;
+      });
+    },
+    (snapshotError) => {
+      if (snapshotError?.code === 'permission-denied') {
+        // Regras antigas em produção podem negar collectionGroup. O caminho
+        // individual já é permitido ao admin e mantém a tela funcional até a
+        // publicação das regras consolidadas.
+        setGamificationCollectionDenied(true);
+        return;
+      }
+      console.error('Falha ao carregar dados administrativos (gamification):', snapshotError);
+      setErrors((current) => ({
+        ...current,
+        gamification: snapshotError?.message || 'Não foi possível carregar a gamificação administrativa.',
+      }));
+      setLoaded((current) => ({ ...current, gamification: true }));
+    },
+  ), []);
+
+  useEffect(() => {
+    if (!gamificationCollectionDenied || !loaded.users) return undefined;
+    let cancelled = false;
+
+    const loadProfilesIndividually = async () => {
+      try {
+        const next = new Map();
+        const batchSize = 40;
+        for (let index = 0; index < rawUsers.length; index += batchSize) {
+          const batch = rawUsers.slice(index, index + batchSize);
+          const snapshots = await Promise.all(batch.map((user) => getDoc(doc(db, 'users', user.id, 'gamification', 'profile'))));
+          snapshots.forEach((profileSnap, snapshotIndex) => {
+            if (profileSnap.exists()) next.set(batch[snapshotIndex].id, { id: profileSnap.id, ...profileSnap.data() });
+          });
+        }
+        if (cancelled) return;
+        setGamificationByUid(next);
+        setLoaded((current) => ({ ...current, gamification: true }));
+        setErrors((current) => {
+          if (!current.gamification) return current;
+          const nextErrors = { ...current };
+          delete nextErrors.gamification;
+          return nextErrors;
+        });
+      } catch (fallbackError) {
+        if (cancelled) return;
+        console.error('Falha no fallback de gamificação administrativa:', fallbackError);
+        setErrors((current) => ({
+          ...current,
+          gamification: fallbackError?.message || 'Não foi possível carregar os perfis de gamificação.',
+        }));
+        setLoaded((current) => ({ ...current, gamification: true }));
+      }
+    };
+
+    loadProfilesIndividually();
+    return () => { cancelled = true; };
+  }, [gamificationCollectionDenied, loaded.users, rawUsers]);
+
   const state = useMemo(() => {
     const now = new Date();
     const profileFilteredUsers = filters.userProfile && filters.userProfile !== 'all'
@@ -179,17 +268,48 @@ export const useAdminAnalytics = ({
         .map((record) => record.uid),
     );
 
+    const isActivePlan = (plan) => plan?.ativo === true
+      || plan?.ativa === true
+      || plan?.active === true
+      || ['active', 'ativo', 'em_andamento'].includes(String(plan?.status || '').toLowerCase());
+    const activeCycleUserIds = new Set([...cicloMetaByKey.values()].filter(isActivePlan).map((plan) => plan.uid));
+    const activeScheduleUserIds = new Set([...cronogramaMetaByKey.values()].filter(isActivePlan).map((plan) => plan.uid));
+
     const enrichedUsers = profileFilteredUsers.map((user) => {
       const ranking = rankingByMetric.hours.find((row) => row.id === user.id);
       const latest = allActivities.find((record) => record.uid === user.id);
+      const gamification = gamificationByUid.get(user.id) || null;
+      const totalQuestions = ranking?.totalQuestions || 0;
+      const totalCorrect = ranking?.totalCorrect || 0;
+      const daysInactive = latest?.timestamp
+        ? Math.max(0, Math.floor((now.getTime() - latest.timestamp.getTime()) / DAY_MS))
+        : null;
+      const status = user.status || (user.disabled ? 'disabled' : 'active');
       return {
         ...user,
+        status,
         totalHours: ranking?.totalHours || 0,
         totalMinutes: ranking?.totalMinutes || 0,
-        totalQuestions: ranking?.totalQuestions || 0,
-        totalCorrect: ranking?.totalCorrect || 0,
+        totalQuestions,
+        totalCorrect,
+        accuracy: totalQuestions > 0 ? Math.round((totalCorrect / totalQuestions) * 100) : 0,
         recordsCount: ranking?.recordsCount || 0,
         lastStudy: latest?.timestamp || null,
+        daysInactive,
+        risk: status === 'blocked' || status === 'disabled'
+          ? 'Conta restrita'
+          : daysInactive == null ? 'Sem atividade' : daysInactive >= 30 ? 'Risco 30d' : daysInactive >= 14 ? 'Risco 14d' : 'Saudavel',
+        gamification,
+        hasGamification: Boolean(gamification),
+        level: Number(gamification?.level || gamification?.currentLevel || 0),
+        league: gamification
+          ? (gamification.leagueName || getLeague(gamification.currentLeague || gamification.league || gamification.leagueId || 'iron').name)
+          : 'Sem liga',
+        cohortId: gamification?.currentCohortId || null,
+        mainGroupId: gamification?.mainGroupId || null,
+        mainGroupName: gamification?.mainGroupName || 'Sem grupo',
+        hasActiveCycle: activeCycleUserIds.has(user.id),
+        hasActiveSchedule: activeScheduleUserIds.has(user.id),
       };
     });
 
@@ -215,7 +335,7 @@ export const useAdminAnalytics = ({
         enrichedUsers,
       },
     };
-  }, [cicloMetaByKey, cronogramaMetaByKey, filters, rankingLimit, rankingMetric, rawSimulations, rawStudyRecords, rawUsers, selectedFeedUid]);
+  }, [cicloMetaByKey, cronogramaMetaByKey, filters, gamificationByUid, rankingLimit, rankingMetric, rawSimulations, rawStudyRecords, rawUsers, selectedFeedUid]);
 
   const activeSessionsFresh = useMemo(() => activeSessions.filter((session) => (
     Date.now() - (toAdminDate(session.updatedAt)?.getTime() || 0)

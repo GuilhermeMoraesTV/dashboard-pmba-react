@@ -69,6 +69,7 @@ function StudyTimer({
   userUid,
   userName,
   userPhotoURL,
+  groupIds = [],
 
   variant = 'study',
   timerMode,
@@ -672,6 +673,7 @@ function StudyTimer({
       uid: userUid || null,
       userName: userName || 'Estudante',
       userPhotoURL: userPhotoURL || null,
+      groupIds: Array.isArray(groupIds) ? groupIds : [],
       disciplinaId: disciplina?.id || null,
       disciplinaNome: disciplina?.nome || '',
       assunto: assunto ?? null,
@@ -716,7 +718,7 @@ function StudyTimer({
       ...extra,
     };
   }, [
-    userUid, userName, userPhotoURL,
+    userUid, userName, userPhotoURL, groupIds,
     disciplina?.id, disciplina?.nome, assunto, contextHint, sessaoGlobalIndex,
     effectiveMode, variant, countdownSeconds,
     settings.pomodoroTime, settings.restTime,

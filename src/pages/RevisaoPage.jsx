@@ -117,22 +117,20 @@ const TAB_TONES = {
 };
 
 const ReviewStatCard = ({ icon: Icon, title, value, detail }) => (
-  <article className="group relative flex min-h-[108px] flex-col justify-center overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white px-3 py-2.5 shadow-soft transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/40 hover:!border-l-red-500 hover:shadow-[0_0_18px_rgba(239,68,68,0.07)] dark:border-white/10 dark:!border-l-red-500/25 dark:bg-card-dark dark:hover:border-accent-light/20 dark:hover:!border-l-red-500 dark:hover:shadow-[0_0_22px_rgba(239,68,68,0.08)]">
+  <article className="group relative flex min-h-[86px] flex-col justify-center overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white px-3 py-2.5 shadow-soft transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/40 hover:!border-l-red-500 hover:shadow-[0_0_18px_rgba(239,68,68,0.07)] dark:border-white/10 dark:!border-l-red-500/25 dark:bg-card-dark dark:hover:border-accent-light/20 dark:hover:!border-l-red-500 dark:hover:shadow-[0_0_22px_rgba(239,68,68,0.08)]">
     <div className="relative z-20 flex w-full flex-col gap-0.5">
-      <h2 className="w-full truncate text-[10.5px] font-bold uppercase leading-none tracking-wider text-text-secondary dark:text-text-dark-secondary">
+      <h3 className="w-full truncate text-xs font-bold uppercase leading-none tracking-wide text-text-secondary dark:text-text-dark-secondary md:text-[13px]">
         {title}
-      </h2>
-      <div className="mt-1 flex items-baseline gap-1">
+      </h3>
+      <div className="mt-1 flex flex-row items-baseline gap-1">
         <p className="text-xl font-extrabold leading-none tracking-tight text-text-primary dark:text-text-dark-primary md:text-2xl">
           {value}
         </p>
-        <span className="truncate text-[10px] leading-none opacity-90">
-          {detail}
-        </span>
+        {detail && <div className="text-[9px] leading-none opacity-90">{detail}</div>}
       </div>
     </div>
     <div className="pointer-events-none absolute -bottom-4 -right-4 z-10 text-red-500/10 transition-all duration-700 ease-out group-hover:scale-125 group-hover:rotate-[-10deg] dark:text-red-500/5">
-      {React.createElement(Icon, { strokeWidth: 1.5, className: "h-16 w-16 md:h-20 md:w-20" })}
+      <Icon strokeWidth={1.5} className="h-16 w-16 md:h-20 md:w-20" />
     </div>
   </article>
 );

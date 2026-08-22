@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import {
   Activity,
   AlertTriangle,
+  Ban,
   BarChart3,
   BookOpen,
   Calendar,
@@ -14,7 +15,12 @@ import {
   Clock,
   FileText,
   Flame,
+  Gamepad2,
   LayoutDashboard,
+  LockKeyhole,
+  MessageSquare,
+  RefreshCw,
+  ShieldCheck,
   ShieldAlert,
   Target,
   TrendingUp,
@@ -36,6 +42,13 @@ import {
   YAxis,
 } from 'recharts';
 import { useAdminUser360, getMinutes, getQuestions, getCorrect, toDateSafe } from '../../hooks/useAdminUser360';
+import {
+  adminRecalculateUserStats,
+  adminRecomputeUserGamification,
+  adminSendUserNotification,
+  adminUpdateUserAccess,
+  adminUpdateUserStatus,
+} from '../../services/adminApi';
 import CicloVisual from '../ciclos/CicloVisual';
 import CardSessoesCicloHoje from '../ciclos/CardSessoesCicloHoje';
 import CalendarTab from '../dashboard/CalendarTab';
@@ -48,7 +61,9 @@ const TAB_ITEMS = [
   { id: 'history', label: 'Historico', icon: Activity },
   { id: 'reviews', label: 'Revisoes', icon: BookOpen },
   { id: 'simulations', label: 'Simulados', icon: ClipboardList },
+  { id: 'gamification', label: 'Gamificacao', icon: Gamepad2 },
   { id: 'risk', label: 'Risco', icon: ShieldAlert },
+  { id: 'admin', label: 'Admin', icon: ShieldCheck },
 ];
 
 const formatDuration = (minutes) => {
@@ -1089,6 +1104,154 @@ const RiskTab = ({ data }) => {
   );
 };
 
+const GamificationTab = ({ data }) => {
+  const profile = data.gamificationProfile || {};
+  const unlockedAchievements = data.achievements.filter((item) => item.unlocked !== false);
+  return (
+    <div className="space-y-5 pb-10">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+        <StatCard icon={Zap} label="XP total" value={Number(profile.totalXP || 0).toLocaleString('pt-BR')} subtext={`XP base ${Number(profile.baseXP || 0).toLocaleString('pt-BR')}`} tone="red" />
+        <StatCard icon={TrendingUp} label="XP semanal" value={Number(profile.weeklyCompetitiveXP || profile.weeklyXP || 0).toLocaleString('pt-BR')} subtext={profile.competitiveWeekId || 'Semana nao iniciada'} tone="blue" />
+        <StatCard icon={Gamepad2} label="Nivel" value={profile.level || '-'} subtext={profile.ruleVersion ? `Regra ${profile.ruleVersion}` : 'Sem perfil calculado'} tone="green" />
+        <StatCard icon={Trophy} label="Liga atual" value={profile.leagueName || profile.currentLeague || 'Sem liga'} subtext={profile.currentCohortId || 'Sem coorte ativa'} tone="amber" />
+      </div>
+
+      {!data.gamificationProfile ? (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-200">Este usuario ainda nao possui <code>gamification/profile</code>. Use a aba Admin para reprocessar a gamificacao.</div>
+      ) : null}
+
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+        <SectionCard title="Conquistas" subtitle={`${unlockedAchievements.length} desbloqueadas`}>
+          {unlockedAchievements.length ? (
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {unlockedAchievements.slice(0, 20).map((item) => (
+                <div key={item.id} className="rounded-2xl border border-zinc-200 bg-zinc-50/70 p-3 dark:border-zinc-800 dark:bg-zinc-900/30">
+                  <p className="text-sm font-black text-zinc-900 dark:text-white">{item.title || item.name || item.id}</p>
+                  <p className="mt-1 text-[11px] font-semibold text-zinc-500">{Number(item.xp || item.rewardXP || 0)} XP · {formatDateOnly(item.unlockedAt)}</p>
+                </div>
+              ))}
+            </div>
+          ) : <EmptyState icon={Trophy} title="Sem conquistas" description="Nenhuma conquista desbloqueada foi encontrada." />}
+        </SectionCard>
+
+        <SectionCard title="Eventos de XP recentes" subtitle="Ultimos 100 eventos carregados">
+          {data.xpEvents.length ? (
+            <div className="max-h-[430px] space-y-2 overflow-y-auto pr-1">
+              {data.xpEvents.slice(0, 30).map((event) => (
+                <div key={event.id} className="flex items-start justify-between gap-3 rounded-2xl border border-zinc-200 bg-zinc-50/70 p-3 dark:border-zinc-800 dark:bg-zinc-900/30">
+                  <div className="min-w-0"><p className="truncate text-xs font-black text-zinc-900 dark:text-white">{event.message || event.sourceType || event.id}</p><p className="mt-1 text-[10px] font-semibold text-zinc-500">{formatDateTime(event.createdAt)} · {event.isRead ? 'lido' : 'nao lido'}</p></div>
+                  <SmallBadge tone={Number(event.xpTotal || event.xp || 0) >= 0 ? 'green' : 'red'}>{Number(event.xpTotal || event.xp || 0)} XP</SmallBadge>
+                </div>
+              ))}
+            </div>
+          ) : <EmptyState icon={Zap} title="Sem eventos de XP" description="O historico de pontuacao ainda esta vazio." />}
+        </SectionCard>
+      </div>
+    </div>
+  );
+};
+
+const AdminActionButton = ({ icon: Icon, children, onClick, disabled, danger = false }) => (
+  <button type="button" onClick={onClick} disabled={disabled} className={`inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-3 text-xs font-black uppercase tracking-wider transition disabled:cursor-wait disabled:opacity-50 ${danger ? 'border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900/50 dark:hover:bg-red-950/30' : 'border-zinc-200 text-zinc-600 hover:border-red-200 hover:text-red-600 dark:border-zinc-700 dark:text-zinc-200'}`}>
+    {disabled ? <RefreshCw size={15} className="animate-spin" /> : React.createElement(Icon, { size: 15 })} {children}
+  </button>
+);
+
+const AdminTab = ({ data }) => {
+  const user = data.user || {};
+  const [running, setRunning] = useState('');
+  const [feedback, setFeedback] = useState(null);
+  const [access, setAccess] = useState(() => ({
+    role: user.access?.role || user.role || 'student',
+    adminRole: user.access?.adminRole || '',
+    permissions: {
+      adminPanel: user.access?.permissions?.adminPanel === true,
+      manageBroadcasts: user.access?.permissions?.manageBroadcasts === true,
+      manageTemplates: user.access?.permissions?.manageTemplates === true,
+      viewAdminAnalytics: user.access?.permissions?.viewAdminAnalytics === true,
+    },
+  }));
+
+  useEffect(() => {
+    setAccess({
+      role: user.access?.role || user.role || 'student',
+      adminRole: user.access?.adminRole || '',
+      permissions: {
+        adminPanel: user.access?.permissions?.adminPanel === true,
+        manageBroadcasts: user.access?.permissions?.manageBroadcasts === true,
+        manageTemplates: user.access?.permissions?.manageTemplates === true,
+        viewAdminAnalytics: user.access?.permissions?.viewAdminAnalytics === true,
+      },
+    });
+  }, [user.access, user.role, user.id, user.uid]);
+
+  const run = async (key, operation, success) => {
+    setRunning(key);
+    setFeedback(null);
+    try {
+      await operation();
+      setFeedback({ type: 'success', message: success });
+    } catch (error) {
+      setFeedback({ type: 'error', message: error.message });
+    } finally {
+      setRunning('');
+    }
+  };
+
+  const changeStatus = (status) => {
+    if (!window.confirm(`Confirma alterar o status da conta para ${status}? A acao sera auditada.`)) return;
+    run('status', () => adminUpdateUserStatus(data.uid, status), 'Status da conta atualizado no servidor.');
+  };
+
+  const sendNotification = () => {
+    const title = window.prompt('Titulo da notificacao:', 'Mensagem da administracao');
+    if (!title) return;
+    const message = window.prompt('Mensagem para o usuario:');
+    if (!message) return;
+    run('notification', () => adminSendUserNotification(data.uid, { title, message }), 'Notificacao enviada e auditada.');
+  };
+
+  const permissions = [
+    ['adminPanel', 'Acesso ao painel admin'],
+    ['viewAdminAnalytics', 'Visualizar analytics'],
+    ['manageBroadcasts', 'Gerenciar comunicacoes'],
+    ['manageTemplates', 'Gerenciar editais'],
+  ];
+
+  return (
+    <div className="space-y-5 pb-10">
+      {feedback ? <div className={`rounded-2xl border px-4 py-3 text-sm font-bold ${feedback.type === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/20 dark:text-emerald-300' : 'border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-300'}`}>{feedback.message}</div> : null}
+
+      <SectionCard title="Conta e operacoes sensiveis" subtitle="Executadas por Cloud Function e registradas em auditoria">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <AdminActionButton icon={RefreshCw} disabled={Boolean(running)} onClick={() => run('stats', () => adminRecalculateUserStats(data.uid), 'Estatisticas recalculadas.')}>Recalcular stats</AdminActionButton>
+          <AdminActionButton icon={Gamepad2} disabled={Boolean(running)} onClick={() => run('gamification', () => adminRecomputeUserGamification(data.uid), 'Gamificacao reprocessada.')}>Recalcular gamificacao</AdminActionButton>
+          <AdminActionButton icon={MessageSquare} disabled={Boolean(running)} onClick={sendNotification}>Enviar notificacao</AdminActionButton>
+          {(user.status || 'active') === 'active' ? <AdminActionButton icon={Ban} disabled={Boolean(running)} danger onClick={() => changeStatus('blocked')}>Bloquear conta</AdminActionButton> : <AdminActionButton icon={ShieldCheck} disabled={Boolean(running)} onClick={() => changeStatus('active')}>Reativar conta</AdminActionButton>}
+          {(user.status || 'active') !== 'disabled' ? <AdminActionButton icon={LockKeyhole} disabled={Boolean(running)} danger onClick={() => changeStatus('disabled')}>Desativar conta</AdminActionButton> : null}
+        </div>
+      </SectionCard>
+
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+        <SectionCard title="Permissoes" subtitle="Alteracoes de acesso sao validadas no servidor">
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <label className="text-xs font-black uppercase tracking-wider text-zinc-500">Perfil<select value={access.role} onChange={(event) => setAccess((current) => ({ ...current, role: event.target.value }))} className="mt-2 h-11 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-sm normal-case tracking-normal dark:border-zinc-700 dark:bg-zinc-900"><option value="student">Aluno</option><option value="admin">Administrador</option></select></label>
+              <label className="text-xs font-black uppercase tracking-wider text-zinc-500">Papel admin<select value={access.adminRole} onChange={(event) => setAccess((current) => ({ ...current, adminRole: event.target.value }))} className="mt-2 h-11 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-sm normal-case tracking-normal dark:border-zinc-700 dark:bg-zinc-900"><option value="">Nenhum</option><option value="admin">Admin</option><option value="super_admin">Super admin</option></select></label>
+            </div>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">{permissions.map(([key, label]) => <label key={key} className="flex items-center gap-3 rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-xs font-bold text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-200"><input type="checkbox" checked={access.permissions[key]} onChange={(event) => setAccess((current) => ({ ...current, permissions: { ...current.permissions, [key]: event.target.checked } }))} className="h-4 w-4 accent-red-600" />{label}</label>)}</div>
+            <AdminActionButton icon={ShieldCheck} disabled={Boolean(running)} onClick={() => run('access', () => adminUpdateUserAccess(data.uid, access), 'Permissoes atualizadas e auditadas.')}>Salvar permissoes</AdminActionButton>
+          </div>
+        </SectionCard>
+
+        <SectionCard title="Intervencoes recentes" subtitle="Historico administrativo deste usuario">
+          {data.auditLogs.length ? <div className="max-h-[430px] space-y-2 overflow-y-auto pr-1">{data.auditLogs.slice(0, 30).map((log) => <div key={log.id} className="rounded-2xl border border-zinc-200 bg-zinc-50/70 p-3 dark:border-zinc-800 dark:bg-zinc-900/30"><div className="flex items-center justify-between gap-3"><p className="text-xs font-black text-zinc-900 dark:text-white">{log.action}</p><SmallBadge tone={log.status === 'success' ? 'green' : 'red'}>{log.status || 'success'}</SmallBadge></div><p className="mt-1 text-[10px] font-semibold text-zinc-500">{log.actorEmail || log.actorUid || 'Admin'} · {formatDateTime(log.createdAt)}</p>{log.error ? <p className="mt-2 text-[11px] font-semibold text-red-600">{log.error}</p> : null}</div>)}</div> : <EmptyState icon={ShieldCheck} title="Sem intervencoes" description="As proximas acoes administrativas aparecerao aqui." />}
+        </SectionCard>
+      </div>
+    </div>
+  );
+};
+
 const LoadingState = () => (
   <div className="space-y-5 pb-10 animate-pulse">
     <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -1125,6 +1288,8 @@ const AdminUserProfileModal = ({ isOpen, onClose, user }) => {
     if (activeTab === 'history') return <HistoryTab data={data} />;
     if (activeTab === 'reviews') return <ReviewsTab data={data} />;
     if (activeTab === 'simulations') return <SimulationsTab data={data} />;
+    if (activeTab === 'gamification') return <GamificationTab data={data} />;
+    if (activeTab === 'admin') return <AdminTab data={data} />;
     return <RiskTab data={data} />;
   }, [activeTab, data]);
 
@@ -1168,6 +1333,7 @@ const AdminUserProfileModal = ({ isOpen, onClose, user }) => {
 
           <button
             onClick={onClose}
+            aria-label="Fechar perfil 360"
             className="absolute top-4 right-4 p-2 bg-zinc-100 hover:bg-red-50 hover:text-red-600 rounded-full transition-colors"
           >
             <X size={20} />

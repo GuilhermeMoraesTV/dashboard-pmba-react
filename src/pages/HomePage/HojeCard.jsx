@@ -991,7 +991,7 @@ function HojeCard({
         if (!completionGlowActive || isInteractiveClick(event.target)) return;
         openCompletionModal();
       }}
-      className={`group relative z-20 flex min-h-[400px] flex-col overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 bg-white p-4 transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/50 hover:shadow-lg dark:border-white/10 dark:bg-card-dark sm:p-5 ${completionGlowActive ? '!border-l-emerald-500/35 hover:!border-l-emerald-500 dark:!border-l-emerald-500/35 dark:hover:!border-l-emerald-500 dark:shadow-[0_0_24px_rgba(16,185,129,0.1)] dark:hover:shadow-[0_0_36px_rgba(16,185,129,0.16)] cursor-pointer' : '!border-l-red-500/20 hover:!border-l-red-500 dark:!border-l-red-500/25 dark:hover:!border-l-red-500'} ${className}`}
+      className={`group relative z-20 flex h-[min(42rem,calc(100dvh-8.5rem))] min-h-[400px] max-h-[42rem] flex-col overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 bg-white p-4 transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/50 hover:shadow-lg dark:border-white/10 dark:bg-card-dark sm:h-auto sm:max-h-none sm:p-5 ${completionGlowActive ? '!border-l-emerald-500/35 hover:!border-l-emerald-500 dark:!border-l-emerald-500/35 dark:hover:!border-l-emerald-500 dark:shadow-[0_0_24px_rgba(16,185,129,0.1)] dark:hover:shadow-[0_0_36px_rgba(16,185,129,0.16)] cursor-pointer' : '!border-l-red-500/20 hover:!border-l-red-500 dark:!border-l-red-500/25 dark:hover:!border-l-red-500'} ${className}`}
     >
       <div className="pointer-events-none absolute inset-0 z-0 bg-white dark:bg-card-dark" />
 

@@ -1448,10 +1448,10 @@ function EditalPage({
       </AnimatePresence>
 
       {/* ── HEADER ── */}
-      <div className={`${systemCardClass} edital-header-zoom flex flex-row items-start gap-2.5 p-3 pb-16 text-left sm:gap-5 sm:p-4 sm:pb-4 md:gap-7 md:p-6 md:pb-6`}>
+      <div className={`${systemCardClass} edital-header-zoom flex flex-row items-stretch gap-3 p-3.5 text-left sm:items-start sm:gap-5 sm:p-4 md:gap-7 md:p-6`}>
 
         <div className="relative z-10 flex w-[4.5rem] flex-shrink-0 flex-col items-center gap-3 sm:w-[8.75rem] md:w-[12.25rem]">
-          <div className="relative flex h-16 w-16 items-center justify-center rounded-full border-4 border-white bg-zinc-50 shadow-xl dark:border-white/10 dark:bg-zinc-900 sm:h-20 sm:w-20 md:h-28 md:w-28">
+          <div className="relative flex h-[4.25rem] w-[4.25rem] items-center justify-center rounded-full border-4 border-white bg-zinc-50 shadow-xl dark:border-white/10 dark:bg-zinc-900 sm:h-20 sm:w-20 md:h-28 md:w-28">
             {logoAtivo
               ? <img src={logoAtivo} alt="Logo" className="h-10 w-10 object-contain sm:h-12 sm:w-12 md:h-20 md:w-20" />
               : <GraduationCap size={52} className="text-zinc-300 dark:text-zinc-600" />
@@ -1468,7 +1468,7 @@ function EditalPage({
           )}
         </div>
 
-        <div className="z-10 w-full min-w-0 flex-1 pr-0">
+        <div className="z-10 w-full min-w-0 flex-1 pr-[6.35rem] sm:pr-0">
           <div className="mb-2 flex w-full flex-col gap-2 md:pr-[30rem]">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="inline-flex w-fit items-center gap-1.5 px-2.5 py-1 bg-red-50 dark:bg-red-500/10 rounded-full text-[10px] md:text-[13px] font-bold uppercase tracking-wider border border-red-100 dark:border-red-500/20 text-red-600 dark:text-red-400">
@@ -1477,19 +1477,19 @@ function EditalPage({
             </div>
           </div>
 
-          <h1 className="mb-2 max-w-[calc(100%-6.5rem)] break-words text-[0.9rem] font-black uppercase leading-tight tracking-tight text-zinc-900 dark:text-white sm:max-w-[calc(100%-4.5rem)] sm:text-3xl md:max-w-none md:pr-[30rem] md:text-5xl">{nomeAtivo}</h1>
+          <h1 className="mb-2 break-words text-base font-black uppercase leading-tight tracking-tight text-zinc-900 dark:text-white sm:max-w-[calc(100%-4.5rem)] sm:text-3xl md:max-w-none md:pr-[30rem] md:text-5xl">{nomeAtivo}</h1>
 
-          {!isExternalPreview && <div className="absolute bottom-3 left-3 right-[7.1rem] mt-0 sm:static sm:mt-8 sm:w-full md:mt-10">
-            <div className="flex justify-between items-end mb-2">
-              <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Progresso Atual</span>
-              <div className="flex items-baseline gap-1"><span className="text-2xl font-black text-red-600 dark:text-red-500">{statsAtivos.percentual.toFixed(0)}</span><span className="text-sm font-bold text-zinc-400">%</span></div>
+          {!isExternalPreview && <div className="mt-3 w-full sm:mt-8 md:mt-10">
+            <div className="relative mb-2 flex items-end justify-center sm:justify-between">
+              <span className="text-center text-[11px] font-bold uppercase tracking-wider text-zinc-500 sm:text-xs sm:tracking-widest">Progresso Atual</span>
+              <div className="absolute right-0 flex items-baseline gap-1 sm:static"><span className="text-2xl font-black text-red-600 dark:text-red-500">{statsAtivos.percentual.toFixed(0)}</span><span className="text-sm font-bold text-zinc-400">%</span></div>
             </div>
             <div className="flex h-2 w-full gap-1">
               {Array.from({ length: 30 }).map((_, i) => (
                 <div key={i} className={`flex-1 rounded-sm transition-all duration-700 ${i < (statsAtivos.percentual / 3.33) ? 'bg-red-600 dark:bg-red-500' : 'bg-zinc-100 dark:bg-zinc-900'}`} />
               ))}
             </div>
-            <div className="text-[10px] text-zinc-400 font-bold uppercase mt-2">
+            <div className="mt-2 text-center text-[10px] font-bold uppercase tracking-wide text-zinc-400 sm:text-left">
               <span>{formatEditalProgressText(statsAtivos.concluidos, statsAtivos.total)}</span>
             </div>
           </div>}

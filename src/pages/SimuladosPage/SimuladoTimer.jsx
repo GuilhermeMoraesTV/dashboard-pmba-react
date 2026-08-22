@@ -140,6 +140,7 @@ function SimuladoTimer({
   userUid,
   userName,
   userPhotoURL,
+  groupIds = [],
   isNewSession = false,
 }) {
   const themeColor = '#dc2626';
@@ -418,6 +419,7 @@ function SimuladoTimer({
       uid: userUid,
       userName: userName || 'Candidato',
       photoURL: userPhotoURL || null,
+      groupIds: Array.isArray(groupIds) ? groupIds : [],
       titulo: tituloSimulado || 'Simulado',
       disciplinaNome: tituloSimulado || 'Simulado',
       assunto: 'Prova em Andamento',
@@ -441,7 +443,7 @@ function SimuladoTimer({
       timerType: 'simulado',
       ...extra,
     };
-  }, [userUid, userName, userPhotoURL, tituloSimulado, mode, initialSeconds, getCurrentElapsedMs, nowMs]);
+  }, [userUid, userName, userPhotoURL, groupIds, tituloSimulado, mode, initialSeconds, getCurrentElapsedMs, nowMs]);
 
   // ✅ FIX: UPSERT MAIS ROBUSTO PARA GARANTIR SINCRONIA IMEDIATA
   const upsertFirebase = useCallback(async (isRunning, extra = {}) => {

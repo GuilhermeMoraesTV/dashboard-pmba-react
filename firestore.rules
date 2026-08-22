@@ -60,6 +60,174 @@ service cloud.firestore {
       return isOwner(userId) || isAdmin();
     }
 
+    function groupPath(groupId) {
+      return /databases/$(database)/documents/study_groups/$(groupId);
+    }
+
+    function groupMemberPath(groupId, userId) {
+      return /databases/$(database)/documents/study_groups/$(groupId)/members/$(userId);
+    }
+
+    function isGroupMember(groupId) {
+      return isSignedIn() && exists(groupMemberPath(groupId, request.auth.uid));
+    }
+
+    function isGroupOwner(groupId) {
+      return isSignedIn()
+        && exists(groupPath(groupId))
+        && get(groupPath(groupId)).data.ownerId == request.auth.uid;
+    }
+
+    function isGroupManager(groupId) {
+      return isGroupOwner(groupId)
+        || (
+          isSignedIn()
+          && exists(groupMemberPath(groupId, request.auth.uid))
+          && get(groupMemberPath(groupId, request.auth.uid)).data.permissions.get('manageGroup', false) == true
+        );
+    }
+
+    function isGroupMemberManager(groupId) {
+      return isGroupOwner(groupId)
+        || (
+          isSignedIn()
+          && exists(groupMemberPath(groupId, request.auth.uid))
+          && get(groupMemberPath(groupId, request.auth.uid)).data.permissions.get('manageMembers', false) == true
+        );
+    }
+
+    function groupManagerUpdateIsSafe() {
+      return request.resource.data.ownerId == resource.data.ownerId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'name',
+          'description',
+          'editalId',
+          'editalName',
+          'editalLogoURL',
+          'cargo',
+          'visibility',
+          'photoURL',
+          'memberCount',
+          'updatedAt'
+        ]);
+    }
+
+    function gamificationProfilePath(userId) {
+      return /databases/$(database)/documents/users/$(userId)/gamification/profile;
+    }
+
+    function sharesStudyGroup(timerOwnerId) {
+      return isSignedIn()
+        && exists(gamificationProfilePath(timerOwnerId))
+        && exists(gamificationProfilePath(request.auth.uid))
+        && get(gamificationProfilePath(timerOwnerId)).data.get('groupIds', [])
+          .hasAny(get(gamificationProfilePath(request.auth.uid)).data.get('groupIds', []));
+    }
+
+    function gamificationProfileCreateGroupsAreSafe(userId) {
+      let groups = request.resource.data.get('groupIds', []);
+      let joinedGroupId = request.resource.data.get('lastJoinedGroupId', null);
+      return groups.size() == 0
+        || (
+          joinedGroupId != null
+          && groups.size() == 1
+          && groups.hasAny([joinedGroupId])
+          && existsAfter(groupMemberPath(joinedGroupId, userId))
+        );
+    }
+
+    function gamificationProfileUpdateGroupsAreSafe(userId) {
+      let previousGroups = resource.data.get('groupIds', []);
+      let nextGroups = request.resource.data.get('groupIds', []);
+      let joinedGroupId = request.resource.data.get('lastJoinedGroupId', null);
+      return nextGroups == previousGroups
+        || (
+          joinedGroupId != null
+          && nextGroups.size() == previousGroups.size() + 1
+          && nextGroups.hasAll(previousGroups)
+          && nextGroups.hasAny([joinedGroupId])
+          && existsAfter(groupMemberPath(joinedGroupId, userId))
+        );
+    }
+
+    function gamificationMainGroupIsSafe(userId) {
+      let mainGroupId = request.resource.data.get('mainGroupId', null);
+      return mainGroupId == null || existsAfter(groupMemberPath(mainGroupId, userId));
+    }
+
+    function gamificationMainGroupUpdateIsSafe(userId) {
+      let previousMainGroupId = resource.data.get('mainGroupId', null);
+      let nextMainGroupId = request.resource.data.get('mainGroupId', null);
+      return nextMainGroupId == previousMainGroupId
+        || nextMainGroupId == null
+        || existsAfter(groupMemberPath(nextMainGroupId, userId));
+    }
+
+    function gamificationProfileCreateKeysAreSafe() {
+      return request.resource.data.keys().hasOnly([
+        'groupIds',
+        'lastJoinedGroupId',
+        'mainGroupId',
+        'mainGroupName',
+        'createdGroupCount',
+        'socialUpdatedAt'
+      ]);
+    }
+
+    function gamificationProfileUpdateKeysAreSafe() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'groupIds',
+        'lastJoinedGroupId',
+        'lastRemovedGroupId',
+        'mainGroupId',
+        'mainGroupName',
+        'createdGroupCount',
+        'socialUpdatedAt'
+      ]);
+    }
+
+    function gamificationProfileManagerRemovalIsSafe(userId) {
+      let previousGroups = resource.data.get('groupIds', []);
+      let nextGroups = request.resource.data.get('groupIds', []);
+      let removedGroupId = request.resource.data.get('lastRemovedGroupId', null);
+      return removedGroupId != null
+        && isGroupMemberManager(removedGroupId)
+        && previousGroups.size() == nextGroups.size() + 1
+        && previousGroups.hasAll(nextGroups)
+        && previousGroups.hasAny([removedGroupId])
+        && !nextGroups.hasAny([removedGroupId])
+        && !existsAfter(groupMemberPath(removedGroupId, userId))
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'groupIds',
+          'lastRemovedGroupId',
+          'socialUpdatedAt'
+        ]);
+    }
+
+    function xpEventReadStateUpdateIsSafe() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead', 'readAt'])
+        && request.resource.data.get('isRead', false) == true;
+    }
+
+    function notificationReadStateUpdateIsSafe() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead', 'readAt', 'updatedAt'])
+        && request.resource.data.get('isRead', false) == true;
+    }
+
+    function newGroupMemberRoleIsSafe(groupId) {
+      return (
+        getAfter(groupPath(groupId)).data.ownerId == request.auth.uid
+        && request.resource.data.role == 'owner'
+        && request.resource.data.permissions.get('manageGroup', false) == true
+      )
+      || (
+        getAfter(groupPath(groupId)).data.ownerId != request.auth.uid
+        && request.resource.data.role == 'member'
+        && request.resource.data.permissions.get('manageGroup', false) == false
+        && request.resource.data.permissions.get('manageMembers', false) == false
+      );
+    }
+
     // Campos que o próprio usuário pode alterar com segurança no documento principal.
     function ownerUserDocTouchedKeysAreSafe() {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
@@ -73,6 +241,19 @@ service cloud.firestore {
         'studyStats',
         'uid',
         'updatedAt'
+      ]);
+    }
+
+    // Estado de conta e acesso administrativo são alterados apenas pelo backend.
+    function adminUserDocTouchedKeysAreSafe() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'access',
+        'accessUpdatedAt',
+        'accessUpdatedBy',
+        'status',
+        'disabled',
+        'statusUpdatedAt',
+        'statusUpdatedBy'
       ]);
     }
 
@@ -139,6 +320,11 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
+    match /admin_audit_logs/{logId} {
+      allow read: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
     // Métricas de consumo de IA são gravadas exclusivamente pelas Cloud Functions.
     match /system_ai_usage/{docId} {
       allow read: if isAdmin();
@@ -179,8 +365,147 @@ service cloud.firestore {
 
     // Estado do timer ao vivo: o dono escreve apenas o próprio timer e o admin pode monitorar.
     match /active_timers/{uid} {
-      allow read: if isOwnerOrAdmin(uid);
+      allow read: if isOwnerOrAdmin(uid) || sharesStudyGroup(uid);
       allow create, update, delete: if isOwner(uid);
+    }
+
+    // Rankings são agregados exclusivamente pelas Cloud Functions.
+    match /weekly_rankings/{weekId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+
+      match /members/{memberId} {
+        allow read: if isSignedIn();
+        allow create, update, delete: if false;
+      }
+
+      match /cohorts/{cohortId} {
+        allow read: if isSignedIn();
+        allow create, update, delete: if false;
+
+        match /members/{memberId} {
+          allow read: if isSignedIn();
+          allow create, update, delete: if false;
+        }
+      }
+
+      match /league_states/{leagueId} {
+        allow read: if isAdmin();
+        allow create, update, delete: if false;
+      }
+
+      match /system/{documentId} {
+        allow read: if isAdmin();
+        allow create, update, delete: if false;
+      }
+    }
+
+    // O convite revela apenas o identificador e o nome necessários para
+    // ingressar; o conteúdo do grupo privado continua restrito aos membros.
+    match /study_group_invites/{inviteCode} {
+      allow get: if isSignedIn();
+      allow list: if false;
+      allow create: if isSignedIn()
+        && request.resource.data.ownerId == request.auth.uid
+        && getAfter(groupPath(request.resource.data.groupId)).data.ownerId == request.auth.uid;
+      allow update, delete: if isAdmin()
+        || (
+          isSignedIn()
+          && resource.data.ownerId == request.auth.uid
+        );
+    }
+
+    match /study_groups/{groupId} {
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.visibility == 'public')
+        || isGroupMember(groupId);
+      allow create: if isSignedIn()
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.visibility in ['public', 'private'];
+      allow update: if isGroupManager(groupId) && groupManagerUpdateIsSafe();
+      allow delete: if isGroupOwner(groupId);
+
+      match /members/{memberId} {
+        allow read: if isAdmin() || isGroupMember(groupId);
+        allow create: if (
+            isOwner(memberId)
+            && request.resource.data.uid == request.auth.uid
+            && newGroupMemberRoleIsSafe(groupId)
+            && (
+              getAfter(groupPath(groupId)).data.ownerId == request.auth.uid
+              || (
+                getAfter(groupPath(groupId)).data.visibility == 'public'
+                && request.resource.data.joinSource == 'public'
+              )
+            )
+          )
+          || isGroupOwner(groupId);
+        allow update: if (
+            isGroupOwner(groupId)
+            && memberId != get(groupPath(groupId)).data.ownerId
+            && request.resource.data.uid == resource.data.uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role', 'permissions', 'updatedAt'])
+            && (
+              (
+                request.resource.data.role == 'vice_leader'
+                && request.resource.data.permissions.get('manageGroup', false) == true
+                && request.resource.data.permissions.get('manageMembers', false) == true
+              )
+              || (
+                request.resource.data.role == 'member'
+                && request.resource.data.permissions.get('manageGroup', false) == false
+                && request.resource.data.permissions.get('manageMembers', false) == false
+              )
+            )
+          )
+          || (
+            isOwner(memberId)
+            && request.resource.data.uid == resource.data.uid
+            && request.resource.data.role == resource.data.role
+            && request.resource.data.permissions == resource.data.permissions
+          );
+        allow delete: if (isGroupOwner(groupId) && memberId != get(groupPath(groupId)).data.ownerId)
+          || (
+            isGroupMemberManager(groupId)
+            && memberId != get(groupPath(groupId)).data.ownerId
+            && resource.data.role == 'member'
+          )
+          || (isOwner(memberId) && memberId != get(groupPath(groupId)).data.ownerId);
+      }
+
+      match /join_requests/{requestUserId} {
+        allow read: if isAdmin() || isOwner(requestUserId) || isGroupMemberManager(groupId);
+        allow create: if isOwner(requestUserId)
+          && get(groupPath(groupId)).data.visibility == 'private'
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.status == 'pending';
+        allow update: if isGroupMemberManager(groupId);
+        allow delete: if isOwner(requestUserId) || isGroupMemberManager(groupId);
+      }
+
+      match /weekly_rankings/{weekId} {
+        allow read: if isAdmin()
+          || (isSignedIn() && get(groupPath(groupId)).data.visibility == 'public')
+          || isGroupMember(groupId);
+        allow create, update, delete: if false;
+
+        match /members/{memberId} {
+          allow read: if isAdmin()
+            || (isSignedIn() && get(groupPath(groupId)).data.visibility == 'public')
+            || isGroupMember(groupId);
+          allow create, update, delete: if false;
+        }
+      }
+    }
+
+    match /general_rankings/{rankingId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+
+      match /members/{memberId} {
+        allow read: if isSignedIn();
+        allow write: if false;
+      }
     }
 
     // Consultas transversais usadas exclusivamente pelo painel administrativo.
@@ -200,17 +525,22 @@ service cloud.firestore {
       allow read: if isAdmin();
     }
 
+    // Necessário para a visão consolidada de usuários do admin. Escritas continuam
+    // regidas pelo caminho específico e nunca são liberadas por este matcher.
+    match /{path=**}/gamification/{profileId} {
+      allow read: if isAdmin();
+    }
+
     // Documento principal do usuário e todas as subcoleções permanecem restritos ao dono ou admin.
     match /users/{userId} {
-      allow create: if isAdmin()
-        || (
+      allow create: if (
           isOwner(userId)
           && request.resource.data.uid == request.auth.uid
           && ownerUserDocCreateHasSafeKeys()
           && ownerUserDocHasSafeAccess()
         );
       allow read: if isOwnerOrAdmin(userId);
-      allow update: if isAdmin()
+      allow update: if (isAdmin() && adminUserDocTouchedKeysAreSafe())
         || (
           isOwner(userId)
           && ownerUserDocTouchedKeysAreSafe()
@@ -219,12 +549,49 @@ service cloud.firestore {
             || request.resource.data.uid == userId
           )
         );
-      allow delete: if isAdmin();
+      allow delete: if false;
+
+      match /gamification/profile {
+        allow read: if isOwnerOrAdmin(userId);
+        allow create: if (
+            isOwner(userId)
+            && gamificationProfileCreateKeysAreSafe()
+            && gamificationProfileCreateGroupsAreSafe(userId)
+            && gamificationMainGroupIsSafe(userId)
+          );
+        allow update: if (
+            isOwner(userId)
+            && gamificationProfileUpdateKeysAreSafe()
+            && gamificationProfileUpdateGroupsAreSafe(userId)
+            && gamificationMainGroupUpdateIsSafe(userId)
+          )
+          || gamificationProfileManagerRemovalIsSafe(userId);
+        allow delete: if false;
+
+        match /achievements/{achievementId} {
+          allow read: if isOwnerOrAdmin(userId);
+          allow create, update, delete: if false;
+        }
+
+        match /xp_events/{eventId} {
+          allow read: if isOwnerOrAdmin(userId);
+          allow create, delete: if false;
+          allow update: if isOwner(userId) && xpEventReadStateUpdateIsSafe();
+        }
+      }
+
+      match /notifications/{notificationId} {
+        allow read: if isOwnerOrAdmin(userId);
+        allow create, delete: if isAdmin();
+        allow update: if isAdmin() || (isOwner(userId) && notificationReadStateUpdateIsSafe());
+      }
 
       // Exige ao menos uma subcoleção e um documento; o wildcard recursivo
       // sozinho também casaria o documento users/{userId} em rules_version 2.
       match /{subCollection}/{document=**} {
-        allow read, write, delete: if isOwnerOrAdmin(userId);
+        allow read, write, delete: if subCollection != 'gamification'
+          && subCollection != 'notifications'
+          && isOwnerOrAdmin(userId);
       }
     }
 

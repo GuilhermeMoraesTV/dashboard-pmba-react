@@ -1,126 +1,117 @@
-/*import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Trophy, Zap, Plus } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { collection, doc, onSnapshot, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Gift, Trophy, Zap } from 'lucide-react';
+import { db } from '../../firebaseConfig';
 
-const XPNotification = () => {
-  const [notifications, setNotifications] = useState([]);
-  const [isTourActive, setIsTourActive] = useState(false);
+const eventMillis = (event) => event.occurredAt?.toMillis?.() || event.createdAt?.toMillis?.() || 0;
+const BULK_EVENT_THRESHOLD = 8;
+const BULK_WRITE_LIMIT = 100;
 
-  // Fila de espera para quando o tour estiver ativo
-  const queueRef = useRef([]);
+const collapseIncomingEvents = (incoming) => {
+  if (incoming.length < BULK_EVENT_THRESHOLD) return incoming;
+  return [{
+    id: `xp-sync-${incoming.length}-${incoming[0]?.id || 'first'}-${incoming[incoming.length - 1]?.id || 'last'}`,
+    eventIds: incoming.map((item) => item.id),
+    category: 'academic',
+    message: `XP sincronizado de ${incoming.length.toLocaleString('pt-BR')} atividades`,
+    xpTotal: incoming.reduce((total, item) => total + Math.max(0, Number(item.xpTotal || 0)), 0),
+    occurredAt: incoming[incoming.length - 1]?.occurredAt || null,
+  }];
+};
 
-  // 1. Escuta o estado do Tour
+const markEventsAsRead = async (userId, eventIds) => {
+  for (let start = 0; start < eventIds.length; start += BULK_WRITE_LIMIT) {
+    const batch = writeBatch(db);
+    eventIds.slice(start, start + BULK_WRITE_LIMIT).forEach((eventId) => {
+      batch.update(doc(db, 'users', userId, 'gamification', 'profile', 'xp_events', eventId), {
+        isRead: true,
+        readAt: serverTimestamp(),
+      });
+    });
+    await batch.commit();
+  }
+};
+
+const XPNotification = ({ user }) => {
+  const [queue, setQueue] = useState([]);
+  const [active, setActive] = useState(null);
+  const [tourActive, setTourActive] = useState(false);
+  const knownIdsRef = useRef(new Set());
+  const tourActiveRef = useRef(false);
+
   useEffect(() => {
-    const handleTourStatus = (event) => {
-        const isActive = event.detail;
-        setIsTourActive(isActive);
-
-        // Se o tour acabou e tem coisa na fila, libera agora
-        if (!isActive && queueRef.current.length > 0) {
-            setNotifications(prev => [...prev, ...queueRef.current]);
-            queueRef.current = []; // Limpa a fila
-        }
+    const handleTour = (event) => {
+      tourActiveRef.current = Boolean(event.detail);
+      setTourActive(Boolean(event.detail));
     };
-
-    window.addEventListener('tour-active', handleTourStatus);
-    return () => window.removeEventListener('tour-active', handleTourStatus);
+    window.addEventListener('tour-active', handleTour);
+    return () => window.removeEventListener('tour-active', handleTour);
   }, []);
 
-  // 2. Escuta os eventos de XP
   useEffect(() => {
-    const handleXPEvent = (event) => {
-      const { amount, message, type } = event.detail;
-      const id = Date.now() + Math.random(); // ID único garantido
+    knownIdsRef.current = new Set();
+    setQueue([]);
+    setActive(null);
+    if (!user?.uid) return undefined;
+    const eventsRef = collection(db, 'users', user.uid, 'gamification', 'profile', 'xp_events');
+    return onSnapshot(eventsRef, (snapshot) => {
+      const incoming = snapshot.docs
+        .map((item) => ({ id: item.id, ...item.data() }))
+        .filter((item) => item.isRead !== true && !knownIdsRef.current.has(item.id))
+        .sort((a, b) => eventMillis(a) - eventMillis(b) || a.id.localeCompare(b.id));
+      if (!incoming.length) return;
+      incoming.forEach((item) => knownIdsRef.current.add(item.id));
+      setQueue((current) => [...current, ...collapseIncomingEvents(incoming)]);
+    }, (error) => console.error('[Gamification] Erro ao carregar fila de XP:', error));
+  }, [user?.uid]);
 
-      const newNotif = { id, amount, message, type };
+  useEffect(() => {
+    if (active || !queue.length || tourActiveRef.current) return undefined;
+    setActive(queue[0]);
+    return undefined;
+  }, [active, queue, tourActive]);
 
-      if (isTourActive) {
-          // Se tour ativo, guarda na fila
-          queueRef.current.push(newNotif);
-      } else {
-          // Se não, mostra direto
-          setNotifications((prev) => [...prev, newNotif]);
-      }
+  useEffect(() => {
+    if (!active || !user?.uid) return undefined;
+    const timer = window.setTimeout(() => {
+      const eventIds = active.eventIds || [active.id];
+      setQueue((current) => current.filter((item) => item.id !== active.id));
+      setActive(null);
+      void markEventsAsRead(user.uid, eventIds).catch((error) => {
+        console.error('[Gamification] Erro ao confirmar notificação de XP:', error);
+      });
+    }, 4200);
+    return () => window.clearTimeout(timer);
+  }, [active, user?.uid]);
 
-      // Remove após 4 segundos (tempo um pouco maior para leitura)
-      setTimeout(() => {
-        setNotifications((prev) => prev.filter((n) => n.id !== id));
-      }, 4000);
-    };
-
-    window.addEventListener('xp-gained', handleXPEvent);
-    return () => window.removeEventListener('xp-gained', handleXPEvent);
-  }, [isTourActive]); // Dependência importante: isTourActive
-
-  if (notifications.length === 0) return null;
+  const category = active?.category || 'academic';
+  const isAchievement = category === 'achievement';
+  const isReward = category === 'reward';
+  const Icon = isAchievement ? Trophy : isReward ? Gift : Zap;
 
   return (
-    <div className="fixed top-4 md:top-6 left-1/2 transform -translate-x-1/2 z-[100005] flex flex-col items-center gap-2 md:gap-3 pointer-events-none w-full max-w-[90%] md:max-w-sm px-2 md:px-4">
-      <AnimatePresence>
-        {notifications.map((notif) => {
-          const isMilestone = notif.type === 'milestone';
-
-          return (
-            <motion.div
-              key={notif.id}
-              initial={{ opacity: 0, y: -40, scale: 0.8 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -20, scale: 0.9 }}
-              transition={{ type: "spring", stiffness: 500, damping: 25 }}
-              className={`
-                pointer-events-auto flex items-center
-                gap-2 md:gap-3
-                py-2 pl-2 pr-4 md:py-2.5 md:pr-5 md:pl-2.5
-                rounded-full backdrop-blur-md border shadow-xl
-                ${isMilestone
-                  ? 'bg-amber-50/95 dark:bg-zinc-900/95 border-amber-200/50 dark:border-amber-500/30 shadow-amber-500/10'
-                  : 'bg-white/95 dark:bg-zinc-900/95 border-zinc-200 dark:border-zinc-800 shadow-red-500/10'
-                }
-              `}
-            >
-              {/* Ícone Circular */}
-              <div className={`
-                w-8 h-8 md:w-9 md:h-9 rounded-full flex items-center justify-center shrink-0 shadow-inner
-                ${isMilestone
-                  ? 'bg-gradient-to-br from-amber-100 to-amber-200 text-amber-700 dark:from-amber-900/40 dark:to-amber-800/40 dark:text-amber-400'
-                  : 'bg-gradient-to-br from-red-50 to-red-100 text-red-600 dark:from-red-900/30 dark:to-red-800/30 dark:text-red-500'}
-              `}>
-                {isMilestone
-                  ? <Trophy className="w-3.5 h-3.5 md:w-4 md:h-4" strokeWidth={2.5} />
-                  : <Zap className="w-3.5 h-3.5 md:w-4 md:h-4 opacity-90" strokeWidth={2.5} fill="currentColor" />
-                }
-              </div>
-
-              {/* Texto Central */}
-              <div className="flex flex-col min-w-[90px] md:min-w-[110px]">
-                <div className="flex items-center gap-1.5">
-                  <span className={`text-[9px] md:text-[10px] font-black uppercase tracking-wider ${
-                    isMilestone ? 'text-amber-600 dark:text-amber-400' : 'text-zinc-500 dark:text-zinc-400'
-                  }`}>
-                    {isMilestone ? 'CONQUISTA!' : 'XP GANHO'}
-                  </span>
-                </div>
-                {notif.message && (
-                  <span className="text-[10px] md:text-xs font-bold text-zinc-700 dark:text-zinc-200 leading-tight truncate max-w-[130px] md:max-w-[160px]">
-                    {notif.message}
-                  </span>
-                )}
-              </div>
-
-              {/* Valor do XP */}
-              <div className={`flex items-center gap-0.5 pl-2 md:pl-3 border-l ${isMilestone ? 'border-amber-200 dark:border-amber-800' : 'border-zinc-100 dark:border-zinc-800'}`}>
-                <Plus className={`w-2.5 h-2.5 md:w-3 md:h-3 mt-0.5 ${isMilestone ? 'text-amber-500' : 'text-red-500'}`} strokeWidth={4} />
-                <span className={`text-lg md:text-xl font-black leading-none ${
-                  isMilestone
-                    ? 'text-amber-600 dark:text-amber-400'
-                    : 'text-red-600 dark:text-red-500'
-                }`}>
-                  {notif.amount}
-                </span>
-              </div>
-            </motion.div>
-          );
-        })}
+    <div className="pointer-events-none fixed left-1/2 top-16 z-[100005] w-[min(92vw,380px)] -translate-x-1/2">
+      <AnimatePresence mode="wait">
+        {active && (
+          <motion.div
+            key={active.id}
+            initial={{ opacity: 0, y: -22, scale: 0.94 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -12, scale: 0.97 }}
+            className={`flex items-center gap-3 rounded-2xl border px-3 py-2.5 shadow-2xl backdrop-blur-xl ${
+              isAchievement
+                ? 'border-amber-300/50 bg-amber-50/95 text-amber-950 dark:border-amber-700/50 dark:bg-zinc-900/95 dark:text-amber-100'
+                : isReward
+                  ? 'border-violet-300/50 bg-violet-50/95 text-violet-950 dark:border-violet-800/50 dark:bg-zinc-900/95 dark:text-violet-100'
+                  : 'border-zinc-200 bg-white/95 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900/95 dark:text-white'
+            }`}
+          >
+            <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white ${isAchievement ? 'bg-amber-500' : isReward ? 'bg-violet-600' : 'bg-red-600'}`}><Icon size={19} fill={isAchievement || isReward ? 'none' : 'currentColor'}/></span>
+            <span className="min-w-0 flex-1"><span className="block text-[9px] font-black uppercase tracking-[0.18em] opacity-60">{isAchievement ? 'Conquista' : isReward ? 'Prêmio recebido' : 'XP acadêmico'}</span><span className="block text-xs font-black leading-snug">{active.message || 'XP recebido'}</span>{queue.length > 1 && <span className="mt-0.5 block text-[8px] font-bold uppercase tracking-wider opacity-45">+{queue.length - 1} na fila</span>}</span>
+            {Number(active.xpTotal) > 0 && <span className={`text-lg font-black ${isAchievement ? 'text-amber-600' : isReward ? 'text-violet-600' : 'text-red-600'}`}>+{Number(active.xpTotal)}</span>}
+          </motion.div>
+        )}
       </AnimatePresence>
     </div>
   );

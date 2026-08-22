@@ -5,6 +5,7 @@ import {
   LayoutList, BarChart3, ClipboardList, Sun, Moon, Radio, X, ChevronRight,
   CalendarClock, Layers, ChevronDown, Newspaper, RotateCw, CalendarDays, BookOpen,
   Clock, AlertTriangle, ArrowRight, Bell, Flame, Settings, HelpCircle,
+  Trophy, Users, Gem, Award, Shield, Medal, Crown, Diamond,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
@@ -17,13 +18,19 @@ import { buildStudyDaysMap, calculateCurrentStudyStreak } from '../../utils/stud
 import { coverPositionToStyle } from '../../utils/profileCover';
 import { getAgendaSemana } from '../../services/scheduling/review';
 
-const NAV_ICON_SIZE  = 20;
-const NAV_LABEL_SIZE = 'text-xs';
-const NAV_BTN_PAD    = 'p-2.5';
+const NAV_ICON_SIZE  = 18;
+const NAV_LABEL_SIZE = 'text-[10px]';
+const NAV_BTN_PAD    = 'px-2.5 py-2';
 const NAV_BTN_RADIUS = 'rounded-xl';
-const NAV_GAP        = 'space-y-1';
+const NAV_GAP        = 'space-y-0.5';
 const NAV_BADGE_SIZE = 'text-[8px]';
 const ENABLE_FLOATING_STUDY_REMINDER = false;
+const leagueIconByType = { shield: Shield, medal: Medal, crown: Crown, gem: Gem, diamond: Diamond };
+
+const LeagueIcon = ({ league, size = 13, className = '', style }) => {
+  const Icon = leagueIconByType[league?.icon] || Shield;
+  return <Icon size={size} strokeWidth={1.9} className={className} style={style}/>;
+};
 
 // ─────────────────────────────────────────────────────────────────────
 // Pill de lembrete — aparece abaixo do sino quando o usuário entra na Home.
@@ -390,6 +397,7 @@ function NavSideBar({
   coverURL,
   coverPosition,
   coverLoading = false,
+  levelData,
   userAccess,
   activeTab,
   setActiveTab,
@@ -684,6 +692,9 @@ function NavSideBar({
       { id: 'edital',    label: 'Edital',      icon: <LayoutList size={NAV_ICON_SIZE}/> },
       { id: 'revisoes',  label: 'Revisões',    icon: <BookOpen size={NAV_ICON_SIZE}/> },
       { id: 'stats',     label: 'Desempenho',  icon: <BarChart3 size={NAV_ICON_SIZE}/> },
+      { id: 'ligas',     label: 'Ligas',        icon: <Gem size={NAV_ICON_SIZE}/> },
+      { id: 'ranking',   label: 'Ranking',      icon: <Trophy size={NAV_ICON_SIZE}/> },
+      { id: 'grupos',    label: 'Grupos de Estudo', icon: <Users size={NAV_ICON_SIZE}/> },
       { id: 'simulados', label: 'Simulados',   icon: <ClipboardList size={NAV_ICON_SIZE}/> },
       { id: 'calendar',  label: 'Calendário',  icon: <Calendar size={NAV_ICON_SIZE}/> },
     ];
@@ -714,6 +725,37 @@ function NavSideBar({
   const hasCicloAtivo      = !!(activeCicloId && activeCicloData);
   const hasCronogramaAtivo = !!(activeCronogramaData?.ativo);
   const revisoesPendentesBadge = revisoesPendentes || (cronogramaParaAlertas ? contarRevisoesPendentes(cronogramaParaAlertas) : 0);
+  const profileCardData = useMemo(() => {
+    const profile = levelData?.profile || {};
+    const progressPercent = Math.max(0, Math.min(100, Number(levelData?.progressPercent || 0)));
+    const rankValue = [
+      profile.currentLeaguePosition,
+      profile.leaguePosition,
+      profile.lastNotifiedLeaguePosition,
+      profile.generalPosition,
+      profile.position,
+    ].find((value) => Number.isFinite(Number(value)) && Number(value) > 0);
+    const levelStartXP = Number(levelData?.levelStartXP || 0);
+    const nextLevelXP = Number(levelData?.nextLevelXP || levelData?.totalXP || 0);
+    const currentXP = Math.max(0, Number(levelData?.totalXP || 0) - levelStartXP);
+    const levelRangeXP = Math.max(1, nextLevelXP - levelStartXP);
+
+    return {
+      displayName: user?.displayName || user?.email?.split('@')[0] || 'Estudante',
+      level: Math.max(1, Number(levelData?.currentLevel || 1)),
+      league: levelData?.league || {},
+      leagueName: levelData?.leagueName || 'Ferro',
+      leagueColor: levelData?.leagueColor || levelData?.league?.color || '#dc2626',
+      leagueGlow: levelData?.leagueGlow || levelData?.league?.glow || '#ef4444',
+      progressPercent,
+      progressLabel: `${Math.round(progressPercent)}%`,
+      rankLabel: rankValue ? `#${Number(rankValue)}` : '--',
+      rankHint: rankValue ? 'Ranking' : 'Sem pos.',
+      currentXP,
+      levelRangeXP,
+      xpToNextLevel: Math.max(0, Number(levelData?.xpToNextLevel || 0)),
+    };
+  }, [levelData, user?.displayName, user?.email]);
   const headerStreak = useMemo(() => {
     const studyDaysFull = buildStudyDaysMap(registrosEstudo || []);
     let contextMode = 'all';
@@ -815,36 +857,32 @@ function NavSideBar({
 
   const StudyPlanShortcuts = () => (
     <>
-      <AnimatePresence>
-        {hasCicloAtivo && (
-          <motion.div key="atalho-ciclo" initial={{ opacity:0, height:0 }} animate={{ opacity:1, height:'auto' }} exit={{ opacity:0, height:0 }} transition={{ duration:0.2 }} className="mb-0.5">
-            <NavButton
-              label="Ciclo semanal"
-              icon={<RotateCw size={NAV_ICON_SIZE}/>}
-              isActive={activeTab === 'ciclos'}
-              isAtalho={true}
-              onClick={() => {
-                setMobileOpen(false);
-                if (onGoToCicloAtivo) onGoToCicloAtivo();
-                else setActiveTab('ciclos');
-              }}
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
-      <AnimatePresence>
-        {hasCronogramaAtivo && (
-          <motion.div key="atalho-cronograma" initial={{ opacity:0, height:0 }} animate={{ opacity:1, height:'auto' }} exit={{ opacity:0, height:0 }} transition={{ duration:0.2 }} className="mb-0.5">
-            <NavButton
-              label="Cronograma"
-              icon={<CalendarDays size={NAV_ICON_SIZE}/>}
-              isActive={activeTab === 'cronograma'}
-              isAtalho={true}
-              onClick={() => { setActiveTab('cronograma'); setMobileOpen(false); }}
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {hasCicloAtivo && (
+        <div className="mb-0.5">
+          <NavButton
+            label="Ciclo semanal"
+            icon={<RotateCw size={NAV_ICON_SIZE}/>}
+            isActive={activeTab === 'ciclos'}
+            isAtalho={true}
+            onClick={() => {
+              setMobileOpen(false);
+              if (onGoToCicloAtivo) onGoToCicloAtivo();
+              else setActiveTab('ciclos');
+            }}
+          />
+        </div>
+      )}
+      {hasCronogramaAtivo && (
+        <div className="mb-0.5">
+          <NavButton
+            label="Cronograma"
+            icon={<CalendarDays size={NAV_ICON_SIZE}/>}
+            isActive={activeTab === 'cronograma'}
+            isAtalho={true}
+            onClick={() => { setActiveTab('cronograma'); setMobileOpen(false); }}
+          />
+        </div>
+      )}
 
       {(hasCicloAtivo || hasCronogramaAtivo) && (
         <div className="h-px bg-zinc-100 dark:bg-zinc-800 mx-1 my-1"/>
@@ -859,7 +897,7 @@ function NavSideBar({
         bg-white/70 dark:bg-card-dark border-b border-white/60 dark:border-white/10
         flex items-center justify-between px-2 sm:px-4 shadow-sm shadow-black/5 dark:shadow-black/30 transition-all duration-300
         left-0 lg:left-[64px]
-        ${isDesktopExpanded ? 'lg:left-[184px]' : 'lg:left-[64px]'}
+        ${isDesktopExpanded ? 'lg:left-[208px]' : 'lg:left-[64px]'}
       `}
     >
       <div className="flex items-center z-20">
@@ -889,6 +927,8 @@ function NavSideBar({
             readBroadcasts={notificationProps.readBroadcasts}
             dismissedHistory={notificationProps.dismissedHistory}
             onMarkBroadcastRead={notificationProps.onMarkBroadcastRead}
+            onMarkOperationalRead={notificationProps.onMarkOperationalRead}
+            onRespondGroupRequest={notificationProps.onRespondGroupRequest}
             onMarkAllRead={notificationProps.onMarkAllRead}
             onApplyEditalUpdate={notificationProps.onApplyEditalUpdate}
             onDismissEditalUpdate={notificationProps.onDismissEditalUpdate}
@@ -921,7 +961,7 @@ function NavSideBar({
             onClick={() => setIsProfileMenuOpen(v => !v)}
             className="outline-none active:scale-95 transition-transform flex items-center justify-center relative scale-[0.72] -mx-[7px] sm:mx-0 sm:scale-100 lg:scale-105"
           >
-            <ProfileLevelRing userPhotoURL={user?.photoURL} size={50}/>
+            <ProfileLevelRing userPhotoURL={user?.photoURL} levelData={levelData} size={50}/>
           </button>
 
           <AnimatePresence>
@@ -932,7 +972,7 @@ function NavSideBar({
                 exit={{ opacity:0, y:10, scale:0.95 }}
                 className="absolute right-0 top-full mt-2 w-60 overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl shadow-zinc-950/10 ring-1 ring-black/5 dark:border-zinc-700 dark:bg-card-dark dark:ring-white/5 sm:w-64 z-[100]"
               >
-                <div className="relative flex min-h-[142px] flex-col items-center justify-end overflow-hidden border-b border-zinc-200 bg-zinc-50 px-4 pb-3 pt-4 dark:border-zinc-700 dark:bg-zinc-800/45">
+                <div className="relative flex min-h-[178px] flex-col items-center justify-end overflow-hidden border-b border-zinc-200 bg-zinc-50 px-4 pb-3 pt-4 dark:border-zinc-700 dark:bg-zinc-800/45">
                   {coverURL && (
                     <img
                       src={coverURL}
@@ -956,14 +996,21 @@ function NavSideBar({
                     onClick={() => { setActiveTab('profile'); setIsProfileMenuOpen(false); }}
                   >
                     <div className="rounded-full bg-white/80 p-1 shadow-xl shadow-zinc-900/10 ring-4 ring-zinc-200/80 dark:bg-card-dark dark:ring-zinc-700/80">
-                      <ProfileLevelRing userPhotoURL={user?.photoURL} size={56} strokeWidth={3.5}/>
+                      <ProfileLevelRing userPhotoURL={user?.photoURL} levelData={levelData} size={56} strokeWidth={3.5}/>
                     </div>
                   </div>
                   <h3 className={`relative z-10 mb-1 w-full truncate text-center text-sm font-black leading-tight tracking-tight ${coverURL ? 'text-white drop-shadow-md' : 'text-zinc-950 dark:text-white'}`}>
                     {user?.displayName || 'Guerreiro'}
                   </h3>
                   <div className={`relative z-10 rounded-full px-2.5 py-0.5 text-[8px] font-black uppercase tracking-[0.18em] shadow-sm ${coverURL ? 'border border-white/25 bg-black/35 text-white backdrop-blur-sm' : 'border border-zinc-200 bg-white/75 text-zinc-600 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300'}`}>
-                    Central do aluno
+                    Nível {levelData?.currentLevel || 1} · Liga {levelData?.leagueName || 'Ferro'}
+                  </div>
+                  <div className="relative z-10 mt-2 h-1.5 w-full overflow-hidden rounded-full bg-black/15 dark:bg-white/10">
+                    <div className="h-full rounded-full bg-red-600" style={{ width: `${Math.max(0, Math.min(100, levelData?.progressPercent || 0))}%` }}/>
+                  </div>
+                  <div className={`relative z-10 mt-1 flex w-full items-center justify-between text-[8px] font-black uppercase tracking-wider ${coverURL ? 'text-white/80' : 'text-zinc-500 dark:text-zinc-400'}`}>
+                    <span>{levelData?.totalXP || 0} XP</span>
+                    <span className="max-w-[130px] truncate">{levelData?.mainGroupName || 'Sem grupo principal'}</span>
                   </div>
                 </div>
 
@@ -977,6 +1024,19 @@ function NavSideBar({
                         <Settings size={16}/>
                       </div>
                       <span>Configurações</span>
+                    </div>
+                    <ChevronRight size={16} className="text-zinc-300 group-hover:text-zinc-500"/>
+                  </button>
+
+                  <button
+                    onClick={() => { setActiveTab('conquistas'); setIsProfileMenuOpen(false); }}
+                    className="group flex w-full items-center justify-between rounded-xl border border-transparent px-3 py-2 text-xs font-bold text-zinc-700 transition-all hover:border-zinc-200 hover:bg-zinc-100 hover:text-zinc-950 dark:text-zinc-300 dark:hover:border-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-white"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="rounded-lg bg-zinc-100 p-1.5 text-zinc-600 transition-all group-hover:bg-amber-100 group-hover:text-amber-700 dark:bg-zinc-800 dark:text-zinc-300 dark:group-hover:bg-amber-950/40 dark:group-hover:text-amber-300">
+                        <Award size={16}/>
+                      </div>
+                      <span>Conquistas</span>
                     </div>
                     <ChevronRight size={16} className="text-zinc-300 group-hover:text-zinc-500"/>
                   </button>
@@ -1032,21 +1092,63 @@ function NavSideBar({
           bg-white dark:bg-card-dark border-r border-zinc-200 dark:border-white/10 lg:border-r-0
           transition-all duration-300 shadow-2xl lg:shadow-none
           ${isMobileOpen ? 'translate-x-0 w-[260px]' : '-translate-x-full lg:translate-x-0'}
-          lg:left-0 ${isDesktopExpanded ? 'lg:w-[184px]' : 'lg:w-[64px]'}
+          lg:left-0 ${isDesktopExpanded ? 'lg:w-[208px]' : 'lg:w-[64px]'}
         `}
         onMouseEnter={() => !isMobileOpen && !forceExpandedOnLarge && setExpanded(true)}
         onMouseLeave={() => !isMobileOpen && !forceExpandedOnLarge && setExpanded(false)}
       >
-        <div className="nav-sidebar-content-zoom flex-shrink-0 flex items-center justify-between lg:justify-center h-[60px] px-4 border-b border-white/60 dark:border-white/10 lg:border-none">
-          <div onClick={handleLogoClick} className="cursor-pointer flex items-center justify-center">
-            <img src="/logoModoQAP.png" alt="Logo" className="h-12 w-auto object-contain drop-shadow-sm"/>
-          </div>
-          <button onClick={() => setMobileOpen(false)} className="lg:hidden p-1.5 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg">
+        <div className="nav-sidebar-content-zoom relative flex-shrink-0 px-0 py-0">
+          <button
+            type="button"
+            onClick={() => { setActiveTab('profile'); setMobileOpen(false); scrollWindowToTopInstant(); }}
+            className={`group/profile relative flex w-full overflow-hidden text-left transition-all ${isFullyExpanded ? 'h-[86px] items-center gap-3 border-0 bg-zinc-50 p-3 pr-9 hover:bg-white dark:bg-zinc-900 dark:hover:bg-zinc-800/80 lg:pr-3' : 'mx-auto my-2 max-w-[48px] items-center justify-center rounded-2xl border border-zinc-200/90 bg-white p-1.5 shadow-[0_10px_24px_-20px_rgba(24,24,27,0.8)] ring-1 ring-white dark:border-zinc-700/80 dark:bg-zinc-950 dark:ring-white/5'}`}
+            title="Abrir perfil"
+          >
+            {isFullyExpanded && (
+              <>
+                <span className="pointer-events-none absolute inset-x-0 top-0 h-px bg-zinc-200 dark:bg-white/10"/>
+              </>
+            )}
+            <span className="relative shrink-0">
+              <span
+                className="block rounded-full bg-white p-0.5 shadow-lg ring-2 ring-white transition-transform group-hover/profile:scale-105 dark:bg-zinc-900 dark:ring-red-500/20"
+                style={isFullyExpanded ? { boxShadow: `0 12px 30px -18px ${profileCardData.leagueGlow}` } : undefined}
+              >
+                <ProfileLevelRing userPhotoURL={user?.photoURL} levelData={levelData} size={isFullyExpanded ? 54 : 38} strokeWidth={3.2}/>
+              </span>
+            </span>
+            <span className={`relative min-w-0 flex-1 transition-opacity ${isFullyExpanded ? 'opacity-100' : 'hidden opacity-0'}`}>
+              <span className="block truncate text-[14px] font-black leading-tight tracking-tight text-zinc-950 dark:text-white">{profileCardData.displayName}</span>
+              <span className="mt-1.5 flex min-w-0 items-center gap-2 text-[10px] font-black uppercase tracking-[0.06em] text-zinc-600 dark:text-zinc-300">
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <LeagueIcon league={profileCardData.league} size={13} style={{ color: profileCardData.leagueColor }}/>
+                  <span className="truncate">{profileCardData.leagueName}</span>
+                </span>
+                <span className="text-zinc-300 dark:text-zinc-600">•</span>
+                <span className="flex shrink-0 items-center gap-1.5 text-zinc-700 dark:text-zinc-200">
+                  <Trophy size={13} className="text-amber-500"/>
+                  <span className="text-[13px] font-black leading-none">{profileCardData.rankLabel}</span>
+                </span>
+              </span>
+              <span className="mt-2.5 flex items-center gap-2">
+                <span className="block h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-zinc-200 shadow-inner dark:bg-zinc-700">
+                  <span
+                    className="block h-full rounded-full bg-red-600 transition-[width] duration-700 dark:bg-red-500"
+                    style={{ width: `${profileCardData.progressPercent}%` }}
+                  />
+                </span>
+                <span className="shrink-0 text-[8px] font-black text-zinc-600 dark:text-zinc-300">
+                  {profileCardData.currentXP}/{profileCardData.levelRangeXP} XP
+                </span>
+              </span>
+            </span>
+          </button>
+          <button onClick={() => setMobileOpen(false)} className="absolute right-2 top-2 rounded-lg p-1.5 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 lg:hidden">
             <X size={18}/>
           </button>
         </div>
 
-        <div className={`nav-sidebar-content-zoom min-h-0 flex-1 overflow-y-auto px-2.5 pb-3 pt-3 ${NAV_GAP}`} style={{scrollbarWidth:'none'}}>
+        <div className={`nav-sidebar-content-zoom min-h-0 flex-1 overflow-y-auto px-2.5 pb-3 pt-2 ${NAV_GAP}`} style={{scrollbarWidth:'none'}}>
           {navItems.map((item) => {
             if (item.subItems) {
               const isActiveParent = item.subItems.some(sub => sub.id === activeTab);
@@ -1149,7 +1251,7 @@ function NavSideBar({
           })}
         </div>
 
-        <div className="nav-sidebar-content-zoom shrink-0 border-t border-zinc-100 bg-white p-2.5 dark:border-zinc-800 dark:bg-card-dark">
+        <div className="nav-sidebar-content-zoom shrink-0 border-t border-zinc-100 bg-white p-2 dark:border-zinc-800 dark:bg-card-dark">
           <InstallAppButton
             expanded={isFullyExpanded}
             onNavigate={() => setMobileOpen(false)}
@@ -1165,25 +1267,25 @@ function NavSideBar({
               hasUnreadSupport
                 ? 'border-red-200 bg-red-50/80 text-red-700 shadow-sm dark:border-red-900/40 dark:bg-red-950/20 dark:text-red-300'
                 : 'border-transparent bg-transparent text-zinc-500 hover:border-zinc-200 hover:bg-zinc-50 hover:text-red-600 dark:text-zinc-400 dark:hover:border-zinc-800 dark:hover:bg-zinc-900 dark:hover:text-red-400'
-            } ${isFullyExpanded ? 'gap-3 px-2.5 py-2.5' : 'justify-center px-2 py-2.5'}`}
+            } ${isFullyExpanded ? 'gap-2.5 px-2.5 py-2' : 'justify-center px-2 py-2'}`}
             title="Abrir suporte"
           >
-            <span className={`relative flex h-8 w-8 shrink-0 items-center justify-center rounded-xl transition-all ${
+            <span className={`relative flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-all ${
               hasUnreadSupport
                 ? 'bg-red-600 text-white shadow-md shadow-red-600/20'
                 : 'bg-zinc-100 text-zinc-500 group-hover:bg-red-600 group-hover:text-white dark:bg-zinc-800 dark:text-zinc-400'
             }`}>
-              <HelpCircle size={18} strokeWidth={2.5} />
+              <HelpCircle size={16} strokeWidth={2.5} />
               {hasUnreadSupport && (
                 <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-white bg-red-400 dark:border-zinc-900" />
               )}
             </span>
             {isFullyExpanded && (
               <span className="min-w-0 text-left">
-                <span className="block text-[10px] font-black uppercase tracking-[0.18em]">
+                <span className="block text-[9px] font-black uppercase tracking-[0.16em]">
                   {hasUnreadSupport ? 'Suporte respondeu' : 'Suporte'}
                 </span>
-                <span className="mt-0.5 block text-[10px] font-bold opacity-65">
+                <span className="mt-0.5 block text-[9px] font-bold opacity-65">
                   Dúvidas e problemas
                 </span>
               </span>

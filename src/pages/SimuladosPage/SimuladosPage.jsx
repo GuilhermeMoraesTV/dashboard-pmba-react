@@ -70,9 +70,8 @@ const SimuladosPage = ({ user, activeCycleDisciplines, onStartSimulado, initialD
       });
 
       // 2. Processar Gamificação
-      const porcentagem = data.resumo?.porcentagem || 0;
       await checkAndAwardMilestone('FIRST_SIMULADO');
-      await processSimuladoResult(porcentagem);
+      await processSimuladoResult(data);
 
     } catch (e) {
       showToast('Erro ao salvar simulado. Tente novamente.');

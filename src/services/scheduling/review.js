@@ -854,7 +854,11 @@ export function getAgendaSemana(
       tempoRevisaoMinutos,
       minutosRevisaoReservados,  // ← [FIX-7] orçamento CORRETO de revisão (25% do bruto)
       {
-        expandirTeoriaAteBruto: slotsEstudoDia.length > 0,
+        // Dias reorganizados manualmente preservam exatamente os blocos
+        // movidos. O preenchimento automático criaria clones residuais e
+        // faria um único drop parecer uma duplicação do mesmo bloco.
+        expandirTeoriaAteBruto: slotsEstudoDia.length > 0
+          && !slotsEstudoDia.some((slot) => slot?.layoutManual === true),
         duracaoUnicaMinutos: duracaoMaximaBlocoMinutos,
         usarDuracaoUnica: Boolean(duracaoUnicaMinutos),
       }

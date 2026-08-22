@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion as Motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import { auth, db, storage } from '../firebaseConfig';
 import { buildInitialAccessProfile, LEGACY_ADMIN_UID } from '../auth/accessControl';
@@ -140,7 +140,7 @@ function Signup({ onSetLightTheme }) {
 
   return (
     <AuthLayout mode="signup">
-        <div className="rounded-2xl border border-white/10 bg-black/65 p-5 shadow-2xl shadow-black/50 backdrop-blur-xl sm:p-6">
+        <div className="rounded-2xl border border-white/10 bg-[#181a1d]/90 p-5 shadow-2xl shadow-black/45 backdrop-blur-xl sm:p-6">
 
           <div className="flex justify-center mb-4">
             <img src="/logoModoQAP.png" alt="Logo ModoQAP" className="h-20 w-auto drop-shadow-2xl" />
@@ -157,20 +157,20 @@ function Signup({ onSetLightTheme }) {
           </div>
 
           {error && (
-            <motion.div
+            <Motion.div
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               className="mb-4 p-2 bg-red-500/10 border border-red-500/30 rounded-lg backdrop-blur-md"
             >
               <p className="text-red-400 text-xs text-center font-medium">{error}</p>
-            </motion.div>
+            </Motion.div>
           )}
 
           <form onSubmit={handleSignup} className="space-y-3">
 
             {/* Upload de Foto */}
-            <div className="flex items-center gap-3 p-2 bg-[#1a1a1a] border border-gray-700 rounded-lg group hover:border-red-600/50 transition-colors">
-              <div className="w-12 h-12 rounded-full bg-black border border-gray-600 flex items-center justify-center overflow-hidden shrink-0">
+            <div className="flex items-center gap-3 p-2 bg-[#222428]/90 border border-zinc-600/70 rounded-lg group hover:border-red-600/50 transition-colors">
+              <div className="w-12 h-12 rounded-full bg-[#111315] border border-gray-600 flex items-center justify-center overflow-hidden shrink-0">
                 {photoPreview ? (
                   <img src={photoPreview} alt="Preview" className="w-full h-full object-cover" />
                 ) : (
@@ -192,7 +192,7 @@ function Signup({ onSetLightTheme }) {
             {/* Input Nome */}
             <div>
               <label className="block text-[10px] font-bold mb-1 text-gray-300 uppercase tracking-wider">Nome Completo</label>
-              <div className="flex items-center w-full rounded-lg bg-[#1a1a1a] border border-gray-700 focus-within:border-red-600 focus-within:ring-1 focus-within:ring-red-600 transition-all overflow-hidden group relative">
+              <div className="flex items-center w-full rounded-lg bg-[#222428]/90 border border-zinc-600/70 focus-within:border-red-600 focus-within:ring-1 focus-within:ring-red-600 transition-all overflow-hidden group relative">
                 <div className="pl-3 pr-2 py-2.5 text-gray-500 group-focus-within:text-red-500 transition-colors flex items-center justify-center">
                   <IconUser />
                 </div>
@@ -211,7 +211,7 @@ function Signup({ onSetLightTheme }) {
             {/* Input Email */}
             <div>
               <label className="block text-[10px] font-bold mb-1 text-gray-300 uppercase tracking-wider">E-mail</label>
-              <div className="flex items-center w-full rounded-lg bg-[#1a1a1a] border border-gray-700 focus-within:border-red-600 focus-within:ring-1 focus-within:ring-red-600 transition-all overflow-hidden group relative">
+              <div className="flex items-center w-full rounded-lg bg-[#222428]/90 border border-zinc-600/70 focus-within:border-red-600 focus-within:ring-1 focus-within:ring-red-600 transition-all overflow-hidden group relative">
                 <div className="pl-3 pr-2 py-2.5 text-gray-500 group-focus-within:text-red-500 transition-colors flex items-center justify-center">
                   <IconEmail />
                 </div>
@@ -230,7 +230,7 @@ function Signup({ onSetLightTheme }) {
             {/* Input Senha */}
             <div>
               <label className="block text-[10px] font-bold mb-1 text-gray-300 uppercase tracking-wider">Senha</label>
-              <div className="flex items-center w-full rounded-lg bg-[#1a1a1a] border border-gray-700 focus-within:border-red-600 focus-within:ring-1 focus-within:ring-red-600 transition-all overflow-hidden group relative">
+              <div className="flex items-center w-full rounded-lg bg-[#222428]/90 border border-zinc-600/70 focus-within:border-red-600 focus-within:ring-1 focus-within:ring-red-600 transition-all overflow-hidden group relative">
                 <div className="pl-3 pr-2 py-2.5 text-gray-500 group-focus-within:text-red-500 transition-colors flex items-center justify-center">
                   <IconPassword />
                 </div>
@@ -255,10 +255,10 @@ function Signup({ onSetLightTheme }) {
 
               {/* REQUISITOS DE SENHA */}
               {password && (
-                <motion.div
+                <Motion.div
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
-                  className="mt-2 space-y-1 bg-[#1a1a1a]/50 p-2 rounded-lg border border-gray-800"
+                  className="mt-2 space-y-1 bg-[#222428]/60 p-2 rounded-lg border border-gray-700/70"
                 >
                   <div className="flex items-center gap-2 text-[10px]">
                     <div className={`w-4 h-4 rounded flex items-center justify-center transition-colors ${passwordRequirements.length ? 'bg-green-500/20 text-green-400' : 'bg-gray-800 text-gray-600'}`}>
@@ -292,14 +292,14 @@ function Signup({ onSetLightTheme }) {
                       Um número
                     </span>
                   </div>
-                </motion.div>
+                </Motion.div>
               )}
             </div>
 
             {/* Input Confirmar Senha */}
             <div>
               <label className="block text-[10px] font-bold mb-1 text-gray-300 uppercase tracking-wider">Confirmar Senha</label>
-              <div className="flex items-center w-full rounded-lg bg-[#1a1a1a] border border-gray-700 focus-within:border-red-600 focus-within:ring-1 focus-within:ring-red-600 transition-all overflow-hidden group relative">
+              <div className="flex items-center w-full rounded-lg bg-[#222428]/90 border border-zinc-600/70 focus-within:border-red-600 focus-within:ring-1 focus-within:ring-red-600 transition-all overflow-hidden group relative">
                 <div className="pl-3 pr-2 py-2.5 text-gray-500 group-focus-within:text-red-500 transition-colors flex items-center justify-center">
                   <IconPassword />
                 </div>
@@ -340,7 +340,7 @@ function Signup({ onSetLightTheme }) {
             </div>
           </form>
 
-          <motion.div
+          <Motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.6 }}
@@ -352,7 +352,7 @@ function Signup({ onSetLightTheme }) {
                 Entrar
               </Link>
             </p>
-          </motion.div>
+          </Motion.div>
 
         </div>
     </AuthLayout>

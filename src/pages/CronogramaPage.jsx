@@ -193,7 +193,7 @@ const getLabelTipo = (item) => {
 };
 
 const isMovableTask = (tarefa) => !tarefa?.isRevisao && !tarefa?.isRevisaoAuto && !tarefa?.isConsolidada;
-const getTemplateSlotId = (slot) => slot?.id || slot?.slotId;
+const getTemplateSlotId = (slot) => slot?.slotId || slot?.id;
 const getDragTaskId = (tarefa) => `task-${tarefa?.slotIdNoProgresso || tarefa?.slotId}`;
 const getTaskTemplateSlotId = (tarefa) => tarefa?.slotIdNoProgresso || tarefa?.slotIdBase || tarefa?.slotId;
 const getCompletionKey = (slot) => String(slot?.slotIdNoProgresso || slot?.slotIdBase || slot?.slotId || '');
@@ -261,10 +261,16 @@ const isWeekPanIgnoredTarget = (target) => {
 
 const cronogramaCollisionDetection = (args) => {
   const pointerCollisions = pointerWithin(args);
+  const taskCollision = pointerCollisions.find((collision) => !String(collision.id).startsWith('day-'));
+  if (taskCollision) return [taskCollision];
+
   const dayCollision = pointerCollisions.find((collision) => String(collision.id).startsWith('day-'));
   if (dayCollision) return [dayCollision];
 
   const rectCollisions = rectIntersection(args);
+  const rectTaskCollision = rectCollisions.find((collision) => !String(collision.id).startsWith('day-'));
+  if (rectTaskCollision) return [rectTaskCollision];
+
   const rectDayCollision = rectCollisions.find((collision) => String(collision.id).startsWith('day-'));
   if (rectDayCollision) return [rectDayCollision];
 
@@ -671,6 +677,7 @@ const TarefaCardDraggable = ({
   dragRef = null,
   dragStyle = {},
   isDragging = false,
+  isDragOverlay = false,
   isSortable = false,
 }) => {
   const isDominado    = tarefa.dominado === true;
@@ -705,8 +712,8 @@ const TarefaCardDraggable = ({
   const shouldUseDisciplineColors = cronograma?.coresDisciplinasAtivas !== false;
   const useDisciplineColor = shouldUseDisciplineColors && !isDominado && !emAndamento && !tarefa.isRevisao && !tarefa.isRevisaoAuto;
   const cardStyle = useDisciplineColor
-    ? { ...dragStyle, ...getDisciplineCardVars(disciplinaColor) }
-    : dragStyle;
+    ? { ...dragStyle, ...getDisciplineCardVars(disciplinaColor), touchAction: isSortable ? 'none' : undefined }
+    : { ...dragStyle, touchAction: isSortable ? 'none' : undefined };
 
   return (
     <motion.div
@@ -722,7 +729,7 @@ const TarefaCardDraggable = ({
       onClick={!isDragging ? () => onOpenDetails?.(tarefa) : undefined}
       className={`relative min-h-[104px] rounded-2xl border overflow-hidden group mb-2.5 select-none
         ${isSortable ? 'cursor-grab active:cursor-grabbing' : onOpenDetails ? 'cursor-pointer' : 'cursor-default'}
-        ${isDragging ? 'opacity-80 scale-100 rotate-1 shadow-2xl z-20' : ''}
+        ${isDragging ? (isDragOverlay ? 'scale-100 shadow-2xl z-[10001]' : 'opacity-20 z-20') : ''}
         ${useDisciplineColor ? 'discipline-tinted-card' : ''}
         ${tarefa.concluido
           ? 'discipline-completed-card'
@@ -2424,6 +2431,7 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
   const [mostrandoEditar,   setMostrandoEditar]   = useState(false);
   const [dominiosLocal,     setDominiosLocal]     = useState({});
   const [activeDragTask,    setActiveDragTask]    = useState(null);
+  const [activeDragSize,    setActiveDragSize]    = useState(null);
   const [slotDetalhes,      setSlotDetalhes]      = useState(null);
   const [showHistoryModal,  setShowHistoryModal]  = useState(false);
   const [recordToDelete,    setRecordToDelete]    = useState(null);
@@ -2444,9 +2452,10 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
   const didInitWeekOffsetRef = useRef(false);
   const toggleQueueRef = useRef({});
   const toggleIntentRef = useRef({});
+  const dragSaveInFlightRef = useRef(false);
   const dragSensors = useSensors(
-    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 8 } }),
+    useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 110, tolerance: 10 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
@@ -2883,7 +2892,7 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
     );
   };
 
-  const buildTemplateFromOrders = useCallback((ordersByDay) => {
+  const buildTemplateFromOrders = useCallback((ordersByDay, manualDays = new Set()) => {
     if (!cronograma?.semanaTemplate?.length) return null;
 
     const templateMap = new Map(cronograma.semanaTemplate.map((slot) => [getTemplateSlotId(slot), slot]));
@@ -2899,6 +2908,7 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
           ...original,
           dia,
           ordemManual: index,
+          ...(manualDays.has(dia) ? { layoutManual: true } : {}),
         });
       });
     }
@@ -2911,30 +2921,35 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
     return updatedTemplate;
   }, [cronograma]);
 
-  const persistTemplateReorder = useCallback(async (ordersByDay) => {
-    const updatedTemplate = buildTemplateFromOrders(ordersByDay);
+  const persistTemplateReorder = useCallback(async (ordersByDay, manualDays) => {
+    const updatedTemplate = buildTemplateFromOrders(ordersByDay, manualDays);
     if (!updatedTemplate) return false;
 
+    const previousTemplate = cronograma.semanaTemplate;
+    setCronograma(prev => prev?.id === cronograma.id ? { ...prev, semanaTemplate: updatedTemplate } : prev);
     try {
       await updateDoc(doc(db, 'users', user.uid, 'cronogramas', cronograma.id), { semanaTemplate: updatedTemplate });
-      setCronograma(prev => prev?.id === cronograma.id ? { ...prev, semanaTemplate: updatedTemplate } : prev);
       return true;
     } catch (error) {
       console.error('[CronogramaPage] Erro ao mover estudo:', error);
+      setCronograma(prev => prev?.id === cronograma.id ? { ...prev, semanaTemplate: previousTemplate } : prev);
       return false;
     }
-  }, [buildTemplateFromOrders, cronograma?.id, user?.uid]);
+  }, [buildTemplateFromOrders, cronograma?.id, cronograma?.semanaTemplate, user?.uid]);
 
   const handleDragStart = useCallback((event) => {
     const tarefa = event.active.data.current?.tarefa;
     if (tarefa) setActiveDragTask(tarefa);
+    const initialRect = event.active.rect.current?.initial;
+    setActiveDragSize(initialRect ? { width: initialRect.width, height: initialRect.height } : null);
   }, []);
 
   const handleDragEnd = useCallback(async (event) => {
     setActiveDragTask(null);
+    setActiveDragSize(null);
 
     const { active, over } = event;
-    if (!over || !cronograma) return;
+    if (!over || !cronograma || dragSaveInFlightRef.current) return;
 
     const activeData = active.data.current;
     const overData = over.data.current;
@@ -2979,8 +2994,10 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
       ordersByDay[targetDay] = targetOrder;
     }
 
-    const ok = await persistTemplateReorder(ordersByDay);
-    showToast(ok ? '?? Cronograma reorganizado com sucesso!' : '? Erro ao mover tarefa.');
+    dragSaveInFlightRef.current = true;
+    const ok = await persistTemplateReorder(ordersByDay, new Set([sourceDay, targetDay]));
+    dragSaveInFlightRef.current = false;
+    showToast(ok ? 'Cronograma reorganizado com sucesso!' : 'Erro ao mover tarefa.');
   }, [cronograma, persistTemplateReorder, showToast]);
 
   const handleWeekPanStart = useCallback((event) => {
@@ -3492,7 +3509,7 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
       <div className="cronograma-blocks-mobile-zoom -mx-2 min-h-0 flex-grow pb-8 pt-0 sm:-mx-4 md:-mx-6 lg:-mx-8">
         {viewMode === 'week' ? (
           <div className="px-2 sm:px-4 md:px-6 lg:px-8">
-            <DndContext sensors={dragSensors} collisionDetection={cronogramaCollisionDetection} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={() => setActiveDragTask(null)}>
+            <DndContext sensors={dragSensors} collisionDetection={cronogramaCollisionDetection} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={() => { setActiveDragTask(null); setActiveDragSize(null); }}>
               <motion.div
                 ref={weekScrollRef}
                 key="week"
@@ -3537,23 +3554,27 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
                 <div aria-hidden="true" className="w-2 shrink-0 sm:w-4 md:w-6 lg:w-8" />
               </motion.div>
 
-              <DragOverlay dropAnimation={{ duration: 220, easing: 'ease' }}>
-                {activeDragTask ? (
-                  <div className="w-[var(--cronograma-week-card-width-tablet)] xl:w-[var(--cronograma-week-card-width-desktop)]">
-                    <TarefaCardDraggable
-                      tarefa={activeDragTask}
-                      onToggle={() => {}}
-                      onMarkPendencia={() => {}}
-                      onStart={() => {}}
-                      onDominar={() => {}}
-                      onOpenConsolidada={() => {}}
-                      cronograma={cronograma}
-                      isDragging
-                      isSortable
-                    />
-                  </div>
-                ) : null}
-              </DragOverlay>
+              {typeof document !== 'undefined' && createPortal(
+                <DragOverlay dropAnimation={{ duration: 90, easing: 'ease-out' }} zIndex={10000}>
+                  {activeDragTask ? (
+                    <div style={{ width: activeDragSize?.width, height: activeDragSize?.height }}>
+                      <TarefaCardDraggable
+                        tarefa={activeDragTask}
+                        onToggle={() => {}}
+                        onMarkPendencia={() => {}}
+                        onStart={() => {}}
+                        onDominar={() => {}}
+                        onOpenConsolidada={() => {}}
+                        cronograma={cronograma}
+                        isDragging
+                        isDragOverlay
+                        isSortable
+                      />
+                    </div>
+                  ) : null}
+                </DragOverlay>,
+                document.body,
+              )}
             </DndContext>
           </div>
         ) : viewMode === 'list' ? (

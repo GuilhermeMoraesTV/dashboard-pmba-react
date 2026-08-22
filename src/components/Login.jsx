@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion as Motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import AuthLayout from './auth/AuthLayout';
 import { auth } from '../firebaseConfig'; // Verifique o caminho
@@ -91,7 +91,7 @@ function Login() {
 
   return (
     <AuthLayout mode="login">
-        <div className="rounded-2xl border border-white/10 bg-black/65 p-5 shadow-2xl shadow-black/50 backdrop-blur-xl sm:p-7">
+        <div className="rounded-2xl border border-white/10 bg-[#181a1d]/90 p-5 shadow-2xl shadow-black/45 backdrop-blur-xl sm:p-7">
 
           {/* Logo Compacta */}
           <div className="flex justify-center mb-4">
@@ -117,13 +117,13 @@ function Login() {
 
           <form onSubmit={handleSubmit} className="space-y-3">
             {error && (
-              <motion.div
+              <Motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 className="p-2 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-xs text-center font-medium"
               >
                 {error}
-              </motion.div>
+              </Motion.div>
             )}
 
             {/* CAMPO DE EMAIL */}
@@ -131,7 +131,7 @@ function Login() {
               <label htmlFor="email" className="block text-[10px] font-bold mb-1 text-gray-300 uppercase tracking-wider">
                 E-mail
               </label>
-              <div className="flex items-center w-full rounded-lg bg-[#1a1a1a] border border-gray-700 focus-within:border-red-600 focus-within:ring-1 focus-within:ring-red-600 transition-all overflow-hidden group">
+              <div className="flex items-center w-full rounded-lg bg-[#222428]/90 border border-zinc-600/70 focus-within:border-red-600 focus-within:ring-1 focus-within:ring-red-600 transition-all overflow-hidden group">
                 <div className="pl-3 pr-2 py-2.5 text-gray-500 group-focus-within:text-red-500 transition-colors flex items-center justify-center">
                    <IconEmail />
                 </div>
@@ -155,7 +155,7 @@ function Login() {
                 Senha
               </label>
 
-              <div className="flex items-center w-full rounded-lg bg-[#1a1a1a] border border-gray-700 focus-within:border-red-600 focus-within:ring-1 focus-within:ring-red-600 transition-all overflow-hidden group relative">
+              <div className="flex items-center w-full rounded-lg bg-[#222428]/90 border border-zinc-600/70 focus-within:border-red-600 focus-within:ring-1 focus-within:ring-red-600 transition-all overflow-hidden group relative">
                 <div className="pl-3 pr-2 py-2.5 text-gray-500 group-focus-within:text-red-500 transition-colors flex items-center justify-center">
                   <IconPassword />
                 </div>
@@ -189,7 +189,7 @@ function Login() {
                   onChange={(e) => setRememberMe(e.target.checked)}
                   className="sr-only"
                 />
-                <motion.div
+                <Motion.div
                   className="w-4 h-4 rounded border mr-2 flex items-center justify-center shrink-0"
                   variants={checkboxVariants}
                   initial="unchecked"
@@ -198,7 +198,7 @@ function Login() {
                   transition={{ duration: 0.2 }}
                 >
                    <svg width="10" height="10" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <motion.path
+                      <Motion.path
                         d="M10 3L4.5 8.5L2 6"
                         stroke="white"
                         strokeWidth="2"
@@ -210,7 +210,7 @@ function Login() {
                         transition={{ duration: 0.2, ease: "easeOut" }}
                       />
                    </svg>
-                </motion.div>
+                </Motion.div>
                 <span className="text-xs text-gray-400 group-hover:text-white transition-colors">
                   Lembrar-me
                 </span>

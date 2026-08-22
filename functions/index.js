@@ -1,8 +1,12 @@
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { onSchedule } = require('firebase-functions/v2/scheduler');
+const { onDocumentWritten, onDocumentCreated } = require('firebase-functions/v2/firestore');
 const { defineSecret }       = require('firebase-functions/params');
 const admin = require('firebase-admin');
 const crypto = require('crypto');
+const gamification = require('./gamification/service');
+const groups = require('./groups/service');
+const adminOperations = require('./admin/service');
 
 if (!admin.apps.length) {
   admin.initializeApp();
@@ -828,10 +832,181 @@ exports.abastecerFrasesMotivacionaisAgendado = onSchedule(
   },
 );
 
+const gamificationWriteOptions = {
+  region: 'us-central1',
+  retry: true,
+  timeoutSeconds: 300,
+  memory: '512MiB',
+};
+
+const recomputeGamificationFromEvent = async (event) => {
+  const uid = event.params.uid || event.params.memberId || event.params.ownerId;
+  if (!uid) return null;
+  return gamification.recomputeUserGamification(uid);
+};
+
+const publicProfileSourceChanged = (before = {}, after = {}) => {
+  const fields = ['displayName', 'name', 'nome', 'photoURL', 'coverURL', 'coverPosition', 'createdAt', 'dataCriacao', 'criadoEm', 'registrationDate'];
+  return fields.some((field) => JSON.stringify(before?.[field] ?? null) !== JSON.stringify(after?.[field] ?? null));
+};
+
+// Toda pontuação nasce de fontes acadêmicas persistidas. Os gatilhos refazem o
+// agregado completo para que edições e exclusões removam o XP da origem.
+exports.processarGamificacaoEstudo = onDocumentWritten(
+  { ...gamificationWriteOptions, document: 'users/{uid}/registrosEstudo/{recordId}' },
+  recomputeGamificationFromEvent,
+);
+exports.processarGamificacaoSimulado = onDocumentWritten(
+  { ...gamificationWriteOptions, document: 'users/{uid}/simulados/{simulationId}' },
+  recomputeGamificationFromEvent,
+);
+exports.processarGamificacaoMeta = onDocumentWritten(
+  { ...gamificationWriteOptions, document: 'users/{uid}/metas/{goalId}' },
+  recomputeGamificationFromEvent,
+);
+exports.processarGamificacaoCiclo = onDocumentWritten(
+  { ...gamificationWriteOptions, document: 'users/{uid}/ciclos/{cycleId}' },
+  recomputeGamificationFromEvent,
+);
+exports.processarGamificacaoRodadaCiclo = onDocumentWritten(
+  { ...gamificationWriteOptions, document: 'users/{uid}/ciclos/{cycleId}/rodadas/{roundId}' },
+  recomputeGamificationFromEvent,
+);
+exports.processarGamificacaoCronograma = onDocumentWritten(
+  { ...gamificationWriteOptions, document: 'users/{uid}/cronogramas/{scheduleId}' },
+  recomputeGamificationFromEvent,
+);
+// Mantém o perfil social derivado sincronizado quando o usuário altera nome,
+// foto ou capa na página de Perfil. O documento privado continua inacessível
+// aos demais usuários; apenas os campos públicos seguem para os rankings.
+exports.processarGamificacaoPerfilPublico = onDocumentWritten(
+  { ...gamificationWriteOptions, document: 'users/{uid}' },
+  async (event) => {
+    const before = event.data?.before?.data?.() || {};
+    const afterSnapshot = event.data?.after;
+    if (!afterSnapshot?.exists) return null;
+    const after = afterSnapshot.data() || {};
+    if (!publicProfileSourceChanged(before, after)) return null;
+    return recomputeGamificationFromEvent(event);
+  },
+);
+exports.processarConquistaGrupoCriado = onDocumentCreated(
+  { ...gamificationWriteOptions, document: 'study_groups/{groupId}' },
+  async (event) => {
+    const ownerId = event.data?.data()?.ownerId;
+    return ownerId ? gamification.recomputeUserGamification(ownerId) : null;
+  },
+);
+exports.processarConquistaEntradaGrupo = onDocumentCreated(
+  { ...gamificationWriteOptions, document: 'study_groups/{groupId}/members/{memberId}' },
+  async (event) => gamification.recomputeUserGamification(event.params.memberId),
+);
+
+const groupCallableOptions = { region: 'us-central1', timeoutSeconds: 60, memory: '256MiB' };
+const requireGroupAuth = (request) => {
+  if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
+  return request.auth.uid;
+};
+const mapGroupError = (error) => {
+  if (error instanceof HttpsError) return error;
+  const allowed = new Set(['invalid-argument', 'not-found', 'failed-precondition', 'permission-denied']);
+  const code = allowed.has(error?.code) ? error.code : 'internal';
+  return new HttpsError(code, error?.message || 'Não foi possível concluir a ação no grupo.');
+};
+
+exports.solicitarEntradaGrupo = onCall(groupCallableOptions, async (request) => {
+  try {
+    const uid = requireGroupAuth(request);
+    return await groups.createJoinRequest({ uid, groupId: request.data?.groupId, caller: request.auth.token || {} });
+  } catch (error) { throw mapGroupError(error); }
+});
+
+exports.responderSolicitacaoGrupo = onCall(groupCallableOptions, async (request) => {
+  try {
+    const managerUid = requireGroupAuth(request);
+    return await groups.respondJoinRequest({ managerUid, groupId: request.data?.groupId, requestUid: request.data?.requestUid, approve: request.data?.approve });
+  } catch (error) { throw mapGroupError(error); }
+});
+
+exports.sairGrupoEstudo = onCall(groupCallableOptions, async (request) => {
+  try {
+    const uid = requireGroupAuth(request);
+    return await groups.leaveGroup({ uid, groupId: request.data?.groupId, successorUid: request.data?.successorUid || null });
+  } catch (error) { throw mapGroupError(error); }
+});
+
+const adminCallableOptions = { region: 'us-central1', timeoutSeconds: 540, memory: '1GiB' };
+const adminCallable = (handler) => onCall(adminCallableOptions, async (request) => {
+  try {
+    const actor = await adminOperations.assertAdmin({ uid: request.auth?.uid, token: request.auth?.token || {} });
+    return await handler({ actor, data: request.data || {} });
+  } catch (error) {
+    if (error instanceof HttpsError) throw error;
+    const allowed = new Set(['unauthenticated', 'invalid-argument', 'not-found', 'failed-precondition', 'permission-denied', 'resource-exhausted']);
+    const code = allowed.has(error?.code) ? error.code : 'internal';
+    console.error('Falha em operacao administrativa:', error);
+    throw new HttpsError(code, error?.message || 'Nao foi possivel concluir a operacao administrativa.');
+  }
+});
+
+exports.adminUpdateUserStatus = adminCallable(({ actor, data }) => adminOperations.updateUserStatus({ actor, targetUid: data.targetUid, status: data.status }));
+exports.adminUpdateUserAccess = adminCallable(({ actor, data }) => adminOperations.updateUserAccess({ actor, targetUid: data.targetUid, access: data.access }));
+exports.adminRecalculateUserStats = adminCallable(({ actor, data }) => adminOperations.recalculateUserStats({ actor, targetUid: data.targetUid || null }));
+exports.adminRecomputeUserGamification = adminCallable(({ actor, data }) => adminOperations.recomputeUserGamification({ actor, targetUid: data.targetUid, gamification }));
+exports.adminSimulateLeagueClosure = adminCallable(({ actor, data }) => adminOperations.simulateLeagueClosure({ actor, weekId: data.weekId, gamification }));
+exports.adminRecomputeLeagueWeek = adminCallable(({ actor, data }) => adminOperations.recomputeLeagueWeek({ actor, weekId: data.weekId, gamification }));
+exports.adminModerateStudyGroup = adminCallable(({ actor, data }) => adminOperations.moderateStudyGroup({ actor, groupId: data.groupId, action: data.action, payload: data.payload || {} }));
+exports.adminSendUserNotification = adminCallable(({ actor, data }) => adminOperations.sendUserNotification({ actor, targetUid: data.targetUid, title: data.title, message: data.message, type: data.type }));
+exports.adminSendBroadcast = adminCallable(({ actor, data }) => adminOperations.sendBroadcast({ actor, title: data.title, message: data.message, targetUserIds: data.targetUserIds, segment: data.segment }));
+exports.adminExportSegment = adminCallable(({ actor, data }) => adminOperations.exportSegment({ actor, targetUserIds: data.targetUserIds }));
+
+exports.fecharLigasSemanais = onSchedule(
+  {
+    schedule: 'every monday 00:10',
+    timeZone: 'America/Bahia',
+    region: 'us-central1',
+    retryCount: 3,
+    timeoutSeconds: 540,
+    memory: '1GiB',
+  },
+  async () => gamification.closeWeeklyGamification(),
+);
+
+exports.avisarFechamentoLigas = onSchedule(
+  {
+    schedule: 'every sunday 18:00',
+    timeZone: 'America/Bahia',
+    region: 'us-central1',
+    retryCount: 2,
+    timeoutSeconds: 300,
+    memory: '512MiB',
+  },
+  async () => gamification.notifyWeeklyClosing(),
+);
+
+exports.migrarGamificacaoV2 = onCall(
+  { region: 'us-central1', timeoutSeconds: 540, memory: '1GiB' },
+  async (request) => {
+    if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Autenticacao obrigatoria.');
+    const caller = await admin.firestore().collection('users').doc(request.auth.uid).get();
+    const callerData = caller.data() || {};
+    const isAdmin = callerData.role === 'admin'
+      || callerData.adminRole === true
+      || callerData.permissions?.adminPanel === true
+      || request.auth.uid === LEGACY_ADMIN_UID;
+    if (!isAdmin) throw new HttpsError('permission-denied', 'Somente administradores podem simular ou executar a migracao.');
+    const apply = request.data?.apply === true;
+    return gamification.migrateGamification({ apply, uid: request.data?.uid || null });
+  },
+);
+
 exports.__test = {
   estimateTokenCost,
   normalizeSurface,
   safeDocIdFromUrl,
   validateNewsSourceUrl,
   validateAiRequest,
+  gamification: gamification.__test,
+  groups: groups.__test,
+  admin: adminOperations.__test,
 };

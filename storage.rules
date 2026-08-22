@@ -27,10 +27,33 @@ service firebase.storage {
         );
     }
 
+    function isGroupManager(groupId) {
+      return isSignedIn()
+        && firestore.exists(/databases/(default)/documents/study_groups/$(groupId))
+        && (
+          firestore.get(/databases/(default)/documents/study_groups/$(groupId)).data.ownerId == request.auth.uid
+          || (
+            firestore.exists(/databases/(default)/documents/study_groups/$(groupId)/members/$(request.auth.uid))
+            && firestore.get(/databases/(default)/documents/study_groups/$(groupId)/members/$(request.auth.uid)).data.permissions.manageGroup == true
+          )
+        );
+    }
+
     // Imagens de perfil: o dono le/escreve a propria pasta.
     match /profile_images/{userId}/{allPaths=**} {
       allow read: if isSignedIn() && request.auth.uid == userId;
       allow write: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Identidade visual dos grupos: qualquer usuário autenticado pode exibir,
+    // mas somente o dono da pasta pode enviar ou substituir a imagem.
+    match /study_group_images/{ownerId}/{groupId}/{allPaths=**} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn()
+        && (request.auth.uid == ownerId || isGroupManager(groupId))
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow delete: if isSignedIn() && (request.auth.uid == ownerId || isGroupManager(groupId));
     }
 
     // --- NOVA REGRA PARA LOGOS DE EDITAIS ---

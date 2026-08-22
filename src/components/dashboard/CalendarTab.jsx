@@ -100,7 +100,7 @@ const StatCard = ({
 }) => (
   <div className={`group relative flex min-h-[75px] flex-col items-start justify-center overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white px-3 py-2.5 shadow-soft transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/40 hover:!border-l-red-500 hover:shadow-[0_0_18px_rgba(239,68,68,0.07)] dark:border-white/10 dark:!border-l-red-500/25 dark:bg-card-dark dark:hover:border-accent-light/20 dark:hover:!border-l-red-500 dark:hover:shadow-[0_0_22px_rgba(239,68,68,0.08)] md:min-h-[85px] ${className}`}>
     <div className="relative z-20 flex flex-col gap-0.5 w-full">
-      <h3 className="text-[9px] md:text-[10px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 truncate w-full leading-none">
+      <h3 className="w-full truncate text-xs font-bold uppercase leading-none tracking-wider text-zinc-500 dark:text-zinc-400 md:text-[13px]">
         {title}
       </h3>
       <div className="flex flex-row items-baseline gap-1.5 mt-0.5">

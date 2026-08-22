@@ -14,6 +14,7 @@ import GlobalStudyRegisterFab from '../components/ciclos/GlobalStudyRegisterFab'
 import AppBackgroundEffects from '../components/shared/AppBackgroundEffects';
 import PlanningSuccessCelebration from '../components/shared/PlanningSuccessCelebration';
 import DailyGoalCompletedModal from '../components/shared/DailyGoalCompletedModal';
+import XPNotification from './gamification/XPNotification';
 const ShareCard = lazy(() => import('../components/shared/ShareCard'));
 const Home = lazy(() => import('../pages/HomePage/HomePage'));
 const CalendarTab = lazy(() => import('../components/dashboard/CalendarTab'));
@@ -35,6 +36,10 @@ const SimuladosPage = lazy(() => import('../pages/SimuladosPage/SimuladosPage'))
 const SimuladoTimer = lazy(() => import('../pages/SimuladosPage/SimuladoTimer'));
 const NoticiasPage = lazy(() => import('../pages/NoticiasPage'));
 const RevisaoPage = lazy(() => import('../pages/RevisaoPage'));
+const RankingPage = lazy(() => import('../pages/RankingPage'));
+const GroupsPage = lazy(() => import('../pages/GroupsPage'));
+const LeaguesPage = lazy(() => import('../pages/LeaguesPage'));
+const AchievementsPage = lazy(() => import('../pages/AchievementsPage'));
 
 const ENABLE_ONBOARDING_TOUR = false;
 const WELCOME_UPDATE_VERSION = '2026-06-dashboard-rebuild-v2';
@@ -54,6 +59,10 @@ const PATH_TO_TAB = {
   perfil: 'profile',
   profile: 'profile',
   noticias: 'noticias',
+  ranking: 'ranking',
+  ligas: 'ligas',
+  conquistas: 'conquistas',
+  grupos: 'grupos',
   admin: 'admin',
 };
 const TAB_TO_PATH = {
@@ -69,11 +78,17 @@ const TAB_TO_PATH = {
   simulados: 'simulados',
   profile: 'perfil',
   noticias: 'noticias',
+  ranking: 'ranking',
+  ligas: 'ligas',
+  conquistas: 'conquistas',
+  grupos: 'grupos',
   admin: 'admin',
 };
 
 import { useNotifications } from '../hooks/useNotifications';
 import { useUserAccess } from '../hooks/useUserAccess';
+import { useLevelSystem } from '../hooks/useLevelSystem';
+import { useGamificationSync } from '../hooks/useGamificationSync';
 import {
   marcarPendenciaTeoriaPorRegistro,
   syncRegistroEstudoWithCronograma,
@@ -366,6 +381,8 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     dismissedHistory,
     readBroadcasts,
     markBroadcastRead,
+    markOperationalRead,
+    respondGroupRequest,
     markAllRead,
     dismissEditalUpdate,
     applyEditalUpdate,
@@ -374,6 +391,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     deleteHistoryItem
   } = useNotifications(user);
   const userAccess = useUserAccess(user);
+  const { levelData, profile: gamificationProfile } = useLevelSystem(user);
 
   const [activeTab, setActiveTabState]          = useState(initialRouteTab);
   const [loading, setLoading]                   = useState(true);
@@ -461,6 +479,16 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   const [goalsLoaded, setGoalsLoaded]             = useState(false);
   const [activeCycleDisciplinesLoaded, setActiveCycleDisciplinesLoaded] = useState(false);
   const [activeCycleDisciplines, setActiveCycleDisciplines] = useState([]);
+
+  useGamificationSync({
+    user,
+    records: allRegistrosEstudo,
+    simulados: allSimulados,
+    activeCiclo: activeCicloData,
+    activeCronograma: activeCronogramaData,
+    profile: gamificationProfile,
+    enabled: registrosLoaded && simuladosLoaded,
+  });
 
   const mainContentRef = useRef(null);
 
@@ -2524,8 +2552,16 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         return <Desempenho registrosEstudo={mergedAllRegistrosEstudo} disciplinasDoCiclo={activeCycleDisciplines} activeCicloId={activeCicloId} activeCronogramaId={activeCronogramaData?.id||null} activeCicloData={activeCicloData} activeCronogramaData={activeCronogramaData} metas={goalsHistory} onCreateCycle={() => setActiveTab('planejamento')}/>;
       case 'simulados':
         return <SimuladosPage user={user} activeCycleDisciplines={activeCycleDisciplines} onStartSimulado={handleStartSimulado} initialData={finishedSimuladoData} onClearInitialData={handleClearSimuladoData}/>;
+      case 'ranking':
+        return <div className="w-full min-w-0"><RankingPage user={user} levelData={levelData}/></div>;
+      case 'ligas':
+        return <div className="mobile-page-zoom mobile-page-zoom--ligas"><LeaguesPage user={user} levelData={levelData}/></div>;
+      case 'conquistas':
+        return <div className="mobile-page-zoom mobile-page-zoom--conquistas"><AchievementsPage user={user} levelData={levelData}/></div>;
+      case 'grupos':
+        return <div className="mobile-page-zoom mobile-page-zoom--grupos"><GroupsPage user={user} gamificationProfile={gamificationProfile} levelData={levelData}/></div>;
       case 'profile':
-        return <div className="mobile-page-zoom mobile-page-zoom--profile desktop-page-zoom desktop-page-zoom--profile"><ProfilePage user={user} allRegistrosEstudo={mergedAllRegistrosEstudo} onDeleteRegistro={deleteRegistro} coverURL={profileCover.url} coverPosition={profileCover.position} coverLoading={profileCover.loading}/></div>;
+        return <div className="mobile-page-zoom mobile-page-zoom--profile desktop-page-zoom desktop-page-zoom--profile"><ProfilePage user={user} allRegistrosEstudo={mergedAllRegistrosEstudo} onDeleteRegistro={deleteRegistro} coverURL={profileCover.url} coverPosition={profileCover.position} coverLoading={profileCover.loading} levelData={levelData} onGoToAchievements={() => setActiveTab('conquistas')}/></div>;
       case 'noticias':
         return <div className="mobile-page-zoom mobile-page-zoom--noticias desktop-page-zoom desktop-page-zoom--noticias"><NoticiasPage/></div>;
       case 'admin':
@@ -2552,6 +2588,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   return (
     <div className="relative isolate flex min-h-screen bg-background-light dark:bg-background-dark text-text-primary dark:text-text-dark-primary transition-colors duration-300 overflow-x-hidden">
       <AppBackgroundEffects />
+      <XPNotification user={user} />
       <WarningModal isOpen={warningAlert.isOpen} title={warningAlert.title} message={warningAlert.message} onClose={() => setWarningAlert(p => ({ ...p, isOpen:false }))}/>
       <Suspense fallback={null}>
         <WelcomeCarouselModal
@@ -2589,6 +2626,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
           coverURL={profileCover.url}
           coverPosition={profileCover.position}
           coverLoading={profileCover.loading}
+          levelData={levelData}
           userAccess={userAccess}
           activeTab={activeTab}
         setActiveTab={handleTabChange}
@@ -2617,6 +2655,8 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
           readBroadcasts,
           dismissedHistory,
           onMarkBroadcastRead: markBroadcastRead,
+          onMarkOperationalRead: markOperationalRead,
+          onRespondGroupRequest: respondGroupRequest,
           onMarkAllRead: markAllRead,
           onApplyEditalUpdate: applyEditalUpdate,
           onDismissEditalUpdate: dismissEditalUpdate,
@@ -2633,7 +2673,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
           if (isSidebarExpanded && !isLargeSidebarViewport) setIsSidebarExpanded(false);
           if (isMobileOpen) setIsMobileOpen(false);
         }}
-        className={`dashboard-main-content relative z-10 min-w-0 flex-1 transition-all duration-300 pt-[80px] px-4 md:px-8 lg:pt-[90px] pb-10 ${isLargeSidebarViewport || isSidebarExpanded ? 'lg:ml-[196px]' : 'lg:ml-[72px]'}`}
+        className={`dashboard-main-content relative z-10 min-w-0 flex-1 transition-all duration-300 pt-[80px] px-4 md:px-8 lg:pt-[90px] pb-10 ${isLargeSidebarViewport || isSidebarExpanded ? 'lg:ml-[220px]' : 'lg:ml-[72px]'}`}
       >
         <Header user={user} activeTab={activeTab}/>
         <main className={`mt-2 min-w-0 animate-fade-in ${['home', 'ciclos', 'cronograma', 'planejamento'].includes(activeTab) ? 'w-full' : 'max-w-7xl mx-auto'}`}>
@@ -2694,6 +2734,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
             userUid={user.uid}
             userName={user.displayName||'Estudante'}
             userPhotoURL={user.photoURL||null}
+            groupIds={levelData.groupIds}
           />
         </Suspense>
       )}
@@ -2713,6 +2754,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
             userUid={user.uid}
             userName={user.displayName||'Candidato'}
             userPhotoURL={user.photoURL||null}
+            groupIds={levelData.groupIds}
           />
         </Suspense>
       )}

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { collection, limit, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, doc, limit, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import {
   formatDateKeyLocal,
@@ -422,6 +422,10 @@ export const useAdminUser360 = ({ isOpen, user }) => {
   const [cycleDisciplines, setCycleDisciplines] = useState([]);
   const [activeCronograma, setActiveCronograma] = useState(null);
   const [cycleReviews, setCycleReviews] = useState([]);
+  const [gamificationProfile, setGamificationProfile] = useState(null);
+  const [achievements, setAchievements] = useState([]);
+  const [xpEvents, setXpEvents] = useState([]);
+  const [auditLogs, setAuditLogs] = useState([]);
   const [ready, setReady] = useState({
     records: false,
     simulados: false,
@@ -430,6 +434,10 @@ export const useAdminUser360 = ({ isOpen, user }) => {
     cronograma: false,
     reviews: false,
     disciplines: false,
+    gamification: false,
+    achievements: false,
+    xpEvents: false,
+    audit: false,
   });
 
   useEffect(() => {
@@ -441,6 +449,10 @@ export const useAdminUser360 = ({ isOpen, user }) => {
       setCycleDisciplines([]);
       setActiveCronograma(null);
       setCycleReviews([]);
+      setGamificationProfile(null);
+      setAchievements([]);
+      setXpEvents([]);
+      setAuditLogs([]);
       setReady({
         records: false,
         simulados: false,
@@ -449,6 +461,10 @@ export const useAdminUser360 = ({ isOpen, user }) => {
         cronograma: false,
         reviews: false,
         disciplines: false,
+        gamification: false,
+        achievements: false,
+        xpEvents: false,
+        audit: false,
       });
       return undefined;
     }
@@ -461,6 +477,10 @@ export const useAdminUser360 = ({ isOpen, user }) => {
       cronograma: false,
       reviews: false,
       disciplines: false,
+      gamification: false,
+      achievements: false,
+      xpEvents: false,
+      audit: false,
     });
 
     const unsubscribers = [
@@ -537,6 +557,32 @@ export const useAdminUser360 = ({ isOpen, user }) => {
         },
         () => setReady((prev) => ({ ...prev, reviews: true }))
       ),
+
+      onSnapshot(doc(db, 'users', uid, 'gamification', 'profile'), (snapshot) => {
+        setGamificationProfile(snapshot.exists() ? { id: snapshot.id, ...snapshot.data() } : null);
+        setReady((prev) => ({ ...prev, gamification: true }));
+      }, () => setReady((prev) => ({ ...prev, gamification: true }))),
+
+      onSnapshot(collection(db, 'users', uid, 'gamification', 'profile', 'achievements'), (snapshot) => {
+        const next = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+        next.sort((a, b) => (toDateSafe(b.unlockedAt)?.getTime() || 0) - (toDateSafe(a.unlockedAt)?.getTime() || 0));
+        setAchievements(next);
+        setReady((prev) => ({ ...prev, achievements: true }));
+      }, () => setReady((prev) => ({ ...prev, achievements: true }))),
+
+      onSnapshot(query(collection(db, 'users', uid, 'gamification', 'profile', 'xp_events'), limit(100)), (snapshot) => {
+        const next = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+        next.sort((a, b) => (toDateSafe(b.createdAt)?.getTime() || 0) - (toDateSafe(a.createdAt)?.getTime() || 0));
+        setXpEvents(next);
+        setReady((prev) => ({ ...prev, xpEvents: true }));
+      }, () => setReady((prev) => ({ ...prev, xpEvents: true }))),
+
+      onSnapshot(query(collection(db, 'admin_audit_logs'), where('targetUid', '==', uid), limit(100)), (snapshot) => {
+        const next = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+        next.sort((a, b) => (toDateSafe(b.createdAt)?.getTime() || 0) - (toDateSafe(a.createdAt)?.getTime() || 0));
+        setAuditLogs(next);
+        setReady((prev) => ({ ...prev, audit: true }));
+      }, () => setReady((prev) => ({ ...prev, audit: true }))),
     ];
 
     return () => {
@@ -722,6 +768,7 @@ export const useAdminUser360 = ({ isOpen, user }) => {
   const loading = useMemo(() => Object.values(ready).some((value) => value === false), [ready]);
 
   return {
+    user,
     uid,
     loading,
     records,
@@ -731,6 +778,10 @@ export const useAdminUser360 = ({ isOpen, user }) => {
     cycleDisciplines,
     activeCronograma,
     cycleReviews,
+    gamificationProfile,
+    achievements,
+    xpEvents,
+    auditLogs,
     analytics,
   };
 };

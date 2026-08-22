@@ -26,13 +26,17 @@ export const getCoreHydrationStatus = ({
   const allReceived = resources.every((resource) => resource?.received);
   const allSettled = resources.every((resource) => resource?.authoritative || resource?.failed);
   const hasPendingWrites = resources.some((resource) => resource?.hasPendingWrites);
+  const planningStatusSettled = !isOnline || (
+    (hydrationState.activeCiclo?.authoritative || hydrationState.activeCiclo?.failed)
+    && (hydrationState.activeCronograma?.authoritative || hydrationState.activeCronograma?.failed)
+  );
 
   return {
     resources,
     allReceived,
     allSettled,
     hasPendingWrites,
-    ready: Boolean(allReceived && (
+    ready: Boolean(allReceived && planningStatusSettled && (
       timedOut
       || (legacyReadyFlags && (!isOnline || allSettled))
     )),

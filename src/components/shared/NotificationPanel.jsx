@@ -677,11 +677,22 @@ const NotifItem = ({ notif, isRead, onRead, onOpenBroadcast, onOpenEditalModal, 
   return null;
 };
 
+const OperationalNotifItem = ({ notif, onRead, onRespondGroupRequest }) => {
+  const isRequest = notif.operationalKind === 'group_request' && notif.requiresAction === true;
+  const isXP = notif.operationalKind === 'xp';
+  const Icon = isRequest ? Inbox : isXP ? Zap : notif.operationalKind === 'league_state' || notif.operationalKind === 'league_result' ? TrendingUp : Bell;
+  return <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-800/55">
+    <div className="flex items-start gap-3 p-3"><span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${isRequest ? 'bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-300' : isXP ? 'bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-300' : 'bg-red-50 text-red-600 dark:bg-red-950/30'}`}><Icon size={16}/></span><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><h4 className="truncate text-[11px] font-black text-zinc-900 dark:text-white">{notif.title || 'Atualização'}</h4><span className="text-[8px] font-bold text-zinc-400">{formatTimeAgo(notif.timestamp)}</span></div><p className="mt-1 text-[10px] leading-relaxed text-zinc-500">{notif.message || 'Seu progresso foi atualizado.'}</p></div></div>
+    <div className="flex gap-2 border-t border-zinc-100 px-3 py-2.5 dark:border-zinc-700">{isRequest ? <><button onClick={() => onRespondGroupRequest(notif, false)} className="flex-1 rounded-lg border border-zinc-200 py-2 text-[8px] font-black uppercase text-zinc-500 dark:border-zinc-700">Recusar</button><button onClick={() => onRespondGroupRequest(notif, true)} className="flex-1 rounded-lg bg-emerald-600 py-2 text-[8px] font-black uppercase text-white">Aprovar membro</button></> : <button onClick={() => onRead(notif)} className="ml-auto inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[8px] font-black uppercase text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/20"><Check size={12}/> Marcar como lida</button>}</div>
+  </motion.div>;
+};
+
 const NotificationPanel = ({
   isOpen, onClose, notifications, dismissedHistory, unreadCount,
   readBroadcasts, onMarkBroadcastRead, onMarkAllRead,
   onApplyEditalUpdate, onDismissEditalUpdate, loadingUpdate, onNavigateToEdital,
   deleteBroadcast, deleteHistoryItem, systemAlerts = [], onSystemAlertAction,
+  onMarkOperationalRead, onRespondGroupRequest,
   bellRef
 }) => {
   const [activeFilter, setActiveFilter] = useState('all');
@@ -819,7 +830,7 @@ const NotificationPanel = ({
                   </div>
                 ) : (
                   <div key={activeFilter} className="space-y-3.5">
-                    {filtered.map(n => <NotifItem key={`${n._type || 'notif'}:${n.id}:${n.versionKey || ''}`} notif={n} isRead={n._type === 'broadcast' ? readBroadcasts.has(n.id) : false} onRead={onMarkBroadcastRead} onOpenBroadcast={(notif) => { setBroadcastModal(notif); if (!readBroadcasts.has(notif.id)) onMarkBroadcastRead(notif.id); }} onOpenEditalModal={setEditalModal} onDismissUpdate={onDismissEditalUpdate} onDeleteBroadcast={deleteBroadcast} onDeleteHistory={deleteHistoryItem} isDismissedItem={n.isDismissed || activeFilter === 'history'} />)}
+                    {filtered.map(n => n._type === 'operational' ? <OperationalNotifItem key={`operational:${n.sourceCollection}:${n.id}`} notif={n} onRead={onMarkOperationalRead} onRespondGroupRequest={onRespondGroupRequest}/> : <NotifItem key={`${n._type || 'notif'}:${n.id}:${n.versionKey || ''}`} notif={n} isRead={n._type === 'broadcast' ? readBroadcasts.has(n.id) : false} onRead={onMarkBroadcastRead} onOpenBroadcast={(notif) => { setBroadcastModal(notif); if (!readBroadcasts.has(notif.id)) onMarkBroadcastRead(notif.id); }} onOpenEditalModal={setEditalModal} onDismissUpdate={onDismissEditalUpdate} onDeleteBroadcast={deleteBroadcast} onDeleteHistory={deleteHistoryItem} isDismissedItem={n.isDismissed || activeFilter === 'history'} />)}
                   </div>
                 )}
               </div>
@@ -836,7 +847,7 @@ const NotificationPanel = ({
   );
 };
 
-export const NotificationBell = ({ unreadCount, notifications, dismissedHistory, readBroadcasts, onMarkBroadcastRead, onMarkAllRead, onApplyEditalUpdate, onDismissEditalUpdate, loadingUpdate, onNavigateToEdital, deleteBroadcast, deleteHistoryItem, systemAlerts = [], onSystemAlertAction, bellRef }) => {
+export const NotificationBell = ({ unreadCount, notifications, dismissedHistory, readBroadcasts, onMarkBroadcastRead, onMarkOperationalRead, onRespondGroupRequest, onMarkAllRead, onApplyEditalUpdate, onDismissEditalUpdate, loadingUpdate, onNavigateToEdital, deleteBroadcast, deleteHistoryItem, systemAlerts = [], onSystemAlertAction, bellRef }) => {
   const [panelOpen, setPanelOpen] = useState(false);
   const hasEditalUpdate = (notifications || []).some(n => n._type === 'edital_update');
   const totalBadgeCount = Number(unreadCount || 0) + (systemAlerts || []).length;
@@ -851,7 +862,7 @@ export const NotificationBell = ({ unreadCount, notifications, dismissedHistory,
         )}
         {hasEditalUpdate && totalBadgeCount === 0 && <span className="absolute -top-1 -right-1 h-3.5 w-3.5 rounded-full bg-red-500 border-2 border-white dark:border-zinc-950" />}
       </motion.button>
-      <NotificationPanel isOpen={panelOpen} onClose={() => setPanelOpen(false)} notifications={notifications || []} dismissedHistory={dismissedHistory || []} unreadCount={unreadCount} readBroadcasts={readBroadcasts} onMarkBroadcastRead={onMarkBroadcastRead} onMarkAllRead={onMarkAllRead} onApplyEditalUpdate={onApplyEditalUpdate} onDismissEditalUpdate={onDismissEditalUpdate} loadingUpdate={loadingUpdate} onNavigateToEdital={onNavigateToEdital} deleteBroadcast={deleteBroadcast} deleteHistoryItem={deleteHistoryItem} systemAlerts={systemAlerts} onSystemAlertAction={onSystemAlertAction} bellRef={bellRef} />
+      <NotificationPanel isOpen={panelOpen} onClose={() => setPanelOpen(false)} notifications={notifications || []} dismissedHistory={dismissedHistory || []} unreadCount={unreadCount} readBroadcasts={readBroadcasts} onMarkBroadcastRead={onMarkBroadcastRead} onMarkOperationalRead={onMarkOperationalRead} onRespondGroupRequest={onRespondGroupRequest} onMarkAllRead={onMarkAllRead} onApplyEditalUpdate={onApplyEditalUpdate} onDismissEditalUpdate={onDismissEditalUpdate} loadingUpdate={loadingUpdate} onNavigateToEdital={onNavigateToEdital} deleteBroadcast={deleteBroadcast} deleteHistoryItem={deleteHistoryItem} systemAlerts={systemAlerts} onSystemAlertAction={onSystemAlertAction} bellRef={bellRef} />
     </div>
   );
 };
