@@ -94,6 +94,12 @@ const AdminStatCard = ({ title, value, subtitle, icon: Icon }) => (
   </article>
 );
 
+const AdminTabLoading = () => (
+  <div className="flex min-h-64 items-center justify-center gap-3 rounded-[28px] border border-zinc-200 bg-white text-sm font-bold text-zinc-500 dark:border-zinc-800 dark:bg-card-dark">
+    <Loader2 size={20} className="animate-spin text-red-600" /> Carregando dados da seção...
+  </div>
+);
+
 const SummaryCard = ({ title, subtitle, icon, accent = 'zinc', onClick, children }) => {
   const accents = {
     zinc: 'bg-zinc-100 text-zinc-600 dark:bg-zinc-900 dark:text-zinc-300',
@@ -186,6 +192,7 @@ function AdminPage() {
 
   const {
     loading,
+    loadingState,
     error,
     users,
     studyRecords,
@@ -198,6 +205,7 @@ function AdminPage() {
     filterOptions,
     analytics,
   } = useAdminAnalytics({
+    activeTab,
     filters: analyticsFilters,
     rankingLimit: 10,
   });
@@ -276,7 +284,9 @@ function AdminPage() {
           </div>
         ) : null}
 
-        {activeTab === 'analytics' ? (
+        {loading && ['leagues', 'groups', 'moderation', 'communications', 'maintenance'].includes(activeTab) ? (
+          <AdminTabLoading />
+        ) : activeTab === 'analytics' ? (
           <AdminAnalyticsSection datasets={analytics.datasets} loading={loading} error={error} />
         ) : activeTab === 'users' ? (
           <AdminUsersSection users={users} loading={loading} onOpenUser={setDetailUser} onFeedback={setAdminFeedback} />
@@ -302,8 +312,8 @@ function AdminPage() {
         ) : (
           <div key="overview" className="space-y-6">
             <div className="grid grid-cols-3 gap-2 sm:gap-4">
-              <AdminStatCard title="Usuários registrados" value={loading ? '—' : dashboardData.totalUsers} subtitle="Total da base cadastrada" icon={Users} />
-              <AdminStatCard title="Ativos no último dia" value={loading ? '—' : dashboardData.active24h} subtitle="Com atividade acadêmica real nas últimas 24h" icon={Radio} />
+              <AdminStatCard title="Usuários registrados" value={loadingState.users ? '—' : dashboardData.totalUsers} subtitle="Total da base cadastrada" icon={Users} />
+              <AdminStatCard title="Ativos no último dia" value={loadingState.activities ? '—' : dashboardData.active24h} subtitle="Com atividade acadêmica real nas últimas 24h" icon={Radio} />
               <SummaryCard title="Gerenciar editais" subtitle="Templates, seeds e operação administrativa" icon={Server} accent="dark" onClick={() => setShowEditaisModal(true)}>
                 <p className="mt-1 text-sm font-black leading-tight tracking-tight sm:text-2xl">Abrir gerenciador</p>
               </SummaryCard>
@@ -315,7 +325,7 @@ function AdminPage() {
             </div>
 
             <SectionCard title="Registros em tempo real" subtitle="Atividades acadêmicas reais de todos os usuários" icon={Activity}>
-              {loading ? (
+              {loadingState.activities ? (
                 <div className="flex h-56 items-center justify-center gap-3 text-sm font-bold text-zinc-500"><Loader2 size={20} className="animate-spin text-red-600" /> Carregando registros...</div>
               ) : !feedList.length ? (
                 <div className="flex h-56 items-center justify-center px-6 text-center text-sm font-semibold text-zinc-500">Nenhuma atividade encontrada para o período e os filtros selecionados.</div>
@@ -366,7 +376,7 @@ function AdminPage() {
                 subtitle={mobileRankingMetric === 'hours' ? 'Top 10 por tempo estudado' : 'Top 10 por questões realizadas'}
                 users={mobileRankingMetric === 'hours' ? hoursRanking : questionsRanking}
                 metric={mobileRankingMetric}
-                loading={loading}
+                loading={loadingState.activities}
                 onOpenUser={setDetailUser}
                 action={(
                   <div className="flex w-full rounded-xl bg-zinc-100 p-1 dark:bg-zinc-900" role="tablist" aria-label="Métrica do ranking">
@@ -391,8 +401,8 @@ function AdminPage() {
             </div>
 
             <div className="hidden grid-cols-2 items-start gap-6 md:grid">
-              <RankingCard title="Ranking por horas" subtitle="Top 10 por tempo efetivamente estudado" users={hoursRanking} metric="hours" loading={loading} onOpenUser={setDetailUser} />
-              <RankingCard title="Ranking por questões" subtitle="Top 10 por questões efetivamente realizadas" users={questionsRanking} metric="questions" loading={loading} onOpenUser={setDetailUser} />
+              <RankingCard title="Ranking por horas" subtitle="Top 10 por tempo efetivamente estudado" users={hoursRanking} metric="hours" loading={loadingState.activities} onOpenUser={setDetailUser} />
+              <RankingCard title="Ranking por questões" subtitle="Top 10 por questões efetivamente realizadas" users={questionsRanking} metric="questions" loading={loadingState.activities} onOpenUser={setDetailUser} />
             </div>
 
           </div>

@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildRevisaoCentral, filterRevisaoCentralItems } from '../src/utils/revisaoCentral.js';
+import {
+  buildRevisaoCentral,
+  filterRevisaoCentralItems,
+  filterStudyRecordsByPlanningSource,
+} from '../src/utils/revisaoCentral.js';
 
 const reference = new Date(2026, 7, 6);
 
@@ -47,4 +51,21 @@ test('filtra por origem, disciplina, intervalo, status e busca sem acento', () =
   const filtered = filterRevisaoCentralItems(items, { origem: 'ciclo', disciplina: 'pt', intervalo: '7', status: 'atrasada', busca: 'acentuacao' });
   assert.equal(filtered.length, 1);
   assert.equal(filtered[0].disciplinaId, 'pt');
+});
+
+test('separa registros e métricas de ciclo e cronograma pelo planejamento ativo', () => {
+  const records = [
+    { id: 'cycle-review', contextoRegistro: 'ciclo', cicloId: 'c1', tipoEstudo: 'revisao', tempoEstudadoMinutos: 20 },
+    { id: 'schedule-review', contextoRegistro: 'cronograma', cronogramaId: 's1', tipoEstudo: 'revisao', tempoEstudadoMinutos: 30 },
+    { id: 'other-cycle', contextoRegistro: 'ciclo', cicloId: 'c2', tipoEstudo: 'revisao', tempoEstudadoMinutos: 40 },
+  ];
+
+  assert.deepEqual(
+    filterStudyRecordsByPlanningSource(records, { source: 'ciclo', planId: 'c1' }).map((item) => item.id),
+    ['cycle-review'],
+  );
+  assert.deepEqual(
+    filterStudyRecordsByPlanningSource(records, { source: 'cronograma', planId: 's1' }).map((item) => item.id),
+    ['schedule-review'],
+  );
 });

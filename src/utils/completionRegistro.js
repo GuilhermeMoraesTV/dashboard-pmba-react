@@ -12,11 +12,11 @@ const firstPresent = (...values) => values.find((value) => value !== undefined &
 
 const getMinutes = (item, fallback = 0) => {
   const raw = firstPresent(
-    item?.tempoEstudadoMinutos,
-    item?.tempoMinutos,
     item?.tempoPlanejadoMinutos,
-    item?.minutosEstudo,
+    item?.tempoMinutos,
     item?.duracaoMinutos,
+    item?.tempoEstudadoMinutos,
+    item?.minutosEstudo,
     fallback
   );
   return Math.max(0, Math.round(Number(raw) || 0));
@@ -73,10 +73,13 @@ export const buildCompletionRegistro = ({
     assunto,
     data,
     tempoEstudadoMinutos: getMinutes(item, fallbackMinutes),
+    duracaoMinutos: getMinutes(item, fallbackMinutes),
+    tempoPlanejadoConclusaoMinutos: getMinutes(item, fallbackMinutes),
     questoesFeitas: 0,
     acertos: 0,
     tipoEstudo: isReview ? 'revisao' : 'Teoria',
     origemConclusao: 'botao_concluir',
+    conclusaoManual: true,
     origemConclusaoId,
     ...(alternateOrigemConclusaoIds.length ? { alternateOrigemConclusaoIds } : {}),
     ...(isReview ? { isRevisao: true, revisao: true } : {}),

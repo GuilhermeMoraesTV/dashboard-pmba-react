@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  arrayRemove,
   arrayUnion,
   collection,
   doc,
@@ -12,7 +11,6 @@ import {
   query,
   serverTimestamp,
   updateDoc,
-  where,
   writeBatch,
 } from 'firebase/firestore';
 import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage';
@@ -42,12 +40,24 @@ import {
   UserCog,
   Users,
   X,
-  Zap,
 } from 'lucide-react';
 import { db, storage } from '../firebaseConfig';
-import { leaveStudyGroup, requestPrivateGroupEntry } from '../services/groupMembership';
-import { formatStudyMinutes, getWeekId, sortGroupsRanking, sortCompetitiveMembers } from '../utils/gamification';
-import { calculateLiveTimerSeconds, formatLiveTimer, isLiveStudySession } from '../utils/liveStudyTimer';
+import {
+  joinPrivateStudyGroupByCode,
+  leaveStudyGroup,
+  listStudyGroups,
+  removeStudyGroupMember,
+  requestPrivateGroupEntry,
+  updateStudyGroupMemberRole,
+} from '../services/groupMembership';
+import { formatStudyMinutes, getMonthId, getWeekId, sortGeneralRankingMembers, sortGroupsRanking } from '../utils/gamification';
+import {
+  calculateLiveTimerSeconds,
+  formatLiveTimer,
+  getGroupMemberStudyState,
+  GROUP_MEMBER_STUDY_STATES,
+  sortGroupMembersByStudyState,
+} from '../utils/liveStudyTimer';
 import { useEditaisCatalog } from '../hooks/useEditaisCatalog';
 import UserProfileModal from '../components/gamification/UserProfileModal';
 
@@ -124,23 +134,51 @@ const GroupStatCard = ({ icon: Icon, label, value }) => (
   </div>
 );
 
-const LiveMemberCard = ({ member, timer, onOpen }) => {
+const getGroupMemberCount = (group) => Math.max(0, Number(group?.memberCount || 0));
+
+const MEMBER_STATE_STYLES = {
+  [GROUP_MEMBER_STUDY_STATES.STUDYING]: {
+    label: 'Estudando',
+    activityFallback: 'Sessão de estudo',
+    card: 'border-emerald-200 bg-emerald-50/45 dark:border-emerald-900/55 dark:bg-emerald-950/15',
+    dot: 'bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,0.12)]',
+    badge: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/35 dark:text-emerald-300',
+  },
+  [GROUP_MEMBER_STUDY_STATES.PAUSED]: {
+    label: 'Pausado',
+    activityFallback: 'Cronômetro pausado',
+    card: 'border-amber-200 bg-amber-50/45 dark:border-amber-900/55 dark:bg-amber-950/15',
+    dot: 'bg-amber-500 shadow-[0_0_0_4px_rgba(245,158,11,0.12)]',
+    badge: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/35 dark:text-amber-300',
+  },
+  [GROUP_MEMBER_STUDY_STATES.OFFLINE]: {
+    label: 'Offline',
+    activityFallback: 'Sem sessão ativa',
+    card: 'border-zinc-200 bg-zinc-50/70 dark:border-zinc-800 dark:bg-zinc-900/55',
+    dot: 'bg-zinc-400 shadow-[0_0_0_4px_rgba(161,161,170,0.12)]',
+    badge: 'border-zinc-200 bg-white text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400',
+  },
+};
+
+const LiveMemberCard = ({ member, timer, state, onOpen }) => {
   const [seconds, setSeconds] = useState(() => calculateLiveTimerSeconds(timer));
   useEffect(() => {
     const update = () => setSeconds(calculateLiveTimerSeconds(timer));
     update();
-    const intervalId = window.setInterval(update, 250);
+    if (state === GROUP_MEMBER_STUDY_STATES.OFFLINE) return undefined;
+    const intervalId = window.setInterval(update, 1000);
     return () => window.clearInterval(intervalId);
-  }, [timer]);
-  const activity = timer?.disciplinaNome || timer?.titulo || timer?.atividadeNome || timer?.assunto || 'Sessão de estudo';
+  }, [state, timer]);
+  const styles = MEMBER_STATE_STYLES[state] || MEMBER_STATE_STYLES[GROUP_MEMBER_STUDY_STATES.OFFLINE];
+  const activity = timer?.disciplinaNome || timer?.titulo || timer?.atividadeNome || timer?.assunto || styles.activityFallback;
 
   return (
-    <button type="button" onClick={() => onOpen?.(member)} className="relative flex min-w-0 flex-col items-center rounded-2xl border border-emerald-100 bg-white/85 px-2.5 py-4 text-center shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:border-emerald-900/40 dark:bg-zinc-900/80">
-      <span className="absolute right-3 top-3 h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,0.12)]"/>
+    <button type="button" onClick={() => onOpen?.(member)} className={`relative flex min-w-0 flex-col items-center rounded-2xl border px-2.5 py-4 text-center shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${styles.card}`}>
+      <span className={`absolute right-3 top-3 h-2 w-2 rounded-full ${styles.dot}`}/>
       <Avatar member={member} size="h-12 w-12 sm:h-14 sm:w-14"/>
-      <p className="mt-2.5 w-full truncate text-xs font-black text-zinc-900 dark:text-white">{member.displayName}</p>
+      <p className="mt-2.5 w-full truncate text-xs font-black text-zinc-900 dark:text-white">{member.displayName || member.name || member.email?.split('@')[0] || 'Membro'}</p>
       <p className="mt-0.5 w-full truncate text-[9px] font-bold uppercase tracking-wide text-zinc-400" title={activity}>{activity}</p>
-      <span className="mt-2 rounded-lg border border-emerald-100 bg-emerald-50 px-2.5 py-1 font-mono text-[11px] font-black tabular-nums text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-300">{formatLiveTimer(seconds)}</span>
+      <span className={`mt-2 rounded-lg border px-2.5 py-1 text-[10px] font-black tabular-nums ${styles.badge}`}>{state === GROUP_MEMBER_STUDY_STATES.OFFLINE ? styles.label : `${styles.label} · ${formatLiveTimer(seconds)}`}</span>
     </button>
   );
 };
@@ -148,13 +186,13 @@ const LiveMemberCard = ({ member, timer, onOpen }) => {
 const GroupsPage = ({ user, gamificationProfile = {}, levelData }) => {
   const editaisMap = useEditaisCatalog();
   const [view, setView] = useState('my');
-  const [publicGroups, setPublicGroups] = useState([]);
+  const [directoryGroups, setDirectoryGroups] = useState([]);
+  const [bootstrapGroups, setBootstrapGroups] = useState([]);
   const [myGroups, setMyGroups] = useState([]);
   const [selectedGroupId, setSelectedGroupId] = useState(null);
   const [selectedGroup, setSelectedGroup] = useState(null);
   const [members, setMembers] = useState([]);
   const [groupRankingMembers, setGroupRankingMembers] = useState([]);
-  const [publicGroupMetrics, setPublicGroupMetrics] = useState({});
   const [timers, setTimers] = useState({});
   const [createOpen, setCreateOpen] = useState(false);
   const [joinOpen, setJoinOpen] = useState(false);
@@ -173,32 +211,74 @@ const GroupsPage = ({ user, gamificationProfile = {}, levelData }) => {
   const [message, setMessage] = useState('');
   const [accessBlocked, setAccessBlocked] = useState(false);
   const [groupRankingMetric, setGroupRankingMetric] = useState('minutes');
+  const [memberRankingMetric, setMemberRankingMetric] = useState('minutes');
+  const [memberRankingPeriod, setMemberRankingPeriod] = useState('weekly');
   const [selectedProfile, setSelectedProfile] = useState(null);
+  const [presenceNowMs, setPresenceNowMs] = useState(() => Date.now());
   const groupIds = useMemo(() => Array.isArray(gamificationProfile.groupIds) ? gamificationProfile.groupIds : [], [gamificationProfile.groupIds]);
   const mainGroupId = groupIds.includes(gamificationProfile.mainGroupId) ? gamificationProfile.mainGroupId : null;
   const weekId = getWeekId();
+  const monthId = getMonthId();
   const editalOptions = useMemo(() => [...editaisMap.values()].filter((item) => item?.deleted !== true && item?.ativo !== false).sort((a, b) => editalTitle(a).localeCompare(editalTitle(b), 'pt-BR')), [editaisMap]);
   const selectedEdital = useMemo(() => form.editalId ? editaisMap.get(String(form.editalId)) || editalOptions.find((item) => String(item.id) === String(form.editalId)) : null, [editalOptions, editaisMap, form.editalId]);
   const editalCargoOptions = useMemo(() => editalOptions.flatMap((edital) => {
     const cargos = editalCargos(edital);
     return (cargos.length ? cargos : ['']).map((cargo) => ({ edital, cargo }));
   }), [editalOptions]);
+  const publicGroups = useMemo(() => {
+    const merged = new Map();
+    const joinedById = new Map(myGroups.map((group) => [group.id, group]));
+    bootstrapGroups.forEach((group) => merged.set(group.id || group.groupId, { ...group, id: group.id || group.groupId }));
+    directoryGroups.forEach((group) => {
+      const id = group.id || group.groupId;
+      const authoritative = merged.get(id);
+      merged.set(id, {
+        ...authoritative,
+        ...group,
+        id,
+        memberCount: authoritative ? getGroupMemberCount(authoritative) : getGroupMemberCount(group),
+      });
+    });
+    joinedById.forEach((group, id) => {
+      const publicGroup = merged.get(id);
+      if (publicGroup) merged.set(id, { ...publicGroup, memberCount: getGroupMemberCount(group) });
+    });
+    return [...merged.values()]
+      .filter((group) => group.id && group.status !== 'blocked')
+      .sort((a, b) => Number(b.createdAtMillis || b.createdAt?.toMillis?.() || 0) - Number(a.createdAtMillis || a.createdAt?.toMillis?.() || 0));
+  }, [bootstrapGroups, directoryGroups, myGroups]);
 
   useEffect(() => () => {
     if (groupPhotoPreview) URL.revokeObjectURL(groupPhotoPreview);
   }, [groupPhotoPreview]);
 
-  useEffect(() => onSnapshot(query(collection(db, 'study_groups'), where('visibility', '==', 'public'), orderBy('createdAt', 'desc')), (snapshot) => {
-    setPublicGroups(snapshot.docs.map((item) => ({ id: item.id, ...item.data() })));
-    setAccessBlocked(false);
-  }, (error) => {
+  useEffect(() => {
+    const timer = window.setInterval(() => setPresenceNowMs(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    listStudyGroups().then((result) => {
+      if (!active) return;
+      setBootstrapGroups(Array.isArray(result?.groups) ? result.groups : []);
+      setAccessBlocked(false);
+    }).catch((error) => {
+      if (!active) return;
+      if (!isPermissionDenied(error)) console.error('[Grupos] Erro ao carregar diretório inicial:', error);
+      setAccessBlocked(true);
+    });
+    const unsubscribe = onSnapshot(query(collection(db, 'study_group_directory'), orderBy('createdAt', 'desc')), (snapshot) => {
+      setDirectoryGroups(snapshot.docs.map((item) => ({ id: item.id, ...item.data() })));
+    }, (error) => {
     if (isPermissionDenied(error)) {
-      setPublicGroups([]);
       setAccessBlocked(true);
       return;
     }
-    console.error('[Grupos] Erro ao listar grupos públicos:', error);
-  }), []);
+      console.error('[Grupos] Erro ao acompanhar diretório de grupos:', error);
+    });
+    return () => { active = false; unsubscribe(); };
+  }, []);
 
   useEffect(() => {
     if (!groupIds.length) {
@@ -206,13 +286,26 @@ const GroupsPage = ({ user, gamificationProfile = {}, levelData }) => {
       return undefined;
     }
     const state = new Map();
-    const unsubscribers = groupIds.map((groupId) => onSnapshot(doc(db, 'study_groups', groupId), (snapshot) => {
-      if (snapshot.exists()) state.set(groupId, { id: snapshot.id, ...snapshot.data() });
-      else state.delete(groupId);
-      setMyGroups([...state.values()]);
-    }, (error) => {
-      if (!isPermissionDenied(error)) console.error('[Grupos] Erro ao carregar grupo:', groupId, error);
-    }));
+    const memberCounts = new Map();
+    const publish = () => setMyGroups([...state.values()].map((group) => ({
+      ...group,
+      memberCount: memberCounts.get(group.id) ?? getGroupMemberCount(group),
+    })));
+    const unsubscribers = groupIds.flatMap((groupId) => [
+      onSnapshot(doc(db, 'study_groups', groupId), (snapshot) => {
+        if (snapshot.exists()) state.set(groupId, { id: snapshot.id, ...snapshot.data() });
+        else state.delete(groupId);
+        publish();
+      }, (error) => {
+        if (!isPermissionDenied(error)) console.error('[Grupos] Erro ao carregar grupo:', groupId, error);
+      }),
+      onSnapshot(collection(db, 'study_groups', groupId, 'members'), (snapshot) => {
+        memberCounts.set(groupId, snapshot.size);
+        publish();
+      }, (error) => {
+        if (!isPermissionDenied(error)) console.error('[Grupos] Erro ao contar membros:', groupId, error);
+      }),
+    ]);
     return () => unsubscribers.forEach((unsubscribe) => unsubscribe());
   }, [groupIds]);
 
@@ -242,28 +335,17 @@ const GroupsPage = ({ user, gamificationProfile = {}, levelData }) => {
       setGroupRankingMembers([]);
       return undefined;
     }
+    setGroupRankingMembers([]);
+    if (memberRankingPeriod === 'monthly') return undefined;
     return onSnapshot(collection(db, 'study_groups', selectedGroupId, 'weekly_rankings', weekId, 'members'), (snapshot) => {
       setGroupRankingMembers(snapshot.docs.map((item) => ({ id: item.id, ...item.data() })));
     }, (error) => {
-      if (!isPermissionDenied(error)) console.error('[Grupos] Erro ao carregar ranking semanal:', error);
+      if (!isPermissionDenied(error)) console.error('[Grupos] Erro ao carregar ranking interno:', error);
     });
-  }, [selectedGroupId, weekId]);
+  }, [memberRankingPeriod, monthId, selectedGroupId, weekId]);
 
   useEffect(() => {
-    const next = {};
-    const stops = publicGroups.map((group) => onSnapshot(collection(db, 'study_groups', group.id, 'weekly_rankings', weekId, 'members'), (snapshot) => {
-      const rankingMembers = snapshot.docs.map((item) => item.data());
-      next[group.id] = {
-        weeklyXP: rankingMembers.reduce((sum, member) => sum + Number(member.competitiveXP || member.weeklyXP || 0), 0),
-        weeklyMinutes: rankingMembers.reduce((sum, member) => sum + Number(member.minutes || 0), 0),
-        weeklyQuestions: rankingMembers.reduce((sum, member) => sum + Number(member.questions || 0), 0),
-      };
-      setPublicGroupMetrics({ ...next });
-    }, () => {}));
-    return () => stops.forEach((stop) => stop());
-  }, [publicGroups, weekId]);
-
-  useEffect(() => {
+    setTimers({});
     if (!selectedGroupId || !members.length) return undefined;
     const next = {};
     const unsubscribers = members.map((member) => onSnapshot(doc(db, 'active_timers', member.uid || member.id), (snapshot) => {
@@ -415,6 +497,14 @@ const GroupsPage = ({ user, gamificationProfile = {}, levelData }) => {
         return;
       }
       if (visibility === 'private') {
+        if (joinSource === 'invite' && normalizedCode) {
+          const joined = await joinPrivateStudyGroupByCode(normalizedCode);
+          setInviteCode('');
+          setJoinOpen(false);
+          setSelectedGroupId(joined.groupId || groupId);
+          notify('Código confirmado. Entrada liberada no grupo privado.');
+          return;
+        }
         await requestPrivateGroupEntry(groupId);
         setInviteCode('');
         setJoinOpen(false);
@@ -525,13 +615,7 @@ const GroupsPage = ({ user, gamificationProfile = {}, levelData }) => {
     if (!memberId || memberId === selectedGroup.ownerId) return;
     setMemberActionUid(memberId);
     try {
-      await updateDoc(doc(db, 'study_groups', selectedGroup.id, 'members', memberId), {
-        role: enabled ? 'vice_leader' : 'member',
-        permissions: enabled
-          ? { manageGroup: true, manageMembers: true }
-          : { manageGroup: false, manageMembers: false },
-        updatedAt: serverTimestamp(),
-      });
+      await updateStudyGroupMemberRole({ groupId: selectedGroup.id, memberUid: memberId, viceLeader: enabled });
       notify(enabled ? `${member.displayName || 'Membro'} agora é vice-líder.` : 'Vice-liderança removida.');
     } catch (error) {
       if (!isPermissionDenied(error)) console.error(error);
@@ -551,20 +635,7 @@ const GroupsPage = ({ user, gamificationProfile = {}, levelData }) => {
     if (!canManageMembers || !memberId || protectedMember) return;
     setMemberActionUid(memberId);
     try {
-      const targetProfileRef = doc(db, 'users', memberId, 'gamification', 'profile');
-      const batch = writeBatch(db);
-      batch.delete(doc(db, 'study_groups', selectedGroup.id, 'members', memberId));
-      batch.update(doc(db, 'study_groups', selectedGroup.id), {
-        memberCount: increment(-1),
-        updatedAt: serverTimestamp(),
-      });
-      const profileUpdate = {
-        groupIds: arrayRemove(selectedGroup.id),
-        lastRemovedGroupId: selectedGroup.id,
-        socialUpdatedAt: serverTimestamp(),
-      };
-      batch.update(targetProfileRef, profileUpdate);
-      await batch.commit();
+      await removeStudyGroupMember({ groupId: selectedGroup.id, memberUid: memberId });
       notify(`${member.displayName || 'Membro'} foi removido do grupo.`);
     } catch (error) {
       if (!isPermissionDenied(error)) console.error(error);
@@ -579,15 +650,46 @@ const GroupsPage = ({ user, gamificationProfile = {}, levelData }) => {
     notify('Código copiado.');
   };
 
-  const rankedMembers = useMemo(() => sortCompetitiveMembers(groupRankingMembers), [groupRankingMembers]);
-  const studyingNow = members.filter((member) => isLiveStudySession(timers[member.uid || member.id]));
-  const rankedGroups = useMemo(() => sortGroupsRanking(publicGroups.map((group) => ({ ...group, ...(publicGroupMetrics[group.id] || {}) })), groupRankingMetric), [groupRankingMetric, publicGroupMetrics, publicGroups]);
+  const rankedMembers = useMemo(() => {
+    const metricsByMemberId = new Map(groupRankingMembers.map((member) => [member.uid || member.id, member]));
+    return sortGeneralRankingMembers(members.map((member) => ({
+      ...member,
+      ...(metricsByMemberId.get(member.uid || member.id) || {}),
+      minutes: memberRankingPeriod === 'monthly' && member.monthlyMetricsMonthId === monthId
+        ? Number(member.monthlyMinutes || 0)
+        : Number(metricsByMemberId.get(member.uid || member.id)?.minutes || 0),
+      questions: memberRankingPeriod === 'monthly' && member.monthlyMetricsMonthId === monthId
+        ? Number(member.monthlyQuestions || 0)
+        : Number(metricsByMemberId.get(member.uid || member.id)?.questions || 0),
+      correct: memberRankingPeriod === 'monthly' && member.monthlyMetricsMonthId === monthId
+        ? Number(member.monthlyCorrect || 0)
+        : Number(metricsByMemberId.get(member.uid || member.id)?.correct || 0),
+    })), memberRankingMetric);
+  }, [groupRankingMembers, memberRankingMetric, memberRankingPeriod, members, monthId]);
+  const groupRankingByMemberId = useMemo(() => new Map(
+    rankedMembers.map((member) => [member.uid || member.id, member]),
+  ), [rankedMembers]);
+  const orderedMembers = useMemo(
+    () => sortGroupMembersByStudyState(members, timers, presenceNowMs),
+    [members, presenceNowMs, timers],
+  );
+  const studyingNow = orderedMembers.filter((member) => (
+    getGroupMemberStudyState(timers[member.uid || member.id], presenceNowMs) === GROUP_MEMBER_STUDY_STATES.STUDYING
+  ));
+  const rankedGroups = useMemo(() => sortGroupsRanking(publicGroups.map((group) => (
+    group.weeklyMetricsWeekId === weekId
+      ? group
+      : { ...group, weeklyXP: 0, weeklyMinutes: 0, weeklyQuestions: 0 }
+  )), groupRankingMetric), [groupRankingMetric, publicGroups, weekId]);
   const openGroupProfile = (member, explicitPosition = 0) => {
     const rankingIndex = rankedMembers.findIndex((item) => (item.uid || item.id) === (member.uid || member.id));
     const publicRankingPosition = explicitPosition || (rankingIndex >= 0 ? rankingIndex + 1 : 0);
     setSelectedProfile({
       ...member,
-      ...(publicRankingPosition ? { publicRankingPosition, publicRankingLabel: 'Ranking do grupo' } : {}),
+      ...(publicRankingPosition ? {
+        publicRankingPosition,
+        publicRankingLabel: `Ranking de ${memberRankingMetric === 'minutes' ? 'tempo' : 'questões'} ${memberRankingPeriod === 'monthly' ? 'mensal' : 'semanal'}`,
+      } : {}),
     });
   };
 
@@ -600,7 +702,11 @@ const GroupsPage = ({ user, gamificationProfile = {}, levelData }) => {
     const successorCandidates = members.filter((item) => (item.uid || item.id) !== user?.uid);
     const needsSuccessor = (isOwner || currentMember?.role === 'vice_leader') && successorCandidates.length > 0;
     const editalLabel = getEditalLabel(selectedGroup);
-    const groupTotals = groupRankingMembers.reduce((sum, member) => ({ minutes: sum.minutes + Number(member.minutes || 0), questions: sum.questions + Number(member.questions || 0), correct: sum.correct + Number(member.correct || 0), xp: sum.xp + Number(member.competitiveXP || member.weeklyXP || 0) }), { minutes: 0, questions: 0, correct: 0, xp: 0 });
+    const groupTotals = rankedMembers.reduce((sum, member) => ({
+      minutes: sum.minutes + Number(member.minutes || 0),
+      questions: sum.questions + Number(member.questions || 0),
+      correct: sum.correct + Number(member.correct || 0),
+    }), { minutes: 0, questions: 0, correct: 0 });
     const groupAccuracy = groupTotals.questions ? (groupTotals.correct / groupTotals.questions) * 100 : 0;
     return (
       <div className="mx-auto max-w-7xl space-y-4 px-3 pb-24 pt-3 sm:px-5 lg:px-7">
@@ -629,18 +735,30 @@ const GroupsPage = ({ user, gamificationProfile = {}, levelData }) => {
         </header>
 
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {[[Users, 'Membros', members.length], [Clock3, 'Tempo semanal', formatStudyMinutes(groupTotals.minutes)], [BarChart3, 'Questões', Math.round(groupTotals.questions)], [Target, 'Precisão', `${groupAccuracy.toFixed(0)}%`]].map(([Icon, label, value]) => <GroupStatCard key={label} icon={Icon} label={label} value={value}/>)}
+          {[[Users, 'Membros', members.length], [Clock3, memberRankingPeriod === 'monthly' ? 'Tempo mensal' : 'Tempo semanal', formatStudyMinutes(groupTotals.minutes)], [BarChart3, 'Questões', Math.round(groupTotals.questions)], [Target, 'Precisão', `${groupAccuracy.toFixed(0)}%`]].map(([Icon, label, value]) => <GroupStatCard key={label} icon={Icon} label={label} value={value}/>)}
         </div>
 
         <div className="grid items-start gap-4 md:grid-cols-[minmax(0,1.65fr)_minmax(250px,.75fr)]">
-          <Surface className="relative min-h-[320px] overflow-hidden border-emerald-200 p-4 shadow-lg shadow-emerald-500/5 dark:border-emerald-900/50 sm:p-5">
-            <div className="pointer-events-none absolute -right-12 -top-16 h-48 w-48 rounded-full bg-emerald-400/10 blur-3xl"/>
-            <div className="relative mb-4 flex items-center justify-between"><div><p className="text-[9px] font-black uppercase tracking-[0.18em] text-emerald-600">Ao vivo</p><h2 className="text-base font-black text-zinc-900 dark:text-white">Estudando agora</h2></div><span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1.5 text-[9px] font-black uppercase text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400"><Radio size={11} className={studyingNow.length ? 'animate-pulse' : ''}/>{studyingNow.length} online</span></div>
-            {studyingNow.length ? <div className="relative grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">{studyingNow.map((member) => <LiveMemberCard key={member.uid || member.id} member={{ ...member, ...(groupRankingMembers.find((item) => (item.uid || item.id) === (member.uid || member.id)) || {}) }} timer={timers[member.uid || member.id]} onOpen={openGroupProfile}/>)}</div> : <div className="relative flex min-h-[225px] items-center justify-center rounded-2xl border border-dashed border-emerald-200 bg-emerald-50/30 p-8 text-center dark:border-emerald-900/40 dark:bg-emerald-950/10"><div><Clock3 className="mx-auto mb-2 text-emerald-300 dark:text-emerald-800" size={27}/><p className="text-xs font-black text-zinc-600 dark:text-zinc-300">Ninguém estudando neste momento</p><p className="mt-1 text-[10px] text-zinc-400">Os membros aparecerão aqui assim que iniciarem uma sessão.</p></div></div>}
+          <Surface className="relative min-h-[320px] overflow-hidden p-4 sm:p-5">
+            <div className="relative mb-4 flex items-center justify-between"><div><p className="text-[9px] font-black uppercase tracking-[0.18em] text-emerald-600">Presença do grupo</p><h2 className="text-base font-black text-zinc-900 dark:text-white">Estudando agora</h2></div><span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1.5 text-[9px] font-black uppercase text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400"><Radio size={11} className={studyingNow.length ? 'animate-pulse' : ''}/>{studyingNow.length} estudando</span></div>
+            {orderedMembers.length ? <div className="relative max-h-[390px] overflow-y-auto pr-1"><div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">{orderedMembers.map((member) => { const memberId = member.uid || member.id; const timer = timers[memberId]; return <LiveMemberCard key={memberId} member={{ ...member, ...(groupRankingByMemberId.get(memberId) || {}) }} timer={timer} state={getGroupMemberStudyState(timer, presenceNowMs)} onOpen={openGroupProfile}/>; })}</div></div> : <div className="relative flex min-h-[225px] items-center justify-center rounded-2xl border border-dashed border-zinc-200 bg-zinc-50/50 p-8 text-center dark:border-zinc-800 dark:bg-zinc-900/30"><div><Users className="mx-auto mb-2 text-zinc-300 dark:text-zinc-700" size={27}/><p className="text-xs font-black text-zinc-600 dark:text-zinc-300">Nenhum membro encontrado</p></div></div>}
           </Surface>
           <Surface className="sticky top-20 overflow-hidden shadow-none">
-            <div className="flex items-center justify-between border-b border-zinc-100 p-4 dark:border-zinc-800"><div><h2 className="text-xs font-black uppercase tracking-[0.16em] text-zinc-700 dark:text-zinc-200">Ranking interno</h2><p className="mt-0.5 text-[8px] font-bold uppercase tracking-wider text-zinc-400">Ordenado por XP acadêmico semanal</p></div><Zap size={16} className="text-red-600"/></div>
-            <div className="divide-y divide-zinc-100 dark:divide-zinc-800">{rankedMembers.slice(0, 5).map((member, index) => <button type="button" onClick={() => openGroupProfile(member, index + 1)} key={member.uid || member.id} className="grid w-full grid-cols-[28px_1fr_auto] items-center gap-3 px-4 py-2.5 text-left transition hover:bg-zinc-50 dark:hover:bg-zinc-900"><span className="text-center text-[10px] font-black text-zinc-400">{index + 1}</span><div className="flex min-w-0 items-center gap-2.5"><Avatar member={member} size="h-8 w-8"/><div className="min-w-0"><p className="truncate text-[11px] font-black text-zinc-700 dark:text-zinc-200">{member.displayName}</p><p className="text-[8px] font-bold uppercase text-zinc-400">{formatStudyMinutes(member.minutes)} · {Math.round(member.questions || 0)} q</p></div></div><strong className="text-[11px] font-black text-red-600">{Number(member.competitiveXP || member.weeklyXP || 0)} XP</strong></button>)}{!rankedMembers.length && <div className="p-8 text-center text-xs text-zinc-400">O ranking começa com o primeiro XP acadêmico da semana.</div>}</div>
+            <div className="border-b border-zinc-100 p-4 dark:border-zinc-800">
+              <div className="flex items-start justify-between gap-3">
+                <div><h2 className="text-xs font-black uppercase tracking-[0.16em] text-zinc-700 dark:text-zinc-200">Ranking interno</h2><p className="mt-0.5 text-[8px] font-bold uppercase tracking-wider text-zinc-400">Somente membros · horas e questões</p></div>
+                <Trophy size={16} className="shrink-0 text-red-600"/>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <div className="inline-flex rounded-xl bg-zinc-100 p-1 dark:bg-zinc-900">
+                  {[['minutes', Clock3, 'Tempo'], ['questions', BarChart3, 'Questões']].map(([id, Icon, label]) => <button type="button" key={id} onClick={() => setMemberRankingMetric(id)} className={`inline-flex flex-1 items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-[8px] font-black uppercase tracking-wider transition ${memberRankingMetric === id ? 'bg-white text-red-600 shadow-sm dark:bg-card-dark' : 'text-zinc-400'}`}>{React.createElement(Icon, { size: 11 })}{label}</button>)}
+                </div>
+                <div className="inline-flex rounded-xl bg-zinc-100 p-1 dark:bg-zinc-900">
+                  {[['weekly', 'Semanal'], ['monthly', 'Mensal']].map(([id, label]) => <button type="button" key={id} onClick={() => setMemberRankingPeriod(id)} className={`flex-1 rounded-lg px-2 py-1.5 text-[8px] font-black uppercase tracking-wider transition ${memberRankingPeriod === id ? 'bg-white text-red-600 shadow-sm dark:bg-card-dark' : 'text-zinc-400'}`}>{label}</button>)}
+                </div>
+              </div>
+            </div>
+            <div className="divide-y divide-zinc-100 dark:divide-zinc-800">{rankedMembers.slice(0, 5).map((member, index) => <button type="button" onClick={() => openGroupProfile(member, index + 1)} key={member.uid || member.id} className="grid w-full grid-cols-[28px_1fr_auto] items-center gap-3 px-4 py-2.5 text-left transition hover:bg-zinc-50 dark:hover:bg-zinc-900"><span className="text-center text-[10px] font-black text-zinc-400">{index + 1}</span><div className="flex min-w-0 items-center gap-2.5"><Avatar member={member} size="h-8 w-8"/><div className="min-w-0"><p className="truncate text-[11px] font-black text-zinc-700 dark:text-zinc-200">{member.displayName}</p><p className="text-[8px] font-bold uppercase text-zinc-400">{formatStudyMinutes(member.minutes)} · {Math.round(member.questions || 0)} q</p></div></div><strong className="text-[11px] font-black text-red-600">{memberRankingMetric === 'minutes' ? formatStudyMinutes(member.minutes) : `${Number(member.questions || 0).toLocaleString('pt-BR')} q`}</strong></button>)}{!rankedMembers.length && <div className="p-8 text-center text-xs text-zinc-400">Nenhum membro no grupo.</div>}</div>
           </Surface>
         </div>
         {settingsOpen && (
@@ -654,7 +772,7 @@ const GroupsPage = ({ user, gamificationProfile = {}, levelData }) => {
                 {canManageGroup && <section className="rounded-2xl border border-zinc-200 p-4 dark:border-zinc-700"><h3 className="text-xs font-black text-zinc-800 dark:text-white">Identidade do grupo</h3><p className="mt-0.5 text-[9px] text-zinc-400">Líder e vice-líder podem alterar nome e imagem.</p><div className="mt-3 flex items-center gap-3"><div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl bg-red-600 text-white">{groupPhotoPreview ? <img src={groupPhotoPreview} alt="Prévia" className="h-full w-full object-cover"/> : <GroupAvatar group={selectedGroup} className="h-14 w-14"/>}</div><div className="min-w-0 flex-1"><input value={settingsName} onChange={(event) => setSettingsName(event.target.value)} maxLength={60} className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-xs font-bold text-zinc-900 outline-none focus:border-red-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white"/><label className="mt-2 inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-zinc-200 px-2.5 py-1.5 text-[8px] font-black uppercase text-red-600 dark:border-zinc-700"><Camera size={12}/> Trocar imagem<input type="file" accept="image/*" onChange={selectGroupPhoto} className="sr-only"/></label></div></div><button onClick={saveGroupIdentity} disabled={busy || !settingsName.trim()} className="mt-3 w-full rounded-xl bg-red-600 py-2.5 text-[9px] font-black uppercase tracking-wider text-white disabled:opacity-50">Salvar alterações</button></section>}
                 {canManageGroup && (
                   <button onClick={toggleVisibility} className="flex w-full items-center justify-between rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4 text-left transition hover:border-red-300 hover:bg-red-50/60 dark:border-zinc-700 dark:bg-zinc-900/60 dark:hover:bg-red-950/15">
-                    <span><strong className="block text-xs font-black text-zinc-800 dark:text-white">Visibilidade do grupo</strong><span className="mt-0.5 block text-[10px] text-zinc-400">{selectedGroup.visibility === 'public' ? 'Público: qualquer estudante pode encontrar e participar.' : 'Privado: somente membros convidados acessam.'}</span></span>
+                    <span><strong className="block text-xs font-black text-zinc-800 dark:text-white">Visibilidade do grupo</strong><span className="mt-0.5 block text-[10px] text-zinc-400">{selectedGroup.visibility === 'public' ? 'Público: qualquer estudante pode encontrar e participar.' : 'Privado: aparece para todos, mas exige código ou aprovação da liderança.'}</span></span>
                     {selectedGroup.visibility === 'public' ? <Eye size={18} className="ml-3 shrink-0 text-emerald-500"/> : <EyeOff size={18} className="ml-3 shrink-0 text-zinc-400"/>}
                   </button>
                 )}
@@ -716,10 +834,10 @@ const GroupsPage = ({ user, gamificationProfile = {}, levelData }) => {
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-100 p-4 dark:border-zinc-800">
             <div><h2 className="text-xs font-black uppercase tracking-[0.16em] text-zinc-700 dark:text-zinc-200">Ranking de grupos</h2><p className="mt-0.5 text-[8px] font-bold uppercase tracking-wider text-zinc-400">Desempenho acadêmico semanal consolidado</p></div>
             <div className="inline-flex rounded-xl bg-zinc-100 p-1 dark:bg-zinc-900">
-              {[['minutes', Clock3, 'Tempo'], ['questions', BarChart3, 'Questões']].map(([id, Icon, label]) => <button type="button" key={id} onClick={() => setGroupRankingMetric(id)} className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-[8px] font-black uppercase tracking-wider transition ${groupRankingMetric === id ? 'bg-white text-red-600 shadow-sm dark:bg-card-dark' : 'text-zinc-400'}`}><Icon size={12}/>{label}</button>)}
+              {[['minutes', Clock3, 'Tempo'], ['questions', BarChart3, 'Questões']].map(([id, Icon, label]) => <button type="button" key={id} onClick={() => setGroupRankingMetric(id)} className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-[8px] font-black uppercase tracking-wider transition ${groupRankingMetric === id ? 'bg-white text-red-600 shadow-sm dark:bg-card-dark' : 'text-zinc-400'}`}>{React.createElement(Icon, { size: 12 })}{label}</button>)}
             </div>
           </div>
-          <div className="space-y-2 bg-zinc-50/60 p-2 dark:bg-zinc-950/20 sm:p-3">{rankedGroups.map((group, index) => <button key={group.id} onClick={() => groupIds.includes(group.id) ? setSelectedGroupId(group.id) : null} className={`grid w-full grid-cols-[32px_auto_1fr_auto] items-center gap-3 rounded-xl border px-3 py-3 text-left transition hover:-translate-y-0.5 hover:shadow-md ${index === 0 ? 'border-amber-300 bg-amber-50 dark:border-amber-800/60 dark:bg-amber-950/20' : index === 1 ? 'border-slate-300 bg-slate-50 dark:border-slate-700 dark:bg-slate-900/60' : index === 2 ? 'border-orange-300 bg-orange-50 dark:border-orange-900/60 dark:bg-orange-950/20' : 'border-zinc-200 bg-white dark:border-zinc-800 dark:bg-card-dark'}`}><span className={`flex h-8 w-8 items-center justify-center rounded-xl text-xs font-black ${index === 0 ? 'bg-amber-500 text-white' : index === 1 ? 'bg-slate-500 text-white' : index === 2 ? 'bg-orange-600 text-white' : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800'}`}>{index + 1}</span><GroupAvatar group={group} className="h-9 w-9" iconSize={16}/><div className="min-w-0"><p className="truncate text-xs font-black text-zinc-800 dark:text-white">{group.name}</p><p className="text-[9px] font-bold uppercase tracking-wider text-zinc-400">{group.memberCount || 1} membros · {groupRankingMetric === 'minutes' ? `${Math.round(group.weeklyQuestions || 0)} questões` : formatStudyMinutes(group.weeklyMinutes || 0)}</p></div><span className="text-right"><span className="block text-[7px] font-black uppercase tracking-wider text-zinc-400">{groupRankingMetric === 'minutes' ? 'Tempo' : 'Questões'}</span><strong className="text-xs font-black text-red-600">{groupRankingMetric === 'minutes' ? formatStudyMinutes(group.weeklyMinutes || 0) : Number(group.weeklyQuestions || 0).toLocaleString('pt-BR')}</strong></span></button>)}{!rankedGroups.length && <div className="p-10 text-center text-xs text-zinc-400">Nenhum grupo público ainda.</div>}</div>
+          <div className="space-y-2 bg-zinc-50/60 p-2 dark:bg-zinc-950/20 sm:p-3">{rankedGroups.map((group, index) => <button key={group.id} onClick={() => groupIds.includes(group.id) ? setSelectedGroupId(group.id) : null} className={`grid w-full grid-cols-[32px_auto_1fr_auto] items-center gap-3 rounded-xl border px-3 py-3 text-left transition hover:-translate-y-0.5 hover:shadow-md ${index === 0 ? 'border-amber-300 bg-amber-50 dark:border-amber-800/60 dark:bg-amber-950/20' : index === 1 ? 'border-slate-300 bg-slate-50 dark:border-slate-700 dark:bg-slate-900/60' : index === 2 ? 'border-orange-300 bg-orange-50 dark:border-orange-900/60 dark:bg-orange-950/20' : 'border-zinc-200 bg-white dark:border-zinc-800 dark:bg-card-dark'}`}><span className={`flex h-8 w-8 items-center justify-center rounded-xl text-xs font-black ${index === 0 ? 'bg-amber-500 text-white' : index === 1 ? 'bg-slate-500 text-white' : index === 2 ? 'bg-orange-600 text-white' : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800'}`}>{index + 1}</span><GroupAvatar group={group} className="h-9 w-9" iconSize={16}/><div className="min-w-0"><p className="flex min-w-0 items-center gap-1.5 truncate text-xs font-black text-zinc-800 dark:text-white"><span className="truncate">{group.name}</span>{group.visibility === 'private' ? <Lock size={11} className="shrink-0 text-zinc-400"/> : null}</p><p className="text-[9px] font-bold uppercase tracking-wider text-zinc-400">{getGroupMemberCount(group)} membros · {groupRankingMetric === 'minutes' ? `${Math.round(group.weeklyQuestions || 0)} questões` : formatStudyMinutes(group.weeklyMinutes || 0)}</p></div><span className="text-right"><span className="block text-[7px] font-black uppercase tracking-wider text-zinc-400">{groupRankingMetric === 'minutes' ? 'Tempo' : 'Questões'}</span><strong className="text-xs font-black text-red-600">{groupRankingMetric === 'minutes' ? formatStudyMinutes(group.weeklyMinutes || 0) : Number(group.weeklyQuestions || 0).toLocaleString('pt-BR')}</strong></span></button>)}{!rankedGroups.length && <div className="p-10 text-center text-xs text-zinc-400">Nenhum grupo disponível.</div>}</div>
         </Surface>
       ) : (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -736,14 +854,14 @@ const GroupsPage = ({ user, gamificationProfile = {}, levelData }) => {
                       {!joined && <button onClick={() => joinGroup({ group })} disabled={busy} className="ml-1 inline-flex h-7 shrink-0 items-center justify-center rounded-lg bg-red-600 px-2.5 text-[8px] font-black uppercase tracking-wider text-white shadow-sm disabled:opacity-50">{group.visibility === 'private' ? 'Solicitar' : 'Entrar'}</button>}
                     </div>
                     {getEditalLabel(group) && <p className="mt-0.5 truncate text-[9px] font-bold text-red-600">{getEditalLabel(group)}</p>}
-                    <p className="mt-1 flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-zinc-400"><Users size={11}/>{group.memberCount || 1} membros</p>
+                    <p className="mt-1 flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-zinc-400"><Users size={11}/>{getGroupMemberCount(group)} membros</p>
                   </div>
                 </div>
                 <div className={`mt-3 grid gap-2 ${joined ? 'grid-cols-[auto_1fr]' : 'grid-cols-[auto]'}`}><button onClick={() => setDescriptionGroup(group)} className="inline-flex items-center justify-center gap-1 rounded-xl border border-zinc-200 px-2.5 py-2 text-[8px] font-black uppercase tracking-wider text-zinc-500 transition hover:border-red-300 hover:text-red-600 dark:border-zinc-700"><BookOpen size={12}/> Descrição</button>{joined && <button onClick={() => setSelectedGroupId(group.id)} className="flex items-center justify-center gap-2 rounded-xl bg-zinc-900 py-2 text-[9px] font-black uppercase tracking-wider text-white transition hover:bg-red-600 dark:bg-white dark:text-zinc-900 dark:hover:text-white"><DoorOpen size={13}/> Abrir grupo</button>}</div>
               </Surface>
             );
           })}
-          {((view === 'my' ? myGroups : publicGroups).length === 0) && <Surface className="col-span-full p-10 text-center"><Users className="mx-auto mb-3 text-zinc-300" size={36}/><p className="text-sm font-black text-zinc-700 dark:text-zinc-200">{view === 'my' ? 'Você ainda não participa de grupos' : 'Nenhum grupo público disponível'}</p><p className="mt-1 text-xs text-zinc-400">Crie um grupo ou entre com um código de convite.</p></Surface>}
+          {((view === 'my' ? myGroups : publicGroups).length === 0) && <Surface className="col-span-full p-10 text-center"><Users className="mx-auto mb-3 text-zinc-300" size={36}/><p className="text-sm font-black text-zinc-700 dark:text-zinc-200">{view === 'my' ? 'Você ainda não participa de grupos' : 'Nenhum grupo disponível'}</p><p className="mt-1 text-xs text-zinc-400">Crie um grupo, use um código ou solicite entrada em um grupo privado.</p></Surface>}
         </div>
       )}
 
@@ -778,7 +896,7 @@ const GroupsPage = ({ user, gamificationProfile = {}, levelData }) => {
                 <button disabled={busy} className="w-full rounded-xl bg-red-600 py-3 text-xs font-black uppercase tracking-wider text-white disabled:opacity-50">{busy ? (groupPhoto ? 'Enviando foto...' : 'Criando...') : 'Criar grupo'}</button>
               </form>
             ) : (
-              <form onSubmit={(event) => { event.preventDefault(); joinGroup({ code: inviteCode }); }} className="space-y-4"><div className="rounded-2xl bg-zinc-50 p-4 text-center dark:bg-zinc-900"><KeyRound className="mx-auto mb-2 text-red-600" size={24}/><p className="text-xs text-zinc-500">Digite o código compartilhado pelo dono do grupo.</p></div><input value={inviteCode} onChange={(event) => setInviteCode(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))} maxLength={7} placeholder="XXXXXXX" className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-4 text-center font-mono text-xl font-black uppercase tracking-[0.28em] text-zinc-900 outline-none focus:border-red-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white"/><button disabled={busy || inviteCode.length < 6} className="w-full rounded-xl bg-red-600 py-3 text-xs font-black uppercase tracking-wider text-white disabled:opacity-50">{busy ? 'Validando...' : 'Entrar no grupo'}</button></form>
+              <form onSubmit={(event) => { event.preventDefault(); joinGroup({ code: inviteCode }); }} className="space-y-4"><div className="rounded-2xl bg-zinc-50 p-4 text-center dark:bg-zinc-900"><KeyRound className="mx-auto mb-2 text-red-600" size={24}/><p className="text-xs text-zinc-500">O código libera a entrada imediata, inclusive em grupos privados.</p></div><input value={inviteCode} onChange={(event) => setInviteCode(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))} maxLength={7} placeholder="XXXXXXX" className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-4 text-center font-mono text-xl font-black uppercase tracking-[0.28em] text-zinc-900 outline-none focus:border-red-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white"/><button disabled={busy || inviteCode.length < 6} className="w-full rounded-xl bg-red-600 py-3 text-xs font-black uppercase tracking-wider text-white disabled:opacity-50">{busy ? 'Validando...' : 'Entrar no grupo'}</button></form>
             )}
           </Surface>
         </ModalPortal>

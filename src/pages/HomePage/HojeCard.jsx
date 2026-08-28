@@ -6,7 +6,7 @@ import {
   ListTodo, Clock, Loader2, CalendarPlus, Eye, EyeOff
 } from 'lucide-react';
 import { formatDateKeyLocal, getAgendaSemana, getCronogramaReviewBuckets, getWeekOffsetFromDate } from '../../services/scheduling/review';
-import { collection, deleteField, doc, onSnapshot, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { collection, doc, onSnapshot, updateDoc } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
 import { useCicloRevisoes } from '../../hooks/useCicloRevisoes';
 import { useCiclos } from '../../hooks/useCiclos';
@@ -18,6 +18,7 @@ import { buildCompletionRegistro } from '../../utils/completionRegistro';
 import { getCronogramaSlotRecordedMinutes, getCycleDayTargetMinutesMap, getCycleFreeQueue } from '../../utils/studyDayStatus';
 import { getDisciplineCardVars, getDisciplineColorForSlot } from '../../utils/disciplineColors';
 import HomeEmptyState from './HomeEmptyState.jsx';
+import { setLatestToggleIntent, takeLatestToggleIntent } from '../../utils/latestToggleIntent';
 
 // --- Helpers ---
 const fmtMin = (min) => {
@@ -55,13 +56,12 @@ const getOptimisticKey = (sourceMode, slot) => {
 };
 
 const applyOptimisticDone = (slot, done) => {
-  const tempo = Number(slot?.tempoPlanejadoMinutos ?? slot?.tempoMinutos ?? 0);
   const progressoAtual = Number(slot?.progressoMinutos || 0);
   return {
     ...slot,
     concluido: done,
     concluida: done,
-    progressoMinutos: done ? Math.max(progressoAtual, tempo) : progressoAtual,
+    progressoMinutos: progressoAtual,
   };
 };
 
@@ -107,9 +107,9 @@ function MissionSlot({ slot, isDone, onToggle, onMarkPending, onPlay, variant, s
   const emAndamento = !effectiveDone && progressoAtual > 0 && progressoPercentual < 100;
   const disciplinaColor = shouldUseDisciplineColors ? getDisciplineColorForSlot(slot) : NEUTRAL_DISCIPLINE_COLOR;
   const useDisciplineColor = isEstudo && !emAndamento && shouldUseDisciplineColors;
-  const progressoExibido = effectiveDone ? Math.max(100, progressoPercentualReal) : progressoPercentualReal;
+  const progressoExibido = progressoPercentualReal;
   const progressoBarra = Math.min(100, Math.max(0, progressoExibido));
-  const progressoMinutosExibido = effectiveDone ? Math.max(progressoAtual, tempoPlanejado) : progressoAtual;
+  const progressoMinutosExibido = progressoAtual;
   const desmarcarBloqueado = effectiveDone && Boolean(slot.bloqueiaDesmarcar || slot.bloqueiaDesmarcarConclusao);
   const toggleTitle = desmarcarBloqueado
     ? 'Conclusao protegida por registro de estudo'
@@ -147,7 +147,8 @@ return (
                 if (desmarcarBloqueado) return;
                 onToggle(slot);
               }}
-              disabled={isLoading || desmarcarBloqueado}
+              disabled={desmarcarBloqueado}
+              aria-busy={isLoading}
               className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border shadow-sm transition-all disabled:opacity-60 ${
                 effectiveDone
                   ? 'border-emerald-500 bg-emerald-500 text-white shadow-none'
@@ -297,6 +298,8 @@ function HojeCard({
 }) {
   const [loading, setLoading] = useState(null);
   const loadingRef = useRef(null);
+  const cronogramaToggleInFlightRef = useRef(new Set());
+  const desiredCronogramaToggleRef = useRef(new Map());
   const [loadingCicloSessao, setLoadingCicloSessao] = useState(null);
   const [acaoRevisaoCiclo, setAcaoRevisaoCiclo] = useState(null);
   const [sucessoRevisaoCiclo, setSucessoRevisaoCiclo] = useState(null);
@@ -315,6 +318,7 @@ function HojeCard({
   const [cycleSubjectsLoading, setCycleSubjectsLoading] = useState(false);
   const completionStateRef = useRef({ initialized: false, wasDone: false });
   const cycleToggleInFlightRef = useRef(new Set());
+  const desiredCycleToggleRef = useRef(new Map());
 
   const hasCronograma = !!activeCronogramaData?.id;
   const hasCiclo = !!activeCicloData?.id;
@@ -322,7 +326,7 @@ function HojeCard({
   const modoTempoHome = modoCicloAtivo ? 'detalhado' : normalizarModoTempo(activeCronogramaData?.modoExibirTempo);
   const mostrarTempoHomeTotal = modoTempoHome !== 'nenhum';
   const mostrarTempoHomeDetalhado = modoTempoHome === 'detalhado';
-  const { salvarPendenciaTeoriaCiclo, limparPendenciaTeoriaCiclo } = useCiclos(user);
+  const { salvarPendenciaTeoriaCiclo, limparPendenciaTeoriaCiclo, marcarSessaoConcluida } = useCiclos(user);
   const { toggleSlotConcluido, concluirRevisaoCronograma, marcarTeoriaAindaNaoConcluida } = useCronogramaSystem(user);
 
   const hojeIdx = useMemo(() => new Date().getDay(), []);
@@ -415,19 +419,37 @@ function HojeCard({
           registrosEstudo,
           dateKey: formatDateKeyLocal(hoje),
         });
-        const progressoCru = Math.max(
+        const progressoRegistroReal = getCronogramaSlotRecordedMinutes({
+          cronograma: activeCronogramaData,
+          slot,
+          registrosEstudo,
+          dateKey: formatDateKeyLocal(hoje),
+          onlyRealStudyRecords: true,
+        });
+        const progressoPersistido = Math.max(
           Number(progressoMinutosW[slotIdNoProgresso] || 0),
           Number(slot.slotId ? progressoMinutosW[slot.slotId] || 0 : 0),
           Number(slot.slotIdBase ? progressoMinutosW[slot.slotIdBase] || 0 : 0),
-          Number(slot.progressoMinutos || 0),
-          progressoRegistrado
+          Number(slot.progressoMinutos || 0)
         );
+        const concluidoPorTempo = tempoPlanejadoMinutos > 0 && progressoRegistrado >= tempoPlanejadoMinutos;
+        const bloqueiaDesmarcarConclusao = tempoPlanejadoMinutos > 0 && progressoRegistroReal >= tempoPlanejadoMinutos;
         const concluido = progressoW[slotIdNoProgresso] === true
           || progressoW[slot.slotId] === true
           || slot.concluido === true
-          || (tempoPlanejadoMinutos > 0 && progressoCru >= tempoPlanejadoMinutos);
-        const progressoMinutos = concluido ? Math.max(progressoCru, tempoPlanejadoMinutos) : progressoCru;
-        return { ...slot, slotIdNoProgresso, concluido, tempoPlanejadoMinutos, progressoMinutos };
+          || concluidoPorTempo;
+        return {
+          ...slot,
+          slotIdNoProgresso,
+          concluido,
+          tempoPlanejadoMinutos,
+          progressoMinutos: progressoRegistrado,
+          progressoRegistradoMinutos: progressoRegistrado,
+          progressoPersistidoMinutos: progressoPersistido,
+          progressoRegistroRealMinutos: progressoRegistroReal,
+          bloqueiaDesmarcarConclusao,
+          concluidoManual: concluido && !bloqueiaDesmarcarConclusao,
+        };
       });
     const buckets = getCronogramaReviewBuckets(activeCronogramaData, hoje);
     const revisao = [...buckets.hoje]
@@ -573,6 +595,16 @@ function HojeCard({
         : slot;
     });
   }, [estudosVisiveisBase, modoCicloAtivo, optimisticDone]);
+  const cycleSessionCompletionOverrides = useMemo(() => {
+    const overrides = {};
+    cicloSlotsEstudo.forEach((slot) => {
+      const key = getOptimisticKey('ciclo', slot);
+      if (key && Object.prototype.hasOwnProperty.call(optimisticDone, key)) {
+        overrides[slot.globalIndex] = optimisticDone[key];
+      }
+    });
+    return overrides;
+  }, [cicloSlotsEstudo, optimisticDone]);
   const revisoesVisiveis = useMemo(() => {
     const sourceMode = modoCicloAtivo ? 'ciclo' : 'cronograma';
     return revisoesVisiveisBase.map((slot) => {
@@ -619,7 +651,7 @@ function HojeCard({
   const totalConcluidosDia = estudosVisiveis.filter((s) => s.concluido).length + revisoesVisiveis.filter((s) => s.concluido).length;
   const metaCicloConcluida = modoCicloAtivo && cicloMetaHojeMinutos > 0 && cicloEstudadoHojeMinutos >= cicloMetaHojeMinutos;
   const diaTodoConcluido = modoCicloAtivo
-    ? metaCicloConcluida
+    ? metaCicloConcluida && revisoesPendentesCount === 0
     : totalItensDia > 0 && totalConcluidosDia === totalItensDia;
   const completionGlowActive = diaTodoConcluido && totalItensDia > 0;
   const itensDoDia = useMemo(() => [...estudosVisiveis, ...revisoesVisiveis], [estudosVisiveis, revisoesVisiveis]);
@@ -685,43 +717,59 @@ function HojeCard({
 
   const handleToggle = useCallback(async (slot) => {
     const loadingId = slot.slotIdBase || slot.slotId;
-    if (!cronogramaId || !user || loadingRef.current === loadingId) return;
+    if (!cronogramaId || !user || !loadingId) return;
     const optimisticKey = getOptimisticKey('cronograma', slot);
     const previousDone = Boolean(slot.concluido);
+    if (previousDone && slot.bloqueiaDesmarcarConclusao) return;
     const nextDone = !previousDone;
-    loadingRef.current = loadingId;
-    setLoading(loadingId);
     if (optimisticKey) {
       setOptimisticDone((prev) => ({ ...prev, [optimisticKey]: nextDone }));
     }
+    const completionRegistro = buildCompletionRegistro({
+      context: 'cronograma',
+      item: slot,
+      cronograma: activeCronogramaData,
+      isReview: !!slot.isRevisaoAuto,
+    });
+    setLatestToggleIntent(desiredCronogramaToggleRef.current, loadingId, { targetCompleted: nextDone, slot, completionRegistro });
+    if (cronogramaToggleInFlightRef.current.has(loadingId)) return;
+
+    cronogramaToggleInFlightRef.current.add(loadingId);
+    loadingRef.current = loadingId;
+    setLoading(loadingId);
+    let committedState = previousDone;
     try {
-      let ok = false;
-      if (slot.isRevisaoAuto) {
-        ok = await concluirRevisaoCronograma(cronogramaId, slot, activeCronogramaData?.dataInicio);
-      } else {
-        ok = await toggleSlotConcluido(cronogramaId, slot);
-      }
-      if (!ok && optimisticKey) {
-        setOptimisticDone((prev) => ({ ...prev, [optimisticKey]: previousDone }));
-        return;
-      }
-      const completionRegistro = buildCompletionRegistro({
-        context: 'cronograma',
-        item: slot,
-        cronograma: activeCronogramaData,
-        isReview: !!slot.isRevisaoAuto,
-      });
-      if (ok && !slot.concluido && addRegistroEstudo) {
-        await addRegistroEstudo(completionRegistro);
-      } else if (ok && slot.concluido && deleteCompletionRegistro) {
-        await deleteCompletionRegistro(completionRegistro);
+      while (desiredCronogramaToggleRef.current.has(loadingId)) {
+        const intent = takeLatestToggleIntent(desiredCronogramaToggleRef.current, loadingId);
+        if (intent.targetCompleted === committedState) continue;
+        const completionPersistence = intent.slot.isRevisaoAuto
+          ? concluirRevisaoCronograma(cronogramaId, { ...intent.slot, concluido: committedState }, activeCronogramaData?.dataInicio)
+          : toggleSlotConcluido(cronogramaId, { ...intent.slot, concluido: committedState }, null, { targetCompleted: intent.targetCompleted });
+        const registroPromise = intent.targetCompleted && addRegistroEstudo
+          ? addRegistroEstudo(intent.completionRegistro, { waitForCompletion: completionPersistence })
+          : null;
+        const ok = await completionPersistence;
+        if (!ok) {
+          if (!desiredCronogramaToggleRef.current.has(loadingId) && optimisticKey) {
+            setOptimisticDone((prev) => ({ ...prev, [optimisticKey]: committedState }));
+          }
+          continue;
+        }
+        committedState = intent.targetCompleted;
+        const newerIntent = desiredCronogramaToggleRef.current.get(loadingId);
+        if (!newerIntent || newerIntent.targetCompleted === committedState) {
+          if (committedState && addRegistroEstudo) await registroPromise;
+          else if (!committedState && deleteCompletionRegistro) await deleteCompletionRegistro(intent.completionRegistro);
+        }
       }
     } catch (error) {
-      if (optimisticKey) {
-        setOptimisticDone((prev) => ({ ...prev, [optimisticKey]: previousDone }));
-      }
+      if (optimisticKey) setOptimisticDone((prev) => ({ ...prev, [optimisticKey]: committedState }));
       console.error(error);
-    } finally { loadingRef.current = null; setLoading(null); }
+    } finally {
+      cronogramaToggleInFlightRef.current.delete(loadingId);
+      if (loadingRef.current === loadingId) loadingRef.current = null;
+      setLoading((current) => current === loadingId ? null : current);
+    }
   }, [activeCronogramaData, addRegistroEstudo, concluirRevisaoCronograma, cronogramaId, deleteCompletionRegistro, toggleSlotConcluido, user]);
 
   const handleMarkPending = useCallback(async (slot) => {
@@ -769,7 +817,7 @@ function HojeCard({
   const handleToggleSessaoCiclo = useCallback((sessao) => {
     if (!activeCicloData?.id || !user?.uid) return;
     const sessaoIndex = Number(sessao.globalIndex);
-    if (!Number.isFinite(sessaoIndex) || cycleToggleInFlightRef.current.has(sessaoIndex)) return;
+    if (!Number.isFinite(sessaoIndex)) return;
     const tempoSessao = Number(sessao.tempoPlanejadoMinutos || activeCicloData?.tempoSessaoMinutos || 50);
     const progressoSessao = Number(sessao.progressoMinutos || 0);
     const previousDone = Boolean(sessao.concluido || sessao.concluida) || (tempoSessao > 0 && progressoSessao >= tempoSessao);
@@ -780,48 +828,61 @@ function HojeCard({
       setOptimisticDone((prev) => ({ ...prev, [optimisticKey]: nextDone }));
     }
 
+    const completionRegistro = buildCompletionRegistro({
+      context: 'ciclo',
+      item: sessao,
+      ciclo: { ...activeCicloData, disciplinas: disciplinasCiclo },
+      fallbackMinutes: activeCicloData?.tempoSessaoMinutos || 50,
+    });
+    setLatestToggleIntent(desiredCycleToggleRef.current, sessaoIndex, {
+      targetCompleted: nextDone,
+      sessao,
+      completionRegistro,
+    });
+    if (cycleToggleInFlightRef.current.has(sessaoIndex)) return;
+
     cycleToggleInFlightRef.current.add(sessaoIndex);
     (async () => {
+      let committedState = (activeCicloData.sessoesConcluidas || []).map(Number).includes(sessaoIndex);
       try {
-        const concluidas = Array.isArray(activeCicloData.sessoesConcluidas)
-          ? activeCicloData.sessoesConcluidas.map(Number).filter(Number.isFinite)
-          : [];
-        const proximasConcluidas = nextDone
-          ? [...new Set([...concluidas, sessaoIndex])]
-          : concluidas.filter((index) => index !== sessaoIndex);
-
-        await updateDoc(doc(db, 'users', user.uid, 'ciclos', activeCicloData.id), {
-          sessoesConcluidas: proximasConcluidas,
-          [`progressoSessoes.${sessaoIndex}`]: nextDone ? Math.max(1, tempoSessao) : 0,
-          [`sessoesConcluidasDetalhes.${sessaoIndex}`]: nextDone
-            ? { concluidaEm: formatDateKeyLocal(new Date()), atualizadoEm: serverTimestamp() }
-            : deleteField(),
-        });
-
-        if (nextDone) {
-          limparPendenciaTeoriaCiclo(activeCicloData.id, sessao.disciplinaId).catch(console.error);
-        }
-        const completionRegistro = buildCompletionRegistro({
-          context: 'ciclo',
-          item: sessao,
-          ciclo: { ...activeCicloData, disciplinas: disciplinasCiclo },
-          fallbackMinutes: activeCicloData?.tempoSessaoMinutos || 50,
-        });
-        if (!previousDone && addRegistroEstudo) {
-          await addRegistroEstudo(completionRegistro);
-        } else if (previousDone && deleteCompletionRegistro) {
-          await deleteCompletionRegistro(completionRegistro);
+        while (desiredCycleToggleRef.current.has(sessaoIndex)) {
+          const intent = takeLatestToggleIntent(desiredCycleToggleRef.current, sessaoIndex);
+          if (intent.targetCompleted === committedState) continue;
+          const completionPersistence = marcarSessaoConcluida(activeCicloData.id, sessaoIndex, {
+            targetCompleted: intent.targetCompleted,
+            tempoPlanejadoMinutos: intent.sessao.tempoPlanejadoMinutos || intent.sessao.tempoMinutos,
+          });
+          const registroPromise = intent.targetCompleted && addRegistroEstudo
+            ? addRegistroEstudo(intent.completionRegistro, { waitForCompletion: completionPersistence })
+            : null;
+          const ok = await completionPersistence;
+          if (!ok) {
+            if (!desiredCycleToggleRef.current.has(sessaoIndex) && optimisticKey) {
+              setOptimisticDone((prev) => ({ ...prev, [optimisticKey]: committedState }));
+            }
+            continue;
+          }
+          committedState = intent.targetCompleted;
+          const newerIntent = desiredCycleToggleRef.current.get(sessaoIndex);
+          if (!newerIntent || newerIntent.targetCompleted === committedState) {
+            if (committedState && addRegistroEstudo) {
+              await registroPromise;
+              limparPendenciaTeoriaCiclo(activeCicloData.id, intent.sessao.disciplinaId).catch(console.error);
+            } else if (!committedState && deleteCompletionRegistro) {
+              await deleteCompletionRegistro(intent.completionRegistro);
+            }
+          }
         }
       } catch (error) {
         if (optimisticKey) {
-          setOptimisticDone((prev) => ({ ...prev, [optimisticKey]: previousDone }));
+          setOptimisticDone((prev) => ({ ...prev, [optimisticKey]: committedState }));
         }
         console.error(error);
       } finally {
         cycleToggleInFlightRef.current.delete(sessaoIndex);
       }
     })();
-  }, [activeCicloData, addRegistroEstudo, deleteCompletionRegistro, disciplinasCiclo, limparPendenciaTeoriaCiclo, user?.uid]);
+  }, [activeCicloData, addRegistroEstudo, deleteCompletionRegistro, disciplinasCiclo, limparPendenciaTeoriaCiclo, marcarSessaoConcluida, user?.uid]);
 
   const handleMarcarPendenciaCiclo = useCallback(async (sessao) => {
     const assuntoAtual = sessao?.assuntoSugerido?.nome || '';
@@ -872,7 +933,6 @@ function HojeCard({
     }
     setAcaoRevisaoCiclo({ id: rev.id, tipo: 'concluir' });
     try {
-      await concluirRevisao(rev.id, !wasDone);
       const completionRegistro = buildCompletionRegistro({
           context: 'ciclo',
           item: rev,
@@ -880,8 +940,14 @@ function HojeCard({
           isReview: true,
           fallbackMinutes: 20,
         });
+      const completionPersistence = concluirRevisao(rev.id, !wasDone);
+      const registroPromise = !wasDone && addRegistroEstudo
+        ? addRegistroEstudo(completionRegistro, { waitForCompletion: completionPersistence })
+        : null;
+      const ok = await completionPersistence;
+      if (ok === false) throw new Error('revisao-ciclo-nao-concluida');
       if (!wasDone && addRegistroEstudo) {
-        await addRegistroEstudo(completionRegistro);
+        await registroPromise;
       } else if (wasDone && deleteCompletionRegistro) {
         await deleteCompletionRegistro(completionRegistro);
       }
@@ -1203,6 +1269,7 @@ function HojeCard({
                 loadingSessionId={loadingCicloSessao}
                 useDisciplineColors={activeCicloData?.coresDisciplinasAtivas !== false}
                 registrosEstudo={registrosEstudo}
+                sessionCompletionOverrides={cycleSessionCompletionOverrides}
                 showAssuntos={showCycleSubjects}
                 onToggleAssuntos={handleToggleCycleSubjects}
                 assuntosToggleLoading={cycleSubjectsLoading}

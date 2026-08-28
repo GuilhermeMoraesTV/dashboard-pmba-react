@@ -129,6 +129,21 @@ describe('cycle free queue', () => {
     assert.deepEqual(queue.sessions.map((session) => session.tempoPlanejadoMinutos), [60, 70, 90]);
   });
 
+  it('preserves a partial block below the configured minimum in the card queue', () => {
+    const queue = getCycleFreeQueue({
+      id: 'ciclo-parcial-20',
+      tempoSessaoMinutos: 60,
+      duracaoMinimaSessaoMinutos: 60,
+      duracaoMaximaSessaoMinutos: 60,
+      ordemSessoes: [{ disciplinaId: 'pt', sessaoIndex: 0, tempoPlanejadoMinutos: 20 }],
+      disciplinas: [{ id: 'pt', nome: 'Português', duracoesSessoes: [20] }],
+      sessoesConcluidas: [],
+      progressoSessoes: {},
+    }, []);
+
+    assert.equal(queue.sessions[0].tempoPlanejadoMinutos, 20);
+  });
+
   it('does not create a missed-day status when the cycle was not studied', () => {
     const status = getDailyStudyStatus({
       date: '2026-08-01',
@@ -144,7 +159,7 @@ describe('cycle free queue', () => {
     assert.equal(status.goalMet, false);
   });
 
-  it('only meets the configured cycle time with confirmed study records', () => {
+  it('counts checkout planned time toward the configured cycle goal', () => {
     const date = '2026-08-03';
     const cycle = {
       id: 'ciclo-meta',
@@ -180,8 +195,8 @@ describe('cycle free queue', () => {
       registrosEstudo: records,
     });
 
-    assert.equal(getStatus(completionOnly).goalMet, false);
-    assert.equal(getStatus(completionOnly).status, 'goal-not-met');
+    assert.equal(getStatus(completionOnly).goalMet, true);
+    assert.equal(getStatus(completionOnly).status, 'goal-met-both');
     assert.equal(getStatus(partialConfirmed).goalMet, false);
     assert.equal(getStatus(partialConfirmed).status, 'goal-met-one');
     assert.equal(getStatus(completedConfirmed).goalMet, true);

@@ -52,6 +52,27 @@ test('resolve logo oficial conhecido e preserva fallback tipografico para qualqu
   assert.equal(buildEditalLogoFallbackLabel({ nome: 'Concurso Municipal de Exemplo' }), 'CME');
 });
 
+test('prioriza todas as fontes persistidas de logo antes dos fallbacks derivados', () => {
+  assert.deepEqual(
+    buildEditalLogoCandidates({
+      edital: {
+        id: 'edital_custom_2026',
+        logoURL: 'https://cdn.exemplo/logo-legada.svg',
+        editalLogoUrl: 'https://cdn.exemplo/logo-planejamento.webp',
+        computedLogo: '/logosEditais/logo-calculada.png',
+      },
+      providedLogo: 'https://cdn.exemplo/logo-atual.avif',
+    }),
+    [
+      'https://cdn.exemplo/logo-atual.avif',
+      'https://cdn.exemplo/logo-legada.svg',
+      'https://cdn.exemplo/logo-planejamento.webp',
+      '/logosEditais/logo-calculada.png',
+      '/logosEditais/logo-edital-custom-2026.png',
+    ],
+  );
+});
+
 test('tipografia da capa fica centralizada em um unico ponto de ajuste', () => {
   assert.equal(PDF_COVER_TYPOGRAPHY.headingSize, 19);
   assert.equal(PDF_COVER_TYPOGRAPHY.titleSize, 18);

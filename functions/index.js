@@ -845,14 +845,61 @@ const gamificationWriteOptions = {
   maxInstances: 2,
 };
 
+const getCurrentGamificationWeekId = (value = new Date()) => {
+  const dateKey = dateToYMD(value);
+  const cursor = new Date(`${dateKey}T12:00:00Z`);
+  const weekday = cursor.getUTCDay() || 7;
+  cursor.setUTCDate(cursor.getUTCDate() - weekday + 1);
+  return cursor.toISOString().slice(0, 10);
+};
+
+const projectTimerPresenceToRankings = async (event) => {
+  const uid = event.params.uid;
+  if (!uid) return null;
+  const timer = event.data?.after?.exists ? (event.data.after.data() || {}) : null;
+  const phase = timer?.phase || (timer?.isResting ? 'rest' : 'focus');
+  const liveStudy = Boolean(
+    timer
+    && timer.status === 'running'
+    && !timer.isPaused
+    && !['rest', 'rest_finished', 'pomodoro_finished'].includes(phase)
+  );
+  const payload = {
+    liveStudy,
+    liveStudyHeartbeatAt: liveStudy ? (timer?.heartbeatAt || timer?.updatedAt || null) : null,
+    liveStudyUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  };
+  const weekId = getCurrentGamificationWeekId();
+  const refs = [
+    admin.firestore().collection('weekly_rankings').doc(weekId).collection('members').doc(uid),
+    admin.firestore().collection('general_rankings').doc('all').collection('members').doc(uid),
+  ];
+  const snapshots = await Promise.all(refs.map((ref) => ref.get()));
+  const batch = admin.firestore().batch();
+  let writes = 0;
+  snapshots.forEach((snapshot, index) => {
+    if (!snapshot.exists) return;
+    batch.set(refs[index], payload, { merge: true });
+    writes += 1;
+  });
+  if (writes) await batch.commit();
+  return { uid, liveStudy, writes };
+};
+
 const recomputeGamificationFromEvent = async (event) => {
   const uid = event.params.uid || event.params.memberId || event.params.ownerId;
   if (!uid) return null;
+  const deletionMarker = await admin.firestore().collection('system_deleted_users').doc(uid).get();
+  if (deletionMarker.exists) return { uid, skipped: 'user-deleted' };
+  // Projeta primeiro os campos visíveis do perfil e repete ao final. Isso
+  // elimina a janela de vários minutos e garante convergência mesmo quando
+  // ativações/desativações disparam recálculos concorrentes.
+  await gamification.refreshUserPublicPlanningProfile(uid);
   return gamification.recomputeUserGamification(uid);
 };
 
 const publicProfileSourceChanged = (before = {}, after = {}) => {
-  const fields = ['displayName', 'name', 'nome', 'photoURL', 'coverURL', 'coverPosition', 'createdAt', 'dataCriacao', 'criadoEm', 'registrationDate'];
+  const fields = ['displayName', 'name', 'nome', 'photoURL', 'coverURL', 'coverPosition', 'createdAt', 'dataCriacao', 'criadoEm', 'registrationDate', 'status', 'disabled'];
   return fields.some((field) => JSON.stringify(before?.[field] ?? null) !== JSON.stringify(after?.[field] ?? null));
 };
 
@@ -882,6 +929,25 @@ exports.processarGamificacaoCronograma = onDocumentWritten(
   { ...gamificationWriteOptions, document: 'users/{uid}/cronogramas/{scheduleId}' },
   recomputeGamificationFromEvent,
 );
+exports.sincronizarPresencaRanking = onDocumentWritten(
+  {
+    region: 'us-central1',
+    retry: true,
+    timeoutSeconds: 60,
+    memory: '256MiB',
+    maxInstances: 4,
+    document: 'active_timers/{uid}',
+  },
+  projectTimerPresenceToRankings,
+);
+exports.sincronizarRankingMensalGrupoEstudo = onDocumentWritten(
+  { ...gamificationWriteOptions, document: 'users/{uid}/registrosEstudo/{recordId}' },
+  async (event) => gamification.refreshUserGroupMonthlyRankings(event.params.uid),
+);
+exports.sincronizarRankingMensalGrupoSimulado = onDocumentWritten(
+  { ...gamificationWriteOptions, document: 'users/{uid}/simulados/{simulationId}' },
+  async (event) => gamification.refreshUserGroupMonthlyRankings(event.params.uid),
+);
 // Mantém o perfil social derivado sincronizado quando o usuário altera nome,
 // foto ou capa na página de Perfil. O documento privado continua inacessível
 // aos demais usuários; apenas os campos públicos seguem para os rankings.
@@ -903,9 +969,26 @@ exports.processarConquistaGrupoCriado = onDocumentCreated(
     return ownerId ? gamification.recomputeUserGamification(ownerId) : null;
   },
 );
+exports.sincronizarDiretorioGrupo = onDocumentWritten(
+  { ...gamificationWriteOptions, document: 'study_groups/{groupId}' },
+  async (event) => groups.syncGroupDirectory({
+    groupId: event.params.groupId,
+    group: event.data?.after?.exists ? (event.data.after.data() || {}) : null,
+  }),
+);
 exports.processarConquistaEntradaGrupo = onDocumentCreated(
   { ...gamificationWriteOptions, document: 'study_groups/{groupId}/members/{memberId}' },
   async (event) => gamification.recomputeUserGamification(event.params.memberId),
+);
+exports.sincronizarRankingMensalEntradaGrupo = onDocumentCreated(
+  { ...gamificationWriteOptions, document: 'study_groups/{groupId}/members/{memberId}' },
+  async (event) => gamification.refreshUserGroupMonthlyRankings(event.params.memberId, {
+    groupIds: [event.params.groupId],
+  }),
+);
+exports.sincronizarContagemMembrosGrupo = onDocumentWritten(
+  { ...gamificationWriteOptions, document: 'study_groups/{groupId}/members/{memberId}' },
+  async (event) => groups.syncGroupMemberCount({ groupId: event.params.groupId }),
 );
 
 const groupCallableOptions = { region: 'us-central1', timeoutSeconds: 60, memory: '256MiB', maxInstances: 3 };
@@ -927,6 +1010,20 @@ exports.solicitarEntradaGrupo = onCall(groupCallableOptions, async (request) => 
   } catch (error) { throw mapGroupError(error); }
 });
 
+exports.listarGruposEstudo = onCall(groupCallableOptions, async (request) => {
+  try {
+    requireGroupAuth(request);
+    return { groups: await groups.listGroups() };
+  } catch (error) { throw mapGroupError(error); }
+});
+
+exports.entrarGrupoPrivadoComCodigo = onCall(groupCallableOptions, async (request) => {
+  try {
+    const uid = requireGroupAuth(request);
+    return await groups.joinPrivateGroupByCode({ uid, inviteCode: request.data?.inviteCode, caller: request.auth.token || {} });
+  } catch (error) { throw mapGroupError(error); }
+});
+
 exports.responderSolicitacaoGrupo = onCall(groupCallableOptions, async (request) => {
   try {
     const managerUid = requireGroupAuth(request);
@@ -938,6 +1035,20 @@ exports.sairGrupoEstudo = onCall(groupCallableOptions, async (request) => {
   try {
     const uid = requireGroupAuth(request);
     return await groups.leaveGroup({ uid, groupId: request.data?.groupId, successorUid: request.data?.successorUid || null });
+  } catch (error) { throw mapGroupError(error); }
+});
+
+exports.atualizarPapelMembroGrupo = onCall(groupCallableOptions, async (request) => {
+  try {
+    const managerUid = requireGroupAuth(request);
+    return await groups.updateMemberRole({ managerUid, groupId: request.data?.groupId, memberUid: request.data?.memberUid, viceLeader: request.data?.viceLeader });
+  } catch (error) { throw mapGroupError(error); }
+});
+
+exports.removerMembroGrupo = onCall(groupCallableOptions, async (request) => {
+  try {
+    const managerUid = requireGroupAuth(request);
+    return await groups.removeMember({ managerUid, groupId: request.data?.groupId, memberUid: request.data?.memberUid });
   } catch (error) { throw mapGroupError(error); }
 });
 
@@ -956,6 +1067,11 @@ const adminCallable = (handler) => onCall(adminCallableOptions, async (request) 
 });
 
 exports.adminUpdateUserStatus = adminCallable(({ actor, data }) => adminOperations.updateUserStatus({ actor, targetUid: data.targetUid, status: data.status }));
+exports.adminDeleteUserPermanently = adminCallable(({ actor, data }) => adminOperations.deleteUserPermanently({
+  actor,
+  targetUid: data.targetUid,
+  confirmed: data.confirmed === true || data.confirmation === data.targetUid,
+}));
 exports.adminUpdateUserAccess = adminCallable(({ actor, data }) => adminOperations.updateUserAccess({ actor, targetUid: data.targetUid, access: data.access }));
 exports.adminRecalculateUserStats = adminCallable(({ actor, data }) => adminOperations.recalculateUserStats({ actor, targetUid: data.targetUid || null }));
 exports.adminRecomputeUserGamification = adminCallable(({ actor, data }) => adminOperations.recomputeUserGamification({ actor, targetUid: data.targetUid, gamification }));
@@ -1003,6 +1119,32 @@ exports.atualizarRankingsAtivos = onSchedule(
     maxInstances: 1,
   },
   async () => gamification.refreshActiveUserRankings(),
+);
+
+exports.atualizarRankingsMensaisGrupos = onSchedule(
+  {
+    schedule: 'every day 03:30',
+    timeZone: 'America/Bahia',
+    region: 'us-central1',
+    retryCount: 2,
+    timeoutSeconds: 540,
+    memory: '1GiB',
+    maxInstances: 1,
+  },
+  async () => gamification.refreshStudyGroupMonthlyRankings(),
+);
+
+exports.atualizarPerfisPublicosGrupos = onSchedule(
+  {
+    schedule: 'every day 03:35',
+    timeZone: 'America/Bahia',
+    region: 'us-central1',
+    retryCount: 2,
+    timeoutSeconds: 540,
+    memory: '1GiB',
+    maxInstances: 1,
+  },
+  async () => gamification.refreshPublicStudyGroupProfiles(),
 );
 
 exports.migrarGamificacaoV2 = onCall(

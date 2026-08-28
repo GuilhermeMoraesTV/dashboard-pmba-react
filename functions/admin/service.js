@@ -8,6 +8,7 @@ const GROUP_ACTIONS = new Set(['block', 'unblock', 'set_visibility', 'update_ide
 
 const firestore = () => admin.firestore();
 const timestamp = () => admin.firestore.FieldValue.serverTimestamp();
+const arrayRemove = (...values) => admin.firestore.FieldValue.arrayRemove(...values);
 
 const asText = (value, max = 240) => String(value ?? '').trim().slice(0, max);
 const asUid = (value, field = 'targetUid') => {
@@ -105,6 +106,168 @@ const simulationStats = (simulation = {}) => {
   };
 };
 
+const timestampMillis = (value) => {
+  if (!value) return 0;
+  if (typeof value.toMillis === 'function') return value.toMillis();
+  if (typeof value.toDate === 'function') return value.toDate().getTime();
+  const parsed = new Date(value).getTime();
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const pickGroupSuccessor = (members = [], targetUid = '') => members
+  .filter((member) => (member.uid || member.id) !== targetUid)
+  .sort((a, b) => {
+    const roleDiff = (a.role === 'vice_leader' ? 0 : 1) - (b.role === 'vice_leader' ? 0 : 1);
+    return roleDiff
+      || timestampMillis(a.joinedAt) - timestampMillis(b.joinedAt)
+      || String(a.uid || a.id).localeCompare(String(b.uid || b.id));
+  })[0] || null;
+
+const membershipKind = (path = '') => {
+  const parts = String(path).split('/');
+  if (parts.length === 4 && parts[0] === 'study_groups' && parts[2] === 'members') return 'study_group';
+  if (parts.length === 6 && parts[0] === 'study_groups' && parts[2] === 'weekly_rankings' && parts[4] === 'members') return 'study_group_ranking';
+  if (parts.length === 6 && parts[0] === 'weekly_rankings' && parts[2] === 'cohorts' && parts[4] === 'members') return 'league_cohort';
+  if (parts.length === 4 && parts[0] === 'weekly_rankings' && parts[2] === 'members') return 'weekly_ranking';
+  if (parts.length === 4 && parts[0] === 'general_rankings' && parts[2] === 'members') return 'general_ranking';
+  return 'other';
+};
+
+const deleteStoragePrefix = async (prefix) => {
+  try {
+    await admin.storage().bucket().deleteFiles({ prefix, force: true });
+    return true;
+  } catch (error) {
+    if ([404, '404', 'storage/object-not-found'].includes(error?.code)) return false;
+    console.warn(`Falha ao limpar arquivos em ${prefix}:`, error?.message || error);
+    return false;
+  }
+};
+
+const deleteSnapshots = async (snapshots = []) => {
+  if (!snapshots.length) return 0;
+  const writer = firestore().bulkWriter();
+  snapshots.forEach((snapshot) => writer.delete(snapshot.ref));
+  await writer.close();
+  return snapshots.length;
+};
+
+const getExistingSnapshots = async (refs = [], chunkSize = 250) => {
+  const snapshots = [];
+  for (let cursor = 0; cursor < refs.length; cursor += chunkSize) {
+    const chunk = await firestore().getAll(...refs.slice(cursor, cursor + chunkSize));
+    snapshots.push(...chunk.filter((snapshot) => snapshot.exists));
+  }
+  return snapshots;
+};
+
+const listUserRankingRefs = async ({ uid, groupRefs = [] }) => {
+  const refs = [firestore().collection('general_rankings').doc('all').collection('members').doc(uid)];
+  const weeklyRankingRefs = await firestore().collection('weekly_rankings').listDocuments();
+  for (const rankingRef of weeklyRankingRefs) {
+    refs.push(rankingRef.collection('members').doc(uid));
+    const cohortRefs = await rankingRef.collection('cohorts').listDocuments();
+    cohortRefs.forEach((cohortRef) => refs.push(cohortRef.collection('members').doc(uid)));
+  }
+  for (const groupRef of groupRefs) {
+    const groupRankingRefs = await groupRef.collection('weekly_rankings').listDocuments();
+    groupRankingRefs.forEach((rankingRef) => refs.push(rankingRef.collection('members').doc(uid)));
+  }
+  return [...new Map(refs.map((ref) => [ref.path, ref])).values()];
+};
+
+const removeUserFromStudyGroup = async ({ uid, groupRef }) => {
+  const [groupSnapshot, membersSnapshot] = await Promise.all([groupRef.get(), groupRef.collection('members').get()]);
+  if (!groupSnapshot.exists) return { deletedGroup: false, transferred: false, removed: false };
+  const group = groupSnapshot.data() || {};
+  const targetMember = membersSnapshot.docs.find((item) => item.id === uid);
+  if (!targetMember && group.ownerId !== uid) return { deletedGroup: false, transferred: false, removed: false };
+  const remaining = membersSnapshot.docs
+    .filter((item) => item.id !== uid)
+    .map((item) => ({ id: item.id, uid: item.id, ...item.data() }));
+
+  if (group.ownerId === uid && remaining.length === 0) {
+    await firestore().recursiveDelete(groupRef);
+    await Promise.all([
+      firestore().collection('study_group_directory').doc(groupRef.id).delete().catch(() => {}),
+      group.inviteCode ? firestore().collection('study_group_invites').doc(group.inviteCode).delete().catch(() => {}) : Promise.resolve(),
+    ]);
+    return { deletedGroup: true, transferred: false, removed: true };
+  }
+
+  const batch = firestore().batch();
+  let successor = null;
+  if (group.ownerId === uid) {
+    successor = pickGroupSuccessor(remaining, uid);
+    const successorUid = successor.uid || successor.id;
+    batch.set(groupRef.collection('members').doc(successorUid), {
+      role: 'owner',
+      permissions: { manageGroup: true, manageMembers: true },
+      updatedAt: timestamp(),
+    }, { merge: true });
+    batch.set(groupRef, {
+      ownerId: successorUid,
+      memberCount: remaining.length,
+      updatedAt: timestamp(),
+    }, { merge: true });
+    if (group.inviteCode) batch.set(firestore().collection('study_group_invites').doc(group.inviteCode), { ownerId: successorUid, updatedAt: timestamp() }, { merge: true });
+    batch.set(firestore().collection('users').doc(successorUid).collection('notifications').doc(`group_owner_${groupRef.id}_${Date.now()}`), {
+      type: 'group_role',
+      title: 'Você agora é líder do grupo',
+      message: `A liderança do grupo ${group.name || 'de estudo'} foi transferida para você.`,
+      groupId: groupRef.id,
+      status: 'completed',
+      requiresAction: false,
+      isRead: false,
+      createdAt: timestamp(),
+      updatedAt: timestamp(),
+    });
+  } else {
+    batch.set(groupRef, { memberCount: remaining.length, updatedAt: timestamp() }, { merge: true });
+  }
+  if (targetMember) batch.delete(targetMember.ref);
+  await batch.commit();
+  return { deletedGroup: false, transferred: Boolean(successor), removed: true };
+};
+
+const removeResidualMembership = async (memberSnapshot) => {
+  const kind = membershipKind(memberSnapshot.ref.path);
+  if (kind === 'study_group') return false;
+  if (kind === 'study_group_ranking') {
+    const rankingRef = memberSnapshot.ref.parent.parent;
+    const groupRef = rankingRef.parent.parent;
+    await firestore().runTransaction(async (transaction) => {
+      const [groupSnapshot, currentMember] = await Promise.all([transaction.get(groupRef), transaction.get(memberSnapshot.ref)]);
+      if (!currentMember.exists) return;
+      const group = groupSnapshot.data() || {};
+      const member = currentMember.data() || {};
+      const weekId = rankingRef.id;
+      if (groupSnapshot.exists && group.weeklyMetricsWeekId === weekId) {
+        transaction.set(groupRef, {
+          weeklyXP: Math.max(0, Number(group.weeklyXP || 0) - Number(member.competitiveXP || member.weeklyXP || 0)),
+          weeklyMinutes: Math.max(0, Number(group.weeklyMinutes || 0) - Number(member.minutes || 0)),
+          weeklyQuestions: Math.max(0, Number(group.weeklyQuestions || 0) - Number(member.questions || 0)),
+          weeklyMetricsUpdatedAt: timestamp(),
+        }, { merge: true });
+      }
+      transaction.delete(currentMember.ref);
+    });
+    return true;
+  }
+  if (kind === 'league_cohort') {
+    const cohortRef = memberSnapshot.ref.parent.parent;
+    await firestore().runTransaction(async (transaction) => {
+      const [cohortSnapshot, currentMember] = await Promise.all([transaction.get(cohortRef), transaction.get(memberSnapshot.ref)]);
+      if (!currentMember.exists) return;
+      if (cohortSnapshot.exists) transaction.set(cohortRef, { participantCount: Math.max(0, Number(cohortSnapshot.data()?.participantCount || 1) - 1), updatedAt: timestamp() }, { merge: true });
+      transaction.delete(currentMember.ref);
+    });
+    return true;
+  }
+  await memberSnapshot.ref.delete();
+  return true;
+};
+
 const calculateUserStats = async (uid) => {
   const userRef = firestore().collection('users').doc(uid);
   const [records, simulations] = await Promise.all([
@@ -139,9 +302,157 @@ const updateUserStatus = async ({ actor, targetUid, status }) => {
   const before = { status: snapshot.data()?.status || 'active', disabled: snapshot.data()?.disabled === true };
   const disabled = status !== 'active';
   return withAudit({ action: `user.${status}`, actor, targetUid: uid, targetPath: userRef.path, targetType: 'user', payloadSummary: { status }, before }, async () => {
-    await admin.auth().updateUser(uid, { disabled });
-    await userRef.set({ status, disabled, statusUpdatedAt: timestamp(), statusUpdatedBy: actor.uid }, { merge: true });
+    await Promise.all([
+      admin.auth().updateUser(uid, { disabled }),
+      userRef.set({ status, disabled, statusUpdatedAt: timestamp(), statusUpdatedBy: actor.uid }, { merge: true }),
+    ]);
     return { targetUid: uid, status, disabled, auditAfter: { status, disabled } };
+  });
+};
+
+const assertDestructiveActionConfirmed = (confirmed) => {
+  if (confirmed !== true) throw Object.assign(new Error('Confirme a exclusao definitiva do usuario.'), { code: 'invalid-argument' });
+  return true;
+};
+
+const deleteUserPermanently = async ({ actor, targetUid, confirmed }) => {
+  const uid = asUid(targetUid);
+  if (uid === actor.uid) throw Object.assign(new Error('O admin nao pode excluir definitivamente a propria conta.'), { code: 'failed-precondition' });
+  assertDestructiveActionConfirmed(confirmed);
+  const userRef = firestore().collection('users').doc(uid);
+  const userSnapshot = await userRef.get();
+  if (!userSnapshot.exists) throw Object.assign(new Error('Usuario nao encontrado.'), { code: 'not-found' });
+  const user = userSnapshot.data() || {};
+  if (user.status !== 'disabled' || user.disabled !== true) {
+    throw Object.assign(new Error('Desative a conta antes de realizar a exclusao definitiva.'), { code: 'failed-precondition' });
+  }
+  let authUser = null;
+  try {
+    authUser = await admin.auth().getUser(uid);
+  } catch (error) {
+    if (error?.code !== 'auth/user-not-found') throw error;
+  }
+  if (authUser && authUser.disabled !== true) {
+    throw Object.assign(new Error('A conta de autenticacao ainda esta ativa. Desative-a antes de excluir.'), { code: 'failed-precondition' });
+  }
+
+  const before = {
+    uid,
+    name: user.name || user.displayName || user.nome || null,
+    email: user.email || authUser?.email || null,
+    status: user.status,
+    disabled: user.disabled === true,
+  };
+  return withAudit({
+    action: 'user.permanently_deleted',
+    actor,
+    targetUid: uid,
+    targetPath: userRef.path,
+    targetType: 'user',
+    payloadSummary: { confirmedByAdmin: true },
+    before,
+  }, async () => {
+    const deletionMarkerRef = firestore().collection('system_deleted_users').doc(uid);
+    await deletionMarkerRef.set({
+      uid,
+      deletionStartedAt: timestamp(),
+      deletionStartedBy: actor.uid,
+      status: 'deleting',
+    }, { merge: true });
+
+    const groupsSnapshot = await firestore().collection('study_groups').get();
+    const memberSnapshots = await getExistingSnapshots(groupsSnapshot.docs.map((item) => item.ref.collection('members').doc(uid)));
+    const joinRequestSnapshots = await getExistingSnapshots(groupsSnapshot.docs.map((item) => item.ref.collection('join_requests').doc(uid)));
+    const requestNotificationRefs = [];
+    for (const requestSnapshot of joinRequestSnapshots) {
+      const groupRef = requestSnapshot.ref.parent.parent;
+      const managers = await groupRef.collection('members').where('permissions.manageMembers', '==', true).get();
+      managers.docs.forEach((managerSnapshot) => requestNotificationRefs.push(
+        firestore().collection('users').doc(managerSnapshot.id).collection('notifications').doc(`group_request_${groupRef.id}_${uid}`),
+      ));
+    }
+    const relatedNotificationSnapshots = await getExistingSnapshots(requestNotificationRefs);
+    const groupRefs = new Map();
+    memberSnapshots.forEach((item) => groupRefs.set(item.ref.parent.parent.id, item.ref.parent.parent));
+    groupsSnapshot.docs.filter((item) => item.data()?.ownerId === uid).forEach((item) => groupRefs.set(item.id, item.ref));
+
+    const groupCleanup = { removed: 0, transferred: 0, deleted: 0 };
+    const groupCleanupResults = await Promise.all(
+      [...groupRefs.values()].map((groupRef) => removeUserFromStudyGroup({ uid, groupRef })),
+    );
+    for (const result of groupCleanupResults) {
+      if (result.removed) groupCleanup.removed += 1;
+      if (result.transferred) groupCleanup.transferred += 1;
+      if (result.deletedGroup) groupCleanup.deleted += 1;
+    }
+
+    const rankingRefs = await listUserRankingRefs({ uid, groupRefs: groupsSnapshot.docs.map((item) => item.ref) });
+    const remainingMemberships = await getExistingSnapshots(rankingRefs);
+    const removedMemberships = (await Promise.all(
+      remainingMemberships.map((memberSnapshot) => removeResidualMembership(memberSnapshot)),
+    )).filter(Boolean).length;
+
+    const joinRequestsDeleted = await deleteSnapshots(joinRequestSnapshots);
+    const relatedNotificationsDeleted = await deleteSnapshots(relatedNotificationSnapshots);
+
+    const feedbackSnapshot = await firestore().collection('system_feedback').where('uid', '==', uid).get();
+    await Promise.all(feedbackSnapshot.docs.map((feedback) => firestore().recursiveDelete(feedback.ref)));
+
+    const operationalCollections = ['system_ai_usage', 'system_news_cache_usage', 'system_ai_failures', 'system_cache_errors'];
+    const operationalSnapshots = await Promise.all(operationalCollections.map(
+      (collectionName) => firestore().collection(collectionName).where('uid', '==', uid).get(),
+    ));
+    const operationalDocuments = operationalSnapshots.flatMap((snapshot) => snapshot.docs);
+    await Promise.all(operationalDocuments.map((item) => firestore().recursiveDelete(item.ref)));
+    const operationalDocumentsDeleted = operationalDocuments.length;
+
+    const broadcastsSnapshot = await firestore().collection('system_broadcasts').where('targetUserIds', 'array-contains', uid).get();
+    if (!broadcastsSnapshot.empty) {
+      const writer = firestore().bulkWriter();
+      broadcastsSnapshot.docs.forEach((item) => writer.set(item.ref, {
+        targetUserIds: arrayRemove(uid),
+        audienceCount: Math.max(0, Number(item.data()?.audienceCount || item.data()?.targetUserIds?.length || 1) - 1),
+        updatedAt: timestamp(),
+      }, { merge: true }));
+      await writer.close();
+    }
+
+    await Promise.all([
+      firestore().collection('active_timers').doc(uid).delete().catch(() => {}),
+      firestore().collection('general_rankings').doc('all').collection('members').doc(uid).delete().catch(() => {}),
+    ]);
+    await firestore().recursiveDelete(userRef);
+    const [storageCleaned] = await Promise.all([
+      deleteStoragePrefix(`profile_images/${uid}/`),
+      authUser ? admin.auth().deleteUser(uid) : Promise.resolve(),
+    ]);
+    await deletionMarkerRef.set({
+      status: 'deleted',
+      deletedAt: timestamp(),
+      authDeleted: Boolean(authUser),
+    }, { merge: true });
+
+    return {
+      targetUid: uid,
+      deleted: true,
+      authDeleted: Boolean(authUser),
+      storageCleaned,
+      removedMemberships,
+      joinRequestsDeleted,
+      relatedNotificationsDeleted,
+      feedbackDeleted: feedbackSnapshot.size,
+      operationalDocumentsDeleted,
+      broadcastsUpdated: broadcastsSnapshot.size,
+      groups: groupCleanup,
+      auditAfter: {
+        deleted: true,
+        authDeleted: Boolean(authUser),
+        removedMemberships,
+        joinRequestsDeleted,
+        relatedNotificationsDeleted,
+        groups: groupCleanup,
+      },
+    };
   });
 };
 
@@ -319,6 +630,7 @@ const exportSegment = async ({ actor, targetUserIds = [] }) => {
 
 module.exports = {
   assertAdmin,
+  deleteUserPermanently,
   exportSegment,
   isAdminAccess,
   moderateStudyGroup,
@@ -331,5 +643,5 @@ module.exports = {
   updateUserAccess,
   updateUserStatus,
   writeAudit,
-  __test: { asText, compactObject, isAdminAccess, numeric, simulationStats, studyStats },
+  __test: { asText, assertDestructiveActionConfirmed, compactObject, isAdminAccess, membershipKind, numeric, pickGroupSuccessor, simulationStats, studyStats },
 };

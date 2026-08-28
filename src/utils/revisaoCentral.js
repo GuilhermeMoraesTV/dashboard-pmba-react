@@ -33,6 +33,26 @@ const topicKey = (disciplinaId, disciplinaNome, assunto) => `${clean(disciplinaI
 const recordIsReview = (record) => record?.isRevisao === true || record?.revisao === true || normalizedText(record?.tipoEstudo) === 'revisao';
 const isDone = (item) => item?.concluido === true || item?.concluida === true;
 
+export const filterStudyRecordsByPlanningSource = (records, { source, planId } = {}) => {
+  const expectedSource = clean(source);
+  const expectedPlanId = clean(planId);
+  if (!['ciclo', 'cronograma'].includes(expectedSource)) return asArray(records);
+
+  return asArray(records).filter((record) => {
+    const recordContext = clean(record?.contextoRegistro);
+    const cycleId = clean(record?.cicloId);
+    const scheduleId = clean(record?.cronogramaId);
+    if (expectedSource === 'ciclo') {
+      if (recordContext && recordContext !== 'ciclo') return false;
+      if (scheduleId) return false;
+      return expectedPlanId ? cycleId === expectedPlanId : recordContext === 'ciclo' || Boolean(cycleId);
+    }
+    if (recordContext && recordContext !== 'cronograma') return false;
+    if (cycleId) return false;
+    return expectedPlanId ? scheduleId === expectedPlanId : recordContext === 'cronograma' || Boolean(scheduleId);
+  });
+};
+
 const getRecordDate = (record) => {
   const value = record?.data || record?.dataConclusao || record?.timestamp || record?.createdAt;
   if (!value) return null;

@@ -34,7 +34,7 @@ import {
   ArchiveRestore, Search, LayoutDashboard, ArrowLeft,
   Edit2, AlertOctagon, RotateCw, BookOpen, ChevronLeft, ChevronRight,
   CornerDownRight, Check, History, Calendar, Award, ListChecks,
-  CircleCheckBig, CircleX
+  CircleCheckBig, CircleX, Flame
 } from 'lucide-react';
 
 // --- UTILITÁRIOS ---
@@ -539,6 +539,7 @@ function ProfilePage({
   coverPosition = DEFAULT_COVER_POSITION,
   coverLoading = false,
   levelData,
+  studyStreak = 0,
   onGoToAchievements,
 }) {
   const [isEditingEmail, setIsEditingEmail] = useState(false);
@@ -1162,12 +1163,13 @@ function ProfilePage({
 
       <AnimatePresence>{message.text && (<motion.div initial={{opacity: 0, y: -20}} animate={{opacity: 1, y: 0}} exit={{opacity: 0}} className="fixed top-6 right-6 z-[100]"><div className={`px-4 py-3 rounded-xl border shadow-2xl flex items-center gap-3 backdrop-blur-md ${message.type === 'success' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 'bg-red-500/10 border-red-500/20 text-red-600 dark:text-red-400'}`}>{message.type === 'success' ? <CheckSquare size={18}/> : <AlertTriangle size={18}/>}<span className="font-bold text-sm">{message.text}</span><button onClick={() => setMessage({type:'', text:''})} className="ml-2 hover:opacity-50"><X size={14}/></button></div></motion.div>)}</AnimatePresence>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
           <ProfileMetricCard icon={Clock} label="Tempo Total" value={`${stats.horasTotais}h ${stats.minutosRestantes}m`} subtext="Acumulado" delay={0.05}/>
           <ProfileMetricCard icon={ListChecks} label="Questões" value={stats.questoes.toLocaleString('pt-BR')} subtext="Resolvidas" delay={0.1}/>
           <ProfileMetricCard icon={CircleCheckBig} label="Acertos" value={stats.acertos.toLocaleString('pt-BR')} subtext="Respostas certas" delay={0.15}/>
           <ProfileMetricCard icon={CircleX} label="Erros" value={stats.erros.toLocaleString('pt-BR')} subtext="Respostas erradas" delay={0.2}/>
           <ProfileMetricCard icon={CalendarIcon} label="Dias Ativos" value={stats.diasAtivos.toLocaleString('pt-BR')} subtext="Com estudo registrado" delay={0.25} className="col-span-2 sm:col-span-1"/>
+          <ProfileMetricCard icon={Flame} label="Sequência" value={`${Math.max(0, Number(studyStreak || 0))}d`} subtext="Estudos qualificados" delay={0.3}/>
       </div>
 
       <motion.button initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} onClick={() => { setShowHistoryModal(true); setSelectedCycleId(null); setSelectedDate(dateToYMD(new Date())); }} className="group flex w-full items-center justify-between overflow-hidden rounded-2xl border border-zinc-900 bg-zinc-900 px-4 py-3 text-left shadow-sm transition-all hover:shadow-lg dark:border-white dark:bg-white sm:px-5">

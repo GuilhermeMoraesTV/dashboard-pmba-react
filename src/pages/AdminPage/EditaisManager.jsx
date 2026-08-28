@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { db, storage } from '../../firebaseConfig';
-import { collection, doc, deleteDoc, onSnapshot, setDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, deleteDoc, onSnapshot, setDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import {
   ShieldAlert, BadgeAlert, Lock, Flame, Siren, LayoutGrid,
@@ -14,6 +14,8 @@ import {
 import { gerarResumoAtualizacaoIA, gerarDescricaoDiff, deveNotificarAluno, formatarNomeEditalLegivel } from '../../services/editalIA';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import ConfirmModal from '../../components/shared/ConfirmModal';
+import { buildBancaOptions } from '../../utils/bancasConcurso';
+import { buildEditalLaunchNotification } from '../../services/notificationContract';
 
 // ==================================================================================
 // 🔔 TOAST
@@ -204,6 +206,7 @@ const CustomEditalModal = ({ onClose, editalToEdit, showToast, allEditais }) => 
   const [manualOverride, setManualOverride] = useState({ banca: false, logo: false });
   const [loading, setLoading] = useState(false);
   const [showSidebar, setShowSidebar] = useState(false);
+  const [isCreatingBanca, setIsCreatingBanca] = useState(false);
 
   // ── Bloco de IA ──
   const [tipoAtualizacao, setTipoAtualizacao] = useState('LANCAMENTO');
@@ -215,7 +218,7 @@ const CustomEditalModal = ({ onClose, editalToEdit, showToast, allEditais }) => 
 
   useEffect(() => {
     if (isEditing) {
-      setFormData({ cidade: '', estado: 'BA', titulo: editalToEdit.titulo, banca: editalToEdit.banca, tipo: editalToEdit.tipo || 'adm', logoFile: null, logoPreview: editalToEdit.logoUrl || editalToEdit.logo });
+      setFormData({ cidade: '', estado: 'BA', titulo: editalToEdit.titulo, banca: editalToEdit.banca || '', tipo: editalToEdit.tipo || 'adm', logoFile: null, logoPreview: editalToEdit.logoUrl || editalToEdit.logo });
       setCargos([{ id: 1, nome: editalToEdit.cargo || '', json: JSON.stringify(editalToEdit.disciplinas || [], null, 2) }]);
       const cargosPadrao = CARGOS_POR_TIPO[editalToEdit.tipo || 'adm'] || [];
       if (editalToEdit.cargo && !cargosPadrao.includes(editalToEdit.cargo)) setIsCustomCargo(true);
@@ -258,6 +261,7 @@ const CustomEditalModal = ({ onClose, editalToEdit, showToast, allEditais }) => 
   const handleUseTemplate = (template) => {
     setFormData(prev => ({ ...prev, banca: template.banca, logoPreview: template.logoUrl || template.logo, titulo: template.titulo }));
     setManualOverride({ banca: true, logo: true });
+    setIsCreatingBanca(false);
     updateCargo('json', JSON.stringify(template.disciplinas || [], null, 2));
     showToast(`Dados de "${template.titulo}" copiados!`, 'success');
   };
@@ -287,6 +291,8 @@ const CustomEditalModal = ({ onClose, editalToEdit, showToast, allEditais }) => 
 
   const handleSave = async () => {
     if (!formData.titulo) return showToast('Preencha o título.', 'error');
+    if (isCreatingBanca && !formData.banca.trim()) return showToast('Digite o nome da nova banca.', 'error');
+    if (!formData.logoFile && !formData.logoPreview) return showToast('Adicione a logo do edital.', 'error');
     for (let i = 0; i < cargos.length; i++) {
       if (!cargos[i].nome) return showToast(`O cargo ${i + 1} precisa de um nome.`, 'error');
       if (!cargos[i].json) return showToast(`O cargo ${cargos[i].nome} precisa de disciplinas.`, 'error');
@@ -301,12 +307,6 @@ const CustomEditalModal = ({ onClose, editalToEdit, showToast, allEditais }) => 
         const sRef = ref(storage, `editais_logos/${cleanType}_${cleanLoc}_${Date.now()}`);
         const snap = await uploadBytes(sRef, formData.logoFile);
         finalLogoUrl = await getDownloadURL(snap.ref);
-      } else if (!finalLogoUrl) {
-        if (formData.tipo === 'pm') finalLogoUrl = '/logosEditais/logo-pm.png';
-        else if (formData.tipo === 'pc') finalLogoUrl = '/logosEditais/logo-pc.png';
-        else if (formData.tipo === 'cbm') finalLogoUrl = '/logosEditais/logo-cbm.png';
-        else if (formData.tipo === 'fa') finalLogoUrl = '/logosEditais/logo-fa.png';
-        else finalLogoUrl = '/logosEditais/logo-gcm-padrao.png';
       }
 
       // Só inclui updateMetadata se houver mensagem configurada
@@ -314,7 +314,8 @@ const CustomEditalModal = ({ onClose, editalToEdit, showToast, allEditais }) => 
         ? { tipo: tipoAtualizacao, mensagem: resumoIA.trim(), timestamp: serverTimestamp() }
         : null;
 
-      const promises = cargos.map(async (cargo) => {
+      const batch = writeBatch(db);
+      cargos.forEach((cargo) => {
         const disciplinasParsed = JSON.parse(cargo.json);
         let docId;
         if (isEditing && cargos.length === 1) { docId = editalToEdit.id; }
@@ -328,9 +329,9 @@ const CustomEditalModal = ({ onClose, editalToEdit, showToast, allEditais }) => 
         if (cargos.length > 1 && !tituloFinal.toLowerCase().includes(cargo.nome.toLowerCase()))
           tituloFinal = `${tituloFinal} - ${cargo.nome}`;
 
-        await setDoc(doc(db, 'editais_templates', docId), {
+        batch.set(doc(db, 'editais_templates', docId), {
           titulo: tituloFinal,
-          banca: formData.banca || 'A Definir',
+          banca: formData.banca.trim() || 'A Definir',
           logoUrl: finalLogoUrl, logo: finalLogoUrl,
           instituicao: formData.titulo.split(' - ')[0] || formData.tipo.toUpperCase(),
           tipo: formData.tipo, cargo: cargo.nome,
@@ -338,9 +339,22 @@ const CustomEditalModal = ({ onClose, editalToEdit, showToast, allEditais }) => 
           ...(updateMetadata ? { updateMetadata } : {}),
           lastUpdate: serverTimestamp(),
         }, { merge: true });
+
+        if (!isEditing && updateMetadata) {
+          const publishedAt = serverTimestamp();
+          batch.set(doc(db, 'system_broadcasts', `edital_launch_${docId}`), {
+            ...buildEditalLaunchNotification({
+              editalId: docId,
+              title: tituloFinal,
+              logoUrl: finalLogoUrl,
+              message: resumoIA.trim(),
+              timestamp: publishedAt,
+            }),
+          }, { merge: true });
+        }
       });
 
-      await Promise.all(promises);
+      await batch.commit();
       showToast(`${cargos.length} edital(is) salvo(s)!`, 'success');
       onClose();
     } catch (error) {
@@ -353,6 +367,10 @@ const CustomEditalModal = ({ onClose, editalToEdit, showToast, allEditais }) => 
 
   const cargosDisponiveis = CARGOS_POR_TIPO[formData.tipo] || [];
   const editaisLaterais = allEditais.filter(e => e.type === formData.tipo);
+  const bancaOptions = useMemo(
+    () => buildBancaOptions(allEditais, isCreatingBanca ? '' : formData.banca),
+    [allEditais, formData.banca, isCreatingBanca],
+  );
   const temIrmao = !!irmao && !isEditing;
   const tipoOpt = TIPO_ATUALIZACAO_OPTIONS.find(o => o.value === tipoAtualizacao);
 
@@ -417,10 +435,43 @@ const CustomEditalModal = ({ onClose, editalToEdit, showToast, allEditais }) => 
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-zinc-400 uppercase">Banca</label>
                 <div className="relative">
-                  <input className={`w-full p-2.5 rounded-xl text-xs font-bold border ${temIrmao && !manualOverride.banca ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-zinc-50 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800'}`}
-                    value={formData.banca} onChange={e => { setManualOverride(p => ({ ...p, banca: true })); setFormData(p => ({ ...p, banca: e.target.value })); }} placeholder="Banca" />
-                  {temIrmao && !manualOverride.banca && <Link size={12} className="absolute right-3 top-3 text-emerald-500" />}
+                  <select
+                    className={`w-full appearance-none p-2.5 pr-9 rounded-xl text-xs font-bold border outline-none focus:ring-2 focus:ring-red-500 ${temIrmao && !manualOverride.banca ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-zinc-50 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800'}`}
+                    value={isCreatingBanca ? '__nova_banca__' : formData.banca}
+                    onChange={e => {
+                      if (e.target.value === '__nova_banca__') {
+                        setIsCreatingBanca(true);
+                        setManualOverride(p => ({ ...p, banca: true }));
+                        setFormData(p => ({ ...p, banca: '' }));
+                        return;
+                      }
+                      setIsCreatingBanca(false);
+                      setManualOverride(p => ({ ...p, banca: true }));
+                      setFormData(p => ({ ...p, banca: e.target.value }));
+                    }}
+                    aria-label="Selecionar banca organizadora"
+                  >
+                    <option value="" disabled>Selecione a banca</option>
+                    {bancaOptions.map(banca => <option key={banca} value={banca}>{banca}</option>)}
+                    <option value="__nova_banca__">+ Cadastrar nova banca</option>
+                  </select>
+                  {temIrmao && !manualOverride.banca
+                    ? <Link size={12} className="pointer-events-none absolute right-3 top-3 text-emerald-500" />
+                    : <ChevronDown size={14} className="pointer-events-none absolute right-3 top-3 text-zinc-400" />}
                 </div>
+                {isCreatingBanca && (
+                  <div className="pt-1">
+                    <input
+                      autoFocus
+                      className="w-full rounded-xl border border-red-200 bg-red-50/60 p-2.5 text-xs font-bold outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500/20 dark:border-red-900/60 dark:bg-red-950/20"
+                      value={formData.banca}
+                      onChange={e => setFormData(p => ({ ...p, banca: e.target.value }))}
+                      placeholder="Digite o nome da nova banca"
+                      aria-label="Nome da nova banca"
+                    />
+                    <p className="mt-1 text-[9px] font-medium text-zinc-400">A nova banca ficará disponível após salvar este edital.</p>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -498,13 +549,19 @@ const CustomEditalModal = ({ onClose, editalToEdit, showToast, allEditais }) => 
                     <textarea
                       value={resumoIA}
                       onChange={e => setResumoIA(e.target.value)}
-                      placeholder={`Texto informativo que aparecerá no pop-up dos alunos com este edital no ciclo.\nDeixe em branco para não exibir pop-up.`}
+                      placeholder={isEditing
+                        ? `Texto informativo que aparecerá para os alunos com este edital no ciclo.\nDeixe em branco para não exibir a mensagem.`
+                        : `Texto informativo que aparecerá na Central de Notificações de todos os alunos.\nDeixe em branco para não anunciar o lançamento.`}
                       className="w-full h-20 p-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl text-xs text-zinc-700 dark:text-zinc-300 resize-none outline-none focus:ring-1 focus:ring-indigo-500 placeholder:text-zinc-400 leading-relaxed"
                     />
                     <p className="text-[9px] text-zinc-400 leading-relaxed">
                       {resumoIA.trim()
-                        ? `✅ Pop-up será exibido para todos os alunos com este edital no ciclo.`
-                        : `ℹ️ Sem mensagem — o sino ainda mostrará a atualização, mas sem pop-up descritivo.`
+                        ? (isEditing
+                          ? `✅ A mensagem será exibida para os alunos com este edital no ciclo.`
+                          : `✅ O novo edital será anunciado globalmente com logo, nome e esta mensagem.`)
+                        : (isEditing
+                          ? `ℹ️ Sem mensagem — o sino ainda poderá mostrar alterações detectadas no conteúdo.`
+                          : `ℹ️ Sem mensagem — o edital será salvo sem anúncio global.`)
                       }
                     </p>
                   </div>

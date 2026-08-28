@@ -45,6 +45,8 @@ import {
   getDisciplineColorForSlot,
   getDisciplineKey,
 } from '../../utils/disciplineColors';
+import ConsolidatedReviewGroups from './ConsolidatedReviewGroups';
+import { expandConsolidatedReviewTopics, groupConsolidatedReviewTopics } from '../../utils/consolidatedReviews';
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 const fmtMin = (min) => {
@@ -139,58 +141,7 @@ const getItemMinutes = (item) => Number(item?.tempoMinutos ?? item?.minutosEstud
 const getDayMinutesTotal = (items = []) => items.reduce((acc, item) => acc + getItemMinutes(item), 0);
 const normalizarModoTempo = (modo) => (modo === 'oculto' || modo === 'nenhum' ? 'total' : (modo || 'detalhado'));
 
-const topicosFromReviewSlot = (item) => {
-  const dadosSlot = {
-    slotId: item.slotId,
-    slotIdBase: item.slotIdBase,
-    dataSlot: item.dataSlot,
-    intervaloDias: item.intervaloDias ?? '?',
-    tempoMinutos: item.tempoMinutos ?? item.minutosEstudo ?? 0,
-    isRevisaoAuto: true,
-    reagendadaPorFila: Boolean(item.reagendadaPorFila),
-    dataOriginalFila: item.dataOriginalFila || null,
-  };
-
-  if (Array.isArray(item.topicosRevisao) && item.topicosRevisao.length > 0) {
-    return item.topicosRevisao.map((topico) => ({ ...topico, ...dadosSlot }));
-  }
-
-  return [{
-    ...dadosSlot,
-    disciplinaId: item.disciplinaId,
-    disciplinaNome: item.disciplinaNome || getNomeDisc(item) || 'Revisão',
-    assunto: item.assunto || item.assuntoOriginal || 'Revisão agendada',
-  }];
-};
-
-const agruparTopicosRevisaoPorDisciplina = (topicos = [], colorMap = null) => {
-  const grupos = new Map();
-
-  topicos.forEach((topico) => {
-    const nome = topico.disciplinaNome || topico.disciplina || 'Disciplina';
-    const chave = getDisciplineKey(topico.disciplinaId || nome);
-    if (!grupos.has(chave)) {
-      const cor = getDisciplineColorForSlot({
-        disciplinaId: topico.disciplinaId,
-        disciplinaNome: nome,
-      }, colorMap);
-      grupos.set(chave, {
-        chave,
-        nome,
-        cor,
-        topicos: [],
-        tempoMinutos: 0,
-      });
-    }
-
-    const grupo = grupos.get(chave);
-    const tempoMinutos = Number(topico.tempoMinutos || 0);
-    grupo.topicos.push(topico);
-    grupo.tempoMinutos += tempoMinutos;
-  });
-
-  return Array.from(grupos.values());
-};
+const topicosFromReviewSlot = (item) => expandConsolidatedReviewTopics([item]);
 
 const agruparRevisoesDoDia = (items = [], dayKey = '') => {
   const revisoes = items.filter(isReviewSlot);
@@ -239,7 +190,12 @@ const SlotCard = ({ item, onClick, compact = false, config = {}, colorMap = null
   const nomeDisc   = getNomeDisc(item);
   const assuntoTxt = getTextoAssunto(item, config);
   const gruposRevisao = item.isConsolidada
-    ? agruparTopicosRevisaoPorDisciplina(item.topicosRevisao || [], colorMap)
+    ? groupConsolidatedReviewTopics(item.topicosRevisao || [], colorMap).map((group) => ({
+        chave: group.key,
+        nome: group.name,
+        cor: group.color,
+        topicos: group.topics,
+      }))
     : [];
 
   if (compact) {
@@ -495,12 +451,6 @@ const Step5_Preview = ({
       excludeReviewBlue: false,
     });
   }, [disciplinas, resultado?.semanaTemplate]);
-
-  const gruposRevisaoModal = useMemo(() => (
-    modalSlot?.isConsolidada
-      ? agruparTopicosRevisaoPorDisciplina(modalSlot.topicosRevisao || [], colorMap)
-      : []
-  ), [modalSlot, colorMap]);
 
   useEffect(() => {
     setReviewModalZoom(1);
@@ -1213,57 +1163,7 @@ const Step5_Preview = ({
 
                     {/* [FIX-C] Revisão consolidada: lista os tópicos */}
                     {modalSlot.isConsolidada && modalSlot.topicosRevisao?.length > 0 ? (
-                      <div className="grid gap-3 lg:grid-cols-2">
-                        {gruposRevisaoModal.map((grupo) => (
-                          <section
-                            key={grupo.chave}
-                            style={getDisciplineCardVars(grupo.cor)}
-                            className="discipline-tinted-card min-w-0 overflow-hidden rounded-2xl border shadow-sm"
-                          >
-                            <div className="flex items-center justify-between gap-3 border-b border-black/5 px-3.5 py-3 dark:border-white/10">
-                              <div className="flex min-w-0 items-center gap-2.5">
-                                <span className={`h-3 w-3 shrink-0 rounded-full shadow-sm ${grupo.cor.bg}`} />
-                                <div className="min-w-0">
-                                  <h4 className={`truncate text-[11px] font-black uppercase tracking-wide ${grupo.cor.text} dark:text-white`}>
-                                    {grupo.nome}
-                                  </h4>
-                                  <p className="mt-0.5 text-[9px] font-bold text-zinc-500 dark:text-zinc-400">
-                                    {grupo.topicos.length} {grupo.topicos.length === 1 ? 'assunto' : 'assuntos'}
-                                  </p>
-                                </div>
-                              </div>
-                              <span className={`shrink-0 rounded-lg border px-2 py-1 text-[9px] font-black ${grupo.cor.soft}`}>
-                                {grupo.tempoMinutos} min
-                              </span>
-                            </div>
-
-                            <ul className="space-y-1.5 p-2.5">
-                              {grupo.topicos.map((topico, indice) => (
-                                <li key={`${topico.slotId || grupo.chave}-${indice}`} className="flex min-w-0 items-start gap-2.5 rounded-xl border border-white/70 bg-white/80 px-2.5 py-2.5 dark:border-white/5 dark:bg-zinc-900/65">
-                                  <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[9px] font-black text-white ${grupo.cor.bg}`}>
-                                    {indice + 1}
-                                  </span>
-                                  <div className="min-w-0 flex-1">
-                                    <div className="flex min-w-0 items-start justify-between gap-2">
-                                      <p className="line-clamp-2 text-[11px] font-semibold leading-snug text-zinc-700 dark:text-zinc-200">
-                                        {topico.assunto}
-                                      </p>
-                                      <span className={`shrink-0 rounded-md px-1.5 py-0.5 text-[9px] font-black tabular-nums ${grupo.cor.soft}`}>
-                                        {Number(topico.tempoMinutos || 5)} min
-                                      </span>
-                                    </div>
-                                    {topico.reagendadaPorFila && (
-                                      <span className="mt-1 inline-flex rounded-full bg-amber-100 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">
-                                        Pendente priorizada
-                                      </span>
-                                    )}
-                                  </div>
-                                </li>
-                              ))}
-                            </ul>
-                          </section>
-                        ))}
-                      </div>
+                      <ConsolidatedReviewGroups topics={modalSlot.topicosRevisao} colorMap={colorMap} />
                     ) : (
                       /* [FIX-B] Revisão individual: mostra assunto revisado */
                       <p className="text-sm font-bold text-zinc-700 dark:text-zinc-300 leading-relaxed">

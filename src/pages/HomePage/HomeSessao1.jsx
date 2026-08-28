@@ -80,6 +80,28 @@ const getMultiplierBadge = (multiplier) => {
   return null;
 };
 
+const STREAK_DAY_STYLES = {
+  studied: 'bg-emerald-500 h-full shadow-[0_0_10px_rgba(16,185,129,0.3)]',
+  recovered: 'bg-emerald-500 h-full shadow-[0_0_10px_rgba(16,185,129,0.3)] ring-1 ring-emerald-200',
+  recovery_pending: 'bg-amber-500 h-[75%] shadow-[0_0_10px_rgba(245,158,11,0.3)]',
+  failed: 'bg-red-500 h-[40%] shadow-[0_0_10px_rgba(239,68,68,0.3)]',
+  rest: 'bg-zinc-200 dark:bg-zinc-800/70 h-full border-dashed border-zinc-300 dark:border-zinc-700',
+  not_applicable: 'bg-zinc-200 dark:bg-zinc-800/60 h-[10%]',
+};
+
+const getStreakDayStyle = (state) => (
+  STREAK_DAY_STYLES[state] || STREAK_DAY_STYLES.not_applicable
+);
+
+const getStreakDayLabel = (state) => {
+  if (state === 'studied') return 'Estudo contado na sequência';
+  if (state === 'recovered') return 'Recuperação concluída e contada na sequência';
+  if (state === 'recovery_pending') return 'Recuperação pendente';
+  if (state === 'failed') return 'Sequência quebrada';
+  if (state === 'rest') return 'Descanso, protege mas não conta';
+  return 'Fora da sequência';
+};
+
 const WeeklyStudyTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
   const data = payload[0]?.payload || {};
@@ -534,7 +556,6 @@ export default function HomeSessao1({
   headerSlot,
   daysLimit = 12,
 }) {
-  const [isHoveringMultiplier, setIsHoveringMultiplier] = useState(false);
   const badgeConfig = getMultiplierBadge(homeStats.multiplier);
 
   const statsGrid = (
@@ -583,11 +604,7 @@ export default function HomeSessao1({
         <div className="absolute inset-0 bg-gradient-to-br from-orange-500/5 to-transparent pointer-events-none" />
 
         <div className="flex items-start gap-3 w-full relative pointer-events-none z-10">
-          <div
-            className="relative pointer-events-auto cursor-help shrink-0"
-            onMouseEnter={() => setIsHoveringMultiplier(true)}
-            onMouseLeave={() => setIsHoveringMultiplier(false)}
-          >
+          <div className="relative pointer-events-auto shrink-0">
                 <div className="absolute inset-0 animate-ping rounded-full bg-orange-500/20 opacity-35 duration-[3s]" />
                 <div className="relative flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-600 via-orange-500 to-amber-500 text-white shadow-lg shadow-orange-500/20 transition-all duration-500 group-hover/card:scale-105">
                 <AnimatedStreakFlame active={homeStats.streak > 0} compact={compact} />
@@ -608,14 +625,6 @@ export default function HomeSessao1({
                     </motion.div>
                   )}
                 </AnimatePresence>
-                <AnimatePresence>
-                  {isHoveringMultiplier && badgeConfig && (
-                    <motion.div initial={{ opacity: 0, x: -10, scale: 0.9 }} animate={{ opacity: 1, x: 0, scale: 1 }} exit={{ opacity: 0, x: -10, scale: 0.9 }} transition={{ duration: 0.2 }} className="absolute bottom-full left-full -ml-8 mb-2 w-36 bg-zinc-900/95 backdrop-blur-md text-white text-[10px] p-2.5 rounded-xl border border-zinc-700 shadow-2xl z-[100] text-center">
-                      <p className="font-bold mb-0.5 uppercase tracking-wider text-orange-400 text-[9px]">Bonus Ativo</p>
-                      <p className="leading-tight opacity-90 font-medium">Mantenha a sequencia.</p>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
           </div>
 
           <div className="min-w-0 flex-1 pointer-events-auto w-full">
@@ -633,7 +642,7 @@ export default function HomeSessao1({
             {diasEstudo && (
               <p className="text-[10px] text-zinc-400 mt-1 flex items-center gap-1">
                 <Coffee size={12} className="text-zinc-300" />
-                Dias de descanso não quebram a sequência
+                Verde conta; descanso protege, mas não soma
               </p>
             )}
           </div>
@@ -654,33 +663,8 @@ export default function HomeSessao1({
             const isToday = day.date === dateToYMDLocal(new Date());
             const hideOnMobile = index < Math.max(0, streakDays.length - 10);
 
-            if (day.isRestDay) {
-              return (
-                <div key={day.date} className={`relative group/day flex-1 flex flex-col items-center gap-0 hover:z-[60] ${hideOnMobile ? 'hidden sm:flex' : 'flex'}`}>
-                  <div className={`${compact ? 'h-8' : 'h-7'} w-full flex items-end`}>
-                    <div
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => handleDayClick?.(day.date)}
-                      onKeyDown={(event) => { if (event.key === 'Enter') handleDayClick?.(day.date); }}
-                      className={`relative w-full rounded-md h-full flex items-center justify-center bg-emerald-500 border border-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.2)] cursor-pointer active:scale-95 transition-all duration-300 ${
-                        isToday ? 'ring-1 ring-orange-500' : ''
-                      }`}
-                    >
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="relative flex h-6 w-6 items-center justify-center rounded-full bg-white/14 ring-1 ring-white/18">
-                          <div className="absolute inset-0 rounded-full bg-white/12 blur-[2px]" />
-                          <Coffee size={11} className="relative text-white drop-shadow-sm" strokeWidth={2.35} />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <span className={`text-[9px] font-bold tracking-tight leading-none mt-1 ${isToday ? 'text-orange-500' : 'text-zinc-400 dark:text-zinc-500'}`}>
-                    {dateDisplay}
-                  </span>
-                </div>
-              );
-            }
+            const streakState = day.streakState || (day.isRestDay ? 'rest' : 'not_applicable');
+            const isRest = streakState === 'rest';
 
             return (
               <div key={day.date} className={`relative group/day flex-1 flex flex-col items-center gap-0 hover:z-[60] ${hideOnMobile ? 'hidden sm:flex' : 'flex'}`}>
@@ -688,16 +672,25 @@ export default function HomeSessao1({
                   <div
                     role="button"
                     tabIndex={0}
+                    title={getStreakDayLabel(streakState)}
                     onClick={() => handleDayClick?.(day.date)}
                     onKeyDown={(event) => { if (event.key === 'Enter') handleDayClick?.(day.date); }}
-                    className={`w-full rounded-md transition-all duration-500 ease-out border border-white/5
-                      ${day.status === 'goal-met-both' ? 'bg-emerald-500 h-full shadow-[0_0_10px_rgba(16,185,129,0.3)]' : ''}
-                      ${day.status === 'goal-met-one' ? 'bg-amber-500 h-[75%] shadow-[0_0_10px_rgba(245,158,11,0.3)]' : ''}
-                      ${day.status === 'goal-not-met' ? 'bg-red-500 h-[40%] shadow-[0_0_10px_rgba(239,68,68,0.3)]' : ''}
-                      ${day.status === 'no-data' ? 'bg-zinc-200 dark:bg-zinc-800/60 h-[10%]' : ''}
+                    className={`relative w-full rounded-md transition-all duration-500 ease-out border border-white/5 flex items-center justify-center
+                      ${getStreakDayStyle(streakState)}
                       ${isToday ? 'ring-1 ring-orange-500' : ''}
                       cursor-pointer active:scale-95`}
-                  />
+                  >
+                    {isRest && (
+                      <div className="relative flex h-6 w-6 items-center justify-center rounded-full bg-white/70 text-zinc-400 ring-1 ring-zinc-300/70 dark:bg-zinc-900/60 dark:text-zinc-500 dark:ring-zinc-700">
+                        <Coffee size={11} className="relative" strokeWidth={2.35} />
+                      </div>
+                    )}
+                    {streakState === 'recovered' && (
+                      <div className="absolute right-1 top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-white/85 text-emerald-600 shadow-sm dark:bg-zinc-900/80">
+                        <RotateCw size={9} strokeWidth={3} />
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <span className={`text-[9px] font-bold tracking-tight leading-none mt-1 ${isToday ? 'text-orange-500' : 'text-zinc-400 dark:text-zinc-500'}`}>
                   {dateDisplay}

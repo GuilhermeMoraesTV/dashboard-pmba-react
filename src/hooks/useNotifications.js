@@ -4,10 +4,9 @@ import {
   collection, query, where, onSnapshot, orderBy, limit,
   doc, getDoc, getDocs, updateDoc, writeBatch, serverTimestamp,
 } from 'firebase/firestore';
-import { CATALOGO_EDITAIS } from '../pages/AdminPage/EditaisManager';
-import { normalizeNotification } from '../services/notificationContract';
+import { isEditalLaunchNotification, isXPNotification, normalizeNotification } from '../services/notificationContract';
 import { respondToGroupEntryRequest } from '../services/groupMembership';
-import { isLeagueOnlyNotification, sanitizeLeagueXPEvent } from '../config/featureFlags';
+import { isLeagueOnlyNotification } from '../config/featureFlags';
 
 // =======================================================
 // HELPERS E ALGORITMOS DE MATCHING (INTELIGÊNCIA)
@@ -251,22 +250,6 @@ export const buscarDadosTemplateFresh = async (templateId) => {
     }
   } catch {}
 
-  if (!resultado) {
-    const seed = CATALOGO_EDITAIS.find((e) => e.id === templateId);
-    if (seed?.disciplinas?.length) {
-      resultado = {
-        disciplinas: seed.disciplinas.map((d) => ({
-          nome: d.nome || '',
-          assuntos: (d.assuntos || []).map((a) => (typeof a === 'string' ? a : a?.nome || '')).filter(Boolean),
-          peso: d.peso || 3,
-        })),
-        titulo: seed.titulo,
-        banca: seed.banca || '',
-        logoUrl: seed.logoUrl || seed.logo || null,
-        _origem: 'seed',
-      };
-    }
-  }
   _templateCache.set(templateId, resultado);
   return resultado;
 };
@@ -330,6 +313,7 @@ export const useNotifications = (user) => {
   const [loading, setLoading] = useState(false);
   const [operationalNotifications, setOperationalNotifications] = useState([]);
   const [userCreatedAtMillis, setUserCreatedAtMillis] = useState(null);
+  const [backgroundAuditReady, setBackgroundAuditReady] = useState(false);
 
   const ciclosRef = useRef([]);
   const templateUnsubsRef = useRef({});
@@ -338,6 +322,19 @@ export const useNotifications = (user) => {
   const pendingCheckRef = useRef({});
   const debounceTimersRef = useRef({});
   const debounceOrigemRef = useRef({});
+
+  useEffect(() => {
+    setBackgroundAuditReady(false);
+    if (!user?.uid) return undefined;
+    const activate = () => setBackgroundAuditReady(true);
+    const idleId = typeof window.requestIdleCallback === 'function'
+      ? window.requestIdleCallback(activate, { timeout: 2500 })
+      : window.setTimeout(activate, 1800);
+    return () => {
+      if (typeof window.cancelIdleCallback === 'function') window.cancelIdleCallback(idleId);
+      else window.clearTimeout(idleId);
+    };
+  }, [user?.uid]);
 
   useEffect(() => {
     if (!user) {
@@ -404,14 +401,14 @@ export const useNotifications = (user) => {
   // 2. Load Broadcasts
   useEffect(() => {
     if (!user) return;
-    const q = query(collection(db, 'system_broadcasts'), where('active', '==', true), orderBy('timestamp', 'desc'), limit(20));
+    const q = query(collection(db, 'system_broadcasts'), where('active', '==', true), orderBy('timestamp', 'desc'), limit(50));
     const unsub = onSnapshot(q, (snap) => {
       const createdAtMillis = userCreatedAtMillis || getAuthCreatedAtMillis(user);
       setBroadcasts(
         snap.docs.map((d) => ({
             id: d.id, ...d.data(),
             timestamp: d.data().timestamp?.toDate?.() || new Date(d.data().createdAt || Date.now()),
-            _type: 'broadcast',
+            _type: isEditalLaunchNotification(d.data()) ? 'edital_launch' : 'broadcast',
           })).filter((b) => {
             if (b.targetUid) return b.targetUid === user.uid;
             if (Array.isArray(b.targetUserIds) && b.targetUserIds.length > 0 && !b.targetUserIds.includes(user.uid)) return false;
@@ -426,7 +423,7 @@ export const useNotifications = (user) => {
 
   // 3. Checagem de Editais
   useEffect(() => {
-    if (!user) return;
+    if (!user || !backgroundAuditReady) return undefined;
     const publicarUpdates = () => setEditalUpdates(Object.values(editalUpdatesRef.current));
 
     const executarChecagem = async (ciclo, tData) => {
@@ -507,17 +504,11 @@ export const useNotifications = (user) => {
 
     const subscreverTemplate = (templateId) => {
       if (templateUnsubsRef.current[templateId]) return;
-      const seed = CATALOGO_EDITAIS.find((e) => e.id === templateId);
       const unsub = onSnapshot(doc(db, 'editais_templates', templateId), (tSnap) => {
         let tData = null;
         if (tSnap.exists() && !tSnap.data().deleted) {
           tData = { ...tSnap.data(), _origem: 'firestore' };
           _templateCache.set(templateId, tData);
-        } else if (seed?.disciplinas?.length) {
-          tData = {
-            disciplinas: seed.disciplinas.map((d) => ({ nome: d.nome || '', assuntos: (d.assuntos || []).map((a) => (typeof a === 'string' ? a : a?.nome || '')).filter(Boolean), peso: d.peso || 3 })),
-            titulo: seed.titulo, banca: seed.banca || '', logoUrl: seed.logoUrl || seed.logo || null, _origem: 'seed',
-          };
         }
         const ciclosDoTemplate = ciclosRef.current.filter((c) => c.arquivado !== true && getTemplateIdDoCiclo(c) === templateId);
         for (const ciclo of ciclosDoTemplate) { agendarChecagem(ciclo, tData, true); }
@@ -571,23 +562,24 @@ export const useNotifications = (user) => {
       debounceTimersRef.current = {};
       debounceOrigemRef.current = {};
     };
-  }, [user]);
+  }, [backgroundAuditReady, user]);
 
   useEffect(() => {
     if (!user?.uid) { setOperationalNotifications([]); return undefined; }
-    const state = { xp: [], personal: [] };
-    const publish = () => setOperationalNotifications([...state.xp, ...state.personal].sort((a, b) => (toMillisSafe(b.timestamp) || 0) - (toMillisSafe(a.timestamp) || 0)));
-    const xpQuery = query(collection(db, 'users', user.uid, 'gamification', 'profile', 'xp_events'), orderBy('occurredAt', 'desc'), limit(40));
-    const personalQuery = query(collection(db, 'users', user.uid, 'notifications'), orderBy('createdAt', 'desc'), limit(40));
-    const stopXP = onSnapshot(xpQuery, (snapshot) => {
-      state.xp = snapshot.docs.map((item) => sanitizeLeagueXPEvent({ id: item.id, ...item.data(), _type: 'operational', operationalKind: 'xp', sourceCollection: 'xp_events', title: `+${Number(item.data().xpTotal || 0)} XP`, timestamp: item.data().occurredAt?.toDate?.() || new Date(), requiresAction: false })).filter((item) => item.isRead !== true);
-      publish();
-    }, (error) => console.warn('[Notificações] XP indisponível:', error.code || error));
-    const stopPersonal = onSnapshot(personalQuery, (snapshot) => {
-      state.personal = snapshot.docs.map((item) => ({ id: item.id, ...item.data(), _type: 'operational', operationalKind: item.data().type || 'system', sourceCollection: 'notifications', timestamp: item.data().createdAt?.toDate?.() || new Date() })).filter((item) => item.isRead !== true && !isLeagueOnlyNotification(item));
-      publish();
-    }, (error) => console.warn('[Notificações] Feed pessoal indisponível:', error.code || error));
-    return () => { stopXP(); stopPersonal(); };
+    const personalQuery = query(collection(db, 'users', user.uid, 'notifications'), where('isRead', '==', false), orderBy('createdAt', 'desc'), limit(30));
+    const publishPersonal = (snapshot) => {
+      const personal = snapshot.docs
+        .map((item) => ({ id: item.id, ...item.data(), _type: 'operational', operationalKind: item.data().type || 'system', sourceCollection: 'notifications', timestamp: item.data().createdAt?.toDate?.() || new Date() }))
+        .filter((item) => item.isRead !== true && !isLeagueOnlyNotification(item) && !isXPNotification(item))
+        .sort((a, b) => (toMillisSafe(b.timestamp) || 0) - (toMillisSafe(a.timestamp) || 0));
+      setOperationalNotifications(personal);
+    };
+    let stopPersonalFallback = null;
+    const stopPersonal = onSnapshot(personalQuery, publishPersonal, (error) => {
+      console.warn('[Notificações] Índice otimizado do feed indisponível; usando consulta compatível:', error.code || error);
+      stopPersonalFallback = onSnapshot(query(collection(db, 'users', user.uid, 'notifications'), orderBy('createdAt', 'desc'), limit(30)), publishPersonal);
+    });
+    return () => { stopPersonal(); stopPersonalFallback?.(); };
   }, [user?.uid]);
 
   // Exclui os apagados da visão
@@ -598,7 +590,7 @@ export const useNotifications = (user) => {
     .map(normalizeNotification);
   const activeHistory = dismissedHistory.filter(h => {
       const hId = h.id || `edital_${h.cicloId}_${h.versionKey}`;
-      return !deletedNotifs.has(hId);
+      return !deletedNotifs.has(hId) && !isXPNotification(h);
   }).map((h) => normalizeNotification({
       ...h,
       id: h.id || `edital_${h.cicloId}_${h.versionKey}`,
@@ -616,13 +608,16 @@ export const useNotifications = (user) => {
     setDismissedHistory((history) => {
       const incoming = items.map((item) => {
         const type = item._type || (item.cicloId ? 'edital_update' : 'broadcast');
-        if (type === 'broadcast') {
+        if (type === 'broadcast' || type === 'edital_launch') {
           return {
             id: item.id,
-            _type: 'broadcast',
+            _type: type,
             category: item.category || 'comunicado',
             title: item.title || item.titulo || null,
             message: item.message || '',
+            editalId: item.editalId || item.templateId || null,
+            templateId: item.templateId || item.editalId || null,
+            logoUrl: item.logoUrl || item.imageUrl || null,
             imageUrl: item.imageUrl || item.imageUrls?.[0] || null,
             timestamp: item.timestamp instanceof Date ? item.timestamp.toISOString() : item.timestamp || null,
             isDismissed: true,
@@ -668,9 +663,7 @@ export const useNotifications = (user) => {
 
   const markOperationalRead = useCallback(async (item) => {
     if (!user?.uid || !item?.id) return;
-    const target = item.sourceCollection === 'xp_events'
-      ? doc(db, 'users', user.uid, 'gamification', 'profile', 'xp_events', item.id)
-      : doc(db, 'users', user.uid, 'notifications', item.id);
+    const target = doc(db, 'users', user.uid, 'notifications', item.id);
     await updateDoc(target, { isRead: true, readAt: serverTimestamp(), updatedAt: serverTimestamp() });
   }, [user?.uid]);
 
@@ -700,9 +693,16 @@ export const useNotifications = (user) => {
           dismissedUpdateVersion: item.versionKey,
         })
       )));
-      await Promise.all(operationalNotifications.map(markOperationalRead));
+      for (let start = 0; start < operationalNotifications.length; start += 100) {
+        const batch = writeBatch(db);
+        operationalNotifications.slice(start, start + 100).forEach((item) => {
+          const target = doc(db, 'users', user.uid, 'notifications', item.id);
+          batch.update(target, { isRead: true, readAt: serverTimestamp(), updatedAt: serverTimestamp() });
+        });
+        await batch.commit();
+      }
     } catch {}
-  }, [user, operationalNotifications, activeBroadcasts, activeEditalUpdates, rawActiveEditalUpdates, addItemsToHistory, markOperationalRead]);
+  }, [user, operationalNotifications, activeBroadcasts, activeEditalUpdates, rawActiveEditalUpdates, addItemsToHistory]);
 
   const deleteBroadcast = useCallback((id) => {
       if (!user) return;

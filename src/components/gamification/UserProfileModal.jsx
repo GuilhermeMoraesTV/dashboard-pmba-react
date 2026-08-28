@@ -2,274 +2,228 @@ import React, { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion as Motion, useReducedMotion } from 'framer-motion';
 import {
-  BookOpen,
-  CalendarDays,
-  CheckCircle2,
-  Clock3,
-  Crown,
-  Diamond,
-  Gem,
-  ListChecks,
-  Medal,
-  Shield,
-  Target,
-  Trophy,
-  Users,
-  X,
-  XCircle,
+  BookOpen, CalendarDays, CheckCircle2, Clock3, Flame, ListChecks, Trophy, Users, X,
 } from 'lucide-react';
-import { formatStudyMinutes, getLeague } from '../../utils/gamification';
+import { formatStudyMinutes } from '../../utils/gamification';
 import { coverPositionToStyle } from '../../utils/profileCover';
-import { LEAGUES_ENABLED } from '../../config/featureFlags';
+import ProfileLevelRing from './ProfileLevelRing';
 
-const leagueIcons = {
-  shield: Shield,
-  medal: Medal,
-  crown: Crown,
-  gem: Gem,
-  diamond: Diamond,
-};
-
-const knownEditalLogos = [
+const knownLogos = [
   'gcmaquiraz', 'gcmgoiania', 'gcmrecife', 'gcmsalvador', 'gcmviana',
   'cbmerj', 'cbmmg', 'cbmba', 'pmerj', 'pmmg', 'pmgo', 'pmes', 'pmpe',
   'pmpi', 'pmse', 'pmsp', 'pmal', 'pmba', 'pcpe', 'pcsc', 'pcba', 'ppmg', 'prf',
 ];
 
-const initials = (name = 'E') => String(name)
-  .split(' ')
-  .filter(Boolean)
-  .slice(0, 2)
-  .map((part) => part[0])
-  .join('')
-  .toUpperCase();
-
+const clean = (value = '') => String(value).toLowerCase().normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
 const number = (value) => Math.max(0, Number(value) || 0);
 const formatNumber = (value) => number(value).toLocaleString('pt-BR');
-
 const timestampMillis = (value) => {
-  if (value?.toMillis) return value.toMillis();
-  if (value?.toDate) return value.toDate().getTime();
-  if (value instanceof Date) return value.getTime();
-  const numeric = Number(value);
-  if (Number.isFinite(numeric) && numeric > 0) return numeric;
-  const parsed = new Date(value || 0).getTime();
-  return Number.isNaN(parsed) ? 0 : parsed;
+  if (!value) return 0;
+  if (typeof value?.toMillis === 'function') return Number(value.toMillis()) || 0;
+  if (typeof value?.toDate === 'function') return value.toDate()?.getTime?.() || 0;
+  if (Number.isFinite(Number(value))) return Number(value);
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : 0;
 };
 
-const formatPlatformDays = (value) => {
-  const millis = timestampMillis(value);
-  if (!millis) return null;
-  const days = Math.max(1, Math.ceil((Date.now() - millis) / 86400000));
-  return days.toLocaleString('pt-BR');
+const platformDays = (value) => {
+  const createdAt = timestampMillis(value);
+  if (!createdAt || createdAt > Date.now()) return null;
+  return Math.max(1, Math.floor((Date.now() - createdAt) / 86400000));
 };
 
-const normalizeSlug = (value = '') => String(value)
-  .toLowerCase()
-  .normalize('NFD')
-  .replace(/[\u0300-\u036f]/g, '')
-  .replace(/[^a-z0-9]/g, '');
-
-const resolveEditalLogo = (edital = {}) => {
+const editalLogo = (edital = {}) => {
   const direct = edital.logoURL || edital.logoUrl || edital.logo || edital.editalLogoUrl;
   if (direct) return direct;
-  const identity = [edital.id, edital.editalId, edital.templateId, edital.name, edital.nome]
-    .map(normalizeSlug)
-    .filter(Boolean);
-  const known = knownEditalLogos.find((code) => identity.some((value) => value.includes(code)));
+  const values = [edital.id, edital.editalId, edital.templateId, edital.name, edital.nome].map(clean);
+  const known = knownLogos.find((code) => values.some((value) => value.includes(code)));
   return known ? `/logosEditais/logo-${known}.png` : null;
 };
 
-const isPublicEdital = (edital) => {
+const publicEdital = (edital) => {
   if (!edital || typeof edital !== 'object') return false;
-  const id = normalizeSlug(edital.id || edital.editalId || edital.templateId);
-  const name = normalizeSlug(edital.name || edital.nome || edital.editalNome);
+  const id = clean(edital.id || edital.editalId || edital.templateId);
+  const name = clean(edital.name || edital.nome || edital.editalNome);
   return Boolean(name) && id !== 'manual' && name !== 'planejamentoreservado';
 };
 
-const PublicAvatar = ({ name, photoURL }) => {
-  const [imageFailed, setImageFailed] = useState(false);
-
-  useEffect(() => setImageFailed(false), [photoURL]);
-
-  return (
-    <div className="relative flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-full border-4 border-white bg-zinc-100 text-2xl font-black text-zinc-500 shadow-2xl ring-4 ring-zinc-100 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300 dark:ring-zinc-900/60 sm:h-32 sm:w-32 lg:h-36 lg:w-36">
-      {photoURL && !imageFailed
-        ? <img src={photoURL} alt={`Foto de ${name}`} className="h-full w-full object-cover" onError={() => setImageFailed(true)}/>
-        : <span aria-hidden="true">{initials(name)}</span>}
-    </div>
-  );
+const publicStudyGroups = (member = {}) => {
+  const source = member.studyGroups || member.groups || member.gruposEstudo || [];
+  if (!Array.isArray(source)) return [];
+  const unique = new Map();
+  source.forEach((group, index) => {
+    if (!group || typeof group !== 'object') return;
+    const name = String(group.name || group.nome || '').trim();
+    const id = String(group.id || group.groupId || `${name}:${index}`);
+    if (name && !unique.has(id)) unique.set(id, { ...group, id, name });
+  });
+  return [...unique.values()];
 };
 
-const CompactEdital = ({ edital }) => {
-  const logoURL = resolveEditalLogo(edital);
-  const [imageFailed, setImageFailed] = useState(false);
-  const name = edital.name || edital.nome || edital.editalNome || 'Edital sem nome';
-
-  useEffect(() => setImageFailed(false), [logoURL]);
-
+const EditalBadge = ({ edital }) => {
+  const logo = editalLogo(edital);
+  const name = edital.name || edital.nome || edital.editalNome || 'Edital';
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [logo]);
   return (
-    <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-zinc-200 bg-white py-1 pl-1 pr-2.5 text-zinc-700 shadow-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 sm:max-w-[240px]">
-      <span className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full bg-zinc-100 p-0.5 text-red-600 dark:bg-zinc-100">
-        {logoURL && !imageFailed
-          ? <img src={logoURL} alt="" className="h-full w-full object-contain" onError={() => setImageFailed(true)}/>
+    <span title={name} className="inline-flex min-w-0 max-w-[230px] items-center gap-2 rounded-full border border-zinc-200 bg-white/85 py-1 pl-1 pr-2.5 text-[10px] font-bold text-zinc-600 shadow-sm backdrop-blur dark:border-zinc-700 dark:bg-zinc-800/90 dark:text-zinc-300">
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full bg-zinc-100 p-0.5 text-red-600 dark:bg-zinc-700">
+        {logo && !failed
+          ? <img src={logo} alt="" className="h-full w-full object-contain" onError={() => setFailed(true)}/>
           : <BookOpen size={12}/>}
       </span>
-      <strong className="min-w-0 truncate text-[9px] font-black" title={name}>{name}</strong>
+      <span className="truncate">{name}</span>
     </span>
   );
 };
 
-const MetricCard = ({ icon: Icon, label, value, subtext }) => (
-  <article className="group relative min-w-0 overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white px-3 py-3 shadow-soft transition-all duration-300 hover:-translate-y-0.5 hover:border-red-500/35 hover:!border-l-red-500 hover:shadow-lg dark:border-white/10 dark:!border-l-red-500/25 dark:bg-card-dark dark:hover:border-red-500/25 dark:hover:!border-l-red-500">
-    <div className="relative z-20 min-w-0">
-      <p className="truncate text-[9px] font-bold uppercase tracking-wider text-text-secondary dark:text-text-dark-secondary">{label}</p>
-      <strong className="mt-1 block truncate text-xl font-extrabold leading-none tracking-tight text-text-primary dark:text-text-dark-primary sm:text-2xl" title={String(value)}>{value}</strong>
-      {subtext && <p className="mt-1.5 truncate text-[8px] font-semibold text-zinc-400">{subtext}</p>}
+const GroupBadge = ({ group }) => {
+  const name = group.name || group.nome || 'Grupo de estudo';
+  return (
+    <span title={name} className="inline-flex min-w-0 max-w-[230px] items-center gap-2 rounded-full border border-zinc-200 bg-white/85 py-1 pl-1 pr-2.5 text-[10px] font-bold text-zinc-600 shadow-sm backdrop-blur dark:border-zinc-700 dark:bg-zinc-800/90 dark:text-zinc-300">
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full bg-red-50 text-red-600 dark:bg-red-950/30 dark:text-red-400">
+        {group.photoURL ? <img src={group.photoURL} alt="" className="h-full w-full object-cover"/> : <Users size={12}/>}
+      </span>
+      <span className="truncate">{name}</span>
+    </span>
+  );
+};
+
+const ProfileTag = ({ icon: Icon, label, value, tone = 'orange', title = '' }) => (
+  <span title={title || `${label}: ${value}`} className="inline-flex min-w-0 max-w-[230px] items-center gap-2 rounded-full border border-zinc-200 bg-white/85 py-1 pl-1 pr-2.5 text-[10px] font-bold text-zinc-600 shadow-sm backdrop-blur dark:border-zinc-700 dark:bg-zinc-800/90 dark:text-zinc-300">
+    <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${tone === 'amber' ? 'bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400' : 'bg-orange-50 text-orange-600 dark:bg-orange-950/30 dark:text-orange-400'}`}>
+      {React.createElement(Icon, { size: 12, strokeWidth: 2 })}
+    </span>
+    <span className="truncate">{label} <strong className="font-black text-zinc-900 dark:text-white">{value}</strong></span>
+  </span>
+);
+
+const SectionTitle = ({ children }) => (
+  <h3 className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
+    {children}
+  </h3>
+);
+
+const EmptyAssociations = ({ children }) => (
+  <p className="text-[10px] font-semibold text-zinc-400">
+    {children}
+  </p>
+);
+
+const MetricCard = ({ icon: Icon, label, value }) => (
+  <article className="min-w-0 rounded-2xl border border-zinc-200/90 bg-white p-3.5 shadow-[0_1px_2px_rgba(0,0,0,0.025)] dark:border-zinc-800 dark:bg-zinc-900 sm:p-4">
+    <div className="flex items-center justify-between gap-3">
+      <p className="text-[10px] font-bold leading-tight text-zinc-500 dark:text-zinc-400">{label}</p>
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+        {React.createElement(Icon, { size: 15, strokeWidth: 1.9 })}
+      </span>
     </div>
-    {React.createElement(Icon, { strokeWidth: 1.5, className: 'pointer-events-none absolute -bottom-4 -right-3 h-16 w-16 text-red-500/10 transition-all duration-700 group-hover:scale-125 group-hover:-rotate-6 dark:text-red-500/[0.07] sm:h-20 sm:w-20' })}
+    <strong className="mt-3 block truncate text-xl font-black leading-none tracking-tight text-zinc-950 dark:text-zinc-50 sm:text-2xl" title={String(value)}>{value}</strong>
   </article>
 );
 
 const UserProfileModal = ({ member, onClose }) => {
   const reduceMotion = useReducedMotion();
   const titleId = useId();
-  const closeButtonRef = useRef(null);
+  const closeRef = useRef(null);
   const [coverFailed, setCoverFailed] = useState(false);
   const coverURL = member?.coverURL || member?.coverUrl || member?.cover?.url || null;
 
   useEffect(() => setCoverFailed(false), [coverURL]);
-
   useEffect(() => {
     if (!member) return undefined;
-    const previousOverflow = document.body.style.overflow;
-    const previousActiveElement = document.activeElement;
-    const focusFrame = window.requestAnimationFrame(() => closeButtonRef.current?.focus());
+    const overflow = document.body.style.overflow;
+    const active = document.activeElement;
+    const frame = window.requestAnimationFrame(() => closeRef.current?.focus());
     document.body.style.overflow = 'hidden';
-    const handleKey = (event) => { if (event.key === 'Escape') onClose?.(); };
-    window.addEventListener('keydown', handleKey);
+    const keydown = (event) => { if (event.key === 'Escape') onClose?.(); };
+    window.addEventListener('keydown', keydown);
     return () => {
-      window.cancelAnimationFrame(focusFrame);
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener('keydown', handleKey);
-      previousActiveElement?.focus?.();
+      window.cancelAnimationFrame(frame);
+      document.body.style.overflow = overflow;
+      window.removeEventListener('keydown', keydown);
+      active?.focus?.();
     };
   }, [member, onClose]);
 
   if (!member || typeof document === 'undefined') return null;
 
-  const displayName = member.displayName || 'Estudante';
+  const name = member.displayName || 'Estudante';
+  const editais = Array.isArray(member.editais) ? member.editais.filter(publicEdital).slice(0, 2) : [];
+  const studyGroups = publicStudyGroups(member);
   const questions = number(member.questions);
   const correct = number(member.correct || member.acertos);
-  const errors = number(member.errors ?? member.erros ?? (questions - correct));
-  const accuracy = Math.min(100, Math.max(0, questions ? (correct / questions) * 100 : number(member.accuracy)));
-  const league = getLeague(member.leagueId || member.currentLeague || 'iron');
-  const LeagueIcon = leagueIcons[league.icon] || Shield;
-  const editais = Array.isArray(member.editais) ? member.editais.filter(isPublicEdital) : [];
-  const visibleEditais = editais.slice(0, 2);
-  const remainingEditais = Math.max(0, editais.length - visibleEditais.length);
-  const coverPosition = member.coverPosition || member.cover?.position || { x: 50, y: 50 };
-  const groupName = member.mainGroupName || member.groupName || 'Sem grupo principal';
-  const createdAt = member.platformSinceMillis
+  const streak = number(member.streak || member.currentStreak || member.studyStreak);
+  const level = Math.max(1, Math.floor(number(member.level) || 1));
+  const daysOnPlatform = platformDays(
+    member.platformSinceMillis
     || member.createdAtMillis
     || member.platformSince
     || member.accountCreatedAt
     || member.registrationDate
-    || member.createdAt;
-  const platformDays = formatPlatformDays(createdAt);
-  const rankingPosition = Math.max(0, Number(
-    member.publicRankingPosition
-    || member.positions?.questions
-    || member.generalPosition
-    || (LEAGUES_ENABLED ? member.leaguePosition : 0)
-    || member.position,
-  ) || 0);
-  const rankingLabel = member.publicRankingLabel
-    || (member.positions?.questions ? 'Ranking de questões' : 'Ranking atual');
+    || member.createdAt,
+  );
+  const rankingPosition = Math.max(0, Number(member.publicRankingPosition || member.positions?.questions || member.generalPosition || member.position) || 0);
+  const rankingLabel = member.publicRankingLabel || (member.positions?.questions ? 'Ranking de questões' : 'Ranking atual');
+  const bio = String(member.bio || member.biografia || member.about || '').trim();
+  const coverPosition = member.coverPosition || member.cover?.position || { x: 50, y: 50 };
+  const avatarLevelData = {
+    currentLevel: level,
+    progressPercent: number(member.levelProgress ?? member.progressPercent),
+    levelRing: member.levelRing || '#dc2626',
+  };
 
   return createPortal(
-    <div
-      className="fixed inset-0 z-[100100] flex min-h-[100dvh] items-center justify-center overflow-y-auto bg-zinc-950/65 p-2 backdrop-blur-md sm:p-5"
-      onClick={(event) => { if (event.target === event.currentTarget) onClose?.(); }}
-    >
+    <div className="user-profile-modal-portal fixed inset-0 z-[100100] flex min-h-[100dvh] items-center justify-center overflow-y-auto bg-zinc-950/70 p-2 backdrop-blur-md sm:p-5" onClick={(event) => { if (event.target === event.currentTarget) onClose?.(); }}>
       <Motion.section
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        initial={reduceMotion ? false : { opacity: 0, y: 18, scale: 0.98 }}
+        initial={reduceMotion ? false : { opacity: 0, y: 18, scale: 0.985 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={reduceMotion ? { duration: 0 } : { type: 'spring', stiffness: 230, damping: 25 }}
-        className="relative my-auto max-h-[96dvh] w-full max-w-5xl overflow-y-auto overscroll-contain rounded-[1.75rem] border border-zinc-200 bg-zinc-50 text-zinc-900 shadow-2xl dark:border-zinc-700 dark:bg-zinc-900 dark:text-white"
+        className="relative my-auto max-h-[96dvh] w-full max-w-5xl overflow-y-auto overscroll-contain rounded-[1.75rem] border border-zinc-200 bg-zinc-50 text-zinc-900 shadow-2xl dark:border-zinc-800 dark:bg-zinc-950 dark:text-white"
       >
-        <header className="relative h-48 overflow-hidden rounded-t-[1.7rem] bg-gradient-to-br from-zinc-700 via-zinc-800 to-red-950 sm:h-64">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(220,38,38,0.38),transparent_48%)]"/>
-          {coverURL && !coverFailed && (
-            <img
-              src={coverURL}
-              alt=""
-              className="absolute inset-0 h-full w-full object-cover"
-              style={{ objectPosition: coverPositionToStyle(coverPosition) }}
-              onError={() => setCoverFailed(true)}
-            />
-          )}
-          <div className="absolute inset-0 bg-gradient-to-b from-black/5 via-transparent to-black/40"/>
-          <button
-            ref={closeButtonRef}
-            type="button"
-            onClick={onClose}
-            className="absolute right-3 top-3 z-20 flex h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-black/55 text-white shadow-lg backdrop-blur-md transition hover:bg-red-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-white sm:right-4 sm:top-4"
-            aria-label="Fechar perfil"
-          >
-            <X size={19}/>
-          </button>
+        <header className="relative h-36 overflow-hidden rounded-t-[1.7rem] bg-gradient-to-br from-zinc-700 via-zinc-800 to-red-950 sm:h-48">
+          <span className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(220,38,38,0.22),transparent_48%)]"/>
+          {coverURL && !coverFailed ? <img src={coverURL} alt="" className="absolute inset-0 h-full w-full object-cover" style={{ objectPosition: coverPositionToStyle(coverPosition) }} onError={() => setCoverFailed(true)}/> : null}
+          <span className="absolute inset-0 bg-gradient-to-b from-black/5 via-black/5 to-black/45"/>
+          <button ref={closeRef} type="button" onClick={onClose} className="absolute right-3 top-3 z-20 flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-zinc-950/55 text-white backdrop-blur-md transition hover:bg-zinc-950/75 focus:outline-none focus-visible:ring-2 focus-visible:ring-white sm:right-4 sm:top-4" aria-label="Fechar perfil"><X size={17}/></button>
         </header>
 
-        <div className="relative z-10 -mt-14 px-4 pb-5 sm:-mt-16 sm:px-6 sm:pb-7 lg:px-8">
-          <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start sm:gap-6">
-            <div className="flex shrink-0 flex-col items-center">
-              <PublicAvatar name={displayName} photoURL={member.photoURL || member.photoUrl}/>
-              <span className="-mt-1 inline-flex items-center rounded-full border border-zinc-200 bg-white px-3 py-1 text-[9px] font-black uppercase tracking-[0.16em] text-zinc-700 shadow-md dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
-                Nível {Math.max(1, Math.floor(number(member.level) || 1))}
-              </span>
+        <div className="relative z-10 -mt-12 px-4 pb-5 sm:-mt-14 sm:px-6 sm:pb-7 lg:px-8">
+          <section className="flex flex-col items-center sm:flex-row sm:items-start sm:gap-5">
+            <div className="shrink-0 rounded-full bg-white p-1 shadow-lg ring-1 ring-zinc-200 [&_span.absolute]:min-w-7 [&_span.absolute]:px-1.5 [&_span.absolute]:text-[11px] [&_span.absolute]:leading-5 dark:bg-zinc-900 dark:ring-zinc-700">
+              <ProfileLevelRing userPhotoURL={member.photoURL || member.photoUrl} levelData={avatarLevelData} size={104} strokeWidth={4}/>
             </div>
+            <div className="mt-3 min-w-0 flex-1 text-center sm:mt-0 sm:pt-16 sm:text-left">
+              <h2 id={titleId} className="break-words text-2xl font-black leading-tight tracking-tight text-zinc-950 dark:text-white sm:text-3xl lg:text-4xl">{name}</h2>
+              {bio ? <p className="mx-auto mt-2 max-w-2xl text-xs leading-relaxed text-zinc-500 dark:text-zinc-400 sm:mx-0 sm:text-sm">{bio}</p> : null}
+            </div>
+          </section>
 
-            <div className="min-w-0 flex-1 pt-1 text-center sm:pt-16 sm:text-left">
-              <h2 id={titleId} className="break-words text-3xl font-black leading-none tracking-tight text-zinc-900 [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2] dark:text-white sm:text-4xl lg:text-5xl">
-                {displayName}
-              </h2>
-              <div className="mt-3 flex max-w-full flex-wrap items-center justify-center gap-2 sm:justify-start">
-                {LEAGUES_ENABLED ? <span
-                  className="inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.14em]"
-                  style={{ color: league.color, borderColor: `${league.color}66`, backgroundColor: `${league.color}14` }}
-                >
-                  <LeagueIcon size={13}/> Liga {league.name}
-                </span> : null}
-                {visibleEditais.map((edital, index) => <CompactEdital key={`${edital.id || edital.name || 'edital'}-${index}`} edital={edital}/>)}
-                {remainingEditais > 0 && <span className="text-[8px] font-black uppercase tracking-wider text-zinc-400">+{remainingEditais}</span>}
-              </div>
-            </div>
-          </div>
+          <section className="mt-4 flex flex-wrap justify-center gap-2 sm:justify-start" aria-label="Destaques do perfil">
+            <ProfileTag icon={Flame} label="Sequência de estudo" value={streak ? `${streak}d` : '—'}/>
+            <ProfileTag icon={Trophy} label="Ranking" value={rankingPosition ? `${rankingPosition}º` : '—'} tone="amber" title={rankingLabel}/>
+          </section>
 
-          <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <MetricCard icon={Clock3} label="Tempo de estudo" value={formatStudyMinutes(member.minutes || 0)} subtext="Total acumulado"/>
-            <MetricCard icon={ListChecks} label="Questões" value={formatNumber(questions)} subtext="Resolvidas"/>
-            <MetricCard icon={CheckCircle2} label="Acertos" value={formatNumber(correct)} subtext="Respostas certas"/>
-            <MetricCard icon={XCircle} label="Erros" value={formatNumber(errors)} subtext="Respostas erradas"/>
-            <MetricCard icon={Target} label="Precisão" value={`${accuracy.toFixed(0)}%`} subtext="Aproveitamento"/>
-            <MetricCard icon={CalendarDays} label="Dias na plataforma" value={platformDays || '—'} subtext={platformDays ? 'Desde o cadastro' : 'Não informado'}/>
-            <MetricCard icon={Trophy} label="Ranking" value={rankingPosition ? `${rankingPosition}º` : '—'} subtext={rankingPosition ? rankingLabel : 'Sem posição disponível'}/>
-          </div>
+          <section className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-3" aria-label="Estatísticas principais">
+            <MetricCard icon={Clock3} label="Tempo estudado" value={formatStudyMinutes(member.minutes || 0)}/>
+            <MetricCard icon={ListChecks} label="Questões realizadas" value={formatNumber(questions)}/>
+            <MetricCard icon={CheckCircle2} label="Acertos" value={formatNumber(correct)}/>
+            <MetricCard icon={CalendarDays} label="Dias na plataforma" value={daysOnPlatform ? formatNumber(daysOnPlatform) : '—'}/>
+          </section>
 
-          <footer className="mt-5 flex flex-col gap-4 border-t border-zinc-200 pt-4 dark:border-zinc-800 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex min-w-0 items-center gap-3">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-600 dark:bg-red-950/30 dark:text-red-300"><Users size={18}/></span>
-              <span className="min-w-0"><span className="block text-[8px] font-black uppercase tracking-[0.18em] text-zinc-400">Grupo principal</span><strong className="mt-0.5 block truncate text-xs font-black text-zinc-700 dark:text-zinc-200" title={groupName}>{groupName}</strong></span>
-            </div>
-            <div className="flex shrink-0 items-center gap-2 self-end opacity-65 sm:self-auto">
-              <img src="/logoModoQAP.png" alt="" className="h-7 w-7 rounded-full object-cover"/>
-              <strong className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">Modo QAP</strong>
-            </div>
-          </footer>
+          <section className="mt-5">
+            <SectionTitle>Editais em estudo</SectionTitle>
+            {editais.length ? <div className="mt-2 flex flex-wrap gap-2">{editais.map((edital, index) => <EditalBadge key={`${edital.id || edital.name || 'edital'}-${index}`} edital={edital}/>)}</div> : <div className="mt-2"><EmptyAssociations>Nenhum edital público informado.</EmptyAssociations></div>}
+          </section>
+
+          <section className="mt-4">
+            <SectionTitle>Grupos de Estudo</SectionTitle>
+            {studyGroups.length ? <div className="mt-2 flex flex-wrap gap-2">{studyGroups.map((group) => <GroupBadge key={group.id} group={group}/>)}</div> : <div className="mt-2"><EmptyAssociations>Nenhum grupo público informado.</EmptyAssociations></div>}
+          </section>
         </div>
       </Motion.section>
     </div>,

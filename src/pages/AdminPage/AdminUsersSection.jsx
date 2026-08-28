@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity,
   Ban,
@@ -10,19 +10,23 @@ import {
   RefreshCw,
   Search,
   ShieldCheck,
+  Trash2,
   UserRound,
   Users,
 } from 'lucide-react';
 import {
+  adminDeleteUserPermanently,
   adminRecalculateUserStats,
   adminRecomputeUserGamification,
   adminSendUserNotification,
   adminUpdateUserStatus,
 } from '../../services/adminApi';
+import AdminUserActionConfirmModal from '../../components/admin/AdminUserActionConfirmModal';
 import { downloadUsersCsv } from './adminOperations';
 
 const FILTERS = [
   ['all', 'Todos'],
+  ['newest', 'Novos cadastros (ao vivo)'],
   ['active24h', 'Ativos 24h'],
   ['active7d', 'Ativos 7d'],
   ['inactive14d', 'Inativos 14d'],
@@ -61,7 +65,7 @@ const normalized = (value) => String(value || '').normalize('NFD').replace(/[\u0
 const filterAdminUsers = (users, { search = '', activity = 'all', status = 'all', group = 'all' } = {}, now = new Date()) => {
   const query = normalized(search);
   const nowMillis = now.getTime();
-  return (users || []).filter((user) => {
+  const filtered = (users || []).filter((user) => {
     const lastStudy = dateValue(user.lastStudy);
     const inactiveDays = lastStudy ? Math.floor((nowMillis - lastStudy.getTime()) / 86400000) : Number.POSITIVE_INFINITY;
     const userStatus = user.status || 'active';
@@ -69,6 +73,7 @@ const filterAdminUsers = (users, { search = '', activity = 'all', status = 'all'
     const matchesStatus = status === 'all' || userStatus === status;
     const matchesGroup = group === 'all' || String(user.mainGroupId || '') === group;
     const matchesActivity = activity === 'all'
+      || activity === 'newest'
       || (activity === 'active24h' && inactiveDays < 1)
       || (activity === 'active7d' && inactiveDays < 7)
       || (activity === 'inactive14d' && inactiveDays >= 14)
@@ -78,6 +83,11 @@ const filterAdminUsers = (users, { search = '', activity = 'all', status = 'all'
       || (activity === 'noCycle' && !user.hasActiveCycle)
       || (activity === 'noGamification' && !user.hasGamification);
     return matchesSearch && matchesStatus && matchesGroup && matchesActivity;
+  });
+  if (activity !== 'newest') return filtered;
+  return filtered.sort((a, b) => {
+    const createdDiff = (dateValue(b.createdAt)?.getTime() || 0) - (dateValue(a.createdAt)?.getTime() || 0);
+    return createdDiff || String(a.name || a.email || a.id).localeCompare(String(b.name || b.email || b.id), 'pt-BR');
   });
 };
 
@@ -121,12 +131,36 @@ const AdminUsersSection = ({ users = [], loading, onOpenUser, onFeedback }) => {
   const [filters, setFilters] = useState({ search: '', activity: 'all', status: 'all', group: 'all' });
   const [visibleCount, setVisibleCount] = useState(50);
   const [runningKey, setRunningKey] = useState('');
+  const [sensitiveAction, setSensitiveAction] = useState(null);
+  const [optimisticStatuses, setOptimisticStatuses] = useState(() => new Map());
+  const [optimisticallyDeletedUids, setOptimisticallyDeletedUids] = useState(() => new Set());
   const [draggingTable, setDraggingTable] = useState(false);
   const tableScrollRef = useRef(null);
   const dragStateRef = useRef({ pointerId: null, startX: 0, startScrollLeft: 0 });
 
-  const groups = useMemo(() => [...new Map(users.filter((user) => user.mainGroupId).map((user) => [user.mainGroupId, user.mainGroupName || user.mainGroupId])).entries()].sort((a, b) => a[1].localeCompare(b[1])), [users]);
-  const filteredUsers = useMemo(() => filterAdminUsers(users, filters), [filters, users]);
+  useEffect(() => {
+    setOptimisticStatuses((current) => {
+      const next = new Map(current);
+      let changed = false;
+      users.forEach((user) => {
+        if (next.get(user.id) === user.status) {
+          next.delete(user.id);
+          changed = true;
+        }
+      });
+      return changed ? next : current;
+    });
+  }, [users]);
+
+  const displayUsers = useMemo(() => users.map((user) => {
+    const optimisticStatus = optimisticStatuses.get(user.id);
+    if (!optimisticStatus) return user;
+    return { ...user, status: optimisticStatus, disabled: optimisticStatus !== 'active' };
+  }), [optimisticStatuses, users]);
+  const groups = useMemo(() => [...new Map(displayUsers.filter((user) => user.mainGroupId).map((user) => [user.mainGroupId, user.mainGroupName || user.mainGroupId])).entries()].sort((a, b) => a[1].localeCompare(b[1])), [displayUsers]);
+  const filteredUsers = useMemo(() => filterAdminUsers(displayUsers, filters).filter(
+    (user) => !optimisticallyDeletedUids.has(user.id),
+  ), [displayUsers, filters, optimisticallyDeletedUids]);
   const visibleUsers = filteredUsers.slice(0, visibleCount);
 
   const updateFilter = (key, value) => {
@@ -139,8 +173,10 @@ const AdminUsersSection = ({ users = [], loading, onOpenUser, onFeedback }) => {
     try {
       await operation();
       onFeedback?.({ type: 'success', message: successMessage });
+      return true;
     } catch (error) {
       onFeedback?.({ type: 'error', message: error.message });
+      return false;
     } finally {
       setRunningKey('');
     }
@@ -148,6 +184,10 @@ const AdminUsersSection = ({ users = [], loading, onOpenUser, onFeedback }) => {
 
   const handleStatus = (user, status) => {
     const label = status === 'active' ? 'reativar' : status === 'blocked' ? 'bloquear' : 'desativar';
+    if (status === 'disabled') {
+      setSensitiveAction({ type: 'deactivate', user });
+      return;
+    }
     if (!window.confirm(`Confirma ${label} ${user.name || user.email}? A acao sera auditada.`)) return;
     run(`${user.id}:status`, () => adminUpdateUserStatus(user.id, status), `Conta de ${user.name || user.email} atualizada.`);
   };
@@ -158,6 +198,49 @@ const AdminUsersSection = ({ users = [], loading, onOpenUser, onFeedback }) => {
     const message = window.prompt('Mensagem para o usuario:');
     if (!message) return;
     run(`${user.id}:notification`, () => adminSendUserNotification(user.id, { title, message }), `Notificacao enviada para ${user.name || user.email}.`);
+  };
+
+  const handlePermanentDelete = (user) => {
+    if (user.status !== 'disabled') {
+      onFeedback?.({ type: 'error', message: 'Desative a conta antes de realizar a exclusao definitiva.' });
+      return;
+    }
+    setSensitiveAction({ type: 'delete', user });
+  };
+
+  const confirmSensitiveAction = async () => {
+    const pending = sensitiveAction;
+    if (!pending?.user) return;
+    const target = pending.user;
+    const deleting = pending.type === 'delete';
+    setSensitiveAction(null);
+    if (deleting) {
+      setOptimisticallyDeletedUids((current) => new Set(current).add(target.id));
+    } else {
+      setOptimisticStatuses((current) => new Map(current).set(target.id, 'disabled'));
+    }
+    const completed = await run(
+      `${target.id}:${deleting ? 'delete' : 'status'}`,
+      () => deleting
+        ? adminDeleteUserPermanently(target.id)
+        : adminUpdateUserStatus(target.id, 'disabled'),
+      deleting
+        ? `Usuario ${target.name || target.email} excluido definitivamente.`
+        : `Conta de ${target.name || target.email} desativada.`,
+    );
+    if (!completed && deleting) {
+      setOptimisticallyDeletedUids((current) => {
+        const next = new Set(current);
+        next.delete(target.id);
+        return next;
+      });
+    } else if (!completed) {
+      setOptimisticStatuses((current) => {
+        const next = new Map(current);
+        next.delete(target.id);
+        return next;
+      });
+    }
   };
 
   const renderActions = (user) => {
@@ -172,6 +255,7 @@ const AdminUsersSection = ({ users = [], loading, onOpenUser, onFeedback }) => {
           ? <ActionButton icon={Ban} label="Bloquear usuario" onClick={() => handleStatus(user, 'blocked')} disabled={busy} danger />
           : <ActionButton icon={ShieldCheck} label="Reativar usuario" onClick={() => handleStatus(user, 'active')} disabled={busy} />}
         {user.status !== 'disabled' ? <ActionButton icon={LockKeyhole} label="Desativar conta" onClick={() => handleStatus(user, 'disabled')} disabled={busy} danger /> : null}
+        {user.status === 'disabled' ? <ActionButton icon={Trash2} label="Excluir usuario definitivamente" onClick={() => handlePermanentDelete(user)} disabled={busy} danger /> : null}
       </div>
     );
   };
@@ -211,6 +295,7 @@ const AdminUsersSection = ({ users = [], loading, onOpenUser, onFeedback }) => {
             <div className="flex items-center gap-2 text-red-600 dark:text-red-400"><Users size={18} /><span className="text-[10px] font-black uppercase tracking-[0.18em]">Central de usuarios</span></div>
             <h2 className="mt-2 text-2xl font-black tracking-tight text-zinc-900 dark:text-white">{filteredUsers.length} usuarios no recorte</h2>
             <p className="mt-1 text-sm font-medium text-zinc-500">Busca, diagnostico e acoes sensiveis executadas no servidor com auditoria.</p>
+            {filters.activity === 'newest' ? <p className="mt-2 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500"/>Atualização em tempo real · mais novos primeiro</p> : null}
           </div>
           <button type="button" onClick={() => downloadUsersCsv(filteredUsers, 'usuarios-admin.csv')} className="inline-flex items-center justify-center gap-2 rounded-xl bg-zinc-900 px-4 py-3 text-xs font-black uppercase tracking-wider text-white hover:bg-red-600 dark:bg-white dark:text-zinc-900">
             <Download size={15} /> Exportar CSV
@@ -248,16 +333,17 @@ const AdminUsersSection = ({ users = [], loading, onOpenUser, onFeedback }) => {
               className={`overflow-x-auto overscroll-x-contain ${draggingTable ? 'cursor-grabbing select-none' : 'cursor-grab'}`}
               style={{ scrollbarGutter: 'stable' }}
             >
-              <table className="w-full min-w-[1420px] border-collapse text-left">
+              <table className="w-full min-w-[1540px] border-collapse text-left">
                 <thead className="bg-zinc-50 text-[9px] font-black uppercase tracking-[0.14em] text-zinc-400 dark:bg-zinc-900/60">
-                  <tr><th className="px-4 py-3">Usuario</th><th className="px-3 py-3">Status / perfil</th><th className="px-3 py-3">Criado / ultimo estudo</th><th className="px-3 py-3">Desempenho</th><th className="px-3 py-3">Gamificacao</th><th className="px-3 py-3">Grupo</th><th className="px-3 py-3">Risco</th><th className="sticky right-0 z-20 min-w-[260px] bg-zinc-50 px-4 py-3 text-right shadow-[-12px_0_18px_-18px_rgba(0,0,0,0.55)] dark:bg-zinc-900">Acoes</th></tr>
+                  <tr><th className="px-4 py-3">Usuario</th><th className="px-3 py-3">Status / perfil</th><th className="px-3 py-3">Data de criacao</th><th className="px-3 py-3">Ultimo estudo</th><th className="px-3 py-3">Desempenho</th><th className="px-3 py-3">Gamificacao</th><th className="px-3 py-3">Grupo</th><th className="px-3 py-3">Risco</th><th className="sticky right-0 z-20 min-w-[260px] bg-zinc-50 px-4 py-3 text-right shadow-[-12px_0_18px_-18px_rgba(0,0,0,0.55)] dark:bg-zinc-900">Acoes</th></tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
                   {visibleUsers.map((user) => (
                     <tr key={user.id} className="group align-middle hover:bg-zinc-50/70 dark:hover:bg-zinc-900/30">
                       <td className="px-4 py-3"><button type="button" onClick={() => onOpenUser(user)} className="flex items-center gap-3 text-left"><UserAvatar user={user} /><span className="min-w-0"><span className="block max-w-[220px] truncate text-sm font-black text-zinc-900 dark:text-white">{user.name}</span><span className="block max-w-[220px] truncate text-[11px] font-semibold text-zinc-500">{user.email || 'Sem email'}</span><span className="block max-w-[220px] truncate font-mono text-[9px] text-zinc-400">{user.id}</span></span></button></td>
                       <td className="px-3 py-3"><StatusBadge status={user.status} /><p className="mt-1 text-[10px] font-bold text-zinc-500">{user.perfil || user.access?.role || user.role || 'Nao informado'}</p></td>
-                      <td className="px-3 py-3 text-[10px] font-semibold text-zinc-500"><p>{formatDate(user.createdAt)}</p><p className="mt-1">{formatDate(user.lastStudy, true)}</p></td>
+                      <td className="whitespace-nowrap px-3 py-3 text-[10px] font-semibold text-zinc-500">{formatDate(user.createdAt, true)}</td>
+                      <td className="whitespace-nowrap px-3 py-3 text-[10px] font-semibold text-zinc-500">{formatDate(user.lastStudy, true)}</td>
                       <td className="px-3 py-3"><p className="text-xs font-black text-zinc-800 dark:text-zinc-100">{formatDuration(user.totalMinutes)}</p><p className="mt-1 text-[10px] font-semibold text-zinc-500">{user.totalQuestions}q · {user.accuracy}%</p></td>
                       <td className="px-3 py-3"><p className="text-xs font-black text-zinc-800 dark:text-zinc-100">Nivel {user.level || '-'}</p><p className="mt-1 text-[10px] font-semibold text-zinc-500">{Number(user.gamification?.totalXP || 0).toLocaleString('pt-BR')} XP</p></td>
                       <td className="px-3 py-3"><p className="max-w-[160px] truncate text-xs font-bold text-zinc-700 dark:text-zinc-200">{user.mainGroupName}</p><p className="mt-1 text-[9px] text-zinc-400">{user.mainGroupId || 'Sem grupo principal'}</p></td>
@@ -275,6 +361,7 @@ const AdminUsersSection = ({ users = [], loading, onOpenUser, onFeedback }) => {
               <article key={user.id} className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-card-dark">
                 <div className="flex items-start gap-3"><UserAvatar user={user} /><button type="button" onClick={() => onOpenUser(user)} className="min-w-0 flex-1 text-left"><p className="truncate text-sm font-black text-zinc-900 dark:text-white">{user.name}</p><p className="truncate text-[11px] font-semibold text-zinc-500">{user.email}</p><p className="mt-1 truncate font-mono text-[9px] text-zinc-400">{user.id}</p></button><StatusBadge status={user.status} /></div>
                 <div className="mt-4 grid grid-cols-2 gap-2 text-[10px]"><div className="rounded-xl bg-zinc-50 p-3 dark:bg-zinc-900/60"><p className="font-black uppercase tracking-wider text-zinc-400">Desempenho</p><p className="mt-1 font-bold text-zinc-800 dark:text-zinc-100">{formatDuration(user.totalMinutes)} · {user.totalQuestions}q · {user.accuracy}%</p></div><div className="rounded-xl bg-zinc-50 p-3 dark:bg-zinc-900/60"><p className="font-black uppercase tracking-wider text-zinc-400">Gamificacao</p><p className="mt-1 font-bold text-zinc-800 dark:text-zinc-100">Nivel {user.level || '-'} · {Number(user.gamification?.totalXP || 0).toLocaleString('pt-BR')} XP</p></div></div>
+                <div className="mt-3 grid grid-cols-2 gap-2 text-[9px] font-semibold text-zinc-400"><p className="rounded-lg bg-zinc-50 px-2.5 py-2 dark:bg-zinc-900/50"><strong className="block text-[8px] font-black uppercase tracking-wider text-zinc-500">Criacao</strong>{formatDate(user.createdAt, true)}</p><p className="rounded-lg bg-zinc-50 px-2.5 py-2 dark:bg-zinc-900/50"><strong className="block text-[8px] font-black uppercase tracking-wider text-zinc-500">Ultimo estudo</strong>{formatDate(user.lastStudy, true)}</p></div>
                 <div className="mt-3 flex items-center justify-between gap-3"><RiskBadge risk={user.risk} />{renderActions(user)}</div>
               </article>
             ))}
@@ -283,6 +370,14 @@ const AdminUsersSection = ({ users = [], loading, onOpenUser, onFeedback }) => {
           {visibleCount < filteredUsers.length ? <button type="button" onClick={() => setVisibleCount((current) => current + 50)} className="w-full rounded-xl border border-zinc-200 bg-white px-4 py-3 text-xs font-black uppercase tracking-wider text-zinc-500 hover:border-red-200 hover:text-red-600 dark:border-zinc-800 dark:bg-card-dark">Carregar mais {Math.min(50, filteredUsers.length - visibleCount)}</button> : null}
         </>
       )}
+      <AdminUserActionConfirmModal
+        open={Boolean(sensitiveAction)}
+        action={sensitiveAction?.type}
+        user={sensitiveAction?.user}
+        loading={Boolean(sensitiveAction && runningKey.startsWith(`${sensitiveAction.user.id}:`))}
+        onClose={() => { if (!runningKey) setSensitiveAction(null); }}
+        onConfirm={confirmSensitiveAction}
+      />
     </section>
   );
 };

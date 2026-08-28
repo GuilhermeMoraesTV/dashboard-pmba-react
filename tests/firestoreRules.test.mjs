@@ -79,6 +79,7 @@ before(async () => {
     await setDoc(doc(db, 'users', 'owner-user', 'gamification', 'profile', 'xp_events', 'academic_study_record-1'), { xpTotal: 15, xpCompetitive: 15, isRead: false });
     await setDoc(doc(db, 'study_groups', 'public-group'), { name: 'Público', visibility: 'public', ownerId: 'owner-user' });
     await setDoc(doc(db, 'study_groups', 'private-group'), { name: 'Privado', visibility: 'private', ownerId: 'owner-user', inviteCode: 'ABC1234' });
+    await setDoc(doc(db, 'study_group_directory', 'private-group'), { groupId: 'private-group', name: 'Privado', visibility: 'private', memberCount: 2 });
     await setDoc(doc(db, 'study_groups', 'private-group', 'members', 'owner-user'), { uid: 'owner-user', role: 'owner', permissions: { manageGroup: true } });
     await setDoc(doc(db, 'study_groups', 'private-group', 'members', 'group-member'), { uid: 'group-member', role: 'member', permissions: { manageGroup: false } });
     await setDoc(doc(db, 'study_group_invites', 'ABC1234'), { code: 'ABC1234', groupId: 'private-group', groupName: 'Privado', ownerId: 'owner-user', active: true });
@@ -270,9 +271,22 @@ test('grupo público é descoberto, grupo privado exige participação', async (
   const memberDb = environment.authenticatedContext('group-member').firestore();
   await assertSucceeds(getDoc(doc(strangerDb, 'study_groups', 'public-group')));
   await assertFails(getDoc(doc(strangerDb, 'study_groups', 'private-group')));
+  const directoryGroup = await assertSucceeds(getDoc(doc(strangerDb, 'study_group_directory', 'private-group')));
+  assert.equal(directoryGroup.data().visibility, 'private');
+  assert.equal(Object.hasOwn(directoryGroup.data(), 'inviteCode'), false);
   await assertSucceeds(getDoc(doc(memberDb, 'study_groups', 'private-group')));
   await assertSucceeds(getDocs(collection(memberDb, 'study_groups', 'private-group', 'members')));
   await assertFails(getDocs(collection(strangerDb, 'study_groups', 'private-group', 'members')));
+});
+
+test('diretório sanitizado de grupos exige autenticação e rejeita escrita do cliente', async () => {
+  const strangerDb = environment.authenticatedContext('stranger-user').firestore();
+  const anonymousDb = environment.unauthenticatedContext().firestore();
+  await assertSucceeds(getDocs(collection(strangerDb, 'study_group_directory')));
+  await assertFails(getDocs(collection(anonymousDb, 'study_group_directory')));
+  await assertFails(setDoc(doc(strangerDb, 'study_group_directory', 'forged-group'), {
+    groupId: 'forged-group', name: 'Forjado', visibility: 'public', weeklyMinutes: 999999,
+  }));
 });
 
 test('líder promove vice-líder, que gerencia o grupo e remove apenas membros comuns', async () => {
@@ -414,6 +428,47 @@ test('backend aprova solicitação privada e exige sucessor para saída de lider
   assert.equal((await adminDb.collection('study_groups').doc(groupId).collection('members').doc('successor-user').get()).data().role, 'owner');
 });
 
+test('código válido libera entrada imediata em grupo privado', async () => {
+  const adminDb = admin.firestore();
+  const groupId = 'private-code-group';
+  await adminDb.collection('study_groups').doc(groupId).set({ name: 'Grupo com código', visibility: 'private', ownerId: 'code-owner', memberCount: 1 });
+  await adminDb.collection('study_groups').doc(groupId).collection('members').doc('code-owner').set({ uid: 'code-owner', role: 'owner', permissions: { manageGroup: true, manageMembers: true } });
+  await adminDb.collection('study_group_invites').doc('CODE123').set({ groupId, groupName: 'Grupo com código', ownerId: 'code-owner', active: true });
+  await adminDb.collection('users').doc('code-user').set({ uid: 'code-user', displayName: 'Entrada por código' });
+
+  const joined = await groupService.joinPrivateGroupByCode({ uid: 'code-user', inviteCode: 'code123' });
+  assert.equal(joined.status, 'joined');
+  assert.equal(joined.groupId, groupId);
+  assert.equal((await adminDb.collection('study_groups').doc(groupId).collection('members').doc('code-user').get()).exists, true);
+  assert.ok((await adminDb.collection('users').doc('code-user').collection('gamification').doc('profile').get()).data().groupIds.includes(groupId));
+  assert.equal((await adminDb.collection('study_groups').doc(groupId).get()).data().memberCount, 2);
+  await adminDb.collection('study_groups').doc(groupId).collection('weekly_rankings').doc(getWeekId()).collection('members').doc('code-user').set({
+    uid: 'code-user', minutes: 75, questions: 18, competitiveXP: 93,
+  });
+  const listedGroup = (await groupService.listGroups()).find((group) => group.id === groupId);
+  assert.equal(listedGroup.visibility, 'private');
+  assert.equal(listedGroup.memberCount, 2);
+  assert.equal(listedGroup.weeklyMinutes, 75);
+  assert.equal(listedGroup.weeklyQuestions, 18);
+  assert.equal(Object.hasOwn(listedGroup, 'inviteCode'), false);
+});
+
+test('listagem de grupos repara contador divergente pela subcolecao de membros', async () => {
+  const adminDb = admin.firestore();
+  const groupId = 'drifted-member-count-group';
+  await adminDb.collection('study_groups').doc(groupId).set({
+    name: 'Grupo com contador divergente', visibility: 'public', ownerId: 'owner-user', memberCount: 3,
+  });
+  await adminDb.collection('study_groups').doc(groupId).collection('members').doc('owner-user').set({
+    uid: 'owner-user', role: 'owner', permissions: { manageGroup: true, manageMembers: true },
+  });
+
+  const listedGroup = (await groupService.listGroups()).find((group) => group.id === groupId);
+  assert.equal(listedGroup.memberCount, 1);
+  assert.equal((await adminDb.collection('study_groups').doc(groupId).get()).data().memberCount, 1);
+  assert.equal((await adminDb.collection('study_group_directory').doc(groupId).get()).data().memberCount, 1);
+});
+
 test('dono consegue sair e encerrar grupo quando é o único membro', async () => {
   const adminDb = admin.firestore();
   const groupId = 'single-owner-group';
@@ -497,10 +552,7 @@ test('função recalcula estudo, edição e exclusão sem duplicar XP ou ranking
   const preservedAchievement = await adminDb.collection('users').doc(uid).collection('gamification').doc('profile').collection('achievements').doc('first_study').get();
   const finalProfile = (await adminDb.collection('users').doc(uid).collection('gamification').doc('profile').get()).data();
   assert.equal(deletedEvent.exists, false);
-  assert.equal(deletedRanking.exists, true);
-  assert.equal(deletedRanking.data().minutes, 0);
-  assert.equal(deletedRanking.data().questions, 0);
-  assert.equal(deletedRanking.data().accountActive, true);
+  assert.equal(deletedRanking.exists, false);
   assert.equal(deletedGroupRanking.exists, false);
   assert.equal(finalProfile.weeklyCompetitiveXP, 0);
   assert.equal(preservedAchievement.data().unlocked, true);

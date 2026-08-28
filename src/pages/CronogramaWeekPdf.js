@@ -4,6 +4,8 @@ import {
   PDF_TACTICAL_FONT_DESIGNS,
   buildEditalLogoCandidates,
   buildEditalLogoFallbackLabel,
+  resolveFirstPdfImage,
+  resolvePdfImage,
 } from './EditalVerticalizadoPdf.js';
 
 const PAGE = { width: 297, height: 210 };
@@ -36,56 +38,6 @@ const absoluteAssetUrl = (src) => {
   if (/^(data:|blob:|https?:)/i.test(src)) return src;
   if (typeof window === 'undefined') return src;
   return new URL(src, window.location.origin).href;
-};
-
-const blobToDataUrl = (blob) => new Promise((resolve, reject) => {
-  const reader = new FileReader();
-  reader.onload = () => resolve(reader.result);
-  reader.onerror = reject;
-  reader.readAsDataURL(blob);
-});
-
-const getImageDimensions = (dataUrl) => new Promise((resolve) => {
-  if (typeof Image === 'undefined') {
-    resolve({ width: 1, height: 1 });
-    return;
-  }
-  const image = new Image();
-  image.onload = () => resolve({ width: image.naturalWidth || 1, height: image.naturalHeight || 1 });
-  image.onerror = () => resolve({ width: 1, height: 1 });
-  image.src = dataUrl;
-});
-
-const resolvePdfImage = async (source) => {
-  if (!source) return null;
-  try {
-    const descriptor = typeof source === 'object' ? source : { src: source };
-    let dataUrl = descriptor.dataUrl || descriptor.src;
-    if (!dataUrl) return null;
-    if (!/^data:/i.test(dataUrl)) {
-      const response = await fetch(absoluteAssetUrl(dataUrl), { mode: 'cors', cache: 'force-cache' });
-      if (!response.ok) return null;
-      const blob = await response.blob();
-      if (blob.type && !blob.type.startsWith('image/')) return null;
-      dataUrl = await blobToDataUrl(blob);
-    }
-    const dimensions = Number(descriptor.width) > 0 && Number(descriptor.height) > 0
-      ? { width: Number(descriptor.width), height: Number(descriptor.height) }
-      : await getImageDimensions(dataUrl);
-    const format = descriptor.format
-      || (/image\/jpe?g/i.test(dataUrl) ? 'JPEG' : /image\/webp/i.test(dataUrl) ? 'WEBP' : 'PNG');
-    return { dataUrl, format, ...dimensions };
-  } catch {
-    return null;
-  }
-};
-
-const resolveFirstPdfImage = async (sources = []) => {
-  for (const source of sources) {
-    const image = await resolvePdfImage(source);
-    if (image) return image;
-  }
-  return null;
 };
 
 const arrayBufferToBase64 = (buffer) => {

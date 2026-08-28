@@ -23,7 +23,7 @@ function AuthLayout({ children, mode = 'login' }) {
       <div className="absolute inset-0 overflow-hidden lg:fixed" aria-hidden="true">
         <div className="absolute inset-x-0 top-0 h-[310px] lg:inset-y-0 lg:left-[3%] lg:right-[-3%] lg:h-auto">
           <Motion.img
-            src="/login-tactical-background-v4-wide.png"
+            src="/login-tactical-background-v3.png"
             alt=""
             initial={{ opacity: 0, scale: reduceMotion ? 1 : 1.015 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -31,7 +31,7 @@ function AuthLayout({ children, mode = 'login' }) {
             className="h-full w-full object-cover object-left"
           />
 
-          <div className="absolute inset-0 bg-gradient-to-b from-black/5 via-transparent to-[#06080b] lg:bg-gradient-to-r lg:from-transparent lg:via-transparent lg:to-[#06080b]/55" />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/5 via-transparent to-[#06080b] lg:bg-gradient-to-r lg:from-transparent lg:via-[#06080b]/5 lg:to-[#06080b]/85" />
           <div className="absolute inset-0 hidden bg-gradient-to-t from-black/25 via-transparent to-black/10 lg:block" />
         </div>
 

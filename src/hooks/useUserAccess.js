@@ -27,6 +27,7 @@ export function useUserAccess(user) {
 
   return useMemo(() => ({
     ...deriveUserAccess({ authUser: user, userDoc }),
+    userDoc,
     isLoading: loading,
   }), [loading, user, userDoc]);
 }

@@ -1,11 +1,13 @@
 const admin = require('firebase-admin');
+const { FieldValue } = require('firebase-admin/firestore');
 
 if (!admin.apps.length) {
   admin.initializeApp({ projectId: process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || 'dashboard-pmba' });
 }
 
 const db = () => admin.firestore();
-const serverTimestamp = () => admin.firestore.FieldValue.serverTimestamp();
+const serverTimestamp = () => FieldValue.serverTimestamp();
+const userDeletionStarted = async (uid) => (await db().collection('system_deleted_users').doc(uid).get()).exists;
 let domainPromise;
 const domain = () => {
   if (!domainPromise) domainPromise = import('./domain.mjs');
@@ -60,6 +62,7 @@ const loadUserGamificationSources = async (uid) => {
     simulationsSnapshot,
     goalsSnapshot,
     cyclesSnapshot,
+    cycleReviewsSnapshot,
     schedulesSnapshot,
     achievementsSnapshot,
     xpEventsSnapshot,
@@ -71,6 +74,7 @@ const loadUserGamificationSources = async (uid) => {
     userRef.collection('simulados').get(),
     userRef.collection('metas').get(),
     userRef.collection('ciclos').get(),
+    userRef.collection('revisoesCiclo').get(),
     userRef.collection('cronogramas').get(),
     userRef.collection('gamification').doc('profile').collection('achievements').get(),
     userRef.collection('gamification').doc('profile').collection('xp_events').get(),
@@ -84,6 +88,7 @@ const loadUserGamificationSources = async (uid) => {
   }
   return {
     userRef,
+    userExists: userSnapshot.exists,
     user: userSnapshot.exists ? userSnapshot.data() : {},
     authUser,
     profileRef: userRef.collection('gamification').doc('profile'),
@@ -92,6 +97,7 @@ const loadUserGamificationSources = async (uid) => {
     simulations: dataWithId(simulationsSnapshot),
     goals: dataWithId(goalsSnapshot),
     cycles,
+    cycleReviews: dataWithId(cycleReviewsSnapshot),
     schedules: dataWithId(schedulesSnapshot),
     cycleRounds,
     achievements: dataWithId(achievementsSnapshot),
@@ -146,7 +152,9 @@ const planPublicIdentity = (plan = {}, type) => {
 
 const buildPublicEditais = (sources) => {
   const unique = new Map();
-  [...sources.cycles.map((item) => planPublicIdentity(item, 'cycle')), ...sources.schedules.map((item) => planPublicIdentity(item, 'schedule'))]
+  const activeCycles = (sources.cycles || []).filter((plan) => plan?.ativo === true && plan?.arquivado !== true);
+  const activeSchedules = (sources.schedules || []).filter((plan) => plan?.ativo === true && plan?.arquivado !== true);
+  [...activeCycles.map((item) => planPublicIdentity(item, 'cycle')), ...activeSchedules.map((item) => planPublicIdentity(item, 'schedule'))]
     .filter(Boolean)
     .forEach((item) => {
       const key = item.id !== 'manual' ? item.id : item.name.toLocaleLowerCase('pt-BR');
@@ -155,12 +163,182 @@ const buildPublicEditais = (sources) => {
   return [...unique.values()].slice(0, 6);
 };
 
-const updateRankingMetricPositions = async ({ membersRef, rules, activeCutoffMillis = 0 }) => {
+const buildPublicFocusSubjects = (records, rules) => {
+  const subjects = new Map();
+  records.forEach((record) => {
+    const name = record.disciplinaNome
+      || record.disciplina
+      || record.materiaNome
+      || record.materia
+      || record.subjectName;
+    if (!name) return;
+    const normalizedName = String(name).trim();
+    if (!normalizedName || ['disciplina', 'desconhecida'].includes(normalizedName.toLocaleLowerCase('pt-BR'))) return;
+    const metrics = rules.getStudyMetrics(record);
+    const key = normalizedName.toLocaleLowerCase('pt-BR');
+    const current = subjects.get(key) || { name: normalizedName, minutes: 0, questions: 0, records: 0 };
+    current.minutes += Number(metrics.minutes || 0);
+    current.questions += Number(metrics.questions || 0);
+    current.records += 1;
+    subjects.set(key, current);
+  });
+  return [...subjects.values()]
+    .sort((a, b) => b.minutes - a.minutes || b.questions - a.questions || b.records - a.records || a.name.localeCompare(b.name, 'pt-BR'))
+    .slice(0, 4);
+};
+
+const syncGroupWeeklyMember = async ({ groupId, weekId, uid, member = null }) => {
+  const groupRef = db().collection('study_groups').doc(groupId);
+  const memberRef = groupRef.collection('weekly_rankings').doc(weekId).collection('members').doc(uid);
+  await db().runTransaction(async (transaction) => {
+    const [groupSnapshot, previousSnapshot] = await Promise.all([
+      transaction.get(groupRef),
+      transaction.get(memberRef),
+    ]);
+    if (!groupSnapshot.exists) return;
+    const group = groupSnapshot.data() || {};
+    const previous = previousSnapshot.data() || {};
+    const sameWeek = group.weeklyMetricsWeekId === weekId;
+    const base = {
+      xp: sameWeek ? Number(group.weeklyXP || 0) : 0,
+      minutes: sameWeek ? Number(group.weeklyMinutes || 0) : 0,
+      questions: sameWeek ? Number(group.weeklyQuestions || 0) : 0,
+    };
+    const next = member || {};
+    transaction.set(groupRef, {
+      weeklyMetricsWeekId: weekId,
+      weeklyXP: Math.max(0, base.xp - Number(previous.competitiveXP || previous.weeklyXP || 0) + Number(next.competitiveXP || next.weeklyXP || 0)),
+      weeklyMinutes: Math.max(0, base.minutes - Number(previous.minutes || 0) + Number(next.minutes || 0)),
+      weeklyQuestions: Math.max(0, base.questions - Number(previous.questions || 0) + Number(next.questions || 0)),
+      weeklyMetricsUpdatedAt: serverTimestamp(),
+    }, { merge: true });
+    if (member) transaction.set(memberRef, member, { merge: true });
+    else if (previousSnapshot.exists) transaction.delete(memberRef);
+  });
+};
+
+const syncGroupMonthlyMember = async ({ groupId, monthId, uid, member = null }) => {
+  const groupRef = db().collection('study_groups').doc(groupId);
+  const rankingMemberRef = groupRef.collection('monthly_rankings').doc(monthId).collection('members').doc(uid);
+  const groupMemberRef = groupRef.collection('members').doc(uid);
+  await db().runTransaction(async (transaction) => {
+    const [groupSnapshot, groupMemberSnapshot, rankingMemberSnapshot] = await Promise.all([
+      transaction.get(groupRef),
+      transaction.get(groupMemberRef),
+      transaction.get(rankingMemberRef),
+    ]);
+    if (!groupSnapshot.exists || !groupMemberSnapshot.exists) {
+      if (rankingMemberSnapshot.exists) transaction.delete(rankingMemberRef);
+      return;
+    }
+    transaction.set(groupMemberRef, {
+      monthlyMetricsMonthId: monthId,
+      monthlyMinutes: Number(member?.minutes || 0),
+      monthlyQuestions: Number(member?.questions || 0),
+      monthlyCorrect: Number(member?.correct || 0),
+      monthlyMetricsUpdatedAt: serverTimestamp(),
+    }, { merge: true });
+    if (member) transaction.set(rankingMemberRef, member, { merge: true });
+    else if (rankingMemberSnapshot.exists) transaction.delete(rankingMemberRef);
+  });
+};
+
+const buildMonthlyGroupMember = async ({ uid, rules, now = new Date() }) => {
+  const sources = await loadUserGamificationSources(uid);
+  if (!sources.userExists || await userDeletionStarted(uid)) {
+    return { sources, monthId: rules.getMonthId(now), member: null };
+  }
+  const periods = rules.calculateRankingPeriodMetrics({
+    records: sources.records,
+    simulations: sources.simulations,
+    now,
+  });
+  const monthly = periods.monthly;
+  const status = String(sources.user.status || (sources.user.disabled ? 'disabled' : 'active')).toLowerCase();
+  const accountActive = !sources.user.disabled && !['blocked', 'disabled'].includes(status);
+  const member = accountActive && monthly.hasActivity ? {
+    uid,
+    displayName: userNameFrom(sources.user, sources.authUser),
+    photoURL: sources.user.photoURL || sources.authUser?.photoURL || null,
+    minutes: monthly.minutes,
+    questions: monthly.questions,
+    correct: monthly.correct,
+    accuracy: monthly.questions ? Number(((monthly.correct / monthly.questions) * 100).toFixed(2)) : 0,
+    errors: Math.max(0, monthly.questions - monthly.correct),
+    accountActive,
+    accountStatus: status,
+    rankingEligible: true,
+    periodType: 'monthly',
+    monthId: monthly.monthId,
+    ruleVersion: rules.GAMIFICATION_RULE_VERSION,
+    updatedAt: serverTimestamp(),
+  } : null;
+  return { sources, monthId: monthly.monthId, member };
+};
+
+const refreshUserGroupMonthlyRankings = async (uid, { groupIds = null } = {}) => {
+  if (!uid) return { uid, groupsUpdated: 0 };
+  const rules = await domain();
+  const state = await buildMonthlyGroupMember({ uid, rules });
+  const targetGroupIds = [...new Set((groupIds || state.sources.profile.groupIds || []).filter(Boolean))];
+  await Promise.all(targetGroupIds.map((groupId) => syncGroupMonthlyMember({
+    groupId,
+    monthId: state.monthId,
+    uid,
+    member: state.member,
+  })));
+  return { uid, monthId: state.monthId, groupsUpdated: targetGroupIds.length, hasActivity: Boolean(state.member) };
+};
+
+const refreshStudyGroupMonthlyRankings = async () => {
+  const rules = await domain();
+  const now = new Date();
+  const monthId = rules.getMonthId(now);
+  const groupsSnapshot = await db().collection('study_groups').get();
+  const rows = [];
+  for (const groupSnapshot of groupsSnapshot.docs) {
+    const membersSnapshot = await groupSnapshot.ref.collection('members').get();
+    membersSnapshot.docs.forEach((memberSnapshot) => rows.push({
+      groupId: groupSnapshot.id,
+      uid: memberSnapshot.data()?.uid || memberSnapshot.id,
+    }));
+  }
+  const stateByUid = new Map();
+  const getState = (uid) => {
+    if (!stateByUid.has(uid)) stateByUid.set(uid, buildMonthlyGroupMember({ uid, rules, now }));
+    return stateByUid.get(uid);
+  };
+  let updated = 0;
+  let withActivity = 0;
+  for (let cursor = 0; cursor < rows.length; cursor += 10) {
+    const chunk = rows.slice(cursor, cursor + 10);
+    const results = await Promise.all(chunk.map(async ({ groupId, uid }) => {
+      const state = await getState(uid);
+      await syncGroupMonthlyMember({ groupId, monthId, uid, member: state.member });
+      return Boolean(state.member);
+    }));
+    updated += chunk.length;
+    withActivity += results.filter(Boolean).length;
+  }
+  console.info('Study group monthly rankings refreshed', {
+    monthId,
+    groups: groupsSnapshot.size,
+    uniqueUsers: stateByUid.size,
+    membersUpdated: updated,
+    membersWithActivity: withActivity,
+  });
+  return {
+    monthId,
+    groups: groupsSnapshot.size,
+    uniqueUsers: stateByUid.size,
+    membersUpdated: updated,
+    membersWithActivity: withActivity,
+  };
+};
+
+const updateRankingMetricPositions = async ({ membersRef, rules }) => {
   const snapshot = await membersRef.get();
-  const members = dataWithId(snapshot).filter((member) => (
-    member.accountActive !== false
-    && (!activeCutoffMillis || Number(member.lastStudyAtMillis || 0) >= activeCutoffMillis)
-  ));
+  const members = dataWithId(snapshot).filter((member) => member.rankingEligible === true);
   const nextByUid = new Map();
   ['minutes', 'questions'].forEach((metric) => {
     rules.sortGeneralRankingMembers(members, metric).forEach((member, index) => {
@@ -239,6 +417,14 @@ const buildCompletionEvents = async ({ cycleRounds, schedules, cutoffMillis }) =
 
 const calculateHistoricalState = async (sources, totalXPBeforeAchievements) => {
   const rules = await domain();
+  const streakResult = rules.calculateCanonicalStudyStreak({
+    records: sources.records,
+    simulations: sources.simulations,
+    cycles: sources.cycles,
+    cycleReviews: sources.cycleReviews,
+    schedules: sources.schedules,
+    now: new Date(),
+  });
   const recordMetrics = sources.records.filter(rules.isValidGamificationRecord).map(rules.getStudyMetrics);
   const simulationMetrics = sources.simulations.filter(rules.isValidGamificationRecord).map(rules.getSimuladoMetrics);
   const allMetrics = [...recordMetrics, ...simulationMetrics];
@@ -272,7 +458,9 @@ const calculateHistoricalState = async (sources, totalXPBeforeAchievements) => {
     accuracy,
     accuracy85Questions: accuracy >= 85 ? totals.questions : 0,
     accuracy90Questions: accuracy >= 90 ? totals.questions : 0,
-    streak: rules.calculateStudyStreak(sources.records),
+    streak: streakResult.currentStreak,
+    streakState: streakResult.days?.[streakResult.today]?.state || 'not_applicable',
+    streakContext: streakResult.context || null,
     groupsJoined: Math.max(Number(sources.profile.groupIds?.length || 0), Number(sources.profile.socialHistory?.groupsJoined || 0)),
     groupsCreated: Math.max(Number(sources.ownedGroups?.length || 0), Number(sources.profile.socialHistory?.groupsCreated || 0)),
     groupPodiums: Math.max(groupRewardEvents.length, Number(sources.profile.competitionHistory?.groupPodiums || 0)),
@@ -304,6 +492,16 @@ const serializeEvent = (event, rules, extra = {}) => ({
   isRead: false,
   ...extra,
 });
+
+const calculatePersistedNonAcademicXP = ({ achievements = [], events = [] } = {}) => {
+  const achievementXP = (Array.isArray(achievements) ? achievements : [])
+    .filter((item) => item?.unlocked === true)
+    .reduce((sum, item) => sum + Math.max(0, Number(item.xpGranted ?? item.xp ?? 0)), 0);
+  const otherEventXP = (Array.isArray(events) ? events : [])
+    .filter((event) => event?.category !== 'academic' && event?.category !== 'achievement')
+    .reduce((sum, event) => sum + Math.max(0, Number(event.xpTotal || 0)), 0);
+  return achievementXP + otherEventXP;
+};
 
 const writeEventsAndAchievements = async ({ sources, academicEvents, newAchievements, state, rules }) => {
   const writer = db().bulkWriter();
@@ -342,7 +540,8 @@ const writeEventsAndAchievements = async ({ sources, academicEvents, newAchievem
       updatedAt: serverTimestamp(),
     }, { merge: true });
   });
-  newAchievements.forEach((item) => {
+  await writer.close();
+  await Promise.all(newAchievements.map(async (item) => {
     const event = {
       id: `achievement_${item.id}`,
       sourceKey: `achievement:${item.id}`,
@@ -354,9 +553,13 @@ const writeEventsAndAchievements = async ({ sources, academicEvents, newAchievem
       message: `Conquista: ${item.title}`,
       sourceMillis: Date.now(),
     };
-    writer.set(sources.profileRef.collection('xp_events').doc(event.id), serializeEvent(event, rules), { merge: true });
-  });
-  await writer.close();
+    const eventRef = sources.profileRef.collection('xp_events').doc(event.id);
+    await db().runTransaction(async (transaction) => {
+      const existingEvent = await transaction.get(eventRef);
+      if (existingEvent.exists) return;
+      transaction.create(eventRef, serializeEvent(event, rules));
+    });
+  }));
 };
 
 const ensureCohort = async ({ uid, profileRef, leagueId, weekId }) => {
@@ -408,9 +611,12 @@ const updateRankings = async ({ uid, sources, profilePayload, academicEvents, ru
   const rankingPeriods = rules.calculateRankingPeriodMetrics({ records: validRecords, simulations: validSimulations, now: rankingNow });
   const generalMetrics = rankingPeriods.lifetime;
   const weeklyMetrics = rankingPeriods.weekly;
+  const monthlyMetrics = rankingPeriods.monthly;
+  const monthId = monthlyMetrics.monthId;
   const lastStudyAtMillis = rankingPeriods.lastStudyAtMillis;
   const accountStatus = String(sources.user.status || (sources.user.disabled ? 'disabled' : 'active')).toLowerCase();
   const accountActive = !sources.user.disabled && !['blocked', 'disabled'].includes(accountStatus);
+  const rankingEligible = accountActive && rules.hasRecentRankingActivity({ lastStudyAtMillis, now: rankingNow });
   const platformSinceMillis = timestampMillis(
     sources.user.createdAt
     || sources.user.dataCriacao
@@ -421,6 +627,9 @@ const updateRankings = async ({ uid, sources, profilePayload, academicEvents, ru
     coverURL: sources.user.coverURL || null,
     coverPosition: sources.user.coverPosition || null,
     editais: buildPublicEditais(sources),
+    streak: Number(profilePayload.streak || 0),
+    streakState: profilePayload.streakState || 'not_applicable',
+    focusSubjects: buildPublicFocusSubjects(validRecords, rules),
     mainGroupName: sources.profile.mainGroupName || null,
     platformSinceMillis,
     studies: validRecords.length + validSimulations.length,
@@ -440,11 +649,17 @@ const updateRankings = async ({ uid, sources, profilePayload, academicEvents, ru
     accountActive,
     accountStatus,
     lastStudyAtMillis,
+    rankingEligible,
     ...publicProfile,
     updatedAt: serverTimestamp(),
   };
   const generalMembersRef = db().collection('general_rankings').doc('all').collection('members');
-  await generalMembersRef.doc(uid).set(generalMember, { merge: true });
+  const generalMemberRef = generalMembersRef.doc(uid);
+  if (rankingEligible) await generalMemberRef.set(generalMember, { merge: true });
+  else await generalMemberRef.delete().catch((error) => {
+    if (error?.code !== 5 && error?.code !== 'not-found') throw error;
+  });
+  const weeklyRankingEligible = rankingEligible && weeklyMetrics.hasActivity;
   const weeklyMember = {
     uid,
     displayName: generalMember.displayName,
@@ -461,14 +676,36 @@ const updateRankings = async ({ uid, sources, profilePayload, academicEvents, ru
     accountActive,
     accountStatus,
     lastStudyAtMillis,
+    rankingEligible: weeklyRankingEligible,
     ...publicProfile,
+    ruleVersion: rules.GAMIFICATION_RULE_VERSION,
+    updatedAt: serverTimestamp(),
+  };
+  const monthlyMember = {
+    uid,
+    displayName: generalMember.displayName,
+    photoURL: generalMember.photoURL,
+    level: generalMember.level,
+    leagueId: generalMember.leagueId,
+    minutes: monthlyMetrics.minutes,
+    questions: monthlyMetrics.questions,
+    correct: monthlyMetrics.correct,
+    accuracy: monthlyMetrics.questions ? Number(((monthlyMetrics.correct / monthlyMetrics.questions) * 100).toFixed(2)) : 0,
+    errors: Math.max(0, monthlyMetrics.questions - monthlyMetrics.correct),
+    accountActive,
+    accountStatus,
+    lastStudyAtMillis,
+    rankingEligible: rankingEligible && monthlyMetrics.hasActivity,
+    ...publicProfile,
+    periodType: 'monthly',
+    monthId,
     ruleVersion: rules.GAMIFICATION_RULE_VERSION,
     updatedAt: serverTimestamp(),
   };
   const currentEvents = academicEvents.filter((event) => event.weekId === weekId);
   const competitionStarted = !sources.profile.competitionStartsWeekId || weekId >= sources.profile.competitionStartsWeekId;
   const competitiveXP = competitionStarted ? currentEvents.reduce((sum, event) => sum + Number(event.xpCompetitive || 0), 0) : 0;
-  if (!accountActive || competitiveXP <= 0) {
+  if (!weeklyRankingEligible || competitiveXP <= 0) {
     const previousCohortId = sources.profile.competitiveWeekId === weekId ? sources.profile.currentCohortId : null;
     if (previousCohortId) {
       const generalMemberRef = db().collection('weekly_rankings').doc(weekId).collection('members').doc(uid);
@@ -497,13 +734,16 @@ const updateRankings = async ({ uid, sources, profilePayload, academicEvents, ru
           updatedAt: serverTimestamp(),
         }, { merge: true });
       });
-      const cleanup = db().batch();
-      (sources.profile.groupIds || []).filter(Boolean).forEach((groupId) => {
-        cleanup.delete(db().collection('study_groups').doc(groupId).collection('weekly_rankings').doc(weekId).collection('members').doc(uid));
-      });
-      await cleanup.commit();
     }
-    await db().collection('weekly_rankings').doc(weekId).collection('members').doc(uid).set(weeklyMember, { merge: true });
+    const weeklyGeneralMemberRef = db().collection('weekly_rankings').doc(weekId).collection('members').doc(uid);
+    if (weeklyRankingEligible) await weeklyGeneralMemberRef.set(weeklyMember, { merge: true });
+    else await weeklyGeneralMemberRef.delete().catch((error) => {
+      if (error?.code !== 5 && error?.code !== 'not-found') throw error;
+    });
+    await Promise.all((sources.profile.groupIds || []).filter(Boolean).flatMap((groupId) => [
+      syncGroupWeeklyMember({ groupId, weekId, uid, member: weeklyMetrics.hasActivity ? weeklyMember : null }),
+      syncGroupMonthlyMember({ groupId, monthId, uid, member: monthlyMetrics.hasActivity ? monthlyMember : null }),
+    ]));
     if (!skipGeneralPositionUpdate) {
       await updateRankingMetricPositions({ membersRef: generalMembersRef, rules });
     }
@@ -531,6 +771,7 @@ const updateRankings = async ({ uid, sources, profilePayload, academicEvents, ru
     accountActive,
     accountStatus,
     lastStudyAtMillis,
+    rankingEligible: weeklyRankingEligible,
     ...publicProfile,
     finalXPReachedAt: admin.firestore.Timestamp.fromMillis(finalXPReachedAtMillis),
     ruleVersion: rules.GAMIFICATION_RULE_VERSION,
@@ -539,9 +780,6 @@ const updateRankings = async ({ uid, sources, profilePayload, academicEvents, ru
   const batch = db().batch();
   batch.set(db().collection('weekly_rankings').doc(weekId).collection('members').doc(uid), member, { merge: true });
   batch.set(db().collection('weekly_rankings').doc(weekId).collection('cohorts').doc(cohortId).collection('members').doc(uid), member, { merge: true });
-  (sources.profile.groupIds || []).filter(Boolean).forEach((groupId) => {
-    batch.set(db().collection('study_groups').doc(groupId).collection('weekly_rankings').doc(weekId).collection('members').doc(uid), member, { merge: true });
-  });
   batch.set(sources.profileRef, {
     currentCohortId: cohortId,
     competitiveWeekId: weekId,
@@ -550,6 +788,10 @@ const updateRankings = async ({ uid, sources, profilePayload, academicEvents, ru
     updatedAt: serverTimestamp(),
   }, { merge: true });
   await batch.commit();
+  await Promise.all((sources.profile.groupIds || []).filter(Boolean).flatMap((groupId) => [
+    syncGroupWeeklyMember({ groupId, weekId, uid, member }),
+    syncGroupMonthlyMember({ groupId, monthId, uid, member: monthlyMetrics.hasActivity ? monthlyMember : null }),
+  ]));
   await Promise.all([
     ...(skipGeneralPositionUpdate ? [] : [updateRankingMetricPositions({ membersRef: generalMembersRef, rules })]),
     updateRankingMetricPositions({ membersRef: db().collection('weekly_rankings').doc(weekId).collection('members'), rules }),
@@ -600,6 +842,7 @@ const recomputeUserGamification = async (uid, { skipGeneralPositionUpdate = fals
   if (!uid) return null;
   const rules = await domain();
   const sources = await loadUserGamificationSources(uid);
+  if (!sources.userExists || await userDeletionStarted(uid)) return { uid, skipped: 'user-deleted' };
   const cutoffMillis = getMigrationCutoffMillis(sources.profile);
   const newRecords = cutoffMillis ? sources.records.filter((item) => sourceCreatedMillis(item) > cutoffMillis) : sources.records;
   const newSimulations = cutoffMillis ? sources.simulations.filter((item) => sourceCreatedMillis(item) > cutoffMillis) : sources.simulations;
@@ -609,7 +852,10 @@ const recomputeUserGamification = async (uid, { skipGeneralPositionUpdate = fals
   ];
   const previousAcademicIds = new Set(sources.xpEvents.filter((event) => event.category === 'academic').map((event) => event.id));
   const retainedEvents = sources.xpEvents.filter((event) => event.category !== 'academic' || academicEvents.some((next) => next.id === event.id));
-  const retainedNonAcademicXP = retainedEvents.filter((event) => event.category !== 'academic').reduce((sum, event) => sum + Number(event.xpTotal || 0), 0);
+  const retainedNonAcademicXP = calculatePersistedNonAcademicXP({
+    achievements: sources.achievements,
+    events: retainedEvents,
+  });
   const academicXP = academicEvents.reduce((sum, event) => sum + Number(event.xpTotal || 0), 0);
   const baseXP = Number(sources.profile.baseXP || 0);
   const totalXPBeforeAchievements = baseXP + academicXP + retainedNonAcademicXP;
@@ -646,12 +892,21 @@ const recomputeUserGamification = async (uid, { skipGeneralPositionUpdate = fals
     },
     achievementIds: evaluation.unlockedIds,
     achievementsSummary: { unlocked: evaluation.unlockedIds.length, total: rules.ACHIEVEMENTS.length },
+    streak: state.streak,
+    currentStreak: state.streak,
+    streakState: state.streakState,
+    streakContext: state.streakContext,
     ruleVersion: rules.GAMIFICATION_RULE_VERSION,
     updatedAt: serverTimestamp(),
   };
+  if (await userDeletionStarted(uid)) return { uid, skipped: 'user-deleted' };
   await writeEventsAndAchievements({ sources, academicEvents, newAchievements, state: { ...state, level }, rules });
   await sources.profileRef.set(profilePayload, { merge: true });
   const rankingResult = await updateRankings({ uid, sources, profilePayload, academicEvents, rules, skipGeneralPositionUpdate });
+  // O recálculo completo pode levar minutos em contas antigas. Releia os
+  // planejamentos ao final para que uma execução concorrente nunca deixe no
+  // perfil público a fotografia que capturou no início.
+  await refreshUserPublicPlanningProfile(uid);
   return {
     uid,
     totalXP,
@@ -666,23 +921,203 @@ const recomputeUserGamification = async (uid, { skipGeneralPositionUpdate = fals
 const refreshActiveUserRankings = async () => {
   const rules = await domain();
   const weekId = rules.getWeekId();
-  const users = await db().collection('users').get();
-  const uids = new Set(users.docs.map((item) => item.id));
-  const failures = [];
-  let updatedUsers = 0;
-  for (const uid of uids) {
-    try {
-      await recomputeUserGamification(uid, { skipGeneralPositionUpdate: true });
-      updatedUsers += 1;
-    } catch (error) {
-      failures.push({ uid, code: error?.code || 'unknown' });
+  const now = new Date();
+  const [generalMembers, weeklyMembers] = await Promise.all([
+    db().collection('general_rankings').doc('all').collection('members').get(),
+    db().collection('weekly_rankings').doc(weekId).collection('members').get(),
+  ]);
+  const writer = db().bulkWriter();
+  const publicProfileUids = new Set([
+    ...generalMembers.docs.map((snapshot) => snapshot.id),
+    ...weeklyMembers.docs.map((snapshot) => snapshot.id),
+  ]);
+  const counts = {
+    generalEligible: 0,
+    generalRemoved: 0,
+    weeklyEligible: 0,
+    weeklyRemoved: 0,
+    publicProfilesRefreshed: 0,
+  };
+
+  generalMembers.docs.forEach((snapshot) => {
+    const member = snapshot.data() || {};
+    const eligible = member.accountActive !== false && rules.hasRecentRankingActivity({
+      lastStudyAtMillis: member.lastStudyAtMillis,
+      now,
+    });
+    if (!eligible) {
+      counts.generalRemoved += 1;
+      writer.delete(snapshot.ref);
+      return;
+    }
+    counts.generalEligible += 1;
+    writer.set(snapshot.ref, {
+      rankingEligible: true,
+      accuracy: Number(rules.getRankingAccuracy(member).toFixed(2)),
+      eligibilityUpdatedAt: serverTimestamp(),
+    }, { merge: true });
+  });
+
+  weeklyMembers.docs.forEach((snapshot) => {
+    const member = snapshot.data() || {};
+    const hasWeeklyStudy = Number(member.minutes || 0) > 0 || Number(member.questions || 0) > 0;
+    const eligible = member.accountActive !== false
+      && hasWeeklyStudy
+      && rules.hasRecentRankingActivity({ lastStudyAtMillis: member.lastStudyAtMillis, now });
+    if (!eligible) {
+      counts.weeklyRemoved += 1;
+      writer.delete(snapshot.ref);
+      return;
+    }
+    counts.weeklyEligible += 1;
+    writer.set(snapshot.ref, {
+      rankingEligible: true,
+      accuracy: Number(rules.getRankingAccuracy(member).toFixed(2)),
+      eligibilityUpdatedAt: serverTimestamp(),
+    }, { merge: true });
+  });
+
+  await writer.close();
+  const profileUids = [...publicProfileUids];
+  for (let cursor = 0; cursor < profileUids.length; cursor += 20) {
+    const results = await Promise.all(
+      profileUids.slice(cursor, cursor + 20).map((uid) => refreshUserPublicPlanningProfile(uid)),
+    );
+    counts.publicProfilesRefreshed += results.filter(Boolean).length;
+  }
+  await Promise.all([
+    updateRankingMetricPositions({
+      membersRef: db().collection('general_rankings').doc('all').collection('members'),
+      rules,
+    }),
+    updateRankingMetricPositions({
+      membersRef: db().collection('weekly_rankings').doc(weekId).collection('members'),
+      rules,
+    }),
+  ]);
+  console.info('Ranking eligibility refresh completed', { weekId, ...counts });
+  return { weekId, ...counts };
+};
+
+const refreshUserPublicPlanningProfile = async (uid) => {
+  if (!uid) return null;
+  const rules = await domain();
+  const userRef = db().collection('users').doc(uid);
+  const [cyclesSnapshot, cycleReviewsSnapshot, schedulesSnapshot, recordsSnapshot, simulationsSnapshot, profileSnapshot] = await Promise.all([
+    userRef.collection('ciclos').where('ativo', '==', true).get(),
+    userRef.collection('revisoesCiclo').get(),
+    userRef.collection('cronogramas').where('ativo', '==', true).get(),
+    userRef.collection('registrosEstudo').get(),
+    userRef.collection('simulados').get(),
+    userRef.collection('gamification').doc('profile').get(),
+  ]);
+  const sources = {
+    cycles: dataWithId(cyclesSnapshot),
+    cycleReviews: dataWithId(cycleReviewsSnapshot),
+    schedules: dataWithId(schedulesSnapshot),
+    records: dataWithId(recordsSnapshot),
+    simulations: dataWithId(simulationsSnapshot),
+  };
+  const streakResult = rules.calculateCanonicalStudyStreak({ ...sources, now: new Date() });
+  const payload = {
+    editais: buildPublicEditais(sources),
+    streak: streakResult.currentStreak,
+    streakState: streakResult.days?.[streakResult.today]?.state || 'not_applicable',
+    publicPlanningUpdatedAt: serverTimestamp(),
+  };
+  const weekId = rules.getWeekId();
+  const monthId = rules.getMonthId();
+  const profile = profileSnapshot.exists ? profileSnapshot.data() : {};
+  const refs = [
+    db().collection('general_rankings').doc('all').collection('members').doc(uid),
+    db().collection('weekly_rankings').doc(weekId).collection('members').doc(uid),
+  ];
+  if (profile.currentCohortId) {
+    refs.push(db().collection('weekly_rankings').doc(weekId).collection('cohorts').doc(profile.currentCohortId).collection('members').doc(uid));
+  }
+  (profile.groupIds || []).filter(Boolean).forEach((groupId) => {
+    refs.push(db().collection('study_groups').doc(groupId).collection('weekly_rankings').doc(weekId).collection('members').doc(uid));
+    refs.push(db().collection('study_groups').doc(groupId).collection('monthly_rankings').doc(monthId).collection('members').doc(uid));
+  });
+  const uniqueRefs = [...new Map(refs.map((ref) => [ref.path, ref])).values()];
+  const snapshots = await db().getAll(...uniqueRefs);
+  const batch = db().batch();
+  let writes = 0;
+  snapshots.forEach((snapshot) => {
+    if (!snapshot.exists) return;
+    batch.set(snapshot.ref, payload, { merge: true });
+    writes += 1;
+  });
+  if (writes) await batch.commit();
+  return { uid, ...payload, writes };
+};
+
+const refreshPublicStudyGroupProfiles = async () => {
+  const rules = await domain();
+  const weekId = rules.getWeekId();
+  const monthId = rules.getMonthId();
+  const groupsSnapshot = await db().collection('study_groups').get();
+  const groupsByUser = new Map();
+
+  for (const groupSnapshot of groupsSnapshot.docs) {
+    const group = { id: groupSnapshot.id, ...groupSnapshot.data() };
+    const groupId = String(group.id || group.groupId || '').trim();
+    const groupName = String(group.name || group.nome || '').trim();
+    const publicGroup = groupId && groupName ? {
+      id: groupId,
+      name: groupName.slice(0, 80),
+      photoURL: group.photoURL || group.photoUrl || null,
+      editalName: String(group.editalName || group.editalNome || '').trim().slice(0, 120) || null,
+      editalLogoURL: group.editalLogoURL || group.editalLogoUrl || null,
+      memberCount: Math.max(0, Number(group.memberCount || 0)),
+      visibility: group.visibility === 'private' ? 'private' : 'public',
+    } : null;
+    if (!publicGroup) continue;
+    const membersSnapshot = await groupSnapshot.ref.collection('members').get();
+    membersSnapshot.docs.forEach((memberSnapshot) => {
+      const uid = memberSnapshot.id;
+      const current = groupsByUser.get(uid) || [];
+      current.push(publicGroup);
+      groupsByUser.set(uid, current);
+    });
+    if (group.ownerId) {
+      const ownerGroups = groupsByUser.get(group.ownerId) || [];
+      if (!ownerGroups.some((item) => item.id === publicGroup.id)) ownerGroups.push(publicGroup);
+      groupsByUser.set(group.ownerId, ownerGroups);
     }
   }
-  await updateRankingMetricPositions({
-    membersRef: db().collection('general_rankings').doc('all').collection('members'),
-    rules,
-  });
-  return { weekId, requestedUsers: uids.size, updatedUsers, failures };
+
+  const writer = db().bulkWriter();
+  let updatedDocuments = 0;
+  const entries = [...groupsByUser.entries()];
+  for (let cursor = 0; cursor < entries.length; cursor += 20) {
+    const chunk = entries.slice(cursor, cursor + 20);
+    await Promise.all(chunk.map(async ([uid, studyGroups]) => {
+      const profileRef = db().collection('users').doc(uid).collection('gamification').doc('profile');
+      const generalRef = db().collection('general_rankings').doc('all').collection('members').doc(uid);
+      const weeklyRef = db().collection('weekly_rankings').doc(weekId).collection('members').doc(uid);
+      const [profileSnapshot, generalSnapshot, weeklySnapshot] = await Promise.all([
+        profileRef.get(), generalRef.get(), weeklyRef.get(),
+      ]);
+      const snapshots = [generalSnapshot, weeklySnapshot];
+      const cohortId = weeklySnapshot.data()?.cohortId || profileSnapshot.data()?.currentCohortId;
+      if (cohortId) {
+        snapshots.push(await db().collection('weekly_rankings').doc(weekId).collection('cohorts').doc(cohortId).collection('members').doc(uid).get());
+      }
+      snapshots.push(...await Promise.all(studyGroups.map((group) => (
+        db().collection('study_groups').doc(group.id).collection('weekly_rankings').doc(weekId).collection('members').doc(uid).get()
+      ))));
+      snapshots.push(...await Promise.all(studyGroups.map((group) => (
+        db().collection('study_groups').doc(group.id).collection('monthly_rankings').doc(monthId).collection('members').doc(uid).get()
+      ))));
+      snapshots.filter((snapshot) => snapshot.exists).forEach((snapshot) => {
+        writer.set(snapshot.ref, { studyGroups, publicGroupsUpdatedAt: serverTimestamp() }, { merge: true });
+        updatedDocuments += 1;
+      });
+    }));
+  }
+  await writer.close();
+  return { users: groupsByUser.size, groups: groupsSnapshot.size, updatedDocuments, weekId };
 };
 
 const rewardEvent = async ({ uid, id, xp, message, category = 'reward', weekId, metadata = {} }) => {
@@ -1096,13 +1531,19 @@ const migrateGamification = async ({ apply = false, uid = null } = {}) => {
 
 module.exports = {
   recomputeUserGamification,
+  refreshUserGroupMonthlyRankings,
+  refreshStudyGroupMonthlyRankings,
+  refreshUserPublicPlanningProfile,
   refreshActiveUserRankings,
+  refreshPublicStudyGroupProfiles,
   closeWeeklyGamification,
   simulateWeeklyGamificationClosure,
   notifyWeeklyClosing,
   migrateGamification,
   __test: {
     isCompletedSchedule,
+    buildPublicEditais,
+    calculatePersistedNonAcademicXP,
     buildMigrationPreview,
   },
 };

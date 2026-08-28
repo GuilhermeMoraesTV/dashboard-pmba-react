@@ -1,4 +1,4 @@
-export const GAMIFICATION_RULE_VERSION = '2.0.0';
+export const GAMIFICATION_RULE_VERSION = '3.0.0';
 export const GAMIFICATION_TIME_ZONE = 'America/Bahia';
 
 export const LEAGUES = Object.freeze([
@@ -80,6 +80,11 @@ export const getWeekId = (value = new Date()) => {
   const weekday = cursor.getUTCDay() || 7;
   cursor.setUTCDate(cursor.getUTCDate() - weekday + 1);
   return cursor.toISOString().slice(0, 10);
+};
+
+export const getMonthId = (value = new Date()) => {
+  const dateKey = toDateKey(value);
+  return dateKey ? dateKey.slice(0, 7) : null;
 };
 
 export const getNextWeekId = (weekId = getWeekId()) => {
@@ -168,6 +173,22 @@ export const sortCompetitiveMembers = (members = []) => [...members].sort((a, b)
 });
 
 export const sortRankingMembers = (members = []) => sortCompetitiveMembers(members);
+
+export const RANKING_ACTIVITY_WINDOW_DAYS = 30;
+
+export const getRankingAccuracy = (member = {}) => {
+  const questions = integer(member.questions);
+  if (!questions) return 0;
+  const correct = Math.min(questions, integer(member.correct));
+  return (correct / questions) * 100;
+};
+
+export const hasRecentRankingActivity = ({ lastStudyAtMillis = 0, now = new Date(), windowDays = RANKING_ACTIVITY_WINDOW_DAYS } = {}) => {
+  const nowMillis = now instanceof Date ? now.getTime() : Number(now);
+  const activityMillis = Number(lastStudyAtMillis || 0);
+  const cutoffMillis = nowMillis - Math.max(1, integer(windowDays)) * 24 * 60 * 60 * 1000;
+  return activityMillis > 0 && activityMillis <= nowMillis && activityMillis >= cutoffMillis;
+};
 
 export const sortGeneralRankingMembers = (members = [], metric = 'questions') => {
   const selectedMetric = metric === 'minutes' ? 'minutes' : 'questions';
@@ -262,15 +283,18 @@ const sumRankingMetrics = (sources) => sources.reduce((sum, source) => ({
 export const calculateRankingPeriodMetrics = ({ records = [], simulations = [], now = new Date() } = {}) => {
   const nowMillis = now instanceof Date ? now.getTime() : Number(now);
   const weekId = getWeekId(new Date(nowMillis));
+  const monthId = getMonthId(new Date(nowMillis));
   const sources = [
-    ...records.filter(isValidGamificationRecord).map((data) => ({ metrics: getStudyMetrics(data) })),
-    ...simulations.filter(isValidGamificationRecord).map((data) => ({ metrics: getSimuladoMetrics(data) })),
-  ].map((source) => ({ ...source, millis: sourceMillis({ ...source.metrics, date: source.metrics.date }) }))
+    ...records.filter(isValidGamificationRecord).map((data) => ({ metrics: getStudyMetrics(data), millis: sourceMillis(data) })),
+    ...simulations.filter(isValidGamificationRecord).map((data) => ({ metrics: getSimuladoMetrics(data), millis: sourceMillis(data) })),
+  ]
     .filter((source) => source.millis > 0 && source.millis <= nowMillis);
   const weeklySources = sources.filter((source) => getWeekId(new Date(source.millis)) === weekId);
+  const monthlySources = sources.filter((source) => getMonthId(new Date(source.millis)) === monthId);
   return {
     lastStudyAtMillis: Math.max(0, ...sources.map((source) => source.millis)),
     weekly: { ...sumRankingMetrics(weeklySources), hasActivity: weeklySources.length > 0, weekId },
+    monthly: { ...sumRankingMetrics(monthlySources), hasActivity: monthlySources.length > 0, monthId },
     lifetime: { ...sumRankingMetrics(sources), hasActivity: sources.length > 0 },
   };
 };
@@ -456,18 +480,506 @@ export const evaluateAchievements = (state = {}, unlockedIds = []) => {
   return { unlockedIds: [...unlocked], newlyUnlocked, rewardXP, effectiveLevel };
 };
 
-export const calculateStudyStreak = (records = [], now = new Date()) => {
-  const days = new Set(records.filter(isValidGamificationRecord).map((record) => toDateKey(getStudyMetrics(record).date)).filter(Boolean));
-  if (!days.size) return 0;
-  const today = toDateKey(now);
-  const cursor = new Date(`${today}T12:00:00Z`);
-  if (!days.has(today)) cursor.setUTCDate(cursor.getUTCDate() - 1);
-  let streak = 0;
-  while (days.has(cursor.toISOString().slice(0, 10))) {
-    streak += 1;
-    cursor.setUTCDate(cursor.getUTCDate() - 1);
+const dateKeyToUTCDate = (dateKey) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dateKey || ''))) return null;
+  const date = new Date(`${dateKey}T12:00:00Z`);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const addDateKeyDays = (dateKey, amount) => {
+  const date = dateKeyToUTCDate(dateKey);
+  if (!date) return null;
+  date.setUTCDate(date.getUTCDate() + Number(amount || 0));
+  return date.toISOString().slice(0, 10);
+};
+
+const getScheduleTemplate = (schedule) => {
+  if (Array.isArray(schedule?.semanaTemplate)) return schedule.semanaTemplate;
+  if (schedule?.semanaTemplate && typeof schedule.semanaTemplate === 'object') {
+    return Object.values(schedule.semanaTemplate);
   }
-  return streak;
+  return [];
+};
+
+export const STUDY_STREAK_DAY_STATES = Object.freeze({
+  STUDIED: 'studied',
+  REST: 'rest',
+  RECOVERY_PENDING: 'recovery_pending',
+  RECOVERED: 'recovered',
+  FAILED: 'failed',
+  NOT_APPLICABLE: 'not_applicable',
+});
+
+const INVALID_STUDY_STATUSES = new Set([
+  'cancelado', 'cancelled', 'planejado', 'planned', 'invalido', 'invalid',
+  'pendente', 'pending', 'simulado', 'simulated', 'rascunho', 'draft',
+  'em_andamento', 'in_progress', 'abandonado', 'abandoned',
+]);
+
+export const isQualifiedStudyRecord = (record = {}) => {
+  if (!isValidGamificationRecord(record)) return false;
+  const status = String(record.status || record.situacao || '').trim().toLowerCase();
+  const type = String(record.tipoEstudo || record.activityType || record.sourceType || '').trim().toLowerCase();
+  if (INVALID_STUDY_STATUSES.has(status)) return false;
+  if (['simulado', 'simulation'].includes(type) || record.isSimulado === true) return false;
+  if (record.confirmado === false || record.confirmed === false || record.persisted === false) return false;
+  const metrics = getStudyMetrics(record);
+  return metrics.minutes > 0 || metrics.questions > 0;
+};
+
+export const isQualifiedSimulation = (simulation = {}) => {
+  if (!isValidGamificationRecord(simulation)) return false;
+  const status = String(simulation.status || simulation.situacao || '').trim().toLowerCase();
+  if (INVALID_STUDY_STATUSES.has(status)) return false;
+  if (simulation.confirmado === false || simulation.confirmed === false || simulation.persisted === false) return false;
+  const metrics = getSimuladoMetrics(simulation);
+  return metrics.minutes > 0 || metrics.questions > 0;
+};
+
+const getQualifiedStudyDates = (records, simulations, { includeReviewRecords = true } = {}) => new Set([
+  ...(Array.isArray(records) ? records : [])
+    .filter(isQualifiedStudyRecord)
+    .filter((record) => includeReviewRecords || !isReviewRecord(record))
+    .map((record) => toDateKey(getStudyMetrics(record).date)),
+  ...(Array.isArray(simulations) ? simulations : [])
+    .filter(isQualifiedSimulation)
+    .map((simulation) => toDateKey(getSimuladoMetrics(simulation).date)),
+].filter(Boolean));
+
+const addMapMinutes = (map, dateKey, minutes) => {
+  if (!dateKey || minutes <= 0) return;
+  map.set(dateKey, (map.get(dateKey) || 0) + minutes);
+};
+
+const getWeekdayFromDateKey = (dateKey) => dateKeyToUTCDate(dateKey)?.getUTCDay();
+
+const getPlanContext = (plan) => (plan?.type === 'cycle' ? 'ciclo' : 'cronograma');
+
+const isRecordExplicitlyLinkedToAnotherPlan = (record = {}, plan) => {
+  const planId = String(plan?.id || '');
+  const context = getPlanContext(plan);
+  const recordContext = String(record.contextoRegistro || record.origemPlanejamento || '').trim().toLowerCase();
+  if (recordContext && recordContext !== context) return true;
+  if (plan?.type === 'cycle') {
+    if (record.cronogramaId) return true;
+    if (record.cicloId && String(record.cicloId) !== planId) return true;
+  }
+  if (plan?.type === 'schedule') {
+    if (record.cicloId) return true;
+    if (record.cronogramaId && String(record.cronogramaId) !== planId) return true;
+  }
+  return false;
+};
+
+const getCycleTargetMinutesForDate = (cycle, dateKey) => {
+  const weekday = getWeekdayFromDateKey(dateKey);
+  const rawDays = cycle?.diasEstudo;
+  const fallback = Math.max(1, integer(cycle?.tempoSessaoMinutos) || 60);
+  if (rawDays && typeof rawDays === 'object' && !Array.isArray(rawDays)) {
+    const rawValue = rawDays[weekday] ?? rawDays[String(weekday)];
+    const hours = Number(rawValue);
+    return hours > 0 ? Math.round(hours * 60) : fallback;
+  }
+  return fallback;
+};
+
+const getSlotMinutes = (slot = {}) => Math.max(0, integer(
+  slot.tempoPlanejadoMinutos ?? slot.tempoMinutos ?? slot.minutosEstudo ?? slot.durationMinutes,
+));
+
+const getScheduleTargetMinutesForDate = (schedule, dateKey) => {
+  const weekday = getWeekdayFromDateKey(dateKey);
+  const configuredHours = Number(
+    schedule?.horariosDetalhados?.[weekday]
+    ?? schedule?.horariosDetalhados?.[String(weekday)]
+    ?? (schedule?.diasEstudo && !Array.isArray(schedule.diasEstudo)
+      ? schedule.diasEstudo[weekday] ?? schedule.diasEstudo[String(weekday)]
+      : 0),
+  );
+  if (configuredHours > 0) return Math.round(configuredHours * 60);
+
+  const grossMinutes = getScheduleTemplate(schedule)
+    .filter((slot) => Number(slot?.dia) === weekday)
+    .reduce((maximum, slot) => Math.max(maximum, getSlotMinutes({
+      tempoPlanejadoMinutos: slot?.minutosBrutoDia,
+    })), 0);
+  if (grossMinutes > 0) return grossMinutes;
+
+  const templateMinutes = getScheduleTemplate(schedule)
+    .filter((slot) => {
+      const rawSlotDate = slot?.dataSlot || slot?.data || slot?.date;
+      const slotDate = rawSlotDate ? toDateKey(rawSlotDate) : null;
+      if (slotDate) return slotDate === dateKey;
+      return Number(slot?.dia) === weekday;
+    })
+    .reduce((total, slot) => total + getSlotMinutes(slot), 0);
+  if (templateMinutes > 0) return templateMinutes;
+
+  return 60;
+};
+
+const getScheduleStudyTargetMinutesForDate = (schedule, dateKey) => {
+  const weekday = getWeekdayFromDateKey(dateKey);
+  return getScheduleTemplate(schedule)
+    .filter((slot) => !slot?.isRevisaoAuto && !slot?.isRevisao && !slot?.isConsolidada)
+    .filter((slot) => {
+      const rawSlotDate = slot?.dataSlot || slot?.data || slot?.date;
+      const slotDate = rawSlotDate ? toDateKey(rawSlotDate) : null;
+      if (slotDate) return slotDate === dateKey;
+      return Number(slot?.dia) === weekday;
+    })
+    .reduce((total, slot) => total + getSlotMinutes(slot), 0);
+};
+
+const getPlanTargetMinutesForDate = (plan, dateKey) => (
+  plan?.type === 'cycle'
+    ? getCycleTargetMinutesForDate(plan.data, dateKey)
+    : getScheduleTargetMinutesForDate(plan.data, dateKey)
+);
+
+const getReviewDueDateKey = (review = {}) => toDateKey(
+  review.dataAgendada || review.dataPrevista || review.dataRevisao || review.dataSlot,
+);
+
+const getReviewCompletionDateKey = (review = {}) => toDateKey(
+  review.concluidaEm || review.concluidoEm || review.dataConclusao,
+);
+
+const isCycleReviewPendingByDate = (review, plan, dateKey) => {
+  if (plan?.type !== 'cycle') return false;
+  if (String(review?.cicloId || '') !== String(plan.id || '')) return false;
+  const dueDate = getReviewDueDateKey(review);
+  if (!dueDate || dueDate > dateKey) return false;
+  if (review?.concluida !== true && review?.concluido !== true) return true;
+  const completionDate = getReviewCompletionDateKey(review);
+  return Boolean(completionDate && completionDate > dateKey);
+};
+
+const getCycleReviewRequirementsByDate = (cycleReviews, plan, dateKey) => (
+  (Array.isArray(cycleReviews) ? cycleReviews : []).filter((review) => {
+    if (plan?.type !== 'cycle' || String(review?.cicloId || '') !== String(plan.id || '')) return false;
+    const dueDate = getReviewDueDateKey(review);
+    if (!dueDate || dueDate > dateKey) return false;
+    const completed = review?.concluida === true || review?.concluido === true;
+    if (!completed) return true;
+    const completionDate = getReviewCompletionDateKey(review);
+    return dueDate === dateKey || Boolean(completionDate && completionDate >= dateKey);
+  })
+);
+
+const getPlanDailyActivityMinutes = ({ records = [], simulations = [], plan }) => {
+  const totalMinutesByDate = new Map();
+  const studyMinutesByDate = new Map();
+  (Array.isArray(records) ? records : []).forEach((record) => {
+    if (!isQualifiedStudyRecord(record)) return;
+    if (isRecordExplicitlyLinkedToAnotherPlan(record, plan)) return;
+    const metrics = getStudyMetrics(record);
+    const dateKey = toDateKey(metrics.date);
+    addMapMinutes(totalMinutesByDate, dateKey, metrics.minutes);
+    if (!isReviewRecord(record)) addMapMinutes(studyMinutesByDate, dateKey, metrics.minutes);
+  });
+  (Array.isArray(simulations) ? simulations : []).forEach((simulation) => {
+    if (!isQualifiedSimulation(simulation)) return;
+    const metrics = getSimuladoMetrics(simulation);
+    const dateKey = toDateKey(metrics.date);
+    addMapMinutes(totalMinutesByDate, dateKey, metrics.minutes);
+    addMapMinutes(studyMinutesByDate, dateKey, metrics.minutes);
+  });
+  return { totalMinutesByDate, studyMinutesByDate };
+};
+
+const normalizeStudyWeekdays = (raw, fallback = []) => {
+  if (Array.isArray(raw)) {
+    return [...new Set(raw.map(Number).filter((day) => Number.isInteger(day) && day >= 0 && day <= 6))];
+  }
+  if (raw && typeof raw === 'object') {
+    return [...new Set(Object.entries(raw)
+      .filter(([, value]) => value === true || Number(value) > 0)
+      .map(([day]) => Number(day))
+      .filter((day) => Number.isInteger(day) && day >= 0 && day <= 6))];
+  }
+  return [...fallback];
+};
+
+const getPlanStudyWeekdays = (plan) => {
+  if (plan?.type === 'schedule') {
+    const configured = normalizeStudyWeekdays(plan.data?.diasEstudo);
+    const template = getScheduleTemplate(plan.data)
+      .filter((slot) => !slot?.isRevisaoAuto)
+      .map((slot) => Number(slot?.dia))
+      .filter((day) => Number.isInteger(day) && day >= 0 && day <= 6);
+    return [...new Set([...configured, ...template])].sort((a, b) => a - b);
+  }
+  return normalizeStudyWeekdays(plan?.data?.diasEstudo, [1, 2, 3, 4, 5]).sort((a, b) => a - b);
+};
+
+const getPlanStartKey = (plan, studyDates) => {
+  const value = plan?.type === 'cycle'
+    ? (plan?.data?.dataInicioPlanejamento || plan?.data?.dataInicio || plan?.data?.inicio || plan?.data?.dataCriacao || plan?.data?.createdAt)
+    : (plan?.data?.dataInicio || plan?.data?.inicio || plan?.data?.createdAt || plan?.data?.dataCriacao);
+  const configured = value ? toDateKey(value) : null;
+  if (configured) return configured;
+  return [...studyDates].sort()[0] || null;
+};
+
+const getPlanRestDateKeys = (plan) => {
+  const data = plan?.data || {};
+  const directValues = [data.datasDescanso, data.diasDescanso, data.diasFolga, data.feriados]
+    .flatMap((value) => (Array.isArray(value) ? value : Object.entries(value || {})
+      .filter(([, enabled]) => enabled === true || String(enabled).toLowerCase() === 'descanso')
+      .map(([dateKey]) => dateKey)));
+  const exceptionValues = Object.values(data.excecoesCalendario || data.excecoes || {})
+    .filter((entry) => ['descanso', 'folga', 'feriado', 'rest'].includes(String(entry?.tipo || entry?.type || entry?.status || '').toLowerCase()))
+    .map((entry) => entry?.data || entry?.date || entry?.dateKey);
+  return new Set([...directValues, ...exceptionValues].map(toDateKey).filter(Boolean));
+};
+
+const nextExpectedStudyDate = (dateKey, studyWeekdays, restDates, limit = 14) => {
+  let cursor = dateKey;
+  for (let index = 0; index < limit; index += 1) {
+    cursor = addDateKeyDays(cursor, 1);
+    const weekday = dateKeyToUTCDate(cursor)?.getUTCDay();
+    if (studyWeekdays.has(weekday) && !restDates.has(cursor)) return cursor;
+  }
+  return null;
+};
+
+const evaluatePlannedStudyStreak = ({ plan, dailyActivityMinutes, cycleReviews = [], todayKey, lookbackDays }) => {
+  const weekdays = getPlanStudyWeekdays(plan);
+  const studyWeekdays = new Set(weekdays);
+  const restDates = getPlanRestDateKeys(plan);
+  const totalMinutesByDate = dailyActivityMinutes?.totalMinutesByDate || new Map();
+  const studyMinutesByDate = dailyActivityMinutes?.studyMinutesByDate || new Map();
+  const startKey = getPlanStartKey(plan, new Set(totalMinutesByDate.keys()));
+  if (!todayKey || !startKey || !studyWeekdays.size || startKey > todayKey) return null;
+
+  const earliestAllowed = addDateKeyDays(todayKey, -(Math.max(1, integer(lookbackDays)) - 1));
+  let cursor = startKey < earliestAllowed ? earliestAllowed : startKey;
+  let currentStreak = 0;
+  let pendingRecoveryDate = null;
+  let recoveryDueDate = null;
+  const days = {};
+
+  while (cursor && cursor <= todayKey) {
+    const weekday = dateKeyToUTCDate(cursor)?.getUTCDay();
+    const expected = studyWeekdays.has(weekday) && !restDates.has(cursor);
+    const plannedMinutes = expected ? getPlanTargetMinutesForDate(plan, cursor) : 0;
+    const qualifiedMinutes = expected ? Math.max(0, Number(totalMinutesByDate.get(cursor) || 0)) : 0;
+    const qualifiedStudyMinutes = expected ? Math.max(0, Number(studyMinutesByDate.get(cursor) || 0)) : 0;
+    const cycleReviewRequirements = expected ? getCycleReviewRequirementsByDate(cycleReviews, plan, cursor) : [];
+    const pendingReviewCount = cycleReviewRequirements
+      .filter((review) => isCycleReviewPendingByDate(review, plan, cursor)).length;
+    const plannedReviewMinutes = cycleReviewRequirements.reduce(
+      (total, review) => total + Math.max(0, getSlotMinutes(review) || 20),
+      0,
+    );
+    const plannedStudyMinutes = plan.type === 'schedule'
+      ? Math.min(plannedMinutes, getScheduleStudyTargetMinutesForDate(plan.data, cursor) || plannedMinutes)
+      : Math.max(0, plannedMinutes - Math.min(plannedMinutes, plannedReviewMinutes));
+    const studied = expected
+      && qualifiedMinutes >= plannedMinutes
+      && qualifiedStudyMinutes >= plannedStudyMinutes
+      && pendingReviewCount === 0;
+    const isToday = cursor === todayKey;
+    let state = STUDY_STREAK_DAY_STATES.NOT_APPLICABLE;
+
+    if (!expected) {
+      state = STUDY_STREAK_DAY_STATES.REST;
+    } else if (studied) {
+      state = pendingRecoveryDate
+        ? STUDY_STREAK_DAY_STATES.RECOVERED
+        : STUDY_STREAK_DAY_STATES.STUDIED;
+      currentStreak += 1;
+      pendingRecoveryDate = null;
+      recoveryDueDate = null;
+    } else if (isToday) {
+      state = STUDY_STREAK_DAY_STATES.RECOVERY_PENDING;
+      if (!pendingRecoveryDate) pendingRecoveryDate = cursor;
+      recoveryDueDate = pendingRecoveryDate === cursor
+        ? nextExpectedStudyDate(cursor, studyWeekdays, restDates)
+        : cursor;
+    } else if (!pendingRecoveryDate) {
+      state = STUDY_STREAK_DAY_STATES.RECOVERY_PENDING;
+      pendingRecoveryDate = cursor;
+      recoveryDueDate = nextExpectedStudyDate(cursor, studyWeekdays, restDates);
+    } else {
+      state = STUDY_STREAK_DAY_STATES.FAILED;
+      currentStreak = 0;
+      pendingRecoveryDate = null;
+      recoveryDueDate = null;
+    }
+
+    days[cursor] = {
+      state,
+      expectedStudy: expected,
+      qualifiedStudy: studied,
+      qualifiedMinutes,
+      qualifiedStudyMinutes,
+      plannedMinutes,
+      plannedStudyMinutes,
+      pendingReviewCount,
+      incrementsStreak: state === STUDY_STREAK_DAY_STATES.STUDIED || state === STUDY_STREAK_DAY_STATES.RECOVERED,
+      preservesStreak: state !== STUDY_STREAK_DAY_STATES.FAILED && state !== STUDY_STREAK_DAY_STATES.NOT_APPLICABLE,
+      streakAfterDay: currentStreak,
+    };
+    cursor = addDateKeyDays(cursor, 1);
+  }
+
+  return {
+    currentStreak,
+    days,
+    pendingRecoveryDate,
+    recoveryDueDate,
+    context: { type: plan.type, id: String(plan.id), startDate: startKey, studyWeekdays: weekdays },
+    qualifiedStudyDates: Object.entries(days)
+      .filter(([, day]) => day.incrementsStreak)
+      .map(([dateKey]) => dateKey),
+  };
+};
+
+const evaluateRecordsFallback = ({ studyDates, todayKey, lookbackDays }) => {
+  const days = {};
+  if (!todayKey || !studyDates.size) {
+    return { currentStreak: 0, days, pendingRecoveryDate: null, recoveryDueDate: null, context: null };
+  }
+  const earliestAllowed = addDateKeyDays(todayKey, -(Math.max(1, integer(lookbackDays)) - 1));
+  const earliestStudyDate = [...studyDates].filter((dateKey) => dateKey <= todayKey).sort()[0];
+  let cursor = earliestStudyDate && earliestStudyDate > earliestAllowed ? earliestStudyDate : earliestAllowed;
+  while (cursor && cursor <= todayKey) {
+    const studied = studyDates.has(cursor);
+    days[cursor] = {
+      state: studied ? STUDY_STREAK_DAY_STATES.STUDIED : STUDY_STREAK_DAY_STATES.NOT_APPLICABLE,
+      expectedStudy: false,
+      qualifiedStudy: studied,
+      incrementsStreak: studied,
+      preservesStreak: studied,
+      streakAfterDay: 0,
+    };
+    cursor = addDateKeyDays(cursor, 1);
+  }
+  let currentStreak = 0;
+  let reverseCursor = todayKey;
+  if (!studyDates.has(reverseCursor)) reverseCursor = addDateKeyDays(reverseCursor, -1);
+  while (reverseCursor && reverseCursor >= earliestAllowed && studyDates.has(reverseCursor)) {
+    currentStreak += 1;
+    reverseCursor = addDateKeyDays(reverseCursor, -1);
+  }
+  return { currentStreak, days, pendingRecoveryDate: null, recoveryDueDate: null, context: null };
+};
+
+const emptyPlanStudyStreak = ({ todayKey, source = 'plan_unavailable' }) => ({
+  currentStreak: 0,
+  days: {},
+  pendingRecoveryDate: null,
+  recoveryDueDate: null,
+  context: null,
+  qualifiedStudyDates: [],
+  candidateContexts: [],
+  source,
+  today: todayKey,
+});
+
+export const calculatePlanStudyStreak = ({
+  records = [],
+  simulations = [],
+  simulados = simulations,
+  plan = null,
+  planType = null,
+  cycleReviews = [],
+  now = new Date(),
+  lookbackDays = 3660,
+} = {}) => {
+  const todayKey = toDateKey(now);
+  const normalizedType = ['cycle', 'ciclo'].includes(String(planType || '').toLowerCase())
+    ? 'cycle'
+    : ['schedule', 'cronograma'].includes(String(planType || '').toLowerCase())
+      ? 'schedule'
+      : null;
+  const planId = plan?.id;
+  if (!normalizedType || planId === undefined || planId === null || planId === '') {
+    return emptyPlanStudyStreak({ todayKey });
+  }
+
+  const wrappedPlan = { type: normalizedType, id: planId, data: plan };
+  const result = evaluatePlannedStudyStreak({
+    plan: wrappedPlan,
+    dailyActivityMinutes: getPlanDailyActivityMinutes({ records, simulations: simulados, plan: wrappedPlan }),
+    cycleReviews,
+    todayKey,
+    lookbackDays,
+  });
+  if (!result) return emptyPlanStudyStreak({ todayKey, source: 'plan_invalid' });
+
+  return {
+    ...result,
+    source: 'plan',
+    today: todayKey,
+    qualifiedStudyDates: [...(result.qualifiedStudyDates || [])].sort(),
+    candidateContexts: [{ ...result.context, currentStreak: result.currentStreak }],
+  };
+};
+
+// Agregado público usado por Ranking, perfis públicos e Cloud Functions.
+// Quando há vários planejamentos ativos válidos, vence a maior sequência atual;
+// empates são resolvidos por tipo (ciclo antes de cronograma) e id crescente.
+export const calculateCanonicalStudyStreak = ({
+  records = [],
+  simulations = [],
+  simulados = simulations,
+  cycles = [],
+  schedules = [],
+  cycleReviews = [],
+  now = new Date(),
+  lookbackDays = 3660,
+} = {}) => {
+  const todayKey = toDateKey(now);
+  const studyDates = getQualifiedStudyDates(records, simulados);
+  const activePlans = [
+    ...(Array.isArray(cycles) ? cycles : [])
+      .filter((plan) => plan?.ativo === true && plan?.arquivado !== true)
+      .map((plan) => ({ type: 'cycle', id: plan.id, data: plan })),
+    ...(Array.isArray(schedules) ? schedules : [])
+      .filter((plan) => plan?.ativo === true && plan?.arquivado !== true)
+      .map((plan) => ({ type: 'schedule', id: plan.id, data: plan })),
+  ].filter((plan) => plan.id !== undefined && plan.id !== null && plan.id !== '');
+
+  const candidates = activePlans
+    .map((plan) => evaluatePlannedStudyStreak({
+      plan,
+      dailyActivityMinutes: getPlanDailyActivityMinutes({ records, simulations: simulados, plan }),
+      cycleReviews,
+      todayKey,
+      lookbackDays,
+    }))
+    .filter(Boolean)
+    .sort((a, b) => (
+      b.currentStreak - a.currentStreak
+      || String(a.context.type).localeCompare(String(b.context.type))
+      || String(a.context.id).localeCompare(String(b.context.id))
+    ));
+  const selected = candidates[0] || evaluateRecordsFallback({ studyDates, todayKey, lookbackDays });
+  return {
+    ...selected,
+    source: candidates.length ? 'active_plan' : 'records_fallback',
+    today: todayKey,
+    qualifiedStudyDates: [...(candidates.length ? (selected.qualifiedStudyDates || []) : studyDates)].sort(),
+    candidateContexts: candidates.map((candidate) => ({ ...candidate.context, currentStreak: candidate.currentStreak })),
+  };
+};
+
+export const calculateStudyStreak = (records = [], now = new Date()) => (
+  calculateCanonicalStudyStreak({ records, now }).currentStreak
+);
+
+export const calculateBestActivePlanStreak = ({
+  records = [],
+  simulations = [],
+  simulados = simulations,
+  cycles = [],
+  schedules = [],
+  now = new Date(),
+} = {}) => {
+  return calculateCanonicalStudyStreak({ records, simulations: simulados, cycles, schedules, now }).currentStreak;
 };
 
 export const calculateGamificationSnapshot = ({ records = [], simulations = [], simulados = simulations, goals = [], now = new Date() } = {}) => {

@@ -88,17 +88,68 @@ export const formatLiveTimer = (totalSeconds = 0) => {
   return [hours, minutes, seconds].map((value) => String(value).padStart(2, '0')).join(':');
 };
 
-export const isLiveStudySession = (session, nowMs = Date.now()) => {
+const TERMINAL_TIMER_STATUSES = new Set(['finished', 'finishing', 'stopped', 'cancelled']);
+
+export const isMonitorableStudySession = (session, nowMs = Date.now()) => {
+  if (!session) return false;
+  const status = String(session.status || '').toLowerCase();
+  if (TERMINAL_TIMER_STATUSES.has(status)) return false;
+  const isPaused = session.isPaused === true || status === 'paused';
   const lastSeen = Math.max(
-    timestampMs(session?.heartbeatAt),
-    timestampMs(session?.updatedAt),
-    timestampMs(session?.snapshotAt),
+    timestampMs(session.heartbeatAt),
+    timestampMs(session.updatedAt),
+    timestampMs(session.snapshotAt),
   );
-  const phase = getLiveTimerPhase(session);
-  return session?.status === 'running'
-    && !session?.isPaused
-    && phase !== 'rest'
-    && phase !== 'rest_finished'
-    && phase !== 'pomodoro_finished'
+  return (status === 'running' || isPaused)
+    && lastSeen > 0
     && nowMs - lastSeen <= 120000;
 };
+
+export const isLiveStudySession = (session, nowMs = Date.now()) => {
+  const phase = getLiveTimerPhase(session);
+  return isMonitorableStudySession(session, nowMs)
+    && session?.status === 'running'
+    && session?.isPaused !== true
+    && phase !== 'rest'
+    && phase !== 'rest_finished'
+    && phase !== 'pomodoro_finished';
+};
+
+export const GROUP_MEMBER_STUDY_STATES = Object.freeze({
+  STUDYING: 'studying',
+  PAUSED: 'paused',
+  OFFLINE: 'offline',
+});
+
+export const getGroupMemberStudyState = (session, nowMs = Date.now()) => {
+  if (isLiveStudySession(session, nowMs)) return GROUP_MEMBER_STUDY_STATES.STUDYING;
+  const paused = session?.status === 'paused' || session?.isPaused === true;
+  if (paused && isMonitorableStudySession(session, nowMs)) return GROUP_MEMBER_STUDY_STATES.PAUSED;
+  return GROUP_MEMBER_STUDY_STATES.OFFLINE;
+};
+
+export const sortGroupMembersByStudyState = (members = [], timers = {}, nowMs = Date.now()) => {
+  const priority = {
+    [GROUP_MEMBER_STUDY_STATES.STUDYING]: 0,
+    [GROUP_MEMBER_STUDY_STATES.PAUSED]: 1,
+    [GROUP_MEMBER_STUDY_STATES.OFFLINE]: 2,
+  };
+  return [...members].sort((a, b) => {
+    const aId = a?.uid || a?.id;
+    const bId = b?.uid || b?.id;
+    const stateDifference = priority[getGroupMemberStudyState(timers?.[aId], nowMs)]
+      - priority[getGroupMemberStudyState(timers?.[bId], nowMs)];
+    if (stateDifference) return stateDifference;
+    return String(a?.displayName || a?.name || aId || '').localeCompare(
+      String(b?.displayName || b?.name || bId || ''),
+      'pt-BR',
+    );
+  });
+};
+
+export const isLiveRankingMember = (member, nowMs = Date.now()) => isLiveStudySession({
+  status: member?.liveStudy ? 'running' : 'stopped',
+  phase: 'focus',
+  isPaused: member?.liveStudy === false,
+  heartbeatAt: member?.liveStudyHeartbeatAt,
+}, nowMs);

@@ -7,7 +7,7 @@ const EDITAL_GCM_AQUIRAZ_COMPLETO = {
   id: "gcm_aquiraz",
   titulo: "GCM Aquiraz",
   banca: "Instituto Consulpam",
-  logoUrl: "/logosEditais/logo-fcmaquiraz.png",
+  logoUrl: "/logosEditais/logo-gcmaquiraz.png",
   instituicao: "GCM",
   tipo: "gcm",
   disciplinas: [

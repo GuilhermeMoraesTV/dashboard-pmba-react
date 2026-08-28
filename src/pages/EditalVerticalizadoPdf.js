@@ -130,7 +130,10 @@ export const buildEditalLogoCandidates = ({ edital = {}, providedLogo = null } =
   };
   add(providedLogo);
   add(edital.logoUrl);
+  add(edital.logoURL);
   add(edital.logo);
+  add(edital.editalLogoUrl);
+  add(edital.computedLogo);
 
   const identity = editalIdentity(edital);
   const alias = EDITAL_LOGO_ALIASES.find((item) => item.pattern.test(identity));
@@ -265,6 +268,81 @@ const blobToDataUrl = (blob) => new Promise((resolve, reject) => {
   reader.readAsDataURL(blob);
 });
 
+const rasterizePdfImageBlob = async (blob) => {
+  if (typeof document === 'undefined') return null;
+
+  let bitmap = null;
+  let objectUrl = null;
+  try {
+    if (typeof createImageBitmap === 'function') {
+      try {
+        bitmap = await createImageBitmap(blob);
+      } catch {
+        bitmap = null;
+      }
+    }
+    if (!bitmap) {
+      objectUrl = URL.createObjectURL(blob);
+      bitmap = await new Promise((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = reject;
+        image.src = objectUrl;
+      });
+    }
+
+    const sourceWidth = bitmap.naturalWidth || bitmap.width || 1;
+    const sourceHeight = bitmap.naturalHeight || bitmap.height || 1;
+    const maxDimension = 2048;
+    const scale = Math.min(1, maxDimension / Math.max(sourceWidth, sourceHeight));
+    const width = Math.max(1, Math.round(sourceWidth * scale));
+    const height = Math.max(1, Math.round(sourceHeight * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d');
+    if (!context) return null;
+    context.drawImage(bitmap, 0, 0, width, height);
+    return { dataUrl: canvas.toDataURL('image/png'), format: 'PNG', width, height };
+  } catch {
+    return null;
+  } finally {
+    if (typeof bitmap?.close === 'function') bitmap.close();
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+  }
+};
+
+const normalizePdfImageBlob = async (blob) => {
+  const type = String(blob?.type || '').toLowerCase();
+  if (type === 'image/png' || type === 'image/jpeg' || type === 'image/jpg') return null;
+  return rasterizePdfImageBlob(blob);
+};
+
+const isNativePdfImageType = (type) => ['image/png', 'image/jpeg', 'image/jpg']
+  .includes(String(type || '').toLowerCase());
+
+const fetchPdfImageBlob = async (source) => {
+  const assetUrl = absoluteAssetUrl(source);
+  try {
+    const response = await fetch(assetUrl, { mode: 'cors', cache: 'no-store' });
+    if (response.ok) return response.blob();
+  } catch {
+    // URLs do Firebase Storage podem exigir a sessao autenticada do SDK.
+  }
+
+  if (!/^https?:/i.test(assetUrl)
+    || !/(?:firebasestorage\.googleapis\.com|[^/]+\.firebasestorage\.app|storage\.googleapis\.com)/i.test(assetUrl)) return null;
+  try {
+    const [{ storage }, { getBlob, ref }] = await Promise.all([
+      import('../firebaseConfig.js'),
+      import('firebase/storage'),
+    ]);
+    return await getBlob(ref(storage, assetUrl));
+  } catch {
+    return null;
+  }
+};
+
 const getImageDimensions = (dataUrl) => new Promise((resolve) => {
   if (typeof Image === 'undefined') {
     resolve({ width: 1, height: 1 });
@@ -276,18 +354,24 @@ const getImageDimensions = (dataUrl) => new Promise((resolve) => {
   img.src = dataUrl;
 });
 
-const resolvePdfImage = async (src) => {
+export const resolvePdfImage = async (src) => {
   if (!src) return null;
   try {
     const descriptor = typeof src === 'object' ? src : { src };
     let dataUrl = descriptor.dataUrl || descriptor.src;
     if (!dataUrl) return null;
     if (!/^data:/i.test(dataUrl)) {
-      const response = await fetch(absoluteAssetUrl(dataUrl), { mode: 'cors', cache: 'force-cache' });
-      if (!response.ok) return null;
-      const blob = await response.blob();
-      if (blob.type && !blob.type.startsWith('image/')) return null;
+      const blob = await fetchPdfImageBlob(dataUrl);
+      if (!blob) return null;
+      const rasterized = await normalizePdfImageBlob(blob);
+      if (rasterized) return rasterized;
+      if (!isNativePdfImageType(blob.type)) return null;
       dataUrl = await blobToDataUrl(blob);
+    } else if (!/^data:image\/(?:png|jpe?g);/i.test(dataUrl)) {
+      const response = await fetch(dataUrl);
+      const rasterized = await rasterizePdfImageBlob(await response.blob());
+      if (rasterized) return rasterized;
+      return null;
     }
     const dimensions = Number(descriptor.width) > 0 && Number(descriptor.height) > 0
       ? { width: Number(descriptor.width), height: Number(descriptor.height) }
@@ -300,7 +384,7 @@ const resolvePdfImage = async (src) => {
   }
 };
 
-const resolveFirstPdfImage = async (sources = []) => {
+export const resolveFirstPdfImage = async (sources = []) => {
   for (const source of sources) {
     const image = await resolvePdfImage(source);
     if (image) return image;

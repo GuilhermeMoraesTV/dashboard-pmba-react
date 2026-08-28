@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { collection, onSnapshot, query } from 'firebase/firestore';
+import { collection, getCountFromServer, onSnapshot, query } from 'firebase/firestore';
 import { Ban, Eye, EyeOff, Loader2, Search, ShieldCheck, Trash2, UserCog, Users } from 'lucide-react';
 import { db } from '../../firebaseConfig';
 import { getWeekId, sortCompetitiveMembers } from '../../utils/gamification';
@@ -24,17 +24,48 @@ const AdminGroupsSection = ({ users = [], onOpenUser, onFeedback }) => {
   const [error, setError] = useState('');
   const weekId = getWeekId();
 
-  useEffect(() => onSnapshot(query(collection(db, 'study_groups')), (snapshot) => {
-    const rows = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
-    setGroups(rows.sort((a, b) => (dateValue(b.updatedAt || b.createdAt)?.getTime() || 0) - (dateValue(a.updatedAt || a.createdAt)?.getTime() || 0)));
-    setLoading(false);
-    setError('');
-  }, (snapshotError) => { setError(snapshotError.message); setLoading(false); }), []);
+  useEffect(() => {
+    let countVersion = 0;
+    const unsubscribe = onSnapshot(query(collection(db, 'study_groups')), (snapshot) => {
+      const version = ++countVersion;
+      const rows = snapshot.docs
+        .map((item) => ({ id: item.id, ...item.data() }))
+        .sort((a, b) => (dateValue(b.updatedAt || b.createdAt)?.getTime() || 0) - (dateValue(a.updatedAt || a.createdAt)?.getTime() || 0));
+      setGroups(rows);
+      setLoading(false);
+      setError('');
+      void Promise.all(rows.map(async (group) => {
+        try {
+          const countSnapshot = await getCountFromServer(collection(db, 'study_groups', group.id, 'members'));
+          return [group.id, countSnapshot.data().count];
+        } catch {
+          return [group.id, Math.max(0, Number(group.memberCount || 0))];
+        }
+      })).then((counts) => {
+        if (version !== countVersion) return;
+        const countByGroup = new Map(counts);
+        setGroups((current) => current.map((group) => ({
+          ...group,
+          memberCount: countByGroup.get(group.id) ?? Math.max(0, Number(group.memberCount || 0)),
+        })));
+      });
+    }, (snapshotError) => { setError(snapshotError.message); setLoading(false); });
+    return () => {
+      countVersion += 1;
+      unsubscribe();
+    };
+  }, []);
 
   useEffect(() => {
     if (!selectedGroupId) { setMembers([]); setRequests([]); setRanking([]); return undefined; }
     const stops = [
-      onSnapshot(collection(db, 'study_groups', selectedGroupId, 'members'), (snapshot) => setMembers(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }))), (snapshotError) => setError(snapshotError.message)),
+      onSnapshot(collection(db, 'study_groups', selectedGroupId, 'members'), (snapshot) => {
+        const rows = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
+        setMembers(rows);
+        setGroups((current) => current.map((group) => (
+          group.id === selectedGroupId ? { ...group, memberCount: rows.length } : group
+        )));
+      }, (snapshotError) => setError(snapshotError.message)),
       onSnapshot(collection(db, 'study_groups', selectedGroupId, 'join_requests'), (snapshot) => setRequests(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }))), (snapshotError) => setError(snapshotError.message)),
       onSnapshot(collection(db, 'study_groups', selectedGroupId, 'weekly_rankings', weekId, 'members'), (snapshot) => setRanking(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }))), (snapshotError) => setError(snapshotError.message)),
     ];

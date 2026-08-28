@@ -4,7 +4,7 @@ import {
   Users, ChevronDown, ChevronUp, Zap, Coffee,
   PauseCircle, BookOpen, Clock, Activity, Target,
   MoreHorizontal, Play, ClipboardList, AlertCircle,
-  Filter, TrendingUp, BarChart3, Eye, Grid
+  Filter, TrendingUp, BarChart3, Columns3, Eye, Grid
 } from 'lucide-react';
 import UserProfileModal from '../../components/admin/UserProfileModal';
 
@@ -442,6 +442,13 @@ const PulsingAvatar = ({ user, status }) => {
   );
 };
 
+const SESSION_STATUS_META = {
+  focus: { label: 'Estudando', dot: 'bg-emerald-500', badge: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-300', timer: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-300' },
+  rest: { label: 'Descansando', dot: 'bg-blue-500', badge: 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-300', timer: 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-300' },
+  paused: { label: 'Pausado', dot: 'bg-amber-500', badge: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-300', timer: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-300' },
+  simulado: { label: 'Simulado', dot: 'bg-red-500', badge: 'border-red-200 bg-red-50 text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300', timer: 'border-red-200 bg-red-50 text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300' },
+};
+
 // --- ALUNO CARD (foto, nome, matéria, timer em destaque) ---
 const AlunoCard = ({ s, getUser, onOpenUser: onOpenUserProp }) => {
   const liveSeconds = useAdminSyncedSeconds(s);
@@ -456,80 +463,33 @@ const AlunoCard = ({ s, getUser, onOpenUser: onOpenUserProp }) => {
   else if (isSimulado) status = 'simulado';
   else if (isResting) status = 'rest';
 
-  const theme = { focus: 'emerald', rest: 'blue', paused: 'amber', simulado: 'red' };
-  const color = theme[status];
-
   const titleDisplay = isSimulado ? s.titulo : (s.disciplinaNome || 'Estudo Livre');
-  const subTitleDisplay = isSimulado ? 'Simulado em Andamento' : (s.assunto || '');
+  const subTitleDisplay = isSimulado ? 'Simulado em andamento' : (s.assunto || 'Assunto não informado');
+  const statusMeta = SESSION_STATUS_META[status];
 
   return (
-    <motion.div
+    <motion.button
+      type="button"
       layout
       initial={{ opacity: 0, y: 12, scale: 0.97 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: -8, scale: 0.95 }}
-      className="group relative overflow-hidden rounded-2xl border bg-white dark:bg-zinc-900/80 backdrop-blur-sm transition-all duration-300 hover:shadow-lg"
-      style={{ borderLeft: `4px solid var(--tw-color-${color}-500)` }}
+      onClick={() => onOpenUserProp(user)}
+      className="group relative flex min-w-0 flex-col items-center overflow-hidden rounded-2xl border border-zinc-200 bg-white px-3 py-4 text-center shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-zinc-300 hover:shadow-lg dark:border-zinc-800 dark:bg-zinc-900/85 dark:hover:border-zinc-700"
     >
-      <div className="p-4 flex flex-col gap-3">
-        {/* Topo: Avatar + Nome */}
-        <div className="flex items-center gap-3">
-          <PulsingAvatar user={user} status={status} />
-          <div className="flex-1 min-w-0">
-            <h3 className="text-sm font-bold text-zinc-800 dark:text-zinc-100 truncate">
-              {user.name || 'Usuário'}
-            </h3>
-            <span className={`text-[9px] font-bold uppercase tracking-wider text-${color}-500`}>
-              {status === 'focus' && 'Focando Agora'}
-              {status === 'rest' && 'Descansando'}
-              {status === 'paused' && 'Em Pausa'}
-              {status === 'simulado' && 'Simulado'}
-            </span>
-          </div>
-          <button
-            onClick={(e) => { e.stopPropagation(); onOpenUserProp(user); }}
-            className="p-2 rounded-lg bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
-          >
-            <Eye size={14} />
-          </button>
+      <span className={`absolute right-3 top-3 h-2.5 w-2.5 rounded-full ${statusMeta.dot}`} />
+      <PulsingAvatar user={user} status={status} />
+      <h3 className="mt-2.5 w-full truncate text-xs font-black text-zinc-900 dark:text-white">{user.name || 'Usuário'}</h3>
+      <span className={`mt-1 inline-flex rounded-full border px-2 py-0.5 text-[7px] font-black uppercase tracking-wider ${statusMeta.badge}`}>{statusMeta.label}</span>
+      <div className="mt-3 w-full min-w-0 rounded-xl border border-zinc-100 bg-zinc-50 px-2.5 py-2.5 dark:border-zinc-800 dark:bg-zinc-800/55">
+        <div className="flex items-center justify-center gap-1.5">
+          {isSimulado ? <ClipboardList size={11} className="shrink-0 text-red-500" /> : <BookOpen size={11} className="shrink-0 text-zinc-400" />}
+          <p className="truncate text-[10px] font-black text-zinc-700 dark:text-zinc-200" title={titleDisplay}>{titleDisplay}</p>
         </div>
-
-        {/* O que está estudando */}
-        <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-3 border border-zinc-100 dark:border-zinc-700/50">
-          <div className="flex items-start gap-2">
-            {isSimulado ? (
-              <ClipboardList size={13} className="mt-0.5 text-red-500 flex-shrink-0" />
-            ) : (
-              <BookOpen size={13} className="mt-0.5 text-zinc-400 flex-shrink-0" />
-            )}
-            <div className="min-w-0">
-              <p className={`text-xs font-bold leading-snug truncate ${isSimulado ? 'text-red-600 dark:text-red-400' : 'text-zinc-700 dark:text-zinc-200'}`}>
-                {titleDisplay}
-              </p>
-              {subTitleDisplay && (
-                <p className="text-[10px] text-zinc-400 dark:text-zinc-500 truncate mt-0.5">{subTitleDisplay}</p>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Timer em destaque */}
-        <div className={`relative rounded-xl overflow-hidden bg-gradient-to-br from-${color}-500 to-${color}-600 text-white`}>
-          <div className="absolute inset-0 bg-black/5" />
-          <div className={`relative px-4 py-3 flex items-center justify-between ${isPaused || !status || status === 'focus' || status === 'simulado' ? '' : ''}`}>
-            <div className="flex items-center gap-2">
-              <Clock size={16} className={`${status === 'focus' || status === 'simulado' ? 'animate-pulse' : ''}`} />
-              <span className="text-[10px] font-black uppercase tracking-wider opacity-80">
-                {(status === 'focus' || status === 'simulado') && !isPaused ? 'Tempo' : 'Tempo'}
-              </span>
-            </div>
-            <span className="text-lg font-mono font-bold tabular-nums tracking-wide">
-              {formatClock(liveSeconds)}
-            </span>
-          </div>
-        </div>
+        <p className="mt-1 truncate text-[9px] font-medium text-zinc-400" title={subTitleDisplay}>{subTitleDisplay}</p>
       </div>
-    </motion.div>
+      <span className={`mt-2.5 inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 font-mono text-[11px] font-black tabular-nums ${statusMeta.timer}`}><Clock size={11}/>{formatClock(liveSeconds)}</span>
+    </motion.button>
   );
 };
 
@@ -864,7 +824,7 @@ const StudyingNowPanel = ({ sessions = [], getUser, cicloNameByKey, onOpenUser }
   };
   const [expandedUid, setExpandedUid] = useState(null);
   const [filterStatus, setFilterStatus] = useState('all');
-  const [viewMode, setViewMode] = useState('auto');
+  const [viewMode, setViewMode] = useState('alunos');
 
   // Contadores
   const counts = useMemo(() => {
@@ -1089,6 +1049,18 @@ const StudyingNowPanel = ({ sessions = [], getUser, cicloNameByKey, onOpenUser }
               <BarChart3 size={14} />
             </button>
             <button
+              onClick={() => setViewMode('alunos')}
+              className={`p-2 rounded-lg transition-all ${
+                viewMode === 'alunos'
+                  ? 'bg-zinc-900 dark:bg-white text-white dark:text-zinc-900'
+                  : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400'
+              }`}
+              title="Alunos em colunas"
+              aria-label="Alunos em colunas"
+            >
+              <Columns3 size={14} />
+            </button>
+            <button
               onClick={() => setViewMode('tiles')}
               className={`p-2 rounded-lg transition-all ${
                 viewMode === 'tiles'
@@ -1144,6 +1116,17 @@ const StudyingNowPanel = ({ sessions = [], getUser, cicloNameByKey, onOpenUser }
                     s={s}
                     getUser={getUser}
                     cicloNameByKey={cicloNameByKey}
+                    onOpenUser={handleOpenUser}
+                  />
+                ))}
+              </div>
+            ) : shouldUseAlunoCards ? (
+              <div className="grid w-full grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+                {filteredSessions.map((s) => (
+                  <AlunoCard
+                    key={s.uid}
+                    s={s}
+                    getUser={getUser}
                     onOpenUser={handleOpenUser}
                   />
                 ))}

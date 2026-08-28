@@ -52,6 +52,7 @@ import {
 import CicloVisual from '../ciclos/CicloVisual';
 import CardSessoesCicloHoje from '../ciclos/CardSessoesCicloHoje';
 import CalendarTab from '../dashboard/CalendarTab';
+import AdminUserActionConfirmModal from './AdminUserActionConfirmModal';
 
 const TAB_ITEMS = [
   { id: 'overview', label: 'Visao Geral', icon: BarChart3 },
@@ -1160,6 +1161,7 @@ const AdminTab = ({ data }) => {
   const user = data.user || {};
   const [running, setRunning] = useState('');
   const [feedback, setFeedback] = useState(null);
+  const [sensitiveAction, setSensitiveAction] = useState(null);
   const [access, setAccess] = useState(() => ({
     role: user.access?.role || user.role || 'student',
     adminRole: user.access?.adminRole || '',
@@ -1190,16 +1192,27 @@ const AdminTab = ({ data }) => {
     try {
       await operation();
       setFeedback({ type: 'success', message: success });
+      return true;
     } catch (error) {
       setFeedback({ type: 'error', message: error.message });
+      return false;
     } finally {
       setRunning('');
     }
   };
 
   const changeStatus = (status) => {
+    if (status === 'disabled') {
+      setSensitiveAction('deactivate');
+      return;
+    }
     if (!window.confirm(`Confirma alterar o status da conta para ${status}? A acao sera auditada.`)) return;
     run('status', () => adminUpdateUserStatus(data.uid, status), 'Status da conta atualizado no servidor.');
+  };
+
+  const confirmSensitiveAction = async () => {
+    setSensitiveAction(null);
+    await run('status', () => adminUpdateUserStatus(data.uid, 'disabled'), 'Conta desativada no servidor.');
   };
 
   const sendNotification = () => {
@@ -1247,6 +1260,14 @@ const AdminTab = ({ data }) => {
           {data.auditLogs.length ? <div className="max-h-[430px] space-y-2 overflow-y-auto pr-1">{data.auditLogs.slice(0, 30).map((log) => <div key={log.id} className="rounded-2xl border border-zinc-200 bg-zinc-50/70 p-3 dark:border-zinc-800 dark:bg-zinc-900/30"><div className="flex items-center justify-between gap-3"><p className="text-xs font-black text-zinc-900 dark:text-white">{log.action}</p><SmallBadge tone={log.status === 'success' ? 'green' : 'red'}>{log.status || 'success'}</SmallBadge></div><p className="mt-1 text-[10px] font-semibold text-zinc-500">{log.actorEmail || log.actorUid || 'Admin'} · {formatDateTime(log.createdAt)}</p>{log.error ? <p className="mt-2 text-[11px] font-semibold text-red-600">{log.error}</p> : null}</div>)}</div> : <EmptyState icon={ShieldCheck} title="Sem intervencoes" description="As proximas acoes administrativas aparecerao aqui." />}
         </SectionCard>
       </div>
+      <AdminUserActionConfirmModal
+        open={sensitiveAction === 'deactivate'}
+        action="deactivate"
+        user={{ ...user, id: data.uid, uid: data.uid }}
+        loading={running === 'status'}
+        onClose={() => { if (!running) setSensitiveAction(null); }}
+        onConfirm={confirmSensitiveAction}
+      />
     </div>
   );
 };

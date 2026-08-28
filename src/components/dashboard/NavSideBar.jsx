@@ -8,15 +8,15 @@ import {
   Trophy, Users, Award, Shield, Medal, Crown, Gem, Diamond,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, doc, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
 import ProfileLevelRing from '../gamification/ProfileLevelRing';
 import { NotificationBell } from '../shared/NotificationPanel';
 import InstallAppButton from '../shared/InstallAppButton';
-import { calcularStatusEstudoHoje, contarRevisoesPendentes, contarRevisoesPendentesHoje } from '../../hooks/useCronogramaSystem';
-import { buildStudyDaysMap, calculateCurrentStudyStreak } from '../../utils/studyDayStatus';
+import { calcularStatusEstudoHoje } from '../../hooks/useCronogramaSystem';
+import { useCicloRevisoes } from '../../hooks/useCicloRevisoes';
+import { buildRevisaoCentral } from '../../utils/revisaoCentral';
 import { coverPositionToStyle } from '../../utils/profileCover';
-import { getAgendaSemana } from '../../services/scheduling/review';
 import { LEAGUES_ENABLED } from '../../config/featureFlags';
 
 const NAV_ICON_SIZE  = 18;
@@ -410,7 +410,6 @@ function NavSideBar({
   isDarkMode,
   toggleTheme,
   registrosEstudo,
-  goalsHistory,
   activeCicloId,
   onShareGoal,
   onOpenFeedback,
@@ -421,13 +420,37 @@ function NavSideBar({
   cicloFinalizacaoAlert,
   cicloLegacyUpgradeAlert,
   notificationProps,
+  onPrefetchTab,
+  studyStreakResult,
 }) {
   const [hasUnreadSupport, setHasUnreadSupport]     = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen]   = useState(false);
   const [isPlanejamentoOpen, setIsPlanejamentoOpen] = useState(false);
-  const [homeContextPreferred, setHomeContextPreferred] = useState(() => {
-    try { return localStorage.getItem('homeContextPreferred') || 'cronograma'; } catch { return 'cronograma'; }
+  const [generalTimeRanking, setGeneralTimeRanking] = useState({
+    loading: Boolean(user?.uid),
+    position: null,
   });
+
+  useEffect(() => {
+    if (!user?.uid) {
+      setGeneralTimeRanking({ loading: false, position: null });
+      return undefined;
+    }
+
+    setGeneralTimeRanking({ loading: true, position: null });
+    const memberRef = doc(db, 'general_rankings', 'all', 'members', user.uid);
+    return onSnapshot(memberRef, (snapshot) => {
+      const rawPosition = snapshot.exists() ? snapshot.data()?.positions?.minutes : null;
+      const position = Number(rawPosition);
+      setGeneralTimeRanking({
+        loading: false,
+        position: Number.isInteger(position) && position > 0 ? position : null,
+      });
+    }, (error) => {
+      console.warn('[Ranking] Nao foi possivel carregar a posicao geral por tempo:', error.code || error);
+      setGeneralTimeRanking({ loading: false, position: null });
+    });
+  }, [user?.uid]);
 
   // Pill de lembrete — aparece na Home e some automaticamente
   const [showReminderPill, setShowReminderPill] = useState(false);
@@ -460,19 +483,10 @@ function NavSideBar({
     if (reminderTimerRef.current) clearTimeout(reminderTimerRef.current);
   }, []);
 
-  useEffect(() => {
-    const updatePreferredContext = (event) => {
-      const nextValue = event?.detail || localStorage.getItem('homeContextPreferred') || 'cronograma';
-      setHomeContextPreferred(nextValue);
-    };
-    window.addEventListener('home-context-preferred-change', updatePreferredContext);
-    window.addEventListener('storage', updatePreferredContext);
-    return () => {
-      window.removeEventListener('home-context-preferred-change', updatePreferredContext);
-      window.removeEventListener('storage', updatePreferredContext);
-    };
-  }, []);
-  const [revisoesPendentes, setRevisoesPendentes] = useState(0);
+  const { revisoes: revisoesCiclo } = useCicloRevisoes(
+    user,
+    activeCicloId || '__sem_ciclo_ativo__',
+  );
 
   // Cronograma ativo (para alertas de sistema)
   const [cronogramaAtivo, setCronogramaAtivo] = useState(null);
@@ -556,15 +570,12 @@ function NavSideBar({
         if (!snap.empty) {
           const cronograma = { id: snap.docs[0].id, ...snap.docs[0].data() };
           setCronogramaAtivo(cronograma);
-          setRevisoesPendentes(contarRevisoesPendentes(cronograma));
           return;
         }
         setCronogramaAtivo(null);
-        setRevisoesPendentes(0);
       },
       (error) => {
         setCronogramaAtivo(null);
-        setRevisoesPendentes(0);
         console.warn('[Planejamento] Nao foi possivel acompanhar o cronograma ativo:', error.code || error);
       }
     );
@@ -572,17 +583,27 @@ function NavSideBar({
     return () => unsub();
   }, [user?.uid]);
 
+  const revisaoCentral = useMemo(() => buildRevisaoCentral({
+    cronograma: cronogramaParaAlertas,
+    ciclo: activeCicloData ? { ...activeCicloData, disciplinas: [] } : null,
+    revisoesCiclo,
+    registrosEstudo,
+    dataReferencia: new Date(),
+  }), [activeCicloData, cronogramaParaAlertas, registrosEstudo, revisoesCiclo]);
+  const revisoesInfoCanonicas = useMemo(() => ({
+    total: revisaoCentral.buckets.atrasadas.length + revisaoCentral.buckets.hoje.length,
+    atrasadas: revisaoCentral.buckets.atrasadas.length,
+  }), [revisaoCentral.buckets.atrasadas.length, revisaoCentral.buckets.hoje.length]);
+
   // ── Alertas inteligentes de sistema ──────────────────────────────────
   const systemAlerts = useMemo(() => {
     const alerts = [];
     if (cicloFinalizacaoAlert) alerts.push(cicloFinalizacaoAlert);
     if (cicloLegacyUpgradeAlert) alerts.push(cicloLegacyUpgradeAlert);
-    if (!cronogramaParaAlertas) return alerts;
+    const statusEstudo = cronogramaParaAlertas ? calcularStatusEstudoHoje(cronogramaParaAlertas) : null;
+    const revisoesInfo = revisoesInfoCanonicas;
 
-    const statusEstudo = calcularStatusEstudoHoje(cronogramaParaAlertas);
-    const revisoesInfo = contarRevisoesPendentesHoje(cronogramaParaAlertas);
-
-    if (statusEstudo.temEstudoHoje && statusEstudo.progressoHoje === 0) {
+    if (statusEstudo?.temEstudoHoje && statusEstudo.progressoHoje === 0) {
       alerts.push({
         id: 'alerta_falta_estudo',
         type: 'falta_estudo',
@@ -608,7 +629,7 @@ function NavSideBar({
     }
 
     return alerts;
-  }, [cronogramaParaAlertas, cicloFinalizacaoAlert, cicloLegacyUpgradeAlert]);
+  }, [cronogramaParaAlertas, cicloFinalizacaoAlert, cicloLegacyUpgradeAlert, revisoesInfoCanonicas]);
 
   const handleSystemAlertAction = useCallback((alert) => {
     if (alert.type === 'ciclo_legacy_upgrade') {
@@ -638,9 +659,8 @@ function NavSideBar({
   }, [cronogramaParaAlertas]);
 
   const reminderRevisoesInfo = useMemo(() => {
-    if (!cronogramaParaAlertas) return null;
-    return contarRevisoesPendentesHoje(cronogramaParaAlertas);
-  }, [cronogramaParaAlertas]);
+    return revisoesInfoCanonicas;
+  }, [revisoesInfoCanonicas]);
 
   const reminderKey = useMemo(() => (
     systemAlerts.map((alert) => alert.id).join('|')
@@ -724,19 +744,10 @@ function NavSideBar({
   const isFullyExpanded = isDesktopExpanded || isMobileOpen;
   const hasCicloAtivo      = !!(activeCicloId && activeCicloData);
   const hasCronogramaAtivo = !!(activeCronogramaData?.ativo);
-  const revisoesPendentesBadge = revisoesPendentes || (cronogramaParaAlertas ? contarRevisoesPendentes(cronogramaParaAlertas) : 0);
+  const revisoesPendentesBadge = revisoesInfoCanonicas.total;
   const profileCardData = useMemo(() => {
-    const profile = levelData?.profile || {};
     const progressPercent = Math.max(0, Math.min(100, Number(levelData?.progressPercent || 0)));
-    const rankValue = [
-      ...(LEAGUES_ENABLED ? [
-        profile.currentLeaguePosition,
-        profile.leaguePosition,
-        profile.lastNotifiedLeaguePosition,
-      ] : []),
-      profile.generalPosition,
-      profile.position,
-    ].find((value) => Number.isFinite(Number(value)) && Number(value) > 0);
+    const rankValue = generalTimeRanking.position;
     const levelStartXP = Number(levelData?.levelStartXP || 0);
     const nextLevelXP = Number(levelData?.nextLevelXP || levelData?.totalXP || 0);
     const currentXP = Math.max(0, Number(levelData?.totalXP || 0) - levelStartXP);
@@ -751,35 +762,22 @@ function NavSideBar({
       leagueGlow: levelData?.leagueGlow || levelData?.league?.glow || '#ef4444',
       progressPercent,
       progressLabel: `${Math.round(progressPercent)}%`,
-      rankLabel: rankValue ? `#${Number(rankValue)}` : '--',
-      rankHint: rankValue ? 'Ranking' : 'Sem pos.',
+      rankLabel: generalTimeRanking.loading ? '…' : (rankValue ? `#${rankValue}` : '--'),
+      rankHint: generalTimeRanking.loading
+        ? 'Carregando ranking geral por tempo'
+        : (rankValue ? 'Ranking geral por tempo' : 'Sem posição no ranking geral'),
       currentXP,
       levelRangeXP,
       xpToNextLevel: Math.max(0, Number(levelData?.xpToNextLevel || 0)),
     };
-  }, [levelData, user?.displayName, user?.email]);
-  const headerStreak = useMemo(() => {
-    const studyDaysFull = buildStudyDaysMap(registrosEstudo || []);
-    let contextMode = 'all';
-    const hasCiclo = !!activeCicloData?.id;
-    const hasCronograma = !!activeCronogramaData?.id;
-    if (hasCiclo && hasCronograma) contextMode = homeContextPreferred === 'ciclo' ? 'ciclo' : 'cronograma';
-    else if (hasCiclo) contextMode = 'ciclo';
-    else if (hasCronograma) contextMode = 'cronograma';
-
-    return calculateCurrentStudyStreak({
-      studyDaysMap: studyDaysFull,
-      goalsHistory,
-      activeCronogramaData,
-      activeCicloData,
-      getAgendaSemana,
-      contextMode,
-    });
-  }, [registrosEstudo, goalsHistory, activeCronogramaData, activeCicloData, homeContextPreferred]);
+  }, [generalTimeRanking.loading, generalTimeRanking.position, levelData, user?.displayName, user?.email]);
+  const headerStreak = Math.max(0, Number(studyStreakResult?.currentStreak || 0));
 
   // ── NavButton — agora aceita badgeCount ───────────────────────────────
-  const NavButton = ({ label, icon, isActive, isAdmin, isNew, isAtalho, isPlanningGuide, badgeCount, onClick }) => (
+  const NavButton = ({ label, icon, isActive, isAdmin, isNew, isAtalho, isPlanningGuide, badgeCount, onClick, prefetchId }) => (
     <button
+      onPointerEnter={() => prefetchId && onPrefetchTab?.(prefetchId)}
+      onFocus={() => prefetchId && onPrefetchTab?.(prefetchId)}
       onClick={(e) => {
         if (!forceExpandedOnLarge) setExpanded(true);
         onClick(e);
@@ -1129,7 +1127,7 @@ function NavSideBar({
                   </span>
                   <span className="text-zinc-300 dark:text-zinc-600">•</span>
                 </> : null}
-                <span className="flex shrink-0 items-center gap-1.5 text-zinc-700 dark:text-zinc-200">
+                <span className="flex shrink-0 items-center gap-1.5 text-zinc-700 dark:text-zinc-200" title={profileCardData.rankHint}>
                   <Trophy size={13} className="text-amber-500"/>
                   <span className="text-[13px] font-black leading-none">{profileCardData.rankLabel}</span>
                 </span>
@@ -1243,6 +1241,7 @@ function NavSideBar({
                   isPlanningGuide={shouldGuidePlanning && item.id === 'planejamento'}
                   // Passa o badge apenas para o item de revisões
                   badgeCount={item.id === 'revisoes' ? revisoesPendentesBadge : 0}
+                  prefetchId={item.id}
                   onClick={() => {
                     setActiveTab(item.id);
                     setMobileOpen(false);

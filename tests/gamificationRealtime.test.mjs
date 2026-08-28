@@ -10,3 +10,14 @@ test('refresh de gamificacao resolve o mesmo id deterministico usado pelo backen
   assert.equal(getAcademicXPEventId({ sourceType: 'study', sourceId: 'registro-123' }), event.id);
   assert.equal(getAcademicXPEventId({ sourceType: 'study' }), null);
 });
+
+test('ids de conclusao usam o mesmo contrato deterministico do backend', () => {
+  assert.equal(
+    getAcademicXPEventId({ sourceType: 'cycle_round', sourceId: 'ciclo-1:rodada-000003' }),
+    'academic_cycle_round_ciclo-1_rodada-000003',
+  );
+  assert.equal(
+    getAcademicXPEventId({ sourceType: 'schedule_completion', sourceId: 'cronograma-1' }),
+    'academic_schedule_complete_cronograma-1',
+  );
+});

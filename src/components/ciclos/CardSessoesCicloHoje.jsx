@@ -43,7 +43,7 @@ function CardSessoesCicloHoje({
   );
 
   return (
-    <section className={`cycle-block-list-card-zoom ${fillAvailableHeight || hideHeader ? 'cycle-block-list-card-zoom--fill h-full max-h-none' : 'max-h-[430px] sm:max-h-[460px]'} box-border flex min-h-0 w-full max-w-full flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900`}>
+    <section className={`cycle-block-list-card-zoom ${fillAvailableHeight || hideHeader ? 'cycle-block-list-card-zoom--fill h-full max-h-[min(62dvh,560px)] sm:max-h-[min(68dvh,620px)] xl:max-h-none' : 'max-h-[430px] sm:max-h-[460px]'} box-border flex min-h-0 w-full max-w-full flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900`}>
       {!hideHeader && (
         <div className="border-b border-zinc-100 px-3 py-2.5 dark:border-zinc-800 sm:px-4">
           <p className="text-[10px] font-black uppercase tracking-[0.2em] text-red-600 dark:text-red-400">Fila do ciclo</p>
@@ -90,15 +90,26 @@ function CardSessoesCicloHoje({
             const completionOverride = session.globalIndex !== null
               ? sessionCompletionOverrides?.[session.globalIndex]
               : undefined;
+            const completedByRecordedStudy = Boolean(session.bloqueiaDesmarcarConclusao);
             const completed = typeof completionOverride === 'boolean'
-              ? completionOverride
-              : Boolean(session.concluida);
+              ? completionOverride || completedByRecordedStudy
+              : Boolean(session.concluida) || completedByRecordedStudy;
+            const canonicalProgressMinutes = Math.max(
+              0,
+              Number(session.progressoRegistroRealMinutos || 0),
+              Number(session.progressoRegistradoMinutos || 0),
+              Number(session.progressoMinutos || 0),
+              Number(session.progressoPersistidoMinutos || 0),
+            );
             const progressMinutes = typeof completionOverride === 'boolean'
-              ? (completionOverride ? plannedMinutes : 0)
-              : completed
-                ? Math.max(plannedMinutes, Number(session.progressoMinutos || 0))
-                : Math.min(plannedMinutes, Math.max(0, Number(session.progressoMinutos || 0)));
+              ? completionOverride
+                ? Math.max(canonicalProgressMinutes, plannedMinutes)
+                : completedByRecordedStudy
+                  ? canonicalProgressMinutes
+                  : 0
+              : canonicalProgressMinutes;
             const progressPercent = Math.min(100, Math.round((progressMinutes / plannedMinutes) * 100));
+            const completedByStudy = progressMinutes >= plannedMinutes || completedByRecordedStudy;
             const hasSession = !session.filaSemSessao && session.globalIndex !== null;
             const loading = hasSession
               && (
@@ -145,10 +156,10 @@ function CardSessoesCicloHoje({
                   <button
                     type="button"
                     onClick={() => onToggleSessao?.(displayedSession)}
-                    disabled={!hasSession}
+                    disabled={!hasSession || (completed && completedByStudy)}
                     aria-busy={loading}
-                    aria-label={completed ? 'Marcar bloco como pendente' : 'Marcar bloco como concluido'}
-                    title={completed ? 'Marcar bloco como pendente' : 'Marcar bloco como concluido'}
+                    aria-label={completedByStudy ? 'Bloco concluido pelo tempo registrado' : completed ? 'Marcar bloco como pendente' : 'Marcar bloco como concluido'}
+                    title={completedByStudy ? 'O tempo registrado mantém este bloco concluído' : completed ? 'Marcar bloco como pendente' : 'Marcar bloco como concluido'}
                     className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border shadow-sm transition-all disabled:cursor-not-allowed disabled:opacity-60 ${completed
                       ? 'border-emerald-500 bg-emerald-500 text-white shadow-emerald-500/20'
                       : 'border-emerald-200 bg-white text-emerald-600 shadow-emerald-500/10 hover:border-emerald-300 hover:bg-emerald-50 dark:border-emerald-900/40 dark:bg-white/10 dark:text-emerald-300 dark:hover:bg-emerald-900/35'

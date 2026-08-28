@@ -192,10 +192,12 @@ export const useCronogramaSystem = (user) => {
    * @param {number} weekOffset
    * @returns {Promise<boolean>}
    */
-  const toggleSlotConcluido = async (cronogramaId, slot, weekOffset) => {
+  const toggleSlotConcluido = async (cronogramaId, slot, weekOffset, options = {}) => {
     try {
       const docRef    = doc(db, 'users', user.uid, 'cronogramas', cronogramaId);
-      const novoEstado = !slot.concluido;
+      const novoEstado = typeof options.targetCompleted === 'boolean'
+        ? options.targetCompleted
+        : !slot.concluido;
       const resolvedWeekOffset = resolveWeekOffsetForSlot(slot, weekOffset, slot?.dataInicioCronograma || slot?.cronogramaDataInicio || null);
       if (!Number.isFinite(Number(resolvedWeekOffset))) {
         throw new Error('week-offset-indisponivel');

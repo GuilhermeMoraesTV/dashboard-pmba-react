@@ -8,6 +8,7 @@ import {
   onSnapshot,
   orderBy,
   query,
+  where,
 } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import {
@@ -19,6 +20,11 @@ import {
   toAdminDate,
 } from '../utils/adminAnalytics';
 import { getLeague } from '../utils/gamification';
+import {
+  getGroupMemberStudyState,
+  GROUP_MEMBER_STUDY_STATES,
+  isMonitorableStudySession,
+} from '../utils/liveStudyTimer';
 
 const INITIAL_LOADED = {
   users: false,
@@ -29,6 +35,16 @@ const INITIAL_LOADED = {
   timers: false,
   gamification: false,
 };
+
+const GAMIFICATION_TABS = new Set([
+  'users',
+  'gamification',
+  'leagues',
+  'groups',
+  'moderation',
+  'communications',
+  'maintenance',
+]);
 
 const userCreatedAt = (user) => (
   toAdminDate(user?.createdAt)
@@ -59,6 +75,7 @@ const planMeta = (docSnap) => {
 };
 
 export const useAdminAnalytics = ({
+  activeTab = 'overview',
   filters = {},
   rankingMetric = 'hours',
   rankingLimit = 10,
@@ -74,6 +91,13 @@ export const useAdminAnalytics = ({
   const [cronogramaMetaByKey, setCronogramaMetaByKey] = useState(new Map());
   const [loaded, setLoaded] = useState(INITIAL_LOADED);
   const [errors, setErrors] = useState({});
+  const [presenceNowMs, setPresenceNowMs] = useState(() => Date.now());
+  const needsGamification = GAMIFICATION_TABS.has(activeTab);
+
+  useEffect(() => {
+    const timerId = window.setInterval(() => setPresenceNowMs(Date.now()), 30_000);
+    return () => window.clearInterval(timerId);
+  }, []);
 
   const subscribe = (key, firestoreQuery, onData) => onSnapshot(
     firestoreQuery,
@@ -109,40 +133,54 @@ export const useAdminAnalytics = ({
     }));
   }), []);
 
-  useEffect(() => subscribe('records', query(collectionGroup(db, 'registrosEstudo'), orderBy('timestamp', 'desc'), limit(5000)), (snapshot) => {
-    setRawStudyRecords(snapshot.docs.map((docSnap) => ({
-      id: docSnap.id,
-      path: docSnap.ref.path,
-      uid: docSnap.data().uid || docSnap.ref.path.split('/')[1],
-      ...docSnap.data(),
-    })));
-  }), []);
+  useEffect(() => {
+    const constraints = [];
+    const recordFrom = toAdminDate(filters.recordFrom);
+    if (recordFrom) constraints.push(where('timestamp', '>=', recordFrom));
+    constraints.push(orderBy('timestamp', 'desc'), limit(5000));
+    setLoaded((current) => ({ ...current, records: false }));
+    return subscribe('records', query(collectionGroup(db, 'registrosEstudo'), ...constraints), (snapshot) => {
+      setRawStudyRecords(snapshot.docs.map((docSnap) => ({
+        id: docSnap.id,
+        path: docSnap.ref.path,
+        uid: docSnap.data().uid || docSnap.ref.path.split('/')[1],
+        ...docSnap.data(),
+      })));
+    });
+  }, [filters.recordFrom]);
 
-  useEffect(() => subscribe('simulations', query(collectionGroup(db, 'simulados'), orderBy('timestamp', 'desc'), limit(2000)), (snapshot) => {
-    setRawSimulations(snapshot.docs.map((docSnap) => ({
-      id: docSnap.id,
-      path: docSnap.ref.path,
-      uid: docSnap.data().uid || docSnap.ref.path.split('/')[1],
-      ...docSnap.data(),
-    })));
-  }), []);
+  useEffect(() => {
+    const constraints = [];
+    const recordFrom = toAdminDate(filters.recordFrom);
+    if (recordFrom) constraints.push(where('timestamp', '>=', recordFrom));
+    constraints.push(orderBy('timestamp', 'desc'), limit(2000));
+    setLoaded((current) => ({ ...current, simulations: false }));
+    return subscribe('simulations', query(collectionGroup(db, 'simulados'), ...constraints), (snapshot) => {
+      setRawSimulations(snapshot.docs.map((docSnap) => ({
+        id: docSnap.id,
+        path: docSnap.ref.path,
+        uid: docSnap.data().uid || docSnap.ref.path.split('/')[1],
+        ...docSnap.data(),
+      })));
+    });
+  }, [filters.recordFrom]);
 
   useEffect(() => subscribe('cycles', query(collectionGroup(db, 'ciclos'), limit(5000)), (snapshot) => {
-    const next = new Map();
-    snapshot.docs.forEach((docSnap) => {
-      const meta = planMeta(docSnap);
-      if (meta.value.uid && meta.value.id) next.set(meta.key, meta.value);
-    });
-    setCicloMetaByKey(next);
+      const next = new Map();
+      snapshot.docs.forEach((docSnap) => {
+        const meta = planMeta(docSnap);
+        if (meta.value.uid && meta.value.id) next.set(meta.key, meta.value);
+      });
+      setCicloMetaByKey(next);
   }), []);
 
   useEffect(() => subscribe('schedules', query(collectionGroup(db, 'cronogramas'), limit(5000)), (snapshot) => {
-    const next = new Map();
-    snapshot.docs.forEach((docSnap) => {
-      const meta = planMeta(docSnap);
-      if (meta.value.uid && meta.value.id) next.set(meta.key, meta.value);
-    });
-    setCronogramaMetaByKey(next);
+      const next = new Map();
+      snapshot.docs.forEach((docSnap) => {
+        const meta = planMeta(docSnap);
+        if (meta.value.uid && meta.value.id) next.set(meta.key, meta.value);
+      });
+      setCronogramaMetaByKey(next);
   }), []);
 
   useEffect(() => subscribe('timers', query(collection(db, 'active_timers')), (snapshot) => {
@@ -157,45 +195,48 @@ export const useAdminAnalytics = ({
     })));
   }), []);
 
-  useEffect(() => onSnapshot(
-    query(collectionGroup(db, 'gamification'), limit(5000)),
-    (snapshot) => {
-      const next = new Map();
-      snapshot.docs.forEach((docSnap) => {
-        if (docSnap.id !== 'profile') return;
-        const parts = docSnap.ref.path.split('/');
-        const uid = parts[0] === 'users' ? parts[1] : null;
-        if (uid) next.set(uid, { id: docSnap.id, ...docSnap.data() });
-      });
-      setGamificationByUid(next);
-      setGamificationCollectionDenied(false);
-      setLoaded((current) => ({ ...current, gamification: true }));
-      setErrors((current) => {
-        if (!current.gamification) return current;
-        const nextErrors = { ...current };
-        delete nextErrors.gamification;
-        return nextErrors;
-      });
-    },
-    (snapshotError) => {
-      if (snapshotError?.code === 'permission-denied') {
-        // Regras antigas em produção podem negar collectionGroup. O caminho
-        // individual já é permitido ao admin e mantém a tela funcional até a
-        // publicação das regras consolidadas.
-        setGamificationCollectionDenied(true);
-        return;
-      }
-      console.error('Falha ao carregar dados administrativos (gamification):', snapshotError);
-      setErrors((current) => ({
-        ...current,
-        gamification: snapshotError?.message || 'Não foi possível carregar a gamificação administrativa.',
-      }));
-      setLoaded((current) => ({ ...current, gamification: true }));
-    },
-  ), []);
+  useEffect(() => {
+    if (!needsGamification) return undefined;
+    return onSnapshot(
+      query(collectionGroup(db, 'gamification'), limit(5000)),
+      (snapshot) => {
+        const next = new Map();
+        snapshot.docs.forEach((docSnap) => {
+          if (docSnap.id !== 'profile') return;
+          const parts = docSnap.ref.path.split('/');
+          const uid = parts[0] === 'users' ? parts[1] : null;
+          if (uid) next.set(uid, { id: docSnap.id, ...docSnap.data() });
+        });
+        setGamificationByUid(next);
+        setGamificationCollectionDenied(false);
+        setLoaded((current) => ({ ...current, gamification: true }));
+        setErrors((current) => {
+          if (!current.gamification) return current;
+          const nextErrors = { ...current };
+          delete nextErrors.gamification;
+          return nextErrors;
+        });
+      },
+      (snapshotError) => {
+        if (snapshotError?.code === 'permission-denied') {
+          // Regras antigas em produção podem negar collectionGroup. O caminho
+          // individual já é permitido ao admin e mantém a tela funcional até a
+          // publicação das regras consolidadas.
+          setGamificationCollectionDenied(true);
+          return;
+        }
+        console.error('Falha ao carregar dados administrativos (gamification):', snapshotError);
+        setErrors((current) => ({
+          ...current,
+          gamification: snapshotError?.message || 'Não foi possível carregar a gamificação administrativa.',
+        }));
+        setLoaded((current) => ({ ...current, gamification: true }));
+      },
+    );
+  }, [needsGamification]);
 
   useEffect(() => {
-    if (!gamificationCollectionDenied || !loaded.users) return undefined;
+    if (!needsGamification || !gamificationCollectionDenied || !loaded.users) return undefined;
     let cancelled = false;
 
     const loadProfilesIndividually = async () => {
@@ -231,7 +272,7 @@ export const useAdminAnalytics = ({
 
     loadProfilesIndividually();
     return () => { cancelled = true; };
-  }, [gamificationCollectionDenied, loaded.users, rawUsers]);
+  }, [gamificationCollectionDenied, loaded.users, needsGamification, rawUsers]);
 
   const state = useMemo(() => {
     const now = new Date();
@@ -249,6 +290,11 @@ export const useAdminAnalytics = ({
 
     const activities = filterAdminActivities(allActivities, filters);
     const rankingByMetric = buildStudyRanking(profileFilteredUsers, activities);
+    const hoursRankingByUid = new Map(rankingByMetric.hours.map((row) => [row.id, row]));
+    const latestActivityByUid = new Map();
+    allActivities.forEach((record) => {
+      if (!latestActivityByUid.has(record.uid)) latestActivityByUid.set(record.uid, record);
+    });
     const rankings = {
       hours: rankingByMetric.hours.slice(0, rankingLimit),
       questions: rankingByMetric.questions.slice(0, rankingLimit),
@@ -276,8 +322,8 @@ export const useAdminAnalytics = ({
     const activeScheduleUserIds = new Set([...cronogramaMetaByKey.values()].filter(isActivePlan).map((plan) => plan.uid));
 
     const enrichedUsers = profileFilteredUsers.map((user) => {
-      const ranking = rankingByMetric.hours.find((row) => row.id === user.id);
-      const latest = allActivities.find((record) => record.uid === user.id);
+      const ranking = hoursRankingByUid.get(user.id);
+      const latest = latestActivityByUid.get(user.id);
       const gamification = gamificationByUid.get(user.id) || null;
       const totalQuestions = ranking?.totalQuestions || 0;
       const totalCorrect = ranking?.totalCorrect || 0;
@@ -337,25 +383,52 @@ export const useAdminAnalytics = ({
     };
   }, [cicloMetaByKey, cronogramaMetaByKey, filters, gamificationByUid, rankingLimit, rankingMetric, rawSimulations, rawStudyRecords, rawUsers, selectedFeedUid]);
 
-  const activeSessionsFresh = useMemo(() => activeSessions.filter((session) => (
-    Date.now() - (toAdminDate(session.updatedAt)?.getTime() || 0)
-  ) <= 2 * 60 * 1000), [activeSessions]);
+  const activeSessionsFresh = useMemo(() => {
+    return activeSessions.filter((session) => isMonitorableStudySession(session, presenceNowMs));
+  }, [activeSessions, presenceNowMs]);
 
   const studyingNowSessions = useMemo(() => {
-    const rank = (session) => (!session.isPaused && session.phase !== 'rest' ? 0 : !session.isPaused ? 1 : 2);
+    const rank = (session) => {
+      const state = getGroupMemberStudyState(session, presenceNowMs);
+      if (state === GROUP_MEMBER_STUDY_STATES.STUDYING) return 0;
+      if (state === GROUP_MEMBER_STUDY_STATES.PAUSED) return 2;
+      return 1;
+    };
     return [...activeSessionsFresh].sort((a, b) => rank(a) - rank(b));
-  }, [activeSessionsFresh]);
+  }, [activeSessionsFresh, presenceNowMs]);
 
   const cicloNameByKey = useMemo(() => new Map(
     [...cicloMetaByKey].map(([key, value]) => [key, value.nome]),
   ), [cicloMetaByKey]);
 
-  const getUser = (uid) => state.users.find((user) => user.id === uid)
-    || rawUsers.find((user) => user.id === uid)
+  const userByUid = useMemo(() => {
+    const next = new Map(rawUsers.map((user) => [user.id, user]));
+    state.users.forEach((user) => next.set(user.id, user));
+    return next;
+  }, [rawUsers, state.users]);
+
+  const getUser = (uid) => userByUid.get(uid)
     || { id: uid, name: 'Usuário', email: 'Não informado' };
 
+  const loadingState = {
+    users: !loaded.users,
+    activities: !loaded.records || !loaded.simulations || !loaded.cycles || !loaded.schedules,
+    timers: !loaded.users || !loaded.timers,
+    gamification: needsGamification && (!loaded.users || !loaded.gamification),
+  };
+  const sectionLoading = activeTab === 'analytics'
+    ? loadingState.activities
+    : activeTab === 'gamification'
+      ? loadingState.gamification
+      : activeTab === 'users'
+        ? loadingState.users || loadingState.activities || loadingState.gamification
+        : GAMIFICATION_TABS.has(activeTab)
+          ? loadingState.users || loadingState.gamification
+          : loadingState.users;
+
   return {
-    loading: Object.values(loaded).some((value) => !value),
+    loading: sectionLoading,
+    loadingState,
     error: Object.values(errors)[0] || null,
     users: state.users,
     rawUsers,

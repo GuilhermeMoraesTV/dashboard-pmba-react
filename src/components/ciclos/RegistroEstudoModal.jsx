@@ -11,7 +11,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 
 // --- IMPORTAÇÃO DA GAMIFICAÇÃO ---
-import { useLevelSystem } from '../../hooks/useLevelSystem';
 import {
   getRevisaoEscolhidaInicial,
   getRevisaoEscolhidaPlaceholder,
@@ -675,7 +674,6 @@ function RegistroEstudoModal({
   defaultContext = null,
   requireExplicitContextSelection = false,
 }) {
-  const { addXP, checkAndAwardMilestone } = useLevelSystem({ uid: userId });
   useBodyScrollLock(true, { bodyClass: 'registro-modal-open' });
 
   const [viewportHeight, setViewportHeight] = useState(window.innerHeight);
@@ -1150,10 +1148,10 @@ function RegistroEstudoModal({
     }
 
     try {
-      let totalXP = 0;
+      const saveTasks = [];
       const postSaveTasks = [];
       for (const item of itemsToSave) {
-        await addRegistroEstudo({
+        saveTasks.push(addRegistroEstudo({
           contextoRegistro: item.contextoRegistro || selectedContext,
           ...((item.contextoRegistro || selectedContext) === 'ciclo' && (item.contextId || selectedContextId) ? { cicloId: item.contextId || selectedContextId } : {}),
           ...((item.contextoRegistro || selectedContext) === 'cronograma' && (item.contextId || selectedContextId) ? { cronogramaId: item.contextId || selectedContextId } : {}),
@@ -1171,11 +1169,7 @@ function RegistroEstudoModal({
             ? { intervaloRevisaoDias: resolveIntervaloRevisaoRegistro(item.revisaoEscolhida, item.revisaoPersonalizadaDias) } : {}),
           ...(item.tipoRegistro !== 'revisao' && (item.contextoRegistro || selectedContext) === 'ciclo' && revisaoModoCiclo === REVISAO_MODO_SUGESTAO
             ? { revisaoAutomaticaCiclo: true } : {}),
-        });
-
-        let itemXP = item.tempoTotal + Number(item.questoesFeitas) + Number(item.acertos);
-        if (item.questoesFeitas >= 5 && (item.acertos / item.questoesFeitas) >= 0.85) itemXP += 15;
-        totalXP += itemXP;
+        }));
 
         if ((item.contextoRegistro || selectedContext) === 'ciclo' && item.markAsFinished) {
           postSaveTasks.push((async () => {
@@ -1200,18 +1194,22 @@ function RegistroEstudoModal({
         }
       }
 
-      const rewardTasks = [
-        ...(totalXP > 0 ? [addXP(totalXP, 'Sessão de Estudos')] : []),
-        checkAndAwardMilestone('FIRST_STUDY'),
-      ];
-      Promise.allSettled([...postSaveTasks, ...rewardTasks]).then((results) => {
-        results.forEach((result) => {
-          if (result.status === 'rejected') console.error('[RegistroEstudoModal] Erro em pos-registro:', result.reason);
-        });
-      });
       setShowSuccess(true);
       setLoading(false);
       onClose();
+      void Promise.all(saveTasks)
+        .then(() => Promise.allSettled(postSaveTasks))
+        .then((results) => {
+          results.forEach((result) => {
+            if (result.status === 'rejected') console.error('[RegistroEstudoModal] Erro em pos-registro:', result.reason);
+          });
+        })
+        .catch((error) => {
+          console.error('[RegistroEstudoModal] Erro ao salvar registro:', error);
+          window.dispatchEvent(new CustomEvent('modoqap:registro-save-error', {
+            detail: { message: 'Não foi possível salvar o estudo. Seus dados locais foram reconciliados com o servidor.' },
+          }));
+        });
     } catch (error) {
       console.error(error);
       setErrorMessage('Erro ao salvar.');

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle, BookOpen, Play, Clock, Target, Trophy, CheckCircle2, Sparkles, RotateCw } from 'lucide-react';
-import { getCycleAssuntoForSession, getCycleSessionRecordedMinutes } from '../../utils/studyDayStatus';
+import { buildCycleOrderedSessions, getCycleAssuntoForSession } from '../../utils/studyDayStatus';
 import { getDisciplineColorForSlot } from '../../utils/disciplineColors';
 import { normalizarDuracaoSessao } from '../../utils/cicloDistribution';
 
@@ -561,9 +561,9 @@ function CicloVisual({
     if (!disciplinas.length || !ciclo?.ordemSessoes?.length) return [];
 
     const ordemSessoes = ciclo.ordemSessoes || [];
-    const sessoesConcluidasSet = new Set(ciclo.sessoesConcluidas || []);
     const tempoSessaoPadrao = ciclo.tempoSessaoMinutos || 50;
     const progressoSessoes = ciclo.progressoSessoes || {};
+    const canonicalSessions = buildCycleOrderedSessions({ ...ciclo, disciplinas }, null, registrosEstudo);
 
     const totalSessoesLocal = ordemSessoes.length;
     const anguloPorSessao = totalSessoesLocal > 0 ? 360 / totalSessoesLocal : 0;
@@ -575,14 +575,7 @@ function CicloVisual({
       if (!disciplina) return null;
 
       const progressoPersistido = Number(progressoSessoes?.[globalIndex] || progressoSessoes?.[String(globalIndex)] || 0);
-      const progressoRegistrado = getCycleSessionRecordedMinutes({
-        ciclo,
-        session: sessao,
-        globalIndex,
-        registrosEstudo,
-        disciplina,
-        allowLooseMatch: false,
-      });
+      const canonicalSession = canonicalSessions[globalIndex] || {};
       const duracaoConfigurada = Number(disciplina.duracoesSessoes?.[Number(sessao.sessaoIndex)] || 0);
       const tempoPlanejadoSessao = normalizarDuracaoSessao(
         duracaoConfigurada || sessao.tempoPlanejadoMinutos || sessao.tempoMinutos || tempoSessaoPadrao,
@@ -593,12 +586,18 @@ function CicloVisual({
         },
       );
       const completionOverride = sessionCompletionOverrides?.[globalIndex];
+      const bloqueiaDesmarcarConclusao = Boolean(canonicalSession.bloqueiaDesmarcarConclusao);
+      const progressoCanonico = Number(canonicalSession.progressoMinutos || 0);
       const progressoMinutos = typeof completionOverride === 'boolean'
-        ? (completionOverride ? tempoPlanejadoSessao : 0)
-        : Math.max(progressoPersistido, progressoRegistrado);
-      const concluida = typeof completionOverride === 'boolean'
         ? completionOverride
-        : sessoesConcluidasSet.has(globalIndex) || progressoMinutos >= tempoPlanejadoSessao;
+          ? Math.max(progressoCanonico, tempoPlanejadoSessao)
+          : bloqueiaDesmarcarConclusao
+            ? progressoCanonico
+            : 0
+        : progressoCanonico;
+      const concluida = typeof completionOverride === 'boolean'
+        ? (completionOverride || bloqueiaDesmarcarConclusao)
+        : Boolean(canonicalSession.concluida) || bloqueiaDesmarcarConclusao;
       const corBase = coresDisciplinas[disciplina.id] || '#71717a';
       const percentage = tempoPlanejadoSessao > 0 ? Math.min(100, Math.round((progressoMinutos / tempoPlanejadoSessao) * 100)) : 0;
       const color = concluida ? CICLO_CONCLUIDO_COLOR : progressoMinutos > 0 ? '#f59e0b' : corBase;
@@ -617,6 +616,9 @@ function CicloVisual({
         tempoPlanejadoMinutos: tempoPlanejadoSessao,
         tempoMinutos: tempoPlanejadoSessao,
         progressMinutos: progressoMinutos,
+        progressoPersistidoMinutos: progressoPersistido,
+        bloqueiaDesmarcarConclusao,
+        concluidaManual: concluida && !bloqueiaDesmarcarConclusao,
         percentage,
         ...getCycleAssuntoForSession(ciclo, { ...sessao, globalIndex }, disciplina),
       };
@@ -987,7 +989,8 @@ function CicloVisual({
                             ) : !hideActionButtons && activeDisciplina.concluida && isModoCicloSessoes ? (
                               <button
                                 onClick={() => onMarcarSessao?.(activeDisciplina.globalIndex, activeDisciplina)}
-                                disabled={isSessionLoading(activeDisciplina.globalIndex)}
+                                disabled={activeDisciplina.bloqueiaDesmarcarConclusao}
+                                title={activeDisciplina.bloqueiaDesmarcarConclusao ? 'O tempo registrado mantém este bloco concluído' : 'Desmarcar bloco'}
                                 className="pointer-events-auto inline-flex items-center justify-center border border-emerald-500/40 bg-emerald-500/10 px-[4.4px] font-black uppercase leading-none tracking-[0.03em] text-emerald-600 disabled:opacity-60 dark:text-emerald-300"
                                 style={{
                                   ...centerCircularSlotStyle(CYCLE_CENTER_MANUAL_LAYOUT.actions),
@@ -1018,7 +1021,7 @@ function CicloVisual({
                                 {isModoCicloSessoes ? (
                                   <button
                                     onClick={() => onMarcarSessao?.(activeDisciplina.globalIndex, activeDisciplina)}
-                                    disabled={isSessionLoading(activeDisciplina.globalIndex)}
+                                    aria-busy={isSessionLoading(activeDisciplina.globalIndex)}
                                     className="pointer-events-auto inline-flex items-center justify-center bg-emerald-600 px-[2px] font-black uppercase leading-none tracking-[0.03em] text-white shadow-[0_1.5px_5px_rgba(5,150,105,0.24)] transition hover:bg-emerald-700 active:scale-95 disabled:opacity-60"
                                     style={centerButtonStyle(CYCLE_CENTER_MANUAL_LAYOUT.actions.endWidth)}
                                   >
@@ -1293,7 +1296,8 @@ function CicloVisual({
                           </button>
                           <button
                             onClick={() => onMarcarSessao?.(activeDisciplina.globalIndex, activeDisciplina)}
-                            disabled={isSessionLoading(activeDisciplina.globalIndex)}
+                            disabled={activeDisciplina.bloqueiaDesmarcarConclusao}
+                            title={activeDisciplina.bloqueiaDesmarcarConclusao ? 'O tempo registrado mantém este bloco concluído' : 'Desmarcar bloco'}
                             className="px-4 py-3 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 rounded-xl font-bold text-xs uppercase tracking-wide hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors border border-zinc-200 dark:border-zinc-700 shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
                           >
                             Concluir
@@ -1305,10 +1309,11 @@ function CicloVisual({
                         <div className="mt-3">
                           <button
                             onClick={() => onMarcarSessao?.(activeDisciplina.globalIndex, activeDisciplina)}
-                            disabled={isSessionLoading(activeDisciplina.globalIndex)}
+                            disabled={activeDisciplina.bloqueiaDesmarcarConclusao}
+                            title={activeDisciplina.bloqueiaDesmarcarConclusao ? 'O tempo registrado mantém este bloco concluído' : 'Desmarcar bloco'}
                             className="w-full px-4 py-3 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 rounded-xl font-bold text-xs uppercase tracking-wide hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors border border-zinc-200 dark:border-zinc-700 shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
                           >
-                            Desmarcar
+                            {activeDisciplina.bloqueiaDesmarcarConclusao ? 'Concluído pelo tempo' : 'Desmarcar'}
                           </button>
                         </div>
                       )}

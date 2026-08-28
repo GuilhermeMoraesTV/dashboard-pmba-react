@@ -4,7 +4,7 @@ import {
   Layers, Bookmark, Plus, Zap, Map as MapIcon, CalendarDays, Shield,
   TrendingUp, Target, SkipForward, Trash2, AlertTriangle, X,
   BookOpen, Clock, Star, Flame, BarChart2, Sun, LayoutList,
-  GripVertical, Calendar, LayoutGrid, Check, MoreHorizontal, ZoomIn, ZoomOut,
+  GripVertical, Calendar, LayoutGrid, Check, MoreHorizontal,
   BadgeCheck, Loader2, Trophy, History, Cog, RefreshCw, Printer,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -35,6 +35,8 @@ import { resolveLogoUrl } from '../components/admin/config/editalAssets';
 import DailyGoalCompletedModal from '../components/shared/DailyGoalCompletedModal.jsx';
 import CronogramaPostponeUndo from '../components/cronograma/CronogramaPostponeUndo.jsx';
 import PostponeDaysField from '../components/cronograma/PostponeDaysField.jsx';
+import ConsolidatedReviewGroups from '../components/cronograma/ConsolidatedReviewGroups.jsx';
+import { expandConsolidatedReviewTopics } from '../utils/consolidatedReviews.js';
 import { normalizePostponeDays } from '../utils/cronogramaPostponement.js';
 import { getCronogramaSlotRecordedMinutes } from '../utils/studyDayStatus';
 import {
@@ -198,14 +200,37 @@ const getDragTaskId = (tarefa) => `task-${tarefa?.slotIdNoProgresso || tarefa?.s
 const getTaskTemplateSlotId = (tarefa) => tarefa?.slotIdNoProgresso || tarefa?.slotIdBase || tarefa?.slotId;
 const getCompletionKey = (slot) => String(slot?.slotIdNoProgresso || slot?.slotIdBase || slot?.slotId || '');
 
-const applyCompletionOverride = (slot, done) => {
+const normalizeCompletionOverride = (override) => (
+  override && typeof override === 'object'
+    ? { done: Boolean(override.done), progressMinutes: override.progressMinutes }
+    : { done: Boolean(override), progressMinutes: undefined }
+);
+
+const applyCompletionOverride = (slot, override) => {
+  const { done, progressMinutes } = normalizeCompletionOverride(override);
   const tempo = Number(slot?.tempoPlanejadoMinutos ?? slot?.tempoMinutos ?? slot?.minutosEstudo ?? 0);
   const progressoAtual = Number(slot?.progressoMinutos || 0);
   return {
     ...slot,
     concluido: done,
-    progressoMinutos: done ? Math.max(progressoAtual, tempo) : progressoAtual,
+    progressoMinutos: Number.isFinite(Number(progressMinutes))
+      ? Math.max(0, Number(progressMinutes))
+      : done
+        ? Math.max(progressoAtual, tempo)
+        : progressoAtual,
   };
+};
+
+const getDeletedRecordCompletionKeys = (record = {}) => {
+  const ids = [
+    record.origemConclusaoId,
+    ...(Array.isArray(record.alternateOrigemConclusaoIds) ? record.alternateOrigemConclusaoIds : []),
+  ];
+  const keys = ids.flatMap((id) => {
+    const match = String(id || '').match(/^cronograma:(?:estudo|revisao):(.+):\d{4}-\d{2}-\d{2}$/);
+    return match?.[1] ? [match[1]] : [];
+  });
+  return [...new Set(keys.filter(Boolean).map(String))];
 };
 
 const buildCronogramaTaskState = ({
@@ -476,12 +501,6 @@ const EstadoVazio = ({ onNovo }) => (
 
 // --- MODAL DE REVISÃO CONSOLIDADA ---------------------------------------------
 const ModalRevisaoConsolidada = ({ slot, onClose, onDominar, onStart, onToggle, dominiosLocal, toggleLoadingId, optimisticDone = {} }) => {
-  const [modalZoom, setModalZoom] = useState(1);
-
-  useEffect(() => {
-    setModalZoom(1);
-  }, [slot?.slotId]);
-
   if (!slot?.isConsolidada) return null;
 
   const buildReviewTask = (topico, idx) => ({
@@ -500,23 +519,30 @@ const ModalRevisaoConsolidada = ({ slot, onClose, onDominar, onStart, onToggle, 
     progressoMinutos: topico.progressoMinutos ?? slot.progressoMinutos,
     bloqueiaDesmarcar: Boolean(topico.bloqueiaDesmarcar || slot.bloqueiaDesmarcar),
   });
+  const reviewTopics = (slot.topicosRevisao || []).map((topic, index) => {
+    const task = buildReviewTask(topic, index);
+    const optimisticKey = getCompletionKey(task);
+    return optimisticKey && Object.prototype.hasOwnProperty.call(optimisticDone, optimisticKey)
+      ? applyCompletionOverride(task, optimisticDone[optimisticKey])
+      : task;
+  });
 
   return createPortal(
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[250] flex items-end justify-center bg-zinc-950/70 p-0 backdrop-blur-sm sm:items-center sm:p-4"
+      className="fixed inset-0 z-[250] flex items-center justify-center bg-zinc-950/70 p-3 backdrop-blur-sm sm:p-4"
       onClick={onClose}
     >
       <motion.div
         initial={{ y: 60, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 60, opacity: 0 }}
         transition={{ type: 'spring', stiffness: 350, damping: 30 }}
-        className="flex max-h-[100dvh] w-full flex-col overflow-hidden rounded-t-3xl border border-blue-200 bg-white shadow-2xl shadow-blue-950/20 dark:border-blue-900/40 dark:bg-zinc-900 sm:max-h-[calc(100dvh-2rem)] sm:max-w-xl sm:rounded-2xl"
+        className="flex max-h-[84dvh] w-full max-w-lg flex-col overflow-hidden rounded-3xl border border-blue-200 bg-white shadow-2xl shadow-blue-950/20 dark:border-blue-900/40 dark:bg-zinc-900 sm:max-h-[calc(100dvh-2rem)] sm:max-w-2xl"
         onClick={e => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-blue-100 bg-blue-50/75 px-5 pb-4 pt-5 dark:border-blue-900/35 dark:bg-blue-950/20">
+        <div className="flex items-center justify-between border-b border-blue-100 bg-blue-50/75 px-4 py-3.5 dark:border-blue-900/35 dark:bg-blue-950/20 sm:px-5 sm:py-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-blue-200 bg-white text-blue-600 shadow-sm shadow-blue-500/10 dark:border-blue-900/40 dark:bg-blue-900/20 dark:text-blue-300">
-              <BarChart2 size={20}/>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-blue-200 bg-white text-blue-600 shadow-sm shadow-blue-500/10 dark:border-blue-900/40 dark:bg-blue-900/20 dark:text-blue-300 sm:h-11 sm:w-11">
+              <BarChart2 size={18}/>
             </div>
             <div>
               <p className="mb-1 text-[10px] font-black uppercase leading-none tracking-widest text-blue-600 dark:text-blue-300">{slot.titulo || 'Revisoes do Dia'}</p>
@@ -524,130 +550,59 @@ const ModalRevisaoConsolidada = ({ slot, onClose, onDominar, onStart, onToggle, 
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-1">
-            <div className="mr-1 flex items-center rounded-xl border border-blue-200 bg-white/80 p-1 dark:border-blue-900/40 dark:bg-zinc-900/60 sm:hidden">
-              <button
-                type="button"
-                onClick={() => setModalZoom((value) => Math.max(0.9, Number((value - 0.1).toFixed(1))))}
-                disabled={modalZoom <= 0.9}
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-500 hover:bg-blue-50 hover:text-blue-700 disabled:opacity-35 dark:hover:bg-blue-950/40 dark:hover:text-blue-200"
-                aria-label="Diminuir zoom"
-              >
-                <ZoomOut size={15} />
-              </button>
-              <span className="w-9 text-center text-[9px] font-black tabular-nums text-zinc-600 dark:text-zinc-300">{Math.round(modalZoom * 100)}%</span>
-              <button
-                type="button"
-                onClick={() => setModalZoom((value) => Math.min(1.2, Number((value + 0.1).toFixed(1))))}
-                disabled={modalZoom >= 1.2}
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-500 hover:bg-blue-50 hover:text-blue-700 disabled:opacity-35 dark:hover:bg-blue-950/40 dark:hover:text-blue-200"
-                aria-label="Aumentar zoom"
-              >
-                <ZoomIn size={15} />
-              </button>
-            </div>
             <button onClick={onClose} className="rounded-xl p-2 text-zinc-500 transition-colors hover:bg-blue-100 hover:text-blue-700 dark:hover:bg-blue-900/35 dark:hover:text-blue-200">
               <X size={18}/>
             </button>
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-auto">
-          <div
-            className="divide-y divide-blue-100/70 dark:divide-blue-900/25"
-            style={{ zoom: modalZoom, width: `${100 / modalZoom}%` }}
-          >
-          {(slot.topicosRevisao || []).map((t, idx) => {
-            const chave    = chaveAssuntoDominado(t.disciplinaId, t.assunto);
-            const dominado = !!(dominiosLocal[chave]);
-            const revisaoTaskBase = buildReviewTask(t, idx);
-            const optimisticKey = getCompletionKey(revisaoTaskBase);
-            const revisaoTask = optimisticKey && Object.prototype.hasOwnProperty.call(optimisticDone, optimisticKey)
-              ? applyCompletionOverride(revisaoTaskBase, optimisticDone[optimisticKey])
-              : revisaoTaskBase;
-            const isDone = Boolean(revisaoTask.concluido);
-            const isLoading = toggleLoadingId === (revisaoTask.slotIdBase || revisaoTask.slotId);
-            const tempoRevisao = Number(revisaoTask.tempoPlanejadoMinutos ?? revisaoTask.tempoMinutos ?? 0);
-            const progressoRevisaoRaw = Number(revisaoTask.progressoMinutos || 0);
-            const progressoRevisao = isDone ? Math.max(progressoRevisaoRaw, tempoRevisao) : progressoRevisaoRaw;
-            const desmarcarBloqueado = isDone && Boolean(revisaoTask.bloqueiaDesmarcar);
-            return (
-              <div key={`${revisaoTask.slotId || idx}-${idx}`} className="px-4 py-3">
-                <div className={`group rounded-2xl border p-3 transition-all ${isDone ? 'border-blue-200 bg-blue-50/80 dark:border-blue-900/40 dark:bg-blue-950/20' : 'border-blue-100 bg-white hover:border-blue-200 hover:bg-blue-50/60 dark:border-zinc-700 dark:bg-zinc-800/55 dark:hover:border-blue-900/40 dark:hover:bg-blue-950/20'}`}>
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex min-w-0 flex-1 items-start gap-2">
-                      <motion.button
-                        whileHover={{ scale: 1.05, y: -1 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => {
-                          if (desmarcarBloqueado) return;
-                          onToggle?.(revisaoTask);
-                        }}
-                        disabled={isLoading || desmarcarBloqueado}
-                        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border shadow-sm transition-all disabled:opacity-60 ${
-                          isDone
-                            ? 'border-emerald-500 bg-emerald-500 text-white shadow-emerald-500/20'
-                            : 'border-emerald-200 bg-white text-emerald-600 shadow-emerald-500/10 hover:border-emerald-300 hover:bg-emerald-50 dark:border-emerald-900/40 dark:bg-white/10 dark:text-emerald-300 dark:hover:bg-emerald-900/35'
-                        }`}
-                        title={desmarcarBloqueado ? 'Conclusao protegida por registro de revisao' : isDone ? 'Revisao concluida' : 'Marcar revisao como concluida'}
-                      >
-                        {isLoading ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} strokeWidth={3.5} />}
-                      </motion.button>
-                      <div className="min-w-0 flex-1">
-                        <p className={`truncate text-xs font-black uppercase tracking-tight ${isDone ? 'text-blue-700 line-through decoration-emerald-500/60 dark:text-blue-200' : 'text-zinc-900 dark:text-zinc-100'}`}>{revisaoTask.disciplinaNome}</p>
-                        <p className={`mt-0.5 truncate text-[11px] font-semibold leading-snug ${isDone ? 'text-zinc-400 line-through decoration-emerald-500/60' : 'text-zinc-600 dark:text-zinc-300'}`}>{revisaoTask.assunto}</p>
-                      </div>
-                    </div>
-                    <span className="shrink-0 rounded-lg border border-blue-200 bg-blue-50 px-2 py-1 text-[9px] font-black uppercase tracking-wide text-blue-700 dark:border-blue-900/40 dark:bg-blue-900/20 dark:text-blue-300">
-                      +{revisaoTask.intervaloDias ?? '?'}d
-                    </span>
-                  </div>
-
-                  <div className="mt-2.5 flex items-end gap-2">
-                    <div className="min-w-0 flex-1">
-                      <div className="mb-1 flex items-center justify-between gap-2 text-[8px] font-black uppercase tracking-wide text-blue-500 dark:text-blue-300">
-                        <span>{isDone ? 'Revisao concluida' : 'Revisao agendada'}</span>
-                        {tempoRevisao > 0 && <span>{formatarDuracao(progressoRevisao)} / {formatarDuracao(tempoRevisao)}</span>}
-                      </div>
-                      <div className="h-1 overflow-hidden rounded-full bg-blue-100 dark:bg-blue-950/50">
-                        <motion.div
-                          initial={false}
-                          animate={{ width: isDone ? '100%' : '0%' }}
-                          transition={{ duration: 0.25 }}
-                          className="h-full rounded-full bg-gradient-to-r from-blue-500 to-blue-700"
-                        />
-                      </div>
-                    </div>
-                    {!isDone && (
-                      <motion.button
-                        whileHover={{ scale: 1.05, y: -1 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => onStart?.(revisaoTask)}
-                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-blue-200 bg-white text-blue-600 shadow-sm transition-all hover:bg-blue-600 hover:text-white dark:border-blue-900/40 dark:bg-blue-900/20 dark:text-blue-300 dark:hover:bg-blue-600 dark:hover:text-white"
-                        title="Iniciar cronometro desta revisao"
-                      >
-                        <Play size={14} fill="currentColor" />
-                      </motion.button>
-                    )}
-                  </div>
-
-                  <div className="flex h-0 items-center overflow-hidden opacity-0 transition-all duration-200 group-hover:mt-2 group-hover:h-8 group-hover:opacity-100 group-focus-within:mt-2 group-focus-within:h-8 group-focus-within:opacity-100">
-                    <button
-                      onClick={() => onDominar(t.disciplinaId, t.assunto, dominado)}
-                      title={dominado ? 'Assunto ja dominado' : 'Marcar assunto como ja dominado'}
-                      className={`flex h-8 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg border px-3 text-[9px] font-black uppercase tracking-wide transition-colors active:scale-95
-                        ${dominado
-                          ? 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-300 dark:hover:bg-amber-950/30'
-                          : 'border-dashed border-zinc-300 bg-transparent text-zinc-500 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-600 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-amber-950/20 dark:hover:text-amber-300'
-                        }`}
-                    >
-                      <BadgeCheck size={14} className={dominado ? 'fill-amber-400 text-amber-500' : ''} strokeWidth={dominado ? 0 : 2}/>
-                      {dominado ? 'Dominado' : 'Marcar dominio'}
+        <div className="custom-scrollbar min-h-0 flex-1 overflow-auto p-2.5 sm:p-4">
+          <div>
+          <ConsolidatedReviewGroups
+            topics={reviewTopics}
+            renderLeading={({ topic }) => {
+              const isDone = Boolean(topic.concluido);
+              const isLoading = toggleLoadingId === (topic.slotIdBase || topic.slotId);
+              const desmarcarBloqueado = isDone && Boolean(topic.bloqueiaDesmarcar);
+              return (
+                <button
+                  type="button"
+                  onClick={() => !desmarcarBloqueado && onToggle?.(topic)}
+                  disabled={isLoading || desmarcarBloqueado}
+                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border shadow-sm transition-all disabled:opacity-60 ${isDone ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-emerald-200 bg-white text-emerald-600 hover:bg-emerald-50 dark:border-emerald-900/40 dark:bg-white/10 dark:text-emerald-300'}`}
+                  title={desmarcarBloqueado ? 'Conclusão protegida por registro de revisão' : isDone ? 'Revisão concluída' : 'Marcar revisão como concluída'}
+                >
+                  {isLoading ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} strokeWidth={3.5} />}
+                </button>
+              );
+            }}
+            renderTrailing={({ topic }) => (
+              <span className="shrink-0 rounded-md border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[9px] font-black text-blue-700 dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-blue-300">
+                +{topic.intervaloDias ?? '?'}d
+              </span>
+            )}
+            renderBelow={({ topic }) => {
+              const isDone = Boolean(topic.concluido);
+              const key = chaveAssuntoDominado(topic.disciplinaId, topic.assunto);
+              const dominado = Boolean(dominiosLocal[key]);
+              return (
+                <div className="mt-2 flex items-center gap-2">
+                  {!isDone && (
+                    <button type="button" onClick={() => onStart?.(topic)} className="flex h-8 flex-1 items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-2 text-[9px] font-black uppercase text-white hover:bg-blue-700">
+                      <Play size={12} fill="currentColor" /> Iniciar
                     </button>
-                  </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => onDominar(topic.disciplinaId, topic.assunto, dominado)}
+                    className={`flex h-8 flex-1 items-center justify-center gap-1.5 rounded-lg border px-2 text-[9px] font-black uppercase ${dominado ? 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-300' : 'border-zinc-200 text-zinc-500 dark:border-zinc-700 dark:text-zinc-400'}`}
+                  >
+                    <BadgeCheck size={13} /> {dominado ? 'Dominado' : 'Dominei'}
+                  </button>
                 </div>
-              </div>
-            );
-          })}
+              );
+            }}
+          />
           </div>
         </div>
 
@@ -1190,33 +1145,7 @@ const SortableTarefaCard = ({ tarefa, diaSemanaIdx, ...props }) => {
 const RevisoesAgrupadasCard = ({ revisoes = [], onOpenConsolidada }) => {
   if (!revisoes.length) return null;
 
-  const topicosRevisao = revisoes.flatMap((tarefa) => {
-    const dadosSlot = {
-      slotId: tarefa.slotId,
-      slotIdBase: tarefa.slotIdBase,
-      slotIdNoProgresso: tarefa.slotIdNoProgresso,
-      weekOffset: tarefa.weekOffset,
-      concluido: tarefa.concluido,
-      tempoMinutos: tarefa.tempoMinutos,
-      tempoPlanejadoMinutos: tarefa.tempoPlanejadoMinutos,
-      progressoMinutos: tarefa.progressoMinutos,
-      bloqueiaDesmarcar: tarefa.bloqueiaDesmarcar,
-      isRevisaoAuto: true,
-    };
-    if (Array.isArray(tarefa.topicosRevisao) && tarefa.topicosRevisao.length > 0) {
-      return tarefa.topicosRevisao.map((topico) => ({
-        ...topico,
-        ...dadosSlot,
-      }));
-    }
-    return [{
-      ...dadosSlot,
-      disciplinaId: tarefa.disciplinaId,
-      disciplinaNome: tarefa.disciplinaNome || 'Revisão',
-      assunto: tarefa.assunto || tarefa.assuntoOriginal || 'Revisão agendada',
-      intervaloDias: tarefa.intervaloDias ?? '?',
-    }];
-  });
+  const topicosRevisao = expandConsolidatedReviewTopics(revisoes);
   return (
     <motion.button
       type="button"
@@ -2452,7 +2381,8 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
   const didInitWeekOffsetRef = useRef(false);
   const toggleQueueRef = useRef({});
   const toggleIntentRef = useRef({});
-  const dragSaveInFlightRef = useRef(false);
+  const dragSaveQueueRef = useRef(Promise.resolve());
+  const dragSaveVersionRef = useRef(0);
   const dragSensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 110, tolerance: 10 } }),
@@ -2666,6 +2596,36 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
     return mapa;
   }, [agendaSemana, dominiosLocal, cronograma, optimisticDone, registrosEstudo, weekOffset]);
 
+  useEffect(() => {
+    if (!cronograma || !agendaSemana.length) return;
+    const authoritativeByKey = new Map(agendaSemana.map((slot) => {
+      const task = buildCronogramaTaskState({
+        cronograma,
+        slot,
+        weekOffset,
+        registrosEstudo,
+        optimisticDone: {},
+      });
+      return [getCompletionKey(task), task];
+    }));
+    setOptimisticDone((current) => {
+      let changed = false;
+      const next = { ...current };
+      Object.entries(current).forEach(([key, override]) => {
+        const authoritative = authoritativeByKey.get(key);
+        if (!authoritative) return;
+        const expected = normalizeCompletionOverride(override);
+        const progressMatches = expected.progressMinutes === undefined
+          || Number(authoritative.progressoMinutos || 0) === Number(expected.progressMinutes || 0);
+        if (Boolean(authoritative.concluido) === expected.done && progressMatches) {
+          delete next[key];
+          changed = true;
+        }
+      });
+      return changed ? next : current;
+    });
+  }, [agendaSemana, cronograma, registrosEstudo, weekOffset]);
+
   const progressoGeral = useMemo(() => {
     const todos = Object.values(tarefasPorDia).flat();
     if (!todos.length) return 0;
@@ -2803,17 +2763,8 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
       cronograma,
       isReview: !!tarefa.isRevisaoAuto,
     });
-    const persistToggle = async () => {
-      const ok = await toggleSlotConcluido(cronograma.id, tarefa, semanaDoSlot);
-      const isLatestIntent = toggleIntentRef.current[toggleId] === intentVersion;
-    if (!ok) {
-      if (optimisticKey && isLatestIntent) setOptimisticDone(prev => ({ ...prev, [optimisticKey]: previousDone }));
-    } else if (!previousDone && addRegistroEstudo) {
-      await addRegistroEstudo(completionRegistro);
-    } else if (previousDone && deleteCompletionRegistro) {
-      await deleteCompletionRegistro(completionRegistro);
-    }
-    if (ok && !previousDone && isLatestIntent) {
+    let openedCompletionPreview = false;
+    if (nextDone) {
       const diaSemana = Number(tarefa.dia);
       const date = tarefa.dataSlot
         ? new Date(`${tarefa.dataSlot}T12:00:00`)
@@ -2821,13 +2772,26 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
       const tarefasDoDia = (tarefasPorDia[diaSemana] || []).map((item) => (
         getCompletionKey(item) === optimisticKey ? applyCompletionOverride(item, true) : item
       ));
-      openCompletionForDay({ date, tarefas: tarefasDoDia });
+      const previewData = buildCompletionModalData({ date, tarefas: tarefasDoDia });
+      if (previewData) {
+        openedCompletionPreview = true;
+        setCompletionModalData(previewData);
+      }
     }
-    if (isLatestIntent) {
-    showToast(ok
-      ? (previousDone ? 'Marcado como pendente' : 'Concluído com sucesso')
-      : 'Erro ao salvar. Tente novamente.'
-    );
+    const persistToggle = async () => {
+      const completionPersistence = toggleSlotConcluido(cronograma.id, tarefa, semanaDoSlot);
+      const registroPromise = nextDone && addRegistroEstudo
+        ? addRegistroEstudo(completionRegistro, { waitForCompletion: completionPersistence })
+        : null;
+      const ok = await completionPersistence;
+      const isLatestIntent = toggleIntentRef.current[toggleId] === intentVersion;
+    if (!ok) {
+      if (optimisticKey && isLatestIntent) setOptimisticDone(prev => ({ ...prev, [optimisticKey]: previousDone }));
+      if (openedCompletionPreview && isLatestIntent) setCompletionModalData(null);
+    } else if (!previousDone && addRegistroEstudo) {
+      await registroPromise;
+    } else if (previousDone && deleteCompletionRegistro) {
+      await deleteCompletionRegistro(completionRegistro);
     }
     };
 
@@ -2858,12 +2822,36 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
 
   const handleHistoryDeleteRegistro = async (registro) => {
     if (!registro) return;
-    setLoadingAction(true);
+    const completionKeys = getDeletedRecordCompletionKeys(registro);
+    const previousOverrides = Object.fromEntries(
+      completionKeys.map((key) => [key, optimisticDone[key]])
+    );
+    if (completionKeys.length) {
+      setOptimisticDone((current) => {
+        const next = { ...current };
+        completionKeys.forEach((key) => {
+          next[key] = { done: false, progressMinutes: 0 };
+        });
+        return next;
+      });
+    }
     try {
       if (onDeleteRegistro) await onDeleteRegistro(registro.id);
       else await deleteDoc(doc(db, 'users', user.uid, 'registrosEstudo', registro.id));
-    } finally {
-      setLoadingAction(false);
+      const latest = await getDoc(doc(db, 'users', user.uid, 'cronogramas', cronograma.id));
+      if (latest.exists()) setCronograma({ id: latest.id, ref: latest.ref, ...latest.data() });
+    } catch (error) {
+      if (completionKeys.length) {
+        setOptimisticDone((current) => {
+          const next = { ...current };
+          completionKeys.forEach((key) => {
+            if (previousOverrides[key] === undefined) delete next[key];
+            else next[key] = previousOverrides[key];
+          });
+          return next;
+        });
+      }
+      throw error;
     }
   };
 
@@ -2926,13 +2914,20 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
     if (!updatedTemplate) return false;
 
     const previousTemplate = cronograma.semanaTemplate;
+    const saveVersion = ++dragSaveVersionRef.current;
     setCronograma(prev => prev?.id === cronograma.id ? { ...prev, semanaTemplate: updatedTemplate } : prev);
+    const saveTask = dragSaveQueueRef.current
+      .catch(() => {})
+      .then(() => updateDoc(doc(db, 'users', user.uid, 'cronogramas', cronograma.id), { semanaTemplate: updatedTemplate }));
+    dragSaveQueueRef.current = saveTask;
     try {
-      await updateDoc(doc(db, 'users', user.uid, 'cronogramas', cronograma.id), { semanaTemplate: updatedTemplate });
+      await saveTask;
       return true;
     } catch (error) {
       console.error('[CronogramaPage] Erro ao mover estudo:', error);
-      setCronograma(prev => prev?.id === cronograma.id ? { ...prev, semanaTemplate: previousTemplate } : prev);
+      if (dragSaveVersionRef.current === saveVersion) {
+        setCronograma(prev => prev?.id === cronograma.id ? { ...prev, semanaTemplate: previousTemplate } : prev);
+      }
       return false;
     }
   }, [buildTemplateFromOrders, cronograma?.id, cronograma?.semanaTemplate, user?.uid]);
@@ -2949,7 +2944,7 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
     setActiveDragSize(null);
 
     const { active, over } = event;
-    if (!over || !cronograma || dragSaveInFlightRef.current) return;
+    if (!over || !cronograma) return;
 
     const activeData = active.data.current;
     const overData = over.data.current;
@@ -2994,11 +2989,8 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
       ordersByDay[targetDay] = targetOrder;
     }
 
-    dragSaveInFlightRef.current = true;
-    const ok = await persistTemplateReorder(ordersByDay, new Set([sourceDay, targetDay]));
-    dragSaveInFlightRef.current = false;
-    showToast(ok ? 'Cronograma reorganizado com sucesso!' : 'Erro ao mover tarefa.');
-  }, [cronograma, persistTemplateReorder, showToast]);
+    await persistTemplateReorder(ordersByDay, new Set([sourceDay, targetDay]));
+  }, [cronograma, persistTemplateReorder]);
 
   const handleWeekPanStart = useCallback((event) => {
     if (event.button !== 0 || isWeekPanIgnoredTarget(event.target)) return;
@@ -3102,7 +3094,7 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
   }, [cronograma, dominiosLocal, toggleAssuntoDominado, showToast]);
 
   // Early returns
-  if (loadingPage) return <div className="min-h-[calc(100vh-120px)]" />;
+  if (loadingPage) return <div className="min-h-[calc(100vh-120px)] space-y-3" aria-busy="true"><div className="h-8 w-52 animate-pulse rounded-lg bg-zinc-200 dark:bg-zinc-800"/><div className="h-72 animate-pulse rounded-3xl border border-zinc-200 bg-white/70 dark:border-zinc-800 dark:bg-zinc-900/70"/></div>;
 
   if (showWizard) return (
     <CronogramaCreateWizard
@@ -3177,7 +3169,6 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
             onUpdateRecord={handleUpdateRegistro}
             title="Histórico do Cronograma"
             confirmDeleteInModal
-            deleteLoading={loadingAction}
           />
         )}
 
@@ -3189,6 +3180,7 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
             onStart={handleStart}
             onToggle={handleToggle}
             dominiosLocal={dominiosLocal}
+            toggleLoadingId={toggleLoadingId}
             optimisticDone={optimisticDone}
           />
         )}
@@ -3286,13 +3278,13 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-zinc-400">
                 <div className="flex items-center gap-1">
                   <CalendarDays size={10} className="md:h-3.5 md:w-3.5"/>
-                  <p className="text-[8px] font-bold uppercase tracking-wide md:text-[10px]">
+                  <p className="text-[10px] font-bold uppercase tracking-wide md:text-xs">
                     Início: <span className="text-zinc-600 dark:text-zinc-300">{formattedStartDate}</span>
                   </p>
                 </div>
                 <div className="flex items-center gap-1">
                   <Target size={10} className="md:h-3.5 md:w-3.5"/>
-                  <p className="text-[8px] font-bold uppercase tracking-wide md:text-[10px]">
+                  <p className="text-[10px] font-bold uppercase tracking-wide md:text-xs">
                     Final: <span className="text-zinc-600 dark:text-zinc-300">{formattedEndDate}</span>
                   </p>
                 </div>

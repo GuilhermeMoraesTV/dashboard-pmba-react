@@ -37,7 +37,11 @@ import {
   REGISTRO_PROGRESS_OPTIMISTIC_EVENT,
   applyCronogramaRegistroProgress,
 } from "../services/reviewOptimisticUpdates";
-import { buildRevisaoCentral, filterRevisaoCentralItems } from "../utils/revisaoCentral";
+import {
+  buildRevisaoCentral,
+  filterRevisaoCentralItems,
+  filterStudyRecordsByPlanningSource,
+} from "../utils/revisaoCentral";
 const cx = (...classes) => classes.filter(Boolean).join(" ");
 
 const getContextLogo = (item) => {
@@ -427,21 +431,30 @@ export function RevisaoPage({
     if (!cicloAtivo?.id) return [];
     return todasRevisoesCiclo.filter((r) => r.cicloId === cicloAtivo.id);
   }, [todasRevisoesCiclo, cicloAtivo?.id]);
+  const sourceAtual = filtroFonte === "ciclo" && cicloAtivo
+    ? "ciclo"
+    : filtroFonte === "cronograma" && cronograma
+      ? "cronograma"
+      : cronograma
+        ? "cronograma"
+        : "ciclo";
+  const registrosDaFonteAtual = useMemo(() => filterStudyRecordsByPlanningSource(registrosEstudo, {
+    source: sourceAtual,
+    planId: sourceAtual === "ciclo" ? cicloAtivo?.id : cronograma?.id,
+  }), [cicloAtivo?.id, cronograma?.id, registrosEstudo, sourceAtual]);
   const central = useMemo(() => buildRevisaoCentral({
-    cronograma,
-    ciclo: cicloAtivo ? { ...cicloAtivo, disciplinas: disciplinasCiclo } : null,
-    revisoesCiclo: revisoesCicloAtivas,
-    registrosEstudo,
+    cronograma: sourceAtual === "cronograma" ? cronograma : null,
+    ciclo: sourceAtual === "ciclo" && cicloAtivo ? { ...cicloAtivo, disciplinas: disciplinasCiclo } : null,
+    revisoesCiclo: sourceAtual === "ciclo" ? revisoesCicloAtivas : [],
+    registrosEstudo: registrosDaFonteAtual,
     dataReferencia: new Date(),
-  }), [cronograma, cicloAtivo, disciplinasCiclo, registrosEstudo, revisoesCicloAtivas]);
+  }), [cronograma, cicloAtivo, disciplinasCiclo, registrosDaFonteAtual, revisoesCicloAtivas, sourceAtual]);
   const { hoje, atrasadas, proximas, resolvidas } = central.buckets;
   const listaAtual = useMemo(() => central.buckets[aba] || [], [aba, central.buckets]);
-  const slotsExibidos = useMemo(() => filterRevisaoCentralItems(listaAtual, {
-    origem: filtroFonte,
-  }), [filtroFonte, listaAtual]);
+  const slotsExibidos = useMemo(() => filterRevisaoCentralItems(listaAtual), [listaAtual]);
   const totalGeral = central.metricas.total;
   const totalConcluidas = resolvidas.length;
-  const resumoRevisoesFeitas = useMemo(() => registrosEstudo.reduce((resumo, registro) => {
+  const resumoRevisoesFeitas = useMemo(() => registrosDaFonteAtual.reduce((resumo, registro) => {
     const isRevisao = registro?.isRevisao === true
       || registro?.revisao === true
       || String(registro?.tipoEstudo || "").toLowerCase() === "revisao";
@@ -450,7 +463,7 @@ export function RevisaoPage({
       quantidade: resumo.quantidade + 1,
       minutos: resumo.minutos + Math.max(0, Number(registro?.tempoEstudadoMinutos || registro?.duracaoMinutos || 0)),
     };
-  }, { quantidade: 0, minutos: 0 }), [registrosEstudo]);
+  }, { quantidade: 0, minutos: 0 }), [registrosDaFonteAtual]);
   const progressoGeral = central.metricas.retencao;
   const concluidasHoje = hoje.filter((item) => item.concluido || item.concluida).length;
   const activeTab = TAB_TONES[aba] || TAB_TONES.hoje;
@@ -462,7 +475,6 @@ export function RevisaoPage({
     try {
       if (item._fonte === "ciclo") {
         const wasDone = Boolean(item.concluida || item.concluido);
-        await concluirRevisaoCiclo(item.id, !wasDone);
         const completionRegistro = buildCompletionRegistro({
           context: "ciclo",
           item,
@@ -470,29 +482,39 @@ export function RevisaoPage({
           isReview: true,
           fallbackMinutes: 20,
         });
+        const completionPersistence = concluirRevisaoCiclo(item.id, !wasDone);
+        const registroPromise = !wasDone && addRegistroEstudo
+          ? addRegistroEstudo(completionRegistro, { waitForCompletion: completionPersistence })
+          : null;
+        const ok = await completionPersistence;
+        if (ok === false) throw new Error("revisao-ciclo-nao-concluida");
         if (!wasDone && addRegistroEstudo) {
-          await addRegistroEstudo(completionRegistro);
+          await registroPromise;
         } else if (wasDone && deleteCompletionRegistro) {
           await deleteCompletionRegistro(completionRegistro);
         }
-        showToast(wasDone ? "Revisao marcada como pendente" : "Revisao de ciclo concluida");
+        if (wasDone) showToast("Revisao marcada como pendente");
       } else {
         if (!cronograma?.id) return;
-        if (await concluirRevisaoCronograma(cronograma.id, item, cronograma.dataInicio)) {
-          const completionRegistro = buildCompletionRegistro({
+        const completionRegistro = buildCompletionRegistro({
             context: "cronograma",
             item,
             cronograma,
             isReview: true,
             fallbackMinutes: 20,
-          });
-          const wasDone = Boolean(item.concluido || item.concluida);
+        });
+        const wasDone = Boolean(item.concluido || item.concluida);
+        const completionPersistence = concluirRevisaoCronograma(cronograma.id, item, cronograma.dataInicio);
+        const registroPromise = !wasDone && addRegistroEstudo
+          ? addRegistroEstudo(completionRegistro, { waitForCompletion: completionPersistence })
+          : null;
+        if (await completionPersistence) {
           if (!wasDone && addRegistroEstudo) {
-            await addRegistroEstudo(completionRegistro);
+            await registroPromise;
           } else if (wasDone && deleteCompletionRegistro) {
             await deleteCompletionRegistro(completionRegistro);
           }
-          showToast(wasDone ? "Revisao marcada como pendente" : "Revisao concluida");
+          if (wasDone) showToast("Revisao marcada como pendente");
         } else {
           showToast("Erro ao atualizar status");
         }
@@ -607,15 +629,8 @@ export function RevisaoPage({
     { id: "proximas", count: proximas.length, ...TAB_TONES.proximas },
     { id: "resolvidas", count: resolvidas.length, ...TAB_TONES.resolvidas },
   ];
-  const sourceAtual = filtroFonte === "ciclo"
-    ? "ciclo"
-    : filtroFonte === "cronograma"
-      ? "cronograma"
-      : cronograma
-        ? "cronograma"
-        : "ciclo";
   const contextoHeader = sourceAtual === "ciclo" ? cicloAtivo : cronograma;
-  const headerLogo = getContextLogo(contextoHeader) || getContextLogo(cronograma) || getContextLogo(cicloAtivo);
+  const headerLogo = getContextLogo(contextoHeader);
   const cicloLogo = getContextLogo(cicloAtivo);
   const cronogramaLogo = getContextLogo(cronograma);
   const showSourceToggle = Boolean(cronograma && cicloAtivo);
@@ -781,8 +796,8 @@ export function RevisaoPage({
           />
         </section>
 
-        <section className="overflow-x-auto rounded-lg bg-zinc-200/50 p-1 shadow-sm dark:bg-zinc-800">
-          <div className="flex min-w-max items-center gap-1 sm:min-w-0">
+        <section className="overflow-x-auto rounded-lg bg-zinc-200/50 p-0.5 shadow-sm dark:bg-zinc-800 sm:p-1">
+          <div className="flex min-w-max items-center gap-0.5 sm:min-w-0 sm:gap-1">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const selected = aba === tab.id;
@@ -792,16 +807,16 @@ export function RevisaoPage({
                 key={tab.id}
                 onClick={() => setAba(tab.id)}
                 className={cx(
-                  "flex min-w-[118px] flex-1 items-center justify-center gap-1.5 rounded px-3 py-2 text-[10px] font-black uppercase tracking-widest transition-colors sm:min-w-0",
+                  "flex min-w-[86px] flex-1 items-center justify-center gap-1 rounded px-1.5 py-1.5 text-[8px] font-black uppercase tracking-wide transition-colors sm:min-w-0 sm:gap-1.5 sm:px-3 sm:py-2 sm:text-[10px] sm:tracking-widest",
                   selected
                     ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-white"
                     : "text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300"
                 )}
               >
-                <Icon size={12} />
+                <Icon size={10} className="sm:h-3 sm:w-3" />
                 <span className="truncate">{tab.label}</span>
                 <span className={cx(
-                  "rounded px-1.5 py-0.5 text-[9px] tabular-nums",
+                  "rounded px-1 py-0.5 text-[8px] tabular-nums sm:px-1.5 sm:text-[9px]",
                   selected ? "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200" : "bg-white/70 text-zinc-500 dark:bg-zinc-900/60 dark:text-zinc-400"
                 )}>
                   {tab.count}
@@ -845,12 +860,6 @@ export function RevisaoPage({
             <section className="rounded-3xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-card-dark sm:p-5">
               <div className="mb-4 flex items-center gap-2"><BarChart3 size={17} className="text-violet-600" /><div><p className="text-[9px] font-black uppercase tracking-[0.2em] text-violet-600">Diagnóstico</p><h2 className="font-black">Por disciplina</h2></div></div>
               <div className="space-y-3">{central.diagnosticoDisciplinas.slice(0, 6).map((item) => <article key={item.id} className="rounded-2xl bg-zinc-50 p-3 dark:bg-white/[0.04]"><div className="flex items-start justify-between gap-2"><p className="min-w-0 text-sm font-black leading-tight">{item.nome}</p><span className={cx("rounded-md px-2 py-0.5 text-[9px] font-black uppercase", item.risco === "alto" ? "bg-red-100 text-red-700 dark:bg-red-400/10 dark:text-red-300" : item.risco === "medio" ? "bg-amber-100 text-amber-700 dark:bg-amber-400/10 dark:text-amber-300" : "bg-emerald-100 text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-300")}>{item.risco}</span></div><div className="mt-2 flex gap-3 text-[10px] font-bold text-zinc-500"><span>{item.atrasadas} atrasadas</span><span>{item.cobertura}% coberto</span></div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800"><div className="h-full rounded-full bg-violet-600" style={{ width: `${item.cobertura}%` }} /></div></article>)}</div>
-            </section>
-            <section className="rounded-3xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-card-dark sm:p-5">
-              <div className="flex items-center gap-2"><BookOpen size={17} className="text-blue-600" /><div><p className="text-[9px] font-black uppercase tracking-[0.2em] text-blue-600">Edital + histórico</p><h2 className="font-black">Cobertura real</h2></div></div>
-              <p className="mt-3 text-sm font-medium leading-relaxed text-zinc-500 dark:text-zinc-400">{central.cobertura.semRevisaoRecente.length} assunto(s) do planejamento estão sem revisão recente. O cálculo usa os registros compartilhados por Histórico e Desempenho.</p>
-              <div className="mt-4 flex items-center justify-between rounded-2xl bg-blue-50 p-3 dark:bg-blue-400/10"><span className="text-xs font-black text-blue-700 dark:text-blue-300">Retenção atual</span><span className="text-xl font-black text-blue-700 dark:text-blue-300">{progressoGeral}%</span></div>
-              {central.cobertura.semRevisaoRecente.slice(0, 3).map((item) => <p key={`${item.disciplinaId}:${item.assunto}`} className="mt-2 line-clamp-2 text-xs font-semibold text-zinc-600 dark:text-zinc-300">• {item.disciplinaNome}: {item.assunto}</p>)}
             </section>
           </aside>
         </section>

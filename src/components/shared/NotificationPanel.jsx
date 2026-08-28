@@ -1,6 +1,7 @@
-import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { doc, getDoc } from 'firebase/firestore';
 import {
   Bell, X, RefreshCw, Megaphone, Zap, AlertTriangle,
   Check, Plus, Minus, ChevronDown,
@@ -9,6 +10,8 @@ import {
   ExternalLink, ChevronRight, Info, History, Trash2,
   ChevronLeft, Target, CalendarDays, TrendingUp, Flame
 } from 'lucide-react';
+import { db } from '../../firebaseConfig';
+import UserProfileModal from '../gamification/UserProfileModal';
 
 // =======================================================
 // 🎨 ESTILOS GLOBAIS COMPACTOS E PREMIUM - FIRE THEME
@@ -564,6 +567,40 @@ const NotifItem = ({ notif, isRead, onRead, onOpenBroadcast, onOpenEditalModal, 
     if (notif.id && onDeleteBroadcast) onDeleteBroadcast(notif.id);
   };
 
+  if (resolvedType === 'edital_launch') {
+    const logo = notif.logoUrl || notif.imageUrl;
+    return (
+      <motion.article
+        initial={false}
+        className={`group relative overflow-hidden rounded-xl border bg-white transition-colors duration-75 dark:bg-zinc-800/55 ${isRead || isDismissedItem ? 'border-zinc-200 opacity-75 hover:opacity-100 dark:border-zinc-700' : 'border-red-200 shadow-md dark:border-red-900/50'}`}
+      >
+        <div className="absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-red-500 to-red-700" />
+        {!isRead && !isDismissedItem && <span className="absolute right-3 top-3 h-2 w-2 rounded-full bg-red-600 shadow-[0_0_6px_rgba(220,38,38,0.8)]" />}
+        <div className="flex items-start gap-3 p-3 pl-4 pr-7">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-zinc-100 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+            {logo ? <img src={logo} alt="" className="h-9 w-9 object-contain" /> : <BookOpen size={20} className="text-red-500" />}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="mb-1 flex flex-wrap items-center gap-1.5">
+              <span className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-red-50 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300"><Rocket size={8} /> Novo edital</span>
+              <span className="flex items-center gap-1 text-[8px] font-bold text-zinc-400"><Clock size={8} /> {formatTimeAgo(notif.timestamp)}</span>
+            </div>
+            <h4 className="text-[12px] font-black leading-snug text-zinc-900 dark:text-zinc-100">{notif.title || 'Novo edital disponível'}</h4>
+            <p className="mt-1.5 text-[10px] font-semibold leading-relaxed text-zinc-600 dark:text-zinc-300">{notif.message}</p>
+          </div>
+        </div>
+        <div className="flex items-center justify-between border-t border-zinc-100 px-3 py-2 dark:border-zinc-700/70">
+          <span className="text-[8px] font-black uppercase tracking-widest text-zinc-400">Disponível no catálogo</span>
+          <div className="flex items-center gap-1">
+            {!isRead && !isDismissedItem && <button onClick={() => onRead(notif.id)} className="rounded-lg p-1.5 text-emerald-600 transition hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30" aria-label="Marcar lançamento como lido"><Check size={14} strokeWidth={3} /></button>}
+            {(isRead || isDismissedItem) && <CheckCheck size={14} className="text-zinc-400" />}
+            <button onClick={handleDelete} className="rounded-lg p-1.5 text-zinc-400 opacity-0 transition hover:bg-red-50 hover:text-red-600 group-hover:opacity-100 dark:hover:bg-red-950/20" aria-label="Excluir notificação"><Trash2 size={14} strokeWidth={2.5} /></button>
+          </div>
+        </div>
+      </motion.article>
+    );
+  }
+
   if (resolvedType === 'broadcast') {
     const cfg = BROADCAST_CONFIG[notif.category] || BROADCAST_CONFIG.comunicado;
     const Icon = cfg.icon;
@@ -677,14 +714,15 @@ const NotifItem = ({ notif, isRead, onRead, onOpenBroadcast, onOpenEditalModal, 
   return null;
 };
 
-const OperationalNotifItem = ({ notif, onRead, onRespondGroupRequest }) => {
+const OperationalNotifItem = ({ notif, onRead, onRespondGroupRequest, onOpenApplicant, processingRequestId }) => {
   const isRequest = notif.operationalKind === 'group_request' && notif.requiresAction === true;
   const isXP = notif.operationalKind === 'xp';
+  const processing = processingRequestId === notif.id;
   const Icon = isRequest ? Inbox : isXP ? Zap : notif.operationalKind === 'league_state' || notif.operationalKind === 'league_result' ? TrendingUp : Bell;
-  return <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-800/55">
-    <div className="flex items-start gap-3 p-3"><span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${isRequest ? 'bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-300' : isXP ? 'bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-300' : 'bg-red-50 text-red-600 dark:bg-red-950/30'}`}><Icon size={16}/></span><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><h4 className="truncate text-[11px] font-black text-zinc-900 dark:text-white">{notif.title || 'Atualização'}</h4><span className="text-[8px] font-bold text-zinc-400">{formatTimeAgo(notif.timestamp)}</span></div><p className="mt-1 text-[10px] leading-relaxed text-zinc-500">{notif.message || 'Seu progresso foi atualizado.'}</p></div></div>
-    <div className="flex gap-2 border-t border-zinc-100 px-3 py-2.5 dark:border-zinc-700">{isRequest ? <><button onClick={() => onRespondGroupRequest(notif, false)} className="flex-1 rounded-lg border border-zinc-200 py-2 text-[8px] font-black uppercase text-zinc-500 dark:border-zinc-700">Recusar</button><button onClick={() => onRespondGroupRequest(notif, true)} className="flex-1 rounded-lg bg-emerald-600 py-2 text-[8px] font-black uppercase text-white">Aprovar membro</button></> : <button onClick={() => onRead(notif)} className="ml-auto inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[8px] font-black uppercase text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/20"><Check size={12}/> Marcar como lida</button>}</div>
-  </motion.div>;
+  return <motion.article initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+    <div className="flex items-start gap-3.5 p-4"><span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${isXP ? 'bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-300' : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300'}`}><Icon size={18}/></span><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-3"><h4 className="text-sm font-extrabold leading-snug text-zinc-900 dark:text-white">{notif.title || 'Atualização'}</h4><span className="shrink-0 text-[10px] font-semibold text-zinc-400">{formatTimeAgo(notif.timestamp)}</span></div><p className="mt-1.5 text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">{notif.message || 'Seu progresso foi atualizado.'}</p></div></div>
+    <div className="flex gap-2 border-t border-zinc-100 px-4 py-3 dark:border-zinc-800">{isRequest ? <><button disabled={processing} onClick={() => onOpenApplicant(notif)} className="flex-1 rounded-xl border border-zinc-200 py-2.5 text-[9px] font-black uppercase tracking-wide text-zinc-600 transition hover:border-red-200 hover:text-red-600 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300"><Eye size={12} className="mr-1 inline"/>Perfil</button><button disabled={processing} onClick={() => onRespondGroupRequest(notif, false)} className="flex-1 rounded-xl border border-zinc-200 py-2.5 text-[9px] font-black uppercase tracking-wide text-zinc-600 transition hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800">Recusar</button><button disabled={processing} onClick={() => onRespondGroupRequest(notif, true)} className="flex-1 rounded-xl bg-emerald-600 py-2.5 text-[9px] font-black uppercase tracking-wide text-white transition hover:bg-emerald-700 disabled:opacity-50">{processing ? 'Processando…' : 'Aceitar'}</button></> : <button onClick={() => onRead(notif)} className="ml-auto inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-[9px] font-black uppercase text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"><Check size={13}/> Marcar como lida</button>}</div>
+  </motion.article>;
 };
 
 const NotificationPanel = ({
@@ -698,21 +736,38 @@ const NotificationPanel = ({
   const [activeFilter, setActiveFilter] = useState('all');
   const [broadcastModal, setBroadcastModal] = useState(null);
   const [editalModal, setEditalModal] = useState(null);
-  const panelRef = useRef(null);
-  const onCloseRef = useRef(onClose);
-  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const handler = (e) => {
-      if (panelRef.current && !panelRef.current.contains(e.target)) {
-        if (e.target.closest('.notif-modal-portal')) return;
-        onCloseRef.current();
-      }
+  const [processingRequestId, setProcessingRequestId] = useState(null);
+  const [actionError, setActionError] = useState('');
+  const [selectedApplicant, setSelectedApplicant] = useState(null);
+  const respondGroupRequest = async (notif, approve) => {
+    if (!onRespondGroupRequest || processingRequestId) return;
+    setActionError('');
+    setProcessingRequestId(notif.id);
+    try {
+      await onRespondGroupRequest(notif, approve);
+    } catch (error) {
+      setActionError(error?.message || 'Não foi possível processar esta solicitação.');
+    } finally {
+      setProcessingRequestId(null);
+    }
+  };
+  const openApplicant = async (notif) => {
+    const uid = notif?.requestUid;
+    if (!uid) return;
+    const fallback = {
+      uid,
+      id: uid,
+      displayName: notif.metadata?.applicantName || 'Estudante',
+      photoURL: notif.metadata?.applicantPhotoURL || null,
     };
-    document.addEventListener('mousedown', handler, true);
-    return () => document.removeEventListener('mousedown', handler, true);
-  }, [isOpen]);
+    setSelectedApplicant(fallback);
+    try {
+      const snapshot = await getDoc(doc(db, 'general_rankings', 'all', 'members', uid));
+      if (snapshot.exists()) setSelectedApplicant({ ...fallback, ...snapshot.data(), uid, id: uid });
+    } catch (error) {
+      console.warn('[Notificações] Perfil público do solicitante indisponível:', error?.code || error);
+    }
+  };
 
   const validNotifications = useMemo(() => {
     const valid = (notifications || []).filter(n => {
@@ -737,7 +792,7 @@ const NotificationPanel = ({
 
   const filtered = useMemo(() => {
     if (activeFilter === 'broadcasts') return validNotifications.filter((n) => n._type === 'broadcast');
-    if (activeFilter === 'updates') return validNotifications.filter((n) => n._type === 'edital_update');
+    if (activeFilter === 'updates') return validNotifications.filter((n) => n._type === 'edital_update' || n._type === 'edital_launch');
     if (activeFilter === 'history') {
       return (dismissedHistory || [])
         .map(h => ({ ...h, _type: h._type || (h.cicloId ? 'edital_update' : 'broadcast'), isDismissed: true }))
@@ -749,7 +804,7 @@ const NotificationPanel = ({
   const filters = [
     { id: 'all', label: 'TUDO', count: unreadCount },
     { id: 'broadcasts', label: 'AVISOS', count: validNotifications.filter(n => n._type === 'broadcast' && !readBroadcasts.has(n.id)).length, icon: Megaphone },
-    { id: 'updates', label: 'EDITAL', count: validNotifications.filter(n => n._type === 'edital_update').length, icon: BookOpen },
+    { id: 'updates', label: 'EDITAL', count: validNotifications.filter(n => n._type === 'edital_update' || n._type === 'edital_launch').length, icon: BookOpen },
     { id: 'history', label: 'HISTORICO', count: (dismissedHistory || []).length, icon: History },
   ];
 
@@ -762,15 +817,16 @@ const NotificationPanel = ({
   }, [bellRef, isOpen]);
 
   const isMobileViewport = window.innerWidth < 640;
-  const panelWidth = isMobileViewport ? Math.min(390, Math.max(300, window.innerWidth - 40)) : 340;
+  const panelWidth = isMobileViewport ? Math.min(360, Math.max(280, window.innerWidth - 40)) : 460;
   const bellRight = bellRectState ? Math.max(window.innerWidth - bellRectState.right, 10) : 10;
   const bellBottom = bellRectState ? bellRectState.bottom : 74;
-  const panelMaxHeight = Math.min(isMobileViewport ? 500 : 520, Math.max(280, window.innerHeight - bellBottom - 24));
+  const panelMaxHeight = Math.min(isMobileViewport ? 520 : 680, Math.max(280, window.innerHeight - bellBottom - 32));
   const panelPosition = isMobileViewport
     ? { left: '50%', width: panelWidth, marginLeft: -(panelWidth / 2) }
     : { right: bellRight, width: panelWidth };
 
   return createPortal(
+    <>
     <AnimatePresence>
       {isOpen && (
         <>
@@ -778,30 +834,28 @@ const NotificationPanel = ({
           {editalModal && <EditalUpdateModal notif={editalModal} onClose={() => setEditalModal(null)} onApply={onApplyEditalUpdate} onDismiss={onDismissEditalUpdate} loading={loadingUpdate} onNavigateToEdital={onNavigateToEdital} />}
           {!broadcastModal && !editalModal && <div className="fixed inset-0 z-[90] bg-zinc-950/10" onClick={onClose} />}
           <motion.div
-            ref={panelRef}
             initial={{ opacity: 0, scale: 0.985, y: -4 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.985, y: -4 }}
             transition={{ duration: 0.1, ease: 'easeOut' }}
             style={{ top: bellBottom + 8, ...panelPosition, maxHeight: panelMaxHeight }}
-            className="modal-zoom modal-zoom--notifications fixed z-[100] flex flex-col overflow-hidden glass-panel-fire rounded-[22px] sm:rounded-[20px] shadow-2xl"
+            className="fixed z-[100] flex flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-700 dark:bg-card-dark sm:rounded-3xl"
           >
             <style>{notifGlobalStyles}</style>
-            <div className="h-1 bg-gradient-to-r from-red-700 via-red-500 to-red-700 flex-shrink-0 shadow-lg" />
-            <div className="flex-shrink-0 flex items-center justify-between px-3 py-2.5 border-b border-zinc-100 dark:border-zinc-800/60 bg-white/20 dark:bg-card-dark">
+            <div className="flex-shrink-0 flex items-center justify-between px-4 py-4 border-b border-zinc-100 dark:border-zinc-800">
               <div className="flex items-center gap-2">
-                <div className="relative flex items-center justify-center w-7 h-7 bg-red-600/10 dark:bg-red-500/20 rounded-lg">
-                  <Bell size={14} className="text-red-600 dark:text-red-500" strokeWidth={2.5} />
+                <div className="relative flex items-center justify-center w-10 h-10 bg-zinc-100 dark:bg-zinc-800 rounded-xl">
+                  <Bell size={18} className="text-zinc-700 dark:text-zinc-200" strokeWidth={2.2} />
                   {unreadCount > 0 && <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white dark:border-zinc-900 shadow-lg" />}
                 </div>
-                <div><h3 className="text-[13px] font-black text-zinc-900 dark:text-white uppercase tracking-[0.1em] leading-none">Notificações</h3><p className="text-[8px] font-bold text-zinc-400 uppercase tracking-widest mt-1 flex items-center gap-1"><Flame size={8} className="text-red-500" /> FEED OPERACIONAL</p></div>
+                <div><h3 className="text-base font-black text-zinc-900 dark:text-white leading-none">Notificações</h3><p className="text-[10px] font-semibold text-zinc-400 mt-1">Atualizações importantes da sua conta</p></div>
               </div>
               <div className="flex items-center gap-1.5">
                 <button
                   onClick={onMarkAllRead}
                   disabled={validNotifications.length === 0}
                   title="Marcar todas como vistas e mover para o historico"
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase text-zinc-500 hover:text-white hover:bg-zinc-900 dark:hover:bg-white dark:hover:text-zinc-900 transition-all disabled:cursor-not-allowed disabled:opacity-30"
+                  className="flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-[9px] font-black uppercase text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all disabled:cursor-not-allowed disabled:opacity-30"
                 >
                   <CheckCheck size={12} />
                   <span className="hidden sm:inline">Marcar todas como lido</span>
@@ -810,19 +864,20 @@ const NotificationPanel = ({
               </div>
             </div>
             <div className="flex-1 overflow-y-auto notif-scrollbar">
+              {actionError ? <div role="alert" className="mx-4 mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 dark:border-red-900/50 dark:bg-red-950/25 dark:text-red-300">{actionError}</div> : null}
               {systemAlerts.length > 0 && activeFilter === 'all' && (
-                <div className="px-3 pt-3 pb-2 space-y-2 bg-gradient-to-b from-red-600/5 to-transparent">
+                <div className="px-4 pt-4 pb-2 space-y-2">
                   {systemAlerts.map(alert => <SystemAlertCard key={alert.id} alert={alert} onAction={onSystemAlertAction} />)}
                 </div>
               )}
-              <div className="sticky top-0 z-20 grid grid-cols-2 gap-1.5 px-2.5 py-2 bg-white/95 dark:bg-card-dark border-b border-zinc-100 dark:border-zinc-800/60 sm:flex sm:items-center sm:justify-between sm:gap-1 sm:overflow-x-hidden">
+              <div className="sticky top-0 z-20 grid grid-cols-2 gap-2 px-4 py-3 bg-white/95 dark:bg-card-dark border-b border-zinc-100 dark:border-zinc-800 sm:flex sm:items-center">
                 {filters.map(f => (
                   <button key={f.id} onClick={() => setActiveFilter(f.id)} className={`flex min-w-0 items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-wider transition-colors duration-75 border ${activeFilter === f.id ? 'bg-zinc-900 text-white border-zinc-900 dark:bg-white dark:text-zinc-900 dark:border-white shadow-md' : 'bg-white dark:bg-zinc-900 text-zinc-500 border-zinc-100 dark:border-zinc-800 shadow-sm'}`}>
                     {f.icon && <f.icon size={11} />} {f.label} {f.count > 0 && <span className="text-[8px] font-black px-1.5 py-0.5 rounded-md bg-red-500 text-white shadow-md">{f.count}</span>}
                   </button>
                 ))}
               </div>
-              <div className="space-y-3 p-2.5 sm:p-3">
+              <div className="space-y-3 p-3 sm:p-4">
                 {filtered.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-12 text-center">
                     <div className="w-16 h-16 bg-zinc-50 dark:bg-zinc-900 rounded-[20px] flex items-center justify-center mb-5 shadow-inner border border-zinc-100 dark:border-zinc-800"><Flame size={28} className="text-red-100 dark:text-red-950" strokeWidth={1.5} /></div>
@@ -830,7 +885,7 @@ const NotificationPanel = ({
                   </div>
                 ) : (
                   <div key={activeFilter} className="space-y-3.5">
-                    {filtered.map(n => n._type === 'operational' ? <OperationalNotifItem key={`operational:${n.sourceCollection}:${n.id}`} notif={n} onRead={onMarkOperationalRead} onRespondGroupRequest={onRespondGroupRequest}/> : <NotifItem key={`${n._type || 'notif'}:${n.id}:${n.versionKey || ''}`} notif={n} isRead={n._type === 'broadcast' ? readBroadcasts.has(n.id) : false} onRead={onMarkBroadcastRead} onOpenBroadcast={(notif) => { setBroadcastModal(notif); if (!readBroadcasts.has(notif.id)) onMarkBroadcastRead(notif.id); }} onOpenEditalModal={setEditalModal} onDismissUpdate={onDismissEditalUpdate} onDeleteBroadcast={deleteBroadcast} onDeleteHistory={deleteHistoryItem} isDismissedItem={n.isDismissed || activeFilter === 'history'} />)}
+                    {filtered.map(n => n._type === 'operational' ? <OperationalNotifItem key={`operational:${n.sourceCollection}:${n.id}`} notif={n} onRead={onMarkOperationalRead} onRespondGroupRequest={respondGroupRequest} onOpenApplicant={openApplicant} processingRequestId={processingRequestId}/> : <NotifItem key={`${n._type || 'notif'}:${n.id}:${n.versionKey || ''}`} notif={n} isRead={n._type === 'broadcast' || n._type === 'edital_launch' ? readBroadcasts.has(n.id) : false} onRead={onMarkBroadcastRead} onOpenBroadcast={(notif) => { setBroadcastModal(notif); if (!readBroadcasts.has(notif.id)) onMarkBroadcastRead(notif.id); }} onOpenEditalModal={setEditalModal} onDismissUpdate={onDismissEditalUpdate} onDeleteBroadcast={deleteBroadcast} onDeleteHistory={deleteHistoryItem} isDismissedItem={n.isDismissed || activeFilter === 'history'} />)}
                   </div>
                 )}
               </div>
@@ -842,7 +897,9 @@ const NotificationPanel = ({
           </motion.div>
         </>
       )}
-    </AnimatePresence>,
+    </AnimatePresence>
+    <UserProfileModal member={selectedApplicant} onClose={() => setSelectedApplicant(null)}/>
+    </>,
     document.body
   );
 };

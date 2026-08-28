@@ -18,28 +18,20 @@ export const createHydrationState = () => Object.fromEntries(
 
 export const getCoreHydrationStatus = ({
   hydrationState,
-  isOnline,
-  timedOut,
-  legacyReadyFlags,
 }) => {
   const resources = HYDRATION_RESOURCE_KEYS.map((key) => hydrationState[key]);
   const allReceived = resources.every((resource) => resource?.received);
   const allSettled = resources.every((resource) => resource?.authoritative || resource?.failed);
   const hasPendingWrites = resources.some((resource) => resource?.hasPendingWrites);
-  const planningStatusSettled = !isOnline || (
-    (hydrationState.activeCiclo?.authoritative || hydrationState.activeCiclo?.failed)
-    && (hydrationState.activeCronograma?.authoritative || hydrationState.activeCronograma?.failed)
-  );
-
   return {
     resources,
     allReceived,
     allSettled,
     hasPendingWrites,
-    ready: Boolean(allReceived && planningStatusSettled && (
-      timedOut
-      || (legacyReadyFlags && (!isOnline || allSettled))
-    )),
+    // O primeiro snapshot do Firestore já contém o cache local útil. A shell
+    // pode renderizá-lo imediatamente; decisões destrutivas de onboarding
+    // continuam dependendo de isPlanningAssessmentReady (snapshot do servidor).
+    ready: Boolean(allReceived),
   };
 };
 

@@ -6,7 +6,7 @@ import { db } from '../firebaseConfig';
 import { ACHIEVEMENTS, getAchievementProgress, getLeague } from '../utils/gamification';
 import { isLeagueAchievement } from '../config/featureFlags';
 
-const AchievementsPage = ({ user, levelData }) => {
+const AchievementsPage = ({ user, levelData, studyStreak = null }) => {
   const [items, setItems] = useState([]);
   const [category, setCategory] = useState('Todas');
   const [search, setSearch] = useState('');
@@ -42,7 +42,7 @@ const AchievementsPage = ({ user, levelData }) => {
       schedulesCreated: Number(profile.schedulesCreated || 0),
       accuracy85Questions: Number(totals.accuracy || 0) >= 85 ? Number(totals.questions || 0) : 0,
       accuracy90Questions: Number(totals.accuracy || 0) >= 90 ? Number(totals.questions || 0) : 0,
-      streak: Number(profile.streak || profile.currentStreak || 0),
+      streak: Math.max(0, Number(studyStreak ?? profile.streak ?? profile.currentStreak ?? 0)),
       groupsJoined: Array.isArray(profile.groupIds) ? profile.groupIds.length : 0,
       groupsCreated: Number(profile.createdGroupCount || 0),
       groupPodiums: Number(profile.groupPodiums || 0),
@@ -52,7 +52,7 @@ const AchievementsPage = ({ user, levelData }) => {
       generalTop3: Number(profile.generalTop3 || 0),
       generalFirst: Number(profile.generalFirst || 0),
     };
-  }, [levelData]);
+  }, [levelData, studyStreak]);
   const catalog = useMemo(() => {
     const unlockedIds = new Set(levelData?.profile?.achievementIds || []);
     return ACHIEVEMENTS.filter((achievement) => !isLeagueAchievement(achievement)).map((achievement) => {

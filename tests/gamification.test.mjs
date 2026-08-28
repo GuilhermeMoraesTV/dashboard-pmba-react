@@ -4,6 +4,8 @@ import {
   ACHIEVEMENTS,
   buildAcademicXPEvents,
   calculateRankingPeriodMetrics,
+  calculateBestActivePlanStreak,
+  calculateStudyStreak,
   calculateActivityXP,
   evaluateAchievements,
   GAMIFICATION_CONFIG,
@@ -18,8 +20,121 @@ import {
   roundMigrationBaseXP,
   sortCompetitiveMembers,
   sortGeneralRankingMembers,
+  hasRecentRankingActivity,
   sortGroupsRanking,
 } from '../src/utils/gamification.js';
+
+test('ranking usa o melhor planejamento ativo valido sem incrementar dias de descanso', () => {
+  const now = new Date('2026-08-25T12:00:00-03:00');
+  const records = [
+    { id: 'c1', cicloId: 'cycle-active', data: '2026-08-25', tempoEstudadoMinutos: 60 },
+    { id: 'c2', cicloId: 'cycle-active', data: '2026-08-24', tempoEstudadoMinutos: 60 },
+    { id: 's1', cronogramaId: 'schedule-active', data: '2026-08-25', tempoEstudadoMinutos: 60 },
+    { id: 's2', cronogramaId: 'schedule-active', data: '2026-08-24', tempoEstudadoMinutos: 60 },
+    { id: 's3', cronogramaId: 'schedule-active', data: '2026-08-23', tempoEstudadoMinutos: 60 },
+    { id: 's4', cronogramaId: 'schedule-active', data: '2026-08-22', tempoEstudadoMinutos: 60 },
+    { id: 'old', cronogramaId: 'schedule-inactive', data: '2026-08-21', tempoEstudadoMinutos: 60 },
+  ];
+
+  assert.equal(calculateBestActivePlanStreak({
+    records,
+    cycles: [{ id: 'cycle-active', ativo: true }],
+    schedules: [
+      {
+        id: 'schedule-active',
+        ativo: true,
+        dataInicio: '2026-08-22',
+        semanaTemplate: [6, 0, 1, 2].map((dia) => ({ slotId: `slot-${dia}`, dia, minutosEstudo: 60 })),
+      },
+      { id: 'schedule-inactive', ativo: false },
+    ],
+    now,
+  }), 4);
+  assert.equal(calculateBestActivePlanStreak({
+    records: [{ id: 'inactive-only', cronogramaId: 'schedule-inactive', data: '2026-08-25', tempoEstudadoMinutos: 60 }],
+    cycles: [{ id: 'cycle-active', ativo: true }],
+    schedules: [{ id: 'schedule-inactive', ativo: false }],
+    now,
+  }), 1);
+});
+
+test('sequência do cronograma nao herda registros explicitamente vinculados a outro documento', () => {
+  const records = [
+    { cronogramaId: 'schedule-old', data: '2026-08-20', tempoEstudadoMinutos: 60 },
+    { cronogramaId: 'schedule-old', data: '2026-08-21', tempoEstudadoMinutos: 60 },
+    { cronogramaId: 'schedule-old', data: '2026-08-22', tempoEstudadoMinutos: 60 },
+    { cronogramaId: 'schedule-active', data: '2026-08-24', tempoEstudadoMinutos: 60 },
+    { cronogramaId: 'schedule-active', data: '2026-08-25', tempoEstudadoMinutos: 60 },
+  ];
+  assert.equal(calculateBestActivePlanStreak({
+    records,
+    schedules: [{
+      id: 'schedule-active',
+      ativo: true,
+      dataInicio: '2026-08-20',
+      diasEstudo: [1, 2, 3, 4, 5, 6],
+    }],
+    now: new Date('2026-08-26T12:00:00-03:00'),
+  }), 2);
+});
+
+test('sequência pública exige estudo real com meta completa e nao usa progresso persistido isolado', () => {
+  const now = new Date('2026-08-25T12:00:00-03:00');
+  const schedule = {
+    id: 'schedule-active',
+    ativo: true,
+    dataInicio: '2026-08-20',
+    semanaTemplate: [
+      { slotId: 'thu', dia: 4, minutosEstudo: 60 },
+      { slotId: 'fri', dia: 5, minutosEstudo: 60 },
+      { slotId: 'sat', dia: 6, minutosEstudo: 60 },
+      { slotId: 'sun', dia: 0, minutosEstudo: 60 },
+      { slotId: 'mon', dia: 1, minutosEstudo: 60 },
+      { slotId: 'tue', dia: 2, minutosEstudo: 60 },
+    ],
+    progresso: { w0: { thu: true, fri: true, sat: true, sun: true, mon: true, tue: true } },
+  };
+
+  assert.equal(calculateBestActivePlanStreak({
+    records: [
+      { cicloId: 'cycle-active', data: '2026-08-25', tempoEstudadoMinutos: 60 },
+      { cicloId: 'cycle-active', data: '2026-08-24', tempoEstudadoMinutos: 60 },
+      { cicloId: 'cycle-active', data: '2026-08-23', tempoEstudadoMinutos: 60 },
+    ],
+    cycles: [{ id: 'cycle-active', ativo: true }],
+    schedules: [schedule],
+    now,
+  }), 2);
+});
+
+test('sequência pública usa fallback real quando planejamentos ativos nao tem calendario valido', () => {
+  const now = new Date('2026-08-25T12:00:00-03:00');
+  const records = [25, 24, 23, 22].map((day) => ({
+    contextoRegistro: 'cronograma',
+    data: `2026-08-${day}`,
+    tempoEstudadoMinutos: 20,
+  }));
+
+  assert.equal(calculateBestActivePlanStreak({
+    records,
+    schedules: [{ id: 'schedule-active', ativo: true }],
+    now,
+  }), 4);
+  assert.equal(calculateBestActivePlanStreak({
+    records,
+    schedules: [{ id: 'schedule-a', ativo: true }, { id: 'schedule-b', ativo: true }],
+    now,
+  }), 4);
+});
+
+test('sequência pública considera estudos válidos mesmo sem vínculo explícito a um plano', () => {
+  const now = new Date('2026-08-25T12:00:00-03:00');
+  assert.equal(calculateStudyStreak([
+    { id: 'legacy-1', data: '2026-08-25', tempoEstudadoMinutos: 30 },
+    { id: 'legacy-2', data: '2026-08-24', tempoEstudadoMinutos: 45 },
+    { id: 'legacy-3', data: '2026-08-23', tempoEstudadoMinutos: 20 },
+  ], now), 3);
+});
 
 test('curva V2 respeita limites iniciais, marcos e nível de 500 XP', () => {
   assert.equal(getLevelFromXP(0), 1);
@@ -142,15 +257,23 @@ test('desempate usa primeiro instante do XP final e depois uid', () => {
 
 test('ranking geral alterna entre questões e tempo sem usar liga ou XP', () => {
   const members = [
-    { uid: 'xp', competitiveXP: 9999, questions: 2, minutes: 20 },
-    { uid: 'questions', competitiveXP: 1, questions: 80, minutes: 10 },
-    { uid: 'time', competitiveXP: 2, questions: 10, minutes: 300 },
+    { uid: 'xp', competitiveXP: 9999, questions: 2, correct: 1, minutes: 20 },
+    { uid: 'questions', competitiveXP: 1, questions: 80, correct: 72, minutes: 10 },
+    { uid: 'time', competitiveXP: 2, questions: 10, correct: 8, minutes: 300 },
   ];
   assert.deepEqual(sortGeneralRankingMembers(members, 'questions').map((member) => member.uid), ['questions', 'time', 'xp']);
   assert.deepEqual(sortGeneralRankingMembers(members, 'minutes').map((member) => member.uid), ['time', 'xp', 'questions']);
 });
 
-test('ranking semanal usa a semana atual e ranking geral preserva os totais acumulados', () => {
+test('ranking considera ativo somente quem estudou nos últimos 30 dias', () => {
+  const now = new Date('2026-08-25T12:00:00-03:00');
+  const day = 24 * 60 * 60 * 1000;
+  assert.equal(hasRecentRankingActivity({ lastStudyAtMillis: now.getTime() - 30 * day, now }), true);
+  assert.equal(hasRecentRankingActivity({ lastStudyAtMillis: now.getTime() - 31 * day, now }), false);
+  assert.equal(hasRecentRankingActivity({ lastStudyAtMillis: 0, now }), false);
+});
+
+test('rankings semanal e mensal usam seus períodos e o geral preserva os totais acumulados', () => {
   const now = new Date('2026-08-22T12:00:00-03:00');
   const periods = calculateRankingPeriodMetrics({
     records: [
@@ -169,10 +292,16 @@ test('ranking semanal usa a semana atual e ranking geral preserva os totais acum
     { minutes: 60, questions: 20, correct: 15 },
   );
   assert.deepEqual(
+    { minutes: periods.monthly.minutes, questions: periods.monthly.questions, correct: periods.monthly.correct },
+    { minutes: 210, questions: 70, correct: 53 },
+  );
+  assert.deepEqual(
     { minutes: periods.lifetime.minutes, questions: periods.lifetime.questions, correct: periods.lifetime.correct },
     { minutes: 510, questions: 170, correct: 133 },
   );
   assert.equal(periods.weekly.hasActivity, true);
+  assert.equal(periods.monthly.hasActivity, true);
+  assert.equal(periods.monthly.monthId, '2026-08');
   assert.equal(periods.lifetime.hasActivity, true);
 });
 

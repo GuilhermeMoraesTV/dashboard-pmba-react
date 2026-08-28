@@ -636,11 +636,13 @@ const TimelineDayGroup = ({ dateStr, records, onEdit, onDelete }) => {
 };
 
 // --- COMPONENTE PRINCIPAL MODAL ---
-const HistoricoModal = ({ isOpen, onClose, registros, onDeleteRequest, onUpdateRecord, title = "Linha do Tempo", confirmDeleteInModal = false, deleteLoading = false }) => {
+const HistoricoModal = ({ isOpen, onClose, registros, onDeleteRequest, onUpdateRecord, title = "Linha do Tempo", confirmDeleteInModal = false }) => {
     const [selectedDate, setSelectedDate] = useState(null);
     const [recordToEdit, setRecordToEdit] = useState(null);
     const [recordToDelete, setRecordToDelete] = useState(null);
     const [hiddenDeletingIds, setHiddenDeletingIds] = useState(() => new Set());
+    const [deletingRecordIds, setDeletingRecordIds] = useState(() => new Set());
+    const [deleteError, setDeleteError] = useState('');
     const [activeMobileTab, setActiveMobileTab] = useState('timeline');
 
     const { groupedRecords, stats } = useMemo(() => {
@@ -675,7 +677,9 @@ const HistoricoModal = ({ isOpen, onClose, registros, onDeleteRequest, onUpdateR
     };
 
     const handleDeleteClick = (record) => {
+        setDeleteError('');
         if (confirmDeleteInModal) {
+            if (record?.id && deletingRecordIds.has(record.id)) return;
             setRecordToDelete(record);
             return;
         }
@@ -687,8 +691,10 @@ const HistoricoModal = ({ isOpen, onClose, registros, onDeleteRequest, onUpdateR
         const record = recordToDelete;
         if (record?.id) {
             setHiddenDeletingIds((prev) => new Set([...prev, record.id]));
+            setDeletingRecordIds((prev) => new Set([...prev, record.id]));
         }
         setRecordToDelete(null);
+        setDeleteError('');
         try {
             await onDeleteRequest(record);
         } catch (error) {
@@ -699,7 +705,16 @@ const HistoricoModal = ({ isOpen, onClose, registros, onDeleteRequest, onUpdateR
                     return next;
                 });
             }
-            throw error;
+            console.error('[HistoricoModal] Erro ao excluir registro:', error);
+            setDeleteError('Não foi possível excluir. O estudo foi restaurado.');
+        } finally {
+            if (record?.id) {
+                setDeletingRecordIds((prev) => {
+                    const next = new Set(prev);
+                    next.delete(record.id);
+                    return next;
+                });
+            }
         }
     };
 
@@ -765,6 +780,20 @@ const HistoricoModal = ({ isOpen, onClose, registros, onDeleteRequest, onUpdateR
                         <X size={22} />
                     </button>
                 </div>
+
+                <AnimatePresence>
+                    {deleteError && (
+                        <motion.div
+                            initial={{ opacity: 0, y: -6 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -6 }}
+                            role="status"
+                            className="mx-4 mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 dark:border-red-900/50 dark:bg-red-950/25 dark:text-red-300"
+                        >
+                            {deleteError}
+                        </motion.div>
+                    )}
+                </AnimatePresence>
 
                 <div className="flex flex-col md:flex-row h-full overflow-hidden">
 
@@ -859,7 +888,6 @@ const HistoricoModal = ({ isOpen, onClose, registros, onDeleteRequest, onUpdateR
                                 <button
                                     type="button"
                                     onClick={() => setRecordToDelete(null)}
-                                    disabled={deleteLoading}
                                     className="rounded-2xl bg-zinc-100 px-4 py-3 text-xs font-black uppercase tracking-wider text-zinc-700 transition-colors hover:bg-zinc-200 disabled:opacity-60 dark:bg-zinc-800 dark:text-zinc-200"
                                 >
                                     Cancelar
@@ -867,10 +895,9 @@ const HistoricoModal = ({ isOpen, onClose, registros, onDeleteRequest, onUpdateR
                                 <button
                                     type="button"
                                     onClick={handleConfirmDelete}
-                                    disabled={deleteLoading}
                                     className="flex items-center justify-center gap-2 rounded-2xl bg-red-600 px-4 py-3 text-xs font-black uppercase tracking-wider text-white shadow-lg shadow-red-600/25 transition-colors hover:bg-red-700 disabled:opacity-60"
                                 >
-                                    {deleteLoading ? <span className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" /> : <Trash2 size={14} />}
+                                    <Trash2 size={14} />
                                     Excluir
                                 </button>
                             </div>

@@ -1,4 +1,5 @@
 import { normalizarDuracaoSessao } from './cicloDistribution.js';
+import { getRecordedStudyMinutes, isManualCompletionRecord } from './studyRecords.js';
 
 export const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000;
 
@@ -27,7 +28,6 @@ const ymdToMillis = (value) => {
   const parsed = new Date(`${value}T12:00:00`).getTime();
   return Number.isNaN(parsed) ? null : parsed;
 };
-
 export const getRegistroDateKey = (registro) => {
   if (registro?.data) return registro.data;
   if (registro?.dataRegistro) return registro.dataRegistro;
@@ -44,7 +44,7 @@ const normalizeRecordText = (value) => (
     .trim()
 );
 
-const getRecordMinutes = (registro) => Number(registro?.tempoEstudadoMinutos || registro?.duracaoMinutos || 0);
+const getRecordMinutes = (registro) => getRecordedStudyMinutes(registro);
 
 const isCycleStudyRegistro = (registro, cicloId) => {
   if (!registro || getRecordMinutes(registro) <= 0) return false;
@@ -54,25 +54,12 @@ const isCycleStudyRegistro = (registro, cicloId) => {
   return true;
 };
 
-const isButtonCompletionRegistro = (registro) => (
-  registro?.origemConclusao === 'botao_concluir'
-  || String(registro?.origemConclusaoId || '').startsWith('ciclo:estudo:')
-  || (Array.isArray(registro?.alternateOrigemConclusaoIds)
-    && registro.alternateOrigemConclusaoIds.some((id) => String(id || '').startsWith('ciclo:estudo:')))
-);
-
-const isProtectedManualStudyRegistro = (registro) => (
-  !isButtonCompletionRegistro(registro)
-  && !registro?.origem
-  && !registro?.origemConclusao
-  && !registro?.origemConclusaoId
-);
-
 export const getCronogramaSlotRecordedMinutes = ({
   cronograma,
   slot,
   registrosEstudo = [],
   dateKey = null,
+  onlyRealStudyRecords = false,
 }) => {
   if (!cronograma?.id || !slot) return 0;
   const slotDateKey = dateKey || slot.dataSlot || null;
@@ -82,6 +69,7 @@ export const getCronogramaSlotRecordedMinutes = ({
 
   return (Array.isArray(registrosEstudo) ? registrosEstudo : []).reduce((acc, registro) => {
     if (!registro || getRecordMinutes(registro) <= 0) return acc;
+    if (onlyRealStudyRecords && isManualCompletionRecord(registro)) return acc;
     if (registro.isRevisao || registro.revisao || registro.tipoEstudo === 'revisao') return acc;
     if (String(registro.cronogramaId || '') !== String(cronograma.id || '')) return acc;
     if (registro.contextoRegistro && registro.contextoRegistro !== 'cronograma') return acc;
@@ -122,9 +110,7 @@ export const buildStudyDaysMap = (registrosEstudo = []) => {
 
 export const isConfirmedStudyRecord = (registro) => {
   if (!registro) return false;
-  const source = String(registro.origemConclusao || '').trim().toLowerCase();
-  const type = String(registro.tipoEstudo || '').trim().toLowerCase();
-  return source !== 'botao_concluir' && type !== 'check_manual';
+  return getRecordedStudyMinutes(registro) > 0;
 };
 
 const DEFAULT_CYCLE_STUDY_DAYS = [1, 2, 3, 4, 5];
@@ -190,22 +176,25 @@ const getCycleAnchorDate = (ciclo) => {
   return anchorMillis !== null ? startOfLocalDay(new Date(anchorMillis)) : startOfLocalDay(new Date());
 };
 
-const getCycleSessionCompletionDate = (ciclo, globalIndex) => {
+const getCycleSessionCompletionDetail = (ciclo, globalIndex) => {
   const details = ciclo?.sessoesConcluidasDetalhes;
   if (!details) return null;
 
   if (Array.isArray(details)) {
-    const item = details.find((entry) => Number(entry?.globalIndex ?? entry?.index) === Number(globalIndex));
-    return item?.concluidaEm || item?.data || null;
+    return details.find((entry) => Number(entry?.globalIndex ?? entry?.index) === Number(globalIndex)) || null;
   }
 
   if (typeof details === 'object') {
     const item = details[globalIndex] || details[String(globalIndex)];
-    if (typeof item === 'string') return item;
-    return item?.concluidaEm || item?.data || null;
+    return typeof item === 'string' ? { concluidaEm: item } : (item || null);
   }
 
   return null;
+};
+
+const getCycleSessionCompletionDate = (ciclo, globalIndex) => {
+  const detail = getCycleSessionCompletionDetail(ciclo, globalIndex);
+  return detail?.concluidaEm || detail?.data || null;
 };
 
 const isCycleSessionCompletedByDate = (ciclo, globalIndex, dateKey = null) => {
@@ -234,9 +223,11 @@ export const buildCycleOrderedSessions = (ciclo, dateKey = null, registrosEstudo
         {
           min: ciclo?.duracaoMinimaSessaoMinutos || 10,
           max: ciclo?.duracaoMaximaSessaoMinutos || 240,
+          allowPartial: true,
         },
       );
       const concluidaEm = getCycleSessionCompletionDate(ciclo, globalIndex);
+      const completionDetail = getCycleSessionCompletionDetail(ciclo, globalIndex);
       const progressoPersistido = Number(progressoSessoes?.[globalIndex] || progressoSessoes?.[String(globalIndex)] || 0);
       const progressoRegistrado = getCycleSessionRecordedMinutes({
         ciclo,
@@ -244,6 +235,7 @@ export const buildCycleOrderedSessions = (ciclo, dateKey = null, registrosEstudo
         globalIndex,
         registrosEstudo,
         dateKey,
+        allowLooseMatch: progressoPersistido <= 0,
       });
       const progressoRegistroReal = getCycleSessionRecordedMinutes({
         ciclo,
@@ -251,12 +243,26 @@ export const buildCycleOrderedSessions = (ciclo, dateKey = null, registrosEstudo
         globalIndex,
         registrosEstudo,
         dateKey,
+        allowLooseMatch: progressoPersistido <= 0,
         onlyRealStudyRecords: true,
       });
-      const progressoMinutos = Math.max(progressoPersistido, progressoRegistrado);
-      const concluidaPorRegistroDoDia = dateKey && progressoRegistrado >= tempoPlanejadoMinutos;
+      const origemConclusaoPersistida = String(completionDetail?.origem || '');
+      const conclusaoPersistidaPorEstudo = ['registro_manual', 'timer', 'registro_estudo'].includes(origemConclusaoPersistida);
+      const progressoPersistidoReal = conclusaoPersistidaPorEstudo
+        || !(ciclo?.sessoesConcluidas || []).map(Number).includes(globalIndex)
+        ? progressoPersistido
+        : 0;
       const bloqueiaDesmarcarConclusao = progressoRegistroReal >= tempoPlanejadoMinutos;
-      const concluida = isCycleSessionCompletedByDate(ciclo, globalIndex, dateKey)
+      const concluidaManual = isCycleSessionCompletedByDate(ciclo, globalIndex, dateKey)
+        && progressoPersistido >= tempoPlanejadoMinutos
+        && !bloqueiaDesmarcarConclusao;
+      const progressoMinutos = Math.max(
+        progressoRegistrado,
+        progressoPersistidoReal,
+        concluidaManual ? progressoPersistido : 0,
+      );
+      const concluidaPorRegistroDoDia = dateKey && progressoMinutos >= tempoPlanejadoMinutos;
+      const concluida = concluidaManual
         || concluidaPorRegistroDoDia
         || progressoMinutos >= tempoPlanejadoMinutos;
       return {
@@ -270,6 +276,8 @@ export const buildCycleOrderedSessions = (ciclo, dateKey = null, registrosEstudo
         progressoRegistroRealMinutos: progressoRegistroReal,
         progressoPersistidoMinutos: progressoPersistido,
         bloqueiaDesmarcarConclusao,
+        concluidaManual,
+        concluidaPorTempoRegistrado: progressoMinutos >= tempoPlanejadoMinutos,
       };
     });
 };
@@ -380,7 +388,7 @@ export const getCycleSessionRecordedMinutes = ({
     // Registros de voltas ja encerradas recebem conclusaoId ao concluir o ciclo.
     // Eles continuam no historico, mas nao podem preencher novamente a fila atual.
     if (registro.conclusaoId != null) return acc;
-    if (onlyRealStudyRecords && !isProtectedManualStudyRegistro(registro)) return acc;
+    if (onlyRealStudyRecords && (!isConfirmedStudyRecord(registro) || isManualCompletionRecord(registro))) return acc;
     if (dateKey && getRegistroDateKey(registro) !== dateKey) return acc;
 
     const registroSessaoIndex = Number(registro.sessaoGlobalIndex);
@@ -394,6 +402,20 @@ export const getCycleSessionRecordedMinutes = ({
 
     const registroAssuntoNorm = normalizeRecordText(registro.assunto);
     if (assuntoNorm && registroAssuntoNorm && registroAssuntoNorm !== assuntoNorm) return acc;
+
+    const firstMatchingSessionIndex = (Array.isArray(ciclo?.ordemSessoes) ? ciclo.ordemSessoes : [])
+      .findIndex((candidate, candidateIndex) => {
+        if (disciplinaId && String(candidate?.disciplinaId || '') !== disciplinaId) return false;
+        if (!registroAssuntoNorm) return true;
+        const candidateDisciplina = getDisciplinaById(ciclo, candidate?.disciplinaId);
+        const candidateAssunto = getCycleAssuntoForSession(
+          ciclo,
+          { ...candidate, globalIndex: candidateIndex },
+          candidateDisciplina,
+        )?.assuntoSugerido?.nome;
+        return !candidateAssunto || normalizeRecordText(candidateAssunto) === registroAssuntoNorm;
+      });
+    if (firstMatchingSessionIndex >= 0 && firstMatchingSessionIndex !== sessionIndex) return acc;
 
     return acc + getRecordMinutes(registro);
   }, 0);
@@ -794,6 +816,7 @@ export const getDailyStudyStatus = ({
   activeCicloData,
   getAgendaSemana,
   contextMode = 'all',
+  cycleReviews = [],
 }) => {
   const dateStr = typeof date === 'string' ? date : dateToYMDLocal(date);
   const dayDate = startOfLocalDay(typeof date === 'string' ? new Date(`${date}T12:00:00`) : date);
@@ -805,11 +828,31 @@ export const getDailyStudyStatus = ({
   const hasRawStudyData = !!dayData && (dayData.minutes > 0 || dayData.questions > 0);
   const hasConfirmedStudyData = confirmedMinutes > 0;
   const cycleTargetMinutes = Number(getCycleDayTargetMinutesMap(activeCicloData)?.[dayDate.getDay()] || 0);
+  const cycleReviewRequirements = activeCicloData?.id
+    ? (Array.isArray(cycleReviews) ? cycleReviews : []).filter((review) => {
+        if (String(review?.cicloId || '') !== String(activeCicloData.id)) return false;
+        const dueDate = String(review?.dataAgendada || review?.dataPrevista || review?.dataRevisao || review?.dataSlot || '');
+        if (!dueDate || dueDate > dateStr) return false;
+        const completed = review?.concluida === true || review?.concluido === true;
+        if (!completed) return true;
+        const completionDate = review?.concluidaEm?.toDate
+          ? dateToYMDLocal(review.concluidaEm.toDate())
+          : String(review?.concluidaEm || review?.concluidoEm || review?.dataConclusao || '');
+        return dueDate === dateStr || Boolean(completionDate && completionDate >= dateStr);
+      })
+    : [];
+  const completedCycleReviews = cycleReviewRequirements.filter((review) => {
+    if (review?.concluida !== true && review?.concluido !== true) return false;
+    const completionDate = review?.concluidaEm?.toDate
+      ? dateToYMDLocal(review.concluidaEm.toDate())
+      : String(review?.concluidaEm || review?.concluidoEm || review?.dataConclusao || '');
+    return !completionDate || completionDate <= dateStr;
+  }).length;
   const cicloStatus = activeCicloData?.id && cycleTargetMinutes > 0
     ? {
         isRestDay: false,
-        totalSlots: 1,
-        completedSlots: confirmedMinutes >= cycleTargetMinutes ? 1 : 0,
+        totalSlots: 1 + cycleReviewRequirements.length,
+        completedSlots: (confirmedMinutes >= cycleTargetMinutes ? 1 : 0) + completedCycleReviews,
         targetMinutes: cycleTargetMinutes,
         confirmedMinutes,
       }
@@ -891,41 +934,4 @@ export const getDailyStudyStatus = ({
   };
 };
 
-export const calculateCurrentStudyStreak = ({
-  studyDaysMap = {},
-  goalsHistory = [],
-  activeCronogramaData,
-  activeCicloData,
-  getAgendaSemana,
-  contextMode = 'all',
-  today = new Date(),
-  lookbackDays = 90,
-}) => {
-  let currentStreak = 0;
-  const todayStr = dateToYMDLocal(today);
-  const oldestGoal = (goalsHistory || [])
-    .filter((goal) => goal?.startDate)
-    .sort((a, b) => new Date(a.startDate) - new Date(b.startDate))[0];
-  const firstGoalDateStr = oldestGoal?.startDate || null;
-
-  for (let i = 0; i < lookbackDays; i += 1) {
-    const dateToCheck = new Date(today);
-    dateToCheck.setDate(today.getDate() - i);
-    const dateStr = dateToYMDLocal(dateToCheck);
-    const dayStatus = getDailyStudyStatus({
-      date: dateToCheck,
-      studyDaysMap,
-      activeCronogramaData,
-      activeCicloData,
-      getAgendaSemana,
-      contextMode,
-    });
-
-    if (firstGoalDateStr && dateStr < firstGoalDateStr && !dayStatus.goalMet) break;
-    if (dayStatus.goalMet) currentStreak += 1;
-    else if (dateStr === todayStr) continue;
-    else break;
-  }
-
-  return currentStreak;
-};
+export { calculateCanonicalStudyStreak } from './gamification.js';

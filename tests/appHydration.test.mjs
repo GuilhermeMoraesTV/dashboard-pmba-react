@@ -17,7 +17,7 @@ const fillState = (overrides = {}) => Object.fromEntries(
   }])
 );
 
-test('nao libera estado vazio vindo apenas do cache enquanto online', () => {
+test('libera a shell com cache enquanto mantém decisões de planejamento bloqueadas', () => {
   const state = fillState({ registros: { authoritative: false } });
   const status = getCoreHydrationStatus({
     hydrationState: state,
@@ -26,7 +26,7 @@ test('nao libera estado vazio vindo apenas do cache enquanto online', () => {
     legacyReadyFlags: true,
   });
 
-  assert.equal(status.ready, false);
+  assert.equal(status.ready, true);
   assert.equal(isPlanningAssessmentReady(state), false);
 });
 
@@ -58,7 +58,7 @@ test('offline usa cache recebido sem classificar usuario como novo', () => {
   assert.equal(isPlanningAssessmentReady(state), false);
 });
 
-test('timeout não libera shell online enquanto planejamento ainda vem só do cache', () => {
+test('shell online usa cache antes do timeout sem classificar usuário como novo', () => {
   const state = fillState(Object.fromEntries(
     HYDRATION_RESOURCE_KEYS.map((key) => [key, { authoritative: false }])
   ));
@@ -69,7 +69,7 @@ test('timeout não libera shell online enquanto planejamento ainda vem só do ca
     legacyReadyFlags: false,
   });
 
-  assert.equal(status.ready, false);
+  assert.equal(status.ready, true);
   assert.equal(isPlanningAssessmentReady(state), false);
 });
 

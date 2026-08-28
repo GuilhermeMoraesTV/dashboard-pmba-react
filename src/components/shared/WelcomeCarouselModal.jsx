@@ -13,19 +13,24 @@ import {
   ChevronRight,
   Clock3,
   Compass,
+  Crown,
   Download,
   FileText,
+  Flame,
   Gauge,
   ListChecks,
+  Medal,
   Newspaper,
   NotebookPen,
   PlayCircle,
+  Radio,
   RotateCcw,
   Route,
   ShieldCheck,
   Sparkles,
   Target,
   Trophy,
+  Users,
 } from 'lucide-react';
 
 const LOGO = '/logoModoQAP.png';
@@ -38,19 +43,24 @@ const iconMap = {
   CheckCircle2,
   Clock3,
   Compass,
+  Crown,
   Download,
   FileText,
+  Flame,
   Gauge,
   ListChecks,
+  Medal,
   Newspaper,
   NotebookPen,
   PlayCircle,
+  Radio,
   RotateCcw,
   Route,
   ShieldCheck,
   Sparkles,
   Target,
   Trophy,
+  Users,
 };
 
 const welcomeSlides = [
@@ -154,6 +164,30 @@ const welcomeSlides = [
     stat: '100%',
     statLabel: 'foco na aprovacao',
     details: ['O calendário mostra sua constância diária.', 'Os indicadores revelam matérias fortes e fracas.'],
+  },
+  {
+    id: 'ranking',
+    eyebrow: 'Ranking',
+    title: 'Compare sua evolução com outros alunos',
+    text: 'Acompanhe sua posição por tempo estudado ou questões realizadas e veja quem está no pódio da semana ou do ranking geral.',
+    icon: 'Trophy',
+    tone: 'red',
+    preview: 'ranking',
+    stat: 'Top 3',
+    statLabel: 'pódio em destaque',
+    details: ['Pódio visual com os três primeiros colocados.', 'Filtros por tempo, questões, semana e geral.'],
+  },
+  {
+    id: 'study-groups',
+    eyebrow: 'Grupos de estudo',
+    title: 'Estude junto, mesmo à distância',
+    text: 'Crie ou participe de grupos, acompanhe os colegas estudando ao vivo e veja matéria e cronômetro de cada sessão em andamento.',
+    icon: 'Users',
+    tone: 'red',
+    preview: 'groups',
+    stat: 'Ao vivo',
+    statLabel: 'estudo em equipe',
+    details: ['Veja vários membros estudando em tempo real.', 'Cada card mostra aluno, matéria e cronômetro ativo.'],
   },
 ];
 
@@ -692,6 +726,86 @@ const PreviewPerformance = ({ tone }) => (
   </PreviewCard>
 );
 
+const RANKING_PREVIEW_MEMBERS = [
+  { position: 2, name: 'Marina', initials: 'MS', value: '428 q', icon: Medal, iconClass: 'text-slate-400', ringClass: 'ring-slate-300', badgeClass: 'bg-slate-500', blockClass: 'h-9 bg-gradient-to-b from-slate-200 to-slate-500 text-slate-800' },
+  { position: 1, name: 'Rafael', initials: 'RA', value: '512 q', icon: Crown, iconClass: 'text-amber-500', ringClass: 'ring-amber-300', badgeClass: 'bg-amber-500', blockClass: 'h-14 bg-gradient-to-b from-amber-300 to-amber-600 text-amber-950' },
+  { position: 3, name: 'Camila', initials: 'CL', value: '391 q', icon: Medal, iconClass: 'text-orange-500', ringClass: 'ring-orange-300', badgeClass: 'bg-orange-600', blockClass: 'h-8 bg-gradient-to-b from-orange-300 to-orange-700 text-orange-950' },
+];
+
+const PreviewRanking = ({ tone }) => (
+  <PreviewCard>
+    <PreviewHeader icon={Trophy} title="Ranking · Questões" tone={tone} />
+    <div className="relative overflow-hidden rounded-xl bg-gradient-to-b from-zinc-100 to-zinc-200 px-3 pt-2 dark:from-zinc-800 dark:to-zinc-950">
+      <motion.div
+        aria-hidden="true"
+        className="pointer-events-none absolute left-1/2 top-8 h-16 w-3/4 -translate-x-1/2 rounded-full bg-amber-400/20 blur-2xl"
+        animate={{ opacity: [0.2, 0.42, 0.2], scale: [0.96, 1.04, 0.96] }}
+        transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+      />
+      <div className="relative grid grid-cols-3 items-end gap-2">
+        {RANKING_PREVIEW_MEMBERS.map((member, itemIndex) => {
+          const PodiumIcon = member.icon;
+          return (
+            <motion.div key={member.position} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: itemIndex * 0.08 }} className="flex min-w-0 flex-col items-center justify-end">
+              <motion.div animate={member.position === 1 ? { rotate: [-3, 3, -3], y: [0, -1.5, 0] } : undefined} transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}>
+                <PodiumIcon size={member.position === 1 ? 18 : 14} fill={member.position === 1 ? 'currentColor' : 'none'} className={`mb-1 ${member.iconClass}`} />
+              </motion.div>
+              <div className={`relative flex h-9 w-9 items-center justify-center rounded-full bg-white text-[8px] font-black text-zinc-600 shadow-md ring-[3px] dark:bg-zinc-800 dark:text-zinc-200 ${member.ringClass}`}>
+                {member.initials}
+                <span className={`absolute -bottom-1 left-1/2 flex h-4 min-w-4 -translate-x-1/2 items-center justify-center rounded-full px-1 text-[6px] font-black text-white ${member.badgeClass}`}>{member.position}º</span>
+              </div>
+              <div className="mt-2 flex max-w-full items-center gap-1">
+                <p className="truncate text-[7px] font-black text-zinc-800 dark:text-zinc-100">{member.name}</p>
+                {member.position === 1 && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />}
+              </div>
+              <p className="text-[6px] font-black text-zinc-500 dark:text-zinc-300">{member.value}</p>
+              <div className={`mt-1 flex w-full items-start justify-center rounded-t-lg pt-1 font-black ${member.blockClass}`}><span className="text-[10px]">{member.position}º</span></div>
+            </motion.div>
+          );
+        })}
+      </div>
+    </div>
+    <div className="mt-2 flex items-center justify-between rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 dark:border-zinc-800 dark:bg-zinc-900">
+      <span className="flex items-center gap-1 text-[7px] font-black uppercase tracking-wider text-zinc-500 dark:text-zinc-300"><Flame size={9} className="text-orange-500" fill="currentColor" /> Sua posição: 8º</span>
+      <span className="rounded-md bg-zinc-900 px-2 py-1 text-[6px] font-black uppercase text-white dark:bg-white dark:text-zinc-900">Semanal</span>
+    </div>
+  </PreviewCard>
+);
+
+const GROUP_PREVIEW_MEMBERS = [
+  { name: 'Ana', initials: 'AN', subject: 'Direito Penal', time: '00:42:18' },
+  { name: 'Bruno', initials: 'BR', subject: 'Português', time: '01:08:34' },
+  { name: 'Lívia', initials: 'LV', subject: 'Constitucional', time: '00:27:51' },
+];
+
+const PreviewGroups = ({ tone }) => (
+  <PreviewCard>
+    <PreviewHeader icon={Users} title="Grupo Foco na Aprovação" tone={tone} />
+    <div className="relative overflow-hidden rounded-xl border border-emerald-200 bg-white p-2.5 shadow-lg shadow-emerald-500/5 dark:border-emerald-900/50 dark:bg-zinc-900">
+      <div className="pointer-events-none absolute -right-8 -top-10 h-24 w-24 rounded-full bg-emerald-400/10 blur-2xl" />
+      <div className="relative mb-2 flex items-center justify-between">
+        <div><p className="text-[6px] font-black uppercase tracking-[0.18em] text-emerald-600">Ao vivo</p><p className="text-[9px] font-black text-zinc-900 dark:text-white">Estudando agora</p></div>
+        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[6px] font-black uppercase text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400"><Radio size={8} className="animate-pulse" />3 online</span>
+      </div>
+      <div className="relative grid grid-cols-3 gap-1.5">
+        {GROUP_PREVIEW_MEMBERS.map((member, itemIndex) => (
+          <motion.div key={member.name} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: itemIndex * 0.08 }} className="relative flex min-w-0 flex-col items-center rounded-xl border border-emerald-100 bg-white/90 px-1.5 py-2 text-center shadow-sm dark:border-emerald-900/40 dark:bg-zinc-800/80">
+            <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_0_3px_rgba(16,185,129,0.12)]" />
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-200 text-[7px] font-black text-zinc-600 dark:bg-zinc-700 dark:text-zinc-200">{member.initials}</span>
+            <p className="mt-1.5 w-full truncate text-[7px] font-black text-zinc-900 dark:text-white">{member.name}</p>
+            <p className="mt-0.5 w-full truncate text-[5px] font-bold uppercase tracking-wide text-zinc-400">{member.subject}</p>
+            <span className="mt-1.5 rounded-md border border-emerald-100 bg-emerald-50 px-1.5 py-0.5 font-mono text-[7px] font-black tabular-nums text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-300">{member.time}</span>
+          </motion.div>
+        ))}
+      </div>
+    </div>
+    <div className="mt-2 flex items-center justify-between rounded-lg bg-zinc-800 px-2.5 py-1.5 text-white dark:bg-zinc-700">
+      <span className="text-[7px] font-black uppercase tracking-wider">12 membros no grupo</span>
+      <span className="flex items-center gap-1 text-[7px] font-black uppercase"><Users size={9} /> Abrir grupo</span>
+    </div>
+  </PreviewCard>
+);
+
 const PreviewContent = ({ slide, tone }) => {
   const preview = slide.preview || 'dashboard';
   if (preview === 'planning') return <PreviewPlanning tone={tone} />;
@@ -704,6 +818,8 @@ const PreviewContent = ({ slide, tone }) => {
   if (preview === 'news') return <PreviewNews tone={tone} />;
   if (preview === 'edital') return <PreviewEdital tone={tone} />;
   if (preview === 'performance') return <PreviewPerformance tone={tone} />;
+  if (preview === 'ranking') return <PreviewRanking tone={tone} />;
+  if (preview === 'groups') return <PreviewGroups tone={tone} />;
   return <PreviewDashboard tone={tone} />;
 };
 
@@ -815,6 +931,24 @@ const desktopContent = {
       ['Trophy', 'Constância', 'Visualize metas, calendário e sequência.'],
     ],
     note: 'O desempenho usa seus registros para mostrar onde manter ou ajustar o foco.',
+  },
+  ranking: {
+    label: 'Uma disputa saudável baseada no estudo real',
+    items: [
+      ['Trophy', 'Pódio', 'Os três primeiros ganham destaque visual.'],
+      ['Clock3', 'Tempo', 'Compare o total de tempo estudado.'],
+      ['ListChecks', 'Questões', 'Alterne para o volume total de questões.'],
+    ],
+    note: 'Você pode acompanhar o ranking semanal ou geral e abrir o perfil público de outros estudantes.',
+  },
+  groups: {
+    label: 'Sua equipe de estudos em um só lugar',
+    items: [
+      ['Radio', 'Ao vivo', 'Veja quem está estudando neste momento.'],
+      ['Clock3', 'Cronômetros', 'Acompanhe o tempo de cada sessão ativa.'],
+      ['Users', 'Comunidade', 'Crie grupos ou participe por convite.'],
+    ],
+    note: 'Os cards ao vivo mostram o aluno, a matéria estudada e o cronômetro em andamento.',
   },
 };
 

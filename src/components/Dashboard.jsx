@@ -15,12 +15,30 @@ import AppBackgroundEffects from '../components/shared/AppBackgroundEffects';
 import PlanningSuccessCelebration from '../components/shared/PlanningSuccessCelebration';
 import DailyGoalCompletedModal from '../components/shared/DailyGoalCompletedModal';
 import XPNotification from './gamification/XPNotification';
+const routeLoaders = {
+  home: () => import('../pages/HomePage/HomePage'),
+  calendar: () => import('../components/dashboard/CalendarTab'),
+  ciclos: () => import('../pages/CiclosPage'),
+  cronograma: () => import('../pages/CronogramaPage'),
+  planejamento: () => import('../pages/PlanejamentoPage'),
+  revisoes: () => import('../pages/RevisaoPage'),
+  ranking: () => import('../pages/RankingPage'),
+  grupos: () => import('../pages/GroupsPage'),
+};
+const preloadedRoutes = new Set();
+const preloadRoute = (route) => {
+  const loader = routeLoaders[route === 'cronogramas' ? 'planejamento' : route];
+  if (!loader || preloadedRoutes.has(route)) return;
+  preloadedRoutes.add(route);
+  void loader().catch(() => preloadedRoutes.delete(route));
+};
+
 const ShareCard = lazy(() => import('../components/shared/ShareCard'));
-const Home = lazy(() => import('../pages/HomePage/HomePage'));
-const CalendarTab = lazy(() => import('../components/dashboard/CalendarTab'));
-const CiclosPage = lazy(() => import('../pages/CiclosPage'));
-const CronogramaPage = lazy(() => import('../pages/CronogramaPage'));
-const PlanejamentoPage = lazy(() => import('../pages/PlanejamentoPage'));
+const Home = lazy(routeLoaders.home);
+const CalendarTab = lazy(routeLoaders.calendar);
+const CiclosPage = lazy(routeLoaders.ciclos);
+const CronogramaPage = lazy(routeLoaders.cronograma);
+const PlanejamentoPage = lazy(routeLoaders.planejamento);
 const ProfilePage = lazy(() => import('../pages/ProfilePage'));
 const AdminPage = lazy(() => import('../pages/AdminPage/AdminPage'));
 const EditalPage = lazy(() => import('../pages/EditalPage'));
@@ -35,9 +53,9 @@ const FeedbackWidget = lazy(() => import('../components/FeedbackWidget'));
 const SimuladosPage = lazy(() => import('../pages/SimuladosPage/SimuladosPage'));
 const SimuladoTimer = lazy(() => import('../pages/SimuladosPage/SimuladoTimer'));
 const NoticiasPage = lazy(() => import('../pages/NoticiasPage'));
-const RevisaoPage = lazy(() => import('../pages/RevisaoPage'));
-const RankingPage = lazy(() => import('../pages/RankingPage'));
-const GroupsPage = lazy(() => import('../pages/GroupsPage'));
+const RevisaoPage = lazy(routeLoaders.revisoes);
+const RankingPage = lazy(routeLoaders.ranking);
+const GroupsPage = lazy(routeLoaders.grupos);
 const LeaguesPage = lazy(() => import('../pages/LeaguesPage'));
 const AchievementsPage = lazy(() => import('../pages/AchievementsPage'));
 
@@ -123,7 +141,16 @@ import {
   applyCronogramaRegistroProgress,
   emitRegistroProgressOptimisticUpdate,
 } from '../services/reviewOptimisticUpdates';
-import { requestGamificationRefresh } from '../utils/gamificationRealtime';
+import { notifyGamificationSaveFailed, requestGamificationRefresh } from '../utils/gamificationRealtime';
+import {
+  calculateCanonicalStudyStreak,
+  calculatePlanStudyStreak,
+  toDateKey as toGamificationDateKey,
+} from '../utils/gamification';
+import { getRecordedStudyMinutes, normalizeRecordedStudyMinutes } from '../utils/studyRecords';
+import { estimateAcademicXPForRecord } from '../utils/academicXPPreview';
+import { useCicloRevisoes } from '../hooks/useCicloRevisoes';
+import { reconcileStudyRecordSnapshot } from '../utils/optimisticStudyRecords';
 
 const dateToYMD = (date) => {
   const d = date.getDate();
@@ -149,28 +176,28 @@ const normalizeRegistroEstudo = (docSnap) => {
   let dataStr = data.data;
   if (data.data?.toDate) dataStr = dateToYMD(data.data.toDate());
   if (!dataStr && data.timestamp?.toDate) dataStr = dateToYMD(data.timestamp.toDate());
-  return {
+  return normalizeRecordedStudyMinutes({
     id: docSnap.id,
     ...data,
     data: dataStr,
     tempoEstudadoMinutos: Number(data.tempoEstudadoMinutos || 0),
     questoesFeitas: Number(data.questoesFeitas || 0),
     acertos: Number(data.acertos || 0),
-  };
+  });
 };
 
 const normalizeRegistroPayload = (id, data = {}) => {
   let dataStr = data.data;
   if (data.data?.toDate) dataStr = dateToYMD(data.data.toDate());
   if (!dataStr && data.timestamp?.toDate) dataStr = dateToYMD(data.timestamp.toDate());
-  return {
+  return normalizeRecordedStudyMinutes({
     id,
     ...data,
     data: dataStr,
     tempoEstudadoMinutos: Number(data.tempoEstudadoMinutos || 0),
     questoesFeitas: Number(data.questoesFeitas || 0),
     acertos: Number(data.acertos || 0),
-  };
+  });
 };
 
 const sortRegistrosEstudo = (items = []) => [...items].sort((a, b) => {
@@ -299,8 +326,13 @@ const DownloadAlert = ({ isVisible, onDismiss }) => (
   </AnimatePresence>
 );
 
-const SectionLoader = ({ minHeight = '16rem' }) => (
-  <div className="w-full" style={{ minHeight }} aria-busy="true" />
+const SectionLoader = ({ minHeight = '16rem', label = 'Carregando área' }) => (
+  <div className="w-full space-y-3" style={{ minHeight }} aria-busy="true" aria-label={label}>
+    <div className="h-7 w-44 animate-pulse rounded-lg bg-zinc-200/80 dark:bg-zinc-800" />
+    <div className="grid gap-3 md:grid-cols-3">
+      {[0, 1, 2].map((item) => <div key={item} className="h-28 animate-pulse rounded-2xl border border-zinc-200 bg-white/70 dark:border-zinc-800 dark:bg-zinc-900/70" />)}
+    </div>
+  </div>
 );
 
 const DashboardBootScreen = ({ isOnline, timedOut = false, noOfflineData = false }) => (
@@ -429,6 +461,16 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   const [pendingDailyGoalModalData, setPendingDailyGoalModalData] = useState(null);
   const dailyGoalShownRef = useRef(new Set());
 
+  useEffect(() => {
+    const handleRegistroSaveError = (event) => setWarningAlert({
+      isOpen: true,
+      title: 'Falha ao salvar estudo',
+      message: event.detail?.message || 'Não foi possível salvar o estudo. Tente novamente.',
+    });
+    window.addEventListener('modoqap:registro-save-error', handleRegistroSaveError);
+    return () => window.removeEventListener('modoqap:registro-save-error', handleRegistroSaveError);
+  }, []);
+
   const [activeSimuladoSession, setActiveSimuladoSession] = useState(null);
   const [finishedSimuladoData, setFinishedSimuladoData]   = useState(null);
   const [pendingSimuladoReview, setPendingSimuladoReview] = useState(null);
@@ -473,18 +515,28 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   const [activeCicloId, setActiveCicloId]         = useState(null);
   const [activeCicloData, setActiveCicloData]     = useState(null);
   const [activeCronogramaData, setActiveCronogramaData] = useState(null);
+  const [activeCyclesForStreak, setActiveCyclesForStreak] = useState([]);
+  const [activeSchedulesForStreak, setActiveSchedulesForStreak] = useState([]);
+  const [canonicalStudyDateKey, setCanonicalStudyDateKey] = useState(() => toGamificationDateKey(new Date()));
+  const [preferredStudyContext, setPreferredStudyContext] = useState(getPreferredHomeContext);
   const [activeCicloLoaded, setActiveCicloLoaded] = useState(false);
   const [activeCronogramaLoaded, setActiveCronogramaLoaded] = useState(false);
   const [targetOpenCicloId, setTargetOpenCicloId] = useState(null);
   const [editalInitialSource, setEditalInitialSource] = useState(null);
   const [targetCronogramaEditMode, setTargetCronogramaEditMode] = useState(null);
   const [allRegistrosEstudo, setAllRegistrosEstudo] = useState([]);
+  const pendingRegistrosEstudoRef = useRef(new Map());
   const [allSimulados, setAllSimulados]           = useState([]);
   const [registrosLoaded, setRegistrosLoaded]     = useState(false);
   const [simuladosLoaded, setSimuladosLoaded]     = useState(false);
   const [goalsLoaded, setGoalsLoaded]             = useState(false);
   const [activeCycleDisciplinesLoaded, setActiveCycleDisciplinesLoaded] = useState(false);
   const [activeCycleDisciplines, setActiveCycleDisciplines] = useState([]);
+  const { revisoes: cycleReviewsForStreak } = useCicloRevisoes(user);
+
+  useEffect(() => {
+    pendingRegistrosEstudoRef.current.clear();
+  }, [user?.uid]);
 
   useGamificationSync({
     user,
@@ -553,20 +605,14 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       setProfileCover({ url: null, position: DEFAULT_COVER_POSITION, loading: false });
       return undefined;
     }
-
-    setProfileCover({ url: null, position: DEFAULT_COVER_POSITION, loading: true });
-    return onSnapshot(doc(db, 'users', user.uid), (snapshot) => {
-      const profileData = snapshot.data();
-      setProfileCover({
-        url: profileData?.coverURL || null,
-        position: normalizeCoverPosition(profileData?.coverPosition),
-        loading: false,
-      });
-    }, (error) => {
-      console.error('[Dashboard] Erro ao carregar capa do perfil:', error);
-      setProfileCover({ url: null, position: DEFAULT_COVER_POSITION, loading: false });
+    const profileData = userAccess.userDoc;
+    setProfileCover({
+      url: profileData?.coverURL || null,
+      position: normalizeCoverPosition(profileData?.coverPosition),
+      loading: userAccess.isLoading,
     });
-  }, [user?.uid]);
+    return undefined;
+  }, [user?.uid, userAccess.isLoading, userAccess.userDoc]);
 
   useEffect(() => {
     if (!user?.uid) return undefined;
@@ -710,7 +756,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   }, [allRegistrosEstudo, allSimulados, activeCycleDisciplines]);
 
   const mergedActiveRegistrosEstudo = useMemo(() => {
-    const preferred = getPreferredHomeContext();
+    const preferred = preferredStudyContext;
     const activeCronogramaId = activeCronogramaData?.id;
 
     if (preferred === 'cronograma' && activeCronogramaId) {
@@ -730,7 +776,76 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     }
 
     return mergedAllRegistrosEstudo;
-  }, [mergedAllRegistrosEstudo, activeCicloId, activeCronogramaData?.id]);
+  }, [mergedAllRegistrosEstudo, activeCicloId, activeCronogramaData?.id, preferredStudyContext]);
+
+  useEffect(() => {
+    const updateCanonicalDate = () => setCanonicalStudyDateKey(toGamificationDateKey(new Date()));
+    const timer = window.setInterval(updateCanonicalDate, 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const syncPreferredStudyContext = (event) => {
+      const nextContext = event?.detail || getPreferredHomeContext();
+      if (isRegistroContext(nextContext)) setPreferredStudyContext(nextContext);
+    };
+    window.addEventListener('storage', syncPreferredStudyContext);
+    window.addEventListener('home-context-preferred-change', syncPreferredStudyContext);
+    return () => {
+      window.removeEventListener('storage', syncPreferredStudyContext);
+      window.removeEventListener('home-context-preferred-change', syncPreferredStudyContext);
+    };
+  }, []);
+
+  const effectiveStudyContext = useMemo(() => {
+    const hasCycle = Boolean(activeCicloData?.id);
+    const hasSchedule = Boolean(activeCronogramaData?.id);
+    if (hasCycle && hasSchedule) return preferredStudyContext === 'ciclo' ? 'ciclo' : 'cronograma';
+    if (hasCycle) return 'ciclo';
+    if (hasSchedule) return 'cronograma';
+    return null;
+  }, [activeCicloData?.id, activeCronogramaData?.id, preferredStudyContext]);
+
+  const currentPlanStudyStreak = useMemo(() => {
+    const now = new Date(`${canonicalStudyDateKey}T12:00:00-03:00`);
+    if (effectiveStudyContext === 'ciclo') {
+      return calculatePlanStudyStreak({
+        records: allRegistrosEstudo,
+        simulations: allSimulados,
+        plan: activeCicloData,
+        planType: 'cycle',
+        cycleReviews: cycleReviewsForStreak,
+        now,
+      });
+    }
+    if (effectiveStudyContext === 'cronograma') {
+      return calculatePlanStudyStreak({
+        records: allRegistrosEstudo,
+        simulations: allSimulados,
+        plan: activeCronogramaData,
+        planType: 'schedule',
+        now,
+      });
+    }
+    return calculateCanonicalStudyStreak({ records: allRegistrosEstudo, simulations: allSimulados, now });
+  }, [
+    activeCicloData,
+    activeCronogramaData,
+    allRegistrosEstudo,
+    allSimulados,
+    canonicalStudyDateKey,
+    cycleReviewsForStreak,
+    effectiveStudyContext,
+  ]);
+
+  const canonicalStudyStreak = useMemo(() => calculateCanonicalStudyStreak({
+    records: allRegistrosEstudo,
+    simulations: allSimulados,
+    cycles: activeCyclesForStreak,
+    schedules: activeSchedulesForStreak,
+    cycleReviews: cycleReviewsForStreak,
+    now: new Date(`${canonicalStudyDateKey}T12:00:00-03:00`),
+  }), [allRegistrosEstudo, allSimulados, activeCyclesForStreak, activeSchedulesForStreak, cycleReviewsForStreak, canonicalStudyDateKey]);
 
   const buildRecordsForDailyGoal = (nextPayload = null, dateKey = todayStr) => {
     const base = Array.isArray(mergedAllRegistrosEstudo) ? mergedAllRegistrosEstudo : [];
@@ -767,6 +882,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       activeCicloData: context === 'ciclo' ? activePlan : null,
       getAgendaSemana,
       contextMode: context,
+      cycleReviews: cycleReviewsForStreak,
       registrosEstudo: dayRecords,
     });
   };
@@ -815,7 +931,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         : String(registro.cronogramaId || '') === String(planId);
     });
 
-    const minutes = recordsForStats.reduce((acc, registro) => acc + Number(registro.tempoEstudadoMinutos || registro.duracaoMinutos || 0), 0);
+    const minutes = recordsForStats.reduce((acc, registro) => acc + getRecordedStudyMinutes(registro), 0);
     const questions = recordsForStats.reduce((acc, registro) => acc + Number(registro.questoesFeitas || 0), 0);
     const correct = recordsForStats.reduce((acc, registro) => acc + Number(registro.acertos || registro.questoesAcertadas || 0), 0);
     const planInfo = getGoalModalPlanInfo({ context, plan: freshPlan || (context === 'ciclo' ? activeCicloData : activeCronogramaData) });
@@ -857,6 +973,27 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   const coreDataReady = hydrationStatus.ready;
   const planningAssessmentReady = isPlanningAssessmentReady(hydrationState);
   const hasPendingWrites = hydrationStatus.hasPendingWrites;
+
+  useEffect(() => {
+    if (!coreDataReady) return undefined;
+    const routes = ['ciclos', 'cronograma', 'planejamento', 'revisoes', 'ranking', 'grupos'];
+    let cancelled = false;
+    let timeoutId;
+    const preloadNext = (index = 0) => {
+      if (cancelled || index >= routes.length) return;
+      preloadRoute(routes[index]);
+      timeoutId = window.setTimeout(() => preloadNext(index + 1), 180);
+    };
+    const idleId = typeof window.requestIdleCallback === 'function'
+      ? window.requestIdleCallback(() => preloadNext(), { timeout: 1200 })
+      : window.setTimeout(() => preloadNext(), 500);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+      if (typeof window.cancelIdleCallback === 'function') window.cancelIdleCallback(idleId);
+      else window.clearTimeout(idleId);
+    };
+  }, [coreDataReady]);
 
   useEffect(() => {
     window.dispatchEvent(new CustomEvent('modoqap-firestore-sync-state', {
@@ -1049,7 +1186,12 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     resetHydrationResource('registros');
     const q = query(collection(db,'users',user.uid,'registrosEstudo'), orderBy('data','desc'), orderBy('timestamp','desc'));
     return onSnapshot(q, { includeMetadataChanges: true }, (snap) => {
-      setAllRegistrosEstudo(snap.docs.map(normalizeRegistroEstudo));
+      const snapshotRecords = snap.docs.map(normalizeRegistroEstudo);
+      setAllRegistrosEstudo(sortRegistrosEstudo(reconcileStudyRecordSnapshot({
+        snapshotRecords,
+        pendingRecords: pendingRegistrosEstudoRef.current,
+        hasPendingWrites: snap.metadata.hasPendingWrites,
+      })));
       setRegistrosLoaded(true);
       setLoading(false);
       markHydrationSnapshot('registros', snap);
@@ -1065,7 +1207,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     if (!user || !registrosLoaded || !simuladosLoaded) return;
 
     const totalRegistros = allRegistrosEstudo.reduce((acc, item) => ({
-      minutos: acc.minutos + Number(item.tempoEstudadoMinutos || 0),
+      minutos: acc.minutos + getRecordedStudyMinutes(item),
       questoes: acc.questoes + Number(item.questoesFeitas || 0),
       acertos: acc.acertos + Number(item.acertos || 0),
     }), { minutos: 0, questoes: 0, acertos: 0 });
@@ -1125,7 +1267,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       const q = query(collection(db,'users',user.uid,'registrosEstudo'));
       const snap = await getDocs(q);
       let tMin=0, tQ=0, tC=0;
-      snap.docs.forEach(d => { const v=d.data(); tMin+=Number(v.tempoEstudadoMinutos||0); tQ+=Number(v.questoesFeitas||0); tC+=Number(v.acertos||0); });
+      snap.docs.forEach(d => { const v=d.data(); tMin+=getRecordedStudyMinutes(v); tQ+=Number(v.questoesFeitas||0); tC+=Number(v.acertos||0); });
 
       const simQ = query(collection(db,'users',user.uid,'simulados'));
       const simSnap = await getDocs(simQ);
@@ -1177,9 +1319,11 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     if (!candidatos.length) return;
 
     let minutosRestantes = minutosRegistrados;
-    const updates = {};
+    const nextProgressSessoes = { ...progressoSessoes };
+    const nextCompletionDetails = { ...(cicloData.sessoesConcluidasDetalhes || {}) };
     const novasConcluidas = [...concluidas];
     let lastTouchedIndex = null;
+    let changed = false;
 
     for (const sessao of candidatos) {
       if (minutosRestantes <= 0) break;
@@ -1189,18 +1333,19 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       if (faltantes <= 0) {
         if (minutosRestantes > 0) {
           const novoProgresso = progressoAtual + minutosRestantes;
-          updates[`progressoSessoes.${index}`] = novoProgresso;
+          nextProgressSessoes[String(index)] = novoProgresso;
+          changed = true;
           lastTouchedIndex = index;
           minutosRestantes = 0;
         }
         if (progressoAtual >= tempoSessaoMinutos && !novasConcluidas.includes(index)) {
           novasConcluidas.push(index);
-          updates.sessoesConcluidas = novasConcluidas;
-          updates[`sessoesConcluidasDetalhes.${index}`] = {
+          nextCompletionDetails[String(index)] = {
             concluidaEm: payload.data,
             atualizadoEm: Timestamp.now(),
             origem: 'registro_manual',
           };
+          changed = true;
         }
         continue;
       }
@@ -1209,12 +1354,12 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       const novoProgresso = progressoAtual + incremento;
       const concluiu = novoProgresso >= tempoSessaoMinutos;
 
-      updates[`progressoSessoes.${index}`] = novoProgresso;
+      nextProgressSessoes[String(index)] = novoProgresso;
+      changed = true;
       lastTouchedIndex = index;
       if (concluiu && !novasConcluidas.includes(index)) {
         novasConcluidas.push(index);
-        updates.sessoesConcluidas = novasConcluidas;
-        updates[`sessoesConcluidasDetalhes.${index}`] = {
+        nextCompletionDetails[String(index)] = {
           concluidaEm: payload.data,
           atualizadoEm: Timestamp.now(),
           origem: 'registro_manual',
@@ -1224,13 +1369,18 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     }
 
     if (minutosRestantes > 0 && lastTouchedIndex !== null) {
-      updates[`progressoSessoes.${lastTouchedIndex}`] =
-        Number(updates[`progressoSessoes.${lastTouchedIndex}`] || progressoSessoes?.[lastTouchedIndex] || progressoSessoes?.[String(lastTouchedIndex)] || 0)
+      nextProgressSessoes[String(lastTouchedIndex)] =
+        Number(nextProgressSessoes[String(lastTouchedIndex)] || progressoSessoes?.[lastTouchedIndex] || progressoSessoes?.[String(lastTouchedIndex)] || 0)
         + minutosRestantes;
       minutosRestantes = 0;
+      changed = true;
     }
 
-    if (Object.keys(updates).length) await updateDoc(cicloRef, updates);
+    if (changed) await updateDoc(cicloRef, {
+      progressoSessoes: nextProgressSessoes,
+      sessoesConcluidas: [...new Set(novasConcluidas)].sort((a, b) => a - b),
+      sessoesConcluidasDetalhes: nextCompletionDetails,
+    });
   };
 
   const syncRegistroRevisaoWithCiclo = async (payload) => {
@@ -1296,7 +1446,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     }
   }, []);
 
-  const addRegistroEstudo = async (data) => {
+  const addRegistroEstudo = async (data, options = {}) => {
     try {
       const explicitContext = data?.contextoRegistro;
       const hasCicloDisponivel = Boolean(activeCicloId);
@@ -1361,26 +1511,29 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       };
 
       const completionDocId = getCompletionDocId(payload.origemConclusaoId);
-      let registroJaExistia = false;
-      let savedRegistroId = null;
-      if (completionDocId) {
-        const registroRef = doc(db,'users',user.uid,'registrosEstudo',completionDocId);
-        const existingRegistro = await getDoc(registroRef);
-        registroJaExistia = existingRegistro.exists();
-        await setDoc(registroRef, payload);
-        savedRegistroId = completionDocId;
-        setAllRegistrosEstudo((prev) => {
-          const normalized = normalizeRegistroPayload(completionDocId, payload);
-          const withoutCurrent = prev.filter((item) => item.id !== completionDocId);
-          return sortRegistrosEstudo([normalized, ...withoutCurrent]);
-        });
-      } else {
-        const registroRef = await addDoc(collection(db,'users',user.uid,'registrosEstudo'), payload);
-        savedRegistroId = registroRef.id;
-        setAllRegistrosEstudo((prev) => sortRegistrosEstudo([
-          normalizeRegistroPayload(registroRef.id, payload),
-          ...prev.filter((item) => item.id !== registroRef.id),
-        ]));
+      const registroRef = completionDocId
+        ? doc(db,'users',user.uid,'registrosEstudo',completionDocId)
+        : doc(collection(db,'users',user.uid,'registrosEstudo'));
+      const savedRegistroId = registroRef.id;
+      const registroAnterior = allRegistrosEstudo.find((item) => item.id === savedRegistroId) || null;
+      const registroJaExistia = Boolean(registroAnterior);
+      const isRegistroRevisao = payload.isRevisao || payload.revisao || payload.tipoEstudo === 'revisao';
+      const isCompletionRegistro = payload.origemConclusao === 'botao_concluir' || Boolean(completionDocId);
+      const xpPreview = estimateAcademicXPForRecord({
+        existingRecords: allRegistrosEstudo,
+        existingSimulations: allSimulados,
+        record: payload,
+        excludeId: savedRegistroId,
+      });
+
+      const optimisticRegistro = normalizeRegistroPayload(savedRegistroId, payload);
+      pendingRegistrosEstudoRef.current.set(savedRegistroId, optimisticRegistro);
+      setAllRegistrosEstudo((prev) => sortRegistrosEstudo([
+        optimisticRegistro,
+        ...prev.filter((item) => item.id !== savedRegistroId),
+      ]));
+      if (!isCompletionRegistro || payload.contextoRegistro === 'cronograma' || isRegistroRevisao) {
+        applyRegistroProgressOptimistic(payload);
       }
 
       if (!registroJaExistia && savedRegistroId) {
@@ -1388,7 +1541,45 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
           uid: user.uid,
           sourceType: 'study',
           sourceId: savedRegistroId,
+          message: isRegistroRevisao
+            ? 'Revisão concluída.'
+            : payload.conclusaoManual
+              ? 'Bloco concluído.'
+              : 'Estudo registrado.',
+          xpTotal: xpPreview,
         });
+      }
+
+      const rollbackOptimisticRegistro = () => {
+        pendingRegistrosEstudoRef.current.delete(savedRegistroId);
+        setAllRegistrosEstudo((prev) => {
+          const withoutCurrent = prev.filter((item) => item.id !== savedRegistroId);
+          return registroAnterior
+            ? sortRegistrosEstudo([registroAnterior, ...withoutCurrent])
+            : withoutCurrent;
+        });
+        notifyGamificationSaveFailed({ uid: user.uid, sourceType: 'study', sourceId: savedRegistroId });
+      };
+
+      if (options.waitForCompletion) {
+        try {
+          const completionConfirmed = await options.waitForCompletion;
+          if (completionConfirmed === false) {
+            rollbackOptimisticRegistro();
+            return false;
+          }
+        } catch (error) {
+          rollbackOptimisticRegistro();
+          console.error('[Dashboard] Conclusão não confirmada; registro otimista revertido:', error);
+          return false;
+        }
+      }
+
+      try {
+        await setDoc(registroRef, payload);
+      } catch (error) {
+        rollbackOptimisticRegistro();
+        throw error;
       }
 
       if (registroJaExistia) {
@@ -1398,12 +1589,6 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
           forceAfterCompletionAction: payload.origemConclusao === 'botao_concluir',
         });
         return;
-      }
-
-      const isRegistroRevisao = payload.isRevisao || payload.revisao || payload.tipoEstudo === 'revisao';
-      const isCompletionRegistro = payload.origemConclusao === 'botao_concluir' || Boolean(completionDocId);
-      if (!isCompletionRegistro) {
-        applyRegistroProgressOptimistic(payload);
       }
 
       const postSaveTasks = [];
@@ -1514,6 +1699,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
           if (result.status === 'rejected') console.error('[Dashboard] Erro em pos-salvamento do registro:', result.reason);
         });
       });
+      return true;
 
     } catch (e) {
       console.error(e);
@@ -1592,12 +1778,18 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       ? [...new Set([...concluidas, index])]
       : concluidas.filter((item) => Number(item) !== index);
 
+    const nextProgressSessoes = { ...(cicloData.progressoSessoes || {}), [String(index)]: nextProgress };
+    const nextCompletionDetails = { ...(cicloData.sessoesConcluidasDetalhes || {}) };
+    if (nextProgress >= tempoSessaoMinutos) {
+      nextCompletionDetails[String(index)] = nextCompletionDetails[index]
+        || { concluidaEm: registro.data, atualizadoEm: Timestamp.now(), origem: 'registro_manual' };
+    } else {
+      delete nextCompletionDetails[String(index)];
+    }
     await updateDoc(cicloRef, {
-      [`progressoSessoes.${index}`]: nextProgress,
+      progressoSessoes: nextProgressSessoes,
       sessoesConcluidas: nextConcluidas,
-      [`sessoesConcluidasDetalhes.${index}`]: nextProgress >= tempoSessaoMinutos
-        ? (cicloData.sessoesConcluidasDetalhes?.[index] || cicloData.sessoesConcluidasDetalhes?.[String(index)] || { concluidaEm: registro.data, atualizadoEm: Timestamp.now(), origem: 'registro_manual' })
-        : deleteField(),
+      sessoesConcluidasDetalhes: nextCompletionDetails,
       updatedAt: Timestamp.now(),
     });
   };
@@ -1713,7 +1905,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
 
   const syncStatsFromRegistrosSnapshot = async (registrosSnapshot) => {
     const totalRegistros = (registrosSnapshot || []).reduce((acc, item) => ({
-      minutos: acc.minutos + Number(item.tempoEstudadoMinutos || 0),
+      minutos: acc.minutos + getRecordedStudyMinutes(item),
       questoes: acc.questoes + Number(item.questoesFeitas || 0),
       acertos: acc.acertos + Number(item.acertos || 0),
     }), { minutos: 0, questoes: 0, acertos: 0 });
@@ -2006,6 +2198,9 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   };
 
   const deleteRegistro = async (id) => {
+    const previousRegistro = allRegistrosEstudo.find((item) => item.id === id) || null;
+    pendingRegistrosEstudoRef.current.delete(id);
+    setAllRegistrosEstudo((current) => current.filter((item) => item.id !== id));
     try {
       const ref = doc(db,'users',user.uid,'registrosEstudo',id);
       const snap = await getDoc(ref);
@@ -2013,6 +2208,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         const data = snap.data();
         const deletedRegistro = normalizeRegistroPayload(id, data);
         await deleteDoc(ref);
+        notifyGamificationSaveFailed({ uid: user.uid, sourceType: 'study', sourceId: id });
         const registrosSnapshot = await fetchAllRegistrosEstudoSnapshot();
         setAllRegistrosEstudo(registrosSnapshot);
         setDailyGoalModalData(null);
@@ -2020,7 +2216,16 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         await rollbackDeletedRegistroProgress(deletedRegistro, registrosSnapshot);
         await syncStatsFromRegistrosSnapshot(registrosSnapshot);
       }
-    } catch (e) { console.error(e); }
+    } catch (e) {
+      if (previousRegistro) {
+        setAllRegistrosEstudo((current) => sortRegistrosEstudo([
+          previousRegistro,
+          ...current.filter((item) => item.id !== previousRegistro.id),
+        ]));
+      }
+      console.error(e);
+      throw e;
+    }
   };
 
   const deleteCompletionRegistro = async (completionData) => {
@@ -2413,12 +2618,15 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     resetHydrationResource('activeCiclo');
     const q = query(collection(db,'users',user.uid,'ciclos'), where('ativo','==',true), where('arquivado','==',false));
     return onSnapshot(q, { includeMetadataChanges: true }, (snap) => {
+      const activeCycles = snap.docs.map((d) => ({ id: d.id, ...d.data(), ativo: true }));
+      setActiveCyclesForStreak(activeCycles);
       if (snap.empty) { setActiveCicloId(null); setActiveCicloData(null); }
       else { const d = snap.docs[0]; setActiveCicloId(d.id); setActiveCicloData({ id:d.id, ...d.data() }); }
       setActiveCicloLoaded(true);
       markHydrationSnapshot('activeCiclo', snap);
     }, (error) => {
       console.error('[Dashboard] Erro ao sincronizar ciclo ativo:', error);
+      setActiveCyclesForStreak([]);
       setActiveCicloId(null);
       setActiveCicloData(null);
       setActiveCicloLoaded(true);
@@ -2442,12 +2650,15 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
             const tB = b.criadoEm?.seconds || b.dataCriacao?.seconds || b.createdAt?.seconds || 0;
             return tB - tA;
           });
+        setActiveSchedulesForStreak(cronogramasAtivos.map((cronograma) => ({ ...cronograma, ativo: true })));
         setActiveCronogramaData(cronogramasAtivos[0] || null);
       }
+      if (snap.empty) setActiveSchedulesForStreak([]);
       setActiveCronogramaLoaded(true);
       markHydrationSnapshot('activeCronograma', snap);
     }, (error) => {
       console.error('[Dashboard] Erro ao sincronizar cronograma ativo:', error);
+      setActiveSchedulesForStreak([]);
       setActiveCronogramaData(null);
       setActiveCronogramaLoaded(true);
       markHydrationError('activeCronograma');
@@ -2530,9 +2741,9 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     }
     switch (activeTab) {
       case 'home':
-        return <Home registrosEstudo={mergedActiveRegistrosEstudo} allRegistrosEstudo={mergedAllRegistrosEstudo} goalsHistory={goalsHistory} setActiveTab={handleGoToActiveCycle} activeCicloData={activeCicloData} activeCronogramaData={activeCronogramaData} activeCycleDisciplines={activeCycleDisciplines} onGoToCronograma={() => handleCronogramaCreation(activeCronogramaData?.id)} onGoToRevisao={() => setActiveTab('revisoes')} onStartStudy={handleStartStudy} addRegistroEstudo={addRegistroEstudo} deleteCompletionRegistro={deleteCompletionRegistro} user={user} dailyGoalModalBlocked={Boolean(showGlobalRegistroModal || finishModalData || isLocalRegistroModalOpen)} />;
+        return <Home registrosEstudo={mergedActiveRegistrosEstudo} allRegistrosEstudo={mergedAllRegistrosEstudo} goalsHistory={goalsHistory} setActiveTab={handleGoToActiveCycle} activeCicloData={activeCicloData} activeCronogramaData={activeCronogramaData} cycleReviews={cycleReviewsForStreak} activeCycleDisciplines={activeCycleDisciplines} studyStreakResult={currentPlanStudyStreak} onGoToCronograma={() => handleCronogramaCreation(activeCronogramaData?.id)} onGoToRevisao={() => setActiveTab('revisoes')} onStartStudy={handleStartStudy} addRegistroEstudo={addRegistroEstudo} deleteCompletionRegistro={deleteCompletionRegistro} user={user} dailyGoalModalBlocked={Boolean(showGlobalRegistroModal || finishModalData || isLocalRegistroModalOpen)} />;
       case 'calendar':
-        return <div className="mobile-page-zoom mobile-page-zoom--calendar desktop-page-zoom desktop-page-zoom--calendar"><CalendarTab registrosEstudo={mergedAllRegistrosEstudo} goalsHistory={goalsHistory} onDeleteRegistro={deleteRegistro} activeCicloData={activeCicloData} activeCronogramaData={activeCronogramaData}/></div>;
+        return <div className="mobile-page-zoom mobile-page-zoom--calendar desktop-page-zoom desktop-page-zoom--calendar"><CalendarTab registrosEstudo={mergedAllRegistrosEstudo} goalsHistory={goalsHistory} onDeleteRegistro={deleteRegistro} activeCicloData={activeCicloData} activeCronogramaData={activeCronogramaData} cycleReviews={cycleReviewsForStreak} studyStreakResult={currentPlanStudyStreak}/></div>;
       case 'ciclos':
         return <CiclosPage user={user} onStartStudy={handleStartStudy} onCicloAtivado={handleCicloCreationOrActivation} addRegistroEstudo={addRegistroEstudo} deleteCompletionRegistro={deleteCompletionRegistro} onDeleteRegistro={deleteRegistro} activeCicloId={activeCicloId} forceOpenVisual={forceOpenVisual} targetOpenCicloId={targetOpenCicloId} onTargetOpenHandled={() => setTargetOpenCicloId(null)} onGoToEdital={() => handleGoToEditalSource('ciclo')} onGoToRevisao={() => setActiveTab('revisoes')} onCreateNewCycle={handleCreateNewCycleFromLegacy} registrosEstudo={mergedAllRegistrosEstudo} isTimerActive={!!(activeStudySession||activeSimuladoSession)} onRegistroModalOpenChange={setIsLocalRegistroModalOpen}/>;
       case 'planejamento':
@@ -2570,17 +2781,17 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       case 'simulados':
         return <SimuladosPage user={user} activeCycleDisciplines={activeCycleDisciplines} onStartSimulado={handleStartSimulado} initialData={finishedSimuladoData} onClearInitialData={handleClearSimuladoData}/>;
       case 'ranking':
-        return <div className="w-full min-w-0"><RankingPage user={user} levelData={levelData}/></div>;
+        return <div className="w-full min-w-0"><RankingPage user={user} levelData={levelData} studyStreak={canonicalStudyStreak.currentStreak}/></div>;
       case 'ligas':
         return LEAGUES_ENABLED
           ? <div className="mobile-page-zoom mobile-page-zoom--ligas"><LeaguesPage user={user} levelData={levelData}/></div>
-          : <div className="w-full min-w-0"><RankingPage user={user} levelData={levelData}/></div>;
+          : <div className="w-full min-w-0"><RankingPage user={user} levelData={levelData} studyStreak={canonicalStudyStreak.currentStreak}/></div>;
       case 'conquistas':
-        return <div className="mobile-page-zoom mobile-page-zoom--conquistas"><AchievementsPage user={user} levelData={levelData}/></div>;
+        return <div className="mobile-page-zoom mobile-page-zoom--conquistas"><AchievementsPage user={user} levelData={levelData} studyStreak={currentPlanStudyStreak.currentStreak}/></div>;
       case 'grupos':
         return <div className="mobile-page-zoom mobile-page-zoom--grupos"><GroupsPage user={user} gamificationProfile={gamificationProfile} levelData={levelData}/></div>;
       case 'profile':
-        return <div className="mobile-page-zoom mobile-page-zoom--profile desktop-page-zoom desktop-page-zoom--profile"><ProfilePage user={user} allRegistrosEstudo={mergedAllRegistrosEstudo} onDeleteRegistro={deleteRegistro} coverURL={profileCover.url} coverPosition={profileCover.position} coverLoading={profileCover.loading} levelData={levelData} onGoToAchievements={() => setActiveTab('conquistas')}/></div>;
+        return <div className="mobile-page-zoom mobile-page-zoom--profile desktop-page-zoom desktop-page-zoom--profile"><ProfilePage user={user} allRegistrosEstudo={mergedAllRegistrosEstudo} onDeleteRegistro={deleteRegistro} coverURL={profileCover.url} coverPosition={profileCover.position} coverLoading={profileCover.loading} levelData={levelData} studyStreak={currentPlanStudyStreak.currentStreak} onGoToAchievements={() => setActiveTab('conquistas')}/></div>;
       case 'noticias':
         return <div className="mobile-page-zoom mobile-page-zoom--noticias desktop-page-zoom desktop-page-zoom--noticias"><NoticiasPage/></div>;
       case 'admin':
@@ -2649,6 +2860,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
           userAccess={userAccess}
           activeTab={activeTab}
         setActiveTab={handleTabChange}
+        onPrefetchTab={preloadRoute}
         handleLogout={handleLogout}
         isExpanded={isSidebarExpanded}
         setExpanded={setIsSidebarExpanded}
@@ -2658,7 +2870,6 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         isDarkMode={isDarkMode}
         toggleTheme={toggleTheme}
         registrosEstudo={mergedAllRegistrosEstudo}
-        goalsHistory={goalsHistory}
         activeCicloId={activeCicloId}
         onShareGoal={handleShareGoal}
         onOpenFeedback={handleOpenFeedback}
@@ -2684,6 +2895,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
           deleteBroadcast,
           deleteHistoryItem
         }}
+        studyStreakResult={currentPlanStudyStreak}
       />
 
       <div

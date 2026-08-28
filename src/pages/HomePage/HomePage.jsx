@@ -1,8 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Activity, Award, BarChart3, BookOpen, CalendarDays, CheckCircle2, Clock3, Target, TrendingUp, XCircle } from 'lucide-react';
-import { db } from '../../firebaseConfig';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
 import DayDetailsModal from '../../components/dashboard/DayDetailsModal.jsx';
 import HomeSessao1, { WeeklyBarChart } from './HomeSessao1.jsx';
 import HomeSessao2 from './HomeSessao2.jsx';
@@ -13,7 +11,6 @@ import { useForceUnlock } from '../../hooks/useForceUnlock';
 import { getAgendaSemana } from '../../services/scheduling/review';
 import {
   buildStudyDaysMap,
-  calculateCurrentStudyStreak,
   dateToYMDLocal,
   getCronogramaStudyDays,
   getCycleStudyDays,
@@ -451,6 +448,7 @@ function HomePage({
   setActiveTab,
   activeCicloData,
   activeCronogramaData,
+  cycleReviews = [],
   onGoToCronograma,
   onGoToRevisao,
   onStartStudy,
@@ -459,36 +457,13 @@ function HomePage({
   user,
   activeCycleDisciplines = [],
   dailyGoalModalBlocked = false,
+  studyStreakResult,
 }) {
   useForceUnlock();
   const [selectedDate, setSelectedDate] = useState(null);
   const [homeContextPreferred, setHomeContextPreferred] = useState(() => {
     try { return localStorage.getItem('homeContextPreferred') || 'cronograma'; } catch { return 'cronograma'; }
   });
-
-  const [unifyStreaks, setUnifyStreaks] = useState(() => {
-    const saved = localStorage.getItem('unifyStreaks');
-    return saved !== null ? JSON.parse(saved) : false;
-  });
-
-  useEffect(() => {
-    if (!user) return;
-    const loadPrefs = async () => {
-      const prefDoc = await getDoc(doc(db, 'users', user.uid, 'settings', 'preferences'));
-      if (prefDoc.exists()) {
-        const cloudValue = prefDoc.data().unifyStreaks || false;
-        setUnifyStreaks(cloudValue);
-        localStorage.setItem('unifyStreaks', JSON.stringify(cloudValue));
-      }
-    };
-    loadPrefs();
-  }, [user]);
-
-  const updateUnifyPreference = async (value) => {
-    setUnifyStreaks(value);
-    localStorage.setItem('unifyStreaks', JSON.stringify(value));
-    if (user) await setDoc(doc(db, 'users', user.uid, 'settings', 'preferences'), { unifyStreaks: value }, { merge: true });
-  };
 
   const effectiveHomeContext = useMemo(() => {
     const hasCiclo = !!activeCicloData?.id;
@@ -533,6 +508,7 @@ function HomePage({
       activeCicloData,
       getAgendaSemana,
       contextMode: effectiveHomeContext,
+      cycleReviews,
     });
     setSelectedDate({
       date,
@@ -591,16 +567,7 @@ function HomePage({
 
       Object.assign(studyDaysFull, buildStudyDaysMap(globalRegistrosEstudo));
 
-      const today         = new Date();
-      const currentStreak = calculateCurrentStudyStreak({
-        studyDaysMap: studyDaysFull,
-        goalsHistory,
-        activeCronogramaData,
-        activeCicloData,
-        getAgendaSemana,
-        contextMode: effectiveHomeContext,
-        today,
-      });
+      const currentStreak = Math.max(0, Number(studyStreakResult?.currentStreak || 0));
 
       // ── Últimos 12 dias ─────────────────────────────────────────────────
       const last12Days = Array.from({ length: 12 }).map((_, i) => {
@@ -615,6 +582,7 @@ function HomePage({
           activeCicloData,
           getAgendaSemana,
           contextMode: effectiveHomeContext,
+          cycleReviews,
         });
         return {
           date: dateStr,
@@ -625,6 +593,7 @@ function HomePage({
           isRestDay: dayStatus.isRestDay,
           completedSlots: dayStatus.completedSlots,
           totalSlots: dayStatus.totalSlots,
+          streakState: studyStreakResult?.days?.[dateStr]?.state || 'not_applicable',
         };
       });
 
@@ -653,7 +622,7 @@ function HomePage({
         totalTimeMinutes: 0,
       };
     }
-  }, [contextRegistrosEstudo, globalRegistrosEstudo, goalsHistory, activeCronogramaData, activeCicloData, effectiveHomeContext]);
+  }, [contextRegistrosEstudo, globalRegistrosEstudo, activeCronogramaData, activeCicloData, cycleReviews, effectiveHomeContext, studyStreakResult]);
 
   const disciplinePerformance = useMemo(() => {
     const planDisciplines = getPlanDisciplines({

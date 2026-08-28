@@ -400,6 +400,13 @@ service cloud.firestore {
       }
     }
 
+    // Vitrine sanitizada: pode ser consultada por qualquer usuário autenticado,
+    // mas somente o backend projeta os campos públicos dos grupos.
+    match /study_group_directory/{groupId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if false;
+    }
+
     // O convite revela apenas o identificador e o nome necessários para
     // ingressar; o conteúdo do grupo privado continua restrito aos membros.
     match /study_group_invites/{inviteCode} {
@@ -484,6 +491,20 @@ service cloud.firestore {
       }
 
       match /weekly_rankings/{weekId} {
+        allow read: if isAdmin()
+          || (isSignedIn() && get(groupPath(groupId)).data.visibility == 'public')
+          || isGroupMember(groupId);
+        allow create, update, delete: if false;
+
+        match /members/{memberId} {
+          allow read: if isAdmin()
+            || (isSignedIn() && get(groupPath(groupId)).data.visibility == 'public')
+            || isGroupMember(groupId);
+          allow create, update, delete: if false;
+        }
+      }
+
+      match /monthly_rankings/{monthId} {
         allow read: if isAdmin()
           || (isSignedIn() && get(groupPath(groupId)).data.visibility == 'public')
           || isGroupMember(groupId);

@@ -203,6 +203,8 @@ function CalendarTab({
   onDeleteRegistro,
   activeCicloData = null,
   activeCronogramaData = null,
+  cycleReviews = [],
+  studyStreakResult = null,
 }) {
   useForceUnlock();
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -256,7 +258,7 @@ function CalendarTab({
     if (!registrosEstudo || registrosEstudo.length === 0) {
       return {
         studyDays: days,
-        currentStreak: 0,
+        currentStreak: Math.max(0, Number(studyStreakResult?.currentStreak || 0)),
         annualStats: currentYearStats,
         monthlyData: {},
         currentMonthStats: selectedMonthStats,
@@ -299,43 +301,30 @@ function CalendarTab({
       months[k].daysStudied = months[k].rawDays.size;
     });
 
-    let streak = 0;
-    const today = new Date();
-    const todayStr = dateToYMDLocal(today);
-    for (let i = 0; i < 90; i++) {
-      const dateToCheck = new Date();
-      dateToCheck.setDate(today.getDate() - i);
-      const dStr = dateToYMDLocal(dateToCheck);
-      const dayStatus = getDailyStudyStatus({
-        date: dateToCheck,
-        studyDaysMap: days,
-        activeCronogramaData,
-        activeCicloData,
-        getAgendaSemana,
-        contextMode: effectiveContextMode,
-      });
-
-      if (dayStatus.goalMet) streak++;
-      else if (dStr !== todayStr) break;
-    }
-
     return {
       studyDays: days,
-      currentStreak: streak,
+      currentStreak: Math.max(0, Number(studyStreakResult?.currentStreak || 0)),
       annualStats: currentYearStats,
       monthlyData: months,
       currentMonthStats: selectedMonthStats,
     };
-  }, [registrosEstudo, currentDate, activeCronogramaData, activeCicloData, effectiveContextMode]);
+  }, [registrosEstudo, currentDate, studyStreakResult]);
 
-  const getDayStatus = useCallback((dateValue) => getDailyStudyStatus({
-    date: dateValue,
-    studyDaysMap: studyDays,
-    activeCronogramaData,
-    activeCicloData,
-    getAgendaSemana,
-    contextMode: effectiveContextMode,
-  }), [studyDays, activeCronogramaData, activeCicloData, effectiveContextMode]);
+  const getDayStatus = useCallback((dateValue) => {
+    const dateKey = typeof dateValue === 'string' ? dateValue : dateToYMDLocal(dateValue);
+    return {
+      ...getDailyStudyStatus({
+        date: dateValue,
+        studyDaysMap: studyDays,
+        activeCronogramaData,
+        activeCicloData,
+        getAgendaSemana,
+        contextMode: effectiveContextMode,
+        cycleReviews,
+      }),
+      streakState: studyStreakResult?.days?.[dateKey]?.state || 'not_applicable',
+    };
+  }, [studyDays, activeCronogramaData, activeCicloData, cycleReviews, effectiveContextMode, studyStreakResult]);
 
   const handleDayClick = (dateStr) => {
     const baseRegistros = registrosEstudo.filter((r) => r.data === dateStr);

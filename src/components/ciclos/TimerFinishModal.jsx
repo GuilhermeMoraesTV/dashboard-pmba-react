@@ -971,6 +971,8 @@ function TimerFinishModal({
         let totalXP = 0;
         let totalQuestions = 0;
         let totalCorrect = 0;
+        const saveTasks = [];
+        const postSaveTasks = [];
         const hasPendingCicloTopic = selectedContext === 'ciclo' && tipoRegistro !== 'revisao' && topics.some((topic) => topic.teoriaNaoFinalizadaCiclo);
 
         for (const t of topics) {
@@ -981,7 +983,7 @@ function TimerFinishModal({
           totalCorrect += ac;
 
           const intervaloRevisaoResolvido = resolveIntervaloRevisao(t);
-          await addRegistroEstudo({
+          saveTasks.push(addRegistroEstudo({
             ...(selectedContext === 'ciclo' && activeCicloId ? { cicloId: activeCicloId } : {}),
             ...(selectedContext === 'cronograma' && selectedCronogramaId ? { cronogramaId: selectedCronogramaId } : {}),
             ...(selectedContext ? { contextoRegistro: selectedContext } : {}),
@@ -1010,40 +1012,42 @@ function TimerFinishModal({
             ...(tipoRegistro !== 'revisao' && selectedContext === 'ciclo' && t.markAsFinished ? { assuntoFinalizadoCiclo: true, markAsFinished: true } : {}),
             ...(tipoRegistro !== 'revisao' && selectedContext === 'ciclo' && t.teoriaNaoFinalizadaCiclo ? { teoriaNaoFinalizadaCiclo: true } : {}),
             ...(tipoRegistro !== 'revisao' && selectedContext === 'cronograma' && t.naoConcluidoCronograma ? { naoConcluidoCronograma: true } : {}),
-          });
+          }));
 
           let xp = (Number(t.minutes) || 0) + qs + ac;
           if (qs >= 5 && (ac / qs) >= 0.85) xp += 15;
           totalXP += xp;
 
           if (tipoRegistro !== 'revisao' && selectedContext === 'ciclo' && t.markAsFinished) {
-            const q = query(
-              collection(db, 'users', userUid, 'registrosEstudo'),
-              where('cicloId', '==', activeCicloId),
-              where('assunto', '==', t.assunto),
-              where('tipoEstudo', '==', 'check_manual')
-            );
-            const snap = await getDocs(q);
-            if (snap.empty) {
-              await setDoc(doc(collection(db, 'users', userUid, 'registrosEstudo')), {
-                cicloId: activeCicloId,
-                ...(cicloNome ? { cicloNome } : {}),
-                ...(cicloTipo ? { cicloTipo } : {}),
-                contextoRegistro: 'ciclo',
-                disciplinaId: finalDiscId,
-                disciplinaNome: finalDiscName,
-                assunto: t.assunto,
-                data: today,
-                tempoEstudadoMinutos: 0,
-                duracaoMinutos: 0,
-                questoesFeitas: 0,
-                acertos: 0,
-                questoesAcertadas: 0,
-                tipoEstudo: 'check_manual',
-                obs: 'Concluído via Timer',
-                origem: 'timer'
-              });
-            }
+            postSaveTasks.push((async () => {
+              const q = query(
+                collection(db, 'users', userUid, 'registrosEstudo'),
+                where('cicloId', '==', activeCicloId),
+                where('assunto', '==', t.assunto),
+                where('tipoEstudo', '==', 'check_manual')
+              );
+              const snap = await getDocs(q);
+              if (snap.empty) {
+                await setDoc(doc(collection(db, 'users', userUid, 'registrosEstudo')), {
+                  cicloId: activeCicloId,
+                  ...(cicloNome ? { cicloNome } : {}),
+                  ...(cicloTipo ? { cicloTipo } : {}),
+                  contextoRegistro: 'ciclo',
+                  disciplinaId: finalDiscId,
+                  disciplinaNome: finalDiscName,
+                  assunto: t.assunto,
+                  data: today,
+                  tempoEstudadoMinutos: 0,
+                  duracaoMinutos: 0,
+                  questoesFeitas: 0,
+                  acertos: 0,
+                  questoesAcertadas: 0,
+                  tipoEstudo: 'check_manual',
+                  obs: 'Concluído via Timer',
+                  origem: 'timer'
+                });
+              }
+            })());
           }
         }
 
@@ -1057,19 +1061,19 @@ function TimerFinishModal({
           if (existeNaLista && assuntosNovos.length > 0) {
             updateDoc(discSubRef, { assuntos: arrayUnion(...assuntosNovos) }).catch(() => {});
           } else if (!existeNaLista) {
-            await setDoc(discSubRef, {
+            postSaveTasks.push(setDoc(discSubRef, {
               nome: finalDiscName,
               peso: 3,
               assuntos: assuntosNovos,
               tempoAlocadoSemanalMinutos: 0,
               inCiclo: true,
               criadaViRegistro: true,
-            }, { merge: true });
+            }, { merge: true }));
           }
         }
 
-        if (totalXP > 0) await addXP(totalXP, 'Bloco cronometrado');
-        await checkAndAwardMilestone('FIRST_STUDY');
+        if (totalXP > 0) postSaveTasks.push(addXP(totalXP, 'Bloco cronometrado'));
+        postSaveTasks.push(checkAndAwardMilestone('FIRST_STUDY'));
 
         const summaryPayload = {
           questions: totalQuestions,
@@ -1087,10 +1091,21 @@ function TimerFinishModal({
         setShowSuccessToast(true);
         localStorage.removeItem(draftKey);
 
-        setTimeout(() => {
-          if (onConfirm) onConfirm(summaryPayload);
-          window.dispatchEvent(new CustomEvent('StudyTimer:FinishFinalize', { detail: { uid: userUid } }));
-        }, 1500);
+        if (onConfirm) onConfirm(summaryPayload);
+        window.dispatchEvent(new CustomEvent('StudyTimer:FinishFinalize', { detail: { uid: userUid } }));
+        void Promise.all(saveTasks)
+          .then(() => Promise.allSettled(postSaveTasks))
+          .then((results) => {
+            results.forEach((result) => {
+              if (result.status === 'rejected') console.error('[TimerFinishModal] Erro em pos-registro:', result.reason);
+            });
+          })
+          .catch((error) => {
+            console.error('[TimerFinishModal] Erro ao salvar registro:', error);
+            window.dispatchEvent(new CustomEvent('modoqap:registro-save-error', {
+              detail: { message: 'Não foi possível salvar a sessão do timer. Seus dados locais foram reconciliados com o servidor.' },
+            }));
+          });
 
         return;
       }
@@ -1510,7 +1525,7 @@ function TimerFinishModal({
                           <button type="button" onClick={() => removeTopic(index)} className="text-zinc-400 hover:text-red-500 transition-colors"><X size={16} /></button>
                         </div>
                       )}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-2.5">
+                      <div className="grid grid-cols-1 gap-3 md:gap-2.5">
                         <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(158px,0.52fr)] gap-2 md:gap-2.5 content-start">
                           {/* ── ASSUNTO ComboBox ── */}
                           <div className={`${topics.length === 1 ? 'hidden' : 'space-y-1 md:space-y-0.5'} relative z-50 md:col-span-2`}>
@@ -1646,7 +1661,7 @@ function TimerFinishModal({
                           )}
                         </div>
 
-                          <div className="space-y-3 md:space-y-2">
+                        <div className={`grid grid-cols-1 gap-2 ${hasQuestions ? 'sm:grid-cols-2' : ''}`}>
                           <TimeInputControl currentMinutes={topic.minutes} onTimeChange={(newMin) => handleTimeUpdate(index, newMin)} />
                           {hasQuestions && (
                             <div className="registro-modal-form-section p-2 md:p-2 space-y-1.5">

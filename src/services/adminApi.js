@@ -1,5 +1,6 @@
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { app } from '../firebaseConfig';
+import { buildPermanentUserDeletionPayload } from '../utils/adminUserActions';
 
 const functions = getFunctions(app, 'us-central1');
 
@@ -19,6 +20,10 @@ export const callAdminOperation = async (name, payload = {}) => {
 };
 
 export const adminUpdateUserStatus = (targetUid, status) => callAdminOperation('adminUpdateUserStatus', { targetUid, status });
+export const adminDeleteUserPermanently = (targetUid) => callAdminOperation(
+  'adminDeleteUserPermanently',
+  buildPermanentUserDeletionPayload(targetUid),
+);
 export const adminUpdateUserAccess = (targetUid, access) => callAdminOperation('adminUpdateUserAccess', { targetUid, access });
 export const adminRecalculateUserStats = (targetUid = null) => callAdminOperation('adminRecalculateUserStats', targetUid ? { targetUid } : {});
 export const adminRecomputeUserGamification = (targetUid) => callAdminOperation('adminRecomputeUserGamification', { targetUid });
