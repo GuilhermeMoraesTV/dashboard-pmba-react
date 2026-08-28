@@ -13,7 +13,6 @@ import {
   updateDoc,
   writeBatch,
 } from 'firebase/firestore';
-import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import {
   ArrowLeft,
   BarChart3,
@@ -41,7 +40,8 @@ import {
   Users,
   X,
 } from 'lucide-react';
-import { db, storage } from '../firebaseConfig';
+import { db } from '../firebaseConfig';
+import { uploadSecureImage, validateImageFile } from '../services/secureImageUpload';
 import {
   joinPrivateStudyGroupByCode,
   leaveStudyGroup,
@@ -361,16 +361,13 @@ const GroupsPage = ({ user, gamificationProfile = {}, levelData }) => {
     window.setTimeout(() => setMessage(''), 3200);
   };
 
-  const selectGroupPhoto = (event) => {
+  const selectGroupPhoto = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      notify('Selecione uma imagem válida.');
-      event.target.value = '';
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      notify('A foto do grupo deve ter no máximo 5 MB.');
+    try {
+      await validateImageFile(file);
+    } catch (validationError) {
+      notify(validationError.message);
       event.target.value = '';
       return;
     }
@@ -390,8 +387,6 @@ const GroupsPage = ({ user, gamificationProfile = {}, levelData }) => {
     setBusy(true);
     const groupRef = doc(collection(db, 'study_groups'));
     const code = makeInviteCode();
-    let uploadedPhotoRef = null;
-    let photoURL = null;
     const memberPayload = {
       uid: user.uid,
       displayName: user.displayName || user.email?.split('@')[0] || 'Estudante',
@@ -403,12 +398,6 @@ const GroupsPage = ({ user, gamificationProfile = {}, levelData }) => {
       updatedAt: serverTimestamp(),
     };
     try {
-      if (groupPhoto) {
-        const extension = groupPhoto.name.split('.').pop()?.replace(/[^a-z0-9]/gi, '').toLowerCase() || 'jpg';
-        uploadedPhotoRef = ref(storage, `study_group_images/${user.uid}/${groupRef.id}/profile.${extension}`);
-        const upload = await uploadBytes(uploadedPhotoRef, groupPhoto, { contentType: groupPhoto.type });
-        photoURL = await getDownloadURL(upload.ref);
-      }
       const batch = writeBatch(db);
       batch.set(groupRef, {
         name,
@@ -420,7 +409,7 @@ const GroupsPage = ({ user, gamificationProfile = {}, levelData }) => {
         cargo: form.cargo || '',
         ownerId: user.uid,
         inviteCode: code,
-        photoURL,
+        photoURL: null,
         memberCount: 1,
         weeklyMinutes: 0,
         weeklyQuestions: 0,
@@ -448,17 +437,28 @@ const GroupsPage = ({ user, gamificationProfile = {}, levelData }) => {
         socialUpdatedAt: serverTimestamp(),
       }, { merge: true });
       await batch.commit();
+      let photoWarning = false;
+      if (groupPhoto) {
+        try {
+          const upload = await uploadSecureImage(groupPhoto, { kind: 'group', groupId: groupRef.id });
+          await updateDoc(groupRef, { photoURL: upload.url, updatedAt: serverTimestamp() });
+        } catch (uploadError) {
+          photoWarning = true;
+          console.error('Grupo criado, mas a foto segura falhou:', uploadError);
+        }
+      }
       setForm({ name: '', description: '', visibility: 'public', editalId: '', cargo: '' });
       setEditalPickerOpen(false);
       clearGroupPhoto();
       setCreateOpen(false);
       setSelectedGroupId(groupRef.id);
-      notify('Grupo criado. Código de convite pronto para compartilhar.');
+      notify(photoWarning
+        ? 'Grupo criado com segurança, mas a foto não pôde ser enviada.'
+        : 'Grupo criado. Código de convite pronto para compartilhar.');
     } catch (error) {
-      if (uploadedPhotoRef) deleteObject(uploadedPhotoRef).catch(() => {});
       if (!isPermissionDenied(error)) console.error(error);
-      notify(isPermissionDenied(error) || error?.code === 'storage/unauthorized'
-        ? 'A criação com foto depende da publicação das novas regras de dados e imagens.'
+      notify(isPermissionDenied(error)
+        ? 'A criação depende da publicação das novas regras de dados.'
         : 'Não foi possível criar o grupo.');
     } finally {
       setBusy(false);
@@ -585,16 +585,14 @@ const GroupsPage = ({ user, gamificationProfile = {}, levelData }) => {
     try {
       let photoURL = selectedGroup.photoURL || null;
       if (groupPhoto) {
-        const extension = groupPhoto.name.split('.').pop()?.replace(/[^a-z0-9]/gi, '').toLowerCase() || 'jpg';
-        const imageRef = ref(storage, `study_group_images/${selectedGroup.ownerId}/${selectedGroup.id}/profile.${extension}`);
-        const upload = await uploadBytes(imageRef, groupPhoto, { contentType: groupPhoto.type });
-        photoURL = await getDownloadURL(upload.ref);
+        const upload = await uploadSecureImage(groupPhoto, { kind: 'group', groupId: selectedGroup.id });
+        photoURL = upload.url;
       }
       await updateDoc(doc(db, 'study_groups', selectedGroup.id), { name: settingsName.trim(), photoURL, updatedAt: serverTimestamp() });
       setSettingsOpen(false); clearGroupPhoto(); notify('Nome e imagem do grupo atualizados.');
     } catch (error) {
       if (!isPermissionDenied(error)) console.error(error);
-      notify(error?.code === 'storage/unauthorized' ? 'A nova regra de imagens ainda não está publicada.' : 'Não foi possível atualizar o grupo.');
+      notify('Não foi possível atualizar o grupo.');
     } finally { setBusy(false); }
   };
 
@@ -769,7 +767,7 @@ const GroupsPage = ({ user, gamificationProfile = {}, levelData }) => {
                 <button onClick={() => setSettingsOpen(false)} className="rounded-xl p-2 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"><X size={18}/></button>
               </div>
               <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4 sm:p-5">
-                {canManageGroup && <section className="rounded-2xl border border-zinc-200 p-4 dark:border-zinc-700"><h3 className="text-xs font-black text-zinc-800 dark:text-white">Identidade do grupo</h3><p className="mt-0.5 text-[9px] text-zinc-400">Líder e vice-líder podem alterar nome e imagem.</p><div className="mt-3 flex items-center gap-3"><div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl bg-red-600 text-white">{groupPhotoPreview ? <img src={groupPhotoPreview} alt="Prévia" className="h-full w-full object-cover"/> : <GroupAvatar group={selectedGroup} className="h-14 w-14"/>}</div><div className="min-w-0 flex-1"><input value={settingsName} onChange={(event) => setSettingsName(event.target.value)} maxLength={60} className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-xs font-bold text-zinc-900 outline-none focus:border-red-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white"/><label className="mt-2 inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-zinc-200 px-2.5 py-1.5 text-[8px] font-black uppercase text-red-600 dark:border-zinc-700"><Camera size={12}/> Trocar imagem<input type="file" accept="image/*" onChange={selectGroupPhoto} className="sr-only"/></label></div></div><button onClick={saveGroupIdentity} disabled={busy || !settingsName.trim()} className="mt-3 w-full rounded-xl bg-red-600 py-2.5 text-[9px] font-black uppercase tracking-wider text-white disabled:opacity-50">Salvar alterações</button></section>}
+                {canManageGroup && <section className="rounded-2xl border border-zinc-200 p-4 dark:border-zinc-700"><h3 className="text-xs font-black text-zinc-800 dark:text-white">Identidade do grupo</h3><p className="mt-0.5 text-[9px] text-zinc-400">Líder e vice-líder podem alterar nome e imagem.</p><div className="mt-3 flex items-center gap-3"><div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl bg-red-600 text-white">{groupPhotoPreview ? <img src={groupPhotoPreview} alt="Prévia" className="h-full w-full object-cover"/> : <GroupAvatar group={selectedGroup} className="h-14 w-14"/>}</div><div className="min-w-0 flex-1"><input value={settingsName} onChange={(event) => setSettingsName(event.target.value)} maxLength={60} className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-xs font-bold text-zinc-900 outline-none focus:border-red-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white"/><label className="mt-2 inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-zinc-200 px-2.5 py-1.5 text-[8px] font-black uppercase text-red-600 dark:border-zinc-700"><Camera size={12}/> Trocar imagem<input type="file" accept="image/jpeg,image/png,image/webp" onChange={selectGroupPhoto} className="sr-only"/></label></div></div><button onClick={saveGroupIdentity} disabled={busy || !settingsName.trim()} className="mt-3 w-full rounded-xl bg-red-600 py-2.5 text-[9px] font-black uppercase tracking-wider text-white disabled:opacity-50">Salvar alterações</button></section>}
                 {canManageGroup && (
                   <button onClick={toggleVisibility} className="flex w-full items-center justify-between rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4 text-left transition hover:border-red-300 hover:bg-red-50/60 dark:border-zinc-700 dark:bg-zinc-900/60 dark:hover:bg-red-950/15">
                     <span><strong className="block text-xs font-black text-zinc-800 dark:text-white">Visibilidade do grupo</strong><span className="mt-0.5 block text-[10px] text-zinc-400">{selectedGroup.visibility === 'public' ? 'Público: qualquer estudante pode encontrar e participar.' : 'Privado: aparece para todos, mas exige código ou aprovação da liderança.'}</span></span>
@@ -878,7 +876,7 @@ const GroupsPage = ({ user, gamificationProfile = {}, levelData }) => {
                   <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-red-500 to-red-700 text-white shadow-lg shadow-red-600/15">
                     {groupPhotoPreview ? <img src={groupPhotoPreview} alt="Prévia da foto do grupo" className="h-full w-full object-cover"/> : <Users size={25}/>} 
                   </div>
-                  <div className="min-w-0 flex-1"><p className="text-[10px] font-black uppercase tracking-wider text-zinc-600 dark:text-zinc-300">Foto do grupo</p><p className="mt-0.5 text-[9px] text-zinc-400">JPG, PNG ou WebP · até 5 MB</p><div className="mt-2 flex gap-2"><label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-white px-2.5 py-1.5 text-[9px] font-black uppercase text-red-600 shadow-sm dark:bg-zinc-800"><Camera size={12}/>{groupPhoto ? 'Trocar' : 'Carregar'}<input type="file" accept="image/*" onChange={selectGroupPhoto} className="sr-only"/></label>{groupPhoto && <button type="button" onClick={clearGroupPhoto} className="rounded-lg px-2 py-1 text-[9px] font-black uppercase text-zinc-400">Remover</button>}</div></div>
+                  <div className="min-w-0 flex-1"><p className="text-[10px] font-black uppercase tracking-wider text-zinc-600 dark:text-zinc-300">Foto do grupo</p><p className="mt-0.5 text-[9px] text-zinc-400">JPG, PNG ou WebP · até 5 MB</p><div className="mt-2 flex gap-2"><label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-white px-2.5 py-1.5 text-[9px] font-black uppercase text-red-600 shadow-sm dark:bg-zinc-800"><Camera size={12}/>{groupPhoto ? 'Trocar' : 'Carregar'}<input type="file" accept="image/jpeg,image/png,image/webp" onChange={selectGroupPhoto} className="sr-only"/></label>{groupPhoto && <button type="button" onClick={clearGroupPhoto} className="rounded-lg px-2 py-1 text-[9px] font-black uppercase text-zinc-400">Remover</button>}</div></div>
                 </div>
                 <label className="block text-[10px] font-black uppercase tracking-wider text-zinc-500">Nome<input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} maxLength={60} required className="mt-1.5 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm font-bold text-zinc-900 outline-none focus:border-red-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white"/></label>
                 <label className="block text-[10px] font-black uppercase tracking-wider text-zinc-500">Descrição<textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} maxLength={180} rows={3} className="mt-1.5 w-full resize-none rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm text-zinc-900 outline-none focus:border-red-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white"/></label>

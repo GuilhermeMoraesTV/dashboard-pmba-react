@@ -305,6 +305,34 @@ test('rankings semanal e mensal usam seus períodos e o geral preserva os totais
   assert.equal(periods.lifetime.hasActivity, true);
 });
 
+test('ranking limita por dia dados repetidos ou exagerados antes de agregar', () => {
+  const now = new Date('2026-08-22T12:00:00-03:00');
+  const periods = calculateRankingPeriodMetrics({
+    records: Array.from({ length: 20 }, (_, index) => ({
+      id: `forged-${index}`,
+      data: '2026-08-20',
+      tempoEstudadoMinutos: 720,
+      questoesFeitas: 500,
+      acertos: 500,
+    })),
+    simulations: [{
+      id: 'forged-simulation',
+      data: '2026-08-20',
+      durationMinutes: 720,
+      resumo: { totalQuestoes: 500, totalAcertos: 500 },
+    }],
+    now,
+  });
+  assert.deepEqual(
+    { minutes: periods.weekly.minutes, questions: periods.weekly.questions, correct: periods.weekly.correct },
+    { minutes: 720, questions: 500, correct: 500 },
+  );
+  assert.deepEqual(
+    { minutes: periods.lifetime.minutes, questions: periods.lifetime.questions, correct: periods.lifetime.correct },
+    { minutes: 720, questions: 500, correct: 500 },
+  );
+});
+
 test('ranking de grupos alterna entre tempo e questões sem misturar métricas', () => {
   const groups = [
     { id: 'b', name: 'Bravo', weeklyXP: 100, weeklyMinutes: 999, weeklyQuestions: 2 },

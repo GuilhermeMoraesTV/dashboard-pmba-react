@@ -755,7 +755,7 @@ function EditalPage({
   useEffect(() => {
     if (initialViewSource === 'cronograma' && cronograma) setViewSource('cronograma');
     else if (initialViewSource === 'ciclo' && ciclo) setViewSource('ciclo');
-  }, [initialViewSource, cronograma?.id, ciclo?.id]);
+  }, [initialViewSource, cronograma, ciclo]);
 
   // ── Dados derivados do CRONOGRAMA ─────────────────────────────────────────
   const disciplinasCronograma = useMemo(() => {
@@ -928,7 +928,9 @@ function EditalPage({
   const statsAtivos = isExternalPreview
     ? { total: 0, concluidos: 0, percentual: 0 }
     : (isCronoView ? statsCrono : statsCiclo);
-  const inativeFonteAtiva = isExternalPreview ? [] : (isCronoView ? inactiveCrono : inactiveCiclo);
+  const inativeFonteAtiva = useMemo(() => {
+    return isExternalPreview ? [] : (isCronoView ? inactiveCrono : inactiveCiclo);
+  }, [isExternalPreview, isCronoView, inactiveCrono, inactiveCiclo]);
   const activeSearchResult = useMemo(
     () => filterEditalDisciplines(editalFonteAtivo, searchTerm),
     [editalFonteAtivo, searchTerm],

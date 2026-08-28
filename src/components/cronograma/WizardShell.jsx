@@ -158,7 +158,7 @@ const WizardShell = ({
 
   useEffect(() => {
     salvarDraftComPasso(passo);
-  }, [passo]);
+  }, [passo, salvarDraftComPasso]);
 
   useEffect(() => {
     if (passo === 6 && !isLoading && !resultadoGeracao && !erroGeracao) {

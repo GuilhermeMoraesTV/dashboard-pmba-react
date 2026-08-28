@@ -166,7 +166,7 @@ const BroadcastReceiver = ({ canShow = true, userAccess = null }) => {
         } else if (!notification) {
             setIsVisible(false);
         }
-    }, [notification, canShow]);
+    }, [notification, canShow, isVisible]);
 
     const handleClose = () => {
         if (!notification) return;

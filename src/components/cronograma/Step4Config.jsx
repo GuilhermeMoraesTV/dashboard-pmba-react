@@ -275,16 +275,24 @@ const Step4_Config = ({ config, onConfigChange, editalSelecionado, horarios = {}
     [key]: key === 'dataInicio' ? clampPlanningStartDate(val) : val,
   });
 
+  const onConfigChangeRef = useRef(onConfigChange);
+  const configRef = useRef(config);
   useEffect(() => {
+    onConfigChangeRef.current = onConfigChange;
+    configRef.current = config;
+  });
+
+  useEffect(() => {
+    const currentCfg = configRef.current;
     const updates = {};
-    if (!config.dataInicio) {
+    if (!currentCfg.dataInicio) {
       const t = new Date();
       updates.dataInicio = `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`;
     }
-    if (config.modoMontagem === undefined) updates.modoMontagem = 'inteligente';
-    if (config.modoExibirAssuntos === undefined) updates.modoExibirAssuntos = true;
-    if (config.modoExibirTempo === undefined)    updates.modoExibirTempo    = 'detalhado'; // 'detalhado' | 'total'
-    if (Object.keys(updates).length > 0) onConfigChange({ ...config, ...updates });
+    if (currentCfg.modoMontagem === undefined) updates.modoMontagem = 'inteligente';
+    if (currentCfg.modoExibirAssuntos === undefined) updates.modoExibirAssuntos = true;
+    if (currentCfg.modoExibirTempo === undefined)    updates.modoExibirTempo    = 'detalhado'; // 'detalhado' | 'total'
+    if (Object.keys(updates).length > 0) onConfigChangeRef.current({ ...currentCfg, ...updates });
   }, []);
 
   const hasEdital = !!editalSelecionado && editalSelecionado.id !== 'manual';

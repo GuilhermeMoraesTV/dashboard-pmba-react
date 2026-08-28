@@ -1399,7 +1399,7 @@ function StudyTimer({
     };
     document.addEventListener('visibilitychange', onVis);
     return () => document.removeEventListener('visibilitychange', onVis);
-  }, [getDisplaySecondsFromCurrentState, setSecondsIfChanged, updateExternalStatus, updateMediaSession, requestWakeLock]);
+  }, [getDisplaySecondsFromCurrentState, setSecondsIfChanged, updateExternalStatus, updateMediaSession, requestWakeLock, wakeLockWantedRef]);
 
   // ========= estado remoto =========
   const makeRemoteStateKey = useCallback((data) => {
@@ -1619,8 +1619,8 @@ function StudyTimer({
     updateExternalStatus,
     updateMediaSession,
     getRemoteRunStartedMs,
-    nowMs,
-    performTimeSync
+    performTimeSync,
+    wakeLockWantedRef
   ]);
 
   // ========= BC listener (mesmo device) =========
@@ -1963,7 +1963,8 @@ function StudyTimer({
     postBC,
     getCurrentFocusElapsedMs,
     requestWakeLock,
-    closeAllOverlaysLocal
+    closeAllOverlaysLocal,
+    wakeLockWantedRef
   ]);
 
   const handleStartRest = useCallback(async () => {
@@ -2045,7 +2046,8 @@ function StudyTimer({
     postBC,
     getCurrentFocusElapsedMs,
     requestWakeLock,
-    closeAllOverlaysLocal
+    closeAllOverlaysLocal,
+    wakeLockWantedRef
   ]);
 
   const handleBackToStudy = useCallback(async () => {
@@ -2126,6 +2128,7 @@ function StudyTimer({
     requestWakeLock,
     closeAllOverlaysLocal,
     setSecondsIfChanged,
+    wakeLockWantedRef
   ]);
 
   const finishText = finishButtonLabel || (variant === 'simulado' ? 'Finalizar Simulado' : 'Finalizar Estudo');

@@ -2486,7 +2486,7 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
       setLoadingPage(false);
       setDominiosLocal(maisRecente.progresso?.dominios || {});
     });
-  }, [user]);
+  }, [user, getCurrentWeekOffset]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
@@ -2541,24 +2541,14 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
 
     carregarTemplateDoEdital();
     return () => { cancelado = true; };
-  }, [
-    cronograma?.id,
-    cronograma?.editalId,
-    cronograma?.templateId,
-    cronograma?.templateOrigem,
-    cronograma?.templateOrigemId,
-    cronograma?.editalBaseId,
-    cronograma?.editalNome,
-    cronograma?.titulo,
-    cronograma?.nome,
-  ]);
+  }, [cronograma]);
 
   useEffect(() => {
     if (!cronograma || !initialEditMode) return;
     setEditInitialMode(initialEditMode === 'recalculate' ? 'recalculate' : 'simple');
     setMostrandoEditar(true);
     onInitialEditModeHandled?.();
-  }, [cronograma?.id, initialEditMode, onInitialEditModeHandled]);
+  }, [cronograma, initialEditMode, onInitialEditModeHandled]);
 
   // Cálculos derivados
   const dynamicLogo = editalTemplateData?.logoUrl || editalTemplateData?.logo || cronograma?.editalLogoUrl || cronograma?.logoUrl || cronograma?.logo || resolveLogoUrl({ ciclo: cronograma }) || null;
@@ -3091,7 +3081,7 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
       setDominiosLocal(prev => ({ ...prev, [chave]: dominadoAtual }));
       showToast('? Erro ao salvar. Tente novamente.');
     }
-  }, [cronograma, dominiosLocal, toggleAssuntoDominado, showToast]);
+  }, [cronograma, toggleAssuntoDominado, showToast]);
 
   // Early returns
   if (loadingPage) return <div className="min-h-[calc(100vh-120px)] space-y-3" aria-busy="true"><div className="h-8 w-52 animate-pulse rounded-lg bg-zinc-200 dark:bg-zinc-800"/><div className="h-72 animate-pulse rounded-3xl border border-zinc-200 bg-white/70 dark:border-zinc-800 dark:bg-zinc-900/70"/></div>;

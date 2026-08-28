@@ -90,8 +90,10 @@ export const buildSavedSegments = ({ dashboardData, filters }) => {
   });
 };
 
-const escapeCsvValue = (value) => {
-  const safe = value == null ? '' : String(value);
+export const escapeCsvValue = (value) => {
+  const normalized = value == null ? '' : String(value).split(String.fromCharCode(0)).join('');
+  const firstVisibleCharacter = normalized.trimStart().charAt(0);
+  const safe = '=+-@'.includes(firstVisibleCharacter) ? `'${normalized}` : normalized;
   return `"${safe.replace(/"/g, '""')}"`;
 };
 
@@ -193,90 +195,96 @@ export const openExecutivePdfWindow = (payload) => {
   const reportWindow = window.open('', '_blank', 'width=1180,height=860');
   if (!reportWindow) return false;
 
-  const filtersList = (payload.filters || []).map((item) => `<span class="chip">${item}</span>`).join('');
-  const kpiCards = (payload.kpis || []).map((item) => `
-    <div class="card">
-      <div class="eyebrow">${item.label}</div>
-      <div class="value">${item.value}</div>
-      <div class="detail">${item.detail || '&nbsp;'}</div>
-    </div>
-  `).join('');
-  const userRows = (payload.topUsers || []).map((user) => `
-    <tr>
-      <td>${user.name}</td>
-      <td>${user.email}</td>
-      <td>${user.status}</td>
-      <td>${user.hours}h</td>
-      <td>${user.questions}</td>
-      <td>${user.accuracy}%</td>
-    </tr>
-  `).join('');
+  const doc = reportWindow.document;
+  const root = doc.createElement('html');
+  const head = doc.createElement('head');
+  const body = doc.createElement('body');
+  root.lang = 'pt-BR';
+  root.append(head, body);
+  if (doc.documentElement) doc.documentElement.replaceWith(root);
+  else doc.appendChild(root);
+  doc.title = String(payload?.title || 'Resumo Executivo Admin');
 
-  reportWindow.document.write(`
-    <html lang="pt-BR">
-      <head>
-        <title>${payload.title}</title>
-        <style>
-          body { font-family: Arial, sans-serif; margin: 0; background: #f4f4f5; color: #18181b; }
-          .shell { max-width: 1120px; margin: 0 auto; padding: 32px 24px 48px; }
-          .hero { background: linear-gradient(135deg, #ffffff, #fff1f2); border: 1px solid #fecdd3; border-radius: 28px; padding: 28px; margin-bottom: 24px; }
-          .label { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: #dc2626; margin-bottom: 10px; }
-          h1 { margin: 0 0 8px; font-size: 30px; }
-          p { margin: 0; line-height: 1.5; }
-          .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
-          .chip { padding: 8px 12px; border-radius: 999px; background: #ffffff; border: 1px solid #e4e4e7; font-size: 12px; font-weight: 700; color: #52525b; }
-          .toolbar { display: flex; justify-content: flex-end; margin-bottom: 18px; }
-          .toolbar button { border: 0; border-radius: 14px; background: #18181b; color: #ffffff; padding: 12px 16px; font-weight: 700; cursor: pointer; }
-          .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-bottom: 24px; }
-          .card { background: #ffffff; border: 1px solid #e4e4e7; border-radius: 24px; padding: 18px; }
-          .eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #71717a; margin-bottom: 10px; }
-          .value { font-size: 28px; font-weight: 800; margin-bottom: 8px; }
-          .detail { color: #71717a; font-size: 13px; }
-          .table-wrap { background: #ffffff; border: 1px solid #e4e4e7; border-radius: 24px; padding: 20px; }
-          table { width: 100%; border-collapse: collapse; }
-          th, td { padding: 12px 10px; text-align: left; border-bottom: 1px solid #f1f5f9; font-size: 13px; }
-          th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; color: #71717a; }
-          @media print {
-            body { background: #ffffff; }
-            .toolbar { display: none; }
-            .shell { padding: 0; }
-            .hero, .card, .table-wrap { break-inside: avoid; }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="shell">
-          <div class="toolbar">
-            <button onclick="window.print()">Imprimir / Salvar PDF</button>
-          </div>
-          <section class="hero">
-            <div class="label">Admin executive export</div>
-            <h1>${payload.title}</h1>
-            <p>${payload.audience.label} • ${payload.audience.count} usuarios</p>
-            <p style="margin-top: 6px; color: #52525b;">${payload.audience.description || ''}</p>
-            <div class="chips">${filtersList}</div>
-          </section>
-          <section class="grid">${kpiCards}</section>
-          <section class="table-wrap">
-            <div class="eyebrow">Top usuarios do segmento</div>
-            <table>
-              <thead>
-                <tr>
-                  <th>Nome</th>
-                  <th>Email</th>
-                  <th>Status</th>
-                  <th>Horas</th>
-                  <th>Questoes</th>
-                  <th>Precisao</th>
-                </tr>
-              </thead>
-              <tbody>${userRows}</tbody>
-            </table>
-          </section>
-        </div>
-      </body>
-    </html>
-  `);
-  reportWindow.document.close();
+  const style = doc.createElement('style');
+  style.textContent = `
+    body { font-family: Arial, sans-serif; margin: 0; background: #f4f4f5; color: #18181b; }
+    .shell { max-width: 1120px; margin: 0 auto; padding: 32px 24px 48px; }
+    .hero { background: linear-gradient(135deg, #ffffff, #fff1f2); border: 1px solid #fecdd3; border-radius: 28px; padding: 28px; margin-bottom: 24px; }
+    .label { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: #dc2626; margin-bottom: 10px; }
+    h1 { margin: 0 0 8px; font-size: 30px; }
+    p { margin: 0; line-height: 1.5; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+    .chip { padding: 8px 12px; border-radius: 999px; background: #ffffff; border: 1px solid #e4e4e7; font-size: 12px; font-weight: 700; color: #52525b; }
+    .toolbar { display: flex; justify-content: flex-end; margin-bottom: 18px; }
+    .toolbar button { border: 0; border-radius: 14px; background: #18181b; color: #ffffff; padding: 12px 16px; font-weight: 700; cursor: pointer; }
+    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-bottom: 24px; }
+    .card { background: #ffffff; border: 1px solid #e4e4e7; border-radius: 24px; padding: 18px; }
+    .eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #71717a; margin-bottom: 10px; }
+    .value { font-size: 28px; font-weight: 800; margin-bottom: 8px; }
+    .detail { color: #71717a; font-size: 13px; }
+    .table-wrap { background: #ffffff; border: 1px solid #e4e4e7; border-radius: 24px; padding: 20px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 12px 10px; text-align: left; border-bottom: 1px solid #f1f5f9; font-size: 13px; }
+    th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; color: #71717a; }
+    @media print { body { background: #ffffff; } .toolbar { display: none; } .shell { padding: 0; } .hero, .card, .table-wrap { break-inside: avoid; } }
+  `;
+  doc.head.appendChild(style);
+
+  const element = (tag, text, className) => {
+    const node = doc.createElement(tag);
+    if (className) node.className = className;
+    if (text != null) node.textContent = String(text);
+    return node;
+  };
+  const shell = element('div', null, 'shell');
+  const toolbar = element('div', null, 'toolbar');
+  const printButton = element('button', 'Imprimir / Salvar PDF');
+  printButton.type = 'button';
+  printButton.addEventListener('click', () => reportWindow.print());
+  toolbar.appendChild(printButton);
+  shell.appendChild(toolbar);
+
+  const hero = element('section', null, 'hero');
+  hero.appendChild(element('div', 'Admin executive export', 'label'));
+  hero.appendChild(element('h1', payload?.title || 'Resumo Executivo Admin'));
+  hero.appendChild(element('p', `${payload?.audience?.label || 'Base filtrada'} • ${Number(payload?.audience?.count || 0)} usuarios`));
+  const description = element('p', payload?.audience?.description || '');
+  description.style.marginTop = '6px';
+  description.style.color = '#52525b';
+  hero.appendChild(description);
+  const chips = element('div', null, 'chips');
+  (payload?.filters || []).forEach((item) => chips.appendChild(element('span', item, 'chip')));
+  hero.appendChild(chips);
+  shell.appendChild(hero);
+
+  const grid = element('section', null, 'grid');
+  (payload?.kpis || []).forEach((item) => {
+    const card = element('div', null, 'card');
+    card.appendChild(element('div', item?.label || '', 'eyebrow'));
+    card.appendChild(element('div', item?.value ?? 0, 'value'));
+    card.appendChild(element('div', item?.detail || '\u00a0', 'detail'));
+    grid.appendChild(card);
+  });
+  shell.appendChild(grid);
+
+  const tableWrap = element('section', null, 'table-wrap');
+  tableWrap.appendChild(element('div', 'Top usuarios do segmento', 'eyebrow'));
+  const table = doc.createElement('table');
+  const thead = doc.createElement('thead');
+  const headerRow = doc.createElement('tr');
+  ['Nome', 'Email', 'Status', 'Horas', 'Questoes', 'Precisao'].forEach((label) => headerRow.appendChild(element('th', label)));
+  thead.appendChild(headerRow);
+  table.appendChild(thead);
+  const tbody = doc.createElement('tbody');
+  (payload?.topUsers || []).forEach((user) => {
+    const row = doc.createElement('tr');
+    [user?.name, user?.email, user?.status, `${Number(user?.hours || 0)}h`, Number(user?.questions || 0), `${Number(user?.accuracy || 0)}%`]
+      .forEach((value) => row.appendChild(element('td', value ?? '')));
+    tbody.appendChild(row);
+  });
+  table.appendChild(tbody);
+  tableWrap.appendChild(table);
+  shell.appendChild(tableWrap);
+  doc.body.appendChild(shell);
   return true;
 };

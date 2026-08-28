@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useLayoutEffect, useRef } from 'react';
 import {
   collection, onSnapshot, query, orderBy, addDoc, deleteDoc, doc, where, Timestamp,
-  getDocs, getDoc, setDoc, updateDoc, increment, deleteField } from 'firebase/firestore';
+  getDocs, getDoc, setDoc, updateDoc, deleteField } from 'firebase/firestore';
 import { Suspense, lazy } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { db, auth } from '../firebaseConfig';
@@ -107,13 +107,7 @@ import { useNotifications } from '../hooks/useNotifications';
 import { useUserAccess } from '../hooks/useUserAccess';
 import { useLevelSystem } from '../hooks/useLevelSystem';
 import { useGamificationSync } from '../hooks/useGamificationSync';
-import {
-  marcarPendenciaTeoriaPorRegistro,
-  syncRegistroEstudoWithCronograma,
-  syncRegistroRevisaoWithCronograma,
-} from '../services/cronogramaProgressSync';
 import { getAgendaSemana, getWeekOffsetFromDate } from '../services/scheduling/review';
-import { upsertCicloRevisao } from '../services/cicloRevisoes';
 import { resolveLogoUrl } from './admin/config/editalAssets';
 import { isCicloLegacyForGuide } from '../utils/cicloLegacyUpgrade';
 import { buildCicloWeeklyAlert, getCicloWeeklyStatus } from '../utils/cicloWeeklyStatus';
@@ -138,79 +132,29 @@ import {
   normalizeReviewText,
 } from '../services/reviewProgressRules';
 import {
-  applyCronogramaRegistroProgress,
-  emitRegistroProgressOptimisticUpdate,
-} from '../services/reviewOptimisticUpdates';
-import { notifyGamificationSaveFailed, requestGamificationRefresh } from '../utils/gamificationRealtime';
+  dateToYMD,
+  getCompletionDocId,
+  isRegistroContext,
+  normalizeRegistroEstudo,
+  normalizeRegistroPayload,
+  sortRegistrosEstudo,
+  ymdToDateLocal,
+} from '../services/studyRecords/utils';
+import { notifyGamificationSaveFailed } from '../utils/gamificationRealtime';
 import {
   calculateCanonicalStudyStreak,
   calculatePlanStudyStreak,
   toDateKey as toGamificationDateKey,
 } from '../utils/gamification';
 import { getRecordedStudyMinutes, normalizeRecordedStudyMinutes } from '../utils/studyRecords';
-import { estimateAcademicXPForRecord } from '../utils/academicXPPreview';
 import { useCicloRevisoes } from '../hooks/useCicloRevisoes';
+import { useStudyRecordActions } from '../hooks/useStudyRecordActions';
 import { reconcileStudyRecordSnapshot } from '../utils/optimisticStudyRecords';
-
-const dateToYMD = (date) => {
-  const d = date.getDate();
-  const m = date.getMonth() + 1;
-  const y = date.getFullYear();
-  return '' + y + '-' + (m <= 9 ? '0'+m : m) + '-' + (d <= 9 ? '0'+d : d);
-};
-
-const ymdToDateLocal = (value) => {
-  if (!value || typeof value !== 'string') return new Date();
-  const [year, month, day] = value.split('-').map(Number);
-  return new Date(year, (month || 1) - 1, day || 1, 12, 0, 0);
-};
 
 const getPreferredHomeContext = () => {
   try { return localStorage.getItem('homeContextPreferred') || 'cronograma'; } catch { return 'cronograma'; }
 };
 
-const isRegistroContext = (value) => value === 'ciclo' || value === 'cronograma';
-
-const normalizeRegistroEstudo = (docSnap) => {
-  const data = docSnap.data();
-  let dataStr = data.data;
-  if (data.data?.toDate) dataStr = dateToYMD(data.data.toDate());
-  if (!dataStr && data.timestamp?.toDate) dataStr = dateToYMD(data.timestamp.toDate());
-  return normalizeRecordedStudyMinutes({
-    id: docSnap.id,
-    ...data,
-    data: dataStr,
-    tempoEstudadoMinutos: Number(data.tempoEstudadoMinutos || 0),
-    questoesFeitas: Number(data.questoesFeitas || 0),
-    acertos: Number(data.acertos || 0),
-  });
-};
-
-const normalizeRegistroPayload = (id, data = {}) => {
-  let dataStr = data.data;
-  if (data.data?.toDate) dataStr = dateToYMD(data.data.toDate());
-  if (!dataStr && data.timestamp?.toDate) dataStr = dateToYMD(data.timestamp.toDate());
-  return normalizeRecordedStudyMinutes({
-    id,
-    ...data,
-    data: dataStr,
-    tempoEstudadoMinutos: Number(data.tempoEstudadoMinutos || 0),
-    questoesFeitas: Number(data.questoesFeitas || 0),
-    acertos: Number(data.acertos || 0),
-  });
-};
-
-const sortRegistrosEstudo = (items = []) => [...items].sort((a, b) => {
-  const tA = a.timestamp?.seconds || (a.timestamp instanceof Date ? a.timestamp.getTime() / 1000 : 0);
-  const tB = b.timestamp?.seconds || (b.timestamp instanceof Date ? b.timestamp.getTime() / 1000 : 0);
-  if (a.data === b.data) return tB - tA;
-  return a.data < b.data ? 1 : -1;
-});
-
-const getCompletionDocId = (origemConclusaoId) => {
-  if (!origemConclusaoId) return null;
-  return `completion_${encodeURIComponent(String(origemConclusaoId)).replace(/\./g, '%2E')}`;
-};
 
 const isCicloPendingFinalization = (ciclo) => {
   if (!ciclo?.id || ciclo.ativo === false) return false;
@@ -684,7 +628,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     }
 
     return options;
-  }, [activeCicloId, activeCicloData?.nome, activeCycleDisciplines, activeCronogramaData]);
+  }, [activeCicloId, activeCicloData, activeCycleDisciplines, activeCronogramaData]);
 
   useEffect(() => {
     statsSyncKeyRef.current = '';
@@ -1281,432 +1225,22 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     finally { setLoading(false); }
   };
 
-  const syncRegistroEstudoWithCiclo = async (payload) => {
-    if (!payload?.cicloId || payload?.isRevisao || payload?.revisao || payload?.tipoEstudo === 'revisao') return;
-    const minutosRegistrados = Number(payload.tempoEstudadoMinutos || 0);
-    if (minutosRegistrados <= 0) return;
-
-    const cicloRef = doc(db, 'users', user.uid, 'ciclos', payload.cicloId);
-    const cicloSnap = await getDoc(cicloRef);
-    const cicloData = cicloSnap.data() || {};
-    const ordemSessoes = Array.isArray(cicloData.ordemSessoes) ? cicloData.ordemSessoes : [];
-    if (!ordemSessoes.length) return;
-
-    const tempoSessaoMinutos = Math.max(1, Number(cicloData.tempoSessaoMinutos || 50));
-    const concluidas = Array.isArray(cicloData.sessoesConcluidas) ? cicloData.sessoesConcluidas.map(Number) : [];
-    const progressoSessoes = cicloData.progressoSessoes || {};
-    const disciplinaIdRegistro = String(payload.disciplinaId || '').trim();
-    const assuntoRegistroNorm = normalizeRegistroText(payload.assunto);
-
-    const candidatosPorDisciplina = ordemSessoes
-      .map((sessao, globalIndex) => ({ ...sessao, globalIndex }))
-      .filter((sessao) => {
-        if (concluidas.includes(Number(sessao.globalIndex))) return false;
-        if (Number.isFinite(Number(payload.sessaoGlobalIndex)) && Number(payload.sessaoGlobalIndex) !== Number(sessao.globalIndex)) return false;
-        if (disciplinaIdRegistro && String(sessao.disciplinaId || '') !== disciplinaIdRegistro) return false;
-        return true;
-      });
-    const candidatosPorAssunto = assuntoRegistroNorm
-      ? candidatosPorDisciplina.filter((sessao) => {
-        const assuntoSessao = getAssuntoCicloPorSessao(cicloData, activeCycleDisciplines, sessao);
-        return !assuntoSessao || normalizeRegistroText(assuntoSessao) === assuntoRegistroNorm;
-      })
-      : [];
-    const candidatos = (candidatosPorAssunto.length ? candidatosPorAssunto : candidatosPorDisciplina)
-      .slice()
-      .sort((a, b) => Number(a.globalIndex) - Number(b.globalIndex));
-
-    if (!candidatos.length) return;
-
-    let minutosRestantes = minutosRegistrados;
-    const nextProgressSessoes = { ...progressoSessoes };
-    const nextCompletionDetails = { ...(cicloData.sessoesConcluidasDetalhes || {}) };
-    const novasConcluidas = [...concluidas];
-    let lastTouchedIndex = null;
-    let changed = false;
-
-    for (const sessao of candidatos) {
-      if (minutosRestantes <= 0) break;
-      const index = Number(sessao.globalIndex);
-      const progressoAtual = Number(progressoSessoes?.[index] || progressoSessoes?.[String(index)] || 0);
-      const faltantes = Math.max(0, tempoSessaoMinutos - progressoAtual);
-      if (faltantes <= 0) {
-        if (minutosRestantes > 0) {
-          const novoProgresso = progressoAtual + minutosRestantes;
-          nextProgressSessoes[String(index)] = novoProgresso;
-          changed = true;
-          lastTouchedIndex = index;
-          minutosRestantes = 0;
-        }
-        if (progressoAtual >= tempoSessaoMinutos && !novasConcluidas.includes(index)) {
-          novasConcluidas.push(index);
-          nextCompletionDetails[String(index)] = {
-            concluidaEm: payload.data,
-            atualizadoEm: Timestamp.now(),
-            origem: 'registro_manual',
-          };
-          changed = true;
-        }
-        continue;
-      }
-
-      const incremento = Math.min(faltantes, minutosRestantes);
-      const novoProgresso = progressoAtual + incremento;
-      const concluiu = novoProgresso >= tempoSessaoMinutos;
-
-      nextProgressSessoes[String(index)] = novoProgresso;
-      changed = true;
-      lastTouchedIndex = index;
-      if (concluiu && !novasConcluidas.includes(index)) {
-        novasConcluidas.push(index);
-        nextCompletionDetails[String(index)] = {
-          concluidaEm: payload.data,
-          atualizadoEm: Timestamp.now(),
-          origem: 'registro_manual',
-        };
-      }
-      minutosRestantes -= incremento;
-    }
-
-    if (minutosRestantes > 0 && lastTouchedIndex !== null) {
-      nextProgressSessoes[String(lastTouchedIndex)] =
-        Number(nextProgressSessoes[String(lastTouchedIndex)] || progressoSessoes?.[lastTouchedIndex] || progressoSessoes?.[String(lastTouchedIndex)] || 0)
-        + minutosRestantes;
-      minutosRestantes = 0;
-      changed = true;
-    }
-
-    if (changed) await updateDoc(cicloRef, {
-      progressoSessoes: nextProgressSessoes,
-      sessoesConcluidas: [...new Set(novasConcluidas)].sort((a, b) => a - b),
-      sessoesConcluidasDetalhes: nextCompletionDetails,
-    });
-  };
-
-  const syncRegistroRevisaoWithCiclo = async (payload) => {
-    if (!payload?.cicloId) return;
-    const minutosRegistrados = Number(payload.tempoEstudadoMinutos || 0);
-    if (minutosRegistrados <= 0) return;
-
-    const revisoesRef = collection(db, 'users', user.uid, 'revisoesCiclo');
-    const snap = await getDocs(query(revisoesRef, where('cicloId', '==', payload.cicloId)));
-    const disciplinaIdRegistro = String(payload.disciplinaId || '').trim();
-    const assuntoRegistroNorm = normalizeRegistroText(payload.assunto);
-    const dataRegistro = String(payload.data || '');
-
-    const revisoes = snap.docs
-      .map((document) => ({ id: document.id, ...document.data() }))
-      .filter((rev) => {
-        if (rev.concluida) return false;
-        if (disciplinaIdRegistro && String(rev.disciplinaId || '') !== disciplinaIdRegistro) return false;
-        if (assuntoRegistroNorm && normalizeRegistroText(rev.assunto) !== assuntoRegistroNorm) return false;
-        if (dataRegistro && rev.dataAgendada && String(rev.dataAgendada) > dataRegistro) return false;
-        return true;
-      })
-      .sort((a, b) => String(a.dataAgendada || '').localeCompare(String(b.dataAgendada || '')));
-
-    let minutosRestantes = minutosRegistrados;
-    for (const rev of revisoes) {
-      if (minutosRestantes <= 0) break;
-      const revisaoRef = doc(revisoesRef, rev.id);
-      const tempoPlanejado = getReviewPlannedMinutes(rev, 20);
-      const progressoAtual = Number(rev.progressoMinutos || 0);
-      const {
-        appliedMinutes,
-        nextProgress: novoProgresso,
-        done: concluiu,
-      } = applyReviewProgress({
-        currentMinutes: progressoAtual,
-        plannedMinutes: tempoPlanejado,
-        addedMinutes: minutosRestantes,
-        wasDone: rev.concluida,
-      });
-      if (appliedMinutes <= 0) continue;
-
-      await setDoc(revisaoRef, {
-        progressoMinutos: novoProgresso,
-        tempoMinutos: tempoPlanejado,
-        ...(concluiu ? { concluida: true, concluidaEm: Timestamp.now(), bloqueiaDesmarcar: true, origemConclusao: 'registro_manual' } : {}),
-        atualizadaEm: Timestamp.now(),
-      }, { merge: true });
-
-      minutosRestantes -= appliedMinutes;
-    }
-  };
-
-  const applyRegistroProgressOptimistic = useCallback((payload) => {
-    if (!payload) return;
-    emitRegistroProgressOptimisticUpdate(payload);
-    if (payload.contextoRegistro === 'cronograma' && payload.cronogramaId) {
-      setActiveCronogramaData((prev) => (
-        prev?.id === payload.cronogramaId
-          ? applyCronogramaRegistroProgress(prev, payload)
-          : prev
-      ));
-    }
-  }, []);
-
-  const addRegistroEstudo = async (data, options = {}) => {
-    try {
-      const explicitContext = data?.contextoRegistro;
-      const hasCicloDisponivel = Boolean(activeCicloId);
-      const hasCronogramaDisponivel = Boolean(activeCronogramaData?.id);
-
-      let contextoRegistro = isRegistroContext(explicitContext) ? explicitContext : null;
-      if (!contextoRegistro) {
-        if (data?.cronogramaId && !data?.cicloId) contextoRegistro = 'cronograma';
-        else if (data?.cicloId && !data?.cronogramaId) contextoRegistro = 'ciclo';
-        else if (hasCicloDisponivel && !hasCronogramaDisponivel) contextoRegistro = 'ciclo';
-        else if (!hasCicloDisponivel && hasCronogramaDisponivel) contextoRegistro = 'cronograma';
-      }
-
-      const cicloIdResolved = contextoRegistro === 'ciclo'
-        ? (data?.cicloId || activeCicloId || null)
-        : null;
-      const cronogramaIdResolved = contextoRegistro === 'cronograma'
-        ? (data?.cronogramaId || activeCronogramaData?.id || null)
-        : null;
-
-      if (contextoRegistro === 'cronograma' && !cronogramaIdResolved) {
-        throw new Error('cronograma-id-obrigatorio');
-      }
-
-      if (
-        contextoRegistro === 'ciclo'
-        && String(cicloIdResolved || '') === String(activeCicloId || '')
-        && cicloPendenteFinalizacao
-        && data?.origemConclusao !== 'botao_concluir'
-      ) {
-        setWarningAlert({ isOpen:true, title:'Ciclo aguardando finalizacao', message:cicloFinalizacaoMessage });
-        return;
-      }
-
-      const payload = {
-        ...data,
-        data: data?.data || dateToYMD(new Date()),
-        tempoEstudadoMinutos: Number(data?.tempoEstudadoMinutos || 0),
-        questoesFeitas: Number(data?.questoesFeitas || 0),
-        acertos: Number(data?.acertos || 0),
-        timestamp: Timestamp.now(),
-        ...(contextoRegistro ? { contextoRegistro } : {}),
-        ...(cicloIdResolved ? { cicloId: cicloIdResolved } : {}),
-        ...(cronogramaIdResolved ? { cronogramaId: cronogramaIdResolved } : {}),
-        ...(contextoRegistro === 'cronograma' && data?.naoConcluidoCronograma
-          ? { naoConcluidoCronograma: true }
-          : {}),
-      };
-      const dailyGoalBeforeStatus = getDailyGoalStatusForPlan({
-        context: payload.contextoRegistro,
-        dateKey: payload.data,
-      });
-      let dailyGoalModalChecked = false;
-      const checkDailyGoalAfterPlanSync = async () => {
-        if (dailyGoalModalChecked) return;
-        dailyGoalModalChecked = true;
-        await maybeShowDailyGoalCompleted({
-          payload,
-          wasGoalMet: Boolean(dailyGoalBeforeStatus?.goalMet),
-          forceAfterCompletionAction: payload.origemConclusao === 'botao_concluir',
-        });
-      };
-
-      const completionDocId = getCompletionDocId(payload.origemConclusaoId);
-      const registroRef = completionDocId
-        ? doc(db,'users',user.uid,'registrosEstudo',completionDocId)
-        : doc(collection(db,'users',user.uid,'registrosEstudo'));
-      const savedRegistroId = registroRef.id;
-      const registroAnterior = allRegistrosEstudo.find((item) => item.id === savedRegistroId) || null;
-      const registroJaExistia = Boolean(registroAnterior);
-      const isRegistroRevisao = payload.isRevisao || payload.revisao || payload.tipoEstudo === 'revisao';
-      const isCompletionRegistro = payload.origemConclusao === 'botao_concluir' || Boolean(completionDocId);
-      const xpPreview = estimateAcademicXPForRecord({
-        existingRecords: allRegistrosEstudo,
-        existingSimulations: allSimulados,
-        record: payload,
-        excludeId: savedRegistroId,
-      });
-
-      const optimisticRegistro = normalizeRegistroPayload(savedRegistroId, payload);
-      pendingRegistrosEstudoRef.current.set(savedRegistroId, optimisticRegistro);
-      setAllRegistrosEstudo((prev) => sortRegistrosEstudo([
-        optimisticRegistro,
-        ...prev.filter((item) => item.id !== savedRegistroId),
-      ]));
-      if (!isCompletionRegistro || payload.contextoRegistro === 'cronograma' || isRegistroRevisao) {
-        applyRegistroProgressOptimistic(payload);
-      }
-
-      if (!registroJaExistia && savedRegistroId) {
-        requestGamificationRefresh({
-          uid: user.uid,
-          sourceType: 'study',
-          sourceId: savedRegistroId,
-          message: isRegistroRevisao
-            ? 'Revisão concluída.'
-            : payload.conclusaoManual
-              ? 'Bloco concluído.'
-              : 'Estudo registrado.',
-          xpTotal: xpPreview,
-        });
-      }
-
-      const rollbackOptimisticRegistro = () => {
-        pendingRegistrosEstudoRef.current.delete(savedRegistroId);
-        setAllRegistrosEstudo((prev) => {
-          const withoutCurrent = prev.filter((item) => item.id !== savedRegistroId);
-          return registroAnterior
-            ? sortRegistrosEstudo([registroAnterior, ...withoutCurrent])
-            : withoutCurrent;
-        });
-        notifyGamificationSaveFailed({ uid: user.uid, sourceType: 'study', sourceId: savedRegistroId });
-      };
-
-      if (options.waitForCompletion) {
-        try {
-          const completionConfirmed = await options.waitForCompletion;
-          if (completionConfirmed === false) {
-            rollbackOptimisticRegistro();
-            return false;
-          }
-        } catch (error) {
-          rollbackOptimisticRegistro();
-          console.error('[Dashboard] Conclusão não confirmada; registro otimista revertido:', error);
-          return false;
-        }
-      }
-
-      try {
-        await setDoc(registroRef, payload);
-      } catch (error) {
-        rollbackOptimisticRegistro();
-        throw error;
-      }
-
-      if (registroJaExistia) {
-        await maybeShowDailyGoalCompleted({
-          payload,
-          wasGoalMet: Boolean(dailyGoalBeforeStatus?.goalMet),
-          forceAfterCompletionAction: payload.origemConclusao === 'botao_concluir',
-        });
-        return;
-      }
-
-      const postSaveTasks = [];
-      postSaveTasks.push((async () => {
-        if (!isCompletionRegistro && payload.contextoRegistro === 'ciclo' && payload.cicloId) {
-          const cicloRef = doc(db, 'users', user.uid, 'ciclos', payload.cicloId);
-          const disciplinaKey = payload.disciplinaId || null;
-          const assuntoAtual = String(payload.assunto || '').trim();
-
-          if (payload.teoriaNaoFinalizadaCiclo && disciplinaKey && assuntoAtual) {
-            await setDoc(cicloRef, {
-              pendenciasTeoria: {
-                [disciplinaKey]: {
-                  assuntoAtual,
-                  minutosAcumulados: Number(payload.tempoEstudadoMinutos || 0),
-                  status: 'pendente',
-                  atualizadoEm: Timestamp.now(),
-                },
-              },
-            }, { merge: true });
-          } else if (disciplinaKey && assuntoAtual && (payload.assuntoFinalizadoCiclo || payload.markAsFinished)) {
-            await setDoc(cicloRef, {
-              pendenciasTeoria: {
-                [disciplinaKey]: {
-                  assuntoAtual: '',
-                  minutosAcumulados: 0,
-                  status: 'finalizado',
-                  atualizadoEm: Timestamp.now(),
-                },
-              },
-            }, { merge: true });
-          }
-
-          if (!payload.teoriaNaoFinalizadaCiclo) {
-            await syncRegistroEstudoWithCiclo(payload);
-          }
-        }
-
-        if (!isCompletionRegistro && payload.contextoRegistro === 'cronograma' && payload.cronogramaId) {
-          if (isRegistroRevisao) {
-            await syncRegistroRevisaoWithCronograma({
-              db,
-              userUid: user.uid,
-              cronogramaId: payload.cronogramaId,
-              registro: payload,
-            });
-          } else if (payload.naoConcluidoCronograma) {
-            await marcarPendenciaTeoriaPorRegistro({
-              db,
-              userUid: user.uid,
-              cronogramaId: payload.cronogramaId,
-              registro: payload,
-            });
-          } else {
-            await syncRegistroEstudoWithCronograma({
-              db,
-              userUid: user.uid,
-              cronogramaId: payload.cronogramaId,
-              registro: payload,
-            });
-          }
-        }
-
-        if (!isCompletionRegistro && payload.contextoRegistro === 'ciclo' && payload.cicloId && isRegistroRevisao) {
-          await syncRegistroRevisaoWithCiclo(payload);
-        }
-
-        await checkDailyGoalAfterPlanSync();
-      })());
-      const intervaloRevisaoDias = Number(payload.intervaloRevisaoDias);
-      const intervalosRevisaoCiclo = payload.revisaoAutomaticaCiclo === true
-        ? [1, 7, 30]
-        : [intervaloRevisaoDias].filter((intervalo) => Number.isFinite(intervalo) && intervalo > 0);
-      const deveAgendarRevisaoCiclo = Boolean(
-        !isCompletionRegistro &&
-        payload.cicloId &&
-        payload.assunto &&
-        intervalosRevisaoCiclo.length > 0
-      );
-
-      if (deveAgendarRevisaoCiclo) {
-        postSaveTasks.push((async () => {
-          for (const intervalo of intervalosRevisaoCiclo) {
-            const baseDate = ymdToDateLocal(payload.data);
-            baseDate.setDate(baseDate.getDate() + intervalo);
-
-            await upsertCicloRevisao(db, user.uid, {
-              cicloId: payload.cicloId,
-              disciplinaId: payload.disciplinaId || null,
-              disciplinaNome: payload.disciplinaNome || 'Disciplina',
-              assunto: payload.assunto,
-              dataAgendada: dateToYMD(baseDate),
-              intervaloDias: intervalo,
-              origem: payload.revisaoAutomaticaCiclo === true ? 'registro_estudo_auto_1_7_30' : 'registro_estudo',
-            });
-          }
-        })());
-      }
-
-      postSaveTasks.push(setDoc(doc(db,'users',user.uid,'stats','geral'), {
-        totalHorasMinutos: increment(payload.tempoEstudadoMinutos),
-        totalQuestoes: increment(payload.questoesFeitas),
-        totalAcertos: increment(payload.acertos),
-      }, { merge: true }));
-
-      Promise.allSettled(postSaveTasks).then((results) => {
-        results.forEach((result) => {
-          if (result.status === 'rejected') console.error('[Dashboard] Erro em pos-salvamento do registro:', result.reason);
-        });
-      });
-      return true;
-
-    } catch (e) {
-      console.error(e);
-      throw e;
-    }
-  };
-
+  const { addRegistroEstudo } = useStudyRecordActions({
+    userUid: user?.uid,
+    activeCicloId,
+    activeCronogramaId: activeCronogramaData?.id || null,
+    activeCycleDisciplines,
+    cicloPendenteFinalizacao,
+    cicloFinalizacaoMessage,
+    allRegistrosEstudo,
+    allSimulados,
+    pendingRegistrosEstudoRef,
+    setAllRegistrosEstudo,
+    setActiveCronogramaData,
+    setWarningAlert,
+    getDailyGoalStatusForPlan,
+    maybeShowDailyGoalCompleted,
+  });
   const isRegistroRevisaoPayload = (registro) => (
     registro?.isRevisao || registro?.revisao || registro?.tipoEstudo === 'revisao' || registro?.tipoRegistro === 'revisao'
   );
@@ -2420,7 +1954,10 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   const handleCancelSimulado  = () => { setActiveSimuladoSession(null); clearActiveSimuladoDoc(); localStorage.removeItem(SIMULADO_STORAGE_KEY); };
   const handleClearSimuladoData = () => { setFinishedSimuladoData(null); localStorage.removeItem(SIMULADO_PENDING_KEY); };
 
-  const handleTourCloseOrFinish = (type) => { if (user) localStorage.setItem(`onboarding_seen_${user.uid}_${type}`,'true'); setTourState({ isActive:false, type:'main' }); };
+  const handleTourCloseOrFinish = useCallback((type) => {
+    if (user) localStorage.setItem(`onboarding_seen_${user.uid}_${type}`, 'true');
+    setTourState({ isActive: false, type: 'main' });
+  }, [user]);
 
   const setPreferredHomeContext = (value) => {
     if (!isRegistroContext(value)) return;
@@ -2465,7 +2002,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   const handleCreateNewCycleFromLegacy = useCallback(() => {
     setForcePlanejamentoSelector(false);
     setActiveTab('planejamento');
-  }, []);
+  }, [setActiveTab]);
 
   const handleTabChange = (tab) => {
     const resolvedTab = tab === 'cronogramas' ? 'planejamento' : tab;
@@ -2487,7 +2024,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   const handleChoosePlanFromRevisao = useCallback(() => {
     setForcePlanejamentoSelector(true);
     setActiveTab('planejamento');
-  }, []);
+  }, [setActiveTab]);
 
   const handleSeletorDiretoAberto = useCallback(() => {
     setForcePlanejamentoSelector(false);
@@ -2519,7 +2056,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     markUpdateCarouselSeen('create_planning_from_carousel');
     setForcePlanejamentoSelector(true);
     setActiveTab('planejamento');
-  }, [markUpdateCarouselSeen]);
+  }, [markUpdateCarouselSeen, setActiveTab]);
 
   useEffect(() => {
     const handlePlanningCreated = () => {
@@ -2610,7 +2147,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
 
     if (!hasSeen && isNew)  setTourState({ isActive:true, type });
     else if (!isNew && !hasSeen) handleTourCloseOrFinish(type);
-  }, [user, loading, goalsHistory.length, mergedAllRegistrosEstudo.length]);
+  }, [user, loading, goalsHistory.length, mergedAllRegistrosEstudo.length, handleTourCloseOrFinish]);
 
   useEffect(() => {
     if (!user) return;

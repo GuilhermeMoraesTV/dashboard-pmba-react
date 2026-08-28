@@ -605,7 +605,7 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
     carregarModelos();
 
     if (!isEditMode && !preselectedEdital && _lerDraft()) setMostrandoRascunho(true);
-  }, []);
+  }, [isEditMode, preselectedEdital]);
 
   // ─── EFEITO: auto-save do draft sempre que dados de negócio mudarem ────────
   // Debounce de 500ms: só persiste quando o usuário para de interagir,

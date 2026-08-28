@@ -77,10 +77,15 @@ const HeaderOcorrencias = ({ isOpen, onClose }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTicketData, setActiveTicketData] = useState(null);
   const [editingMessage, setEditingMessage] = useState(null);
+  const editingMessageRef = useRef(null);
   const [deleteRequest, setDeleteRequest] = useState(null);
 
   const scrollRef = useRef(null);
   const adminTypingTimeoutRef = useRef(null);
+
+  useEffect(() => {
+    editingMessageRef.current = editingMessage;
+  }, [editingMessage]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -100,7 +105,7 @@ const HeaderOcorrencias = ({ isOpen, onClose }) => {
     const q = query(collection(db, 'system_feedback', activeTicketId, 'messages'), orderBy('timestamp', 'asc'));
     const msgsUnsub = onSnapshot(q, (snap) => {
       setMessages(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-      if (!editingMessage) setTimeout(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, 100);
+      if (!editingMessageRef.current) setTimeout(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, 100);
     });
     return () => { ticketUnsub(); msgsUnsub(); };
   }, [activeTicketId]);

@@ -1,9 +1,16 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { onAuthStateChanged } from 'firebase/auth';
-import { auth, authPersistenceReady } from './firebaseConfig';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { auth, authPersistenceReady, db } from './firebaseConfig';
 import PwaStatus from './components/shared/PwaStatus';
 import { dismissInitialLoadingScreen } from './utils/initialLoadingScreen';
+import {
+  applyUserFontSize,
+  DEFAULT_USER_FONT_SIZE,
+  normalizeUserFontSize,
+  USER_FONT_SIZE_STORAGE_KEY,
+} from './utils/userFontPreference';
 
 // Importações Lazy
 const Dashboard = lazy(() => import('./components/Dashboard'));
@@ -32,21 +39,40 @@ function PublicRoute({ user, children }) {
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [userFontSize, setUserFontSize] = useState(() => {
+    return normalizeUserFontSize(localStorage.getItem(USER_FONT_SIZE_STORAGE_KEY));
+  });
 
   // --- Lógica de Zoom do Sistema ---
   useEffect(() => {
-    document.documentElement.style.fontSize = '85%';
     const handleResize = () => {
-      if (window.innerWidth < 640) {
-        document.documentElement.style.fontSize = '90%';
-      } else {
-        document.documentElement.style.fontSize = '95%';
-      }
+      applyUserFontSize(userFontSize);
     };
     handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  }, [userFontSize]);
+
+  useEffect(() => {
+    if (!user?.uid) {
+      const storedFontSize = normalizeUserFontSize(localStorage.getItem(USER_FONT_SIZE_STORAGE_KEY));
+      setUserFontSize(storedFontSize);
+      return undefined;
+    }
+
+    return onSnapshot(doc(db, 'users', user.uid, 'settings', 'uiPreferences'), (snapshot) => {
+      const nextFontSize = normalizeUserFontSize(
+        snapshot.exists()
+          ? snapshot.data()?.fontSize
+          : DEFAULT_USER_FONT_SIZE,
+      );
+      localStorage.setItem(USER_FONT_SIZE_STORAGE_KEY, nextFontSize);
+      setUserFontSize(nextFontSize);
+    }, (error) => {
+      console.warn('[Preferencias] Nao foi possivel carregar tamanho da fonte:', error);
+      setUserFontSize(normalizeUserFontSize(localStorage.getItem(USER_FONT_SIZE_STORAGE_KEY)));
+    });
+  }, [user?.uid]);
 
   // Lógica do Dark Mode
   const [isDarkMode, setIsDarkMode] = useState(() => {

@@ -21,7 +21,7 @@ function AuthLayout({ children, mode = 'login' }) {
       `}</style>
 
       <div className="absolute inset-0 overflow-hidden lg:fixed" aria-hidden="true">
-        <div className="absolute inset-x-0 top-0 h-[310px] lg:inset-y-0 lg:left-[3%] lg:right-[-3%] lg:h-auto">
+        <div className="absolute inset-x-0 top-0 h-[310px] lg:inset-y-0 lg:left-0 lg:right-0 lg:h-auto">
           <Motion.img
             src="/login-tactical-background-v3.png"
             alt=""

@@ -1230,13 +1230,13 @@ body.registro-modal-open .app-global-footer {
   /* Zoom somente dos cards; titulo, busca e suporte ficam em tamanho normal. */
   --zoom-desktop-edital-library-cards: 0.82;
   --zoom-mobile-edital-library-cards: 0.86;
-  --zoom-desktop-cronograma: 0.80;
+  --zoom-desktop-cronograma: 0.85;
   --zoom-desktop-calendar: 0.90;
   --zoom-desktop-revisoes: 0.90;
   --zoom-desktop-profile: 0.92;
   --zoom-desktop-noticias: 1;
   --zoom-desktop-admin: 0.90;
-  --zoom-desktop-home: 0.90;
+  --zoom-desktop-home: 0.95;
   --zoom-desktop-simulados: 0.90;
   --zoom-desktop-desempenho: 0.90;
   --zoom-desktop-planejamento: 0.85;
@@ -1272,7 +1272,7 @@ body.registro-modal-open .app-global-footer {
   --zoom-desktop-modal-archive: 0.90;
   --zoom-desktop-modal-notifications: 0.85;
   --zoom-desktop-support-card: 0.92;
-  --zoom-desktop-sidebar: 0.85;
+  --zoom-desktop-sidebar: 0.95;
   --zoom-desktop-desempenho-discipline-card: 0.94;
 
   --zoom-desktop-wizard-step-edital: 0.85;

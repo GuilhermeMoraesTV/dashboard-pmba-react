@@ -555,7 +555,7 @@ function CicloVisual({
       currentAngle += angle;
       return segmentData;
     });
-  }, [disciplinas, registrosEstudo, viewMode, ciclo]);
+  }, [disciplinas, registrosEstudo]);
 
   const data = useMemo(() => {
     if (!disciplinas.length || !ciclo?.ordemSessoes?.length) return [];

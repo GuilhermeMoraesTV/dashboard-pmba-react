@@ -887,6 +887,7 @@ function SimuladoTimer({
 
   // Init audio + cleanup
   useEffect(() => {
+    const originalTitle = originalTitleRef.current;
     audioRef.current = new Audio(WHITE_NOISE_URL);
     audioRef.current.loop = true;
     audioRef.current.volume = 0.01;
@@ -898,7 +899,7 @@ function SimuladoTimer({
       clearTimers();
       try { audioRef.current?.pause?.(); } catch {}
       try { alarmRef.current?.pause?.(); } catch {}
-      document.title = originalTitleRef.current;
+      document.title = originalTitle;
       try {
         if ('mediaSession' in navigator && 'setPositionState' in navigator.mediaSession) {
           navigator.mediaSession.setPositionState(null);

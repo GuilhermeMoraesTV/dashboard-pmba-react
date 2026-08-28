@@ -11,7 +11,7 @@ service firebase.storage {
     }
 
     function userAccess() {
-      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.access;
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.get('access', {});
     }
 
     function isAdmin() {
@@ -20,9 +20,9 @@ service firebase.storage {
           isSignedIn()
           && firestore.exists(/databases/(default)/documents/users/$(request.auth.uid))
           && (
-            userAccess().permissions.adminPanel == true
-            || userAccess().adminRole in ['admin', 'super_admin']
-            || userAccess().role == 'admin'
+            userAccess().get('permissions', {}).get('adminPanel', false) == true
+            || userAccess().get('adminRole', null) in ['admin', 'super_admin']
+            || userAccess().get('role', null) == 'admin'
           )
         );
     }
@@ -39,21 +39,21 @@ service firebase.storage {
         );
     }
 
-    // Imagens de perfil: o dono le/escreve a propria pasta.
+    // Uploads passam obrigatoriamente pela Function uploadSecureImage, que
+    // valida os bytes e reencoda o arquivo. O cliente pode apenas ler/excluir
+    // o proprio arquivo ja processado.
     match /profile_images/{userId}/{allPaths=**} {
       allow read: if isSignedIn() && request.auth.uid == userId;
-      allow write: if isSignedIn() && request.auth.uid == userId;
+      allow create, update: if false;
+      allow delete: if isSignedIn() && (request.auth.uid == userId || isAdmin());
     }
 
     // Identidade visual dos grupos: qualquer usuário autenticado pode exibir,
     // mas somente o dono da pasta pode enviar ou substituir a imagem.
     match /study_group_images/{ownerId}/{groupId}/{allPaths=**} {
       allow read: if isSignedIn();
-      allow create, update: if isSignedIn()
-        && (request.auth.uid == ownerId || isGroupManager(groupId))
-        && request.resource.size < 5 * 1024 * 1024
-        && request.resource.contentType.matches('image/.*');
-      allow delete: if isSignedIn() && (request.auth.uid == ownerId || isGroupManager(groupId));
+      allow create, update: if false;
+      allow delete: if isSignedIn() && (request.auth.uid == ownerId || isGroupManager(groupId) || isAdmin());
     }
 
     // --- NOVA REGRA PARA LOGOS DE EDITAIS ---
@@ -61,7 +61,12 @@ service firebase.storage {
     // Escrita: Apenas o ADMIN (OLoJi457GQNE2eTSOcz9DAD6ppZ2)
     match /editais_logos/{allPaths=**} {
       allow read: if isSignedIn();
-      allow write: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
+    match /broadcasts/{allPaths=**} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if false;
     }
   }
 }

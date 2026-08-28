@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { db, auth, storage } from '../../firebaseConfig';
+import { db, auth } from '../../firebaseConfig';
 import {
   collection, query, orderBy, onSnapshot, addDoc, updateDoc, deleteDoc,
   doc, serverTimestamp
 } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import {
   X, Loader2, Megaphone, Zap, AlertTriangle, Bell, History, Layout,
   Palette, ImageIcon, Upload, Trash, Check, Smartphone, Monitor, Power, Trash2,
@@ -14,6 +13,7 @@ import {
 } from 'lucide-react';
 import ConfirmModal from '../../components/shared/ConfirmModal';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
+import { uploadSecureImage, validateImageFile } from '../../services/secureImageUpload';
 
 // --- UTILITÁRIOS ---
 const formatTimeAgo = (date) => {
@@ -107,14 +107,21 @@ const HeaderBroadcast = ({ isOpen, onClose, segmentDraft = null }) => {
   }, [segmentDraft]);
 
   // Handlers de Imagem (Multi-upload)
-  const handleImageChange = (e) => {
+  const handleImageChange = async (e) => {
     if (e.target.files) {
-      const newFiles = Array.from(e.target.files);
-      const newImages = newFiles.map(file => ({
-        file,
-        preview: URL.createObjectURL(file)
-      }));
+      const remaining = Math.max(0, 10 - images.length);
+      const candidates = Array.from(e.target.files).slice(0, remaining);
+      const newImages = [];
+      for (const file of candidates) {
+        try {
+          await validateImageFile(file);
+          newImages.push({ file, preview: URL.createObjectURL(file) });
+        } catch (validationError) {
+          setFeedback({ type: 'error', message: validationError.message });
+        }
+      }
       setImages(prev => [...prev, ...newImages]);
+      e.target.value = '';
     }
   };
 
@@ -138,9 +145,8 @@ const HeaderBroadcast = ({ isOpen, onClose, segmentDraft = null }) => {
 
       if (images.length > 0) {
         const uploadPromises = images.map(async (img) => {
-            const storageRef = ref(storage, `broadcasts/${Date.now()}_${img.file.name}`);
-            await uploadBytes(storageRef, img.file);
-            return getDownloadURL(storageRef);
+            const upload = await uploadSecureImage(img.file, { kind: 'broadcast' });
+            return upload.url;
         });
         imageUrls = await Promise.all(uploadPromises);
       }
@@ -292,7 +298,7 @@ const HeaderBroadcast = ({ isOpen, onClose, segmentDraft = null }) => {
                     </div>
                 )}
 
-                <input type="file" ref={fileInputRef} onChange={handleImageChange} accept="image/*" multiple className="hidden" />
+                <input type="file" ref={fileInputRef} onChange={handleImageChange} accept="image/jpeg,image/png,image/webp" multiple className="hidden" />
               </div>
 
               {/* Editor de Texto */}

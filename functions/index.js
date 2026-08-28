@@ -4,9 +4,11 @@ const { onDocumentWritten, onDocumentCreated } = require('firebase-functions/v2/
 const { defineSecret }       = require('firebase-functions/params');
 const admin = require('firebase-admin');
 const crypto = require('crypto');
+const sanitizeHtml = require('sanitize-html');
 const gamification = require('./gamification/service');
 const groups = require('./groups/service');
 const adminOperations = require('./admin/service');
+const imageUploadSecurity = require('./security/imageUpload');
 
 if (!admin.apps.length) {
   admin.initializeApp();
@@ -27,6 +29,9 @@ const AI_MAX_OUTPUT_TOKENS = 4096;
 const NEWS_CACHE_MAX_ARTICLE_BYTES = 120000;
 const NEWS_CACHE_DAILY_WRITE_LIMIT = 40;
 const NEWS_FETCH_MAX_BYTES = 1500000;
+const NEWS_ALLOWED_STATUS = new Set(['Previsto', 'Autorizado', 'Comissão Formada', 'Banca Definida', 'Edital Publicado', 'Suspenso', 'Encerrado', 'Em Análise', 'Anunciado', '']);
+const NEWS_ALLOWED_TYPES = new Set(['concurso', 'noticia']);
+const NEWS_ALLOWED_URGENCY = new Set(['alta', 'media', 'baixa']);
 const QUOTE_SOURCES = [
   'https://ultimoconcurso.com/frases-de-motivacao-para-concurso-publico/',
   'https://www.demandaconcursos.com.br/dicas/frases-motivadoras-que-todo-concurseiro-precisa-ler-para-manter-o-foco/',
@@ -79,6 +84,54 @@ function safeDocIdFromUrl(url = '') {
     .replace(/^https?:\/\//i, '')
     .replace(/[^a-zA-Z0-9_-]/g, '_')
     .slice(0, 500);
+}
+
+function boundedText(value, maxLength = 500) {
+  return String(value ?? '').split(String.fromCharCode(0)).join('').trim().slice(0, maxLength);
+}
+
+function sanitizeNewsArticle(article = {}) {
+  const cleanHtml = sanitizeHtml(boundedText(article.conteudo_formatado || article.texto_completo_formatado, 30000), {
+    allowedTags: ['p', 'h3', 'ul', 'li', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'em', 'strong', 'br'],
+    allowedAttributes: {},
+    disallowedTagsMode: 'discard',
+    enforceHtmlBoundary: true,
+  });
+  const statusCandidate = boundedText(article.status || article.quadro?.situacao, 40);
+  const status = NEWS_ALLOWED_STATUS.has(statusCandidate) ? statusCandidate : '';
+  const tipoCandidate = boundedText(article.tipo, 20).toLowerCase();
+  const urgencyCandidate = boundedText(article.urgencia, 20).toLowerCase();
+  const safeList = (value, maxItems, maxLength) => (
+    Array.isArray(value) ? value.slice(0, maxItems).map((item) => boundedText(item, maxLength)).filter(Boolean) : []
+  );
+  const quadro = article.quadro && typeof article.quadro === 'object' && !Array.isArray(article.quadro) ? article.quadro : {};
+  return {
+    tipo: NEWS_ALLOWED_TYPES.has(tipoCandidate) ? tipoCandidate : 'noticia',
+    orgao: boundedText(article.orgao, 120),
+    titulo_limpo: boundedText(article.titulo_limpo || article.titulo, 240),
+    titulo_inteligente: boundedText(article.titulo_inteligente || article.titulo_limpo || article.titulo, 240),
+    status,
+    banca: boundedText(article.banca || quadro.banca, 120),
+    vagas: boundedText(article.vagas || quadro.vagas, 80),
+    salario_maximo: boundedText(article.salario_maximo || quadro.salario, 80),
+    requisitos_principais: safeList(article.requisitos_principais, 12, 240),
+    conteudo_formatado: cleanHtml,
+    texto_completo_formatado: cleanHtml,
+    urgencia: NEWS_ALLOWED_URGENCY.has(urgencyCandidate) ? urgencyCandidate : 'baixa',
+    tags: safeList(article.tags, 8, 60),
+    destaque: boundedText(article.destaque, 300),
+    resumo_limpo: boundedText(article.resumo_limpo, 1200),
+    quadro: {
+      cargo: boundedText(quadro.cargo, 160),
+      situacao: status,
+      banca: boundedText(quadro.banca || article.banca, 120),
+      inscricao: boundedText(quadro.inscricao, 160),
+      prova: boundedText(quadro.prova, 160),
+      vagas: boundedText(quadro.vagas || article.vagas, 80),
+      salario: boundedText(quadro.salario || article.salario_maximo, 80),
+      requisito: boundedText(quadro.requisito, 240),
+    },
+  };
 }
 
 function validateNewsSourceUrl(value = '') {
@@ -704,39 +757,43 @@ exports.salvarNoticiaCache = onCall(
     }
 
     try {
+      // O cache e global: somente uma identidade administrativa validada no
+      // servidor pode publicar conteudo que sera exibido para outros usuarios.
+      await assertAdminCaller(request);
       const { url, artigo } = request.data ?? {};
-      if (!url || typeof url !== 'string' || !/^https?:\/\//i.test(url)) {
-        throw new HttpsError('invalid-argument', 'URL de noticia invalida.');
-      }
+      const safeUrl = validateNewsSourceUrl(url);
       if (!artigo || typeof artigo !== 'object') {
         throw new HttpsError('invalid-argument', 'Artigo invalido.');
       }
 
-      const serialized = JSON.stringify(artigo);
+      const safeArticle = sanitizeNewsArticle(artigo);
+      const serialized = JSON.stringify(safeArticle);
       if (Buffer.byteLength(serialized, 'utf8') > NEWS_CACHE_MAX_ARTICLE_BYTES) {
         throw new HttpsError('invalid-argument', 'Artigo acima do limite permitido para cache.');
       }
 
-      const key = safeDocIdFromUrl(url);
+      const key = safeDocIdFromUrl(safeUrl);
       if (!key) {
         throw new HttpsError('invalid-argument', 'Nao foi possivel gerar chave de cache.');
       }
 
       await reserveNewsCacheQuota(uid);
       await admin.firestore().collection('noticiaCache').doc(key).set({
-        artigo,
-        sourceUrl: url,
+        artigo: safeArticle,
+        sourceUrl: safeUrl,
         savedBy: uid,
         _savedAt: admin.firestore.FieldValue.serverTimestamp(),
       }, { merge: true });
 
       return { ok: true, key };
     } catch (error) {
-      await logOperationalFailure('system_cache_errors', {
-        uid,
-        code: error?.code || 'internal',
-        message: String(error?.message || error).slice(0, 500),
-      });
+      if (!['permission-denied', 'unauthenticated'].includes(error?.code)) {
+        await logOperationalFailure('system_cache_errors', {
+          uid,
+          code: error?.code || 'internal',
+          message: String(error?.message || error).slice(0, 500),
+        });
+      }
       if (error instanceof HttpsError) throw error;
       throw new HttpsError('internal', 'Nao foi possivel salvar o cache da noticia.');
     }
@@ -786,6 +843,110 @@ exports.buscarConteudoNoticia = onCall(
         message: String(error?.message || error).slice(0, 500),
       });
       throw new HttpsError('unavailable', 'Nao foi possivel carregar a fonte de noticias.');
+    }
+  },
+);
+
+async function reserveSecureUploadQuota(uid, maxUploads) {
+  const day = todayKey();
+  const ref = admin.firestore().collection('system_upload_usage').doc(`${day}_${uid}`);
+  await admin.firestore().runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(ref);
+    const count = Number(snapshot.data()?.count || 0);
+    if (count >= maxUploads) {
+      throw new HttpsError('resource-exhausted', 'Limite diario de uploads atingido.');
+    }
+    transaction.set(ref, {
+      uid,
+      day,
+      count: count + 1,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: snapshot.data()?.createdAt || admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+  });
+}
+
+async function resolveGroupImageOwner(uid, groupId) {
+  const safeGroupId = String(groupId || '').trim();
+  const groupRef = admin.firestore().collection('study_groups').doc(safeGroupId);
+  const [groupSnapshot, memberSnapshot] = await Promise.all([
+    groupRef.get(),
+    groupRef.collection('members').doc(uid).get(),
+  ]);
+  if (!groupSnapshot.exists) throw new HttpsError('not-found', 'Grupo nao encontrado.');
+  const group = groupSnapshot.data() || {};
+  const canManage = group.ownerId === uid || memberSnapshot.data()?.permissions?.manageGroup === true;
+  if (!canManage) throw new HttpsError('permission-denied', 'Sem permissao para alterar a imagem do grupo.');
+  return String(group.ownerId || uid);
+}
+
+exports.uploadSecureImage = onCall(
+  {
+    timeoutSeconds: 120,
+    region: 'us-central1',
+    memory: '1GiB',
+    maxInstances: 2,
+  },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) throw new HttpsError('unauthenticated', 'Login obrigatorio para enviar imagens.');
+    const data = request.data || {};
+    const kind = String(data.kind || '');
+    if (!imageUploadSecurity.ALLOWED_KINDS.has(kind)) {
+      throw new HttpsError('invalid-argument', 'Destino de upload invalido.');
+    }
+
+    try {
+      let storageOwnerId = uid;
+      let quota = 30;
+      if (kind === 'group') storageOwnerId = await resolveGroupImageOwner(uid, data.groupId);
+      if (kind === 'edital-logo' || kind === 'broadcast') {
+        await assertAdminCaller(request);
+        quota = 200;
+      }
+
+      const normalized = await imageUploadSecurity.normalizeImage({
+        base64: data.base64,
+        contentType: data.contentType,
+      });
+      await reserveSecureUploadQuota(uid, quota);
+
+      const randomId = crypto.randomUUID();
+      const storagePath = imageUploadSecurity.buildStoragePath({
+        kind,
+        uid: storageOwnerId,
+        groupId: data.groupId,
+        randomId,
+      });
+      const token = crypto.randomUUID();
+      const bucket = admin.storage().bucket();
+      await bucket.file(storagePath).save(normalized.buffer, {
+        resumable: false,
+        metadata: {
+          contentType: normalized.contentType,
+          cacheControl: 'public,max-age=31536000,immutable',
+          metadata: {
+            firebaseStorageDownloadTokens: token,
+            uploadedBy: uid,
+            uploadKind: kind,
+          },
+        },
+      });
+      const url = `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(bucket.name)}/o/${encodeURIComponent(storagePath)}?alt=media&token=${encodeURIComponent(token)}`;
+      return {
+        ok: true,
+        url,
+        path: storagePath,
+        contentType: normalized.contentType,
+        width: normalized.width,
+        height: normalized.height,
+      };
+    } catch (error) {
+      if (error instanceof HttpsError) throw error;
+      const allowedCodes = new Set(['invalid-argument', 'unauthenticated', 'permission-denied', 'not-found', 'resource-exhausted']);
+      const code = allowedCodes.has(error?.code) ? error.code : 'internal';
+      if (code === 'internal') console.error('Falha no upload seguro:', error);
+      throw new HttpsError(code, error?.message || 'Nao foi possivel enviar a imagem.');
     }
   },
 );
@@ -1121,6 +1282,21 @@ exports.atualizarRankingsAtivos = onSchedule(
   async () => gamification.refreshActiveUserRankings(),
 );
 
+// Recuperação única dos valores de sequência que foram sobrescritos pela
+// validação retroativa. A própria rotina registra a conclusão no Firestore.
+exports.recuperarSequenciasHistoricas = onSchedule(
+  {
+    schedule: 'every 1 minutes',
+    timeZone: 'America/Bahia',
+    region: 'us-central1',
+    retryCount: 3,
+    timeoutSeconds: 540,
+    memory: '1GiB',
+    maxInstances: 1,
+  },
+  async () => gamification.recoverHistoricalStreaks(),
+);
+
 exports.atualizarRankingsMensaisGrupos = onSchedule(
   {
     schedule: 'every day 03:30',
@@ -1165,6 +1341,7 @@ exports.migrarGamificacaoV2 = onCall(
 
 exports.__test = {
   estimateTokenCost,
+  sanitizeNewsArticle,
   normalizeSurface,
   safeDocIdFromUrl,
   validateNewsSourceUrl,

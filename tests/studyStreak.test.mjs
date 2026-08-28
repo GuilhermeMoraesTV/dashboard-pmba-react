@@ -404,3 +404,76 @@ test('multiplos planejamentos escolhem o melhor contexto com desempate determini
     studyWeekdays: [1, 2, 3, 4, 5],
   });
 });
+
+test('preserva sequencia historica longa de 121 dias sem penalizar por regras retroativas', () => {
+  // Gera 24 semanas completas de segunda a sexta (120 dias de estudo) + 1 dia (segunda-feira 2026-08-24) = 121 dias
+  const studyDates = [];
+  const start = new Date('2026-03-09T12:00:00Z'); // segunda-feira
+  let cursor = new Date(start);
+  const end = new Date('2026-08-24T12:00:00Z'); // segunda-feira
+
+  while (cursor <= end) {
+    const day = cursor.getUTCDay();
+    if (day >= 1 && day <= 5) {
+      studyDates.push(cursor.toISOString().slice(0, 10));
+    }
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+
+  // Insere registros com minutos variados no passado (< 2026-08-15) e cumprindo meta a partir da vigência
+  const historicalRecords = studyDates.map((data, idx) => ({
+    id: `hist-${idx}`,
+    data,
+    tempoEstudadoMinutos: data >= '2026-08-15' ? 60 : (idx % 2 === 0 ? 30 : 60),
+    origemConclusao: 'timer',
+  }));
+
+  const activeCycle = cycle({
+    id: 'cycle-ongoing',
+    dataInicioPlanejamento: '2026-03-09',
+    diasEstudo: { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1 },
+  });
+
+  const result = calculateCanonicalStudyStreak({
+    records: historicalRecords,
+    cycles: [activeCycle],
+    now: new Date('2026-08-24T12:00:00-03:00'),
+  });
+
+  assert.equal(result.currentStreak, studyDates.length);
+  assert.ok(result.currentStreak >= 121);
+});
+
+
+test('preserva historico continuo mesmo quando novo ciclo foi criado recentemente', () => {
+  // 30 dias de estudo no passado (julho/agosto) antes do ciclo atual criado em 2026-08-17
+  const dates = [
+    '2026-08-03', '2026-08-04', '2026-08-05', '2026-08-06', '2026-08-07',
+    '2026-08-10', '2026-08-11', '2026-08-12', '2026-08-13', '2026-08-14',
+    '2026-08-17', '2026-08-18', '2026-08-19', '2026-08-20', '2026-08-21',
+  ];
+  const newCycle = cycle({
+    id: 'cycle-recent',
+    dataInicioPlanejamento: '2026-08-17', // criado recentemente
+    diasEstudo: { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1 },
+  });
+
+  const result = calculateCanonicalStudyStreak({
+    records: recordsFor(dates, { tempoEstudadoMinutos: 60 }),
+    cycles: [newCycle],
+    now: new Date('2026-08-21T12:00:00-03:00'),
+  });
+
+  assert.equal(result.currentStreak, 15);
+});
+
+test('usa sequencia persistida anterior como base e aplica a regra nova somente depois do corte', () => {
+  const result = calculateCanonicalStudyStreak({
+    records: recordsFor(['2026-08-17'], { tempoEstudadoMinutos: 60 }),
+    cycles: [cycle({ dataInicioPlanejamento: '2026-08-17' })],
+    historicalStreakBaseline: 121,
+    now: new Date('2026-08-17T12:00:00-03:00'),
+  });
+
+  assert.equal(result.currentStreak, 122);
+});

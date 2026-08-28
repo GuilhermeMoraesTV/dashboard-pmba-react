@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { AlertTriangle, ArrowLeft, ArrowRight, CheckCircle2, RefreshCw, Settings2, Layers, Target, Clock, X } from 'lucide-react';
 import { collection, getDocs } from 'firebase/firestore';
@@ -231,7 +231,7 @@ function CicloCreateWizard({
     passo > 1
   );
 
-  const aplicarEstadoWizard = (state, stepOverride = null) => {
+  const aplicarEstadoWizard = useCallback((state, stepOverride = null) => {
     if (!state) return;
 
     setPasso(clampWizardStep(stepOverride ?? state.passo ?? (isEditMode ? 2 : 1), isEditMode));
@@ -266,7 +266,7 @@ function CicloCreateWizard({
     setDisciplinaTodosDiasIds(
       normalizarDisciplinaTodosDiasIds(state.disciplinaTodosDiasIds || state.disciplinaTodosDiasId)
     );
-  };
+  }, [isEditMode]);
 
   const salvarRascunhoAtual = () => {
     if (isEditMode) return;
@@ -364,13 +364,18 @@ function CicloCreateWizard({
     if (!isEditMode || !initialState) return;
     aplicarEstadoWizard(initialState, initialStep);
     setMostrandoRascunho(false);
-  }, [isEditMode, initialState, initialStep]);
+  }, [isEditMode, initialState, initialStep, aplicarEstadoWizard]);
+
+  const salvarRascunhoAtualRef = useRef(salvarRascunhoAtual);
+  useEffect(() => {
+    salvarRascunhoAtualRef.current = salvarRascunhoAtual;
+  });
 
   useEffect(() => {
     if (isEditMode) return;
     if (!possuiDadosParaRascunho) return;
     const timer = setTimeout(() => {
-      salvarRascunhoAtual();
+      salvarRascunhoAtualRef.current();
     }, 400);
     return () => clearTimeout(timer);
   }, [

@@ -8,6 +8,8 @@ if (!admin.apps.length) {
 const db = () => admin.firestore();
 const serverTimestamp = () => FieldValue.serverTimestamp();
 const userDeletionStarted = async (uid) => (await db().collection('system_deleted_users').doc(uid).get()).exists;
+const HISTORICAL_STREAK_RECOVERY_VERSION = '2026-08-28-persisted-baseline-v3';
+const HISTORICAL_STREAK_RECOVERY_BATCH_SIZE = 20;
 let domainPromise;
 const domain = () => {
   if (!domainPromise) domainPromise = import('./domain.mjs');
@@ -32,7 +34,6 @@ const userNameFrom = (userDoc = {}, authUser = null) => (
 );
 
 const isCompletedSchedule = (schedule = {}) => {
-  if (schedule.concluido === true || schedule.finalizado === true || schedule.status === 'concluido') return true;
   const totalWeeks = Number(schedule.totalSemanasNecessarias || schedule.totalSemanas || 0);
   const templateSlots = Array.isArray(schedule.semanaTemplate) ? schedule.semanaTemplate.filter((slot) => !slot?.isRevisaoAuto) : [];
   const progressWeeks = Object.values(schedule.progresso || {});
@@ -371,13 +372,14 @@ const updateRankingMetricPositions = async ({ membersRef, rules }) => {
 
 const buildCompletionEvents = async ({ cycleRounds, schedules, cutoffMillis }) => {
   const rules = await domain();
-  const events = [];
+  const candidates = [];
   cycleRounds.forEach((round) => {
+    if (!round.fechamentoReal || !Number.isInteger(Number(round.numeroRodada)) || Number(round.numeroRodada) < 1) return;
     const millis = sourceCreatedMillis(round);
     if (cutoffMillis && millis <= cutoffMillis) return;
     const dateKey = rules.toDateKey(round.fechamentoReal || round.fechadoEm || round.criadoEm || round.dataFim || millis);
     if (!dateKey) return;
-    events.push({
+    candidates.push({
       id: `academic_cycle_round_${round.cycleId}_${round.id}`,
       sourceType: 'cycle_round',
       sourceId: `${round.cycleId}:${round.id}`,
@@ -397,7 +399,7 @@ const buildCompletionEvents = async ({ cycleRounds, schedules, cutoffMillis }) =
     if (cutoffMillis && millis <= cutoffMillis) return;
     const dateKey = rules.toDateKey(schedule.concluidoEm || schedule.finalizadoEm || schedule.atualizadoEm || schedule.dataFim || millis);
     if (!dateKey) return;
-    events.push({
+    candidates.push({
       id: `academic_schedule_complete_${schedule.id}`,
       sourceType: 'schedule_completion',
       sourceId: schedule.id,
@@ -412,7 +414,16 @@ const buildCompletionEvents = async ({ cycleRounds, schedules, cutoffMillis }) =
       category: 'academic',
     });
   });
-  return events;
+  candidates.sort((a, b) => a.sourceMillis - b.sourceMillis || a.id.localeCompare(b.id));
+  const daily = new Map();
+  return candidates.filter((event) => {
+    const state = daily.get(event.dateKey) || { cycleRounds: 0, schedules: 0 };
+    const key = event.sourceType === 'cycle_round' ? 'cycleRounds' : 'schedules';
+    if (state[key] >= 1) return false;
+    state[key] += 1;
+    daily.set(event.dateKey, state);
+    return true;
+  });
 };
 
 const calculateHistoricalState = async (sources, totalXPBeforeAchievements) => {
@@ -424,6 +435,7 @@ const calculateHistoricalState = async (sources, totalXPBeforeAchievements) => {
     cycleReviews: sources.cycleReviews,
     schedules: sources.schedules,
     now: new Date(),
+    historicalStreakBaseline: Number(sources.profile.historicalStreakBaseline?.value || 0),
   });
   const recordMetrics = sources.records.filter(rules.isValidGamificationRecord).map(rules.getStudyMetrics);
   const simulationMetrics = sources.simulations.filter(rules.isValidGamificationRecord).map(rules.getSimuladoMetrics);
@@ -999,6 +1011,97 @@ const refreshActiveUserRankings = async () => {
   return { weekId, ...counts };
 };
 
+// Reprocessa em lotes pequenos os perfis que foram gravados com a regra de
+// sequência retroativa. O marcador torna a operação idempotente e impede que
+// o agendamento volte a recalcular toda a base depois da recuperação.
+const recoverHistoricalStreaks = async () => {
+  const recoveryRef = db().collection('system_maintenance').doc('historical_streak_recovery');
+  const recoverySnapshot = await recoveryRef.get();
+  const recovery = recoverySnapshot.data() || {};
+  if (recovery.version === HISTORICAL_STREAK_RECOVERY_VERSION && recovery.status === 'completed') {
+    return { status: 'completed', processedCount: 0, cursor: recovery.cursor || null };
+  }
+
+  const afterUid = recovery.version === HISTORICAL_STREAK_RECOVERY_VERSION
+    && typeof recovery.cursor === 'string' && recovery.cursor
+    ? recovery.cursor
+    : null;
+  let query = db().collection('users').orderBy(admin.firestore.FieldPath.documentId()).limit(HISTORICAL_STREAK_RECOVERY_BATCH_SIZE);
+  if (afterUid) query = query.startAfter(afterUid);
+  const usersSnapshot = await query.get();
+  let processedCount = 0;
+  let failedCount = 0;
+  let cursor = afterUid;
+  const weeklyRootsSnapshot = await db().collection('weekly_rankings').get();
+  const weeklyRoots = [...weeklyRootsSnapshot.docs]
+    .sort((left, right) => right.id.localeCompare(left.id))
+    .slice(0, 16);
+
+  for (const userSnapshot of usersSnapshot.docs) {
+    cursor = userSnapshot.id;
+    try {
+      const profileRef = userSnapshot.ref.collection('gamification').doc('profile');
+      const profileSnapshot = await profileRef.get();
+      const profile = profileSnapshot.data() || {};
+      const archivedMemberSnapshots = await Promise.all(
+        weeklyRoots.map((weekSnapshot) => weekSnapshot.ref.collection('members').doc(userSnapshot.id).get()),
+      );
+      const persistedCandidates = [
+        profile.streak,
+        profile.currentStreak,
+        profile.historicalStreakBaseline?.value,
+        userSnapshot.data()?.streak,
+        userSnapshot.data()?.currentStreak,
+        ...archivedMemberSnapshots.flatMap((snapshot) => {
+          const member = snapshot.data() || {};
+          return [member.streak, member.currentStreak, member.studyStreak];
+        }),
+        ...(Array.isArray(profile.achievementIds) ? profile.achievementIds : [])
+          .map((id) => String(id).match(/^streak_(\d+)$/)?.[1]),
+      ].map(Number).filter((value) => Number.isFinite(value) && value > 0);
+      const persistedBaseline = persistedCandidates.length ? Math.max(...persistedCandidates) : 0;
+      if (persistedBaseline > Number(profile.historicalStreakBaseline?.value || 0)) {
+        await profileRef.set({
+          historicalStreakBaseline: {
+            value: persistedBaseline,
+            cutoverDate: '2026-08-15',
+            source: 'persisted-ranking-or-profile',
+            recoveredAt: serverTimestamp(),
+          },
+        }, { merge: true });
+      }
+      await recomputeUserGamification(userSnapshot.id);
+      processedCount += 1;
+    } catch (error) {
+      failedCount += 1;
+      console.error(`Falha ao recuperar sequência histórica de ${userSnapshot.id}:`, error);
+    }
+    await recoveryRef.set({
+      version: HISTORICAL_STREAK_RECOVERY_VERSION,
+      status: 'running',
+      cursor,
+      processedCount: FieldValue.increment(processedCount + failedCount ? 1 : 0),
+      failedCount: FieldValue.increment(failedCount ? 1 : 0),
+      updatedAt: serverTimestamp(),
+      startedAt: recovery.startedAt || serverTimestamp(),
+    }, { merge: true });
+    processedCount = 0;
+    failedCount = 0;
+  }
+
+  const completed = usersSnapshot.size < HISTORICAL_STREAK_RECOVERY_BATCH_SIZE;
+  await recoveryRef.set({
+    version: HISTORICAL_STREAK_RECOVERY_VERSION,
+    status: completed ? 'completed' : 'running',
+    cursor,
+    completedAt: completed ? serverTimestamp() : null,
+    updatedAt: serverTimestamp(),
+  }, { merge: true });
+  const result = { status: completed ? 'completed' : 'running', processedCount: usersSnapshot.size, cursor };
+  console.info('Historical streak recovery batch completed', result);
+  return result;
+};
+
 const refreshUserPublicPlanningProfile = async (uid) => {
   if (!uid) return null;
   const rules = await domain();
@@ -1018,7 +1121,12 @@ const refreshUserPublicPlanningProfile = async (uid) => {
     records: dataWithId(recordsSnapshot),
     simulations: dataWithId(simulationsSnapshot),
   };
-  const streakResult = rules.calculateCanonicalStudyStreak({ ...sources, now: new Date() });
+  const profile = profileSnapshot.exists ? profileSnapshot.data() : {};
+  const streakResult = rules.calculateCanonicalStudyStreak({
+    ...sources,
+    now: new Date(),
+    historicalStreakBaseline: Number(profile.historicalStreakBaseline?.value || 0),
+  });
   const payload = {
     editais: buildPublicEditais(sources),
     streak: streakResult.currentStreak,
@@ -1027,7 +1135,6 @@ const refreshUserPublicPlanningProfile = async (uid) => {
   };
   const weekId = rules.getWeekId();
   const monthId = rules.getMonthId();
-  const profile = profileSnapshot.exists ? profileSnapshot.data() : {};
   const refs = [
     db().collection('general_rankings').doc('all').collection('members').doc(uid),
     db().collection('weekly_rankings').doc(weekId).collection('members').doc(uid),
@@ -1531,6 +1638,7 @@ const migrateGamification = async ({ apply = false, uid = null } = {}) => {
 
 module.exports = {
   recomputeUserGamification,
+  recoverHistoricalStreaks,
   refreshUserGroupMonthlyRankings,
   refreshStudyGroupMonthlyRankings,
   refreshUserPublicPlanningProfile,

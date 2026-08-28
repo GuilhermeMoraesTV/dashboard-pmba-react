@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { motion as Motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
-import { auth, db, storage } from '../firebaseConfig';
+import { auth, db } from '../firebaseConfig';
 import { buildInitialAccessProfile, LEGACY_ADMIN_UID } from '../auth/accessControl';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import AuthLayout from './auth/AuthLayout';
+import { uploadSecureImage, validateImageFile } from '../services/secureImageUpload';
 
 // --- Ícones ---
 const IconEmail = () => (
@@ -78,11 +78,20 @@ function Signup({ onSetLightTheme }) {
   };
   const isPasswordValid = Object.values(passwordRequirements).every(req => req);
 
-  const handlePhotoChange = (e) => {
+  const handlePhotoChange = async (e) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      setPhoto(file);
-      setPhotoPreview(URL.createObjectURL(file));
+      try {
+        await validateImageFile(file);
+        setPhoto(file);
+        setPhotoPreview(URL.createObjectURL(file));
+        setError('');
+      } catch (validationError) {
+        e.target.value = '';
+        setPhoto(null);
+        setPhotoPreview(null);
+        setError(validationError.message);
+      }
     }
   };
 
@@ -106,9 +115,7 @@ function Signup({ onSetLightTheme }) {
       let photoURL = null;
 
       if (photo) {
-        const storageRef = ref(storage, `profile_images/${user.uid}/${photo.name}`);
-        const snapshot = await uploadBytes(storageRef, photo);
-        photoURL = await getDownloadURL(snapshot.ref);
+        ({ url: photoURL } = await uploadSecureImage(photo, { kind: 'profile-avatar' }));
       }
 
       await updateProfile(user, {
@@ -184,7 +191,7 @@ function Signup({ onSetLightTheme }) {
                   className="inline-block text-xs text-red-500 font-bold hover:text-red-400 cursor-pointer uppercase tracking-wide"
                 >
                   Selecionar Arquivo
-                  <input id="photo-upload" type="file" accept="image/*" onChange={handlePhotoChange} className="hidden" />
+                  <input id="photo-upload" type="file" accept="image/jpeg,image/png,image/webp" onChange={handlePhotoChange} className="hidden" />
                 </label>
               </div>
             </div>

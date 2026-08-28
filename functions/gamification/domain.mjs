@@ -56,6 +56,7 @@ const n = (value) => {
 };
 
 const integer = (value) => Math.max(0, Math.floor(n(value)));
+const boundedInteger = (value, maximum) => Math.min(integer(value), maximum);
 const pad = (value) => String(value).padStart(2, '0');
 
 export const toDateKey = (value = new Date()) => {
@@ -222,21 +223,21 @@ export const isValidGamificationRecord = (record = {}) => {
 };
 
 export const getStudyMetrics = (record = {}) => ({
-  minutes: integer(record.tempoEstudadoMinutos ?? record.duracaoMinutos ?? record.minutes),
-  questions: integer(record.questoesFeitas ?? record.totalQuestoes ?? record.questions),
+  minutes: boundedInteger(record.tempoEstudadoMinutos ?? record.duracaoMinutos ?? record.minutes, GAMIFICATION_CONFIG.dailyLimits.minutes),
+  questions: boundedInteger(record.questoesFeitas ?? record.totalQuestoes ?? record.questions, GAMIFICATION_CONFIG.dailyLimits.questions),
   correct: Math.min(
-    integer(record.questoesFeitas ?? record.totalQuestoes ?? record.questions),
-    integer(record.acertos ?? record.questoesAcertadas ?? record.correct),
+    boundedInteger(record.questoesFeitas ?? record.totalQuestoes ?? record.questions, GAMIFICATION_CONFIG.dailyLimits.questions),
+    boundedInteger(record.acertos ?? record.questoesAcertadas ?? record.correct, GAMIFICATION_CONFIG.dailyLimits.correct),
   ),
   date: record.data || record.date || record.timestamp || record.createdAt,
 });
 
 export const getSimuladoMetrics = (simulado = {}) => ({
-  minutes: integer(simulado.durationMinutes ?? simulado.duracaoMinutos ?? simulado.tempoEstudadoMinutos),
-  questions: integer(simulado.resumo?.totalQuestoes ?? simulado.totalQuestoes ?? simulado.questoesFeitas),
+  minutes: boundedInteger(simulado.durationMinutes ?? simulado.duracaoMinutos ?? simulado.tempoEstudadoMinutos, GAMIFICATION_CONFIG.dailyLimits.minutes),
+  questions: boundedInteger(simulado.resumo?.totalQuestoes ?? simulado.totalQuestoes ?? simulado.questoesFeitas, GAMIFICATION_CONFIG.dailyLimits.questions),
   correct: Math.min(
-    integer(simulado.resumo?.totalQuestoes ?? simulado.totalQuestoes ?? simulado.questoesFeitas),
-    integer(simulado.resumo?.totalAcertos ?? simulado.totalAcertos ?? simulado.acertos),
+    boundedInteger(simulado.resumo?.totalQuestoes ?? simulado.totalQuestoes ?? simulado.questoesFeitas, GAMIFICATION_CONFIG.dailyLimits.questions),
+    boundedInteger(simulado.resumo?.totalAcertos ?? simulado.totalAcertos ?? simulado.acertos, GAMIFICATION_CONFIG.dailyLimits.correct),
   ),
   date: simulado.data || simulado.date || simulado.timestamp || simulado.createdAt,
 });
@@ -274,11 +275,27 @@ const sourceMillis = (source = {}) => {
   return Number.isNaN(date.getTime()) ? 0 : date.getTime();
 };
 
-const sumRankingMetrics = (sources) => sources.reduce((sum, source) => ({
-  minutes: sum.minutes + source.metrics.minutes,
-  questions: sum.questions + source.metrics.questions,
-  correct: sum.correct + source.metrics.correct,
-}), { minutes: 0, questions: 0, correct: 0 });
+const sumRankingMetrics = (sources) => {
+  const daily = new Map();
+  sources.forEach((source) => {
+    const dateKey = toDateKey(source.metrics.date || source.millis);
+    if (!dateKey) return;
+    const current = daily.get(dateKey) || { minutes: 0, questions: 0, correct: 0 };
+    const nextMinutes = Math.min(GAMIFICATION_CONFIG.dailyLimits.minutes, current.minutes + source.metrics.minutes);
+    const nextQuestions = Math.min(GAMIFICATION_CONFIG.dailyLimits.questions, current.questions + source.metrics.questions);
+    const nextCorrect = Math.min(
+      nextQuestions,
+      GAMIFICATION_CONFIG.dailyLimits.correct,
+      current.correct + source.metrics.correct,
+    );
+    daily.set(dateKey, { minutes: nextMinutes, questions: nextQuestions, correct: nextCorrect });
+  });
+  return [...daily.values()].reduce((sum, metrics) => ({
+    minutes: sum.minutes + metrics.minutes,
+    questions: sum.questions + metrics.questions,
+    correct: sum.correct + metrics.correct,
+  }), { minutes: 0, questions: 0, correct: 0 });
+};
 
 export const calculateRankingPeriodMetrics = ({ records = [], simulations = [], now = new Date() } = {}) => {
   const nowMillis = now instanceof Date ? now.getTime() : Number(now);
@@ -744,18 +761,92 @@ const nextExpectedStudyDate = (dateKey, studyWeekdays, restDates, limit = 14) =>
   return null;
 };
 
-const evaluatePlannedStudyStreak = ({ plan, dailyActivityMinutes, cycleReviews = [], todayKey, lookbackDays }) => {
+// A regra de meta completa/revisões não pode recalcular períodos anteriores à
+// sua vigência. A base anterior é preservada e a regra nova apenas continua
+// ou encerra a sequência a partir deste marco.
+export const STRICT_STREAK_RULES_START_DATE = '2026-08-15';
+
+const calculateLegacyStreakBeforeStrictRules = ({ records = [], strictStartKey, lookbackDays }) => {
+  if (!strictStartKey) return 0;
+  const earliestAllowed = addDateKeyDays(strictStartKey, -Math.max(1, integer(lookbackDays)));
+  const studyDates = new Set(
+    (Array.isArray(records) ? records : [])
+      .filter(isValidGamificationRecord)
+      .map((record) => toDateKey(getStudyMetrics(record).date))
+      .filter((dateKey) => Boolean(dateKey && dateKey < strictStartKey && dateKey >= earliestAllowed)),
+  );
+  let cursor = addDateKeyDays(strictStartKey, -1);
+  let streak = 0;
+  while (cursor && studyDates.has(cursor)) {
+    streak += 1;
+    cursor = addDateKeyDays(cursor, -1);
+  }
+  return streak;
+};
+
+const calculateLegacyWeekdayStreakBeforeStrictRules = ({ records = [], strictStartKey, lookbackDays }) => {
+  if (!strictStartKey) return 0;
+  const earliestAllowed = addDateKeyDays(strictStartKey, -Math.max(1, integer(lookbackDays)));
+  const studyDates = new Set(
+    (Array.isArray(records) ? records : [])
+      .filter(isValidGamificationRecord)
+      .map((record) => toDateKey(getStudyMetrics(record).date))
+      .filter((dateKey) => Boolean(dateKey && dateKey < strictStartKey && dateKey >= earliestAllowed)),
+  );
+  let cursor = addDateKeyDays(strictStartKey, -1);
+  let streak = 0;
+  while (cursor && cursor >= earliestAllowed) {
+    const weekday = dateKeyToUTCDate(cursor)?.getUTCDay();
+    if (weekday === 0 || weekday === 6) {
+      cursor = addDateKeyDays(cursor, -1);
+      continue;
+    }
+    if (!studyDates.has(cursor)) break;
+    streak += 1;
+    cursor = addDateKeyDays(cursor, -1);
+  }
+  return streak;
+};
+
+const calculateLegacyPlannedStreakBeforeStrictRules = ({ plan, dailyActivityMinutes, strictStartKey, lookbackDays }) => {
+  if (!plan || !strictStartKey) return 0;
+  const studyWeekdays = new Set(getPlanStudyWeekdays(plan));
+  if (!studyWeekdays.size) return 0;
+  const restDates = getPlanRestDateKeys(plan);
+  const totalMinutesByDate = dailyActivityMinutes?.totalMinutesByDate || new Map();
+  const configuredStartKey = getPlanStartKey(plan, new Set(totalMinutesByDate.keys()));
+  if (!configuredStartKey || configuredStartKey >= strictStartKey) return 0;
+  const earliestAllowed = addDateKeyDays(strictStartKey, -Math.max(1, integer(lookbackDays)));
+  let cursor = addDateKeyDays(strictStartKey, -1);
+  let streak = 0;
+  while (cursor && cursor >= configuredStartKey && cursor >= earliestAllowed) {
+    const weekday = dateKeyToUTCDate(cursor)?.getUTCDay();
+    const expected = studyWeekdays.has(weekday) && !restDates.has(cursor);
+    if (expected) {
+      if (Number(totalMinutesByDate.get(cursor) || 0) <= 0) break;
+      streak += 1;
+    }
+    cursor = addDateKeyDays(cursor, -1);
+  }
+  return streak;
+};
+
+const evaluatePlannedStudyStreak = ({ plan, dailyActivityMinutes, cycleReviews = [], todayKey, lookbackDays, historicalStreak = 0 }) => {
   const weekdays = getPlanStudyWeekdays(plan);
   const studyWeekdays = new Set(weekdays);
   const restDates = getPlanRestDateKeys(plan);
   const totalMinutesByDate = dailyActivityMinutes?.totalMinutesByDate || new Map();
   const studyMinutesByDate = dailyActivityMinutes?.studyMinutesByDate || new Map();
-  const startKey = getPlanStartKey(plan, new Set(totalMinutesByDate.keys()));
-  if (!todayKey || !startKey || !studyWeekdays.size || startKey > todayKey) return null;
+  const configuredStartKey = getPlanStartKey(plan, new Set(totalMinutesByDate.keys()));
+  if (!configuredStartKey && !totalMinutesByDate.size && !studyMinutesByDate.size) return null;
+  const startKey = configuredStartKey && configuredStartKey > STRICT_STREAK_RULES_START_DATE
+    ? configuredStartKey
+    : STRICT_STREAK_RULES_START_DATE;
+  if (!todayKey || !studyWeekdays.size || startKey > todayKey) return null;
 
   const earliestAllowed = addDateKeyDays(todayKey, -(Math.max(1, integer(lookbackDays)) - 1));
   let cursor = startKey < earliestAllowed ? earliestAllowed : startKey;
-  let currentStreak = 0;
+  let currentStreak = Math.max(0, integer(historicalStreak));
   let pendingRecoveryDate = null;
   let recoveryDueDate = null;
   const days = {};
@@ -764,9 +855,11 @@ const evaluatePlannedStudyStreak = ({ plan, dailyActivityMinutes, cycleReviews =
     const weekday = dateKeyToUTCDate(cursor)?.getUTCDay();
     const expected = studyWeekdays.has(weekday) && !restDates.has(cursor);
     const plannedMinutes = expected ? getPlanTargetMinutesForDate(plan, cursor) : 0;
-    const qualifiedMinutes = expected ? Math.max(0, Number(totalMinutesByDate.get(cursor) || 0)) : 0;
-    const qualifiedStudyMinutes = expected ? Math.max(0, Number(studyMinutesByDate.get(cursor) || 0)) : 0;
-    const cycleReviewRequirements = expected ? getCycleReviewRequirementsByDate(cycleReviews, plan, cursor) : [];
+    const qualifiedMinutes = Math.max(0, Number(totalMinutesByDate.get(cursor) || 0));
+    const qualifiedStudyMinutes = Math.max(0, Number(studyMinutesByDate.get(cursor) || 0));
+    const cycleReviewRequirements = expected
+      ? getCycleReviewRequirementsByDate(cycleReviews, plan, cursor)
+      : [];
     const pendingReviewCount = cycleReviewRequirements
       .filter((review) => isCycleReviewPendingByDate(review, plan, cursor)).length;
     const plannedReviewMinutes = cycleReviewRequirements.reduce(
@@ -776,10 +869,12 @@ const evaluatePlannedStudyStreak = ({ plan, dailyActivityMinutes, cycleReviews =
     const plannedStudyMinutes = plan.type === 'schedule'
       ? Math.min(plannedMinutes, getScheduleStudyTargetMinutesForDate(plan.data, cursor) || plannedMinutes)
       : Math.max(0, plannedMinutes - Math.min(plannedMinutes, plannedReviewMinutes));
+
     const studied = expected
       && qualifiedMinutes >= plannedMinutes
       && qualifiedStudyMinutes >= plannedStudyMinutes
       && pendingReviewCount === 0;
+
     const isToday = cursor === todayKey;
     let state = STUDY_STREAK_DAY_STATES.NOT_APPLICABLE;
 
@@ -901,12 +996,19 @@ export const calculatePlanStudyStreak = ({
   }
 
   const wrappedPlan = { type: normalizedType, id: planId, data: plan };
+  const dailyActivityMinutes = getPlanDailyActivityMinutes({ records, simulations: simulados, plan: wrappedPlan });
+  const historicalStreak = Math.max(
+    calculateLegacyStreakBeforeStrictRules({ records, strictStartKey: STRICT_STREAK_RULES_START_DATE, lookbackDays }),
+    calculateLegacyWeekdayStreakBeforeStrictRules({ records, strictStartKey: STRICT_STREAK_RULES_START_DATE, lookbackDays }),
+    calculateLegacyPlannedStreakBeforeStrictRules({ plan: wrappedPlan, dailyActivityMinutes, strictStartKey: STRICT_STREAK_RULES_START_DATE, lookbackDays }),
+  );
   const result = evaluatePlannedStudyStreak({
     plan: wrappedPlan,
-    dailyActivityMinutes: getPlanDailyActivityMinutes({ records, simulations: simulados, plan: wrappedPlan }),
+    dailyActivityMinutes,
     cycleReviews,
     todayKey,
     lookbackDays,
+    historicalStreak,
   });
   if (!result) return emptyPlanStudyStreak({ todayKey, source: 'plan_invalid' });
 
@@ -931,9 +1033,15 @@ export const calculateCanonicalStudyStreak = ({
   cycleReviews = [],
   now = new Date(),
   lookbackDays = 3660,
+  historicalStreakBaseline = 0,
 } = {}) => {
   const todayKey = toDateKey(now);
   const studyDates = getQualifiedStudyDates(records, simulados);
+  const rawHistoricalStreak = Math.max(
+    integer(historicalStreakBaseline),
+    calculateLegacyStreakBeforeStrictRules({ records, strictStartKey: STRICT_STREAK_RULES_START_DATE, lookbackDays }),
+    calculateLegacyWeekdayStreakBeforeStrictRules({ records, strictStartKey: STRICT_STREAK_RULES_START_DATE, lookbackDays }),
+  );
   const activePlans = [
     ...(Array.isArray(cycles) ? cycles : [])
       .filter((plan) => plan?.ativo === true && plan?.arquivado !== true)
@@ -944,13 +1052,14 @@ export const calculateCanonicalStudyStreak = ({
   ].filter((plan) => plan.id !== undefined && plan.id !== null && plan.id !== '');
 
   const candidates = activePlans
-    .map((plan) => evaluatePlannedStudyStreak({
-      plan,
-      dailyActivityMinutes: getPlanDailyActivityMinutes({ records, simulations: simulados, plan }),
-      cycleReviews,
-      todayKey,
-      lookbackDays,
-    }))
+    .map((plan) => {
+      const dailyActivityMinutes = getPlanDailyActivityMinutes({ records, simulations: simulados, plan });
+      const historicalStreak = Math.max(
+        rawHistoricalStreak,
+        calculateLegacyPlannedStreakBeforeStrictRules({ plan, dailyActivityMinutes, strictStartKey: STRICT_STREAK_RULES_START_DATE, lookbackDays }),
+      );
+      return evaluatePlannedStudyStreak({ plan, dailyActivityMinutes, cycleReviews, todayKey, lookbackDays, historicalStreak });
+    })
     .filter(Boolean)
     .sort((a, b) => (
       b.currentStreak - a.currentStreak
@@ -978,8 +1087,9 @@ export const calculateBestActivePlanStreak = ({
   cycles = [],
   schedules = [],
   now = new Date(),
+  historicalStreakBaseline = 0,
 } = {}) => {
-  return calculateCanonicalStudyStreak({ records, simulations: simulados, cycles, schedules, now }).currentStreak;
+  return calculateCanonicalStudyStreak({ records, simulations: simulados, cycles, schedules, now, historicalStreakBaseline }).currentStreak;
 };
 
 export const calculateGamificationSnapshot = ({ records = [], simulations = [], simulados = simulations, goals = [], now = new Date() } = {}) => {

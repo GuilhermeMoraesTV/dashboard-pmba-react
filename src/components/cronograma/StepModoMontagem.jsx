@@ -334,7 +334,10 @@ export default function StepModoMontagem({
   const ignoreNextDisciplinaClickRef = useRef(false);
   const modo = config.modoMontagem || 'inteligente';
   const grade = config.gradePersonalizada || {};
-  const disciplinaCores = config.disciplinaCoresPersonalizadas || {};
+  const disciplinaCores = useMemo(
+    () => config.disciplinaCoresPersonalizadas || {},
+    [config.disciplinaCoresPersonalizadas],
+  );
   const disciplinasDisponiveis = useMemo(() => (
     [...disciplinas, ...extraDisciplinas].map((disciplina) => ({
       ...disciplina,

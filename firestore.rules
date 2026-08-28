@@ -231,17 +231,188 @@ service cloud.firestore {
     // Campos que o próprio usuário pode alterar com segurança no documento principal.
     function ownerUserDocTouchedKeysAreSafe() {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-        'createdAt',
         'displayName',
         'email',
         'name',
         'photoURL',
         'coverURL',
         'coverPosition',
-        'studyStats',
         'uid',
         'updatedAt'
       ]);
+    }
+
+    function optionalString(data, field, maxLength) {
+      let value = data.get(field, null);
+      return value == null || (value is string && value.size() <= maxLength);
+    }
+
+    function optionalNumberBetween(data, field, minimum, maximum) {
+      let value = data.get(field, null);
+      return value == null || (value is number && value >= minimum && value <= maximum);
+    }
+
+    function optionalListSize(data, field, maximum) {
+      let value = data.get(field, null);
+      return value == null || (value is list && value.size() <= maximum);
+    }
+
+    function ownerUserDocFieldsAreSafe(userId) {
+      let data = request.resource.data;
+      let coverPosition = data.get('coverPosition', null);
+      return optionalString(data, 'displayName', 120)
+        && optionalString(data, 'name', 120)
+        && optionalString(data, 'email', 320)
+        && (data.get('email', null) == null || data.email == request.auth.token.email)
+        && (data.get('uid', null) == null || data.uid == userId)
+        && (
+          !data.keys().hasAny(['photoURL'])
+          || data.photoURL == null
+          || (data.photoURL is string && data.photoURL.size() <= 2048 && data.photoURL.matches('^https://'))
+        )
+        && (
+          !data.keys().hasAny(['coverURL'])
+          || data.coverURL == null
+          || (data.coverURL is string && data.coverURL.size() <= 2048 && data.coverURL.matches('^https://firebasestorage\\.googleapis\\.com/.*$'))
+        )
+        && (
+          coverPosition == null
+          || (
+            coverPosition is map
+            && coverPosition.keys().hasOnly(['x', 'y'])
+            && optionalNumberBetween(coverPosition, 'x', 0, 100)
+            && optionalNumberBetween(coverPosition, 'y', 0, 100)
+          )
+        );
+    }
+
+    function initialStudyStatsAreSafe() {
+      let stats = request.resource.data.get('studyStats', null);
+      return stats == null
+        || (
+          stats is map
+          && stats.keys().hasOnly(['totalTime', 'completedCycles', 'questionsSolved'])
+          && stats.get('totalTime', 0) == 0
+          && stats.get('completedCycles', 0) == 0
+          && stats.get('questionsSolved', 0) == 0
+        );
+    }
+
+    function academicIdentityIsSafe(data, userId) {
+      return data.get('uid', null) == null || data.uid == userId;
+    }
+
+    function academicDateIsSafe(data) {
+      let value = data.get('data', null);
+      return value == null
+        || value is timestamp
+        || (value is string && value.matches('^20[0-9][0-9]-[0-1][0-9]-[0-3][0-9]$'));
+    }
+
+    function studyRecordIsSafe(userId) {
+      let data = request.resource.data;
+      let questions = data.get('questoesFeitas', data.get('totalQuestoes', data.get('questions', 0)));
+      let correct = data.get('acertos', data.get('questoesAcertadas', data.get('correct', 0)));
+      return academicIdentityIsSafe(data, userId)
+        && academicDateIsSafe(data)
+        && optionalNumberBetween(data, 'tempoEstudadoMinutos', 0, 720)
+        && optionalNumberBetween(data, 'duracaoMinutos', 0, 720)
+        && optionalNumberBetween(data, 'minutes', 0, 720)
+        && optionalNumberBetween(data, 'questoesFeitas', 0, 500)
+        && optionalNumberBetween(data, 'totalQuestoes', 0, 500)
+        && optionalNumberBetween(data, 'questions', 0, 500)
+        && optionalNumberBetween(data, 'acertos', 0, 500)
+        && optionalNumberBetween(data, 'questoesAcertadas', 0, 500)
+        && optionalNumberBetween(data, 'correct', 0, 500)
+        && correct <= questions
+        && optionalString(data, 'disciplinaId', 160)
+        && optionalString(data, 'disciplinaNome', 200)
+        && optionalString(data, 'assunto', 500)
+        && optionalString(data, 'obs', 2000)
+        && optionalString(data, 'tipoEstudo', 80)
+        && optionalString(data, 'tipoRegistro', 80)
+        && optionalString(data, 'cicloId', 160)
+        && optionalString(data, 'cronogramaId', 160)
+        && optionalString(data, 'origemConclusaoId', 240);
+    }
+
+    function simulationSummaryIsSafe(data) {
+      let summary = data.get('resumo', null);
+      return summary == null
+        || (
+          summary is map
+          && optionalNumberBetween(summary, 'totalQuestoes', 0, 500)
+          && optionalNumberBetween(summary, 'totalAcertos', 0, 500)
+          && summary.get('totalAcertos', 0) <= summary.get('totalQuestoes', 500)
+        );
+    }
+
+    function simulationIsSafe(userId) {
+      let data = request.resource.data;
+      let questions = data.get('totalQuestoes', data.get('questoesFeitas', 0));
+      let correct = data.get('totalAcertos', data.get('acertos', 0));
+      return academicIdentityIsSafe(data, userId)
+        && academicDateIsSafe(data)
+        && simulationSummaryIsSafe(data)
+        && optionalNumberBetween(data, 'durationMinutes', 0, 720)
+        && optionalNumberBetween(data, 'duracaoMinutos', 0, 720)
+        && optionalNumberBetween(data, 'tempoEstudadoMinutos', 0, 720)
+        && optionalNumberBetween(data, 'totalQuestoes', 0, 500)
+        && optionalNumberBetween(data, 'questoesFeitas', 0, 500)
+        && optionalNumberBetween(data, 'totalAcertos', 0, 500)
+        && optionalNumberBetween(data, 'acertos', 0, 500)
+        && correct <= questions
+        && optionalString(data, 'nome', 240)
+        && optionalString(data, 'titulo', 240)
+        && optionalString(data, 'categoria', 120);
+    }
+
+    function goalIsSafe(userId) {
+      let data = request.resource.data;
+      return academicIdentityIsSafe(data, userId)
+        && optionalNumberBetween(data, 'hours', 0, 24)
+        && optionalNumberBetween(data, 'questions', 0, 500)
+        && optionalString(data, 'startDate', 10)
+        && optionalString(data, 'name', 200);
+    }
+
+    function cycleIsSafe(userId) {
+      let data = request.resource.data;
+      return academicIdentityIsSafe(data, userId)
+        && optionalString(data, 'nome', 240)
+        && optionalNumberBetween(data, 'conclusoes', 0, 10000)
+        && optionalNumberBetween(data, 'tempoSessaoMinutos', 1, 720)
+        && optionalListSize(data, 'ordemSessoes', 1000)
+        && optionalListSize(data, 'sessoesConcluidas', 1000);
+    }
+
+    function scheduleIsSafe(userId) {
+      let data = request.resource.data;
+      return academicIdentityIsSafe(data, userId)
+        && optionalString(data, 'nome', 240)
+        && optionalNumberBetween(data, 'totalSemanas', 0, 520)
+        && optionalNumberBetween(data, 'totalSemanasNecessarias', 0, 520)
+        && optionalListSize(data, 'semanaTemplate', 1000)
+        && optionalListSize(data, 'disciplinasSnapshot', 1000);
+    }
+
+    function cycleRoundCreateIsSafe(userId, cycleId) {
+      let cyclePath = /databases/$(database)/documents/users/$(userId)/ciclos/$(cycleId);
+      let beforeCycle = get(cyclePath).data;
+      let afterCycle = getAfter(cyclePath).data;
+      let roundNumber = request.resource.data.get('numeroRodada', 0);
+      return roundNumber is int
+        && roundNumber == beforeCycle.get('conclusoes', 0) + 1
+        && afterCycle.get('conclusoes', 0) == roundNumber
+        && request.resource.data.get('fechamentoReal', null) == request.time
+        && request.resource.data.get('criadoEm', null) == request.time
+        && optionalString(request.resource.data, 'inicioPlanejado', 10)
+        && optionalString(request.resource.data, 'fechamentoIdeal', 10)
+        && optionalString(request.resource.data, 'fechamentoRealData', 10)
+        && optionalNumberBetween(request.resource.data, 'atrasoDias', 0, 3650)
+        && optionalNumberBetween(request.resource.data, 'cargaPlanejadaMinutos', 0, 10080)
+        && optionalNumberBetween(request.resource.data, 'cargaCumpridaAteDataIdealMinutos', 0, 10080)
+        && optionalListSize(request.resource.data, 'materiasPendentesNoVencimento', 500);
     }
 
     // Estado de conta e acesso administrativo são alterados apenas pelo backend.
@@ -351,11 +522,16 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
+    match /system_upload_usage/{docId} {
+      allow read: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
     // Cache compartilhado: usuarios autenticados podem ler; somente admin pode popular/alterar.
     // Evita que um cliente comum contamine dados exibidos para outros usuarios.
     match /noticiaCache/{docId} {
       allow read: if isSignedIn();
-      allow create, update, delete: if isAdmin();
+      allow create, update, delete: if false;
     }
 
     match /time_sync/{docId} {
@@ -559,12 +735,15 @@ service cloud.firestore {
           && request.resource.data.uid == request.auth.uid
           && ownerUserDocCreateHasSafeKeys()
           && ownerUserDocHasSafeAccess()
+          && ownerUserDocFieldsAreSafe(userId)
+          && initialStudyStatsAreSafe()
         );
       allow read: if isOwnerOrAdmin(userId);
       allow update: if (isAdmin() && adminUserDocTouchedKeysAreSafe())
         || (
           isOwner(userId)
           && ownerUserDocTouchedKeysAreSafe()
+          && ownerUserDocFieldsAreSafe(userId)
           && (
             !request.resource.data.keys().hasAny(['uid'])
             || request.resource.data.uid == userId
@@ -607,11 +786,63 @@ service cloud.firestore {
         allow update: if isAdmin() || (isOwner(userId) && notificationReadStateUpdateIsSafe());
       }
 
+      match /registrosEstudo/{recordId} {
+        allow read: if isOwnerOrAdmin(userId);
+        allow create, update: if isOwner(userId) && studyRecordIsSafe(userId);
+        allow delete: if isOwner(userId);
+      }
+
+      match /simulados/{simulationId} {
+        allow read: if isOwnerOrAdmin(userId);
+        allow create, update: if isOwner(userId) && simulationIsSafe(userId);
+        allow delete: if isOwner(userId);
+      }
+
+      match /metas/{goalId} {
+        allow read: if isOwnerOrAdmin(userId);
+        allow create, update: if isOwner(userId) && goalIsSafe(userId);
+        allow delete: if isOwner(userId);
+      }
+
+      match /ciclos/{cycleId} {
+        allow read: if isOwnerOrAdmin(userId);
+        allow create, update: if isOwner(userId) && cycleIsSafe(userId);
+        allow delete: if isOwner(userId);
+
+        match /rodadas/{roundId} {
+          allow read: if isOwnerOrAdmin(userId);
+          allow create: if isOwner(userId) && cycleRoundCreateIsSafe(userId, cycleId);
+          allow update: if false;
+          allow delete: if isOwner(userId);
+        }
+
+        match /{nestedCollection}/{nestedDocument=**} {
+          allow read: if nestedCollection != 'rodadas' && isOwnerOrAdmin(userId);
+          allow write: if nestedCollection != 'rodadas' && isOwner(userId);
+        }
+      }
+
+      match /cronogramas/{scheduleId} {
+        allow read: if isOwnerOrAdmin(userId);
+        allow create, update: if isOwner(userId) && scheduleIsSafe(userId);
+        allow delete: if isOwner(userId);
+
+        match /{nestedCollection}/{nestedDocument=**} {
+          allow read: if isOwnerOrAdmin(userId);
+          allow write: if isOwner(userId);
+        }
+      }
+
       // Exige ao menos uma subcoleção e um documento; o wildcard recursivo
       // sozinho também casaria o documento users/{userId} em rules_version 2.
       match /{subCollection}/{document=**} {
         allow read, write, delete: if subCollection != 'gamification'
           && subCollection != 'notifications'
+          && subCollection != 'registrosEstudo'
+          && subCollection != 'simulados'
+          && subCollection != 'metas'
+          && subCollection != 'ciclos'
+          && subCollection != 'cronogramas'
           && isOwnerOrAdmin(userId);
       }
     }

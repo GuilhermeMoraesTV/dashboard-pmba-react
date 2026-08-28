@@ -8,7 +8,7 @@ import {
 import {
   collection, query, where, orderBy, onSnapshot, doc, updateDoc, deleteDoc, setDoc, getDocs, writeBatch
 } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { ref, deleteObject } from 'firebase/storage';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CATALOGO_EDITAIS } from './AdminPage/EditaisManager';
 import { useForceUnlock } from '../hooks/useForceUnlock';
@@ -20,12 +20,20 @@ import {
   moveCoverPosition,
   normalizeCoverPosition,
 } from '../utils/profileCover';
+import { uploadSecureImage, validateImageFile } from '../services/secureImageUpload';
 import {
   getAdminRecordDate,
   normalizeCorrect,
   normalizeQuestions,
   normalizeStudyMinutes,
 } from '../utils/adminAnalytics';
+import {
+  applyUserFontSize,
+  DEFAULT_USER_FONT_SIZE,
+  normalizeUserFontSize,
+  USER_FONT_SIZE_OPTIONS,
+  USER_FONT_SIZE_STORAGE_KEY,
+} from '../utils/userFontPreference';
 
 import {
   User, Save, X, Archive, Loader2, Upload, Trash2,
@@ -34,7 +42,7 @@ import {
   ArchiveRestore, Search, LayoutDashboard, ArrowLeft,
   Edit2, AlertOctagon, RotateCw, BookOpen, ChevronLeft, ChevronRight,
   CornerDownRight, Check, History, Calendar, Award, ListChecks,
-  CircleCheckBig, CircleX, Flame
+  CircleCheckBig, CircleX, Flame, Type
 } from 'lucide-react';
 
 // --- UTILITÁRIOS ---
@@ -553,6 +561,10 @@ function ProfilePage({
   const [senhaLoading, setSenhaLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
   const [showDangerZone, setShowDangerZone] = useState(false);
+  const [fontSizePreference, setFontSizePreference] = useState(() => (
+    normalizeUserFontSize(localStorage.getItem(USER_FONT_SIZE_STORAGE_KEY))
+  ));
+  const [fontSizeSaving, setFontSizeSaving] = useState(false);
   const [photo, setPhoto] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(user?.photoURL);
   const [photoLoading, setPhotoLoading] = useState(false);
@@ -590,6 +602,19 @@ function ProfilePage({
   const [cicloActionLoading, setCicloActionLoading] = useState(false);
 
   useEffect(() => { if (message.text) { const timer = setTimeout(() => { setMessage({ type: '', text: '' }); }, 5000); return () => clearTimeout(timer); } }, [message]);
+
+  useEffect(() => {
+    if (!user?.uid) return undefined;
+    return onSnapshot(doc(db, 'users', user.uid, 'settings', 'uiPreferences'), (snapshot) => {
+      const nextFontSize = normalizeUserFontSize(
+        snapshot.exists()
+          ? snapshot.data()?.fontSize
+          : DEFAULT_USER_FONT_SIZE,
+      );
+      localStorage.setItem(USER_FONT_SIZE_STORAGE_KEY, nextFontSize);
+      setFontSizePreference(nextFontSize);
+    });
+  }, [user?.uid]);
 
   useEffect(() => {
     if (coverFile) return;
@@ -748,9 +773,7 @@ function ProfilePage({
         if (!photo) return;
         setPhotoLoading(true);
         try {
-          const storageRef = ref(storage, `profile_images/${user.uid}/${photo.name}`);
-          const snapshot = await uploadBytes(storageRef, photo);
-          const photoURL = await getDownloadURL(snapshot.ref);
+          const { url: photoURL } = await uploadSecureImage(photo, { kind: 'profile-avatar' });
 
           await updateProfile(auth.currentUser, { photoURL });
           await setDoc(doc(db, 'users', user.uid), { photoURL }, { merge: true });
@@ -766,6 +789,20 @@ function ProfilePage({
         }
       };
 
+    const handlePhotoSelection = async (event) => {
+      const selectedFile = event.target.files?.[0];
+      event.target.value = '';
+      if (!selectedFile) return;
+      try {
+        await validateImageFile(selectedFile);
+        setPhoto(selectedFile);
+        setPhotoPreview(URL.createObjectURL(selectedFile));
+      } catch (validationError) {
+        setPhoto(null);
+        setMessage({ type: 'error', text: validationError.message });
+      }
+    };
+
     const resetCoverDraft = () => {
       setCoverFile(null);
       setCoverPreview(coverURL || null);
@@ -776,10 +813,17 @@ function ProfilePage({
       savedCoverPositionRef.current = null;
     };
 
-    const handleCoverSelection = (event) => {
+    const handleCoverSelection = async (event) => {
       const selectedFile = event.target.files?.[0];
       event.target.value = '';
       if (!selectedFile) return;
+
+      try {
+        await validateImageFile(selectedFile);
+      } catch (validationError) {
+        setMessage({ type: 'error', text: validationError.message });
+        return;
+      }
 
       const objectURL = URL.createObjectURL(selectedFile);
       const image = new Image();
@@ -882,10 +926,9 @@ function ProfilePage({
             throw Object.assign(new Error('Sessao autenticada indisponivel para o upload.'), { code: 'auth/user-mismatch' });
           }
           await auth.currentUser.getIdToken(true);
-          const safeName = coverFile.name.replace(/[^a-zA-Z0-9._-]/g, '-');
-          uploadedRef = ref(storage, `profile_images/${user.uid}/covers/${Date.now()}-${safeName}`);
-          const snapshot = await uploadBytes(uploadedRef, coverFile, { contentType: coverFile.type });
-          nextCoverURL = await getDownloadURL(snapshot.ref);
+          const upload = await uploadSecureImage(coverFile, { kind: 'profile-cover' });
+          uploadedRef = ref(storage, upload.path);
+          nextCoverURL = upload.url;
         }
 
         const nextCoverPosition = normalizeCoverPosition(coverPositionDraft);
@@ -962,6 +1005,27 @@ function ProfilePage({
           setMessage({ type: 'success', text: `Link enviado para ${user.email}.` });
       }
       catch (error) { setMessage({ type: 'error', text: 'Erro ao enviar email.' }); } finally { setSenhaLoading(false); }
+    };
+
+    const handleFontSizePreferenceChange = async (nextValue) => {
+      const nextFontSize = normalizeUserFontSize(nextValue);
+      setFontSizePreference(nextFontSize);
+      localStorage.setItem(USER_FONT_SIZE_STORAGE_KEY, nextFontSize);
+      applyUserFontSize(nextFontSize);
+      setFontSizeSaving(true);
+
+      try {
+        await setDoc(doc(db, 'users', user.uid, 'settings', 'uiPreferences'), {
+          fontSize: nextFontSize,
+          updatedAt: new Date(),
+        }, { merge: true });
+        setMessage({ type: 'success', text: 'Tamanho da fonte atualizado.' });
+      } catch (error) {
+        console.error('Erro ao salvar tamanho da fonte:', error);
+        setMessage({ type: 'error', text: 'Falha ao salvar tamanho da fonte.' });
+      } finally {
+        setFontSizeSaving(false);
+      }
     };
 
     const handleDeleteAccount = async () => {
@@ -1054,7 +1118,7 @@ function ProfilePage({
                       aria-label={coverURL || coverFile ? 'Substituir capa' : 'Adicionar capa'}
                   >
                       <Camera size={18}/>
-                      <input type="file" accept="image/*" onChange={handleCoverSelection} className="hidden" disabled={Boolean(coverAction) || coverLoading}/>
+                      <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleCoverSelection} className="hidden" disabled={Boolean(coverAction) || coverLoading}/>
                   </label>
 
                   {!coverFile && coverURL && (
@@ -1092,7 +1156,7 @@ function ProfilePage({
                           <div className="relative h-32 w-32 overflow-hidden rounded-full border-4 border-white bg-zinc-100 shadow-2xl ring-4 ring-zinc-100 dark:border-zinc-800 dark:bg-zinc-900 dark:ring-zinc-900/50 md:h-40 md:w-40">
                               {photoPreview ? (<img src={photoPreview} alt="User" className="h-full w-full object-cover transition-transform duration-500 group-hover/avatar:scale-110" />) : (<div className="flex h-full w-full items-center justify-center bg-zinc-200 text-zinc-400 dark:bg-zinc-800"><User size={48}/></div>)}
                               <label className="absolute inset-0 flex cursor-pointer flex-col items-center justify-center bg-black/60 text-white opacity-0 backdrop-blur-sm transition-all group-hover/avatar:opacity-100">
-                                  <Camera size={24} className="mb-1" /><span className="text-[9px] font-bold uppercase tracking-widest">Editar</span><input type="file" accept="image/*" onChange={(e) => { if(e.target.files?.[0]) { setPhoto(e.target.files[0]); setPhotoPreview(URL.createObjectURL(e.target.files[0])); } }} className="hidden" />
+                                  <Camera size={24} className="mb-1" /><span className="text-[9px] font-bold uppercase tracking-widest">Editar</span><input type="file" accept="image/jpeg,image/png,image/webp" onChange={handlePhotoSelection} className="hidden" />
                               </label>
                           </div>
                           <div className="absolute bottom-2 right-2 z-10 h-6 w-6 rounded-full border-4 border-white bg-emerald-500 shadow-sm dark:border-zinc-950"></div>
@@ -1168,7 +1232,7 @@ function ProfilePage({
           <ProfileMetricCard icon={ListChecks} label="Questões" value={stats.questoes.toLocaleString('pt-BR')} subtext="Resolvidas" delay={0.1}/>
           <ProfileMetricCard icon={CircleCheckBig} label="Acertos" value={stats.acertos.toLocaleString('pt-BR')} subtext="Respostas certas" delay={0.15}/>
           <ProfileMetricCard icon={CircleX} label="Erros" value={stats.erros.toLocaleString('pt-BR')} subtext="Respostas erradas" delay={0.2}/>
-          <ProfileMetricCard icon={CalendarIcon} label="Dias Ativos" value={stats.diasAtivos.toLocaleString('pt-BR')} subtext="Com estudo registrado" delay={0.25} className="col-span-2 sm:col-span-1"/>
+          <ProfileMetricCard icon={CalendarIcon} label="Dias Ativos" value={stats.diasAtivos.toLocaleString('pt-BR')} subtext="Com estudo registrado" delay={0.25}/>
           <ProfileMetricCard icon={Flame} label="Sequência" value={`${Math.max(0, Number(studyStreak || 0))}d`} subtext="Estudos qualificados" delay={0.3}/>
       </div>
 
@@ -1194,6 +1258,40 @@ function ProfilePage({
                       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                           <div><h4 className="text-base font-bold text-zinc-800 dark:text-white flex items-center gap-2"><Key size={16} className="text-zinc-400"/> Senha</h4><p className="text-xs text-zinc-500 mt-1 max-w-xs">Alteração periódica.</p></div>
                           <button onClick={handleSendPasswordReset} disabled={senhaLoading} className="px-5 py-2.5 rounded-xl border border-zinc-200 dark:border-zinc-700 font-bold text-xs uppercase tracking-wide text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 hover:text-red-500 transition-all flex items-center gap-2 shadow-sm">{senhaLoading ? <Loader2 size={16} className="animate-spin"/> : <Zap size={16} />} Redefinir</button>
+                      </div>
+                  </div>
+              </div>
+              <div className="bg-white dark:bg-zinc-900 rounded-3xl p-6 sm:p-8 border border-zinc-200 dark:border-zinc-800 shadow-sm">
+                  <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="max-w-sm">
+                          <h3 className="text-sm font-black text-zinc-400 uppercase tracking-widest flex items-center gap-2"><Type size={16} className="text-red-600"/> Aparência</h3>
+                          <h4 className="mt-5 text-base font-bold text-zinc-800 dark:text-white">Tamanho da fonte</h4>
+                          <p className="mt-1 text-xs font-medium leading-relaxed text-zinc-500 dark:text-zinc-400">Ajuste a leitura do sistema sem alterar seus dados de estudo.</p>
+                      </div>
+                      <div className="w-full lg:max-w-md">
+                          <div className="grid grid-cols-3 gap-1.5 rounded-2xl border border-zinc-200 bg-zinc-50 p-1.5 dark:border-zinc-800 dark:bg-zinc-950">
+                              {USER_FONT_SIZE_OPTIONS.map((option) => {
+                                const active = fontSizePreference === option.id;
+                                return (
+                                  <button
+                                    key={option.id}
+                                    type="button"
+                                    onClick={() => handleFontSizePreferenceChange(option.id)}
+                                    disabled={fontSizeSaving}
+                                    className={`min-h-14 rounded-xl px-2 py-2 text-center transition-all ${
+                                      active
+                                        ? 'bg-zinc-900 text-white shadow-md dark:bg-white dark:text-zinc-900'
+                                        : 'text-zinc-500 hover:bg-white hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-white'
+                                    } disabled:cursor-not-allowed disabled:opacity-70`}
+                                    aria-pressed={active}
+                                    title={option.description}
+                                  >
+                                      <span className="block text-xs font-black uppercase">{option.label}</span>
+                                      <span className={`mt-1 block text-[9px] font-bold ${active ? 'opacity-70' : 'opacity-60'}`}>{option.description}</span>
+                                  </button>
+                                );
+                              })}
+                          </div>
                       </div>
                   </div>
               </div>

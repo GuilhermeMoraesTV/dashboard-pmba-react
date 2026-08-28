@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { db, storage } from '../../firebaseConfig';
+import { db } from '../../firebaseConfig';
 import { collection, doc, deleteDoc, onSnapshot, setDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import {
   ShieldAlert, BadgeAlert, Lock, Flame, Siren, LayoutGrid,
   CheckCircle2, Trash2, X, Server, Globe, Search, Plus, Save,
@@ -16,6 +15,7 @@ import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import ConfirmModal from '../../components/shared/ConfirmModal';
 import { buildBancaOptions } from '../../utils/bancasConcurso';
 import { buildEditalLaunchNotification } from '../../services/notificationContract';
+import { uploadSecureImage, validateImageFile } from '../../services/secureImageUpload';
 
 // ==================================================================================
 // 🔔 TOAST
@@ -87,6 +87,12 @@ const LOCAL_TEMPLATES = CATALOGO_EDITAIS;
 const SeedRunner = ({ seed, onDone, onError }) => {
   const containerRef = useRef(null);
   const doneRef      = useRef(false);
+  const onDoneRef    = useRef(onDone);
+  const onErrorRef   = useRef(onError);
+  useEffect(() => {
+    onDoneRef.current = onDone;
+    onErrorRef.current = onError;
+  }, [onDone, onError]);
 
   useEffect(() => {
     if (doneRef.current) return;
@@ -97,26 +103,26 @@ const SeedRunner = ({ seed, onDone, onError }) => {
     const restaurar = () => { window.confirm = originalConfirm; window.alert = originalAlert; };
     const timeoutSeguranca = setTimeout(() => {
       if (doneRef.current) return;
-      restaurar(); doneRef.current = true; onError('timeout');
+      restaurar(); doneRef.current = true; onErrorRef.current?.('timeout');
     }, 8000);
     const tentarClicar = (tentativa = 1) => {
       if (doneRef.current) return;
       const container = containerRef.current;
       if (!container) {
         if (tentativa < 5) setTimeout(() => tentarClicar(tentativa + 1), 200);
-        else { clearTimeout(timeoutSeguranca); restaurar(); doneRef.current = true; onError('sem container'); }
+        else { clearTimeout(timeoutSeguranca); restaurar(); doneRef.current = true; onErrorRef.current?.('sem container'); }
         return;
       }
       let btn = Array.from(container.querySelectorAll('button')).find(b => /instalar|install|reinstalar|seed/i.test(b.textContent)) || container.querySelector('button:not([disabled])') || container.querySelector('button');
       if (!btn) {
         if (tentativa < 5) { setTimeout(() => tentarClicar(tentativa + 1), 300); return; }
-        clearTimeout(timeoutSeguranca); restaurar(); doneRef.current = true; onError('botão não encontrado');
+        clearTimeout(timeoutSeguranca); restaurar(); doneRef.current = true; onErrorRef.current?.('botão não encontrado');
         return;
       }
       btn.click();
       setTimeout(() => {
         if (doneRef.current) return;
-        clearTimeout(timeoutSeguranca); restaurar(); doneRef.current = true; onDone();
+        clearTimeout(timeoutSeguranca); restaurar(); doneRef.current = true; onDoneRef.current?.();
       }, 4000);
     };
     requestAnimationFrame(() => setTimeout(() => tentarClicar(), 150));
@@ -216,6 +222,19 @@ const CustomEditalModal = ({ onClose, editalToEdit, showToast, allEditais }) => 
 
   const fileInputRef = useRef(null);
 
+  const handleLogoFileChange = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    try {
+      await validateImageFile(file);
+      setManualOverride((current) => ({ ...current, logo: true }));
+      setFormData((current) => ({ ...current, logoFile: file, logoPreview: URL.createObjectURL(file) }));
+    } catch (validationError) {
+      showToast(validationError.message, 'error');
+    }
+  };
+
   useEffect(() => {
     if (isEditing) {
       setFormData({ cidade: '', estado: 'BA', titulo: editalToEdit.titulo, banca: editalToEdit.banca || '', tipo: editalToEdit.tipo || 'adm', logoFile: null, logoPreview: editalToEdit.logoUrl || editalToEdit.logo });
@@ -253,7 +272,7 @@ const CustomEditalModal = ({ onClose, editalToEdit, showToast, allEditais }) => 
     });
     if (formData.tipo === 'adm' && !isEditing) setShowSidebar(true);
     else if (formData.tipo !== 'adm' && !isEditing) setShowSidebar(false);
-  }, [formData.cidade, formData.estado, formData.tipo, cargos, activeCargoIndex, isEditing, allEditais]);
+  }, [formData.cidade, formData.estado, formData.tipo, cargos, activeCargoIndex, isEditing, allEditais, manualOverride.banca, manualOverride.logo]);
 
   const handleAddCargo = () => { setCargos(prev => [...prev, { id: Date.now(), nome: '', json: '' }]); setActiveCargoIndex(cargos.length); };
   const handleRemoveCargo = (index, e) => { e.stopPropagation(); if (cargos.length === 1) return; setCargos(cargos.filter((_, i) => i !== index)); setActiveCargoIndex(0); };
@@ -302,11 +321,8 @@ const CustomEditalModal = ({ onClose, editalToEdit, showToast, allEditais }) => 
     try {
       let finalLogoUrl = formData.logoPreview;
       if (formData.logoFile) {
-        const cleanType = formData.tipo.toLowerCase();
-        const cleanLoc = formData.tipo === 'gcm' ? formData.cidade.toLowerCase() : formData.estado.toLowerCase();
-        const sRef = ref(storage, `editais_logos/${cleanType}_${cleanLoc}_${Date.now()}`);
-        const snap = await uploadBytes(sRef, formData.logoFile);
-        finalLogoUrl = await getDownloadURL(snap.ref);
+        const upload = await uploadSecureImage(formData.logoFile, { kind: 'edital-logo' });
+        finalLogoUrl = upload.url;
       }
 
       // Só inclui updateMetadata se houver mensagem configurada
@@ -573,7 +589,7 @@ const CustomEditalModal = ({ onClose, editalToEdit, showToast, allEditais }) => 
             <div className="flex items-center gap-4 p-3 bg-zinc-50 dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800">
               <div onClick={() => fileInputRef.current?.click()} className="flex h-12 w-12 cursor-pointer items-center justify-center overflow-hidden rounded-xl border border-zinc-200 bg-white hover:border-red-500 dark:border-zinc-700 dark:bg-zinc-800">
                 {formData.logoPreview ? <img src={formData.logoPreview} className="w-full h-full object-contain p-1" alt="" /> : <ImageIcon size={20} className="text-zinc-300" />}
-                <input type="file" ref={fileInputRef} onChange={e => { const f = e.target.files[0]; if (f) { setManualOverride(p => ({ ...p, logo: true })); setFormData(p => ({ ...p, logoFile: f, logoPreview: URL.createObjectURL(f) })); }}} className="hidden" accept="image/*" />
+                <input type="file" ref={fileInputRef} onChange={handleLogoFileChange} className="hidden" accept="image/jpeg,image/png,image/webp" />
               </div>
               <div className="flex-1"><p className="text-xs font-bold text-zinc-700 dark:text-zinc-300">Logotipo</p><p className="text-[10px] text-zinc-400">Clique para alterar</p></div>
               {formData.logoPreview && <button onClick={() => setFormData(p => ({ ...p, logoPreview: null, logoFile: null }))}><X size={16} className="text-zinc-400 hover:text-red-500" /></button>}

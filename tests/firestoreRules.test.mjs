@@ -17,6 +17,7 @@ import {
   getDocs,
   orderBy,
   query,
+  serverTimestamp,
   setDoc,
   updateDoc,
   where,
@@ -98,7 +99,7 @@ test('time_sync permite apenas documentos prefixados pelo próprio UID', async (
   await assertFails(setDoc(doc(ownerDb, 'time_sync', 'other-user_tab-1'), { ping: true }));
 });
 
-test('noticiaCache é legível por autenticado e gravável apenas pelo backend/admin', async () => {
+test('noticiaCache é legível por autenticado e imutável por qualquer cliente', async () => {
   await environment.withSecurityRulesDisabled(async (context) => {
     await setDoc(doc(context.firestore(), 'noticiaCache', 'artigo-1'), { titulo: 'Teste' });
   });
@@ -106,7 +107,7 @@ test('noticiaCache é legível por autenticado e gravável apenas pelo backend/a
   const adminDb = environment.authenticatedContext('admin-user').firestore();
   await assertSucceeds(getDoc(doc(ownerDb, 'noticiaCache', 'artigo-1')));
   await assertFails(setDoc(doc(ownerDb, 'noticiaCache', 'artigo-2'), { titulo: 'Injetado' }));
-  await assertSucceeds(setDoc(doc(adminDb, 'noticiaCache', 'artigo-2'), { titulo: 'Admin' }));
+  await assertFails(setDoc(doc(adminDb, 'noticiaCache', 'artigo-2'), { titulo: 'Admin' }));
 });
 
 test('system_feedback restringe chamados ao dono e libera gestão ao admin', async () => {
@@ -196,6 +197,64 @@ test('collection groups acadêmicos são legíveis somente pelo admin', async ()
   await assertSucceeds(getDocs(query(collectionGroup(roleOnlyAdminDb, 'gamification'))));
   await assertSucceeds(getDocs(query(collectionGroup(permissionOnlyAdminDb, 'gamification'))));
   await assertFails(getDocs(query(collectionGroup(ownerDb, 'gamification'))));
+});
+
+test('fontes acadêmicas validam dono, limites e coerência antes da gamificação', async () => {
+  const ownerDb = environment.authenticatedContext('owner-user').firestore();
+  const strangerDb = environment.authenticatedContext('stranger-user').firestore();
+  const adminDb = environment.authenticatedContext('admin-user').firestore();
+  const validRecord = {
+    uid: 'owner-user',
+    data: '2026-08-28',
+    tempoEstudadoMinutos: 120,
+    questoesFeitas: 80,
+    acertos: 70,
+    disciplinaNome: 'Direito Constitucional',
+  };
+
+  await assertSucceeds(setDoc(doc(ownerDb, 'users', 'owner-user', 'registrosEstudo', 'safe-record'), validRecord));
+  await assertFails(setDoc(doc(ownerDb, 'users', 'owner-user', 'registrosEstudo', 'too-long'), { ...validRecord, tempoEstudadoMinutos: 721 }));
+  await assertFails(setDoc(doc(ownerDb, 'users', 'owner-user', 'registrosEstudo', 'too-many-questions'), { ...validRecord, questoesFeitas: 501 }));
+  await assertFails(setDoc(doc(ownerDb, 'users', 'owner-user', 'registrosEstudo', 'impossible-correct'), { ...validRecord, questoesFeitas: 10, acertos: 11 }));
+  await assertFails(setDoc(doc(strangerDb, 'users', 'owner-user', 'registrosEstudo', 'idor-record'), validRecord));
+  await assertFails(setDoc(doc(adminDb, 'users', 'owner-user', 'registrosEstudo', 'browser-admin-record'), validRecord));
+
+  const validSimulation = {
+    uid: 'owner-user',
+    data: '2026-08-28',
+    durationMinutes: 90,
+    resumo: { totalQuestoes: 100, totalAcertos: 82 },
+  };
+  await assertSucceeds(setDoc(doc(ownerDb, 'users', 'owner-user', 'simulados', 'safe-simulation'), validSimulation));
+  await assertFails(setDoc(doc(ownerDb, 'users', 'owner-user', 'simulados', 'forged-simulation'), {
+    ...validSimulation,
+    resumo: { totalQuestoes: 10, totalAcertos: 99 },
+  }));
+});
+
+test('rodada de ciclo exige incremento atômico e carimbo do servidor', async () => {
+  const ownerDb = environment.authenticatedContext('owner-user').firestore();
+  const cycleRef = doc(ownerDb, 'users', 'owner-user', 'ciclos', 'cycle-1');
+  const roundRef = doc(ownerDb, 'users', 'owner-user', 'ciclos', 'cycle-1', 'rodadas', 'rodada-000001');
+  const roundPayload = {
+    numeroRodada: 1,
+    inicioPlanejado: '2026-08-21',
+    fechamentoIdeal: '2026-08-28',
+    fechamentoRealData: '2026-08-28',
+    fechamentoReal: serverTimestamp(),
+    criadoEm: serverTimestamp(),
+    atrasoDias: 0,
+    cargaPlanejadaMinutos: 300,
+    cargaCumpridaAteDataIdealMinutos: 300,
+    materiasPendentesNoVencimento: [],
+  };
+  await assertFails(setDoc(roundRef, roundPayload));
+
+  const batch = writeBatch(ownerDb);
+  batch.update(cycleRef, { conclusoes: 1 });
+  batch.set(roundRef, roundPayload);
+  await assertSucceeds(batch.commit());
+  await assertFails(updateDoc(roundRef, { cargaPlanejadaMinutos: 1 }));
 });
 
 test('gamificação permite leitura própria e bloqueia autoatribuição de XP e conquistas', async () => {

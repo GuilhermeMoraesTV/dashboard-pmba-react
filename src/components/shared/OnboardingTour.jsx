@@ -120,7 +120,11 @@ const OnboardingTour = ({ tourType = 'main', isActive, onClose, onFinish, active
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [targetRect, setTargetRect] = useState(null);
   const [isNavigating, setIsNavigating] = useState(false);
+  const isNavigatingRef = useRef(false);
   const prevRectRef = useRef(null);
+  useEffect(() => {
+    isNavigatingRef.current = isNavigating;
+  }, [isNavigating]);
   const [currentTargetId, setCurrentTargetId] = useState(null);
 
   const steps = TOURS[tourType] || TOURS.main;
@@ -212,7 +216,7 @@ const OnboardingTour = ({ tourType = 'main', isActive, onClose, onFinish, active
         }
         setIsNavigating(false);
       } else {
-        if (!isNavigating) setTimeout(calculatePosition, 500);
+        if (!isNavigatingRef.current) setTimeout(calculatePosition, 500);
         else setTargetRect(null);
       }
     };

@@ -100,8 +100,7 @@ const SessionTimer = ({ session }) => {
       setLive(calculatedTime);
     }
 
-  }, [session?.uid, session?.cicloId, session?.createdAt, session?.displaySecondsSnapshot, session?.secondsSnapshot, session?.seconds,
-      session?.snapshotAt, session?.timerType, session?.mode, session?.isResting, session?.phase, session?.isPaused, session?.status]);
+  }, [session]);
 
   // Atualizar o tempo periodicamente se a sessão estiver ativa
   useEffect(() => {
@@ -192,24 +191,14 @@ const SessionTimer = ({ session }) => {
     }
 
     // Cleanup
+    const sessionData = sessionDataRef.current;
     return () => {
-      if (sessionDataRef.current.intervalId) {
-        clearInterval(sessionDataRef.current.intervalId);
-        sessionDataRef.current.intervalId = null;
+      if (sessionData.intervalId) {
+        clearInterval(sessionData.intervalId);
+        sessionData.intervalId = null;
       }
     };
-  }, [session?.uid, session?.isPaused, session?.status, session?.snapshotAt, session?.displaySecondsSnapshot,
-      session?.secondsSnapshot, session?.seconds]);
-
-  // Cleanup ao desmontar
-  useEffect(() => {
-    return () => {
-      if (sessionDataRef.current.intervalId) {
-        clearInterval(sessionDataRef.current.intervalId);
-        sessionDataRef.current.intervalId = null;
-      }
-    };
-  }, []);
+  }, [session]);
 
   return live;
 };
