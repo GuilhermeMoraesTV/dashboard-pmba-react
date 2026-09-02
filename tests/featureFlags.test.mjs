@@ -1,10 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  AI_GENERATOR_ENABLED,
+  ANKI_IMPORT_ENABLED,
+  DOCUMENTS_ENABLED,
+  FLASHCARDS_ENABLED,
   LEAGUES_ENABLED,
+  QUESTIONS_ENABLED,
+  ERROR_BOOK_ENABLED,
   isLeagueAchievement,
   isLeagueOnlyNotification,
   resolveLeagueFeatureTab,
+  resolveFeatureTab,
   sanitizeLeagueXPEvent,
 } from '../src/config/featureFlags.js';
 
@@ -13,6 +20,23 @@ test('league exposure is paused and direct navigation falls back to ranking', ()
   assert.equal(resolveLeagueFeatureTab('ligas'), 'ranking');
   assert.equal(resolveLeagueFeatureTab('ranking'), 'ranking');
   assert.equal(resolveLeagueFeatureTab('grupos'), 'grupos');
+});
+
+test('local-only study surfaces stay disabled outside Vite development mode', () => {
+  assert.equal(QUESTIONS_ENABLED, false);
+  assert.equal(ERROR_BOOK_ENABLED, false);
+  assert.equal(DOCUMENTS_ENABLED, false);
+  assert.equal(FLASHCARDS_ENABLED, false);
+  assert.equal(ANKI_IMPORT_ENABLED, false);
+  assert.equal(AI_GENERATOR_ENABLED, false);
+  assert.equal(resolveFeatureTab('questoes'), 'home');
+  assert.equal(resolveFeatureTab('cadernoErros'), 'home');
+  assert.equal(resolveFeatureTab('caderno-erros'), 'home');
+  assert.equal(resolveFeatureTab('documentos'), 'home');
+  assert.equal(resolveFeatureTab('documents'), 'home');
+  assert.equal(resolveFeatureTab('flashcards'), 'home');
+  assert.equal(resolveFeatureTab('decks'), 'home');
+  assert.equal(resolveFeatureTab('baralhos'), 'home');
 });
 
 test('league-only notifications are hidden while other operational events remain visible', () => {

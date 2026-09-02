@@ -31,3 +31,21 @@ test('XP de conquista vem do documento desbloqueado e nao duplica pelo evento de
 
   assert.equal(total, 600);
 });
+
+test('agregado incremental recalcula somente o dia afetado e permanece deterministico', async () => {
+  const rules = await import('../functions/gamification/domain.mjs');
+  const sources = {
+    records: [{ id: 'study-1', data: '2026-08-31', tempoEstudadoMinutos: 60, questoesFeitas: 20, acertos: 15 }],
+    simulations: [],
+    questionRewards: [],
+    goals: [],
+  };
+  const first = __test.buildIncrementalDayState({ dateKey: '2026-08-31', sources, rules });
+  const retry = __test.buildIncrementalDayState({ dateKey: '2026-08-31', sources, rules });
+
+  assert.deepEqual(first, retry);
+  assert.deepEqual(first.metrics, { minutes: 60, questions: 20, correct: 15 });
+  assert.equal(first.counts.studies, 1);
+  assert.equal(first.eventIds.length, 1);
+  assert.equal(__test.payloadChanged(first, retry), false);
+});

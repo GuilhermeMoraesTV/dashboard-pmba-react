@@ -19,6 +19,29 @@ export function parseTimerJson(value) {
   }
 }
 
+export function claimTimerHeartbeatLease({ storage, key, ownerId, now = Date.now(), ttlMs = 45000 }) {
+  if (!storage || !key || !ownerId) return true;
+  try {
+    const current = parseTimerJson(storage.getItem(key));
+    if (current?.ownerId && current.ownerId !== ownerId && Number(current.expiresAt || 0) > now) return false;
+    storage.setItem(key, JSON.stringify({ ownerId, expiresAt: now + ttlMs }));
+    const confirmed = parseTimerJson(storage.getItem(key));
+    return confirmed?.ownerId === ownerId;
+  } catch {
+    return true;
+  }
+}
+
+export function releaseTimerHeartbeatLease({ storage, key, ownerId }) {
+  if (!storage || !key || !ownerId) return;
+  try {
+    const current = parseTimerJson(storage.getItem(key));
+    if (current?.ownerId === ownerId) storage.removeItem(key);
+  } catch {
+    // localStorage pode estar indisponível em modo privado.
+  }
+}
+
 export function timerTimestampToMillis(timestamp) {
   try {
     return timestamp?.toMillis?.() ?? null;

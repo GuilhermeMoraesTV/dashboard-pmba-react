@@ -24,6 +24,10 @@ const routeLoaders = {
   revisoes: () => import('../pages/RevisaoPage'),
   ranking: () => import('../pages/RankingPage'),
   grupos: () => import('../pages/GroupsPage'),
+  flashcards: () => import('../pages/DecksPage'),
+  questoes: () => import('../pages/QuestoesPage/QuestoesPage'),
+  cadernoErros: () => import('../pages/CadernoErrosPage/CadernoErrosPage'),
+  documentos: () => import('../pages/DocumentsPage'),
 };
 const preloadedRoutes = new Set();
 const preloadRoute = (route) => {
@@ -56,8 +60,12 @@ const NoticiasPage = lazy(() => import('../pages/NoticiasPage'));
 const RevisaoPage = lazy(routeLoaders.revisoes);
 const RankingPage = lazy(routeLoaders.ranking);
 const GroupsPage = lazy(routeLoaders.grupos);
+const DecksPage = lazy(routeLoaders.flashcards);
 const LeaguesPage = lazy(() => import('../pages/LeaguesPage'));
 const AchievementsPage = lazy(() => import('../pages/AchievementsPage'));
+const QuestoesPage = lazy(() => import('../pages/QuestoesPage/QuestoesPage'));
+const CadernoErrosPage = lazy(() => import('../pages/CadernoErrosPage/CadernoErrosPage'));
+const DocumentsPage = lazy(routeLoaders.documentos);
 
 const ENABLE_ONBOARDING_TOUR = false;
 const WELCOME_UPDATE_VERSION = '2026-06-dashboard-rebuild-v2';
@@ -81,6 +89,15 @@ const PATH_TO_TAB = {
   ligas: resolveLeagueFeatureTab('ligas'),
   conquistas: 'conquistas',
   grupos: 'grupos',
+  flashcards: resolveFeatureTab('flashcards'),
+  decks: resolveFeatureTab('flashcards'),
+  baralhos: resolveFeatureTab('flashcards'),
+  questoes: resolveFeatureTab('questoes'),
+  questions: resolveFeatureTab('questoes'),
+  'caderno-erros': resolveFeatureTab('cadernoErros'),
+  cadernoErros: resolveFeatureTab('cadernoErros'),
+  documentos: resolveFeatureTab('documentos'),
+  documents: resolveFeatureTab('documentos'),
   admin: 'admin',
 };
 const TAB_TO_PATH = {
@@ -100,6 +117,10 @@ const TAB_TO_PATH = {
   ligas: 'ligas',
   conquistas: 'conquistas',
   grupos: 'grupos',
+  flashcards: 'flashcards',
+  questoes: 'questoes',
+  cadernoErros: 'caderno-erros',
+  documentos: 'documentos',
   admin: 'admin',
 };
 
@@ -120,7 +141,15 @@ import {
   isPlanningAssessmentReady,
 } from '../utils/appHydration';
 import { dismissInitialLoadingScreen } from '../utils/initialLoadingScreen';
-import { LEAGUES_ENABLED, resolveLeagueFeatureTab } from '../config/featureFlags';
+import {
+  DOCUMENTS_ENABLED,
+  ERROR_BOOK_ENABLED,
+  FLASHCARDS_ENABLED,
+  LEAGUES_ENABLED,
+  QUESTIONS_ENABLED,
+  resolveFeatureTab,
+  resolveLeagueFeatureTab,
+} from '../config/featureFlags';
 import {
   buildStudyDaysMap,
   getCronogramaSlotRecordedMinutes,
@@ -420,7 +449,8 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   const [pendingSimuladoReview, setPendingSimuladoReview] = useState(null);
 
   const setActiveTab = useCallback((nextTab) => {
-    const resolvedTab = typeof nextTab === 'function' ? nextTab(activeTab) : nextTab;
+    const requestedTab = typeof nextTab === 'function' ? nextTab(activeTab) : nextTab;
+    const resolvedTab = resolveFeatureTab(requestedTab);
     const pathTab = TAB_TO_PATH[resolvedTab] || 'home';
     const targetPath = `/app/${pathTab}`;
     setActiveTabState(resolvedTab);
@@ -450,6 +480,10 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     }
     if (!LEAGUES_ENABLED && String(routeTab || '').toLowerCase() === 'ligas') {
       navigate('/app/ranking', { replace: true });
+      return;
+    }
+    if (resolvedTab === 'home' && ['flashcards', 'decks', 'baralhos', 'questoes', 'questions', 'caderno-erros', 'cadernoerros', 'documentos', 'documents'].includes(String(routeTab || '').toLowerCase())) {
+      navigate('/app/home', { replace: true });
       return;
     }
     setActiveTabState((current) => (current === resolvedTab ? current : resolvedTab));
@@ -2327,10 +2361,19 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         return <div className="mobile-page-zoom mobile-page-zoom--conquistas"><AchievementsPage user={user} levelData={levelData} studyStreak={currentPlanStudyStreak.currentStreak}/></div>;
       case 'grupos':
         return <div className="mobile-page-zoom mobile-page-zoom--grupos"><GroupsPage user={user} gamificationProfile={gamificationProfile} levelData={levelData}/></div>;
+      case 'flashcards':
+        return FLASHCARDS_ENABLED ? <div className="w-full min-w-0"><DecksPage user={user} /></div> : null;
       case 'profile':
         return <div className="mobile-page-zoom mobile-page-zoom--profile desktop-page-zoom desktop-page-zoom--profile"><ProfilePage user={user} allRegistrosEstudo={mergedAllRegistrosEstudo} onDeleteRegistro={deleteRegistro} coverURL={profileCover.url} coverPosition={profileCover.position} coverLoading={profileCover.loading} levelData={levelData} studyStreak={currentPlanStudyStreak.currentStreak} onGoToAchievements={() => setActiveTab('conquistas')}/></div>;
       case 'noticias':
         return <div className="mobile-page-zoom mobile-page-zoom--noticias desktop-page-zoom desktop-page-zoom--noticias"><NoticiasPage/></div>;
+      case 'questoes':
+        return QUESTIONS_ENABLED ? <div className="w-full min-w-0"><QuestoesPage user={user} /></div> : null;
+      case 'cadernoErros':
+      case 'caderno-erros':
+        return ERROR_BOOK_ENABLED ? <div className="w-full min-w-0"><CadernoErrosPage user={user} /></div> : null;
+      case 'documentos':
+        return DOCUMENTS_ENABLED ? <div className="w-full min-w-0"><DocumentsPage user={user} /></div> : null;
       case 'admin':
         if (userAccess.isLoading) return <SectionLoader minHeight="20rem" />;
         if (userAccess.permissions.adminPanel) return <div className="mobile-page-zoom mobile-page-zoom--admin desktop-page-zoom desktop-page-zoom--admin"><AdminPage onRecalculateStats={recalculateAllStats} userAccess={userAccess} /></div>;

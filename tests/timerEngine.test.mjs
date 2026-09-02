@@ -1,10 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  claimTimerHeartbeatLease,
   formatTimerClock,
   isValidTimerElapsedMs,
   parseTimerJson,
   reduceTimerState,
+  releaseTimerHeartbeatLease,
 } from '../src/hooks/useTimerEngine.js';
 
 test('timer engine percorre iniciar, pausar, retomar e finalizar', () => {
@@ -17,6 +19,20 @@ test('timer engine percorre iniciar, pausar, retomar e finalizar', () => {
   state = reduceTimerState(state, { type: 'TICK', seconds: 15 });
   state = reduceTimerState(state, { type: 'FINISH' });
   assert.deepEqual(state, { status: 'finished', elapsedSeconds: 45 });
+});
+
+test('heartbeat elege uma unica aba e libera a lideranca ao encerrar', () => {
+  const values = new Map();
+  const storage = {
+    getItem: (key) => values.get(key) || null,
+    setItem: (key, value) => values.set(key, value),
+    removeItem: (key) => values.delete(key),
+  };
+  const input = { storage, key: 'heartbeat:user-1', now: 1000, ttlMs: 45000 };
+  assert.equal(claimTimerHeartbeatLease({ ...input, ownerId: 'tab-a' }), true);
+  assert.equal(claimTimerHeartbeatLease({ ...input, ownerId: 'tab-b', now: 2000 }), false);
+  releaseTimerHeartbeatLease({ storage, key: input.key, ownerId: 'tab-a' });
+  assert.equal(claimTimerHeartbeatLease({ ...input, ownerId: 'tab-b', now: 3000 }), true);
 });
 
 test('timer engine cancela e aplica estado remoto de outra aba', () => {

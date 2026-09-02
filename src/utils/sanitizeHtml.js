@@ -24,3 +24,18 @@ export function sanitizeArticleHtml(html = '') {
     RETURN_TRUSTED_TYPE: false,
   });
 }
+
+export const FLASHCARD_ALLOWED_TAGS = [
+  'p', 'div', 'span', 'br', 'hr', 'strong', 'b', 'em', 'i', 'u', 's', 'sub', 'sup',
+  'ul', 'ol', 'li', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'blockquote', 'code', 'pre', 'img',
+];
+
+export function sanitizeFlashcardHtml(html = '') {
+  return DOMPurify.sanitize(String(html || ''), {
+    ALLOWED_TAGS: FLASHCARD_ALLOWED_TAGS,
+    ALLOWED_ATTR: ['class', 'src', 'alt', 'title', 'width', 'height'],
+    ALLOWED_URI_REGEXP: /^https:\/\//i,
+    KEEP_CONTENT: true,
+    RETURN_TRUSTED_TYPE: false,
+  });
+}

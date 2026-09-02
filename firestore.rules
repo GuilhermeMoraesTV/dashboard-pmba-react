@@ -60,6 +60,254 @@ service cloud.firestore {
       return isOwner(userId) || isAdmin();
     }
 
+    function validSchedulerState(state) {
+      return state is map
+        && state.keys().hasAll(['algorithm', 'version', 'data'])
+        && state.keys().hasOnly(['algorithm', 'version', 'data'])
+        && state.algorithm is string
+        && state.algorithm.size() > 0
+        && state.version is int
+        && state.version > 0
+        && state.data is map;
+    }
+
+    function validDeck(data, userId) {
+      return data.keys().hasAll(['userId', 'name', 'cardCount', 'tags', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['userId', 'name', 'description', 'cardCount', 'cardMutationVersion', 'folderId', 'tags', 'archived', 'createdAt', 'updatedAt'])
+        && data.userId == userId
+        && data.name is string
+        && data.name.size() > 0
+        && data.name.size() <= 160
+        && data.get('description', '') is string
+        && data.get('description', '').size() <= 2000
+        && data.cardCount is int
+        && data.cardCount >= 0
+        && data.get('cardMutationVersion', 0) is int
+        && data.get('cardMutationVersion', 0) >= 0
+        && optionalString(data, 'folderId', 160)
+        && data.tags is list
+        && data.tags.size() <= 50
+        && data.get('archived', false) is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function validCard(data, userId, deckId) {
+      return data.keys().hasAll([
+          'userId', 'deckId', 'front', 'back', 'tags', 'status', 'dueAt',
+          'lapses', 'reps', 'schedulerState', 'sourceType', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'userId', 'deckId', 'front', 'back', 'tags', 'status', 'dueAt',
+          'lapses', 'reps', 'reviewVersion', 'schedulerState', 'ankiMetadata', 'sourceType',
+          'sourceId', 'sourceRevision', 'folderId', 'conceptId', 'cognitiveDifficulty',
+          'variantKey', 'contentFingerprint', 'sourceRefs', 'adaptiveSessionId',
+          'generatedItemId', 'createdAt', 'updatedAt'
+        ])
+        && data.userId == userId
+        && data.deckId == deckId
+        && data.front is string
+        && data.front.size() > 0
+        && data.front.size() <= 20000
+        && data.back is string
+        && data.back.size() > 0
+        && data.back.size() <= 20000
+        && data.tags is list
+        && data.tags.size() <= 10
+        && data.status in ['new', 'learning', 'review', 'relearning']
+        && data.dueAt is timestamp
+        && data.lapses is int
+        && data.lapses >= 0
+        && data.reps is int
+        && data.reps >= 0
+        && data.get('reviewVersion', 0) is int
+        && data.get('reviewVersion', 0) >= 0
+        && validSchedulerState(data.schedulerState)
+        && data.sourceType in ['manual', 'ai', 'anki', 'document']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function validCardReview(data, userId) {
+      return data.keys().hasAll([
+          'userId', 'cardId', 'deckId', 'rating', 'scheduledDays',
+          'previousState', 'nextState', 'reviewedAt'
+        ])
+        && data.keys().hasOnly([
+          'userId', 'cardId', 'deckId', 'rating', 'elapsedTimeMs',
+          'scheduledDays', 'previousState', 'nextState', 'reviewedAt',
+          'reviewRequestId', 'reviewVersion', 'isLapse', 'errorBookSyncStatus',
+          'errorBookSyncedAt', 'errorBookEntryId'
+        ])
+        && data.userId == userId
+        && data.cardId is string
+        && data.cardId.size() > 0
+        && data.deckId is string
+        && data.deckId.size() > 0
+        && data.rating in ['again', 'hard', 'good', 'easy']
+        && (data.get('elapsedTimeMs', null) == null || (data.elapsedTimeMs is int && data.elapsedTimeMs >= 0))
+        && data.scheduledDays is number
+        && data.scheduledDays >= 0
+        && validSchedulerState(data.previousState)
+        && validSchedulerState(data.nextState)
+        && data.get('reviewVersion', 0) is int
+        && data.get('reviewVersion', 0) >= 0
+        && optionalString(data, 'reviewRequestId', 160)
+        && data.get('isLapse', false) is bool
+        && (
+          data.get('errorBookSyncStatus', null) == null
+          || data.get('errorBookSyncStatus', '') in ['pending', 'synced']
+        )
+        && data.reviewedAt == request.time;
+    }
+
+    function validQuestionOption(option) {
+      return option is map
+        && option.keys().hasAll(['id', 'text'])
+        && option.keys().hasOnly(['id', 'text'])
+        && option.id is string
+        && option.id.size() > 0
+        && option.id.size() <= 80
+        && option.text is string
+        && option.text.size() > 0
+        && option.text.size() <= 4000;
+    }
+
+    function validQuestionOptions(options) {
+      return options is list
+        && (
+          (
+            options.size() == 2
+            && validQuestionOption(options[0])
+            && validQuestionOption(options[1])
+            && options[0].id != options[1].id
+          )
+          || (
+            options.size() == 3
+            && validQuestionOption(options[0])
+            && validQuestionOption(options[1])
+            && validQuestionOption(options[2])
+            && options[0].id != options[1].id
+            && options[0].id != options[2].id
+            && options[1].id != options[2].id
+          )
+          || (
+            options.size() == 4
+            && validQuestionOption(options[0])
+            && validQuestionOption(options[1])
+            && validQuestionOption(options[2])
+            && validQuestionOption(options[3])
+            && options[0].id != options[1].id
+            && options[0].id != options[2].id
+            && options[0].id != options[3].id
+            && options[1].id != options[2].id
+            && options[1].id != options[3].id
+            && options[2].id != options[3].id
+          )
+          || (
+            options.size() == 5
+            && validQuestionOption(options[0])
+            && validQuestionOption(options[1])
+            && validQuestionOption(options[2])
+            && validQuestionOption(options[3])
+            && validQuestionOption(options[4])
+            && options[0].id != options[1].id
+            && options[0].id != options[2].id
+            && options[0].id != options[3].id
+            && options[0].id != options[4].id
+            && options[1].id != options[2].id
+            && options[1].id != options[3].id
+            && options[1].id != options[4].id
+            && options[2].id != options[3].id
+            && options[2].id != options[4].id
+            && options[3].id != options[4].id
+          )
+        );
+    }
+
+    function validGlobalQuestion(data) {
+      return data.keys().hasAll(['statement', 'options', 'disciplineId', 'subject', 'sourceType', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly([
+          'statement', 'options', 'disciplineId', 'subject', 'banca', 'year',
+          'institution', 'difficulty', 'sourceType', 'createdAt', 'updatedAt'
+        ])
+        && data.statement is string
+        && validQuestionOptions(data.options)
+        && data.disciplineId is string
+        && data.subject is string
+        && data.sourceType in ['official', 'manual', 'ai', 'imported']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function validPrivateQuestion(data, userId) {
+      return data.keys().hasAll(['userId', 'statement', 'options', 'disciplineId', 'subject', 'sourceType', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly([
+          'userId', 'statement', 'options', 'disciplineId', 'subject', 'banca',
+          'year', 'institution', 'difficulty', 'sourceType', 'sourceId', 'sourceDocumentId',
+          'createdAt', 'updatedAt'
+        ])
+        && data.userId == userId
+        && data.statement is string
+        && validQuestionOptions(data.options)
+        && data.disciplineId is string
+        && data.subject is string
+        && data.sourceType in ['manual', 'ai', 'imported']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function validDocumentCreate(data, userId, docId) {
+      return data.keys().hasAll(['userId', 'name', 'fileType', 'storagePath', 'fileSizeBytes', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['userId', 'name', 'fileType', 'storagePath', 'fileSizeBytes', 'status', 'createdAt', 'updatedAt'])
+        && data.userId == userId
+        && data.name is string
+        && data.name.size() > 0
+        && data.fileType == 'pdf'
+        && data.storagePath is string
+        && data.storagePath.matches('^user_uploads/' + userId + '/documents/' + docId + '/[^/]+$')
+        && data.fileSizeBytes is int
+        && data.fileSizeBytes > 0
+        && data.fileSizeBytes <= 25 * 1024 * 1024
+        && data.status == 'pending'
+        && data.createdAt == request.time
+        && data.updatedAt == request.time;
+    }
+
+    function validGeneratedItem(data, userId) {
+      return data.keys().hasAll(['userId', 'type', 'status', 'content', 'tags', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['userId', 'sourceId', 'sourceDocumentId', 'type', 'status', 'content', 'tags', 'createdAt', 'updatedAt'])
+        && data.userId == userId
+        && data.type in ['flashcard', 'question', 'summary']
+        && data.status in ['draft', 'buffer', 'materialized', 'approved', 'rejected']
+        && data.content is map
+        && data.tags is list
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function validStudyFolder(data, userId) {
+      return data.keys().hasAll(['userId', 'name', 'description', 'order', 'archived', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['userId', 'name', 'description', 'color', 'icon', 'order', 'parentFolderId', 'ancestorFolderIds', 'archived', 'legacyDefault', 'createdAt', 'updatedAt'])
+        && data.userId == userId
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 120
+        && data.description is string && data.description.size() <= 1000
+        && data.order is number
+        && data.archived is bool
+        && data.createdAt is timestamp && data.updatedAt is timestamp;
+    }
+
+    function validStudySource(data, userId) {
+      return data.keys().hasAll(['userId', 'folderId', 'kind', 'title', 'status', 'sourceRevision', 'createdAt', 'updatedAt'])
+        && data.userId == userId
+        && data.folderId is string && data.folderId.size() > 0
+        && data.kind in ['note', 'document']
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 180
+        && data.status in ['processing', 'ready', 'error']
+        && data.sourceRevision is int && data.sourceRevision > 0
+        && data.createdAt is timestamp && data.updatedAt is timestamp;
+    }
+
     function groupPath(groupId) {
       return /databases/$(database)/documents/study_groups/$(groupId);
     }
@@ -486,6 +734,19 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
+    // Banco global contém somente a projeção client-safe.
+    match /questions/{docId} {
+      allow read: if isSignedIn() && validGlobalQuestion(resource.data);
+      // A projeção global é backend-authoritative. Nem contas admin no SDK
+      // podem inserir campos aninhados que revelem o gabarito em options.
+      allow create, update, delete: if false;
+
+      // O answerKey nunca é acessível via SDK client. Admin SDK ignora as Rules.
+      match /private/{privateDoc} {
+        allow read, create, update, delete: if false;
+      }
+    }
+
     match /system_config/{docId} {
       allow read: if isSignedIn();
       allow create, update, delete: if isAdmin();
@@ -833,6 +1094,163 @@ service cloud.firestore {
         }
       }
 
+      match /decks/{deckId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId)
+          && validDeck(request.resource.data, userId)
+          && request.resource.data.get('folderId', '') is string
+          && request.resource.data.get('folderId', '').size() > 0
+          && exists(/databases/$(database)/documents/users/$(userId)/study_folders/$(request.resource.data.folderId))
+          && request.resource.data.cardCount == 0
+          && request.resource.data.get('archived', false) == false
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.updatedAt == request.time;
+        allow update: if isOwner(userId)
+          && validDeck(request.resource.data, userId)
+          && request.resource.data.userId == resource.data.userId
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.cardCount == resource.data.cardCount
+          && request.resource.data.get('cardMutationVersion', 0) == resource.data.get('cardMutationVersion', 0)
+          && request.resource.data.updatedAt == request.time;
+        allow delete: if isOwner(userId);
+
+        match /cards/{cardId} {
+          allow read: if isOwner(userId);
+          allow create: if false;
+          allow update: if isOwner(userId)
+            && validCard(request.resource.data, userId, deckId)
+            && request.resource.data.userId == resource.data.userId
+            && request.resource.data.deckId == resource.data.deckId
+            && request.resource.data.createdAt == resource.data.createdAt
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['front', 'back', 'tags', 'updatedAt'])
+            && request.resource.data.updatedAt == request.time;
+          allow delete: if false;
+        }
+      }
+
+      match /card_reviews/{reviewId} {
+        allow read: if isOwner(userId);
+        allow create, update, delete: if false;
+      }
+
+      match /questions/{questionId} {
+        allow read: if isOwner(userId) && validPrivateQuestion(resource.data, userId);
+        allow create, update, delete: if false;
+
+        match /private/{privateDoc} {
+          allow read, create, update, delete: if false;
+        }
+      }
+
+      // Tentativas validadas e estatísticas derivadas são gravadas só pelo backend.
+      match /question_attempts/{attemptId} {
+        allow read: if isOwner(userId);
+        allow create, update, delete: if false;
+      }
+
+      match /question_stats/{statsId} {
+        allow read: if isOwner(userId);
+        allow create, update, delete: if false;
+      }
+
+      // Fonte acadêmica determinística usada pela gamificação oficial.
+      match /question_reward_sources/{sourceId} {
+        allow read, create, update, delete: if false;
+      }
+
+      match /error_book/{entryId} {
+        allow read: if isOwner(userId);
+        allow create, delete: if false;
+        allow update: if isOwner(userId)
+          && request.resource.data.userId == resource.data.userId
+          && request.resource.data.sourceType == resource.data.sourceType
+          && request.resource.data.sourceId == resource.data.sourceId
+          && request.resource.data.get('questionScope', null) == resource.data.get('questionScope', null)
+          && request.resource.data.get('deckId', null) == resource.data.get('deckId', null)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['userNotes', 'mastered', 'masteredAt', 'updatedAt'])
+          && (
+            request.resource.data.get('userNotes', null) == null
+            || (
+              request.resource.data.userNotes is string
+              && request.resource.data.userNotes.size() <= 4000
+            )
+          )
+          && request.resource.data.mastered is bool
+          && request.resource.data.updatedAt == request.time
+          && (
+            (
+              request.resource.data.mastered == resource.data.get('mastered', false)
+              && request.resource.data.get('masteredAt', null) == resource.data.get('masteredAt', null)
+            )
+            || (
+              request.resource.data.mastered != resource.data.get('mastered', false)
+              && (
+                (request.resource.data.mastered == true && request.resource.data.masteredAt == request.time)
+                || (request.resource.data.mastered == false && request.resource.data.get('masteredAt', null) == null)
+              )
+            )
+          );
+      }
+
+      match /documents/{docId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && validDocumentCreate(request.resource.data, userId, docId);
+        allow update: if isOwner(userId)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'updatedAt'])
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && request.resource.data.updatedAt == request.time;
+        allow delete: if false;
+
+        // Texto extraido e chunks sao detalhes internos do pipeline server-side.
+        match /chunks/{chunkId} {
+          allow read, create, update, delete: if false;
+        }
+      }
+
+      match /generated_items/{itemId} {
+        allow read: if isOwner(userId);
+        allow create, update, delete: if false;
+      }
+
+      match /study_folders/{folderId} {
+        allow get: if isOwner(userId) && validStudyFolder(resource.data, userId);
+        allow list: if isOwner(userId);
+        allow create, update, delete: if false;
+      }
+
+      match /study_sources/{sourceId} {
+        allow get: if isOwner(userId) && validStudySource(resource.data, userId);
+        allow list: if isOwner(userId);
+        allow create, update, delete: if false;
+
+        match /chunks/{chunkId} {
+          allow read, create, update, delete: if false;
+        }
+      }
+
+      // Sessao e dominio adaptativo sao inteiramente gravados pelo backend.
+      match /adaptive_study_sessions/{sessionId} {
+        allow read: if isOwner(userId);
+        allow create, update, delete: if false;
+      }
+
+      match /concept_mastery/{masteryId} {
+        allow read: if isOwner(userId);
+        allow create, update, delete: if false;
+      }
+
+      // O backend cria e atualiza o resultado da importacao; o dono apenas consulta.
+      match /anki_imports/{importId} {
+        allow read: if isOwner(userId);
+        allow create, update, delete: if false;
+      }
+
+      // Indice tecnico da identidade ankiNoteGuid + ankiCardOrd.
+      match /anki_card_index/{identityId} {
+        allow read, create, update, delete: if false;
+      }
+
       // Exige ao menos uma subcoleção e um documento; o wildcard recursivo
       // sozinho também casaria o documento users/{userId} em rules_version 2.
       match /{subCollection}/{document=**} {
@@ -843,6 +1261,21 @@ service cloud.firestore {
           && subCollection != 'metas'
           && subCollection != 'ciclos'
           && subCollection != 'cronogramas'
+          && subCollection != 'decks'
+          && subCollection != 'card_reviews'
+          && subCollection != 'questions'
+          && subCollection != 'question_attempts'
+          && subCollection != 'question_stats'
+          && subCollection != 'question_reward_sources'
+          && subCollection != 'error_book'
+          && subCollection != 'documents'
+          && subCollection != 'generated_items'
+          && subCollection != 'anki_imports'
+          && subCollection != 'anki_card_index'
+          && subCollection != 'study_folders'
+          && subCollection != 'study_sources'
+          && subCollection != 'adaptive_study_sessions'
+          && subCollection != 'concept_mastery'
           && isOwnerOrAdmin(userId);
       }
     }

@@ -5,7 +5,7 @@ import {
   LayoutList, BarChart3, ClipboardList, Sun, Moon, Radio, X, ChevronRight,
   CalendarClock, Layers, ChevronDown, Newspaper, RotateCw, CalendarDays, BookOpen,
   Clock, AlertTriangle, ArrowRight, Bell, Flame, Settings, HelpCircle,
-  Trophy, Users, Award, Shield, Medal, Crown, Gem, Diamond,
+  Trophy, Users, Award, Shield, Medal, Crown, Gem, Diamond, Files,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { collection, doc, query, where, onSnapshot } from 'firebase/firestore';
@@ -17,7 +17,8 @@ import { calcularStatusEstudoHoje } from '../../hooks/useCronogramaSystem';
 import { useCicloRevisoes } from '../../hooks/useCicloRevisoes';
 import { buildRevisaoCentral } from '../../utils/revisaoCentral';
 import { coverPositionToStyle } from '../../utils/profileCover';
-import { LEAGUES_ENABLED } from '../../config/featureFlags';
+import { DOCUMENTS_ENABLED, ERROR_BOOK_ENABLED, FLASHCARDS_ENABLED, LEAGUES_ENABLED, QUESTIONS_ENABLED } from '../../config/featureFlags';
+
 
 const NAV_ICON_SIZE  = 18;
 const NAV_LABEL_SIZE = 'text-[10px]';
@@ -711,6 +712,10 @@ function NavSideBar({
       { id: 'planejamento', label: 'Planejamento', icon: <Layers size={NAV_ICON_SIZE}/> },
       { id: 'edital',    label: 'Edital',      icon: <LayoutList size={NAV_ICON_SIZE}/> },
       { id: 'revisoes',  label: 'Revisões',    icon: <BookOpen size={NAV_ICON_SIZE}/> },
+      ...(FLASHCARDS_ENABLED ? [{ id: 'flashcards', label: 'Flashcards', icon: <Layers size={NAV_ICON_SIZE}/> }] : []),
+      ...(DOCUMENTS_ENABLED ? [{ id: 'documentos', label: 'Documentos', icon: <Files size={NAV_ICON_SIZE}/> }] : []),
+      ...(QUESTIONS_ENABLED ? [{ id: 'questoes', label: 'Questões', icon: <HelpCircle size={NAV_ICON_SIZE}/> }] : []),
+      ...(ERROR_BOOK_ENABLED ? [{ id: 'cadernoErros', label: 'Caderno de Erros', icon: <AlertTriangle size={NAV_ICON_SIZE}/> }] : []),
       { id: 'stats',     label: 'Desempenho',  icon: <BarChart3 size={NAV_ICON_SIZE}/> },
       ...(LEAGUES_ENABLED ? [{ id: 'ligas', label: 'Ligas', icon: <Trophy size={NAV_ICON_SIZE}/> }] : []),
       { id: 'ranking',   label: 'Ranking',      icon: <Trophy size={NAV_ICON_SIZE}/> },

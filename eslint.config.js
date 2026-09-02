@@ -43,6 +43,7 @@ export default defineConfig([
       'no-empty': ['warn', { allowEmptyCatch: true }],
       'no-constant-binary-expression': 'warn',
       'no-useless-escape': 'warn',
+      'no-control-regex': 'error',
       'react-refresh/only-export-components': 'warn',
     },
   },
@@ -52,6 +53,20 @@ export default defineConfig([
       globals: {
         ...globals.node,
       },
+    },
+  },
+  {
+    // Exceções locais pertencentes aos pipelines binários/PDF legados. A regra
+    // permanece ativa para todo o restante do projeto, inclusive Questões.
+    files: [
+      'functions/anki/archive.js',
+      'functions/ai/generation.js',
+      'functions/documents/pdf.js',
+      'src/services/anki/ankiService.js',
+      'src/services/documents/documentsService.js',
+    ],
+    rules: {
+      'no-control-regex': 'off',
     },
   },
 ])

@@ -16,9 +16,11 @@ import {
 } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
 import {
+  claimTimerHeartbeatLease,
   createTimerTabId,
   formatTimerClock,
   isValidTimerElapsedMs,
+  releaseTimerHeartbeatLease,
   timerTimestampToMillis,
   useFullscreenState,
   useWakeLock,
@@ -212,6 +214,19 @@ function SimuladoTimer({
     if (!userUid) return null;
     return doc(db, 'active_timers', userUid);
   }, [userUid]);
+
+  const heartbeatLeaseKey = useMemo(() => `@ModoQAP:TimerHeartbeatLeader:simulado:${userUid}`, [userUid]);
+  const claimHeartbeatLeadership = useCallback(() => claimTimerHeartbeatLease({
+    storage: typeof localStorage === 'undefined' ? null : localStorage,
+    key: heartbeatLeaseKey,
+    ownerId: tabIdRef.current,
+  }), [heartbeatLeaseKey]);
+
+  useEffect(() => () => releaseTimerHeartbeatLease({
+    storage: typeof localStorage === 'undefined' ? null : localStorage,
+    key: heartbeatLeaseKey,
+    ownerId: tabIdRef.current,
+  }), [heartbeatLeaseKey]);
 
   const timeSyncDocRef = useMemo(() => {
     if (!userUid) return null;
@@ -502,52 +517,27 @@ function SimuladoTimer({
       elapsedBaseMs: 0,
     };
 
-    const delays = [0, 250, 500, 900, 1400, 2000, 2500];
-    for (let i = 0; i < delays.length; i++) {
-      if (remoteAckRef.current) return true;
-      const d = delays[i];
-      if (d > 0) await new Promise(r => setTimeout(r, d));
+    for (const delayMs of [0, 1000]) {
+      if (delayMs) await new Promise((resolve) => setTimeout(resolve, delayMs));
       try {
         const payload = buildFirestorePayload(true, basePayload);
         if (simuladoDocRef) await setDoc(simuladoDocRef, payload, { merge: true });
         if (globalTimerRef) await setDoc(globalTimerRef, payload, { merge: true });
-      } catch {}
-      try {
-        if (simuladoDocRef) {
-          const snap = await getDocFromServer(simuladoDocRef);
-          if (snap.exists()) {
-            const data = snap.data() || {};
-            const rs = Number(data.runStartedAtMs);
-            if (Number.isFinite(rs) && rs === startMs && data.status === 'running' && !data.isPaused) {
-              remoteAckRef.current = true;
-              return true;
-            }
-          }
-        }
+        remoteAckRef.current = true;
+        return true;
       } catch {}
     }
     return false;
   }, [simuladoDocRef, globalTimerRef, buildFirestorePayload]);
 
-  // Heartbeat acelerado (sem ACK)
-  useEffect(() => {
-    if (!userUid || isPreparing) return;
-    const fast = setInterval(() => {
-      if (!remoteAckRef.current && remoteStartMsAckedRef.current != null) {
-        patchFirebase({});
-      }
-    }, 2000);
-    return () => clearInterval(fast);
-  }, [userUid, isPreparing, patchFirebase]);
-
   // Heartbeat normal (30s)
   useEffect(() => {
     if (isPreparing || !userUid) return;
     const t = setInterval(() => {
-      if (!isPausedRef.current) patchFirebase({});
+      if (!isPausedRef.current && claimHeartbeatLeadership()) patchFirebase({});
     }, 30000);
     return () => clearInterval(t);
-  }, [isPreparing, userUid, patchFirebase]);
+  }, [isPreparing, userUid, patchFirebase, claimHeartbeatLeadership]);
 
   // ========= tick loop (ACELERADO PARA 50ms) =========
   const startTickLoop = useCallback(() => {

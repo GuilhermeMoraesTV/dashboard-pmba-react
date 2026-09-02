@@ -5,10 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:real": "vite --mode development",
+    "dev:emulator": "vite --mode emulator",
+    "emulators:dev": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-firebase-emulators.ps1",
     "build": "vite build",
     "lint": "eslint . --ignore-pattern .vite --ignore-pattern dist --ignore-pattern tmp --ignore-pattern output --ignore-pattern '*.out' --ignore-pattern '*.err'",
     "preview": "vite preview",
-    "test": "firebase emulators:exec --config firebase.test.json --project dashboard-pmba --only firestore \"node --test --test-isolation=none tests/*.test.mjs\"",
+    "test": "firebase emulators:exec --config firebase.test.json --project dashboard-pmba --only firestore,storage \"node --test --test-isolation=none tests/*.test.mjs\"",
     "test:unit": "node --test --test-isolation=none tests/runUnitTests.mjs",
     "test:gamification": "node --test --test-isolation=none tests/gamification.test.mjs"
   },

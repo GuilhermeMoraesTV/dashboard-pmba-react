@@ -68,5 +68,36 @@ service firebase.storage {
       allow read: if isSignedIn();
       allow create, update, delete: if false;
     }
+
+    // Upload direto de documentos PDF do usuario (isolado por UID)
+    match /user_uploads/{userId}/documents/{docId}/{allPaths=**} {
+      allow read, delete: if isSignedIn() && request.auth.uid == userId;
+      allow create: if isSignedIn()
+        && request.auth.uid == userId
+        && request.resource.size <= 25 * 1024 * 1024
+        && request.resource.contentType.matches('application/pdf');
+      allow update: if false;
+    }
+
+    // APKG e enviado diretamente ao Storage e removido pelo backend apos a importacao.
+    match /user_uploads/{userId}/anki_imports/{importId}/{fileName} {
+      allow read, delete: if isSignedIn() && request.auth.uid == userId;
+      allow create: if isSignedIn()
+        && request.auth.uid == userId
+        && fileName.matches('^.+\\.[aA][pP][kK][gG]$')
+        && request.resource.size <= 50 * 1024 * 1024
+        && request.resource.contentType in [
+          'application/zip',
+          'application/octet-stream',
+          'application/x-zip-compressed'
+        ];
+      allow update: if false;
+    }
+
+    // Midias validadas e gravadas exclusivamente pelo Admin SDK.
+    match /user_uploads/{userId}/anki_media/{fileName} {
+      allow read, delete: if isSignedIn() && request.auth.uid == userId;
+      allow create, update: if false;
+    }
   }
 }

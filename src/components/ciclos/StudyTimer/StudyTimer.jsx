@@ -12,10 +12,12 @@ import {
 } from 'firebase/firestore';
 import { db } from '../../../firebaseConfig';
 import {
+  claimTimerHeartbeatLease,
   createTimerTabId,
   formatTimerClock,
   isValidTimerElapsedMs,
   parseTimerJson,
+  releaseTimerHeartbeatLease,
   timerTimestampToMillis,
   useFullscreenState,
   useWakeLock,
@@ -204,6 +206,22 @@ function StudyTimer({
     if (!activeTimerDocId) return null;
     return doc(db, activeTimerCollectionName, activeTimerDocId);
   }, [userUid, activeTimerCollectionName, activeTimerDocId]);
+
+  const heartbeatLeaseKey = useMemo(() => (
+    `@ModoQAP:TimerHeartbeatLeader:${activeTimerCollectionName}:${activeTimerDocId || userUid}`
+  ), [activeTimerCollectionName, activeTimerDocId, userUid]);
+
+  const claimHeartbeatLeadership = useCallback(() => claimTimerHeartbeatLease({
+    storage: typeof localStorage === 'undefined' ? null : localStorage,
+    key: heartbeatLeaseKey,
+    ownerId: tabIdRef.current,
+  }), [heartbeatLeaseKey]);
+
+  useEffect(() => () => releaseTimerHeartbeatLease({
+    storage: typeof localStorage === 'undefined' ? null : localStorage,
+    key: heartbeatLeaseKey,
+    ownerId: tabIdRef.current,
+  }), [heartbeatLeaseKey]);
 
   const timeSyncDocRef = useMemo(() => {
     if (!userUid) return null;
@@ -797,28 +815,12 @@ function StudyTimer({
       isResting: false,
     };
 
-    const delays = [0, 250, 500, 900, 1400, 2000, 2500];
-
-    for (let i = 0; i < delays.length; i++) {
-      if (remoteAckRef.current) return true;
-
-      const d = delays[i];
-      if (d > 0) await new Promise(r => setTimeout(r, d));
-
+    for (const delayMs of [0, 1000]) {
+      if (delayMs) await new Promise((resolve) => setTimeout(resolve, delayMs));
       try {
         await setDoc(activeTimerDocRef, buildActiveTimerPayload(basePayload), { merge: true });
-      } catch {}
-
-      try {
-        const snap = await getDocFromServer(activeTimerDocRef);
-        if (snap.exists()) {
-          const data = snap.data() || {};
-          const rs = Number(data.runStartedAtMs);
-          if (Number.isFinite(rs) && rs === startMs && data.status === 'running' && !data.isPaused) {
-            remoteAckRef.current = true;
-            return true;
-          }
-        }
+        remoteAckRef.current = true;
+        return true;
       } catch {}
     }
 
@@ -828,24 +830,12 @@ function StudyTimer({
   useEffect(() => {
     if (!activeTimerDocRef) return;
     if (isPreparing) return;
-
-    const fast = setInterval(() => {
-      if (!remoteAckRef.current && remoteStartMsAckedRef.current != null) {
-        patchActiveTimer({}, { includeSnapshot: true, touchUpdatedAt: true, touchHeartbeat: true });
-      }
-    }, 2000);
-
-    return () => clearInterval(fast);
-  }, [activeTimerDocRef, isPreparing, patchActiveTimer]);
-
-  useEffect(() => {
-    if (!activeTimerDocRef) return;
-    if (isPreparing) return;
     const t = setInterval(() => {
+      if (isPausedRef.current || !claimHeartbeatLeadership()) return;
       patchActiveTimer({}, { includeSnapshot: true, touchUpdatedAt: true, touchHeartbeat: true });
     }, 30000);
     return () => clearInterval(t);
-  }, [activeTimerDocRef, isPreparing, patchActiveTimer]);
+  }, [activeTimerDocRef, isPreparing, patchActiveTimer, claimHeartbeatLeadership]);
 
   // theme init
   useEffect(() => {

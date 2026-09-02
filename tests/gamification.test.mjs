@@ -58,6 +58,32 @@ test('ranking usa o melhor planejamento ativo valido sem incrementar dias de des
   }), 1);
 });
 
+test('question reward sources use official blocks, daily caps and ranking metrics', () => {
+  const questionRewards = Array.from({ length: 5 }, (_, index) => ({
+    id: `reward-${index + 1}`,
+    questions: 1,
+    correct: 1,
+    attemptedAt: new Date(`2026-08-28T12:0${index}:00-03:00`),
+  }));
+  const events = buildAcademicXPEvents({ questionRewards });
+  assert.equal(events.length, 1);
+  assert.equal(events[0].sourceType, 'question');
+  assert.equal(events[0].breakdown.registration, 0);
+  assert.equal(events[0].breakdown.questions, GAMIFICATION_CONFIG.academic.xpPerQuestionsBlock);
+  assert.equal(events[0].breakdown.correct, GAMIFICATION_CONFIG.academic.xpPerCorrectBlock);
+  assert.equal(
+    events[0].xpTotal,
+    GAMIFICATION_CONFIG.academic.xpPerQuestionsBlock + GAMIFICATION_CONFIG.academic.xpPerCorrectBlock,
+  );
+
+  const periods = calculateRankingPeriodMetrics({
+    questionRewards,
+    now: new Date('2026-08-28T15:00:00-03:00'),
+  });
+  assert.equal(periods.lifetime.questions, 5);
+  assert.equal(periods.lifetime.correct, 5);
+});
+
 test('sequência do cronograma nao herda registros explicitamente vinculados a outro documento', () => {
   const records = [
     { cronogramaId: 'schedule-old', data: '2026-08-20', tempoEstudadoMinutos: 60 },

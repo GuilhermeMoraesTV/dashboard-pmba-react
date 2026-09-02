@@ -242,6 +242,13 @@ export const getSimuladoMetrics = (simulado = {}) => ({
   date: simulado.data || simulado.date || simulado.timestamp || simulado.createdAt,
 });
 
+export const getQuestionRewardMetrics = (reward = {}) => ({
+  minutes: 0,
+  questions: Math.min(1, boundedInteger(reward.questions, 1)),
+  correct: Math.min(1, boundedInteger(reward.correct, 1)),
+  date: reward.attemptedAt || reward.createdAt,
+});
+
 export const isReviewRecord = (record = {}) => Boolean(
   record.isRevisao
   || record.revisao
@@ -267,7 +274,7 @@ export const calculateActivityXP = ({ minutes = 0, questions = 0, correct = 0, i
 };
 
 const sourceMillis = (source = {}) => {
-  const raw = source.timestamp || source.updatedAt || source.createdAt || source.data || source.date;
+  const raw = source.attemptedAt || source.timestamp || source.updatedAt || source.createdAt || source.data || source.date;
   if (raw?.toMillis) return raw.toMillis();
   if (raw?.toDate) return raw.toDate().getTime();
   if (typeof raw === 'number') return raw;
@@ -297,13 +304,14 @@ const sumRankingMetrics = (sources) => {
   }), { minutes: 0, questions: 0, correct: 0 });
 };
 
-export const calculateRankingPeriodMetrics = ({ records = [], simulations = [], now = new Date() } = {}) => {
+export const calculateRankingPeriodMetrics = ({ records = [], simulations = [], questionRewards = [], now = new Date() } = {}) => {
   const nowMillis = now instanceof Date ? now.getTime() : Number(now);
   const weekId = getWeekId(new Date(nowMillis));
   const monthId = getMonthId(new Date(nowMillis));
   const sources = [
     ...records.filter(isValidGamificationRecord).map((data) => ({ metrics: getStudyMetrics(data), millis: sourceMillis(data) })),
     ...simulations.filter(isValidGamificationRecord).map((data) => ({ metrics: getSimuladoMetrics(data), millis: sourceMillis(data) })),
+    ...questionRewards.filter(isValidGamificationRecord).map((data) => ({ metrics: getQuestionRewardMetrics(data), millis: sourceMillis(data) })),
   ]
     .filter((source) => source.millis > 0 && source.millis <= nowMillis);
   const weeklySources = sources.filter((source) => getWeekId(new Date(source.millis)) === weekId);
@@ -320,7 +328,7 @@ const xpDeltaForBlocks = (before, after, block, xpPerBlock) => (
   (Math.floor(after / block) - Math.floor(before / block)) * xpPerBlock
 );
 
-export const buildAcademicXPEvents = ({ records = [], simulations = [], goals = [] } = {}) => {
+export const buildAcademicXPEvents = ({ records = [], simulations = [], questionRewards = [], goals = [] } = {}) => {
   const sources = [
     ...records.filter(isValidGamificationRecord).map((data, index) => ({
       kind: 'study',
@@ -334,6 +342,13 @@ export const buildAcademicXPEvents = ({ records = [], simulations = [], goals = 
       id: String(data.id || data.sourceId || index),
       data,
       metrics: getSimuladoMetrics(data),
+      millis: sourceMillis(data),
+    })),
+    ...questionRewards.filter(isValidGamificationRecord).map((data, index) => ({
+      kind: 'question',
+      id: String(data.id || data.sourceId || index),
+      data,
+      metrics: getQuestionRewardMetrics(data),
       millis: sourceMillis(data),
     })),
   ].filter((source) => toDateKey(source.metrics.date || source.data.data || source.millis));
@@ -396,7 +411,7 @@ export const buildAcademicXPEvents = ({ records = [], simulations = [], goals = 
       xpTotal: xp,
       xpCompetitive: xp,
       breakdown,
-      message: `${source.kind === 'simulation' ? 'Simulado' : review ? 'Revisão' : 'Estudo'}: ${labels.join(', ')}`,
+      message: `${source.kind === 'simulation' ? 'Simulado' : source.kind === 'question' ? 'Questões' : review ? 'Revisão' : 'Estudo'}: ${labels.join(', ')}`,
       category: 'academic',
     });
   });

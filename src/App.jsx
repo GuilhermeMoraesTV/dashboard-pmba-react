@@ -4,6 +4,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { auth, authPersistenceReady, db } from './firebaseConfig';
 import PwaStatus from './components/shared/PwaStatus';
+import EnvironmentBadge from './components/shared/EnvironmentBadge';
 import { dismissInitialLoadingScreen } from './utils/initialLoadingScreen';
 import {
   applyUserFontSize,
@@ -138,6 +139,7 @@ function App() {
       */}
       <div className="flex flex-col min-h-screen bg-background-color dark:bg-dark-background-color transition-colors">
         <PwaStatus />
+        <EnvironmentBadge />
 
         <Suspense fallback={null}>
           <main className="flex-grow">

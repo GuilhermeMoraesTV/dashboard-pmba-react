@@ -67,6 +67,7 @@ const loadUserGamificationSources = async (uid) => {
     schedulesSnapshot,
     achievementsSnapshot,
     xpEventsSnapshot,
+    questionRewardsSnapshot,
     ownedGroupsSnapshot,
   ] = await Promise.all([
     userRef.get(),
@@ -79,6 +80,7 @@ const loadUserGamificationSources = async (uid) => {
     userRef.collection('cronogramas').get(),
     userRef.collection('gamification').doc('profile').collection('achievements').get(),
     userRef.collection('gamification').doc('profile').collection('xp_events').get(),
+    userRef.collection('question_reward_sources').get(),
     db().collection('study_groups').where('ownerId', '==', uid).get(),
   ]);
   const cycles = dataWithId(cyclesSnapshot);
@@ -103,6 +105,7 @@ const loadUserGamificationSources = async (uid) => {
     cycleRounds,
     achievements: dataWithId(achievementsSnapshot),
     xpEvents: dataWithId(xpEventsSnapshot),
+    questionRewards: dataWithId(questionRewardsSnapshot),
     ownedGroups: dataWithId(ownedGroupsSnapshot),
   };
 };
@@ -112,7 +115,7 @@ const getMigrationCutoffMillis = (profile = {}) => (
 );
 
 const sourceCreatedMillis = (source = {}) => timestampMillis(
-  source.timestamp || source.criadoEm || source.dataCriacao || source.createdAt || source.data || source.date,
+  source.attemptedAt || source.timestamp || source.criadoEm || source.dataCriacao || source.createdAt || source.data || source.date,
 );
 
 const planPublicIdentity = (plan = {}, type) => {
@@ -164,6 +167,63 @@ const buildPublicEditais = (sources) => {
   return [...unique.values()].slice(0, 6);
 };
 
+const comparableValue = (value) => {
+  if (value?.toMillis) return { __timestampMillis: value.toMillis() };
+  if (value?.path && typeof value.path === 'string') return { __documentPath: value.path };
+  if (Array.isArray(value)) return value.map(comparableValue);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, nested]) => [key, comparableValue(nested)]));
+  }
+  return value === undefined ? null : value;
+};
+
+const functionalValuesEqual = (left, right) => (
+  JSON.stringify(comparableValue(left)) === JSON.stringify(comparableValue(right))
+);
+
+const pickPayloadFields = (source = {}, payload = {}) => Object.fromEntries(
+  Object.keys(payload).map((key) => [key, source?.[key]]),
+);
+
+const payloadChanged = (current = {}, payload = {}) => (
+  !functionalValuesEqual(pickPayloadFields(current, payload), payload)
+);
+
+const AUDIT_TIMESTAMP_FIELDS = new Set([
+  'updatedAt',
+  'eligibilityUpdatedAt',
+  'publicPlanningUpdatedAt',
+  'monthlyMetricsUpdatedAt',
+  'weeklyMetricsUpdatedAt',
+  'updatedPositionAt',
+  'positionChangedAt',
+]);
+
+const withoutAuditTimestamps = (payload = {}) => Object.fromEntries(
+  Object.entries(payload).filter(([key]) => !AUDIT_TIMESTAMP_FIELDS.has(key)),
+);
+
+const setIfChanged = async (ref, payload, {
+  snapshot = null,
+  merge = true,
+  timestamps = { updatedAt: serverTimestamp() },
+} = {}) => {
+  const currentSnapshot = snapshot || await ref.get();
+  const current = currentSnapshot.exists ? (currentSnapshot.data() || {}) : {};
+  if (currentSnapshot.exists && !payloadChanged(current, payload)) return false;
+  await ref.set({ ...payload, ...timestamps }, { merge });
+  return true;
+};
+
+const deleteIfExists = async (ref, snapshot = null) => {
+  const currentSnapshot = snapshot || await ref.get();
+  if (!currentSnapshot.exists) return false;
+  await ref.delete();
+  return true;
+};
+
 const buildPublicFocusSubjects = (records, rules) => {
   const subjects = new Map();
   records.forEach((record) => {
@@ -206,15 +266,20 @@ const syncGroupWeeklyMember = async ({ groupId, weekId, uid, member = null }) =>
       questions: sameWeek ? Number(group.weeklyQuestions || 0) : 0,
     };
     const next = member || {};
-    transaction.set(groupRef, {
+    const groupPayload = {
       weeklyMetricsWeekId: weekId,
       weeklyXP: Math.max(0, base.xp - Number(previous.competitiveXP || previous.weeklyXP || 0) + Number(next.competitiveXP || next.weeklyXP || 0)),
       weeklyMinutes: Math.max(0, base.minutes - Number(previous.minutes || 0) + Number(next.minutes || 0)),
       weeklyQuestions: Math.max(0, base.questions - Number(previous.questions || 0) + Number(next.questions || 0)),
-      weeklyMetricsUpdatedAt: serverTimestamp(),
-    }, { merge: true });
-    if (member) transaction.set(memberRef, member, { merge: true });
-    else if (previousSnapshot.exists) transaction.delete(memberRef);
+    };
+    if (payloadChanged(group, groupPayload)) {
+      transaction.set(groupRef, { ...groupPayload, weeklyMetricsUpdatedAt: serverTimestamp() }, { merge: true });
+    }
+    const functionalMember = withoutAuditTimestamps(member || {});
+    if (member && (!previousSnapshot.exists || payloadChanged(previous, functionalMember))) {
+      transaction.set(memberRef, { ...functionalMember, updatedAt: serverTimestamp() }, { merge: true });
+    }
+    if (!member && previousSnapshot.exists) transaction.delete(memberRef);
   });
 };
 
@@ -232,15 +297,21 @@ const syncGroupMonthlyMember = async ({ groupId, monthId, uid, member = null }) 
       if (rankingMemberSnapshot.exists) transaction.delete(rankingMemberRef);
       return;
     }
-    transaction.set(groupMemberRef, {
+    const groupMember = groupMemberSnapshot.data() || {};
+    const groupMemberPayload = {
       monthlyMetricsMonthId: monthId,
       monthlyMinutes: Number(member?.minutes || 0),
       monthlyQuestions: Number(member?.questions || 0),
       monthlyCorrect: Number(member?.correct || 0),
-      monthlyMetricsUpdatedAt: serverTimestamp(),
-    }, { merge: true });
-    if (member) transaction.set(rankingMemberRef, member, { merge: true });
-    else if (rankingMemberSnapshot.exists) transaction.delete(rankingMemberRef);
+    };
+    if (payloadChanged(groupMember, groupMemberPayload)) {
+      transaction.set(groupMemberRef, { ...groupMemberPayload, monthlyMetricsUpdatedAt: serverTimestamp() }, { merge: true });
+    }
+    const functionalMember = withoutAuditTimestamps(member || {});
+    if (member && (!rankingMemberSnapshot.exists || payloadChanged(rankingMemberSnapshot.data() || {}, functionalMember))) {
+      transaction.set(rankingMemberRef, { ...functionalMember, updatedAt: serverTimestamp() }, { merge: true });
+    }
+    if (!member && rankingMemberSnapshot.exists) transaction.delete(rankingMemberRef);
   });
 };
 
@@ -252,6 +323,7 @@ const buildMonthlyGroupMember = async ({ uid, rules, now = new Date() }) => {
   const periods = rules.calculateRankingPeriodMetrics({
     records: sources.records,
     simulations: sources.simulations,
+    questionRewards: sources.questionRewards,
     now,
   });
   const monthly = periods.monthly;
@@ -337,7 +409,60 @@ const refreshStudyGroupMonthlyRankings = async () => {
   };
 };
 
-const updateRankingMetricPositions = async ({ membersRef, rules }) => {
+const buildPositionPayload = ({ member, positions }) => {
+  const stored = member.positions || {};
+  const changedMetrics = ['minutes', 'questions'].filter((metric) => (
+    Number(stored[metric] || 0) > 0
+    && Number(stored[metric]) !== Number(positions[metric])
+  ));
+  const payload = { positions };
+  if (changedMetrics.length) {
+    payload.previousPositions = { ...(member.previousPositions || {}) };
+    payload.positionDeltas = { ...(member.positionDeltas || {}) };
+    changedMetrics.forEach((metric) => {
+      payload.previousPositions[metric] = Number(stored[metric]);
+      payload.positionDeltas[metric] = Number(stored[metric]) - Number(positions[metric]);
+    });
+  }
+  return { payload, changedMetrics };
+};
+
+const countPositionForMember = async ({ membersRef, memberSnapshot, metric }) => {
+  const member = memberSnapshot.data() || {};
+  const secondaryMetric = metric === 'minutes' ? 'questions' : 'minutes';
+  const ahead = membersRef
+    .where('rankingEligible', '==', true)
+    .orderBy(metric, 'desc')
+    .orderBy(secondaryMetric, 'desc')
+    .orderBy('correct', 'desc')
+    .orderBy(admin.firestore.FieldPath.documentId(), 'asc')
+    .endBefore(
+      Number(member[metric] || 0),
+      Number(member[secondaryMetric] || 0),
+      Number(member.correct || 0),
+      memberSnapshot.id,
+    );
+  const countSnapshot = await ahead.count().get();
+  return Number(countSnapshot.data().count || 0) + 1;
+};
+
+const updateRankingMetricPositions = async ({ membersRef, rules, targetUid = null }) => {
+  if (targetUid) {
+    const memberSnapshot = await membersRef.doc(targetUid).get();
+    if (!memberSnapshot.exists || memberSnapshot.data()?.rankingEligible !== true) return { reads: 1, writes: 0 };
+    const [minutes, questions] = await Promise.all(['minutes', 'questions'].map((metric) => (
+      countPositionForMember({ membersRef, memberSnapshot, metric })
+    )));
+    const member = memberSnapshot.data() || {};
+    const { payload, changedMetrics } = buildPositionPayload({ member, positions: { minutes, questions } });
+    if (!payloadChanged(member, payload)) return { reads: 3, writes: 0 };
+    await memberSnapshot.ref.set({
+      ...payload,
+      updatedPositionAt: serverTimestamp(),
+      ...(changedMetrics.length ? { positionChangedAt: serverTimestamp() } : {}),
+    }, { merge: true });
+    return { reads: 3, writes: 1 };
+  }
   const snapshot = await membersRef.get();
   const members = dataWithId(snapshot).filter((member) => member.rankingEligible === true);
   const nextByUid = new Map();
@@ -350,24 +475,21 @@ const updateRankingMetricPositions = async ({ membersRef, rules }) => {
     });
   });
   const writer = db().bulkWriter();
+  let writes = 0;
   members.forEach((member) => {
     const uid = member.uid || member.id;
     const positions = nextByUid.get(uid) || {};
-    const stored = member.positions || {};
-    const changedMetrics = ['minutes', 'questions'].filter((metric) => Number(stored[metric] || 0) > 0 && Number(stored[metric]) !== Number(positions[metric]));
-    const payload = { positions, updatedPositionAt: serverTimestamp() };
-    if (changedMetrics.length) {
-      payload.previousPositions = { ...(member.previousPositions || {}) };
-      payload.positionDeltas = { ...(member.positionDeltas || {}) };
-      changedMetrics.forEach((metric) => {
-        payload.previousPositions[metric] = Number(stored[metric]);
-        payload.positionDeltas[metric] = Number(stored[metric]) - Number(positions[metric]);
-      });
-      payload.positionChangedAt = serverTimestamp();
-    }
-    writer.set(membersRef.doc(uid), payload, { merge: true });
+    const { payload, changedMetrics } = buildPositionPayload({ member, positions });
+    if (!payloadChanged(member, payload)) return;
+    writer.set(membersRef.doc(uid), {
+      ...payload,
+      updatedPositionAt: serverTimestamp(),
+      ...(changedMetrics.length ? { positionChangedAt: serverTimestamp() } : {}),
+    }, { merge: true });
+    writes += 1;
   });
   await writer.close();
+  return { reads: snapshot.size, writes };
 };
 
 const buildCompletionEvents = async ({ cycleRounds, schedules, cutoffMillis }) => {
@@ -439,7 +561,8 @@ const calculateHistoricalState = async (sources, totalXPBeforeAchievements) => {
   });
   const recordMetrics = sources.records.filter(rules.isValidGamificationRecord).map(rules.getStudyMetrics);
   const simulationMetrics = sources.simulations.filter(rules.isValidGamificationRecord).map(rules.getSimuladoMetrics);
-  const allMetrics = [...recordMetrics, ...simulationMetrics];
+  const questionMetrics = sources.questionRewards.filter(rules.isValidGamificationRecord).map(rules.getQuestionRewardMetrics);
+  const allMetrics = [...recordMetrics, ...simulationMetrics, ...questionMetrics];
   const totals = allMetrics.reduce((sum, metric) => ({
     minutes: sum.minutes + metric.minutes,
     questions: sum.questions + metric.questions,
@@ -449,6 +572,7 @@ const calculateHistoricalState = async (sources, totalXPBeforeAchievements) => {
   const dailyGoalEvents = rules.buildAcademicXPEvents({
     records: sources.records,
     simulations: sources.simulations,
+    questionRewards: sources.questionRewards,
     goals: sources.goals,
   }).filter((event) => event.sourceType === 'daily_goal');
   const currentLeague = rules.getLeague(sources.profile.currentLeague || sources.profile.league || 'iron');
@@ -518,25 +642,34 @@ const calculatePersistedNonAcademicXP = ({ achievements = [], events = [] } = {}
 const writeEventsAndAchievements = async ({ sources, academicEvents, newAchievements, state, rules }) => {
   const writer = db().bulkWriter();
   const nextAcademicIds = new Set(academicEvents.map((event) => event.id));
+  const eventsById = new Map(sources.xpEvents.map((event) => [event.id, event]));
+  const achievementsById = new Map(sources.achievements.map((item) => [item.id, item]));
+  let writes = 0;
   sources.xpEvents
     .filter((event) => event.category === 'academic' && !nextAcademicIds.has(event.id))
-    .forEach((event) => writer.delete(sources.profileRef.collection('xp_events').doc(event.id)));
+    .forEach((event) => {
+      writer.delete(sources.profileRef.collection('xp_events').doc(event.id));
+      writes += 1;
+    });
   academicEvents.forEach((event) => {
-    const existing = sources.xpEvents.find((item) => item.id === event.id);
-    const unchanged = existing
-      && Number(existing.xpTotal || 0) === event.xpTotal
-      && Number(existing.xpCompetitive || 0) === event.xpCompetitive
-      && existing.message === event.message;
-    writer.set(sources.profileRef.collection('xp_events').doc(event.id), serializeEvent(event, rules, unchanged ? {
+    const existing = eventsById.get(event.id);
+    const nextPayload = serializeEvent(event, rules, existing ? {
       isRead: existing.isRead === true,
       ...(existing.readAt ? { readAt: existing.readAt } : {}),
-    } : {}), { merge: true });
+    } : {});
+    const { updatedAt, ...functionalPayload } = nextPayload;
+    if (existing && !payloadChanged(existing, functionalPayload)) return;
+    writer.set(sources.profileRef.collection('xp_events').doc(event.id), {
+      ...functionalPayload,
+      updatedAt,
+    }, { merge: true });
+    writes += 1;
   });
   rules.ACHIEVEMENTS.forEach((item) => {
     const progress = rules.getAchievementProgress(item, state);
-    const existing = sources.achievements.find((achievementItem) => achievementItem.id === item.id);
+    const existing = achievementsById.get(item.id);
     const isNew = newAchievements.some((achievementItem) => achievementItem.id === item.id);
-    writer.set(sources.profileRef.collection('achievements').doc(item.id), {
+    const functionalPayload = {
       id: item.id,
       category: item.category,
       title: item.title,
@@ -547,10 +680,16 @@ const writeEventsAndAchievements = async ({ sources, academicEvents, newAchievem
       progressTarget: progress.threshold,
       progressPercent: progress.percent,
       unlocked: Boolean(existing?.unlocked || progress.unlocked || isNew),
-      ...(isNew ? { unlockedAt: serverTimestamp(), xpGranted: item.xp } : {}),
+      ...(isNew ? { xpGranted: item.xp } : {}),
       ruleVersion: rules.GAMIFICATION_RULE_VERSION,
+    };
+    if (existing && !payloadChanged(existing, functionalPayload)) return;
+    writer.set(sources.profileRef.collection('achievements').doc(item.id), {
+      ...functionalPayload,
+      ...(isNew ? { unlockedAt: serverTimestamp() } : {}),
       updatedAt: serverTimestamp(),
     }, { merge: true });
+    writes += 1;
   });
   await writer.close();
   await Promise.all(newAchievements.map(async (item) => {
@@ -570,8 +709,575 @@ const writeEventsAndAchievements = async ({ sources, academicEvents, newAchievem
       const existingEvent = await transaction.get(eventRef);
       if (existingEvent.exists) return;
       transaction.create(eventRef, serializeEvent(event, rules));
+      writes += 1;
     });
   }));
+  return { writes };
+};
+
+const incrementalSourceDateKey = ({ sourceType, source, rules }) => {
+  if (!source) return null;
+  if (sourceType === 'goal') return rules.toDateKey(source.startDate || source.data || source.createdAt);
+  const metrics = sourceType === 'study'
+    ? rules.getStudyMetrics(source)
+    : sourceType === 'simulation'
+      ? rules.getSimuladoMetrics(source)
+      : rules.getQuestionRewardMetrics(source);
+  return rules.toDateKey(metrics.date);
+};
+
+const mergeSnapshotsById = (...snapshots) => {
+  const byId = new Map();
+  snapshots.forEach((snapshot) => snapshot.docs.forEach((item) => byId.set(item.id, { id: item.id, ...item.data() })));
+  return [...byId.values()];
+};
+
+const loadIncrementalDay = async ({ uid, dateKey, rules }) => {
+  const userRef = db().collection('users').doc(uid);
+  const dayStart = admin.firestore.Timestamp.fromDate(new Date(`${dateKey}T00:00:00-03:00`));
+  const nextDate = new Date(`${dateKey}T12:00:00Z`);
+  nextDate.setUTCDate(nextDate.getUTCDate() + 1);
+  const nextDateKey = nextDate.toISOString().slice(0, 10);
+  const dayEnd = admin.firestore.Timestamp.fromDate(new Date(`${nextDateKey}T00:00:00-03:00`));
+  const [
+    recordsByData,
+    recordsByDate,
+    simulationsByData,
+    simulationsByDate,
+    questionRewards,
+    goals,
+    xpEvents,
+  ] = await Promise.all([
+    userRef.collection('registrosEstudo').where('data', '==', dateKey).get(),
+    userRef.collection('registrosEstudo').where('date', '==', dateKey).get(),
+    userRef.collection('simulados').where('data', '==', dateKey).get(),
+    userRef.collection('simulados').where('date', '==', dateKey).get(),
+    userRef.collection('question_reward_sources').where('attemptedAt', '>=', dayStart).where('attemptedAt', '<', dayEnd).get(),
+    userRef.collection('metas').get(),
+    userRef.collection('gamification').doc('profile').collection('xp_events').where('dateKey', '==', dateKey).get(),
+  ]);
+  const profileRef = userRef.collection('gamification').doc('profile');
+  const profileSnapshot = await profileRef.get();
+  const profile = profileSnapshot.data() || {};
+  const currentWeekId = rules.getWeekId();
+  const currentMonthId = rules.getMonthId();
+  const weeklyRankingSnapshot = await db().collection('weekly_rankings').doc(currentWeekId).collection('members').doc(uid).get();
+  let monthlyRanking = null;
+  const firstGroupId = (profile.groupIds || []).find(Boolean);
+  if (firstGroupId) {
+    const monthlySnapshot = await db().collection('study_groups').doc(firstGroupId)
+      .collection('monthly_rankings').doc(currentMonthId).collection('members').doc(uid).get();
+    monthlyRanking = monthlySnapshot.exists ? (monthlySnapshot.data() || {}) : null;
+  }
+  return {
+    userRef,
+    profileRef,
+    records: mergeSnapshotsById(recordsByData, recordsByDate)
+      .filter((item) => incrementalSourceDateKey({ sourceType: 'study', source: item, rules }) === dateKey),
+    simulations: mergeSnapshotsById(simulationsByData, simulationsByDate)
+      .filter((item) => incrementalSourceDateKey({ sourceType: 'simulation', source: item, rules }) === dateKey),
+    questionRewards: dataWithId(questionRewards)
+      .filter((item) => incrementalSourceDateKey({ sourceType: 'question', source: item, rules }) === dateKey),
+    goals: dataWithId(goals),
+    xpEvents: dataWithId(xpEvents),
+    rankingBaselines: {
+      weekly: weeklyRankingSnapshot.exists ? (weeklyRankingSnapshot.data() || {}) : null,
+      monthly: monthlyRanking,
+    },
+  };
+};
+
+const replaceChangedDaySource = ({ daySources, sourceType, sourceId, before, after, dateKey, rules }) => {
+  const collectionKey = sourceType === 'study'
+    ? 'records'
+    : sourceType === 'simulation'
+      ? 'simulations'
+      : sourceType === 'goal'
+        ? 'goals'
+        : 'questionRewards';
+  const next = { ...daySources, [collectionKey]: [...daySources[collectionKey]] };
+  const byId = new Map(next[collectionKey].map((item) => [String(item.id), item]));
+  const afterDateKey = incrementalSourceDateKey({ sourceType, source: after, rules });
+  const beforeDateKey = incrementalSourceDateKey({ sourceType, source: before, rules });
+  const afterAffectsDay = sourceType === 'goal'
+    ? Boolean(afterDateKey && afterDateKey <= dateKey)
+    : incrementalSourceDateKey({ sourceType, source: after, rules }) === dateKey;
+  const beforeAffectsDay = sourceType === 'goal'
+    ? Boolean(beforeDateKey && beforeDateKey <= dateKey)
+    : incrementalSourceDateKey({ sourceType, source: before, rules }) === dateKey;
+  if (afterAffectsDay) byId.delete(String(sourceId));
+  if (beforeAffectsDay) {
+    byId.set(String(sourceId), { id: String(sourceId), ...before });
+  }
+  next[collectionKey] = [...byId.values()];
+  return next;
+};
+
+const buildIncrementalDayState = ({ dateKey, sources, rules }) => {
+  const events = rules.buildAcademicXPEvents(sources).filter((event) => event.dateKey === dateKey);
+  const metrics = rules.calculateRankingPeriodMetrics({
+    records: sources.records,
+    simulations: sources.simulations,
+    questionRewards: sources.questionRewards,
+    now: new Date(`${dateKey}T23:59:59-03:00`),
+  }).lifetime;
+  const validRecords = sources.records.filter(rules.isValidGamificationRecord);
+  const validSimulations = sources.simulations.filter(rules.isValidGamificationRecord);
+  return {
+    dateKey,
+    academicXP: events.reduce((sum, event) => sum + Number(event.xpTotal || 0), 0),
+    questionXP: events.filter((event) => event.sourceType === 'question').reduce((sum, event) => sum + Number(event.xpTotal || 0), 0),
+    metrics: {
+      minutes: Number(metrics.minutes || 0),
+      questions: Number(metrics.questions || 0),
+      correct: Number(metrics.correct || 0),
+    },
+    counts: {
+      studies: validRecords.length,
+      simulations: validSimulations.length,
+      reviews: validRecords.filter(rules.isReviewRecord).length,
+      dailyGoals: events.filter((event) => event.sourceType === 'daily_goal').length,
+    },
+    eventIds: events.map((event) => event.id),
+    ruleVersion: rules.GAMIFICATION_RULE_VERSION,
+    events,
+  };
+};
+
+const deltaNumber = (after, before) => Number(after || 0) - Number(before || 0);
+const applyMetricDelta = (base = {}, before = {}, after = {}) => ({
+  minutes: Math.max(0, Number(base.minutes || 0) + deltaNumber(after.minutes, before.minutes)),
+  questions: Math.max(0, Number(base.questions || 0) + deltaNumber(after.questions, before.questions)),
+  correct: Math.max(0, Number(base.correct || 0) + deltaNumber(after.correct, before.correct)),
+});
+
+const buildIncrementalAchievementState = ({ profile, totals, rules }) => {
+  const accuracy = totals.questions ? (totals.correct / totals.questions) * 100 : 0;
+  return {
+    studies: Number(totals.studies || 0),
+    dailyGoals: Number(totals.dailyGoals || 0),
+    simulations: Number(totals.simulations || 0),
+    reviews: Number(totals.reviews || 0),
+    cyclesCreated: Number(totals.cyclesCreated || profile.totals?.cyclesCreated || 0),
+    schedulesCreated: Number(totals.schedulesCreated || profile.totals?.schedulesCreated || 0),
+    cycleRounds: Number(totals.cycleRounds || 0),
+    schedulesCompleted: Number(totals.schedulesCompleted || 0),
+    minutes: Number(totals.minutes || 0),
+    questions: Number(totals.questions || 0),
+    accuracy85Questions: accuracy >= 85 ? Number(totals.questions || 0) : 0,
+    accuracy90Questions: accuracy >= 90 ? Number(totals.questions || 0) : 0,
+    streak: Number(profile.currentStreak || profile.streak || 0),
+    groupsJoined: Math.max(Number(profile.groupIds?.length || 0), Number(profile.socialHistory?.groupsJoined || 0)),
+    groupsCreated: Number(profile.socialHistory?.groupsCreated || 0),
+    groupPodiums: Number(profile.competitionHistory?.groupPodiums || 0),
+    leaguePodiums: Number(profile.competitionHistory?.leaguePodiums || 0),
+    generalTop10: Number(profile.competitionHistory?.generalTop10 || 0),
+    generalTop3: Number(profile.competitionHistory?.generalTop3 || 0),
+    generalFirst: Number(profile.competitionHistory?.generalFirst || 0),
+    highestLeagueIndex: Number(profile.highestLeagueIndex || rules.getLeague(profile.currentLeague || profile.league || 'iron').index),
+  };
+};
+
+const writeIncrementalEvents = async ({ profileRef, existingEvents, events, rules }) => {
+  const managedTypes = new Set(['study', 'simulation', 'question', 'daily_goal']);
+  const existingById = new Map(existingEvents.filter((event) => managedTypes.has(event.sourceType)).map((event) => [event.id, event]));
+  const nextIds = new Set(events.map((event) => event.id));
+  const writer = db().bulkWriter();
+  let writes = 0;
+  existingById.forEach((event) => {
+    if (nextIds.has(event.id)) return;
+    writer.delete(profileRef.collection('xp_events').doc(event.id));
+    writes += 1;
+  });
+  events.forEach((event) => {
+    const existing = existingById.get(event.id);
+    const serialized = serializeEvent(event, rules, existing ? {
+      isRead: existing.isRead === true,
+      ...(existing.readAt ? { readAt: existing.readAt } : {}),
+    } : {});
+    const { updatedAt, ...functionalPayload } = serialized;
+    if (existing && !payloadChanged(existing, functionalPayload)) return;
+    writer.set(profileRef.collection('xp_events').doc(event.id), { ...functionalPayload, updatedAt }, { merge: true });
+    writes += 1;
+  });
+  await writer.close();
+  return writes;
+};
+
+const writeIncrementalAchievements = async ({ profileRef, state, unlockedIds, unlockIds, rules }) => {
+  const unlocked = new Set(unlockedIds || []);
+  const nextByProgressKey = new Map();
+  rules.ACHIEVEMENTS.forEach((item) => {
+    if (unlocked.has(item.id)) return;
+    const current = nextByProgressKey.get(item.progressKey);
+    if (!current || Number(item.threshold) < Number(current.threshold)) nextByProgressKey.set(item.progressKey, item);
+  });
+  const candidates = [...new Map([
+    ...(unlockIds || []).map((id) => [id, rules.ACHIEVEMENTS.find((item) => item.id === id)]),
+    ...[...nextByProgressKey.values()].map((item) => [item.id, item]),
+  ].filter(([, item]) => item)).values()];
+  if (!candidates.length) return 0;
+  const refs = candidates.map((item) => profileRef.collection('achievements').doc(item.id));
+  const snapshots = await db().getAll(...refs);
+  const writer = db().bulkWriter();
+  let writes = 0;
+  candidates.forEach((item, index) => {
+    const existing = snapshots[index].exists ? (snapshots[index].data() || {}) : {};
+    const progress = rules.getAchievementProgress(item, state);
+    const isUnlocked = unlocked.has(item.id);
+    const payload = {
+      id: item.id,
+      category: item.category,
+      title: item.title,
+      description: item.description,
+      requirement: item.requirement,
+      xp: item.xp,
+      progress: progress.current,
+      progressTarget: progress.threshold,
+      progressPercent: progress.percent,
+      unlocked: isUnlocked,
+      ...(isUnlocked ? { xpGranted: item.xp } : {}),
+      ruleVersion: rules.GAMIFICATION_RULE_VERSION,
+    };
+    if (snapshots[index].exists && !payloadChanged(existing, payload)) return;
+    writer.set(refs[index], {
+      ...payload,
+      ...(isUnlocked && !existing.unlockedAt ? { unlockedAt: serverTimestamp() } : {}),
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+    writes += 1;
+  });
+  await writer.close();
+  return writes;
+};
+
+const projectIncrementalRankings = async ({ uid, user, profile, rules }) => {
+  const weekId = rules.getWeekId();
+  const monthId = rules.getMonthId();
+  const generalMembersRef = db().collection('general_rankings').doc('all').collection('members');
+  const weeklyMembersRef = db().collection('weekly_rankings').doc(weekId).collection('members');
+  const generalRef = generalMembersRef.doc(uid);
+  const weeklyRef = weeklyMembersRef.doc(uid);
+  const [generalSnapshot, weeklySnapshot] = await db().getAll(generalRef, weeklyRef);
+  const generalExisting = generalSnapshot.exists ? (generalSnapshot.data() || {}) : {};
+  const weeklyExisting = weeklySnapshot.exists ? (weeklySnapshot.data() || {}) : {};
+  const totals = profile.totals || {};
+  const weeklyMetrics = profile.rankingMetrics?.weekly?.periodId === weekId
+    ? profile.rankingMetrics.weekly
+    : { minutes: 0, questions: 0, correct: 0 };
+  const monthlyMetrics = profile.rankingMetrics?.monthly?.periodId === monthId
+    ? profile.rankingMetrics.monthly
+    : { minutes: 0, questions: 0, correct: 0 };
+  const accountStatus = String(user.status || (user.disabled ? 'disabled' : 'active')).toLowerCase();
+  const accountActive = !user.disabled && !['blocked', 'disabled'].includes(accountStatus);
+  const rankingEligible = accountActive && rules.hasRecentRankingActivity({
+    lastStudyAtMillis: profile.lastStudyAtMillis,
+    now: new Date(),
+  });
+  const identity = {
+    uid,
+    displayName: userNameFrom(user),
+    photoURL: user.photoURL || null,
+    level: Number(profile.level || 1),
+    leagueId: rules.getLeague(profile.currentLeague || profile.league || 'iron').id,
+    accountActive,
+    accountStatus,
+    lastStudyAtMillis: Number(profile.lastStudyAtMillis || 0),
+    editais: profile.publicEditais || generalExisting.editais || [],
+    streak: Number(profile.currentStreak || profile.streak || 0),
+    streakState: profile.streakState || 'not_applicable',
+  };
+  const generalPayload = {
+    ...identity,
+    minutes: Number(totals.minutes || 0),
+    questions: Number(totals.questions || 0),
+    correct: Number(totals.correct || 0),
+    accuracy: Number(totals.questions || 0) ? Number(((Number(totals.correct || 0) / Number(totals.questions)) * 100).toFixed(2)) : 0,
+    errors: Math.max(0, Number(totals.questions || 0) - Number(totals.correct || 0)),
+    active: accountActive,
+    rankingEligible,
+  };
+  if (rankingEligible) await setIfChanged(generalRef, generalPayload, { snapshot: generalSnapshot });
+  else await deleteIfExists(generalRef, generalSnapshot);
+
+  const weeklyEligible = rankingEligible && (Number(weeklyMetrics.minutes || 0) > 0 || Number(weeklyMetrics.questions || 0) > 0);
+  const weeklyPayload = {
+    ...identity,
+    competitiveXP: Number(profile.weeklyCompetitiveXP || 0),
+    weeklyXP: Number(profile.weeklyCompetitiveXP || 0),
+    minutes: Number(weeklyMetrics.minutes || 0),
+    questions: Number(weeklyMetrics.questions || 0),
+    correct: Number(weeklyMetrics.correct || 0),
+    accuracy: Number(weeklyMetrics.questions || 0) ? Number(((Number(weeklyMetrics.correct || 0) / Number(weeklyMetrics.questions)) * 100).toFixed(2)) : 0,
+    errors: Math.max(0, Number(weeklyMetrics.questions || 0) - Number(weeklyMetrics.correct || 0)),
+    rankingEligible: weeklyEligible,
+    ruleVersion: rules.GAMIFICATION_RULE_VERSION,
+  };
+  if (weeklyEligible) await setIfChanged(weeklyRef, weeklyPayload, { snapshot: weeklySnapshot });
+  else await deleteIfExists(weeklyRef, weeklySnapshot);
+
+  let cohortId = profile.competitiveWeekId === weekId ? profile.currentCohortId : null;
+  if (weeklyEligible && Number(profile.weeklyCompetitiveXP || 0) > 0 && !cohortId) {
+    const profileRef = db().collection('users').doc(uid).collection('gamification').doc('profile');
+    cohortId = await ensureCohort({ uid, profileRef, leagueId: identity.leagueId, weekId });
+  }
+  if (cohortId) {
+    const cohortMemberRef = db().collection('weekly_rankings').doc(weekId).collection('cohorts').doc(cohortId).collection('members').doc(uid);
+    if (weeklyEligible && Number(profile.weeklyCompetitiveXP || 0) > 0) {
+      await setIfChanged(cohortMemberRef, { ...weeklyPayload, cohortId });
+    } else {
+      await deleteIfExists(cohortMemberRef);
+    }
+  }
+
+  const monthlyPayload = {
+    ...identity,
+    minutes: Number(monthlyMetrics.minutes || 0),
+    questions: Number(monthlyMetrics.questions || 0),
+    correct: Number(monthlyMetrics.correct || 0),
+    accuracy: Number(monthlyMetrics.questions || 0) ? Number(((Number(monthlyMetrics.correct || 0) / Number(monthlyMetrics.questions)) * 100).toFixed(2)) : 0,
+    errors: Math.max(0, Number(monthlyMetrics.questions || 0) - Number(monthlyMetrics.correct || 0)),
+    rankingEligible: rankingEligible && (Number(monthlyMetrics.minutes || 0) > 0 || Number(monthlyMetrics.questions || 0) > 0),
+    periodType: 'monthly',
+    monthId,
+    ruleVersion: rules.GAMIFICATION_RULE_VERSION,
+  };
+  await Promise.all((profile.groupIds || []).filter(Boolean).flatMap((groupId) => [
+    syncGroupWeeklyMember({ groupId, weekId, uid, member: weeklyEligible ? { ...weeklyExisting, ...weeklyPayload } : null }),
+    syncGroupMonthlyMember({
+      groupId,
+      monthId,
+      uid,
+      member: monthlyPayload.rankingEligible ? monthlyPayload : null,
+    }),
+  ]));
+  await Promise.all([
+    ...(rankingEligible ? [updateRankingMetricPositions({ membersRef: generalMembersRef, rules, targetUid: uid })] : []),
+    ...(weeklyEligible ? [updateRankingMetricPositions({ membersRef: weeklyMembersRef, rules, targetUid: uid })] : []),
+  ]);
+  return { cohortId, generalChanged: payloadChanged(generalExisting, generalPayload) };
+};
+
+const incrementalOperationId = ({ sourceType, sourceId, eventId, dateKey }) => {
+  const safeEventId = String(eventId || `${sourceType}-${sourceId}`).replaceAll('/', '_');
+  return `${safeEventId}_${dateKey}`.slice(0, 1400);
+};
+
+const processIncrementalGamificationDay = async ({ uid, sourceType, sourceId, before, after, eventId, dateKey, rules }) => {
+  const daySources = await loadIncrementalDay({ uid, dateKey, rules });
+  const oldSources = replaceChangedDaySource({ daySources, sourceType, sourceId, before, after, dateKey, rules });
+  const fallbackPreviousDay = buildIncrementalDayState({ dateKey, sources: oldSources, rules });
+  const nextDay = buildIncrementalDayState({ dateKey, sources: daySources, rules });
+  const dailyRef = daySources.profileRef.collection('daily_states').doc(dateKey);
+  const operationRef = daySources.profileRef.collection('operations').doc(incrementalOperationId({
+    sourceType,
+    sourceId,
+    eventId,
+    dateKey,
+  }));
+  let transactionResult = null;
+  await db().runTransaction(async (transaction) => {
+    const [userSnapshot, profileSnapshot, dailySnapshot, operationSnapshot] = await Promise.all([
+      transaction.get(daySources.userRef),
+      transaction.get(daySources.profileRef),
+      transaction.get(dailyRef),
+      transaction.get(operationRef),
+    ]);
+    if (!userSnapshot.exists || operationSnapshot.data()?.status === 'completed') {
+      transactionResult = { skipped: true, user: userSnapshot.data() || null };
+      return;
+    }
+    const profile = profileSnapshot.data() || {};
+    const previousDay = dailySnapshot.exists ? (dailySnapshot.data() || {}) : fallbackPreviousDay;
+    const previousTotals = profile.totals || {};
+    const nextTotals = {
+      ...previousTotals,
+      ...applyMetricDelta(previousTotals, previousDay.metrics, nextDay.metrics),
+      studies: Math.max(0, Number(previousTotals.studies || 0) + deltaNumber(nextDay.counts.studies, previousDay.counts?.studies)),
+      simulations: Math.max(0, Number(previousTotals.simulations || 0) + deltaNumber(nextDay.counts.simulations, previousDay.counts?.simulations)),
+      reviews: Math.max(0, Number(previousTotals.reviews || 0) + deltaNumber(nextDay.counts.reviews, previousDay.counts?.reviews)),
+      dailyGoals: Math.max(0, Number(previousTotals.dailyGoals || 0) + deltaNumber(nextDay.counts.dailyGoals, previousDay.counts?.dailyGoals)),
+      questionXP: Math.max(0, Number(previousTotals.questionXP || 0) + deltaNumber(nextDay.questionXP, previousDay.questionXP)),
+    };
+    nextTotals.accuracy = nextTotals.questions ? Number(((nextTotals.correct / nextTotals.questions) * 100).toFixed(2)) : 0;
+    const currentWeekId = rules.getWeekId();
+    const currentMonthId = rules.getMonthId();
+    const previousRanking = profile.rankingMetrics || {};
+    const weeklyBase = previousRanking.weekly?.periodId === currentWeekId
+      ? previousRanking.weekly
+      : daySources.rankingBaselines.weekly || { minutes: 0, questions: 0, correct: 0 };
+    const monthlyBase = previousRanking.monthly?.periodId === currentMonthId
+      ? previousRanking.monthly
+      : daySources.rankingBaselines.monthly || { minutes: 0, questions: 0, correct: 0 };
+    const weekMatches = rules.getWeekId(dateKey) === currentWeekId;
+    const monthMatches = rules.getMonthId(dateKey) === currentMonthId;
+    const rankingMetrics = {
+      lifetime: { minutes: nextTotals.minutes, questions: nextTotals.questions, correct: nextTotals.correct },
+      weekly: { ...(weekMatches ? applyMetricDelta(weeklyBase, previousDay.metrics, nextDay.metrics) : weeklyBase), periodId: currentWeekId },
+      monthly: { ...(monthMatches ? applyMetricDelta(monthlyBase, previousDay.metrics, nextDay.metrics) : monthlyBase), periodId: currentMonthId },
+    };
+    const academicDelta = deltaNumber(nextDay.academicXP, previousDay.academicXP);
+    const weeklyCompetitiveXP = Math.max(0, Number(profile.weeklyCompetitiveXP || 0) + (weekMatches ? academicDelta : 0));
+    const totalBeforeUnlocks = Math.max(0, Number(profile.totalXP || 0) + academicDelta);
+    const achievementState = {
+      ...buildIncrementalAchievementState({ profile, totals: nextTotals, rules }),
+      totalXPBeforeAchievements: totalBeforeUnlocks,
+      level: rules.getLevelFromXP(totalBeforeUnlocks),
+    };
+    const evaluation = rules.evaluateAchievements(achievementState, profile.achievementIds || []);
+    const nextTotalXP = totalBeforeUnlocks + evaluation.newlyUnlocked.reduce((sum, item) => sum + Number(item.xp || 0), 0);
+    const nextProfile = {
+      totals: nextTotals,
+      totalXP: nextTotalXP,
+      level: rules.getLevelFromXP(nextTotalXP),
+      weeklyCompetitiveXP,
+      weeklyXP: weeklyCompetitiveXP,
+      competitiveWeekId: currentWeekId,
+      rankingMetrics,
+      achievementIds: [...evaluation.unlockedIds].sort(),
+      achievementsSummary: { unlocked: evaluation.unlockedIds.length, total: rules.ACHIEVEMENTS.length },
+      lastStudyAtMillis: Math.max(
+        Number(profile.lastStudyAtMillis || 0),
+        ...[...daySources.records, ...daySources.simulations, ...daySources.questionRewards].map(sourceCreatedMillis),
+      ),
+      ruleVersion: rules.GAMIFICATION_RULE_VERSION,
+    };
+    const dailyPayload = withoutAuditTimestamps({ ...nextDay, events: undefined });
+    delete dailyPayload.events;
+    if (!dailySnapshot.exists || payloadChanged(dailySnapshot.data() || {}, dailyPayload)) {
+      transaction.set(dailyRef, { ...dailyPayload, updatedAt: serverTimestamp() }, { merge: true });
+    }
+    if (!profileSnapshot.exists || payloadChanged(profile, nextProfile)) {
+      transaction.set(daySources.profileRef, { ...nextProfile, updatedAt: serverTimestamp() }, { merge: true });
+    }
+    const operationPayload = {
+      status: 'pending',
+      sourceType,
+      sourceId,
+      dateKey,
+      unlockIds: evaluation.newlyUnlocked.map((item) => item.id),
+    };
+    if (!operationSnapshot.exists || payloadChanged(operationSnapshot.data() || {}, operationPayload)) {
+      transaction.set(operationRef, { ...operationPayload, updatedAt: serverTimestamp() }, { merge: true });
+    }
+    transactionResult = {
+      user: userSnapshot.data() || {},
+      profile: { ...profile, ...nextProfile },
+      achievementState: { ...achievementState, level: rules.getLevelFromXP(nextTotalXP) },
+      unlockIds: operationSnapshot.data()?.unlockIds || operationPayload.unlockIds,
+      academicDelta,
+    };
+  });
+  if (transactionResult?.skipped) {
+    const sourceEvent = nextDay.events.find((event) => event.sourceType === sourceType && String(event.sourceId) === String(sourceId));
+    return { skipped: true, writes: 0, sourceXP: Number(sourceEvent?.xpTotal || 0) };
+  }
+  const eventWrites = await writeIncrementalEvents({
+    profileRef: daySources.profileRef,
+    existingEvents: daySources.xpEvents,
+    events: nextDay.events,
+    rules,
+  });
+  const achievementWrites = await writeIncrementalAchievements({
+    profileRef: daySources.profileRef,
+    state: transactionResult.achievementState,
+    unlockedIds: transactionResult.profile.achievementIds,
+    unlockIds: transactionResult.unlockIds,
+    rules,
+  });
+  if (sourceType === 'question') {
+    await setIfChanged(daySources.userRef.collection('question_stats').doc('summary'), {
+      totalXpEarned: Number(transactionResult.profile.totals?.questionXP || 0),
+    });
+  }
+  await projectIncrementalRankings({
+    uid,
+    user: transactionResult.user,
+    profile: transactionResult.profile,
+    rules,
+  });
+  await operationRef.set({
+    status: 'completed',
+    completedAt: serverTimestamp(),
+    expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + (30 * 24 * 60 * 60 * 1000)),
+    updatedAt: serverTimestamp(),
+  }, { merge: true });
+  const sourceEvent = nextDay.events.find((event) => event.sourceType === sourceType && String(event.sourceId) === String(sourceId));
+  return {
+    dateKey,
+    eventWrites,
+    achievementWrites,
+    academicDelta: transactionResult.academicDelta,
+    sourceXP: Number(sourceEvent?.xpTotal || 0),
+  };
+};
+
+const processGamificationSourceChange = async ({ uid, sourceType, sourceId, before = null, after = null, eventId = null }) => {
+  if (!uid || !['study', 'simulation', 'question', 'goal'].includes(sourceType)) return null;
+  if (await userDeletionStarted(uid)) return { uid, skipped: 'user-deleted' };
+  const rules = await domain();
+  let affectedDateKeys = [...new Set([
+    incrementalSourceDateKey({ sourceType, source: before, rules }),
+    incrementalSourceDateKey({ sourceType, source: after, rules }),
+  ].filter(Boolean))];
+  if (sourceType === 'goal') {
+    const minimumDate = [...affectedDateKeys].sort()[0] || rules.toDateKey();
+    const dailyStates = await db().collection('users').doc(uid).collection('gamification').doc('profile')
+      .collection('daily_states')
+      .where(admin.firestore.FieldPath.documentId(), '>=', minimumDate)
+      .get();
+    affectedDateKeys = [...new Set([
+      ...dailyStates.docs.map((snapshot) => snapshot.id),
+      rules.toDateKey(),
+    ])].sort();
+  }
+  const profileRef = db().collection('users').doc(uid).collection('gamification').doc('profile');
+  const operationRefs = affectedDateKeys.map((dateKey) => profileRef.collection('operations').doc(incrementalOperationId({
+    sourceType,
+    sourceId,
+    eventId,
+    dateKey,
+  })));
+  const operationSnapshots = operationRefs.length ? await db().getAll(...operationRefs) : [];
+  const pendingDateKeys = affectedDateKeys.filter((dateKey, index) => operationSnapshots[index]?.data()?.status !== 'completed');
+  if (!pendingDateKeys.length) {
+    let sourceXP = 0;
+    if (sourceType === 'question') {
+      const eventSnapshot = await profileRef.collection('xp_events').doc(`academic_question_${sourceId}`).get();
+      sourceXP = Number(eventSnapshot.data()?.xpTotal || 0);
+    }
+    return {
+      uid,
+      incremental: true,
+      retrySkipped: true,
+      affectedDateKeys,
+      days: [],
+      ...(sourceType === 'question' ? { questionXPBySource: { [sourceId]: sourceXP } } : {}),
+    };
+  }
+  await refreshUserPublicPlanningProfile(uid);
+  const days = [];
+  for (const dateKey of pendingDateKeys) {
+    days.push(await processIncrementalGamificationDay({
+      uid,
+      sourceType,
+      sourceId,
+      before,
+      after,
+      eventId,
+      dateKey,
+      rules,
+    }));
+  }
+  return {
+    uid,
+    incremental: true,
+    affectedDateKeys,
+    days,
+    ...(sourceType === 'question' ? {
+      questionXPBySource: { [sourceId]: Math.max(0, ...days.map((day) => Number(day?.sourceXP || 0))) },
+    } : {}),
+  };
 };
 
 const ensureCohort = async ({ uid, profileRef, leagueId, weekId }) => {
@@ -619,8 +1325,14 @@ const updateRankings = async ({ uid, sources, profilePayload, academicEvents, ru
   const weekId = rules.getWeekId();
   const validRecords = sources.records.filter(rules.isValidGamificationRecord);
   const validSimulations = sources.simulations.filter(rules.isValidGamificationRecord);
+  const validQuestionRewards = sources.questionRewards.filter(rules.isValidGamificationRecord);
   const rankingNow = new Date();
-  const rankingPeriods = rules.calculateRankingPeriodMetrics({ records: validRecords, simulations: validSimulations, now: rankingNow });
+  const rankingPeriods = rules.calculateRankingPeriodMetrics({
+    records: validRecords,
+    simulations: validSimulations,
+    questionRewards: validQuestionRewards,
+    now: rankingNow,
+  });
   const generalMetrics = rankingPeriods.lifetime;
   const weeklyMetrics = rankingPeriods.weekly;
   const monthlyMetrics = rankingPeriods.monthly;
@@ -667,10 +1379,11 @@ const updateRankings = async ({ uid, sources, profilePayload, academicEvents, ru
   };
   const generalMembersRef = db().collection('general_rankings').doc('all').collection('members');
   const generalMemberRef = generalMembersRef.doc(uid);
-  if (rankingEligible) await generalMemberRef.set(generalMember, { merge: true });
-  else await generalMemberRef.delete().catch((error) => {
-    if (error?.code !== 5 && error?.code !== 'not-found') throw error;
-  });
+  if (rankingEligible) {
+    await setIfChanged(generalMemberRef, withoutAuditTimestamps(generalMember));
+  } else {
+    await deleteIfExists(generalMemberRef);
+  }
   const weeklyRankingEligible = rankingEligible && weeklyMetrics.hasActivity;
   const weeklyMember = {
     uid,
@@ -748,18 +1461,23 @@ const updateRankings = async ({ uid, sources, profilePayload, academicEvents, ru
       });
     }
     const weeklyGeneralMemberRef = db().collection('weekly_rankings').doc(weekId).collection('members').doc(uid);
-    if (weeklyRankingEligible) await weeklyGeneralMemberRef.set(weeklyMember, { merge: true });
-    else await weeklyGeneralMemberRef.delete().catch((error) => {
-      if (error?.code !== 5 && error?.code !== 'not-found') throw error;
-    });
+    if (weeklyRankingEligible) {
+      await setIfChanged(weeklyGeneralMemberRef, withoutAuditTimestamps(weeklyMember));
+    } else {
+      await deleteIfExists(weeklyGeneralMemberRef);
+    }
     await Promise.all((sources.profile.groupIds || []).filter(Boolean).flatMap((groupId) => [
       syncGroupWeeklyMember({ groupId, weekId, uid, member: weeklyMetrics.hasActivity ? weeklyMember : null }),
       syncGroupMonthlyMember({ groupId, monthId, uid, member: monthlyMetrics.hasActivity ? monthlyMember : null }),
     ]));
     if (!skipGeneralPositionUpdate) {
-      await updateRankingMetricPositions({ membersRef: generalMembersRef, rules });
+      await updateRankingMetricPositions({ membersRef: generalMembersRef, rules, targetUid: uid });
     }
-    await updateRankingMetricPositions({ membersRef: db().collection('weekly_rankings').doc(weekId).collection('members'), rules });
+    await updateRankingMetricPositions({
+      membersRef: db().collection('weekly_rankings').doc(weekId).collection('members'),
+      rules,
+      targetUid: uid,
+    });
     return { competitiveXP: 0, cohortId: null };
   }
   const leagueId = rules.getLeague(sources.profile.currentLeague || sources.profile.league || 'iron').id;
@@ -789,44 +1507,61 @@ const updateRankings = async ({ uid, sources, profilePayload, academicEvents, ru
     ruleVersion: rules.GAMIFICATION_RULE_VERSION,
     updatedAt: serverTimestamp(),
   };
-  const batch = db().batch();
-  batch.set(db().collection('weekly_rankings').doc(weekId).collection('members').doc(uid), member, { merge: true });
-  batch.set(db().collection('weekly_rankings').doc(weekId).collection('cohorts').doc(cohortId).collection('members').doc(uid), member, { merge: true });
-  batch.set(sources.profileRef, {
+  const weeklyMemberRef = db().collection('weekly_rankings').doc(weekId).collection('members').doc(uid);
+  const cohortMemberRef = db().collection('weekly_rankings').doc(weekId).collection('cohorts').doc(cohortId).collection('members').doc(uid);
+  const profileRankingPayload = {
     currentCohortId: cohortId,
     competitiveWeekId: weekId,
     weeklyCompetitiveXP: competitiveXP,
     weeklyXP: competitiveXP,
-    updatedAt: serverTimestamp(),
-  }, { merge: true });
-  await batch.commit();
+  };
+  const [weeklyMemberSnapshot, cohortMemberSnapshot, currentProfileSnapshot] = await db().getAll(
+    weeklyMemberRef,
+    cohortMemberRef,
+    sources.profileRef,
+  );
+  await Promise.all([
+    setIfChanged(weeklyMemberRef, withoutAuditTimestamps(member), { snapshot: weeklyMemberSnapshot }),
+    setIfChanged(cohortMemberRef, withoutAuditTimestamps(member), { snapshot: cohortMemberSnapshot }),
+    setIfChanged(sources.profileRef, profileRankingPayload, { snapshot: currentProfileSnapshot }),
+  ]);
   await Promise.all((sources.profile.groupIds || []).filter(Boolean).flatMap((groupId) => [
     syncGroupWeeklyMember({ groupId, weekId, uid, member }),
     syncGroupMonthlyMember({ groupId, monthId, uid, member: monthlyMetrics.hasActivity ? monthlyMember : null }),
   ]));
   await Promise.all([
-    ...(skipGeneralPositionUpdate ? [] : [updateRankingMetricPositions({ membersRef: generalMembersRef, rules })]),
-    updateRankingMetricPositions({ membersRef: db().collection('weekly_rankings').doc(weekId).collection('members'), rules }),
+    ...(skipGeneralPositionUpdate ? [] : [updateRankingMetricPositions({ membersRef: generalMembersRef, rules, targetUid: uid })]),
+    updateRankingMetricPositions({
+      membersRef: db().collection('weekly_rankings').doc(weekId).collection('members'),
+      rules,
+      targetUid: uid,
+    }),
   ]);
   const cohortMembers = await db().collection('weekly_rankings').doc(weekId).collection('cohorts').doc(cohortId).collection('members').get();
   const sortedCohort = rules.sortCompetitiveMembers(dataWithId(cohortMembers));
   const positionsBatch = db().batch();
+  let cohortPositionWrites = 0;
   sortedCohort.forEach((rankedMember, index) => {
     const nextPosition = index + 1;
     const storedPosition = Number(rankedMember.position || 0);
     const changed = storedPosition > 0 && storedPosition !== nextPosition;
+    const positionPayload = {
+      position: nextPosition,
+      previousPosition: changed ? storedPosition : Number(rankedMember.previousPosition || storedPosition || nextPosition),
+      positionDelta: changed ? storedPosition - nextPosition : Number(rankedMember.positionDelta || 0),
+    };
+    if (!payloadChanged(rankedMember, positionPayload)) return;
     positionsBatch.set(
       db().collection('weekly_rankings').doc(weekId).collection('cohorts').doc(cohortId).collection('members').doc(rankedMember.uid || rankedMember.id),
       {
-        position: nextPosition,
-        previousPosition: changed ? storedPosition : Number(rankedMember.previousPosition || storedPosition || nextPosition),
-        positionDelta: changed ? storedPosition - nextPosition : Number(rankedMember.positionDelta || 0),
+        ...positionPayload,
         updatedAt: serverTimestamp(),
       },
       { merge: true },
     );
+    cohortPositionWrites += 1;
   });
-  await positionsBatch.commit();
+  if (cohortPositionWrites) await positionsBatch.commit();
   const position = sortedCohort.findIndex((item) => (item.uid || item.id) === uid) + 1;
   const zone = position > 0 ? rules.getRankingZone({ position, participants: sortedCohort.length, leagueId, merged: false }) : 'neutral';
   const previousPosition = Number(sources.profile.lastNotifiedLeaguePosition || 0);
@@ -846,20 +1581,29 @@ const updateRankings = async ({ uid, sources, profilePayload, academicEvents, ru
       metadata: { weekId, position, zone, previousPosition, previousZone },
     }, { merge: true });
   }
-  await sources.profileRef.set({ lastNotifiedLeaguePosition: position, lastNotifiedLeagueZone: zone }, { merge: true });
+  await setIfChanged(sources.profileRef, { lastNotifiedLeaguePosition: position, lastNotifiedLeagueZone: zone });
   return { competitiveXP, cohortId };
 };
 
-const recomputeUserGamification = async (uid, { skipGeneralPositionUpdate = false } = {}) => {
+const recomputeUserGamification = async (uid, { skipGeneralPositionUpdate = false, change = null } = {}) => {
   if (!uid) return null;
+  if (change) return processGamificationSourceChange({ uid, ...change });
   const rules = await domain();
   const sources = await loadUserGamificationSources(uid);
   if (!sources.userExists || await userDeletionStarted(uid)) return { uid, skipped: 'user-deleted' };
   const cutoffMillis = getMigrationCutoffMillis(sources.profile);
   const newRecords = cutoffMillis ? sources.records.filter((item) => sourceCreatedMillis(item) > cutoffMillis) : sources.records;
   const newSimulations = cutoffMillis ? sources.simulations.filter((item) => sourceCreatedMillis(item) > cutoffMillis) : sources.simulations;
+  const newQuestionRewards = cutoffMillis
+    ? sources.questionRewards.filter((item) => sourceCreatedMillis(item) > cutoffMillis)
+    : sources.questionRewards;
   const academicEvents = [
-    ...rules.buildAcademicXPEvents({ records: newRecords, simulations: newSimulations, goals: sources.goals }),
+    ...rules.buildAcademicXPEvents({
+      records: newRecords,
+      simulations: newSimulations,
+      questionRewards: newQuestionRewards,
+      goals: sources.goals,
+    }),
     ...await buildCompletionEvents({ cycleRounds: sources.cycleRounds, schedules: sources.schedules, cutoffMillis }),
   ];
   const previousAcademicIds = new Set(sources.xpEvents.filter((event) => event.category === 'academic').map((event) => event.id));
@@ -902,7 +1646,7 @@ const recomputeUserGamification = async (uid, { skipGeneralPositionUpdate = fals
       cycleRounds: state.cycleRounds,
       schedulesCompleted: state.schedulesCompleted,
     },
-    achievementIds: evaluation.unlockedIds,
+    achievementIds: [...evaluation.unlockedIds].sort(),
     achievementsSummary: { unlocked: evaluation.unlockedIds.length, total: rules.ACHIEVEMENTS.length },
     streak: state.streak,
     currentStreak: state.streak,
@@ -913,7 +1657,12 @@ const recomputeUserGamification = async (uid, { skipGeneralPositionUpdate = fals
   };
   if (await userDeletionStarted(uid)) return { uid, skipped: 'user-deleted' };
   await writeEventsAndAchievements({ sources, academicEvents, newAchievements, state: { ...state, level }, rules });
-  await sources.profileRef.set(profilePayload, { merge: true });
+  const questionEvents = academicEvents.filter((event) => event.sourceType === 'question');
+  const questionXPBySource = Object.fromEntries(questionEvents.map((event) => [event.sourceId, Number(event.xpTotal || 0)]));
+  await setIfChanged(sources.userRef.collection('question_stats').doc('summary'), {
+    totalXpEarned: questionEvents.reduce((sum, event) => sum + Number(event.xpTotal || 0), 0),
+  });
+  await setIfChanged(sources.profileRef, withoutAuditTimestamps(profilePayload));
   const rankingResult = await updateRankings({ uid, sources, profilePayload, academicEvents, rules, skipGeneralPositionUpdate });
   // O recálculo completo pode levar minutos em contas antigas. Releia os
   // planejamentos ao final para que uma execução concorrente nunca deixe no
@@ -927,6 +1676,7 @@ const recomputeUserGamification = async (uid, { skipGeneralPositionUpdate = fals
     cohortId: rankingResult.cohortId,
     createdAcademicEvents: academicEvents.filter((event) => !previousAcademicIds.has(event.id)).length,
     achievementsUnlocked: newAchievements.map((item) => item.id),
+    questionXPBySource,
   };
 };
 
@@ -963,11 +1713,13 @@ const refreshActiveUserRankings = async () => {
       return;
     }
     counts.generalEligible += 1;
-    writer.set(snapshot.ref, {
+    const payload = {
       rankingEligible: true,
       accuracy: Number(rules.getRankingAccuracy(member).toFixed(2)),
-      eligibilityUpdatedAt: serverTimestamp(),
-    }, { merge: true });
+    };
+    if (payloadChanged(member, payload)) {
+      writer.set(snapshot.ref, { ...payload, eligibilityUpdatedAt: serverTimestamp() }, { merge: true });
+    }
   });
 
   weeklyMembers.docs.forEach((snapshot) => {
@@ -982,21 +1734,19 @@ const refreshActiveUserRankings = async () => {
       return;
     }
     counts.weeklyEligible += 1;
-    writer.set(snapshot.ref, {
+    const payload = {
       rankingEligible: true,
       accuracy: Number(rules.getRankingAccuracy(member).toFixed(2)),
-      eligibilityUpdatedAt: serverTimestamp(),
-    }, { merge: true });
+    };
+    if (payloadChanged(member, payload)) {
+      writer.set(snapshot.ref, { ...payload, eligibilityUpdatedAt: serverTimestamp() }, { merge: true });
+    }
   });
 
   await writer.close();
-  const profileUids = [...publicProfileUids];
-  for (let cursor = 0; cursor < profileUids.length; cursor += 20) {
-    const results = await Promise.all(
-      profileUids.slice(cursor, cursor + 20).map((uid) => refreshUserPublicPlanningProfile(uid)),
-    );
-    counts.publicProfilesRefreshed += results.filter(Boolean).length;
-  }
+  // Perfis públicos são projetados pelos gatilhos das próprias fontes. Fazer
+  // isso aqui multiplicava U usuários por todo o histórico de cada usuário.
+  counts.publicProfilesSkippedAsUnchanged = publicProfileUids.size;
   await Promise.all([
     updateRankingMetricPositions({
       membersRef: db().collection('general_rankings').doc('all').collection('members'),
@@ -1106,33 +1856,72 @@ const refreshUserPublicPlanningProfile = async (uid) => {
   if (!uid) return null;
   const rules = await domain();
   const userRef = db().collection('users').doc(uid);
-  const [cyclesSnapshot, cycleReviewsSnapshot, schedulesSnapshot, recordsSnapshot, simulationsSnapshot, profileSnapshot] = await Promise.all([
+  const strictStartDate = rules.STRICT_STREAK_RULES_START_DATE;
+  const profileRef = userRef.collection('gamification').doc('profile');
+  const profileSnapshot = await profileRef.get();
+  const profile = profileSnapshot.exists ? profileSnapshot.data() : {};
+  const hasPersistedHistoricalBaseline = Object.hasOwn(profile.historicalStreakBaseline || {}, 'value');
+  const strictStartTimestamp = admin.firestore.Timestamp.fromDate(new Date(`${strictStartDate}T00:00:00-03:00`));
+  const recordQueries = hasPersistedHistoricalBaseline ? [
+    userRef.collection('registrosEstudo').where('data', '>=', strictStartDate).get(),
+    userRef.collection('registrosEstudo').where('date', '>=', strictStartDate).get(),
+    userRef.collection('registrosEstudo').where('timestamp', '>=', strictStartTimestamp).get(),
+  ] : [userRef.collection('registrosEstudo').get()];
+  const simulationQueries = hasPersistedHistoricalBaseline ? [
+    userRef.collection('simulados').where('data', '>=', strictStartDate).get(),
+    userRef.collection('simulados').where('date', '>=', strictStartDate).get(),
+    userRef.collection('simulados').where('timestamp', '>=', strictStartTimestamp).get(),
+  ] : [userRef.collection('simulados').get()];
+  const [cyclesSnapshot, cycleReviewsSnapshot, schedulesSnapshot, recordSnapshots, simulationSnapshots] = await Promise.all([
     userRef.collection('ciclos').where('ativo', '==', true).get(),
     userRef.collection('revisoesCiclo').get(),
     userRef.collection('cronogramas').where('ativo', '==', true).get(),
-    userRef.collection('registrosEstudo').get(),
-    userRef.collection('simulados').get(),
-    userRef.collection('gamification').doc('profile').get(),
+    Promise.all(recordQueries),
+    Promise.all(simulationQueries),
   ]);
   const sources = {
     cycles: dataWithId(cyclesSnapshot),
     cycleReviews: dataWithId(cycleReviewsSnapshot),
     schedules: dataWithId(schedulesSnapshot),
-    records: dataWithId(recordsSnapshot),
-    simulations: dataWithId(simulationsSnapshot),
+    records: mergeSnapshotsById(...recordSnapshots),
+    simulations: mergeSnapshotsById(...simulationSnapshots),
   };
-  const profile = profileSnapshot.exists ? profileSnapshot.data() : {};
   const streakResult = rules.calculateCanonicalStudyStreak({
     ...sources,
     now: new Date(),
     historicalStreakBaseline: Number(profile.historicalStreakBaseline?.value || 0),
   });
+  const hasLegacyActivity = !hasPersistedHistoricalBaseline && [
+    ...sources.records.map((item) => incrementalSourceDateKey({ sourceType: 'study', source: item, rules })),
+    ...sources.simulations.map((item) => incrementalSourceDateKey({ sourceType: 'simulation', source: item, rules })),
+  ].some((dateKey) => dateKey && dateKey < strictStartDate);
+  const lazyHistoricalBaseline = hasLegacyActivity
+    ? Math.max(
+      Number(profile.historicalStreakBaseline?.value || 0),
+      Number(profile.currentStreak || profile.streak || 0),
+      Number(streakResult.currentStreak || 0),
+    )
+    : 0;
   const payload = {
     editais: buildPublicEditais(sources),
     streak: streakResult.currentStreak,
     streakState: streakResult.days?.[streakResult.today]?.state || 'not_applicable',
-    publicPlanningUpdatedAt: serverTimestamp(),
   };
+  await setIfChanged(userRef.collection('gamification').doc('profile'), {
+    publicEditais: payload.editais,
+    streak: payload.streak,
+    currentStreak: payload.streak,
+    streakState: payload.streakState,
+    streakContext: streakResult.context || null,
+    ...(!hasPersistedHistoricalBaseline ? {
+      historicalStreakBaseline: {
+        value: lazyHistoricalBaseline,
+        cutoverDate: strictStartDate,
+        source: hasLegacyActivity ? 'lazy-legacy-recovery' : 'post-cutover-profile',
+        recoveredAt: serverTimestamp(),
+      },
+    } : {}),
+  });
   const weekId = rules.getWeekId();
   const monthId = rules.getMonthId();
   const refs = [
@@ -1152,11 +1941,55 @@ const refreshUserPublicPlanningProfile = async (uid) => {
   let writes = 0;
   snapshots.forEach((snapshot) => {
     if (!snapshot.exists) return;
-    batch.set(snapshot.ref, payload, { merge: true });
+    if (!payloadChanged(snapshot.data() || {}, payload)) return;
+    batch.set(snapshot.ref, { ...payload, publicPlanningUpdatedAt: serverTimestamp() }, { merge: true });
     writes += 1;
   });
   if (writes) await batch.commit();
   return { uid, ...payload, writes };
+};
+
+const refreshUserRankingIdentity = async (uid) => {
+  if (!uid) return null;
+  const rules = await domain();
+  const userRef = db().collection('users').doc(uid);
+  const profileRef = userRef.collection('gamification').doc('profile');
+  const [userSnapshot, profileSnapshot] = await db().getAll(userRef, profileRef);
+  if (!userSnapshot.exists) return { uid, skipped: 'missing-user' };
+  const user = userSnapshot.data() || {};
+  const profile = profileSnapshot.data() || {};
+  const weekId = rules.getWeekId();
+  const monthId = rules.getMonthId();
+  const payload = {
+    displayName: userNameFrom(user),
+    photoURL: user.photoURL || null,
+    coverURL: user.coverURL || null,
+    coverPosition: user.coverPosition || null,
+    mainGroupName: profile.mainGroupName || null,
+    platformSinceMillis: timestampMillis(user.createdAt || user.dataCriacao || user.criadoEm || user.registrationDate),
+  };
+  const refs = [
+    db().collection('general_rankings').doc('all').collection('members').doc(uid),
+    db().collection('weekly_rankings').doc(weekId).collection('members').doc(uid),
+  ];
+  if (profile.currentCohortId) {
+    refs.push(db().collection('weekly_rankings').doc(weekId).collection('cohorts').doc(profile.currentCohortId).collection('members').doc(uid));
+  }
+  (profile.groupIds || []).filter(Boolean).forEach((groupId) => {
+    refs.push(db().collection('study_groups').doc(groupId).collection('weekly_rankings').doc(weekId).collection('members').doc(uid));
+    refs.push(db().collection('study_groups').doc(groupId).collection('monthly_rankings').doc(monthId).collection('members').doc(uid));
+  });
+  const uniqueRefs = [...new Map(refs.map((ref) => [ref.path, ref])).values()];
+  const snapshots = await db().getAll(...uniqueRefs);
+  const writer = db().bulkWriter();
+  let writes = 0;
+  snapshots.forEach((snapshot) => {
+    if (!snapshot.exists || !payloadChanged(snapshot.data() || {}, payload)) return;
+    writer.set(snapshot.ref, { ...payload, updatedAt: serverTimestamp() }, { merge: true });
+    writes += 1;
+  });
+  await writer.close();
+  return { uid, writes };
 };
 
 const refreshPublicStudyGroupProfiles = async () => {
@@ -1638,10 +2471,12 @@ const migrateGamification = async ({ apply = false, uid = null } = {}) => {
 
 module.exports = {
   recomputeUserGamification,
+  processGamificationSourceChange,
   recoverHistoricalStreaks,
   refreshUserGroupMonthlyRankings,
   refreshStudyGroupMonthlyRankings,
   refreshUserPublicPlanningProfile,
+  refreshUserRankingIdentity,
   refreshActiveUserRankings,
   refreshPublicStudyGroupProfiles,
   closeWeeklyGamification,
@@ -1653,5 +2488,8 @@ module.exports = {
     buildPublicEditais,
     calculatePersistedNonAcademicXP,
     buildMigrationPreview,
+    functionalValuesEqual,
+    payloadChanged,
+    buildIncrementalDayState,
   },
 };

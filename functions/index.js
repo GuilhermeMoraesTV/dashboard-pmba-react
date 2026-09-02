@@ -3,16 +3,27 @@ const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { onDocumentWritten, onDocumentCreated } = require('firebase-functions/v2/firestore');
 const { defineSecret }       = require('firebase-functions/params');
 const admin = require('firebase-admin');
+const { FieldValue, Timestamp } = require('firebase-admin/firestore');
 const crypto = require('crypto');
 const sanitizeHtml = require('sanitize-html');
+
+const FIREBASE_PROJECT_ID = process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || 'dashboard-pmba';
+const FIREBASE_STORAGE_BUCKET = process.env.FIREBASE_STORAGE_BUCKET || `${FIREBASE_PROJECT_ID}.firebasestorage.app`;
+
+if (!admin.apps.length) {
+  admin.initializeApp({
+    projectId: FIREBASE_PROJECT_ID,
+    storageBucket: FIREBASE_STORAGE_BUCKET,
+  });
+}
+
 const gamification = require('./gamification/service');
 const groups = require('./groups/service');
 const adminOperations = require('./admin/service');
 const imageUploadSecurity = require('./security/imageUpload');
-
-if (!admin.apps.length) {
-  admin.initializeApp();
-}
+const questionValidation = require('./questions/validation');
+const flashcards = require('./flashcards/service');
+const { getProductLimits } = require('./shared/productLimits');
 
 const GOOGLE_SERVICE_ACCOUNT_JSON_BASE64 = defineSecret('GOOGLE_SERVICE_ACCOUNT_JSON_BASE64');
 const VERTEX_MODEL = process.env.GOOGLE_VERTEX_MODEL || 'gemini-2.5-flash';
@@ -398,6 +409,110 @@ async function callVertexAI(prompt, maxOutputTokens = 2048, temperature = 0.55) 
   }
 
   return extractGeminiText(await res.json());
+}
+
+let _domainAiProvider = null;
+function getDomainAiProvider() {
+  if (!_domainAiProvider) {
+    const { VertexAIProvider } = require('./ai/provider');
+    _domainAiProvider = new VertexAIProvider({
+      model: VERTEX_MODEL,
+      location: VERTEX_LOCATION,
+      projectId: process.env.GOOGLE_CLOUD_PROJECT || process.env.GCLOUD_PROJECT || null,
+      getAccessToken: getVertexAccessToken,
+    });
+  }
+  return _domainAiProvider;
+}
+
+let _documentService = null;
+function getDocumentService() {
+  if (!_documentService) {
+    const { createDocumentService } = require('./documents/service');
+    _documentService = createDocumentService({ admin, getProductLimits });
+  }
+  return _documentService;
+}
+
+let _generationService = null;
+function getGenerationService() {
+  if (!_generationService) {
+    const { createGenerationService } = require('./ai/generation');
+    _generationService = createGenerationService({
+      admin,
+      getProductLimits,
+      getProvider: getDomainAiProvider,
+    });
+  }
+  return _generationService;
+}
+
+let _ankiService = null;
+function getAnkiService() {
+  if (!_ankiService) {
+    const { createAnkiService } = require('./anki/service');
+    _ankiService = createAnkiService({ admin, getProductLimits });
+  }
+  return _ankiService;
+}
+
+let _studySourceService = null;
+function getStudySourceService() {
+  if (!_studySourceService) {
+    const { createStudySourceService } = require('./studySources/service');
+    _studySourceService = createStudySourceService({ admin, getProductLimits, FieldValue, Timestamp });
+  }
+  return _studySourceService;
+}
+
+let _adaptiveStudyService = null;
+function getAdaptiveStudyService() {
+  if (!_adaptiveStudyService) {
+    const { createAdaptiveStudyService } = require('./adaptiveStudy/service');
+    _adaptiveStudyService = createAdaptiveStudyService({
+      admin,
+      getProductLimits,
+      getProvider: getDomainAiProvider,
+    });
+  }
+  return _adaptiveStudyService;
+}
+
+function mapDomainError(error, fallbackMessage) {
+  if (error instanceof HttpsError) return error;
+  const mappings = {
+    unauthenticated: 'unauthenticated',
+    'invalid-argument': 'invalid-argument',
+    'invalid-file-type': 'invalid-argument',
+    'invalid-storage-path': 'invalid-argument',
+    'invalid-mime': 'invalid-argument',
+    'invalid-pdf': 'invalid-argument',
+    'invalid-signature': 'invalid-argument',
+    'invalid-archive': 'invalid-argument',
+    'invalid-archive-size': 'invalid-argument',
+    'invalid-sqlite': 'invalid-argument',
+    'missing-collection': 'invalid-argument',
+    'duplicate-entry': 'invalid-argument',
+    'path-traversal': 'invalid-argument',
+    'zip-bomb': 'resource-exhausted',
+    'zstd-bomb': 'resource-exhausted',
+    'file-too-large': 'resource-exhausted',
+    'too-many-cards': 'resource-exhausted',
+    'too-many-media': 'resource-exhausted',
+    'quota-exceeded': 'resource-exhausted',
+    'permission-denied': 'permission-denied',
+    'not-found': 'not-found',
+    'file-not-found': 'not-found',
+    'failed-precondition': 'failed-precondition',
+    'already-processing': 'failed-precondition',
+    'no-extractable-text': 'failed-precondition',
+    'schema-invalid': 'data-loss',
+    'invalid-json': 'data-loss',
+    'empty-response': 'data-loss',
+    'provider-unavailable': 'unavailable',
+  };
+  const code = mappings[error?.code] || 'internal';
+  return new HttpsError(code, String(error?.message || fallbackMessage).slice(0, 500));
 }
 
 async function fetchInspirationSources() {
@@ -1017,14 +1132,24 @@ const getCurrentGamificationWeekId = (value = new Date()) => {
 const projectTimerPresenceToRankings = async (event) => {
   const uid = event.params.uid;
   if (!uid) return null;
+  const beforeTimer = event.data?.before?.exists ? (event.data.before.data() || {}) : null;
   const timer = event.data?.after?.exists ? (event.data.after.data() || {}) : null;
-  const phase = timer?.phase || (timer?.isResting ? 'rest' : 'focus');
-  const liveStudy = Boolean(
-    timer
-    && timer.status === 'running'
-    && !timer.isPaused
-    && !['rest', 'rest_finished', 'pomodoro_finished'].includes(phase)
-  );
+  const getLiveStudy = (value) => {
+    const phase = value?.phase || (value?.isResting ? 'rest' : 'focus');
+    return Boolean(
+      value
+      && value.status === 'running'
+      && !value.isPaused
+      && !['rest', 'rest_finished', 'pomodoro_finished'].includes(phase)
+    );
+  };
+  const liveStudy = getLiveStudy(timer);
+  const previousLiveStudy = getLiveStudy(beforeTimer);
+  const heartbeatMillis = (value) => value?.heartbeatAt?.toMillis?.() || value?.updatedAt?.toMillis?.() || 0;
+  const sameHeartbeatMinute = Math.floor(heartbeatMillis(beforeTimer) / 60000) === Math.floor(heartbeatMillis(timer) / 60000);
+  if (liveStudy === previousLiveStudy && (!liveStudy || sameHeartbeatMinute)) {
+    return { uid, liveStudy, writes: 0, skipped: 'presence-unchanged' };
+  }
   const payload = {
     liveStudy,
     liveStudyHeartbeatAt: liveStudy ? (timer?.heartbeatAt || timer?.updatedAt || null) : null,
@@ -1040,6 +1165,10 @@ const projectTimerPresenceToRankings = async (event) => {
   let writes = 0;
   snapshots.forEach((snapshot, index) => {
     if (!snapshot.exists) return;
+    const current = snapshot.data() || {};
+    const currentHeartbeat = heartbeatMillis({ heartbeatAt: current.liveStudyHeartbeatAt });
+    const nextHeartbeat = heartbeatMillis({ heartbeatAt: payload.liveStudyHeartbeatAt });
+    if (current.liveStudy === liveStudy && (!liveStudy || Math.floor(currentHeartbeat / 60000) === Math.floor(nextHeartbeat / 60000))) return;
     batch.set(refs[index], payload, { merge: true });
     writes += 1;
   });
@@ -1052,11 +1181,20 @@ const recomputeGamificationFromEvent = async (event) => {
   if (!uid) return null;
   const deletionMarker = await admin.firestore().collection('system_deleted_users').doc(uid).get();
   if (deletionMarker.exists) return { uid, skipped: 'user-deleted' };
-  // Projeta primeiro os campos visíveis do perfil e repete ao final. Isso
-  // elimina a janela de vários minutos e garante convergência mesmo quando
-  // ativações/desativações disparam recálculos concorrentes.
-  await gamification.refreshUserPublicPlanningProfile(uid);
   return gamification.recomputeUserGamification(uid);
+};
+
+const processIncrementalGamificationFromEvent = (sourceType) => async (event) => {
+  const uid = event.params.uid;
+  if (!uid) return null;
+  return gamification.processGamificationSourceChange({
+    uid,
+    sourceType,
+    sourceId: event.params.recordId || event.params.simulationId || event.params.goalId,
+    before: event.data?.before?.exists ? (event.data.before.data() || {}) : null,
+    after: event.data?.after?.exists ? (event.data.after.data() || {}) : null,
+    eventId: event.id,
+  });
 };
 
 const publicProfileSourceChanged = (before = {}, after = {}) => {
@@ -1064,31 +1202,43 @@ const publicProfileSourceChanged = (before = {}, after = {}) => {
   return fields.some((field) => JSON.stringify(before?.[field] ?? null) !== JSON.stringify(after?.[field] ?? null));
 };
 
-// Toda pontuação nasce de fontes acadêmicas persistidas. Os gatilhos refazem o
-// agregado completo para que edições e exclusões removam o XP da origem.
+// Fontes acadêmicas comuns recalculam somente o(s) dia(s) afetado(s). O caminho
+// completo permanece reservado a migração, recuperação e manutenção explícita.
 exports.processarGamificacaoEstudo = onDocumentWritten(
   { ...gamificationWriteOptions, document: 'users/{uid}/registrosEstudo/{recordId}' },
-  recomputeGamificationFromEvent,
+  processIncrementalGamificationFromEvent('study'),
 );
 exports.processarGamificacaoSimulado = onDocumentWritten(
   { ...gamificationWriteOptions, document: 'users/{uid}/simulados/{simulationId}' },
-  recomputeGamificationFromEvent,
+  processIncrementalGamificationFromEvent('simulation'),
 );
 exports.processarGamificacaoMeta = onDocumentWritten(
   { ...gamificationWriteOptions, document: 'users/{uid}/metas/{goalId}' },
-  recomputeGamificationFromEvent,
+  processIncrementalGamificationFromEvent('goal'),
 );
 exports.processarGamificacaoCiclo = onDocumentWritten(
   { ...gamificationWriteOptions, document: 'users/{uid}/ciclos/{cycleId}' },
-  recomputeGamificationFromEvent,
+  async (event) => gamification.refreshUserPublicPlanningProfile(event.params.uid),
 );
 exports.processarGamificacaoRodadaCiclo = onDocumentWritten(
   { ...gamificationWriteOptions, document: 'users/{uid}/ciclos/{cycleId}/rodadas/{roundId}' },
-  recomputeGamificationFromEvent,
+  async (event) => {
+    const before = event.data?.before?.data?.() || {};
+    const after = event.data?.after?.data?.() || {};
+    const wasCompleted = Boolean(before.fechamentoReal && Number(before.numeroRodada) >= 1);
+    const isCompleted = Boolean(after.fechamentoReal && Number(after.numeroRodada) >= 1);
+    return wasCompleted !== isCompleted ? recomputeGamificationFromEvent(event) : null;
+  },
 );
 exports.processarGamificacaoCronograma = onDocumentWritten(
   { ...gamificationWriteOptions, document: 'users/{uid}/cronogramas/{scheduleId}' },
-  recomputeGamificationFromEvent,
+  async (event) => {
+    const before = event.data?.before?.data?.() || {};
+    const after = event.data?.after?.data?.() || {};
+    const planning = await gamification.refreshUserPublicPlanningProfile(event.params.uid);
+    const completionChanged = gamification.__test.isCompletedSchedule(before) !== gamification.__test.isCompletedSchedule(after);
+    return completionChanged ? recomputeGamificationFromEvent(event) : planning;
+  },
 );
 exports.sincronizarPresencaRanking = onDocumentWritten(
   {
@@ -1101,14 +1251,6 @@ exports.sincronizarPresencaRanking = onDocumentWritten(
   },
   projectTimerPresenceToRankings,
 );
-exports.sincronizarRankingMensalGrupoEstudo = onDocumentWritten(
-  { ...gamificationWriteOptions, document: 'users/{uid}/registrosEstudo/{recordId}' },
-  async (event) => gamification.refreshUserGroupMonthlyRankings(event.params.uid),
-);
-exports.sincronizarRankingMensalGrupoSimulado = onDocumentWritten(
-  { ...gamificationWriteOptions, document: 'users/{uid}/simulados/{simulationId}' },
-  async (event) => gamification.refreshUserGroupMonthlyRankings(event.params.uid),
-);
 // Mantém o perfil social derivado sincronizado quando o usuário altera nome,
 // foto ou capa na página de Perfil. O documento privado continua inacessível
 // aos demais usuários; apenas os campos públicos seguem para os rankings.
@@ -1120,7 +1262,7 @@ exports.processarGamificacaoPerfilPublico = onDocumentWritten(
     if (!afterSnapshot?.exists) return null;
     const after = afterSnapshot.data() || {};
     if (!publicProfileSourceChanged(before, after)) return null;
-    return recomputeGamificationFromEvent(event);
+    return gamification.refreshUserRankingIdentity(event.params.uid);
   },
 );
 exports.processarConquistaGrupoCriado = onDocumentCreated(
@@ -1152,7 +1294,18 @@ exports.sincronizarContagemMembrosGrupo = onDocumentWritten(
   async (event) => groups.syncGroupMemberCount({ groupId: event.params.groupId }),
 );
 
-const groupCallableOptions = { region: 'us-central1', timeoutSeconds: 60, memory: '256MiB', maxInstances: 3 };
+const groupCallableOptions = { region: 'us-central1', timeoutSeconds: 60, memory: '256MiB', maxInstances: 2, cors: true };
+const questionCallableOptions = { region: 'us-central1', timeoutSeconds: 60, memory: '256MiB', maxInstances: 2, cors: true };
+const documentCallableOptions = { region: 'us-central1', timeoutSeconds: 300, memory: '512MiB', maxInstances: 1, cors: true };
+const generationCallableOptions = {
+  region: 'us-central1', timeoutSeconds: 300, memory: '512MiB', maxInstances: 1, cors: true,
+  secrets: [GOOGLE_SERVICE_ACCOUNT_JSON_BASE64],
+};
+const adaptiveRateCallableOptions = {
+  region: 'us-central1', timeoutSeconds: 90, memory: '256MiB', maxInstances: 2, cors: true,
+  secrets: [GOOGLE_SERVICE_ACCOUNT_JSON_BASE64],
+};
+const ankiCallableOptions = { region: 'us-central1', timeoutSeconds: 540, memory: '1GiB', maxInstances: 10, cors: true };
 const requireGroupAuth = (request) => {
   if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
   return request.auth.uid;
@@ -1163,6 +1316,357 @@ const mapGroupError = (error) => {
   const code = allowed.has(error?.code) ? error.code : 'internal';
   return new HttpsError(code, error?.message || 'Não foi possível concluir a ação no grupo.');
 };
+
+exports.submitQuestionAnswer = onCall(questionCallableOptions, async (request) => {
+  if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
+  return questionValidation.processQuestionAnswerSubmission({
+    uid: request.auth.uid,
+    questionId: request.data?.questionId,
+    questionScope: request.data?.questionScope,
+    selectedOptionId: request.data?.selectedOptionId,
+    timeSpentSeconds: request.data?.timeSpentSeconds,
+  });
+});
+
+exports.listQuestions = onCall(questionCallableOptions, async (request) => questionValidation.listQuestions({
+  uid: request.auth?.uid,
+  data: request.data,
+}));
+
+exports.processUserDocument = onCall(documentCallableOptions, async (request) => {
+  try {
+    if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Autenticacao obrigatoria.');
+    return await getDocumentService().processUserDocument({
+      uid: request.auth.uid,
+      documentId: request.data?.documentId,
+      force: request.data?.force === true,
+    });
+  } catch (error) {
+    throw mapDomainError(error, 'Nao foi possivel processar o documento.');
+  }
+});
+
+exports.deleteUserDocument = onCall(documentCallableOptions, async (request) => {
+  try {
+    if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Autenticacao obrigatoria.');
+    return await getDocumentService().deleteUserDocument({ uid: request.auth.uid, documentId: request.data?.documentId });
+  } catch (error) {
+    throw mapDomainError(error, 'Nao foi possivel excluir o documento.');
+  }
+});
+
+exports.createStudyFolder = onCall(questionCallableOptions, async (request) => {
+  try {
+    if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
+    return await getStudySourceService().createFolder({
+      uid: request.auth.uid,
+      data: request.data || {},
+    });
+  } catch (error) {
+    throw mapDomainError(error, 'Não foi possível criar a pasta.');
+  }
+});
+
+exports.createStudyFolderTree = onCall(questionCallableOptions, async (request) => {
+  try {
+    if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
+    return await getStudySourceService().createFolderTree({
+      uid: request.auth.uid,
+      data: request.data || {},
+    });
+  } catch (error) {
+    throw mapDomainError(error, 'Não foi possível criar a árvore de pastas.');
+  }
+});
+
+exports.updateStudyFolder = onCall(questionCallableOptions, async (request) => {
+  try {
+    if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
+    return await getStudySourceService().updateFolder({
+      uid: request.auth.uid,
+      folderId: request.data?.folderId,
+      data: request.data?.data || request.data || {},
+    });
+  } catch (error) {
+    throw mapDomainError(error, 'Não foi possível atualizar a pasta.');
+  }
+});
+
+exports.deleteStudyFolder = onCall(questionCallableOptions, async (request) => {
+  try {
+    if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
+    return await getStudySourceService().deleteFolder({
+      uid: request.auth.uid,
+      folderId: request.data?.folderId,
+    });
+  } catch (error) {
+    throw mapDomainError(error, 'Não foi possível excluir a pasta.');
+  }
+});
+
+exports.ensureLegacyStudyFolder = onCall(documentCallableOptions, async (request) => {
+  try {
+    if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
+    return await getStudySourceService().ensureLegacyFolder({
+      uid: request.auth.uid,
+    });
+  } catch (error) {
+    throw mapDomainError(error, 'Não foi possível inicializar a pasta padrão.');
+  }
+});
+
+exports.createNoteStudySource = onCall(documentCallableOptions, async (request) => {
+  try {
+    if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
+    return await getStudySourceService().createNote({
+      uid: request.auth.uid,
+      folderId: request.data?.folderId,
+      title: request.data?.title,
+      content: request.data?.content,
+    });
+  } catch (error) {
+    throw mapDomainError(error, 'Não foi possível criar a anotação.');
+  }
+});
+
+exports.updateStudySourceTitle = onCall(questionCallableOptions, async (request) => {
+  try {
+    if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
+    return await getStudySourceService().updateSourceTitle({
+      uid: request.auth.uid,
+      sourceId: request.data?.sourceId,
+      title: request.data?.title,
+    });
+  } catch (error) {
+    throw mapDomainError(error, 'Não foi possível renomear a fonte.');
+  }
+});
+
+exports.prepareDocumentStudySource = onCall(documentCallableOptions, async (request) => {
+  try {
+    if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
+    return await getStudySourceService().prepareDocument({
+      uid: request.auth.uid,
+      folderId: request.data?.folderId,
+      title: request.data?.title,
+      originalName: request.data?.originalName,
+      fileSizeBytes: request.data?.fileSizeBytes,
+    });
+  } catch (error) {
+    throw mapDomainError(error, 'Não foi possível preparar o documento.');
+  }
+});
+
+exports.markStudySourceError = onCall(questionCallableOptions, async (request) => {
+  try {
+    if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
+    return await getStudySourceService().markError({
+      uid: request.auth.uid,
+      sourceId: request.data?.sourceId,
+      message: request.data?.message,
+    });
+  } catch (error) {
+    throw mapDomainError(error, 'Não foi possível registrar o erro da fonte.');
+  }
+});
+
+exports.deleteStudySource = onCall(documentCallableOptions, async (request) => {
+  try {
+    if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
+    const result = await getStudySourceService().deleteSource({ uid: request.auth.uid, sourceId: request.data?.sourceId });
+    if (result.documentId) await getDocumentService().deleteUserDocument({ uid: request.auth.uid, documentId: result.documentId });
+    return result;
+  } catch (error) {
+    throw mapDomainError(error, 'Não foi possível excluir a fonte.');
+  }
+});
+
+exports.generateFlashcardsFromDoc = onCall(generationCallableOptions, async (request) => {
+  try {
+    if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
+    return await getGenerationService().generateFlashcards({
+      uid: request.auth.uid, sourceId: request.data?.sourceId, payload: request.data || {},
+    });
+  } catch (error) {
+    throw mapDomainError(error, 'Não foi possível gerar flashcards.');
+  }
+});
+
+exports.generateQuestionsFromDoc = onCall(generationCallableOptions, async (request) => {
+  try {
+    if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
+    return await getGenerationService().generateQuestions({
+      uid: request.auth.uid, sourceId: request.data?.sourceId, payload: request.data || {},
+    });
+  } catch (error) {
+    throw mapDomainError(error, 'Não foi possível gerar questões.');
+  }
+});
+
+exports.generateSummaryFromDoc = onCall(generationCallableOptions, async (request) => {
+  try {
+    if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
+    return await getGenerationService().generateSummary({
+      uid: request.auth.uid, sourceId: request.data?.sourceId, payload: request.data || {},
+    });
+  } catch (error) {
+    throw mapDomainError(error, 'Não foi possível gerar o resumo.');
+  }
+});
+
+exports.startAdaptiveFlashcardSession = onCall(generationCallableOptions, async (request) => {
+  try {
+    if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
+    return await getAdaptiveStudyService().startSession({
+      uid: request.auth.uid,
+      folderId: request.data?.folderId,
+      sourceId: request.data?.sourceId,
+    });
+  } catch (error) {
+    throw mapDomainError(error, 'Não foi possível iniciar o Tutor Adaptativo.');
+  }
+});
+
+exports.rateAdaptiveFlashcard = onCall(adaptiveRateCallableOptions, async (request) => {
+  try {
+    if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
+    return await getAdaptiveStudyService().rateItem({
+      uid: request.auth.uid,
+      sessionId: request.data?.sessionId,
+      itemId: request.data?.itemId,
+      rating: request.data?.rating,
+      reviewRequestId: request.data?.reviewRequestId,
+      elapsedTimeMs: request.data?.elapsedTimeMs,
+    });
+  } catch (error) {
+    throw mapDomainError(error, 'Não foi possível registrar a resposta adaptativa.');
+  }
+});
+
+exports.refillAdaptiveFlashcardSession = onCall(adaptiveRateCallableOptions, async (request) => {
+  try {
+    if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
+    return await getAdaptiveStudyService().refillAndGetNext({
+      uid: request.auth.uid,
+      sessionId: request.data?.sessionId,
+    });
+  } catch (error) {
+    throw mapDomainError(error, 'Não foi possível preparar os próximos flashcards.');
+  }
+});
+
+exports.endAdaptiveFlashcardSession = onCall(questionCallableOptions, async (request) => {
+  try {
+    if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
+    return await getAdaptiveStudyService().endSession({
+      uid: request.auth.uid,
+      sessionId: request.data?.sessionId,
+    });
+  } catch (error) {
+    throw mapDomainError(error, 'Não foi possível encerrar a sessão.');
+  }
+});
+
+exports.importAnkiPackage = onCall(ankiCallableOptions, async (request) => {
+  try {
+    if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
+    return await getAnkiService().importAnkiPackage({
+      uid: request.auth.uid,
+      importId: request.data?.importId,
+      storagePath: request.data?.storagePath,
+      originalName: request.data?.originalName,
+      folderId: request.data?.folderId,
+    });
+  } catch (error) {
+    throw mapDomainError(error, 'Não foi possível importar o pacote Anki.');
+  }
+});
+
+exports.upsertPrivateQuestion = onCall(questionCallableOptions, async (request) => {
+  if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
+  return questionValidation.upsertPrivateQuestion({
+    uid: request.auth.uid,
+    data: request.data,
+  });
+});
+
+exports.deletePrivateQuestion = onCall(questionCallableOptions, async (request) => {
+  if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
+  return questionValidation.deletePrivateQuestion({
+    uid: request.auth.uid,
+    questionId: request.data?.questionId,
+  });
+});
+
+const flashcardCallableOptions = { region: 'us-central1', timeoutSeconds: 60, memory: '256MiB', maxInstances: 3, cors: true };
+const flashcardWriteOptions = { region: 'us-central1', retry: true, timeoutSeconds: 60, memory: '256MiB', maxInstances: 2 };
+
+exports.syncFlashcardErrorBook = onCall(flashcardCallableOptions, async (request) => {
+  try {
+    if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
+    return await flashcards.syncFlashcardErrorBook({
+      uid: request.auth.uid,
+      deckId: request.data?.deckId,
+      cardId: request.data?.cardId,
+      reviewId: request.data?.reviewId,
+    });
+  } catch (error) {
+    throw mapDomainError(error, 'Não foi possível sincronizar o caderno de erros.');
+  }
+});
+
+exports.createFlashcard = onCall(flashcardCallableOptions, async (request) => {
+  try {
+    if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
+    return await flashcards.createCard({ uid: request.auth.uid, deckId: request.data?.deckId, card: request.data?.card });
+  } catch (error) {
+    throw mapDomainError(error, 'Não foi possível criar o flashcard.');
+  }
+});
+
+exports.createFolderFlashcard = onCall(flashcardCallableOptions, async (request) => {
+  try {
+    if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
+    return await flashcards.createFolderCard({
+      uid: request.auth.uid,
+      folderId: request.data?.folderId,
+      card: request.data?.card,
+    });
+  } catch (error) {
+    throw mapDomainError(error, 'Não foi possível criar o flashcard na pasta.');
+  }
+});
+
+exports.deleteFlashcard = onCall(flashcardCallableOptions, async (request) => {
+  try {
+    if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
+    return await flashcards.deleteCard({ uid: request.auth.uid, deckId: request.data?.deckId, cardId: request.data?.cardId });
+  } catch (error) {
+    throw mapDomainError(error, 'Não foi possível excluir o flashcard.');
+  }
+});
+
+exports.reviewFlashcard = onCall(flashcardCallableOptions, async (request) => {
+  try {
+    if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
+    return await flashcards.reviewCard({
+      uid: request.auth.uid,
+      deckId: request.data?.deckId,
+      cardId: request.data?.cardId,
+      rating: request.data?.rating,
+      expectedReviewVersion: request.data?.expectedReviewVersion,
+      reviewRequestId: request.data?.reviewRequestId,
+      elapsedTimeMs: request.data?.elapsedTimeMs,
+    });
+  } catch (error) {
+    throw mapDomainError(error, 'Não foi possível registrar a revisão.');
+  }
+});
+
+exports.reconciliarErrorBookFlashcard = onDocumentWritten(
+  { ...flashcardWriteOptions, document: 'users/{uid}/card_reviews/{reviewId}' },
+  flashcards.reconcileCardReviewErrorBook,
+);
 
 exports.solicitarEntradaGrupo = onCall(groupCallableOptions, async (request) => {
   try {
@@ -1323,6 +1827,7 @@ exports.atualizarPerfisPublicosGrupos = onSchedule(
   async () => gamification.refreshPublicStudyGroupProfiles(),
 );
 
+
 exports.migrarGamificacaoV2 = onCall(
   { region: 'us-central1', timeoutSeconds: 540, memory: '1GiB', maxInstances: 1 },
   async (request) => {
@@ -1349,4 +1854,5 @@ exports.__test = {
   gamification: gamification.__test,
   groups: groups.__test,
   admin: adminOperations.__test,
+  flashcards,
 };
