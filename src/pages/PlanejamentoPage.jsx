@@ -1,3 +1,4 @@
+import { isPlanActivationBlocked } from '../utils/planActivation.js';
 import React, { useEffect, useState } from 'react';
 import {
   ArrowRight,
@@ -170,6 +171,7 @@ function PlanejamentoPage({
   onGoToRevisao,
   registrosEstudo,
   isTimerActive,
+  activeTimerContext = null,
   onGoToCronograma,
   onCicloAtivado,
   activeCicloId = null,
@@ -415,7 +417,7 @@ function PlanejamentoPage({
               onCicloClick={(id) => setSelectedCicloId(id)}
               onCicloAtivado={onCicloAtivado}
               registrosEstudo={registrosEstudo}
-              isTimerActive={isTimerActive}
+              isTimerActive={isPlanActivationBlocked(isTimerActive, activeTimerContext, 'ciclo')}
               onRequestCreate={() => abrirCriacao('ciclo')}
               onRequestEdit={abrirEdicaoCiclo}
               hideHeader={true}
@@ -425,7 +427,7 @@ function PlanejamentoPage({
 
           <section>
             <h2 className="text-lg md:text-xl font-black text-zinc-800 dark:text-white tracking-tight uppercase mb-3">Cronogramas</h2>
-            <CronogramaListPage
+            <CronogramaListPage isTimerActive={isPlanActivationBlocked(isTimerActive, activeTimerContext, 'cronograma')}
               user={user}
               registrosEstudo={registrosEstudo}
               onCronogramaAberto={(_, cronograma) => {
@@ -447,7 +449,7 @@ function PlanejamentoPage({
           onCicloClick={(id) => setSelectedCicloId(id)}
           onCicloAtivado={onCicloAtivado}
           registrosEstudo={registrosEstudo}
-          isTimerActive={isTimerActive}
+          isTimerActive={isPlanActivationBlocked(isTimerActive, activeTimerContext, 'ciclo')}
           onRequestCreate={() => abrirCriacao('ciclo')}
           onRequestEdit={abrirEdicaoCiclo}
           hideHeader={true}
@@ -456,7 +458,7 @@ function PlanejamentoPage({
       )}
 
       {aba === 'cronogramas' && (
-        <CronogramaListPage
+        <CronogramaListPage isTimerActive={isPlanActivationBlocked(isTimerActive, activeTimerContext, 'cronograma')}
           user={user}
           registrosEstudo={registrosEstudo}
           onCronogramaAberto={(_, cronograma) => {

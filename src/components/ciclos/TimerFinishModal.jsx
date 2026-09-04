@@ -538,7 +538,6 @@ function TimerFinishModal({
   addRegistroEstudo,
   availableContexts = [],
   defaultContext = null,
-  requireExplicitContextSelection = false,
   onConfirm,
   onCancel,
   onDiscard,
@@ -583,17 +582,10 @@ function TimerFinishModal({
   const [showSuccessToast, setShowSuccessToast] = useState(false);
   const [revisaoModoCiclo, setRevisaoModoCiclo] = useState(REVISAO_MODO_FLEXIVEL);
   const [tipoRegistro, setTipoRegistro] = useState(initialTipoRegistro === 'revisao' ? 'revisao' : 'estudo');
-  const contextTypes = useMemo(
-    () => availableContexts.map((context) => context?.type).filter(Boolean),
-    [availableContexts]
-  );
-  const hasMultipleContexts = contextTypes.length > 1;
-  const [selectedContext, setSelectedContext] = useState(() => {
-    if (requireExplicitContextSelection && contextTypes.length > 1) return null;
-    if (contextTypes.length === 1) return contextTypes[0];
-    if (contextTypes.includes(defaultContext)) return defaultContext;
-    return contextTypes[0] || null;
-  });
+  // O destino vem da sessao do timer e nao pode ser trocado na finalizacao.
+  const selectedContext = defaultContext === 'ciclo' || defaultContext === 'cronograma'
+    ? defaultContext
+    : null;
 
   const draftLoadedRef = useRef(false);
 
@@ -628,8 +620,8 @@ function TimerFinishModal({
     [selectedContextMeta]
   );
   const disciplinasDisponiveis = useMemo(
-    () => (todasDisciplinas.length > 0 ? todasDisciplinas : contextDisciplines),
-    [contextDisciplines, todasDisciplinas]
+    () => (selectedContext === 'ciclo' && todasDisciplinas.length > 0 ? todasDisciplinas : contextDisciplines),
+    [selectedContext, contextDisciplines, todasDisciplinas]
   );
   const disciplinaOptions = useMemo(() =>
     disciplinasDisponiveis.map(d => ({ value: d.nome, label: d.nome })),
@@ -638,22 +630,6 @@ function TimerFinishModal({
   const previousReviewPlaceholderRef = useRef(
     getRevisaoEscolhidaPlaceholder(selectedContext, revisaoModoCiclo)
   );
-
-  useEffect(() => {
-    if (requireExplicitContextSelection && contextTypes.length > 1 && selectedContext === null) {
-      return;
-    }
-    if (contextTypes.length === 1) {
-      setSelectedContext(contextTypes[0]);
-      return;
-    }
-    if (selectedContext && contextTypes.includes(selectedContext)) return;
-    if (defaultContext && contextTypes.includes(defaultContext)) {
-      setSelectedContext(defaultContext);
-      return;
-    }
-    setSelectedContext(contextTypes[0] || null);
-  }, [contextTypes, defaultContext, requireExplicitContextSelection, selectedContext]);
 
   useEffect(() => {
     if (selectedContext !== 'cronograma') {
@@ -839,49 +815,43 @@ function TimerFinishModal({
 
   // Carrega TODAS as disciplinas da sub-coleção com onSnapshot (reage a mudanças em tempo real)
   useEffect(() => {
-    if (!activeCicloId || !userUid) return;
+    setTodasDisciplinas([]);
+    if (selectedContext !== 'ciclo' || !activeCicloId || !userUid) {
+      setLoadingAssuntos(false);
+      return;
+    }
+    let cancelled = false;
     setLoadingAssuntos(true);
 
     const discRef = collection(db, 'users', userUid, 'ciclos', activeCicloId, 'disciplinas');
     const unsub = onSnapshot(discRef, (snap) => {
+      if (cancelled) return;
       const lista = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       setTodasDisciplinas(lista);
 
-      // Atualiza assuntos da disciplina atual (se já estiver selecionada)
-      setDisciplinaManual(prev => {
-        const nome = prev || disciplinaNome;
-        let alvo = lista.find(d => normalize(d.nome) === normalize(nome));
-        if (!alvo) alvo = lista.find(d => normalize(d.nome).includes(normalize(nome)) || normalize(nome).includes(normalize(d.nome)));
-        if (alvo) {
-          setAssuntosDisponiveis(Array.isArray(alvo.assuntos) ? alvo.assuntos : []);
-          setErroDisciplina(false);
-          return alvo.nome;
-        } else {
-          setErroDisciplina(lista.length > 0);
-          return prev || '';
-        }
-      });
-
       setLoadingAssuntos(false);
     }, (e) => {
+      if (cancelled) return;
       console.error('[TimerFinishModal] Erro ao buscar disciplinas:', e);
       setLoadingAssuntos(false);
     });
 
-    return () => unsub();
-  }, [activeCicloId, userUid, disciplinaNome]);
+    return () => {
+      cancelled = true;
+      unsub();
+    };
+  }, [selectedContext, activeCicloId, userUid]);
 
   useEffect(() => {
-    if (activeCicloId || contextDisciplines.length === 0) return;
     const nome = disciplinaManual || disciplinaNome;
-    const alvo = contextDisciplines.find(d =>
-      normalize(d.nome) === normalize(nome) ||
+    const alvo = disciplinasDisponiveis.find(d => normalize(d.nome) === normalize(nome))
+      || disciplinasDisponiveis.find(d => nome && d.nome && (
       normalize(d.nome).includes(normalize(nome)) ||
       normalize(nome).includes(normalize(d.nome))
-    );
+    ));
     setAssuntosDisponiveis(alvo && Array.isArray(alvo.assuntos) ? alvo.assuntos : []);
-    setErroDisciplina(Boolean(nome && contextDisciplines.length > 0 && !alvo));
-  }, [activeCicloId, contextDisciplines, disciplinaManual, disciplinaNome]);
+    setErroDisciplina(Boolean(nome && disciplinasDisponiveis.length > 0 && !alvo));
+  }, [disciplinasDisponiveis, disciplinaManual, disciplinaNome]);
 
   const checkTopicFinished = useCallback(async (topicName, index) => {
     if (!topicName || !activeCicloId || !userUid) return;
@@ -929,7 +899,11 @@ function TimerFinishModal({
     setErrorMessage('');
 
     if (!selectedContext) {
-      setErrorMessage('Escolha onde deseja registrar este bloco de estudo.');
+      setErrorMessage('Nao foi possivel identificar o planejamento de origem deste timer. Retome a sessao e tente novamente.');
+      return;
+    }
+    if (selectedContext === 'ciclo' && !activeCicloId) {
+      setErrorMessage('O ciclo de origem deste timer nao esta disponivel.');
       return;
     }
     if (selectedContext === 'cronograma' && !selectedCronogramaId) {
@@ -1055,9 +1029,8 @@ function TimerFinishModal({
         const existeNaLista = disciplinasDisponiveis.some(d =>
           normalize(d.nome) === normalize(finalDiscName) || d.id === finalDiscId
         );
-        const discSubRef = doc(db, 'users', userUid, 'ciclos', activeCicloId, 'disciplinas', finalDiscId);
-
         if (selectedContext === 'ciclo' && activeCicloId) {
+          const discSubRef = doc(db, 'users', userUid, 'ciclos', activeCicloId, 'disciplinas', finalDiscId);
           if (existeNaLista && assuntosNovos.length > 0) {
             updateDoc(discSubRef, { assuntos: arrayUnion(...assuntosNovos) }).catch(() => {});
           } else if (!existeNaLista) {
@@ -1359,59 +1332,6 @@ function TimerFinishModal({
               {errorMessage && (
                 <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-500 text-sm font-medium flex items-center gap-2">
                   <AlertTriangle size={18} /> {errorMessage}
-                </div>
-              )}
-
-              {hasMultipleContexts && (
-                <div className="registro-modal-form-section p-2 md:p-2">
-                  <p className="registro-section-kicker mb-1.5">
-                    Planejamento
-                  </p>
-                  <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
-                    {availableContexts.map((context) => {
-                      const active = selectedContext === context.type;
-                      const isCiclo = context.type === 'ciclo';
-                      const label = context.label || (isCiclo ? 'Ciclo' : 'Cronograma');
-                      const title = isCiclo ? 'Ciclo' : 'Cronograma';
-                      return (
-                        <button
-                          key={context.type}
-                          type="button"
-                          onClick={() => setSelectedContext(context.type)}
-                          className={`group relative flex min-h-[72px] flex-col items-center justify-center gap-1.5 rounded-xl p-1.5 text-center border transition-all duration-300 overflow-hidden hover:-translate-y-0.5 ${
-                            active
-                              ? 'border-zinc-400 bg-white/90 dark:border-zinc-500 dark:bg-[#1f1f1f] shadow-sm'
-                              : 'border-white/70 dark:border-zinc-700 bg-white/70 dark:bg-[#141414] hover:border-zinc-300 dark:hover:border-zinc-500'
-                          }`}
-                        >
-                          <span className={`relative flex h-9 w-9 md:h-10 md:w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border transition-all duration-300 ${
-                            active
-                              ? 'border-zinc-400 dark:border-zinc-500 bg-zinc-100/80 dark:bg-[#2A2A2A]'
-                              : 'border-transparent bg-white dark:bg-[#2A2A2A]'
-                          }`}>
-                            {context.logoUrl || context.logo || context.editalLogoUrl ? (
-                              <img src={context.logoUrl || context.logo || context.editalLogoUrl} alt={context.label} className="h-full w-full object-contain p-1" />
-                            ) : (
-                              <BookOpen size={15} className="text-zinc-400" />
-                            )}
-                          </span>
-                          <span className="min-w-0 w-full">
-                            <span className={`block text-[8px] font-black uppercase tracking-[0.18em] ${active ? 'text-zinc-700 dark:text-zinc-200' : 'text-zinc-400'}`}>
-                              {title}
-                            </span>
-                            <span className={`block truncate text-[11px] font-black ${active ? 'text-zinc-900 dark:text-white' : 'text-zinc-600 dark:text-zinc-300'}`}>
-                              {label}
-                            </span>
-                          </span>
-                          {active && (
-                            <div className="absolute top-2.5 right-2.5 text-zinc-500 dark:text-zinc-300">
-                              <CheckCircle2 size={15} strokeWidth={2.5} />
-                            </div>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
                 </div>
               )}
 

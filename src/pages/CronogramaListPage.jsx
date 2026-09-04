@@ -135,7 +135,7 @@ const calcularMetricas = (cronograma, registrosEstudo = []) => {
 };
 
 // ─── CARD ─────────────────────────────────────────────────────────────────────
-const CronogramaCard = ({ cronograma, editaisMap, registrosEstudo = [], onOpen, onMenuToggle, isMenuOpen, onAction, allowInactiveOpen = true, showPostponeAction = true }) => {
+const CronogramaCard = ({ isTimerActive = false, cronograma, editaisMap, registrosEstudo = [], onOpen, onMenuToggle, isMenuOpen, onAction, allowInactiveOpen = true, showPostponeAction = true }) => {
   const metricas = useMemo(() => calcularMetricas(cronograma, registrosEstudo), [cronograma, registrosEstudo]);
   const { progresso, horasSemanais, horasEstudadas } = metricas;
   const totalSemanas = cronograma.totalSemanasNecessarias || 0;
@@ -281,6 +281,8 @@ const CronogramaCard = ({ cronograma, editaisMap, registrosEstudo = [], onOpen, 
               <button
                 type="button"
                 onClick={(event) => onAction(event, 'ativar', cronograma)}
+                disabled={isTimerActive}
+                title={isTimerActive ? 'Finalize ou cancele o timer do cronograma antes de ativar outro.' : undefined}
                 className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-[9px] font-black uppercase tracking-widest text-emerald-700 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-100 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-300 dark:hover:bg-emerald-900/30 sm:text-[10px]"
               >
                 <Zap size={13} /> Ativar
@@ -305,6 +307,7 @@ const CronogramaCard = ({ cronograma, editaisMap, registrosEstudo = [], onOpen, 
 function CronogramaListPage({
   user,
   onCronogramaAberto,
+  isTimerActive = false,
   registrosEstudo = [],
   hideHeader = false,
   onRequestCreate = null,
@@ -390,6 +393,10 @@ function CronogramaListPage({
   const handleAction = async (e, action, cronograma) => {
     e.stopPropagation(); setMenuAberto(null);
     if (action === 'ativar') {
+      if (isTimerActive) {
+        setActionError('Finalize ou cancele a sessao atual antes de ativar outro cronograma.');
+        return;
+      }
       setActionLoading(true);
       const previousCronogramas = cronogramas;
       const activeCronogramaIds = cronogramas.filter((item) => item.ativo && item.id !== cronograma.id).map((item) => item.id);
@@ -606,7 +613,7 @@ function CronogramaListPage({
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6">
               {sortedCronogramas.map(cronograma => (
-                <CronogramaCard key={cronograma.id} cronograma={cronograma} editaisMap={editaisMap} registrosEstudo={registrosEstudo} onOpen={(id, item) => onCronogramaAberto?.(id, item)} onMenuToggle={handleMenuToggle} isMenuOpen={menuAberto === cronograma.id} onAction={handleAction} allowInactiveOpen={allowInactiveOpen} showPostponeAction={showPostponeAction} />
+                <CronogramaCard isTimerActive={isTimerActive} key={cronograma.id} cronograma={cronograma} editaisMap={editaisMap} registrosEstudo={registrosEstudo} onOpen={(id, item) => onCronogramaAberto?.(id, item)} onMenuToggle={handleMenuToggle} isMenuOpen={menuAberto === cronograma.id} onAction={handleAction} allowInactiveOpen={allowInactiveOpen} showPostponeAction={showPostponeAction} />
               ))}
             </div>
           )}
