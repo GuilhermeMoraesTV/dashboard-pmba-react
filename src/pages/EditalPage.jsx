@@ -1142,13 +1142,17 @@ function EditalPage({
         scope: pdfScope,
         fillMode: pdfFillMode,
       });
+      const isGenericName = (val) => !val || ['manual', 'cronograma', 'edital', 'edital base'].includes(String(val).toLowerCase().trim());
+
       const editalName = templateData?.titulo
         || templateData?.nome
         || catalogTemplate?.titulo
         || catalogTemplate?.nome
-        || sourcePlan?.editalNome
-        || sourcePlan?.concursoNome
-        || nomeAtivo;
+        || (!isGenericName(sourcePlan?.editalNome) ? sourcePlan?.editalNome : null)
+        || (!isGenericName(sourcePlan?.concursoNome) ? sourcePlan?.concursoNome : null)
+        || sourcePlan?.nome
+        || nomeAtivo
+        || 'Edital Verticalizado';
       const editalCargo = templateData?.cargo
         || catalogTemplate?.cargo
         || sourcePlan?.cargo
@@ -1156,7 +1160,13 @@ function EditalPage({
         || '';
 
       await downloadEditalVerticalizadoPdf({
-        edital: { ...sourcePlan, ...templateData, nome: editalName, cargo: editalCargo },
+        edital: {
+          ...sourcePlan,
+          ...templateData,
+          nome: editalName,
+          titulo: editalName,
+          cargo: editalCargo,
+        },
         disciplinas: preparedDisciplines,
         scope: pdfScope,
         fillMode: pdfFillMode,
@@ -1167,9 +1177,7 @@ function EditalPage({
       });
 
       setDownloadModalOpen(false);
-      setToastMessage(usedSavedFallback
-        ? 'PDF gerado com o conteudo salvo no planejamento. O template oficial completo nao estava disponivel.'
-        : 'Edital verticalizado baixado com sucesso.');
+      setToastMessage('Edital verticalizado baixado com sucesso.');
     } catch (error) {
       console.error('Erro ao gerar edital verticalizado:', error);
       setToastMessage(error?.message || 'Nao foi possivel gerar o PDF. Tente novamente.');

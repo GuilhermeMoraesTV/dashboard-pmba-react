@@ -4,6 +4,8 @@ import { motion } from 'framer-motion';
 import { resolveAnkiMediaHtml } from '../../services/anki/ankiMedia.js';
 import { sanitizeFlashcardHtml } from '../../utils/sanitizeHtml.js';
 
+const MotionDiv = motion.div;
+
 function stripInternalRefTokens(text) {
   return String(text || '')
     .replace(/\[\s*REF\s+[^\]]+\]/gi, '')
@@ -66,8 +68,12 @@ export default function StudyCard({ card, revealed, onReveal, onToggleReveal }) 
   }, [isCloze, frontRevealedHtml, frontHtml, backHtml]);
 
   const handleCardClick = (e) => {
-    // Não acionar flip se clicou em um botão interno ou link
-    if (e.target.closest('button, a, input, textarea')) return;
+    const interactiveSelector = [
+      'button', 'a', 'input', 'textarea', 'select', 'option', 'label',
+      'audio', 'video', 'iframe', 'details', 'summary', '[role="button"]',
+      '[contenteditable="true"]', '[data-no-card-flip]',
+    ].join(',');
+    if (e.target?.closest?.(interactiveSelector)) return;
     if (onToggleReveal) {
       onToggleReveal();
     } else if (onReveal) {
@@ -82,7 +88,7 @@ export default function StudyCard({ card, revealed, onReveal, onToggleReveal }) 
       style={{ minHeight: '340px' }}
       title={revealed ? 'Clique para virar para a frente' : 'Clique para mostrar a resposta'}
     >
-      <motion.div
+      <MotionDiv
         className="relative min-h-[340px] w-full rounded-3xl"
         initial={false}
         animate={{ rotateY: revealed ? 180 : 0 }}
@@ -91,22 +97,22 @@ export default function StudyCard({ card, revealed, onReveal, onToggleReveal }) 
       >
         {/* Frente do Card */}
         <div
-          className="absolute inset-0 flex flex-col justify-between overflow-y-auto rounded-3xl border border-slate-200/80 bg-white p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900 sm:p-8"
+          className="absolute inset-0 flex flex-col justify-between overflow-y-auto rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-xl dark:border-zinc-800 dark:bg-card-dark sm:p-8"
           style={{
             backfaceVisibility: 'hidden',
             WebkitBackfaceVisibility: 'hidden',
           }}
         >
-          <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-400">
+          <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-zinc-400">
             <span>Frente</span>
-            <span className="rounded-full bg-slate-100 px-2.5 py-1 dark:bg-slate-800">
+            <span className="rounded-full bg-zinc-100 px-2.5 py-1 dark:bg-zinc-800">
               {isCloze ? 'Omissão de Palavras' : 'Conceito / Pergunta'}
             </span>
           </div>
 
           <div className="my-auto flex items-center justify-center py-6 text-center">
             <div
-              className="prose max-w-none text-lg font-bold leading-relaxed text-slate-900 dark:prose-invert dark:text-slate-100 sm:text-xl [&_img]:mx-auto [&_img]:my-3 [&_img]:max-h-[45vh] [&_img]:max-w-full [&_img]:rounded-xl [&_img]:object-contain"
+              className="prose max-w-none text-lg font-bold leading-relaxed text-zinc-900 dark:prose-invert dark:text-zinc-100 sm:text-xl [&_img]:mx-auto [&_img]:my-3 [&_img]:max-h-[45vh] [&_img]:max-w-full [&_img]:rounded-xl [&_img]:object-contain"
               dangerouslySetInnerHTML={{ __html: frontHtml }}
             />
           </div>
@@ -119,7 +125,7 @@ export default function StudyCard({ card, revealed, onReveal, onToggleReveal }) 
                 if (onToggleReveal) onToggleReveal();
                 else if (onReveal) onReveal(true);
               }}
-              className="group inline-flex items-center gap-2 rounded-2xl bg-slate-950 px-6 py-3 text-sm font-black uppercase tracking-wider text-white shadow-lg transition-all hover:bg-red-600 active:scale-95 dark:bg-white dark:text-slate-950 dark:hover:bg-red-600 dark:hover:text-white"
+              className="group inline-flex items-center gap-2 rounded-2xl bg-zinc-950 px-6 py-3 text-sm font-black uppercase tracking-wider text-white shadow-lg transition-all hover:bg-red-600 active:scale-95 dark:bg-white dark:text-zinc-950 dark:hover:bg-red-600 dark:hover:text-white"
             >
               <Eye size={17} strokeWidth={2.5} className="transition group-hover:scale-110" />
               Mostrar Resposta (Espaço)
@@ -129,7 +135,7 @@ export default function StudyCard({ card, revealed, onReveal, onToggleReveal }) 
 
         {/* Verso do Card */}
         <div
-          className="absolute inset-0 flex flex-col justify-between overflow-y-auto rounded-3xl border border-red-500/20 bg-slate-50/95 p-6 shadow-xl backdrop-blur dark:border-red-500/30 dark:bg-slate-900/95 sm:p-8"
+          className="absolute inset-0 flex flex-col justify-between overflow-y-auto rounded-3xl border border-red-500/20 bg-zinc-50/95 p-6 shadow-xl backdrop-blur dark:border-red-500/30 dark:bg-card-dark sm:p-8"
           style={{
             backfaceVisibility: 'hidden',
             WebkitBackfaceVisibility: 'hidden',
@@ -148,12 +154,12 @@ export default function StudyCard({ card, revealed, onReveal, onToggleReveal }) 
 
           <div className="my-auto flex items-center justify-center py-6 text-center">
             <div
-              className="prose max-w-none text-base font-medium leading-relaxed text-slate-800 dark:prose-invert dark:text-slate-200 sm:text-lg [&_img]:mx-auto [&_img]:my-3 [&_img]:max-h-[45vh] [&_img]:max-w-full [&_img]:rounded-xl [&_img]:object-contain"
+              className="prose max-w-none text-base font-medium leading-relaxed text-zinc-800 dark:prose-invert dark:text-zinc-200 sm:text-lg [&_img]:mx-auto [&_img]:my-3 [&_img]:max-h-[45vh] [&_img]:max-w-full [&_img]:rounded-xl [&_img]:object-contain"
               dangerouslySetInnerHTML={{ __html: displayBackHtml }}
             />
           </div>
 
-          <div className="flex items-center justify-between text-xs font-semibold text-slate-400">
+          <div className="flex items-center justify-between text-xs font-semibold text-zinc-400">
             <span>Classifique seu domínio abaixo</span>
             <button
               type="button"
@@ -162,14 +168,14 @@ export default function StudyCard({ card, revealed, onReveal, onToggleReveal }) 
                 if (onToggleReveal) onToggleReveal();
                 else if (onReveal) onReveal(false);
               }}
-              className="inline-flex items-center gap-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              className="inline-flex items-center gap-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
             >
               <RotateCcw size={13} />
               <span>Ver pergunta</span>
             </button>
           </div>
         </div>
-      </motion.div>
+      </MotionDiv>
     </div>
   );
 }

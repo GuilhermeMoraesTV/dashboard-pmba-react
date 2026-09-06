@@ -48,7 +48,7 @@ import {
   hasCompletePlanningLevels,
   normalizePlanningLevel,
 } from '../utils/planningPriority';
-import { clampPlanningStartDate, getLocalTodayKey } from '../utils/planningDates';
+import { clampPlanningStartDate, getLocalTodayKey, getBrasiliaTodayKey, getBrasiliaToday } from '../utils/planningDates';
 import confetti from 'canvas-confetti';
 
 // ─── CONSTANTES ───────────────────────────────────────────────────────────────
@@ -82,8 +82,7 @@ const normalizarModoExibirTempo = (modo) => (modo === 'oculto' || modo === 'nenh
  * @returns {string} data no formato 'YYYY-MM-DD'
  */
 export function _getPrimeiroDiaUtil(horarios = {}) {
-  const hoje = new Date();
-  hoje.setHours(12, 0, 0, 0);
+  const hoje = getBrasiliaToday();
   const diaSemanaHoje = hoje.getDay(); // 0 = Dom … 6 = Sáb
 
   for (let offset = 0; offset < 7; offset++) {
@@ -92,12 +91,12 @@ export function _getPrimeiroDiaUtil(horarios = {}) {
     if (horasNoDia > 0) {
       const d = new Date(hoje);
       d.setDate(d.getDate() + offset);
-      return d.toISOString().split('T')[0];
+      return getBrasiliaTodayKey(d);
     }
   }
 
   // Fallback: nenhum dia configurado ainda → usa hoje
-  return hoje.toISOString().split('T')[0];
+  return getBrasiliaTodayKey(hoje);
 }
 
 export const defaultConfig = () => {
@@ -1029,7 +1028,7 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
       result = {
         ...resultadoGeracao,
         dataInicio:              dtInicio,
-        dataFim:                 dtFimObj.toISOString().split('T')[0],
+        dataFim:                 getBrasiliaTodayKey(dtFimObj),
         totalSemanasNecessarias: totalSemanas,
         metodologiasAplicadas: {
           cronograma:          'ciclo_intercalado',
@@ -1355,7 +1354,7 @@ function _gerarCronogramaDeGradePersonalizada(grade, disciplinas = [], config = 
   return {
     semanaTemplate,
     dataInicio,
-    dataFim: dtFimObj.toISOString().split('T')[0],
+    dataFim: getBrasiliaTodayKey(dtFimObj),
     totalSemanasNecessarias: totalSemanas,
     metodologiasAplicadas: {
       cronograma: 'grade_personalizada',

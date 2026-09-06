@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom'; // Importante para corrigir a faixa branca
 import { auth, db, storage } from '../firebaseConfig.js';
 import {
@@ -6,7 +6,7 @@ import {
   sendPasswordResetEmail, deleteUser, updateProfile
 } from 'firebase/auth';
 import {
-  collection, query, where, orderBy, onSnapshot, doc, updateDoc, deleteDoc, setDoc, getDocs, writeBatch
+  collection, query, where, orderBy, onSnapshot, doc, updateDoc, deleteDoc, setDoc, getDocs, writeBatch, serverTimestamp
 } from 'firebase/firestore';
 import { ref, deleteObject } from 'firebase/storage';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -21,6 +21,7 @@ import {
   normalizeCoverPosition,
 } from '../utils/profileCover';
 import { uploadSecureImage, validateImageFile } from '../services/secureImageUpload';
+import { getProfileImages, saveProfileImage, subscribeProfileImages } from '../services/profileImageSave';
 import {
   getAdminRecordDate,
   normalizeCorrect,
@@ -58,16 +59,21 @@ const formatTime = (min) => {
 const getCoverSaveErrorMessage = (error) => {
   const code = String(error?.code || 'erro-desconhecido');
   const detailByCode = {
-    'storage/unauthorized': 'A sessao nao tem permissao para gravar neste caminho do Storage.',
+    'storage/unauthorized': 'A sessão não tem permissão para gravar no Storage.',
     'storage/canceled': 'O envio foi cancelado antes de terminar.',
-    'storage/retry-limit-exceeded': 'O Storage nao respondeu dentro do limite de tentativas.',
+    'storage/retry-limit-exceeded': 'O Storage não respondeu dentro do limite de tentativas.',
     'storage/unknown': 'O Storage recusou o envio sem detalhar a causa.',
-    'permission-denied': 'O perfil nao permitiu salvar os dados da capa.',
-    'firestore/permission-denied': 'O perfil nao permitiu salvar os dados da capa.',
-    'unavailable': 'O servico esta indisponivel no momento.',
-    'firestore/unavailable': 'O servico esta indisponivel no momento.',
+    'permission-denied': 'O perfil não permitiu salvar os dados da capa.',
+    'firestore/permission-denied': 'O perfil não permitiu salvar os dados da capa.',
+    'unavailable': 'O serviço está indisponível no momento. Verifique sua conexão.',
+    'firestore/unavailable': 'O serviço está indisponível no momento.',
+    'functions/internal': 'O servidor de upload encontrou uma falha temporária. Tente novamente em instantes.',
+    'functions/unavailable': 'O serviço de upload está indisponível no momento.',
+    'functions/resource-exhausted': 'Limite diário de uploads de imagens atingido. Tente amanhã.',
+    'functions/invalid-argument': error?.message || 'Formato ou tamanho de imagem inválido.',
+    'functions/failed-precondition': error?.message || 'Não foi possível processar o upload da imagem.',
   };
-  return `Falha ao salvar a capa (${code}). ${detailByCode[code] || error?.message || 'Tente novamente.'}`;
+  return detailByCode[code] || error?.message || `Falha ao salvar a capa (${code}). Tente novamente.`;
 };
 
 const parseDateLocal = (dateString) => {
@@ -567,14 +573,24 @@ function ProfilePage({
   const [fontSizeSaving, setFontSizeSaving] = useState(false);
   const [photo, setPhoto] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(user?.photoURL);
-  const [photoLoading, setPhotoLoading] = useState(false);
+  const [photoObjectURL, setPhotoObjectURL] = useState(null);
+  const imageUpdates = useSyncExternalStore(subscribeProfileImages, () => getProfileImages(user?.uid));
+  const [photoSaving, setPhotoLoading] = useState(false);
+  const photoLoading = photoSaving || imageUpdates.avatar?.status === 'saving';
+  useEffect(() => {
+    if (!photo) setPhotoPreview(user?.photoURL || null);
+  }, [photo, user?.photoURL]);
+  useEffect(() => () => {
+    if (photoObjectURL) URL.revokeObjectURL(photoObjectURL);
+  }, [photoObjectURL]);
   const [coverFile, setCoverFile] = useState(null);
   const [coverPreview, setCoverPreview] = useState(coverURL);
   const [coverObjectURL, setCoverObjectURL] = useState(null);
   const [coverPositionDraft, setCoverPositionDraft] = useState(() => normalizeCoverPosition(coverPosition));
   const [coverPositionDirty, setCoverPositionDirty] = useState(false);
   const [isDraggingCover, setIsDraggingCover] = useState(false);
-  const [coverAction, setCoverAction] = useState(null);
+  const [localCoverAction, setCoverAction] = useState(null);
+  const coverAction = localCoverAction || (imageUpdates.cover?.status === 'saving' ? 'saving' : null);
   const coverFrameRef = useRef(null);
   const coverImageRef = useRef(null);
   const coverDragRef = useRef(null);
@@ -770,33 +786,58 @@ function ProfilePage({
     };
 
     const handleUpdatePhoto = async () => {
-        if (!photo) return;
+        if (!photo || photoLoading) return;
+        const selectedPhoto = photo;
+        const authUser = auth.currentUser;
+        if (authUser?.uid !== user.uid) return;
         setPhotoLoading(true);
+        setMessage({ type: '', text: '' });
+        setPhoto(null);
+        const optimisticURL = URL.createObjectURL(selectedPhoto);
+        let uploadedURL = null;
         try {
-          const { url: photoURL } = await uploadSecureImage(photo, { kind: 'profile-avatar' });
-
-          await updateProfile(auth.currentUser, { photoURL });
-          await setDoc(doc(db, 'users', user.uid), { photoURL }, { merge: true });
-
-          await auth.currentUser.reload();
+          const { photoURL } = await saveProfileImage({
+            uid: user.uid,
+            channel: 'avatar',
+            preview: { photoURL: optimisticURL },
+            upload: async () => {
+              const upload = await uploadSecureImage(selectedPhoto, { kind: 'profile-avatar' });
+              uploadedURL = upload.url;
+              return { photoURL: upload.url };
+            },
+            persist: (values) => setDoc(doc(db, 'users', user.uid), { ...values, updatedAt: serverTimestamp() }, { merge: true }),
+            syncAuth: (values) => updateProfile(authUser, values),
+            releasePreview: () => URL.revokeObjectURL(optimisticURL),
+          });
+          setPhotoPreview(photoURL);
+          setPhotoObjectURL(null);
           setMessage({ type: 'success', text: 'Foto de perfil atualizada.' });
-          setPhoto(null);
         } catch (error) {
-            console.error("Erro:", error);
-            setMessage({ type: 'error', text: 'Falha ao atualizar foto.' });
+            if (uploadedURL) deleteObject(ref(storage, uploadedURL)).catch(() => {});
+            setPhoto(selectedPhoto);
+            setPhotoPreview(photoObjectURL);
+            console.error("Erro ao atualizar foto de perfil:", error);
+            setMessage({
+              type: 'error',
+              text: error?.message?.includes('functions/') || error?.code
+                ? getCoverSaveErrorMessage(error).replace('a capa', 'a foto de perfil')
+                : 'Falha ao atualizar foto de perfil. Tente novamente.',
+            });
         } finally {
             setPhotoLoading(false);
         }
       };
 
     const handlePhotoSelection = async (event) => {
-      const selectedFile = event.target.files?.[0];
+        const selectedFile = event.target.files?.[0];
       event.target.value = '';
       if (!selectedFile) return;
       try {
         await validateImageFile(selectedFile);
         setPhoto(selectedFile);
-        setPhotoPreview(URL.createObjectURL(selectedFile));
+        const objectURL = URL.createObjectURL(selectedFile);
+        setPhotoObjectURL(objectURL);
+        setPhotoPreview(objectURL);
       } catch (validationError) {
         setPhoto(null);
         setMessage({ type: 'error', text: validationError.message });
@@ -917,29 +958,34 @@ function ProfilePage({
 
     const handleSaveCover = async () => {
       if ((!coverFile && !coverPositionDirty) || coverAction) return;
+      const selectedCover = coverFile;
+      const previousCoverURL = coverURL;
+      const nextCoverPosition = normalizeCoverPosition(coverPositionDraft);
+      const optimisticURL = selectedCover ? URL.createObjectURL(selectedCover) : coverURL;
       setCoverAction('saving');
+      setMessage({ type: '', text: '' });
       let uploadedRef = null;
       try {
-        let nextCoverURL = coverURL;
-        if (coverFile) {
-          if (!auth.currentUser || auth.currentUser.uid !== user.uid) {
-            throw Object.assign(new Error('Sessao autenticada indisponivel para o upload.'), { code: 'auth/user-mismatch' });
-          }
-          await auth.currentUser.getIdToken(true);
-          const upload = await uploadSecureImage(coverFile, { kind: 'profile-cover' });
-          uploadedRef = ref(storage, upload.path);
-          nextCoverURL = upload.url;
+        if (auth.currentUser?.uid !== user.uid) {
+          throw Object.assign(new Error('Sessão autenticada indisponível para o upload.'), { code: 'auth/user-mismatch' });
         }
-
-        const nextCoverPosition = normalizeCoverPosition(coverPositionDraft);
-        await setDoc(doc(db, 'users', user.uid), {
-          ...(coverFile ? { coverURL: nextCoverURL } : {}),
-          coverPosition: nextCoverPosition,
-          updatedAt: new Date(),
-        }, { merge: true });
-
-        const previousCoverURL = coverURL;
-        if (coverFile) savedCoverPreviewRef.current = nextCoverURL;
+        const { coverURL: nextCoverURL } = await saveProfileImage({
+          uid: user.uid,
+          channel: 'cover',
+          preview: { coverURL: optimisticURL, coverPosition: nextCoverPosition },
+          upload: async () => {
+            if (!selectedCover) return { coverURL: previousCoverURL, coverPosition: nextCoverPosition };
+            const upload = await uploadSecureImage(selectedCover, { kind: 'profile-cover' });
+            uploadedRef = ref(storage, upload.url);
+            return { coverURL: upload.url, coverPosition: nextCoverPosition };
+          },
+          persist: (values) => setDoc(doc(db, 'users', user.uid), {
+            ...(selectedCover ? { coverURL: values.coverURL } : {}),
+            coverPosition: values.coverPosition,
+            updatedAt: serverTimestamp(),
+          }, { merge: true }),
+        });
+        if (selectedCover) savedCoverPreviewRef.current = nextCoverURL;
         savedCoverPositionRef.current = nextCoverPosition;
         setCoverFile(null);
         setCoverPreview(nextCoverURL);
@@ -952,13 +998,19 @@ function ProfilePage({
             : 'Posição da capa salva.',
         });
         if (uploadedRef && previousCoverURL && previousCoverURL !== nextCoverURL) {
-          deleteStoredCover(previousCoverURL);
+          const previousRef = ref(storage, previousCoverURL);
+          // Compatibilidade com versões antigas da Function que sobrescreviam
+          // o mesmo objeto e alteravam somente o token da URL.
+          if (previousRef.bucket !== uploadedRef.bucket || previousRef.fullPath !== uploadedRef.fullPath) {
+            deleteStoredCover(previousCoverURL);
+          }
         }
       } catch (error) {
         console.error('Erro ao salvar capa do perfil:', error);
         if (uploadedRef) deleteObject(uploadedRef).catch(() => {});
         setMessage({ type: 'error', text: getCoverSaveErrorMessage(error) });
       } finally {
+        if (selectedCover) URL.revokeObjectURL(optimisticURL);
         setCoverAction(null);
       }
     };
@@ -1142,8 +1194,8 @@ function ProfilePage({
               )}
 
               {coverAction && (
-                  <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/55 text-white backdrop-blur-sm">
-                      <Loader2 size={26} className="animate-spin"/>
+                  <div role="status" className="pointer-events-none absolute bottom-3 right-3 z-30 flex items-center rounded-full bg-black/55 px-3 py-2 text-white">
+                      <Loader2 size={14} className="animate-spin"/>
                       <span className="ml-3 text-xs font-black uppercase tracking-wider">{coverAction === 'removing' ? 'Removendo' : 'Salvando'}</span>
                   </div>
               )}
@@ -1156,7 +1208,7 @@ function ProfilePage({
                           <div className="relative h-32 w-32 overflow-hidden rounded-full border-4 border-white bg-zinc-100 shadow-2xl ring-4 ring-zinc-100 dark:border-zinc-800 dark:bg-zinc-900 dark:ring-zinc-900/50 md:h-40 md:w-40">
                               {photoPreview ? (<img src={photoPreview} alt="User" className="h-full w-full object-cover transition-transform duration-500 group-hover/avatar:scale-110" />) : (<div className="flex h-full w-full items-center justify-center bg-zinc-200 text-zinc-400 dark:bg-zinc-800"><User size={48}/></div>)}
                               <label className="absolute inset-0 flex cursor-pointer flex-col items-center justify-center bg-black/60 text-white opacity-0 backdrop-blur-sm transition-all group-hover/avatar:opacity-100">
-                                  <Camera size={24} className="mb-1" /><span className="text-[9px] font-bold uppercase tracking-widest">Editar</span><input type="file" accept="image/jpeg,image/png,image/webp" onChange={handlePhotoSelection} className="hidden" />
+                                  <Camera size={24} className="mb-1" /><span className="text-[9px] font-bold uppercase tracking-widest">Editar</span><input type="file" accept="image/jpeg,image/png,image/webp" onChange={handlePhotoSelection} className="hidden" disabled={photoLoading} />
                               </label>
                           </div>
                           <div className="absolute bottom-2 right-2 z-10 h-6 w-6 rounded-full border-4 border-white bg-emerald-500 shadow-sm dark:border-zinc-950"></div>
@@ -1209,6 +1261,7 @@ function ProfilePage({
                           </button>
                       </div>
 
+                      {photoLoading && <p role="status" className="flex items-center gap-2 text-xs text-zinc-500"><Loader2 size={14} className="animate-spin" />Salvando foto...</p>}
                       <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400 flex items-center justify-center md:justify-start gap-2"><Mail size={14} className="text-red-600" /> {user.email}</p>
                       <AnimatePresence>{photo && (<motion.div initial={{opacity:0, y:10}} animate={{opacity:1, y:0}} exit={{opacity:0, y:10}} className="pt-2"><button onClick={handleUpdatePhoto} disabled={photoLoading} className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-xs shadow-lg shadow-red-900/20 flex items-center gap-2 transition-all mx-auto md:mx-0">{photoLoading ? <Loader2 size={14} className="animate-spin"/> : <Save size={14}/>} Confirmar Foto</button></motion.div>)}</AnimatePresence>
 

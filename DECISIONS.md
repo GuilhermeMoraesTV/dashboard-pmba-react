@@ -138,6 +138,7 @@ Este documento registra formalmente as decisões arquiteturais aprovadas para o 
   3. `cognitiveDifficulty` (`easy | hard`) é independente do rating do scheduler (`again | hard | good | easy`).
   4. Card, CardReview, cardCount e ConceptMastery nascem/avançam em uma única transação determinística no primeiro rating; repetir a request retorna o mesmo resultado.
   5. Encerrar a sessão desativa refill. Resultados tardios podem concluir tecnicamente, mas são descartados se a sessão não estiver ativa.
+  6. O inventário conceitual cobre todos os chunks em janelas pequenas; a seleção ativa trabalha com poucos conceitos e cada geração pede no máximo dois cards. Em truncamento, o único retry reduz o escopo e preserva o mesmo teto de tokens.
 
 ---
 
@@ -151,3 +152,71 @@ Este documento registra formalmente as decisões arquiteturais aprovadas para o 
   4. O ranking mensal de grupos é projetado pela pipeline acadêmica principal; os gatilhos mensais duplicados deixam de existir.
   5. Marcadores determinísticos de operação tornam retry seguro e recebem TTL de 30 dias.
   6. Heartbeats usam lease local entre abas, dois envios máximos na partida e projeção de presença limitada a uma atualização por minuto quando o estado não muda.
+
+---
+
+### ADR-017: Chat Sequencial sem Fan-out de Escrita
+* **Status**: Aprovada para o chat interno dos grupos.
+* **Contexto**: Não lidos exatos, realtime e concorrência entre os participantes do grupo não podem produzir uma notificação ou um estado gravado por mensagem e por membro.
+* **Decisão**:
+  1. `study_groups/{groupId}/chat_meta/current` centraliza `lastSeq`, membros atuais e os campos mínimos de resumo; nunca armazena texto ou preview.
+  2. Mensagem comum lê dois documentos e escreve mensagem, meta e state do remetente numa única transação. IDs são definidos antes da transação e reutilizados em retries.
+  3. `lastMessageId` existe exclusivamente para as Rules provarem que a atualização atômica do meta referencia a mensagem criada no mesmo commit. `groupName` permite montar o resumo virtual sem ler um documento por grupo.
+  4. Unread usa cursores e contadores pessoais O(1); nenhum documento é criado para cada destinatário.
+  5. Somente menções criam outbox e acionam Function. `@Todos` reutiliza esse contrato ao persistir os UIDs reais dos demais membros, respeitando o limite atual do grupo. Notificações têm ID determinístico por grupo, mensagem e destinatário.
+  6. O histórico expira por TTL em 90 dias. A reconciliação rara consulta a primeira sequência retida apenas quando o cursor ficou inativo além da janela de retenção.
+  7. Listeners agregados são suspensos após 45 segundos em background; listeners da conversa são suspensos imediatamente.
+
+---
+
+### ADR-018: Identidade Estável e Manifesto Único do PWA
+* **Status**: Aprovada.
+* **Contexto**: Sem `id` explícito, o navegador usa `start_url` como identidade do PWA. A troca histórica de `/` para `/app/home`, combinada com dois manifestos declarados na mesma página, permitiu que Android/Chromium tratasse a versão atual como outro aplicativo e mantivesse a instalação antiga isolada.
+* **Decisão**:
+  1. `vite-plugin-pwa` é a única fonte do manifesto publicado; o link manual e o manifesto paralelo em `public/` deixam de existir.
+  2. O manifesto declara `id: /app/home`, igual à identidade implícita da instalação atual, e mantém `scope: /`.
+  3. O cliente solicita `registration.update()` ao iniciar, recuperar foco/visibilidade/conexão e em intervalo controlado enquanto a página estiver visível.
+  4. O sistema não tenta remover instalações antigas: navegadores e sistemas operacionais não oferecem uma API web segura para desinstalar um PWA legado.
+
+---
+
+### ADR-019: Importação Anki Integral e Escritas Condicionais
+* **Status**: Implementação local; publicação depende de autorização explícita.
+* **Contexto**: A árvore exibe Pastas de Estudo, mas o importador só criava segmentos intermediários. Decks-folha sumiam da navegação, e cards próprios de decks-pais eram contados na pasta superior. Limites manuais também selecionavam só parte dos decks/cards.
+* **Decisão**:
+  1. Cada caminho Anki completo tem uma pasta real, incluindo decks vazios. A raiz compartilhada reutiliza o destino. Nomes iguais em níveis diferentes permanecem distintos. Esta é a menor mudança compatível com estudar/editar/excluir pastas; uma árvore virtual exigiria adaptar todas essas operações.
+  2. Reimportação reutiliza IDs e pastas intermediárias existentes, corrigindo a atribuição antiga. Cards movidos para decks manuais são preservados; decks identificados como gerenciados pelo Anki são migrados para o deck e a folha canônicos, mesmo se a implementação anterior os deixou arquivados ou ligados a pasta obsoleta. Progresso e scheduler permanecem intactos.
+  3. Limites próprios `anki.maxCardsPerDeck`, `maxDecksPerUser` e `maxFoldersPerUser` têm fallback 10.000, mantendo cotas de criação manual. Overrides remotos continuam soberanos. Cotas e conteúdo são validados antes de mídia/estrutura/cards; não se corta texto nem se seleciona um subconjunto silenciosamente.
+  4. Cards existentes só recebem `update` quando conteúdo/atribuição muda. Progresso e scheduler são preservados. Índices estáveis só são escritos quando mudam. Objetos de mídia com hash por UID são reutilizados e novos uploads usam precondição de geração zero.
+  5. Lotes agrupados por deck respeitam quantidade e orçamento de bytes. Card e avanço de contador/versão do deck são atômicos. Lotes confirmados e snapshots existentes provam persistência sem uma terceira leitura completa; falhas ambíguas exigem releitura e relatório incompleto.
+  6. Lease técnico por usuário serializa imports concorrentes e expira após o timeout máximo da Function. É inacessível ao cliente. Não há atalho baseado apenas no hash do pacote: isso poderia esconder cards excluídos ou impedir correções de conteúdo. A identidade GUID+ordinal e o índice atual são mantidos para preservar compatibilidade.
+  7. `cardsUnchanged`, `mediaUploaded`, `mediaReused` e `persistenceVerification` tornam a economia auditável. Nenhum descarte pode resultar em `isComplete=true`. Em falha, APKG permanece disponível e a reimportação retoma por identidade.
+  8. Pastas importadas não consomem a cota manual de criação de raízes; arquivamento de árvores grandes usa lotes de até 400 operações. Paginação de estudo preserva segundos e nanossegundos do cursor Firestore, evitando repetir ou omitir cards entre páginas.
+  9. O relatório detalhado por deck migra para JSON privado no Storage quando excede 256 KiB; o documento mantém totais e caminho, sem truncar os detalhes. Símbolos do SDK modular são injetados explicitamente na callable. A importação usa concorrência 1 por instância para evitar que vários APKGs grandes compartilhem o orçamento de memória.
+* **Publicação futura**: requer `importAnkiPackage`, `createStudyFolder`, `createStudyFolderTree`, `deleteStudyFolder`, Rules do lease e frontend compatíveis. Nada é publicado automaticamente por esta implementação.
+
+---
+
+### ADR-020: Seletor local de ambiente Firebase com isolamento fail-closed
+* **Status**: Implementação local; não requer nem autoriza publicação de Hosting.
+* **Contexto**: O localhost podia usar o Firebase real e gerar custo ou alterar produção durante testes. A conexão do SDK é definida na inicialização, portanto uma troca segura exige persistir a escolha e recarregar a página.
+* **Decisão**:
+  1. O indicador de ambiente é um botão somente em `DEV` e loopback. A preferência `real|emulator` fica no `localStorage` e prevalece sobre o modo do Vite apenas no computador local.
+  2. Ao escolher Emulator, um middleware exclusivo do Vite inicia a suíte por comando fixo, espera Auth, Firestore, Functions e Storage e só então grava a preferência e recarrega. Falhas mantêm o modo REAL visível; nunca simulam uma troca bem-sucedida.
+  3. O Emulator inicializa o SDK com `demo-dashboard-pmba-local`, separando Auth/cache/dados e impedindo fallback acidental para recursos Firebase reais. O endpoint de controle aceita somente loopback e não recebe comandos ou caminhos do cliente.
+  4. Voltar ao Firebase real exige confirmação explícita, pois pode gerar custos e alterar dados de produção. Os processos locais podem continuar ativos sem cobrança Firebase; outras abas podem estar usando-os.
+  5. A automação cobre serviços Firebase. Integrações externas não emuladas continuam sujeitas aos contratos próprios e não são anunciadas como gratuitas.
+  6. Ao alternar enquanto há usuário real autenticado, somente identidade pública e perfil de acesso já legível pelo próprio usuário são enviados ao middleware local. O Auth Emulator reutiliza a conta local de mesmo e-mail ou cria a identidade com o mesmo UID; uma senha aleatória exclusivamente local realiza o primeiro login e é descartada do `sessionStorage`. A senha real nunca é copiada.
+
+---
+
+### ADR-021: Sistema de Suporte Privado, Anexos Otimizados e Retenção de Imagens
+* **Status**: Aprovada.
+* **Contexto**: O suporte ao usuário requer envio de capturas de tela e imagens nos chamados e mensagens de resposta de usuários e administradores, com rigoroso isolamento de segurança, ausência de URLs públicas e minimização de custos com Firestore, Storage e Functions.
+* **Decisão**:
+  1. **Upload em 3 Etapas Idempotentes**: `reserve` (autenticado, aloca cota e ID determinístico) -> `upload` (validação de bytes, SHA-256 e conversão isolada para WebP) -> `finalize` (publicação atômica em transação Firestore).
+  2. **Imagens Privadas e Otimizadas**: Apenas versões WebP necessárias são salvas no Storage (`image.webp` max 2560px Q80 e `thumbnail.webp` max 480px Q70); o arquivo original é sempre descartado. Acesso a bytes é 100% mediado por Cloud Function autenticada `readSupportAttachment` (`Cache-Control: private, no-store`).
+  3. **Cotas e Proteção contra Abuso**: 30 imagens/dia para usuários normais, 200 imagens/dia para administradores, limite de 3 operações de upload/minuto por remetente.
+  4. **Proteção de Chamados Resolvidos e Concorrência**: Transações no backend impedem respostas em chamados marcados como `resolvido`, bloqueando condições de corrida durante uploads concorrentes.
+  5. **Política de Retenção de 15 Dias**: Chamados resolvidos expiram anexos após 15 dias; a rotina diária de manutenção física remove os arquivos WebP do Storage em lotes de 100 documentos, preservando integralmente o texto das mensagens.
+  6. **Eficiência no Client**: Seleção de imagens sem chamadas de rede; miniaturas via lazy loading; cache efêmero em memória com `URL.revokeObjectURL` no fechamento da conversa; digitação em transições de estado assíncronas.

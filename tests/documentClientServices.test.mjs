@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import {
   sanitizeFileName,
   validatePdfFile,
 } from '../src/services/documents/documentsService.js';
 import {
+  buildApkgStoragePath,
+  findReusableAnkiFolder,
   sanitizeApkgName,
   validateApkgFile,
 } from '../src/services/anki/ankiService.js';
@@ -46,5 +49,23 @@ test('cliente valida extensão, assinatura e limite do APKG', async () => {
     validateApkgFile(namedBlob(['PKxx'], { type: 'application/zip' }, 'deck.zip'), limits),
     /extensao/,
   );
+  assert.equal(buildApkgStoragePath('user-1', 'import-1'), 'user_uploads/user-1/anki_imports/import-1/package.apkg');
   assert.equal(sanitizeApkgName('..\\deck'), '.._deck.apkg');
+});
+
+test('cliente executa uma única chamada de importação e não repete contra URL direta', async () => {
+  const source = await readFile(new URL('../src/services/anki/ankiService.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(source, /fetch\s*\(\s*['"]https:\/\/importankipackage/i);
+  assert.equal((source.match(/httpsCallable\(functions, 'importAnkiPackage'/g) || []).length, 1);
+});
+
+test('cliente reutiliza a árvore Anki mais completa de uma tentativa anterior', () => {
+  const folders = [
+    { id: 'root-empty', name: 'PMBA', description: 'Importado do Anki', parentFolderId: null },
+    { id: 'root-filled', name: 'PMBA', description: 'Importado do Anki', parentFolderId: null },
+    { id: 'subject', name: 'Direito', parentFolderId: 'root-filled', ancestorFolderIds: ['root-filled'] },
+    { id: 'manual', name: 'PMBA', description: 'Pasta manual', parentFolderId: null },
+  ];
+  assert.equal(findReusableAnkiFolder(folders, '  pmba ').id, 'root-filled');
+  assert.equal(findReusableAnkiFolder(folders, 'Outro'), null);
 });

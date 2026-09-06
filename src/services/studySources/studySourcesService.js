@@ -84,13 +84,14 @@ function upload(storageRef, file, onProgress) {
   });
 }
 
-export async function uploadDocumentStudySource(userId, { folderId, title, file, onProgress }) {
+export async function uploadDocumentStudySource(userId, { folderId, title, file, onProgress, onPrepared }) {
   if (!userId || auth.currentUser?.uid !== userId) throw new Error('Usuario autenticado invalido para upload.');
   const limits = await getClientProductLimits();
   await validatePdfFile(file, limits);
   const safeName = sanitizeFileName(file.name);
   const prepare = httpsCallable(functions, 'prepareDocumentStudySource', { timeout: 540000 });
   const prepared = (await prepare({ folderId, title, originalName: safeName, fileSizeBytes: file.size })).data;
+  onPrepared?.(prepared);
   try {
     await upload(ref(storage, prepared.storagePath), file, onProgress);
     const process = httpsCallable(functions, 'processUserDocument', { timeout: 540000 });

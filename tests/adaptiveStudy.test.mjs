@@ -12,6 +12,7 @@ import { DEFAULT_PRODUCT_LIMITS } from '../src/config/productLimits.js';
 const require = createRequire(import.meta.url);
 const {
   adaptiveCardSchema,
+  buildConceptWindows,
   chooseCognitiveDifficulty,
   contentFingerprint,
   evolveMastery,
@@ -30,6 +31,18 @@ test('buffer usa valores internos pequenos e nao uma quantidade solicitada pelo 
   assert.equal(DEFAULT_PRODUCT_LIMITS.adaptiveStudy.targetReady, 4);
   assert.equal(DEFAULT_PRODUCT_LIMITS.adaptiveStudy.lowWatermark, 3);
   assert.equal(DEFAULT_PRODUCT_LIMITS.adaptiveStudy.refillSize, 4);
+  assert.equal(DEFAULT_PRODUCT_LIMITS.adaptiveStudy.conceptsPerWindow, 8);
+});
+
+test('inventario conceitual percorre toda a fonte em janelas pequenas sem truncar chunks', () => {
+  const chunks = [
+    { refKey: 'source:1', text: `[REF source:1]\n${'A'.repeat(5000)}` },
+    { refKey: 'source:2', text: `[REF source:2]\n${'B'.repeat(5000)}` },
+  ];
+  const windows = buildConceptWindows(chunks, 3000);
+  assert.ok(windows.length >= 4);
+  assert.ok(windows.every((window) => window.text.length <= 3050));
+  assert.equal(windows.map((window) => window.text.replace(/\[REF source:[12]\]\n/g, '').replace(/\n\n---\n\n/g, '')).join('').length, 10000);
 });
 
 test('Again aumenta prioridade e duas recuperacoes reduzem o boost', () => {

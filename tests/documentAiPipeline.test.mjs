@@ -186,11 +186,13 @@ test('provider trata JSON invalido, schema invalido e falha/quota externa', asyn
 
 test('provider registra finishReason e faz no maximo um retry quando Vertex trunca', async () => {
   let attempts = 0;
+  const requestBodies = [];
   const provider = new VertexAIProvider({
     model: 'gemini-test', location: 'us-central1', projectId: 'p',
     getAccessToken: async () => ({ token: 't' }),
-    fetchImpl: async () => {
+    fetchImpl: async (_url, request) => {
       attempts += 1;
+      requestBodies.push(JSON.parse(request.body));
       return {
         ok: true,
         json: async () => ({
@@ -201,11 +203,23 @@ test('provider registra finishReason e faz no maximo um retry quando Vertex trun
     },
   });
   await assert.rejects(
-    provider.generate({ prompt: 'interno', surface: 'concept-analysis', responseSchema: buildFlashcardSchema(1), maxOutputTokens: 1024 }),
+    provider.generate({
+      prompt: 'escopo original amplo',
+      surface: 'concept-analysis',
+      responseSchema: buildFlashcardSchema(1),
+      maxOutputTokens: 1024,
+      requestedCount: 2,
+      sourceId: 'source-1',
+      conceptId: 'concept-1',
+      reduceScopeOnRetry: () => ({ prompt: 'escopo reduzido', requestedCount: 1 }),
+    }),
     (error) => error.code === 'truncated-response'
       && error.details.finishReason === 'MAX_TOKENS'
       && error.details.attempt === 2
       && error.details.surface === 'concept-analysis',
   );
   assert.equal(attempts, 2);
+  assert.equal(requestBodies[0].generationConfig.maxOutputTokens, 1024);
+  assert.equal(requestBodies[1].generationConfig.maxOutputTokens, 1024);
+  assert.equal(requestBodies[1].contents[0].parts[0].text, 'escopo reduzido');
 });

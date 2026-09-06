@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import {
   arrayUnion,
@@ -11,8 +11,10 @@ import {
   query,
   serverTimestamp,
   updateDoc,
+  where,
   writeBatch,
 } from 'firebase/firestore';
+import { useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
   BarChart3,
@@ -28,6 +30,7 @@ import {
   KeyRound,
   Lock,
   LogOut,
+  MessageCircle,
   Plus,
   Radio,
   Search,
@@ -60,6 +63,8 @@ import {
 } from '../utils/liveStudyTimer';
 import { useEditaisCatalog } from '../hooks/useEditaisCatalog';
 import UserProfileModal from '../components/gamification/UserProfileModal';
+
+const GroupChatPanel = React.lazy(() => import('../components/groups/GroupChatPanel'));
 
 const makeInviteCode = () => {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -118,6 +123,127 @@ const editalCargos = (edital) => {
   const source = edital?.cargos || edital?.cargosDisponiveis || edital?.cargos_disponiveis || edital?.cargo || [];
   const values = Array.isArray(source) ? source : [source];
   return [...new Set(values.map((item) => typeof item === 'string' ? item : item?.nome || item?.name || item?.titulo).filter(Boolean))];
+};
+
+const cleanText = (value = '') => String(value).toLowerCase().normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+
+const EditalPickerModal = ({ isOpen, onClose, options, currentEditalId, currentCargo, onSelect }) => {
+  const [searchQuery, setSearchQuery] = useState('');
+  const searchInputRef = useRef(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setSearchQuery('');
+      const frame = window.requestAnimationFrame(() => searchInputRef.current?.focus());
+      return () => window.cancelAnimationFrame(frame);
+    }
+  }, [isOpen]);
+
+  if (!isOpen || typeof document === 'undefined') return null;
+
+  const filtered = options.filter(({ edital, cargo }) => {
+    if (!searchQuery.trim()) return true;
+    const term = cleanText(searchQuery);
+    const title = cleanText(editalTitle(edital));
+    const cargoName = cleanText(cargo);
+    return title.includes(term) || cargoName.includes(term);
+  });
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[1300] grid min-h-[100dvh] place-items-center overflow-y-auto bg-black/75 p-3 backdrop-blur-sm sm:p-5"
+      onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
+    >
+      <div className="relative my-auto w-full max-w-lg overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-card-dark">
+        <div className="border-b border-zinc-100 p-4 dark:border-zinc-800">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-red-100 text-red-600 dark:bg-red-950/30">
+                <BookOpen size={16}/>
+              </span>
+              <div>
+                <h3 className="text-sm font-black text-zinc-900 dark:text-white">Selecionar Concurso / Edital</h3>
+                <p className="text-[10px] font-bold text-zinc-400">Associe seu grupo ao edital ou cargo de estudo</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-xl p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+            >
+              <X size={18}/>
+            </button>
+          </div>
+          <div className="relative mt-3">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" size={15}/>
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Buscar por concurso, órgão ou cargo..."
+              className="w-full rounded-xl border border-zinc-200 bg-zinc-50 py-2.5 pl-9 pr-3 text-xs font-bold text-zinc-800 placeholder-zinc-400 outline-none focus:border-red-500 focus:bg-white dark:border-zinc-700 dark:bg-zinc-900 dark:text-white dark:focus:border-red-500"
+            />
+          </div>
+        </div>
+
+        <div className="max-h-80 overflow-y-auto p-2 space-y-1" style={{ scrollbarWidth: 'thin' }}>
+          <button
+            type="button"
+            onClick={() => { onSelect('', ''); onClose(); }}
+            className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-xs font-bold transition hover:bg-zinc-100 dark:hover:bg-zinc-800/80 ${!currentEditalId ? 'bg-red-50 text-red-600 dark:bg-red-950/20' : 'text-zinc-600 dark:text-zinc-300'}`}
+          >
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-zinc-100 text-zinc-400 dark:bg-zinc-800">
+              <X size={14}/>
+            </span>
+            <span className="flex-1 min-w-0">
+              <span className="block font-black">Sem edital específico</span>
+              <span className="block text-[9px] text-zinc-400">Grupo geral ou multi-concursos</span>
+            </span>
+          </button>
+
+          {filtered.map(({ edital, cargo }) => {
+            const isSelected = String(currentEditalId) === String(edital.id) && currentCargo === cargo;
+            const logo = editalLogo(edital);
+            return (
+              <button
+                type="button"
+                key={`${edital.id}::${cargo || 'sem-cargo'}`}
+                onClick={() => { onSelect(String(edital.id), cargo); onClose(); }}
+                className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left transition hover:bg-red-50/70 dark:hover:bg-red-950/20 ${isSelected ? 'bg-red-50 text-red-600 ring-1 ring-red-300 dark:bg-red-950/30 dark:ring-red-900' : 'text-zinc-700 dark:text-zinc-200'}`}
+              >
+                {logo ? (
+                  <img src={logo} alt="" className="h-8 w-8 shrink-0 rounded-lg bg-white object-contain shadow-xs"/>
+                ) : (
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-zinc-100 text-zinc-400 dark:bg-zinc-800">
+                    <BookOpen size={14}/>
+                  </span>
+                )}
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-xs font-black leading-tight">{editalTitle(edital)}</span>
+                  {cargo ? (
+                    <span className="mt-0.5 block truncate text-[9px] font-bold uppercase tracking-wider text-red-600 dark:text-red-400">
+                      <Briefcase size={10} className="inline mr-1"/>{cargo}
+                    </span>
+                  ) : (
+                    <span className="mt-0.5 block text-[8px] text-zinc-400">Todos os cargos</span>
+                  )}
+                </span>
+                {isSelected && <Check size={16} className="shrink-0 text-red-600"/>}
+              </button>
+            );
+          })}
+          {filtered.length === 0 && (
+            <div className="py-8 text-center text-xs font-bold text-zinc-400">
+              Nenhum edital encontrado para "{searchQuery}"
+            </div>
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
 };
 
 const DescriptionModal = ({ group, onClose }) => group ? <ModalPortal onClose={onClose} className="max-w-lg"><Surface className="p-5"><div className="flex items-start justify-between gap-4"><div><p className="text-[9px] font-black uppercase tracking-[0.16em] text-red-600">Descrição</p><h2 className="mt-0.5 text-xl font-black text-zinc-950 dark:text-white">{group.name}</h2></div><button onClick={onClose} className="rounded-xl p-2 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800" aria-label="Fechar descrição"><X size={18}/></button></div><p className="mt-4 whitespace-pre-wrap text-sm leading-relaxed text-zinc-600 dark:text-zinc-300">{group.description?.trim() || 'Este grupo ainda não possui descrição.'}</p></Surface></ModalPortal> : null;
@@ -183,13 +309,14 @@ const LiveMemberCard = ({ member, timer, state, onOpen }) => {
   );
 };
 
-const GroupsPage = ({ user, gamificationProfile = {}, levelData }) => {
+const GroupsPage = ({ user, gamificationProfile = {}, levelData, chatUnreadByGroup = {} }) => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const editaisMap = useEditaisCatalog();
   const [view, setView] = useState('my');
   const [directoryGroups, setDirectoryGroups] = useState([]);
   const [bootstrapGroups, setBootstrapGroups] = useState([]);
-  const [myGroups, setMyGroups] = useState([]);
-  const [selectedGroupId, setSelectedGroupId] = useState(null);
+  const [selectedGroupId, setSelectedGroupId] = useState(() => searchParams.get('group'));
+  const [groupPanel, setGroupPanel] = useState(() => searchParams.get('panel') === 'chat' ? 'chat' : 'overview');
   const [selectedGroup, setSelectedGroup] = useState(null);
   const [members, setMembers] = useState([]);
   const [groupRankingMembers, setGroupRankingMembers] = useState([]);
@@ -225,9 +352,8 @@ const GroupsPage = ({ user, gamificationProfile = {}, levelData }) => {
     const cargos = editalCargos(edital);
     return (cargos.length ? cargos : ['']).map((cargo) => ({ edital, cargo }));
   }), [editalOptions]);
-  const publicGroups = useMemo(() => {
+  const catalogGroups = useMemo(() => {
     const merged = new Map();
-    const joinedById = new Map(myGroups.map((group) => [group.id, group]));
     bootstrapGroups.forEach((group) => merged.set(group.id || group.groupId, { ...group, id: group.id || group.groupId }));
     directoryGroups.forEach((group) => {
       const id = group.id || group.groupId;
@@ -239,14 +365,21 @@ const GroupsPage = ({ user, gamificationProfile = {}, levelData }) => {
         memberCount: authoritative ? getGroupMemberCount(authoritative) : getGroupMemberCount(group),
       });
     });
-    joinedById.forEach((group, id) => {
-      const publicGroup = merged.get(id);
-      if (publicGroup) merged.set(id, { ...publicGroup, memberCount: getGroupMemberCount(group) });
-    });
     return [...merged.values()]
       .filter((group) => group.id && group.status !== 'blocked')
       .sort((a, b) => Number(b.createdAtMillis || b.createdAt?.toMillis?.() || 0) - Number(a.createdAtMillis || a.createdAt?.toMillis?.() || 0));
-  }, [bootstrapGroups, directoryGroups, myGroups]);
+  }, [bootstrapGroups, directoryGroups]);
+  const myGroups = useMemo(() => {
+    const byId = new Map(catalogGroups.map((group) => [group.id, group]));
+    return groupIds.map((groupId) => byId.get(groupId)).filter(Boolean);
+  }, [catalogGroups, groupIds]);
+  const publicGroups = catalogGroups;
+
+  useEffect(() => {
+    const targetGroupId = searchParams.get('group');
+    if (targetGroupId && targetGroupId !== selectedGroupId) setSelectedGroupId(targetGroupId);
+    if (searchParams.get('panel') === 'chat') setGroupPanel('chat');
+  }, [searchParams, selectedGroupId]);
 
   useEffect(() => () => {
     if (groupPhotoPreview) URL.revokeObjectURL(groupPhotoPreview);
@@ -279,35 +412,6 @@ const GroupsPage = ({ user, gamificationProfile = {}, levelData }) => {
     });
     return () => { active = false; unsubscribe(); };
   }, []);
-
-  useEffect(() => {
-    if (!groupIds.length) {
-      setMyGroups([]);
-      return undefined;
-    }
-    const state = new Map();
-    const memberCounts = new Map();
-    const publish = () => setMyGroups([...state.values()].map((group) => ({
-      ...group,
-      memberCount: memberCounts.get(group.id) ?? getGroupMemberCount(group),
-    })));
-    const unsubscribers = groupIds.flatMap((groupId) => [
-      onSnapshot(doc(db, 'study_groups', groupId), (snapshot) => {
-        if (snapshot.exists()) state.set(groupId, { id: snapshot.id, ...snapshot.data() });
-        else state.delete(groupId);
-        publish();
-      }, (error) => {
-        if (!isPermissionDenied(error)) console.error('[Grupos] Erro ao carregar grupo:', groupId, error);
-      }),
-      onSnapshot(collection(db, 'study_groups', groupId, 'members'), (snapshot) => {
-        memberCounts.set(groupId, snapshot.size);
-        publish();
-      }, (error) => {
-        if (!isPermissionDenied(error)) console.error('[Grupos] Erro ao contar membros:', groupId, error);
-      }),
-    ]);
-    return () => unsubscribers.forEach((unsubscribe) => unsubscribe());
-  }, [groupIds]);
 
   useEffect(() => {
     if (!selectedGroupId) {
@@ -346,15 +450,13 @@ const GroupsPage = ({ user, gamificationProfile = {}, levelData }) => {
 
   useEffect(() => {
     setTimers({});
-    if (!selectedGroupId || !members.length) return undefined;
-    const next = {};
-    const unsubscribers = members.map((member) => onSnapshot(doc(db, 'active_timers', member.uid || member.id), (snapshot) => {
-      if (snapshot.exists()) next[member.uid || member.id] = snapshot.data();
-      else delete next[member.uid || member.id];
-      setTimers({ ...next });
-    }, () => {}));
-    return () => unsubscribers.forEach((unsubscribe) => unsubscribe());
-  }, [members, selectedGroupId]);
+    if (!selectedGroupId) return undefined;
+    return onSnapshot(query(collection(db, 'active_timers'), where('groupIds', 'array-contains', selectedGroupId)), (snapshot) => {
+      setTimers(Object.fromEntries(snapshot.docs.map((item) => [item.id, item.data()])));
+    }, (error) => {
+      if (!isPermissionDenied(error)) console.error('[Grupos] Erro ao acompanhar presença:', error);
+    });
+  }, [selectedGroupId]);
 
   const notify = (text) => {
     setMessage(text);
@@ -419,6 +521,26 @@ const GroupsPage = ({ user, gamificationProfile = {}, levelData }) => {
         updatedAt: serverTimestamp(),
       });
       batch.set(doc(db, 'study_groups', groupRef.id, 'members', user.uid), memberPayload);
+      batch.set(doc(db, 'study_groups', groupRef.id, 'chat_meta', 'current'), {
+        groupId: groupRef.id,
+        groupName: name,
+        memberIds: [user.uid],
+        lastSeq: 0,
+        lastMessageId: null,
+        lastMessageAt: null,
+        lastAuthorId: null,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      batch.set(doc(db, 'users', user.uid, 'group_chat_states', groupRef.id), {
+        groupId: groupRef.id,
+        lastReadSeq: 0,
+        readAt: serverTimestamp(),
+        lastSendAt: null,
+        sentCountTotal: 0,
+        sentCountAtRead: 0,
+        updatedAt: serverTimestamp(),
+      });
       batch.set(doc(db, 'study_group_invites', code), {
         code,
         groupId: groupRef.id,
@@ -680,10 +802,16 @@ const GroupsPage = ({ user, gamificationProfile = {}, levelData }) => {
       : { ...group, weeklyXP: 0, weeklyMinutes: 0, weeklyQuestions: 0 }
   )), groupRankingMetric), [groupRankingMetric, publicGroups, weekId]);
   const openGroupProfile = (member, explicitPosition = 0) => {
-    const rankingIndex = rankedMembers.findIndex((item) => (item.uid || item.id) === (member.uid || member.id));
+    const memberUid = member.uid || member.id;
+    const rankingIndex = rankedMembers.findIndex((item) => (item.uid || item.id) === memberUid);
     const publicRankingPosition = explicitPosition || (rankingIndex >= 0 ? rankingIndex + 1 : 0);
+    const knownGroups = publicGroups.filter((g) => g.ownerId === memberUid || (selectedGroupId === g.id));
+    if (selectedGroup && !knownGroups.some((g) => g.id === selectedGroup.id)) {
+      knownGroups.push(selectedGroup);
+    }
     setSelectedProfile({
       ...member,
+      studyGroups: knownGroups,
       ...(publicRankingPosition ? {
         publicRankingPosition,
         publicRankingLabel: `Ranking de ${memberRankingMetric === 'minutes' ? 'tempo' : 'questões'} ${memberRankingPeriod === 'monthly' ? 'mensal' : 'semanal'}`,
@@ -706,10 +834,20 @@ const GroupsPage = ({ user, gamificationProfile = {}, levelData }) => {
       correct: sum.correct + Number(member.correct || 0),
     }), { minutes: 0, questions: 0, correct: 0 });
     const groupAccuracy = groupTotals.questions ? (groupTotals.correct / groupTotals.questions) * 100 : 0;
+    const closeGroup = () => {
+      setSelectedGroupId(null);
+      setGroupPanel('overview');
+      setSearchParams({}, { replace: true });
+    };
+    const selectPanel = (panel) => {
+      setGroupPanel(panel);
+      setSearchParams({ group: selectedGroup.id, ...(panel === 'chat' ? { panel: 'chat' } : {}) }, { replace: true });
+    };
+    const chatUnreadCount = Math.max(0, Number(chatUnreadByGroup[selectedGroup.id] || 0));
     return (
       <div className="mx-auto max-w-7xl space-y-4 px-3 pb-24 pt-3 sm:px-5 lg:px-7">
         {message && <div className="fixed right-4 top-16 z-[100] rounded-xl bg-zinc-950 px-4 py-3 text-xs font-bold text-white shadow-2xl">{message}</div>}
-        <button onClick={() => setSelectedGroupId(null)} className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-black text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"><ArrowLeft size={16}/> Voltar aos grupos</button>
+        <button onClick={closeGroup} className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-black text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"><ArrowLeft size={16}/> Voltar aos grupos</button>
         <header className="relative overflow-hidden rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-card-dark sm:p-6">
           <div className="pointer-events-none absolute right-0 top-0 h-40 w-40 rounded-full bg-red-600/10 blur-3xl"/>
           <div className="relative flex items-start gap-4">
@@ -732,6 +870,12 @@ const GroupsPage = ({ user, gamificationProfile = {}, levelData }) => {
           {isMember && mainGroupId !== selectedGroup.id && <button onClick={setMainGroup} className="relative mt-4 inline-flex items-center rounded-xl border border-zinc-200 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-zinc-600 dark:border-zinc-700 dark:text-zinc-300 sm:hidden"><Check size={13} className="mr-1"/> Tornar principal</button>}
         </header>
 
+        {isMember ? <nav aria-label="Painéis do grupo" className="grid grid-cols-2 rounded-2xl border border-zinc-200 bg-white p-1 shadow-sm dark:border-zinc-800 dark:bg-card-dark sm:inline-grid sm:w-auto sm:min-w-[310px]">
+          <button type="button" onClick={() => selectPanel('overview')} className={`rounded-xl px-4 py-2.5 text-[10px] font-black uppercase tracking-wider transition ${groupPanel === 'overview' ? 'bg-zinc-950 text-white shadow dark:bg-white dark:text-zinc-950' : 'text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800'}`}><Users size={13} className="mr-1.5 inline"/> Visão geral</button>
+          <button type="button" onClick={() => selectPanel('chat')} aria-label={chatUnreadCount > 0 && groupPanel !== 'chat' ? `Chat, ${chatUnreadCount} mensagens não lidas` : 'Chat'} className={`relative rounded-xl px-4 py-2.5 text-[10px] font-black uppercase tracking-wider transition ${groupPanel === 'chat' ? 'bg-red-600 text-white shadow' : 'text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800'}`}><MessageCircle size={13} className="mr-1.5 inline"/> Chat{chatUnreadCount > 0 && groupPanel !== 'chat' ? <span className="absolute right-2 top-2 flex h-2 w-2 rounded-full bg-red-600 ring-2 ring-white dark:ring-zinc-900" aria-hidden="true"/> : null}</button>
+        </nav> : null}
+
+        {groupPanel === 'overview' || !isMember ? <>
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {[[Users, 'Membros', members.length], [Clock3, memberRankingPeriod === 'monthly' ? 'Tempo mensal' : 'Tempo semanal', formatStudyMinutes(groupTotals.minutes)], [BarChart3, 'Questões', Math.round(groupTotals.questions)], [Target, 'Precisão', `${groupAccuracy.toFixed(0)}%`]].map(([Icon, label, value]) => <GroupStatCard key={label} icon={Icon} label={label} value={value}/>)}
         </div>
@@ -759,6 +903,7 @@ const GroupsPage = ({ user, gamificationProfile = {}, levelData }) => {
             <div className="divide-y divide-zinc-100 dark:divide-zinc-800">{rankedMembers.slice(0, 5).map((member, index) => <button type="button" onClick={() => openGroupProfile(member, index + 1)} key={member.uid || member.id} className="grid w-full grid-cols-[28px_1fr_auto] items-center gap-3 px-4 py-2.5 text-left transition hover:bg-zinc-50 dark:hover:bg-zinc-900"><span className="text-center text-[10px] font-black text-zinc-400">{index + 1}</span><div className="flex min-w-0 items-center gap-2.5"><Avatar member={member} size="h-8 w-8"/><div className="min-w-0"><p className="truncate text-[11px] font-black text-zinc-700 dark:text-zinc-200">{member.displayName}</p><p className="text-[8px] font-bold uppercase text-zinc-400">{formatStudyMinutes(member.minutes)} · {Math.round(member.questions || 0)} q</p></div></div><strong className="text-[11px] font-black text-red-600">{memberRankingMetric === 'minutes' ? formatStudyMinutes(member.minutes) : `${Number(member.questions || 0).toLocaleString('pt-BR')} q`}</strong></button>)}{!rankedMembers.length && <div className="p-8 text-center text-xs text-zinc-400">Nenhum membro no grupo.</div>}</div>
           </Surface>
         </div>
+        </> : <React.Suspense fallback={<div className="grid min-h-[500px] place-items-center text-xs font-bold text-zinc-400">Abrindo conversa…</div>}><GroupChatPanel group={selectedGroup} user={user} members={members} canModerate={canManageGroup || canManageMembers}/></React.Suspense>}
         {settingsOpen && (
           <ModalPortal onClose={() => setSettingsOpen(false)} className="max-w-2xl">
             <Surface className="modal-zoom group-settings-modal flex max-h-[92dvh] w-full max-w-2xl flex-col overflow-hidden">
@@ -800,7 +945,36 @@ const GroupsPage = ({ user, gamificationProfile = {}, levelData }) => {
             </Surface>
           </ModalPortal>
         )}
-        {exitOpen && <ModalPortal onClose={() => setExitOpen(false)} className="max-w-md"><Surface className="modal-zoom w-full p-5"><div className="flex items-center justify-between"><div><p className="text-[9px] font-black uppercase tracking-wider text-red-600">Sair do grupo</p><h2 className="text-xl font-black text-zinc-950 dark:text-white">Confirmar saída</h2></div><button onClick={() => setExitOpen(false)} className="p-2 text-zinc-400"><X size={18}/></button></div><p className="mt-3 text-xs leading-relaxed text-zinc-500">Você deixará de aparecer entre os membros de <strong>{selectedGroup.name}</strong>.</p>{needsSuccessor && <label className="mt-4 block text-[9px] font-black uppercase tracking-wider text-zinc-500">Quem assume seu cargo?<select value={successorUid} onChange={(event) => setSuccessorUid(event.target.value)} className="mt-1.5 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-xs font-bold text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white"><option value="">Selecione um membro</option>{successorCandidates.map((item) => <option key={item.uid || item.id} value={item.uid || item.id}>{item.displayName || 'Membro'}</option>)}</select></label>}{isOwner && !successorCandidates.length && <p className="mt-4 rounded-xl bg-amber-50 px-3 py-2.5 text-[10px] font-bold text-amber-800 dark:bg-amber-950/25 dark:text-amber-200">Como não há outros membros, o grupo será encerrado ao confirmar.</p>}<div className="mt-5 grid grid-cols-2 gap-2"><button onClick={() => setExitOpen(false)} className="rounded-xl border border-zinc-200 py-2.5 text-[9px] font-black uppercase text-zinc-500 dark:border-zinc-700">Cancelar</button><button onClick={confirmLeaveGroup} disabled={busy || (needsSuccessor && !successorUid)} className="rounded-xl bg-red-600 py-2.5 text-[9px] font-black uppercase text-white disabled:opacity-40">Confirmar saída</button></div></Surface></ModalPortal>}
+        {exitOpen && (
+          <ModalPortal onClose={() => setExitOpen(false)} className="max-w-md">
+            <Surface className="modal-zoom w-full p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-wider text-red-600">Sair do grupo</p>
+                  <h2 className="text-xl font-black text-zinc-950 dark:text-white">Confirmar saída</h2>
+                </div>
+                <button onClick={() => setExitOpen(false)} className="p-2 text-zinc-400"><X size={18}/></button>
+              </div>
+              <p className="mt-3 text-xs leading-relaxed text-zinc-500">Você deixará de aparecer entre os membros de <strong>{selectedGroup.name}</strong>.</p>
+              {needsSuccessor && (
+                <label className="mt-4 block text-[9px] font-black uppercase tracking-wider text-zinc-500">
+                  Quem assume seu cargo?
+                  <select value={successorUid} onChange={(event) => setSuccessorUid(event.target.value)} className="mt-1.5 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-xs font-bold text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white">
+                    <option value="">Selecione um membro</option>
+                    {successorCandidates.map((item) => <option key={item.uid || item.id} value={item.uid || item.id}>{item.displayName || 'Membro'}</option>)}
+                  </select>
+                </label>
+              )}
+              {isOwner && !successorCandidates.length && (
+                <p className="mt-4 rounded-xl bg-amber-50 px-3 py-2.5 text-[10px] font-bold text-amber-800 dark:bg-amber-950/25 dark:text-amber-200">Como não há outros membros, o grupo será encerrado ao confirmar.</p>
+              )}
+              <div className="mt-5 grid grid-cols-2 gap-2">
+                <button onClick={() => setExitOpen(false)} className="rounded-xl border border-zinc-200 py-2.5 text-[9px] font-black uppercase text-zinc-500 dark:border-zinc-700">Cancelar</button>
+                <button onClick={confirmLeaveGroup} disabled={busy || (needsSuccessor && !successorUid)} className="rounded-xl bg-red-600 py-2.5 text-[9px] font-black uppercase text-white disabled:opacity-40">Confirmar saída</button>
+              </div>
+            </Surface>
+          </ModalPortal>
+        )}
         <DescriptionModal group={descriptionGroup} onClose={() => setDescriptionGroup(null)}/>
         <UserProfileModal member={selectedProfile} onClose={() => setSelectedProfile(null)}/>
       </div>
@@ -882,13 +1056,38 @@ const GroupsPage = ({ user, gamificationProfile = {}, levelData }) => {
                 <label className="block text-[10px] font-black uppercase tracking-wider text-zinc-500">Descrição<textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} maxLength={180} rows={3} className="mt-1.5 w-full resize-none rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm text-zinc-900 outline-none focus:border-red-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white"/></label>
                 <div className="relative min-w-0">
                   <span className="block text-[10px] font-black uppercase tracking-wider text-zinc-500">Edital e cargo</span>
-                  <button type="button" onClick={() => setEditalPickerOpen((open) => !open)} className="mt-1.5 flex w-full min-w-0 items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-left outline-none transition hover:border-red-400 dark:border-zinc-700 dark:bg-zinc-900">
-                    {selectedEdital ? <>{editalLogo(selectedEdital) ? <img src={editalLogo(selectedEdital)} alt="" className="h-8 w-8 shrink-0 rounded-lg bg-white object-contain"/> : <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-100 text-red-600 dark:bg-red-950/30"><BookOpen size={15}/></span>}<span className="min-w-0 flex-1"><span className="block truncate text-xs font-black text-zinc-800 dark:text-white">{editalTitle(selectedEdital)}</span>{form.cargo && <span className="mt-0.5 block truncate text-[9px] font-bold text-red-600"><Briefcase size={9} className="mr-1 inline"/>{form.cargo}</span>}</span></> : <><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-zinc-200 text-zinc-500 dark:bg-zinc-800"><BookOpen size={15}/></span><span className="text-xs font-bold text-zinc-500">Selecionar edital/cargo</span></>}
+                  <button
+                    type="button"
+                    onClick={() => setEditalPickerOpen(true)}
+                    className="mt-1.5 flex w-full min-w-0 items-center gap-2.5 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-left outline-none transition hover:border-red-400 dark:border-zinc-700 dark:bg-zinc-900"
+                  >
+                    {selectedEdital ? (
+                      <>
+                        {editalLogo(selectedEdital) ? (
+                          <img src={editalLogo(selectedEdital)} alt="" className="h-8 w-8 shrink-0 rounded-lg bg-white object-contain shadow-xs"/>
+                        ) : (
+                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-100 text-red-600 dark:bg-red-950/30">
+                            <BookOpen size={15}/>
+                          </span>
+                        )}
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-xs font-black text-zinc-800 dark:text-white">{editalTitle(selectedEdital)}</span>
+                          {form.cargo && (
+                            <span className="mt-0.5 block truncate text-[9px] font-bold text-red-600">
+                              <Briefcase size={9} className="mr-1 inline"/>{form.cargo}
+                            </span>
+                          )}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-zinc-200 text-zinc-500 dark:bg-zinc-800">
+                          <BookOpen size={15}/>
+                        </span>
+                        <span className="text-xs font-bold text-zinc-500">Selecionar edital/cargo (opcional)</span>
+                      </>
+                    )}
                   </button>
-                  {editalPickerOpen && <div className="absolute left-0 right-0 top-full z-30 mt-1 max-h-60 overflow-y-auto rounded-xl border border-zinc-200 bg-white p-1.5 shadow-2xl dark:border-zinc-700 dark:bg-zinc-900">
-                    <button type="button" onClick={() => { setForm((current) => ({ ...current, editalId: '', cargo: '' })); setEditalPickerOpen(false); }} className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-[10px] font-bold text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-zinc-100 dark:bg-zinc-800"><X size={12}/></span>Sem edital específico</button>
-                    {editalCargoOptions.map(({ edital, cargo }) => <button type="button" key={`${edital.id}::${cargo || 'sem-cargo'}`} onClick={() => { setForm((current) => ({ ...current, editalId: String(edital.id), cargo })); setEditalPickerOpen(false); }} className={`flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left hover:bg-red-50 dark:hover:bg-red-950/20 ${String(form.editalId) === String(edital.id) && form.cargo === cargo ? 'bg-red-50 dark:bg-red-950/20' : ''}`}>{editalLogo(edital) ? <img src={editalLogo(edital)} alt="" className="h-8 w-8 shrink-0 rounded-lg bg-white object-contain"/> : <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-zinc-100 text-zinc-400 dark:bg-zinc-800"><BookOpen size={12}/></span>}<span className="min-w-0 flex-1"><span className="block truncate text-[10px] font-black text-zinc-700 dark:text-zinc-200">{editalTitle(edital)}</span>{cargo && <span className="mt-0.5 block truncate text-[8px] font-bold uppercase tracking-wide text-red-600">{cargo}</span>}</span></button>)}
-                  </div>}
                 </div>
                 <div className="grid grid-cols-2 gap-2">{[['public', Eye, 'Público'], ['private', Lock, 'Privado']].map(([id, Icon, label]) => <button type="button" key={id} onClick={() => setForm((current) => ({ ...current, visibility: id }))} className={`flex items-center justify-center gap-2 rounded-xl border p-3 text-xs font-black ${form.visibility === id ? 'border-red-500 bg-red-50 text-red-600 dark:bg-red-950/20' : 'border-zinc-200 text-zinc-400 dark:border-zinc-700'}`}>{React.createElement(Icon, { size: 15 })}{label}</button>)}</div>
                 <button disabled={busy} className="w-full rounded-xl bg-red-600 py-3 text-xs font-black uppercase tracking-wider text-white disabled:opacity-50">{busy ? (groupPhoto ? 'Enviando foto...' : 'Criando...') : 'Criar grupo'}</button>
@@ -899,6 +1098,14 @@ const GroupsPage = ({ user, gamificationProfile = {}, levelData }) => {
           </Surface>
         </ModalPortal>
       )}
+      <EditalPickerModal
+        isOpen={editalPickerOpen}
+        onClose={() => setEditalPickerOpen(false)}
+        options={editalCargoOptions}
+        currentEditalId={form.editalId}
+        currentCargo={form.cargo}
+        onSelect={(editalId, cargo) => setForm((current) => ({ ...current, editalId, cargo }))}
+      />
       <DescriptionModal group={descriptionGroup} onClose={() => setDescriptionGroup(null)}/>
       <UserProfileModal member={selectedProfile} onClose={() => setSelectedProfile(null)}/>
     </div>

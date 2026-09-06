@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useMemo, useCallback, useLayoutEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useLayoutEffect, useRef, useSyncExternalStore } from 'react';
+import { getProfileImages, reconcileProfileImages, subscribeProfileImages } from '../services/profileImageSave';
 import {
   collection, onSnapshot, query, orderBy, addDoc, deleteDoc, doc, where, Timestamp,
   getDocs, getDoc, setDoc, updateDoc, deleteField } from 'firebase/firestore';
-import { Suspense, lazy } from 'react';
+import { Suspense } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { db, auth } from '../firebaseConfig';
 import { signOut } from 'firebase/auth';
@@ -15,6 +16,9 @@ import AppBackgroundEffects from '../components/shared/AppBackgroundEffects';
 import PlanningSuccessCelebration from '../components/shared/PlanningSuccessCelebration';
 import DailyGoalCompletedModal from '../components/shared/DailyGoalCompletedModal';
 import XPNotification from './gamification/XPNotification';
+import TabErrorBoundary from './shared/TabErrorBoundary';
+import { lazyWithRetry } from '../utils/lazyWithRetry';
+
 const routeLoaders = {
   home: () => import('../pages/HomePage/HomePage'),
   calendar: () => import('../components/dashboard/CalendarTab'),
@@ -37,38 +41,39 @@ const preloadRoute = (route) => {
   void loader().catch(() => preloadedRoutes.delete(route));
 };
 
-const ShareCard = lazy(() => import('../components/shared/ShareCard'));
-const Home = lazy(routeLoaders.home);
-const CalendarTab = lazy(routeLoaders.calendar);
-const CiclosPage = lazy(routeLoaders.ciclos);
-const CronogramaPage = lazy(routeLoaders.cronograma);
-const PlanejamentoPage = lazy(routeLoaders.planejamento);
-const ProfilePage = lazy(() => import('../pages/ProfilePage'));
-const AdminPage = lazy(() => import('../pages/AdminPage/AdminPage'));
-const EditalPage = lazy(() => import('../pages/EditalPage'));
-const Desempenho = lazy(() => import('../pages/DesempenhoPage/DesempenhoPage'));
-const StudyTimer = lazy(() => import('../components/ciclos/StudyTimer/StudyTimer'));
-const TimerFinishModal = lazy(() => import('../components/ciclos/TimerFinishModal'));
-const RegistroEstudoModal = lazy(() => import('../components/ciclos/RegistroEstudoModal'));
-const OnboardingTour = lazy(() => import('../components/shared/OnboardingTour'));
-const BroadcastReceiver = lazy(() => import('../components/shared/BroadcastReceiver'));
-const WelcomeCarouselModal = lazy(() => import('../components/shared/WelcomeCarouselModal'));
-const FeedbackWidget = lazy(() => import('../components/FeedbackWidget'));
-const SimuladosPage = lazy(() => import('../pages/SimuladosPage/SimuladosPage'));
-const SimuladoTimer = lazy(() => import('../pages/SimuladosPage/SimuladoTimer'));
-const NoticiasPage = lazy(() => import('../pages/NoticiasPage'));
-const RevisaoPage = lazy(routeLoaders.revisoes);
-const RankingPage = lazy(routeLoaders.ranking);
-const GroupsPage = lazy(routeLoaders.grupos);
-const DecksPage = lazy(routeLoaders.flashcards);
-const LeaguesPage = lazy(() => import('../pages/LeaguesPage'));
-const AchievementsPage = lazy(() => import('../pages/AchievementsPage'));
-const QuestoesPage = lazy(() => import('../pages/QuestoesPage/QuestoesPage'));
-const CadernoErrosPage = lazy(() => import('../pages/CadernoErrosPage/CadernoErrosPage'));
-const DocumentsPage = lazy(routeLoaders.documentos);
+const ShareCard = lazyWithRetry(() => import('../components/shared/ShareCard'), { name: 'ShareCard' });
+const Home = lazyWithRetry(routeLoaders.home, { name: 'Home' });
+const CalendarTab = lazyWithRetry(routeLoaders.calendar, { name: 'Calendário' });
+const CiclosPage = lazyWithRetry(routeLoaders.ciclos, { name: 'Ciclos' });
+const CronogramaPage = lazyWithRetry(routeLoaders.cronograma, { name: 'Cronograma' });
+const PlanejamentoPage = lazyWithRetry(routeLoaders.planejamento, { name: 'Planejamento' });
+const ProfilePage = lazyWithRetry(() => import('../pages/ProfilePage'), { name: 'Perfil' });
+const AdminPage = lazyWithRetry(() => import('../pages/AdminPage/AdminPage'), { name: 'Administração' });
+const EditalPage = lazyWithRetry(() => import('../pages/EditalPage'), { name: 'Edital' });
+const Desempenho = lazyWithRetry(() => import('../pages/DesempenhoPage/DesempenhoPage'), { name: 'Desempenho' });
+const StudyTimer = lazyWithRetry(() => import('../components/ciclos/StudyTimer/StudyTimer'), { name: 'Cronômetro' });
+const TimerFinishModal = lazyWithRetry(() => import('../components/ciclos/TimerFinishModal'), { name: 'Finalizar Sessão' });
+const RegistroEstudoModal = lazyWithRetry(() => import('../components/ciclos/RegistroEstudoModal'), { name: 'Registro de Estudo' });
+const OnboardingTour = lazyWithRetry(() => import('../components/shared/OnboardingTour'), { name: 'Tour' });
+const BroadcastReceiver = lazyWithRetry(() => import('../components/shared/BroadcastReceiver'), { name: 'Broadcast' });
+const WelcomeCarouselModal = lazyWithRetry(() => import('../components/shared/WelcomeCarouselModal'), { name: 'Boas-vindas' });
+const FeedbackWidget = lazyWithRetry(() => import('../components/FeedbackWidget'), { name: 'Feedback' });
+const SimuladosPage = lazyWithRetry(() => import('../pages/SimuladosPage/SimuladosPage'), { name: 'Simulados' });
+const SimuladoTimer = lazyWithRetry(() => import('../pages/SimuladosPage/SimuladoTimer'), { name: 'Timer de Simulado' });
+const NoticiasPage = lazyWithRetry(() => import('../pages/NoticiasPage'), { name: 'Notícias' });
+const RevisaoPage = lazyWithRetry(routeLoaders.revisoes, { name: 'Revisões' });
+const RankingPage = lazyWithRetry(routeLoaders.ranking, { name: 'Ranking' });
+const GroupsPage = lazyWithRetry(routeLoaders.grupos, { name: 'Grupos' });
+const DecksPage = lazyWithRetry(routeLoaders.flashcards, { name: 'Flashcards' });
+const LeaguesPage = lazyWithRetry(() => import('../pages/LeaguesPage'), { name: 'Ligas' });
+const AchievementsPage = lazyWithRetry(() => import('../pages/AchievementsPage'), { name: 'Conquistas' });
+const QuestoesPage = lazyWithRetry(() => import('../pages/QuestoesPage/QuestoesPage'), { name: 'Questões' });
+const CadernoErrosPage = lazyWithRetry(() => import('../pages/CadernoErrosPage/CadernoErrosPage'), { name: 'Caderno de Erros' });
+const DocumentsPage = lazyWithRetry(routeLoaders.documentos, { name: 'Documentos' });
 
 const ENABLE_ONBOARDING_TOUR = false;
 const WELCOME_UPDATE_VERSION = '2026-06-dashboard-rebuild-v2';
+const SIDEBAR_PREFERENCE_KEY = '@ModoQAP:SidebarExpanded:v1';
 const PATH_TO_TAB = {
   home: 'home',
   calendario: 'calendar',
@@ -383,6 +388,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   const {
     notifications,
     unreadCount,
+    groupChatSummaries,
     broadcasts,
     editalUpdates,
     dismissedHistory,
@@ -397,13 +403,30 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     deleteBroadcast,
     deleteHistoryItem
   } = useNotifications(user);
+  const groupChatUnreadByGroup = useMemo(
+    () => Object.fromEntries(groupChatSummaries.map((summary) => [summary.groupId, summary.unreadCount])),
+    [groupChatSummaries],
+  );
   const userAccess = useUserAccess(user);
+  const imageUpdates = useSyncExternalStore(subscribeProfileImages, () => getProfileImages(user?.uid));
+  const displayedUser = useMemo(() => Object.assign(Object.create(Object.getPrototypeOf(user)), user, {
+    photoURL: imageUpdates.avatar?.values.photoURL
+      ?? (Object.hasOwn(userAccess.userDoc || {}, 'photoURL') ? userAccess.userDoc.photoURL : user.photoURL),
+  }), [user, userAccess.userDoc, imageUpdates.avatar]);
+  useEffect(() => {
+    reconcileProfileImages(user?.uid, userAccess.userDoc);
+  }, [user?.uid, userAccess.userDoc, imageUpdates]);
   const { levelData, profile: gamificationProfile } = useLevelSystem(user);
 
   const [activeTab, setActiveTabState]          = useState(initialRouteTab);
   const [loading, setLoading]                   = useState(true);
-  const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
-  const [isLargeSidebarViewport, setIsLargeSidebarViewport] = useState(false);
+  const [isSidebarExpanded, setIsSidebarExpanded] = useState(() => {
+    try {
+      return window.localStorage.getItem(SIDEBAR_PREFERENCE_KEY) === 'true';
+    } catch {
+      return false;
+    }
+  });
   const [isMobileOpen, setIsMobileOpen]         = useState(false);
   const [forceOpenVisual, setForceOpenVisual]   = useState(false);
   const [isTimerRaised, setIsTimerRaised]       = useState(false);
@@ -417,11 +440,16 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   const [pendingPlanningEdital, setPendingPlanningEdital] = useState(null);
   const [reopenEditalLibrary, setReopenEditalLibrary] = useState(false);
   const [welcomeCarousel, setWelcomeCarousel]   = useState({ loading:true, mode:null });
-  const [profileCover, setProfileCover] = useState({
+  const [storedProfileCover, setProfileCover] = useState({
     url: null,
     position: DEFAULT_COVER_POSITION,
     loading: true,
   });
+  const profileCover = imageUpdates.cover ? {
+    url: imageUpdates.cover.values.coverURL,
+    position: imageUpdates.cover.values.coverPosition,
+    loading: false,
+  } : storedProfileCover;
   const [hydrationState, setHydrationState] = useState(createHydrationState);
   const [hydrationTimedOut, setHydrationTimedOut] = useState(false);
 
@@ -454,23 +482,17 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     const pathTab = TAB_TO_PATH[resolvedTab] || 'home';
     const targetPath = `/app/${pathTab}`;
     setActiveTabState(resolvedTab);
-    setIsSidebarExpanded(false);
     setIsMobileOpen(false);
     if (location.pathname !== targetPath) navigate(targetPath);
   }, [activeTab, location.pathname, navigate]);
 
   useEffect(() => {
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return undefined;
-    const media = window.matchMedia('(min-width: 1024px)');
-    const update = () => setIsLargeSidebarViewport(media.matches);
-    update();
-    if (typeof media.addEventListener === 'function') {
-      media.addEventListener('change', update);
-      return () => media.removeEventListener('change', update);
+    try {
+      window.localStorage.setItem(SIDEBAR_PREFERENCE_KEY, String(isSidebarExpanded));
+    } catch {
+      // A preferência continua válida durante a sessão quando o storage está indisponível.
     }
-    media.addListener(update);
-    return () => media.removeListener(update);
-  }, []);
+  }, [isSidebarExpanded]);
 
   useEffect(() => {
     const resolvedTab = PATH_TO_TAB[String(routeTab || 'home').toLowerCase()];
@@ -530,8 +552,9 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
 
   const handleOpenFeedback = (options = {}) => {
     setFeedbackInitialState({
-      initialView: options.initialView || 'home',
+      initialView: options.ticketId ? 'chat' : (options.initialView || 'home'),
       initialType: options.initialType || 'ideia',
+      initialTicketId: options.ticketId || options.initialTicketId || null,
     });
     setIsFeedbackOpen(true);
   };
@@ -1292,7 +1315,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   };
 
   const rollbackCycleStudyProgress = async (registro) => {
-    if (!registro?.cicloId || isRegistroRevisaoPayload(registro)) return;
+    if (!registro?.cicloId || isRegistroRevisaoPayload(registro) || registro?.conclusaoId != null) return;
     const cicloRef = doc(db, 'users', user.uid, 'ciclos', registro.cicloId);
     const cicloSnap = await getDoc(cicloRef);
     if (!cicloSnap.exists()) return;
@@ -1363,7 +1386,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   };
 
   const rollbackCycleReviewProgress = async (registro) => {
-    if (!registro?.cicloId || !isRegistroRevisaoPayload(registro)) return;
+    if (!registro?.cicloId || !isRegistroRevisaoPayload(registro) || registro?.conclusaoId != null) return;
     const minutos = Math.max(0, Number(registro.tempoEstudadoMinutos || registro.duracaoMinutos || 0));
     if (minutos <= 0) return;
 
@@ -1531,7 +1554,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         sessoesConcluidasDetalhes[normalizedIndex] = {
           concluidaEm: getRegistroDateKey(registro) || dateToYMD(new Date()),
           atualizadoEm: Timestamp.now(),
-          origem: registro?.origemConclusao || registro?.origem || 'registro_manual',
+          origem: registro?.origemConclusao === 'botao_concluir' ? 'checkout_manual' : (registro?.origem || 'registro_manual'),
         };
       }
     };
@@ -1540,6 +1563,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       String(registro?.cicloId || '') === String(cicloId)
       && getRegistroContext(registro) === 'ciclo'
       && !isRegistroRevisaoPayload(registro)
+      && registro?.conclusaoId == null
       && Number(registro.tempoEstudadoMinutos || registro.duracaoMinutos || 0) >= 0
     )));
 
@@ -1612,6 +1636,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       String(registro?.cicloId || '') === String(cicloId)
       && getRegistroContext(registro) === 'ciclo'
       && isRegistroRevisaoPayload(registro)
+      && registro?.conclusaoId == null
       && Number(registro.tempoEstudadoMinutos || registro.duracaoMinutos || 0) > 0
     )));
 
@@ -2312,21 +2337,21 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     }
     switch (activeTab) {
       case 'home':
-        return <Home registrosEstudo={mergedActiveRegistrosEstudo} allRegistrosEstudo={mergedAllRegistrosEstudo} goalsHistory={goalsHistory} setActiveTab={handleGoToActiveCycle} activeCicloData={activeCicloData} activeCronogramaData={activeCronogramaData} cycleReviews={cycleReviewsForStreak} activeCycleDisciplines={activeCycleDisciplines} studyStreakResult={currentPlanStudyStreak} onGoToCronograma={() => handleCronogramaCreation(activeCronogramaData?.id)} onGoToRevisao={() => setActiveTab('revisoes')} onStartStudy={handleStartStudy} addRegistroEstudo={addRegistroEstudo} deleteCompletionRegistro={deleteCompletionRegistro} user={user} dailyGoalModalBlocked={Boolean(showGlobalRegistroModal || finishModalData || isLocalRegistroModalOpen)} />;
+        return <Home registrosEstudo={mergedActiveRegistrosEstudo} allRegistrosEstudo={mergedAllRegistrosEstudo} goalsHistory={goalsHistory} setActiveTab={handleGoToActiveCycle} activeCicloData={activeCicloData} activeCronogramaData={activeCronogramaData} cycleReviews={cycleReviewsForStreak} activeCycleDisciplines={activeCycleDisciplines} studyStreakResult={currentPlanStudyStreak} onGoToCronograma={() => handleCronogramaCreation(activeCronogramaData?.id)} onGoToRevisao={() => setActiveTab('revisoes')} onStartStudy={handleStartStudy} addRegistroEstudo={addRegistroEstudo} deleteCompletionRegistro={deleteCompletionRegistro} user={displayedUser} dailyGoalModalBlocked={Boolean(showGlobalRegistroModal || finishModalData || isLocalRegistroModalOpen)} />;
       case 'calendar':
         return <div className="mobile-page-zoom mobile-page-zoom--calendar desktop-page-zoom desktop-page-zoom--calendar"><CalendarTab registrosEstudo={mergedAllRegistrosEstudo} goalsHistory={goalsHistory} onDeleteRegistro={deleteRegistro} activeCicloData={activeCicloData} activeCronogramaData={activeCronogramaData} cycleReviews={cycleReviewsForStreak} studyStreakResult={currentPlanStudyStreak}/></div>;
       case 'ciclos':
-        return <CiclosPage user={user} onStartStudy={handleStartStudy} onCicloAtivado={handleCicloCreationOrActivation} addRegistroEstudo={addRegistroEstudo} deleteCompletionRegistro={deleteCompletionRegistro} onDeleteRegistro={deleteRegistro} activeCicloId={activeCicloId} forceOpenVisual={forceOpenVisual} targetOpenCicloId={targetOpenCicloId} onTargetOpenHandled={() => setTargetOpenCicloId(null)} onGoToEdital={() => handleGoToEditalSource('ciclo')} onGoToRevisao={() => setActiveTab('revisoes')} onCreateNewCycle={handleCreateNewCycleFromLegacy} registrosEstudo={mergedAllRegistrosEstudo} isTimerActive={!!(activeStudySession||activeSimuladoSession)} onRegistroModalOpenChange={setIsLocalRegistroModalOpen}/>;
+        return <CiclosPage user={displayedUser} onStartStudy={handleStartStudy} onCicloAtivado={handleCicloCreationOrActivation} addRegistroEstudo={addRegistroEstudo} deleteCompletionRegistro={deleteCompletionRegistro} onDeleteRegistro={deleteRegistro} activeCicloId={activeCicloId} forceOpenVisual={forceOpenVisual} targetOpenCicloId={targetOpenCicloId} onTargetOpenHandled={() => setTargetOpenCicloId(null)} onGoToEdital={() => handleGoToEditalSource('ciclo')} onGoToRevisao={() => setActiveTab('revisoes')} onCreateNewCycle={handleCreateNewCycleFromLegacy} registrosEstudo={mergedAllRegistrosEstudo} isTimerActive={!!(activeStudySession||activeSimuladoSession)} onRegistroModalOpenChange={setIsLocalRegistroModalOpen}/>;
       case 'planejamento':
-        return <PlanejamentoPage user={user} addRegistroEstudo={addRegistroEstudo} onStartStudy={handleStartStudy} onGoToEdital={() => handleGoToEditalSource('ciclo')} onGoToRevisao={() => setActiveTab('revisoes')} registrosEstudo={mergedAllRegistrosEstudo} isTimerActive={!!(activeStudySession||activeSimuladoSession)} activeTimerContext={activeStudySession?.defaultContext || null} onGoToCronograma={handleCronogramaCreation} onCicloAtivado={handleCicloCreationOrActivation} activeCicloId={activeCicloId} abrirDiretoSeletor={isNovoUsuarioPlanejamento || forcePlanejamentoSelector} onSeletorDiretoAberto={handleSeletorDiretoAberto} onOpenFeedback={handleOpenFeedback} onRegistroModalOpenChange={setIsLocalRegistroModalOpen} initialEdital={pendingPlanningEdital} onInitialEditalConsumed={() => setPendingPlanningEdital(null)} onBackToEditais={handleBackToEditalLibrary} />;
+        return <PlanejamentoPage user={displayedUser} addRegistroEstudo={addRegistroEstudo} onStartStudy={handleStartStudy} onGoToEdital={() => handleGoToEditalSource('ciclo')} onGoToRevisao={() => setActiveTab('revisoes')} registrosEstudo={mergedAllRegistrosEstudo} isTimerActive={!!(activeStudySession||activeSimuladoSession)} activeTimerContext={activeStudySession?.defaultContext || null} onGoToCronograma={handleCronogramaCreation} onCicloAtivado={handleCicloCreationOrActivation} activeCicloId={activeCicloId} abrirDiretoSeletor={isNovoUsuarioPlanejamento || forcePlanejamentoSelector} onSeletorDiretoAberto={handleSeletorDiretoAberto} onOpenFeedback={handleOpenFeedback} onRegistroModalOpenChange={setIsLocalRegistroModalOpen} initialEdital={pendingPlanningEdital} onInitialEditalConsumed={() => setPendingPlanningEdital(null)} onBackToEditais={handleBackToEditalLibrary} />;
       case 'cronograma':
-        return <CronogramaPage user={user} onStartStudy={handleStartStudy} addRegistroEstudo={addRegistroEstudo} deleteCompletionRegistro={deleteCompletionRegistro} registrosEstudo={mergedAllRegistrosEstudo} onDeleteRegistro={deleteRegistro} onGoToEdital={() => handleGoToEditalSource('cronograma')} onGoToRevisao={() => setActiveTab('revisoes')} initialEditMode={targetCronogramaEditMode} onInitialEditModeHandled={() => setTargetCronogramaEditMode(null)}/>;
+        return <CronogramaPage user={displayedUser} onStartStudy={handleStartStudy} addRegistroEstudo={addRegistroEstudo} deleteCompletionRegistro={deleteCompletionRegistro} registrosEstudo={mergedAllRegistrosEstudo} onDeleteRegistro={deleteRegistro} onGoToEdital={() => handleGoToEditalSource('cronograma')} onGoToRevisao={() => setActiveTab('revisoes')} initialEditMode={targetCronogramaEditMode} onInitialEditModeHandled={() => setTargetCronogramaEditMode(null)}/>;
       case 'cronogramas':
-        return <PlanejamentoPage user={user} addRegistroEstudo={addRegistroEstudo} onStartStudy={handleStartStudy} onGoToEdital={() => handleGoToEditalSource('ciclo')} onGoToRevisao={() => setActiveTab('revisoes')} registrosEstudo={mergedAllRegistrosEstudo} isTimerActive={!!(activeStudySession||activeSimuladoSession)} activeTimerContext={activeStudySession?.defaultContext || null} onGoToCronograma={handleCronogramaCreation} onCicloAtivado={handleCicloCreationOrActivation} activeCicloId={activeCicloId} abrirDiretoSeletor={isNovoUsuarioPlanejamento || forcePlanejamentoSelector} onSeletorDiretoAberto={handleSeletorDiretoAberto} onOpenFeedback={handleOpenFeedback} onRegistroModalOpenChange={setIsLocalRegistroModalOpen} />;
+        return <PlanejamentoPage user={displayedUser} addRegistroEstudo={addRegistroEstudo} onStartStudy={handleStartStudy} onGoToEdital={() => handleGoToEditalSource('ciclo')} onGoToRevisao={() => setActiveTab('revisoes')} registrosEstudo={mergedAllRegistrosEstudo} isTimerActive={!!(activeStudySession||activeSimuladoSession)} activeTimerContext={activeStudySession?.defaultContext || null} onGoToCronograma={handleCronogramaCreation} onCicloAtivado={handleCicloCreationOrActivation} activeCicloId={activeCicloId} abrirDiretoSeletor={isNovoUsuarioPlanejamento || forcePlanejamentoSelector} onSeletorDiretoAberto={handleSeletorDiretoAberto} onOpenFeedback={handleOpenFeedback} onRegistroModalOpenChange={setIsLocalRegistroModalOpen} />;
       case 'edital':
         return (
           <EditalPage
-            user={user}
+            user={displayedUser}
             activeCicloId={activeCicloId}
             activeCronogramaId={activeCronogramaData?.id || null}
             activeCicloData={activeCicloData}
@@ -2346,34 +2371,34 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
           />
         );
       case 'revisoes':
-        return <div className="mobile-page-zoom mobile-page-zoom--revisoes desktop-page-zoom desktop-page-zoom--revisoes"><RevisaoPage user={user} onStartStudy={handleStartStudy} addRegistroEstudo={addRegistroEstudo} deleteCompletionRegistro={deleteCompletionRegistro} onChoosePlan={handleChoosePlanFromRevisao} registrosEstudo={mergedAllRegistrosEstudo} disciplinasCiclo={activeCycleDisciplines} /></div>;
+        return <div className="mobile-page-zoom mobile-page-zoom--revisoes desktop-page-zoom desktop-page-zoom--revisoes"><RevisaoPage user={displayedUser} onStartStudy={handleStartStudy} addRegistroEstudo={addRegistroEstudo} deleteCompletionRegistro={deleteCompletionRegistro} onChoosePlan={handleChoosePlanFromRevisao} registrosEstudo={mergedAllRegistrosEstudo} disciplinasCiclo={activeCycleDisciplines} /></div>;
       case 'stats':
         return <Desempenho registrosEstudo={mergedAllRegistrosEstudo} disciplinasDoCiclo={activeCycleDisciplines} activeCicloId={activeCicloId} activeCronogramaId={activeCronogramaData?.id||null} activeCicloData={activeCicloData} activeCronogramaData={activeCronogramaData} metas={goalsHistory} onCreateCycle={() => setActiveTab('planejamento')}/>;
       case 'simulados':
-        return <SimuladosPage user={user} activeCycleDisciplines={activeCycleDisciplines} onStartSimulado={handleStartSimulado} initialData={finishedSimuladoData} onClearInitialData={handleClearSimuladoData}/>;
+        return <SimuladosPage user={displayedUser} activeCycleDisciplines={activeCycleDisciplines} onStartSimulado={handleStartSimulado} initialData={finishedSimuladoData} onClearInitialData={handleClearSimuladoData}/>;
       case 'ranking':
-        return <div className="w-full min-w-0"><RankingPage user={user} levelData={levelData} studyStreak={canonicalStudyStreak.currentStreak}/></div>;
+        return <div className="w-full min-w-0"><RankingPage user={displayedUser} levelData={levelData} studyStreak={canonicalStudyStreak.currentStreak}/></div>;
       case 'ligas':
         return LEAGUES_ENABLED
-          ? <div className="mobile-page-zoom mobile-page-zoom--ligas"><LeaguesPage user={user} levelData={levelData}/></div>
-          : <div className="w-full min-w-0"><RankingPage user={user} levelData={levelData} studyStreak={canonicalStudyStreak.currentStreak}/></div>;
+          ? <div className="mobile-page-zoom mobile-page-zoom--ligas"><LeaguesPage user={displayedUser} levelData={levelData}/></div>
+          : <div className="w-full min-w-0"><RankingPage user={displayedUser} levelData={levelData} studyStreak={canonicalStudyStreak.currentStreak}/></div>;
       case 'conquistas':
-        return <div className="mobile-page-zoom mobile-page-zoom--conquistas"><AchievementsPage user={user} levelData={levelData} studyStreak={currentPlanStudyStreak.currentStreak}/></div>;
+        return <div className="mobile-page-zoom mobile-page-zoom--conquistas"><AchievementsPage user={displayedUser} levelData={levelData} studyStreak={currentPlanStudyStreak.currentStreak}/></div>;
       case 'grupos':
-        return <div className="mobile-page-zoom mobile-page-zoom--grupos"><GroupsPage user={user} gamificationProfile={gamificationProfile} levelData={levelData}/></div>;
+        return <div className="mobile-page-zoom mobile-page-zoom--grupos"><GroupsPage user={displayedUser} gamificationProfile={gamificationProfile} levelData={levelData} chatUnreadByGroup={groupChatUnreadByGroup}/></div>;
       case 'flashcards':
-        return FLASHCARDS_ENABLED ? <div className="w-full min-w-0"><DecksPage user={user} /></div> : null;
+        return FLASHCARDS_ENABLED ? <div className="mobile-page-zoom mobile-page-zoom--flashcards w-full min-w-0"><DecksPage user={displayedUser} /></div> : null;
       case 'profile':
-        return <div className="mobile-page-zoom mobile-page-zoom--profile desktop-page-zoom desktop-page-zoom--profile"><ProfilePage user={user} allRegistrosEstudo={mergedAllRegistrosEstudo} onDeleteRegistro={deleteRegistro} coverURL={profileCover.url} coverPosition={profileCover.position} coverLoading={profileCover.loading} levelData={levelData} studyStreak={currentPlanStudyStreak.currentStreak} onGoToAchievements={() => setActiveTab('conquistas')}/></div>;
+        return <div className="mobile-page-zoom mobile-page-zoom--profile desktop-page-zoom desktop-page-zoom--profile"><ProfilePage user={displayedUser} allRegistrosEstudo={mergedAllRegistrosEstudo} onDeleteRegistro={deleteRegistro} coverURL={profileCover.url} coverPosition={profileCover.position} coverLoading={profileCover.loading} levelData={levelData} studyStreak={currentPlanStudyStreak.currentStreak} onGoToAchievements={() => setActiveTab('conquistas')}/></div>;
       case 'noticias':
         return <div className="mobile-page-zoom mobile-page-zoom--noticias desktop-page-zoom desktop-page-zoom--noticias"><NoticiasPage/></div>;
       case 'questoes':
-        return QUESTIONS_ENABLED ? <div className="w-full min-w-0"><QuestoesPage user={user} /></div> : null;
+        return QUESTIONS_ENABLED ? <div className="w-full min-w-0"><QuestoesPage user={displayedUser} /></div> : null;
       case 'cadernoErros':
       case 'caderno-erros':
-        return ERROR_BOOK_ENABLED ? <div className="w-full min-w-0"><CadernoErrosPage user={user} /></div> : null;
+        return ERROR_BOOK_ENABLED ? <div className="w-full min-w-0"><CadernoErrosPage user={displayedUser} /></div> : null;
       case 'documentos':
-        return DOCUMENTS_ENABLED ? <div className="w-full min-w-0"><DocumentsPage user={user} /></div> : null;
+        return DOCUMENTS_ENABLED ? <div className="w-full min-w-0"><DocumentsPage user={displayedUser} /></div> : null;
       case 'admin':
         if (userAccess.isLoading) return <SectionLoader minHeight="20rem" />;
         if (userAccess.permissions.adminPanel) return <div className="mobile-page-zoom mobile-page-zoom--admin desktop-page-zoom desktop-page-zoom--admin"><AdminPage onRecalculateStats={recalculateAllStats} userAccess={userAccess} /></div>;
@@ -2398,7 +2423,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   return (
     <div className="relative isolate flex min-h-screen bg-background-light dark:bg-background-dark text-text-primary dark:text-text-dark-primary transition-colors duration-300 overflow-x-hidden">
       <AppBackgroundEffects />
-      <XPNotification user={user} />
+      <XPNotification user={displayedUser} />
       <WarningModal isOpen={warningAlert.isOpen} title={warningAlert.title} message={warningAlert.message} onClose={() => setWarningAlert(p => ({ ...p, isOpen:false }))}/>
       <Suspense fallback={null}>
         <WelcomeCarouselModal
@@ -2411,7 +2436,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       </Suspense>
       {activeTab === 'home' && (
         <Suspense fallback={null}>
-          <BroadcastReceiver canShow={!tourState.isActive && !welcomeCarousel.mode} userAccess={userAccess}/>
+          <BroadcastReceiver canShow={!tourState.isActive && !welcomeCarousel.mode} userAccess={userAccess} user={displayedUser}/>
         </Suspense>
       )}
       <DownloadAlert isVisible={isDownloadAlertVisible} onDismiss={() => setIsDownloadAlertVisible(false)}/>
@@ -2432,7 +2457,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
 
       {/* NavSideBar com a prop nova para histórico */}
         <NavSideBar
-          user={user}
+          user={displayedUser}
           coverURL={profileCover.url}
           coverPosition={profileCover.position}
           coverLoading={profileCover.loading}
@@ -2444,7 +2469,6 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         handleLogout={handleLogout}
         isExpanded={isSidebarExpanded}
         setExpanded={setIsSidebarExpanded}
-        forceExpandedOnLarge={isLargeSidebarViewport}
         isMobileOpen={isMobileOpen}
         setMobileOpen={setIsMobileOpen}
         isDarkMode={isDarkMode}
@@ -2472,6 +2496,12 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
           onDismissEditalUpdate: dismissEditalUpdate,
           loadingNotif,
           onNavigateToEdital: () => handleTabChange('edital'),
+          onOpenGroupChat: (groupId) => {
+            setActiveTabState('grupos');
+            setIsMobileOpen(false);
+            navigate(`/app/grupos?group=${encodeURIComponent(groupId)}&panel=chat`);
+          },
+          onOpenSupport: (ticketId) => handleOpenFeedback({ ticketId }),
           deleteBroadcast,
           deleteHistoryItem
         }}
@@ -2481,16 +2511,17 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       <div
         ref={mainContentRef}
         onPointerDown={() => {
-          if (isSidebarExpanded && !isLargeSidebarViewport) setIsSidebarExpanded(false);
           if (isMobileOpen) setIsMobileOpen(false);
         }}
-        className={`dashboard-main-content relative z-10 min-w-0 flex-1 transition-all duration-300 pt-[80px] px-4 md:px-8 lg:pt-[90px] pb-10 ${isLargeSidebarViewport || isSidebarExpanded ? 'lg:ml-[220px]' : 'lg:ml-[72px]'}`}
+        className={`dashboard-main-content relative z-10 min-w-0 flex-1 transition-all duration-300 pt-[80px] px-4 md:px-8 lg:pt-[90px] pb-10 ${isSidebarExpanded ? 'lg:ml-[220px]' : 'lg:ml-[72px]'}`}
       >
-        <Header user={user} activeTab={activeTab}/>
+        <Header user={displayedUser} activeTab={activeTab}/>
         <main className={`mt-2 min-w-0 animate-fade-in ${['home', 'ciclos', 'cronograma', 'planejamento'].includes(activeTab) ? 'w-full' : 'max-w-7xl mx-auto'}`}>
-          <Suspense fallback={<SectionLoader label="Abrindo area" />}>
-            {renderTabContent()}
-          </Suspense>
+          <TabErrorBoundary key={activeTab}>
+            <Suspense fallback={<SectionLoader label="Abrindo area" />}>
+              {renderTabContent()}
+            </Suspense>
+          </TabErrorBoundary>
         </main>
       </div>
 
@@ -2499,12 +2530,13 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
           <OnboardingTour isActive={tourState.isActive} tourType={tourState.type} activeTab={activeTab} setActiveTab={handleTabChange} onClose={() => handleTourCloseOrFinish(tourState.type)} onFinish={() => handleTourCloseOrFinish(tourState.type)}/>
         )}
         <FeedbackWidget
-          user={user}
+          user={displayedUser}
           isOpen={isFeedbackOpen}
           onClose={() => setIsFeedbackOpen(false)}
           isSidebarOpen={isMobileOpen}
           initialView={feedbackInitialState.initialView}
           initialType={feedbackInitialState.initialType}
+          initialTicketId={feedbackInitialState.initialTicketId}
         />
       </Suspense>
       <GlobalStudyRegisterFab
@@ -2544,7 +2576,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
             raised={isTimerRaised}
             userUid={user.uid}
             userName={user.displayName||'Estudante'}
-            userPhotoURL={user.photoURL||null}
+            userPhotoURL={displayedUser.photoURL||null}
             groupIds={levelData.groupIds}
           />
         </Suspense>
@@ -2564,7 +2596,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
             onMinimize={() => setActiveSimuladoSession(p => ({ ...p, isMinimized:true }))}
             userUid={user.uid}
             userName={user.displayName||'Candidato'}
-            userPhotoURL={user.photoURL||null}
+            userPhotoURL={displayedUser.photoURL||null}
             groupIds={levelData.groupIds}
           />
         </Suspense>

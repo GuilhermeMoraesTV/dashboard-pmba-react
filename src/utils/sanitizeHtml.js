@@ -1,5 +1,18 @@
 import DOMPurify from 'dompurify';
 
+function getDOMPurify() {
+  if (typeof DOMPurify?.sanitize === 'function') {
+    return DOMPurify;
+  }
+  if (typeof globalThis.DOMPurify?.sanitize === 'function') {
+    return globalThis.DOMPurify;
+  }
+  if (typeof window !== 'undefined') {
+    return DOMPurify(window);
+  }
+  return { sanitize: (text) => String(text || '') };
+}
+
 export const ARTICLE_ALLOWED_TAGS = [
   'p',
   'h3',
@@ -17,7 +30,7 @@ export const ARTICLE_ALLOWED_TAGS = [
 ];
 
 export function sanitizeArticleHtml(html = '') {
-  return DOMPurify.sanitize(String(html || ''), {
+  return getDOMPurify().sanitize(String(html || ''), {
     ALLOWED_TAGS: ARTICLE_ALLOWED_TAGS,
     ALLOWED_ATTR: [],
     KEEP_CONTENT: true,
@@ -31,7 +44,7 @@ export const FLASHCARD_ALLOWED_TAGS = [
 ];
 
 export function sanitizeFlashcardHtml(html = '') {
-  return DOMPurify.sanitize(String(html || ''), {
+  return getDOMPurify().sanitize(String(html || ''), {
     ALLOWED_TAGS: FLASHCARD_ALLOWED_TAGS,
     ALLOWED_ATTR: ['class', 'src', 'alt', 'title', 'width', 'height'],
     ALLOWED_URI_REGEXP: /^https:\/\//i,

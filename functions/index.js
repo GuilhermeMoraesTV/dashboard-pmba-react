@@ -3,12 +3,13 @@ const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { onDocumentWritten, onDocumentCreated } = require('firebase-functions/v2/firestore');
 const { defineSecret }       = require('firebase-functions/params');
 const admin = require('firebase-admin');
-const { FieldValue, Timestamp } = require('firebase-admin/firestore');
+const { FieldValue, FieldPath, Timestamp } = require('firebase-admin/firestore');
 const crypto = require('crypto');
 const sanitizeHtml = require('sanitize-html');
 
 const FIREBASE_PROJECT_ID = process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || 'dashboard-pmba';
-const FIREBASE_STORAGE_BUCKET = process.env.FIREBASE_STORAGE_BUCKET || `${FIREBASE_PROJECT_ID}.firebasestorage.app`;
+const FIREBASE_STORAGE_BUCKET = process.env.FIREBASE_STORAGE_BUCKET
+  || (FIREBASE_PROJECT_ID.startsWith('demo-') ? `${FIREBASE_PROJECT_ID}.appspot.com` : `${FIREBASE_PROJECT_ID}.firebasestorage.app`);
 
 if (!admin.apps.length) {
   admin.initializeApp({
@@ -19,8 +20,11 @@ if (!admin.apps.length) {
 
 const gamification = require('./gamification/service');
 const groups = require('./groups/service');
+const groupChat = require('./groups/chat');
 const adminOperations = require('./admin/service');
 const imageUploadSecurity = require('./security/imageUpload');
+const supportService = () => require('./support/service').createSupportService({ db: admin.firestore(), bucket: admin.storage().bucket() });
+Object.assign(exports, require('./support/functions'));
 const questionValidation = require('./questions/validation');
 const flashcards = require('./flashcards/service');
 const { getProductLimits } = require('./shared/productLimits');
@@ -451,7 +455,7 @@ let _ankiService = null;
 function getAnkiService() {
   if (!_ankiService) {
     const { createAnkiService } = require('./anki/service');
-    _ankiService = createAnkiService({ admin, getProductLimits });
+    _ankiService = createAnkiService({ admin, getProductLimits, FieldValue, FieldPath, Timestamp });
   }
   return _ankiService;
 }
@@ -498,6 +502,12 @@ function mapDomainError(error, fallbackMessage) {
     'zstd-bomb': 'resource-exhausted',
     'file-too-large': 'resource-exhausted',
     'too-many-cards': 'resource-exhausted',
+    'card-too-large': 'resource-exhausted',
+    'card-limit': 'resource-exhausted',
+    'deck-limit': 'resource-exhausted',
+    'folder-limit': 'resource-exhausted',
+    'invalid-cards': 'failed-precondition',
+    'import-in-progress': 'failed-precondition',
     'too-many-media': 'resource-exhausted',
     'quota-exceeded': 'resource-exhausted',
     'permission-denied': 'permission-denied',
@@ -1001,6 +1011,10 @@ exports.uploadSecureImage = onCall(
     region: 'us-central1',
     memory: '1GiB',
     maxInstances: 2,
+    cors: true,
+    // onCall não exporta a opção invoker no manifesto deste SDK. O serviço
+    // Cloud Run precisa de roles/run.invoker para allUsers (preflight CORS);
+    // a autorização do upload permanece em request.auth abaixo.
   },
   async (request) => {
     const uid = request.auth?.uid;
@@ -1034,20 +1048,55 @@ exports.uploadSecureImage = onCall(
         randomId,
       });
       const token = crypto.randomUUID();
-      const bucket = admin.storage().bucket();
-      await bucket.file(storagePath).save(normalized.buffer, {
-        resumable: false,
-        metadata: {
-          contentType: normalized.contentType,
-          cacheControl: 'public,max-age=31536000,immutable',
-          metadata: {
-            firebaseStorageDownloadTokens: token,
-            uploadedBy: uid,
-            uploadKind: kind,
-          },
-        },
-      });
-      const url = `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(bucket.name)}/o/${encodeURIComponent(storagePath)}?alt=media&token=${encodeURIComponent(token)}`;
+
+      const bucketCandidates = [
+        admin.storage().bucket(),
+        process.env.FIREBASE_STORAGE_BUCKET ? admin.storage().bucket(process.env.FIREBASE_STORAGE_BUCKET) : null,
+        admin.app().options?.storageBucket ? admin.storage().bucket(admin.app().options.storageBucket) : null,
+        admin.storage().bucket(`${FIREBASE_PROJECT_ID}.firebasestorage.app`),
+        admin.storage().bucket(`${FIREBASE_PROJECT_ID}.appspot.com`),
+      ].filter(Boolean);
+
+      const seenNames = new Set();
+      const uniqueBuckets = [];
+      for (const b of bucketCandidates) {
+        if (b && b.name && !seenNames.has(b.name)) {
+          seenNames.add(b.name);
+          uniqueBuckets.push(b);
+        }
+      }
+
+      let savedBucket = null;
+      let lastSaveError = null;
+
+      for (const candidateBucket of uniqueBuckets) {
+        try {
+          await candidateBucket.file(storagePath).save(normalized.buffer, {
+            resumable: false,
+            metadata: {
+              contentType: normalized.contentType,
+              cacheControl: 'public,max-age=31536000,immutable',
+              metadata: {
+                firebaseStorageDownloadTokens: token,
+                uploadedBy: uid,
+                uploadKind: kind,
+              },
+            },
+          });
+          savedBucket = candidateBucket;
+          break;
+        } catch (saveErr) {
+          lastSaveError = saveErr;
+          console.warn(`[uploadSecureImage] Falha ao tentar bucket "${candidateBucket.name}":`, saveErr?.message || saveErr);
+          continue;
+        }
+      }
+
+      if (!savedBucket) {
+        throw lastSaveError || new Error('Não foi possível gravar a imagem em nenhum bucket do Storage.');
+      }
+
+      const url = `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(savedBucket.name)}/o/${encodeURIComponent(storagePath)}?alt=media&token=${encodeURIComponent(token)}`;
       return {
         ok: true,
         url,
@@ -1057,11 +1106,17 @@ exports.uploadSecureImage = onCall(
         height: normalized.height,
       };
     } catch (error) {
+      console.error('Falha no upload seguro:', error);
+      await logOperationalFailure('system_upload_errors', {
+        uid,
+        kind,
+        code: error?.code || 'error',
+        message: String(error?.message || error).slice(0, 500),
+      });
       if (error instanceof HttpsError) throw error;
-      const allowedCodes = new Set(['invalid-argument', 'unauthenticated', 'permission-denied', 'not-found', 'resource-exhausted']);
-      const code = allowedCodes.has(error?.code) ? error.code : 'internal';
-      if (code === 'internal') console.error('Falha no upload seguro:', error);
-      throw new HttpsError(code, error?.message || 'Nao foi possivel enviar a imagem.');
+      const allowedCodes = new Set(['invalid-argument', 'unauthenticated', 'permission-denied', 'not-found', 'resource-exhausted', 'failed-precondition']);
+      const code = allowedCodes.has(error?.code) ? error.code : 'failed-precondition';
+      throw new HttpsError(code, error?.message || 'Não foi possível enviar a imagem.');
     }
   },
 );
@@ -1085,30 +1140,6 @@ exports.abastecerFrasesMotivacionais = onCall(
         error: String(err?.message || err).slice(0, 500),
       }, { merge: true });
       throw new HttpsError('internal', `Erro ao abastecer frases: ${err.message || err}`);
-    }
-  },
-);
-
-exports.abastecerFrasesMotivacionaisAgendado = onSchedule(
-  {
-    schedule: 'every day 05:20',
-    timeZone: 'America/Bahia',
-    secrets: [GOOGLE_SERVICE_ACCOUNT_JSON_BASE64],
-    timeoutSeconds: 180,
-    region: 'us-central1',
-    maxInstances: 1,
-  },
-  async () => {
-    try {
-      await replenishMotivationalQuotes({ manual: false });
-    } catch (err) {
-      await admin.firestore().collection('system_config').doc(QUOTES_AUTOMATION_DOC).set({
-        lastRunAt: admin.firestore.FieldValue.serverTimestamp(),
-        lastRunMode: 'scheduled',
-        status: 'error',
-        error: String(err?.message || err).slice(0, 500),
-      }, { merge: true });
-      throw err;
     }
   },
 );
@@ -1145,14 +1176,12 @@ const projectTimerPresenceToRankings = async (event) => {
   };
   const liveStudy = getLiveStudy(timer);
   const previousLiveStudy = getLiveStudy(beforeTimer);
-  const heartbeatMillis = (value) => value?.heartbeatAt?.toMillis?.() || value?.updatedAt?.toMillis?.() || 0;
-  const sameHeartbeatMinute = Math.floor(heartbeatMillis(beforeTimer) / 60000) === Math.floor(heartbeatMillis(timer) / 60000);
-  if (liveStudy === previousLiveStudy && (!liveStudy || sameHeartbeatMinute)) {
+  if (liveStudy === previousLiveStudy) {
     return { uid, liveStudy, writes: 0, skipped: 'presence-unchanged' };
   }
   const payload = {
     liveStudy,
-    liveStudyHeartbeatAt: liveStudy ? (timer?.heartbeatAt || timer?.updatedAt || null) : null,
+    liveStudyHeartbeatAt: liveStudy ? (timer?.heartbeatAt || timer?.updatedAt || admin.firestore.FieldValue.serverTimestamp()) : null,
     liveStudyUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
   };
   const weekId = getCurrentGamificationWeekId();
@@ -1166,9 +1195,7 @@ const projectTimerPresenceToRankings = async (event) => {
   snapshots.forEach((snapshot, index) => {
     if (!snapshot.exists) return;
     const current = snapshot.data() || {};
-    const currentHeartbeat = heartbeatMillis({ heartbeatAt: current.liveStudyHeartbeatAt });
-    const nextHeartbeat = heartbeatMillis({ heartbeatAt: payload.liveStudyHeartbeatAt });
-    if (current.liveStudy === liveStudy && (!liveStudy || Math.floor(currentHeartbeat / 60000) === Math.floor(nextHeartbeat / 60000))) return;
+    if (current.liveStudy === liveStudy) return;
     batch.set(refs[index], payload, { merge: true });
     writes += 1;
   });
@@ -1293,9 +1320,38 @@ exports.sincronizarContagemMembrosGrupo = onDocumentWritten(
   { ...gamificationWriteOptions, document: 'study_groups/{groupId}/members/{memberId}' },
   async (event) => groups.syncGroupMemberCount({ groupId: event.params.groupId }),
 );
+exports.sincronizarMembrosChatGrupo = onDocumentWritten(
+  { ...gamificationWriteOptions, document: 'study_groups/{groupId}/members/{memberId}' },
+  async (event) => groupChat.syncMembership({
+    groupId: event.params.groupId,
+    memberId: event.params.memberId,
+    memberCreated: !event.data?.before?.exists && Boolean(event.data?.after?.exists),
+    memberDeleted: Boolean(event.data?.before?.exists) && !event.data?.after?.exists,
+  }),
+);
+exports.sincronizarNomeChatGrupo = onDocumentWritten(
+  { ...gamificationWriteOptions, document: 'study_groups/{groupId}' },
+  async (event) => groupChat.syncMembership({ groupId: event.params.groupId }),
+);
+exports.processarMencoesChatGrupo = onDocumentCreated(
+  {
+    region: 'us-central1',
+    retry: true,
+    timeoutSeconds: 60,
+    memory: '256MiB',
+    maxInstances: 4,
+    document: 'users/{authorUid}/group_chat_mention_outbox/{eventId}',
+  },
+  async (event) => groupChat.processMentionOutbox({
+    authorUid: event.params.authorUid,
+    eventId: event.params.eventId,
+    data: event.data?.data?.() || {},
+  }),
+);
 
 const groupCallableOptions = { region: 'us-central1', timeoutSeconds: 60, memory: '256MiB', maxInstances: 2, cors: true };
 const questionCallableOptions = { region: 'us-central1', timeoutSeconds: 60, memory: '256MiB', maxInstances: 2, cors: true };
+const studyFolderCallableOptions = { ...questionCallableOptions, cpu: 'gcf_gen1', concurrency: 1 };
 const documentCallableOptions = { region: 'us-central1', timeoutSeconds: 300, memory: '512MiB', maxInstances: 1, cors: true };
 const generationCallableOptions = {
   region: 'us-central1', timeoutSeconds: 300, memory: '512MiB', maxInstances: 1, cors: true,
@@ -1305,7 +1361,7 @@ const adaptiveRateCallableOptions = {
   region: 'us-central1', timeoutSeconds: 90, memory: '256MiB', maxInstances: 2, cors: true,
   secrets: [GOOGLE_SERVICE_ACCOUNT_JSON_BASE64],
 };
-const ankiCallableOptions = { region: 'us-central1', timeoutSeconds: 540, memory: '1GiB', maxInstances: 10, cors: true };
+const ankiCallableOptions = { region: 'us-central1', timeoutSeconds: 540, memory: '1GiB', maxInstances: 2, concurrency: 1, cors: true };
 const requireGroupAuth = (request) => {
   if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
   return request.auth.uid;
@@ -1333,6 +1389,15 @@ exports.listQuestions = onCall(questionCallableOptions, async (request) => quest
   data: request.data,
 }));
 
+exports.prepararChatGrupo = onCall(groupCallableOptions, async (request) => {
+  try {
+    const uid = requireGroupAuth(request);
+    return await groupChat.prepareChat({ uid, groupId: request.data?.groupId });
+  } catch (error) {
+    throw mapGroupError(error);
+  }
+});
+
 exports.processUserDocument = onCall(documentCallableOptions, async (request) => {
   try {
     if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Autenticacao obrigatoria.');
@@ -1355,7 +1420,7 @@ exports.deleteUserDocument = onCall(documentCallableOptions, async (request) => 
   }
 });
 
-exports.createStudyFolder = onCall(questionCallableOptions, async (request) => {
+exports.createStudyFolder = onCall(studyFolderCallableOptions, async (request) => {
   try {
     if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
     return await getStudySourceService().createFolder({
@@ -1367,7 +1432,7 @@ exports.createStudyFolder = onCall(questionCallableOptions, async (request) => {
   }
 });
 
-exports.createStudyFolderTree = onCall(questionCallableOptions, async (request) => {
+exports.createStudyFolderTree = onCall(studyFolderCallableOptions, async (request) => {
   try {
     if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
     return await getStudySourceService().createFolderTree({
@@ -1392,7 +1457,7 @@ exports.updateStudyFolder = onCall(questionCallableOptions, async (request) => {
   }
 });
 
-exports.deleteStudyFolder = onCall(questionCallableOptions, async (request) => {
+exports.deleteStudyFolder = onCall(studyFolderCallableOptions, async (request) => {
   try {
     if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
     return await getStudySourceService().deleteFolder({
@@ -1746,6 +1811,7 @@ exports.adminModerateStudyGroup = adminCallable(({ actor, data }) => adminOperat
 exports.adminSendUserNotification = adminCallable(({ actor, data }) => adminOperations.sendUserNotification({ actor, targetUid: data.targetUid, title: data.title, message: data.message, type: data.type }));
 exports.adminSendBroadcast = adminCallable(({ actor, data }) => adminOperations.sendBroadcast({ actor, title: data.title, message: data.message, targetUserIds: data.targetUserIds, segment: data.segment }));
 exports.adminExportSegment = adminCallable(({ actor, data }) => adminOperations.exportSegment({ actor, targetUserIds: data.targetUserIds }));
+exports.adminRecoverHistoricalStreaks = adminCallable(({ actor, data }) => adminOperations.recoverHistoricalStreaks({ actor, data, gamification }));
 
 exports.fecharLigasSemanais = onSchedule(
   {
@@ -1773,58 +1839,18 @@ exports.avisarFechamentoLigas = onSchedule(
   async () => gamification.notifyWeeklyClosing(),
 );
 
-exports.atualizarRankingsAtivos = onSchedule(
-  {
-    schedule: 'every day 03:20',
-    timeZone: 'America/Bahia',
-    region: 'us-central1',
-    retryCount: 2,
-    timeoutSeconds: 540,
-    memory: '1GiB',
-    maxInstances: 1,
-  },
-  async () => gamification.refreshActiveUserRankings(),
-);
-
-// Recuperação única dos valores de sequência que foram sobrescritos pela
-// validação retroativa. A própria rotina registra a conclusão no Firestore.
-exports.recuperarSequenciasHistoricas = onSchedule(
-  {
-    schedule: 'every 1 minutes',
-    timeZone: 'America/Bahia',
-    region: 'us-central1',
-    retryCount: 3,
-    timeoutSeconds: 540,
-    memory: '1GiB',
-    maxInstances: 1,
-  },
-  async () => gamification.recoverHistoricalStreaks(),
-);
-
-exports.atualizarRankingsMensaisGrupos = onSchedule(
+exports.executarRotinaDiariaManutencao = onSchedule(
   {
     schedule: 'every day 03:30',
     timeZone: 'America/Bahia',
+    secrets: [GOOGLE_SERVICE_ACCOUNT_JSON_BASE64],
     region: 'us-central1',
     retryCount: 2,
     timeoutSeconds: 540,
     memory: '1GiB',
     maxInstances: 1,
   },
-  async () => gamification.refreshStudyGroupMonthlyRankings(),
-);
-
-exports.atualizarPerfisPublicosGrupos = onSchedule(
-  {
-    schedule: 'every day 03:35',
-    timeZone: 'America/Bahia',
-    region: 'us-central1',
-    retryCount: 2,
-    timeoutSeconds: 540,
-    memory: '1GiB',
-    maxInstances: 1,
-  },
-  async () => gamification.refreshPublicStudyGroupProfiles(),
+  async () => gamification.runDailyMaintenance({ replenishMotivationalQuotes, maintainSupport: () => supportService().maintenance() }),
 );
 
 

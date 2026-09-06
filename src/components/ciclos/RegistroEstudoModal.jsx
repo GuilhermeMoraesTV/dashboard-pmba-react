@@ -471,11 +471,13 @@ const CustomSelect = ({
   );
 };
 
-// 4. Date Picker Customizado
+// 4. Date Picker Customizado (Renderizado via Portal para nunca ser cortado pelo modal)
 const CustomDatePicker = ({ value, onChange, name }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [viewDate, setViewDate] = useState(parseDateLocal(value));
   const containerRef = useRef(null);
+  const calendarRef = useRef(null);
+  const [position, setPosition] = useState(null);
 
   const dateObj = parseDateLocal(value);
   const dayDisplay = dateObj.getDate();
@@ -483,8 +485,63 @@ const CustomDatePicker = ({ value, onChange, name }) => {
   const weekDisplay = dateObj.toLocaleDateString('pt-BR', { weekday: 'long' });
 
   useEffect(() => {
+    if (!isOpen) {
+      setViewDate(parseDateLocal(value));
+    }
+  }, [value, isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+
+    const updatePosition = () => {
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+
+      const margin = 12;
+      const gap = 6;
+      const popoverWidth = Math.min(260, window.innerWidth - margin * 2);
+      const popoverHeight = 290;
+
+      // Alinhamento horizontal: alinha com o lado direito do card para não estourar a tela no desktop
+      let left = rect.right - popoverWidth;
+      if (left < margin) {
+        left = Math.max(margin, rect.left);
+      }
+      if (left + popoverWidth > window.innerWidth - margin) {
+        left = window.innerWidth - popoverWidth - margin;
+      }
+
+      // Alinhamento vertical: abre para cima se não houver espaço suficiente abaixo
+      const availableBelow = window.innerHeight - rect.bottom - margin;
+      const availableAbove = rect.top - margin;
+      const openUp = availableBelow < popoverHeight && availableAbove > availableBelow;
+
+      const top = openUp
+        ? Math.max(margin, rect.top - popoverHeight - gap)
+        : Math.min(rect.bottom + gap, window.innerHeight - popoverHeight - margin);
+
+      setPosition({
+        left,
+        top,
+        width: popoverWidth,
+        transformOrigin: openUp ? 'bottom right' : 'top right',
+      });
+    };
+
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
     const handleClickOutside = (event) => {
-      if (containerRef.current && !containerRef.current.contains(event.target)) setIsOpen(false);
+      const insideTrigger = containerRef.current?.contains(event.target);
+      const insideCalendar = calendarRef.current?.contains(event.target);
+      if (!insideTrigger && !insideCalendar) setIsOpen(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -519,7 +576,8 @@ const CustomDatePicker = ({ value, onChange, name }) => {
       slots.push(
         <button
           key={i}
-          onClick={(e) => { e.preventDefault(); handleSelectDay(i); }}
+          type="button"
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleSelectDay(i); }}
           className={`w-7 h-7 rounded-lg text-xs font-medium flex items-center justify-center transition-all ${isSelected
             ? 'bg-red-600 text-white shadow-md shadow-red-500/20'
             : isToday
@@ -550,37 +608,56 @@ const CustomDatePicker = ({ value, onChange, name }) => {
         </div>
       </div>
 
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: -4 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: -4 }}
-            transition={{ duration: 0.15 }}
-            className="absolute left-0 top-full mt-2 z-[220] bg-white dark:bg-[#1E1E1E] border border-zinc-200 dark:border-[#333] rounded-2xl shadow-xl p-3 w-[240px]"
-          >
-            <div className="flex justify-between items-center mb-2">
-              <button onClick={(e) => { e.preventDefault(); changeMonth(-1); }} className="p-1 hover:bg-zinc-100 dark:hover:bg-[#2A2A2A] rounded-lg text-zinc-500 transition-colors">
-                <ChevronLeft size={14} />
-              </button>
-              <span className="text-xs font-semibold text-zinc-800 dark:text-white capitalize">
-                {viewDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
-              </span>
-              <button onClick={(e) => { e.preventDefault(); changeMonth(1); }} className="p-1 hover:bg-zinc-100 dark:hover:bg-[#2A2A2A] rounded-lg text-zinc-500 transition-colors">
-                <ChevronRight size={14} />
-              </button>
-            </div>
-            <div className="grid grid-cols-7 gap-1 place-items-center mb-1">
-              {['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map((d, i) => (
-                <span key={i} className="text-[8px] font-bold text-zinc-400 uppercase">{d}</span>
-              ))}
-            </div>
-            <div className="grid grid-cols-7 gap-1 place-items-center">
-              {renderCalendarGrid()}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {isOpen && position && (
+            <motion.div
+              ref={calendarRef}
+              initial={{ opacity: 0, scale: 0.95, y: -4 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: -4 }}
+              transition={{ duration: 0.15 }}
+              className="fixed z-[100300] bg-white dark:bg-[#1E1E1E] border border-zinc-200 dark:border-[#333] rounded-2xl shadow-2xl p-3"
+              style={{
+                left: position.left,
+                top: position.top,
+                width: position.width,
+                transformOrigin: position.transformOrigin,
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex justify-between items-center mb-2">
+                <button
+                  type="button"
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); changeMonth(-1); }}
+                  className="p-1 hover:bg-zinc-100 dark:hover:bg-[#2A2A2A] rounded-lg text-zinc-500 transition-colors"
+                >
+                  <ChevronLeft size={14} />
+                </button>
+                <span className="text-xs font-semibold text-zinc-800 dark:text-white capitalize">
+                  {viewDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+                </span>
+                <button
+                  type="button"
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); changeMonth(1); }}
+                  className="p-1 hover:bg-zinc-100 dark:hover:bg-[#2A2A2A] rounded-lg text-zinc-500 transition-colors"
+                >
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+              <div className="grid grid-cols-7 gap-1 place-items-center mb-1">
+                {['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map((d, i) => (
+                  <span key={i} className="text-[8px] font-bold text-zinc-400 uppercase">{d}</span>
+                ))}
+              </div>
+              <div className="grid grid-cols-7 gap-1 place-items-center">
+                {renderCalendarGrid()}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
     </div>
   );
 };

@@ -39,6 +39,14 @@ service firebase.storage {
         );
     }
 
+    // Anexos de suporte: autenticados podem enviar até 5MB em formatos de imagem suportados.
+    match /support_attachments/{allPaths=**} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn()
+        && request.resource.size <= 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/(jpeg|png|webp|jpg|pjpeg)');
+    }
+
     // Uploads passam obrigatoriamente pela Function uploadSecureImage, que
     // valida os bytes e reencoda o arquivo. O cliente pode apenas ler/excluir
     // o proprio arquivo ja processado.

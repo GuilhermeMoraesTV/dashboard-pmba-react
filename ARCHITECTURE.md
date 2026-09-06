@@ -51,6 +51,8 @@ Este documento consolida a arquitetura técnica, modelo de dados, contratos de d
 * **Sessão autoritativa**: `users/{userId}/adaptive_study_sessions/{sessionId}` guarda estado, cotas, versão do algoritmo e métricas. O client não decide ownership, prioridade, materialização ou domínio.
 * **Domínio por conceito**: `users/{userId}/concept_mastery/{masteryId}` mantém exposições, acertos, erros, sequências, estágio e `priorityBoost` por usuário, fonte e conceito.
 * **Buffer pequeno**: `generated_items` é reutilizado como fila persistente (`generating -> ready -> served -> consumed`) com low-watermark, lease de refill, dedupe por fingerprint e cancelamento lógico.
+* **Inventário completo, janela pequena**: todos os chunks da revisão da fonte participam da análise em janelas limitadas; apenas 8 conceitos por janela e 1–2 cards por geração entram no prompt ativo. `MAX_TOKENS` permite no máximo um retry com escopo menor, nunca com aumento automático do teto.
+* **Telemetria server-side**: cada chamada registra tokens de entrada/saída, motivo/mensagem de término, quantidade pedida/retornada, duração, fonte e conceito; leitura de chunks, montagem do prompt e commit no Firestore têm tempos separados.
 * **Materialização**: um item pré-gerado só vira `Card` no primeiro rating. Uma transação determinística cria Card e CardReview, incrementa `Deck.cardCount` e atualiza ConceptMastery exatamente uma vez.
 * **Dificuldades distintas**: `cognitiveDifficulty: easy | hard` descreve o conteúdo; `rating: again | hard | good | easy` continua pertencendo exclusivamente ao scheduler atual.
 
@@ -167,8 +169,11 @@ Para suportar importação sem perda de dados:
 * Chave de identidade lógica para reimportação idempotente: `ankiNoteGuid + ankiCardOrd`.
 * Metadados preservados no card: `ankiNoteGuid`, `ankiNoteId`, `ankiCardOrd`.
 * Templates são tratados como entrada não confiável: a importação renderiza apenas um subconjunto compatível, sanitiza HTML e nunca executa JavaScript ou add-ons.
+* `{{type:Field}}` é importado em modo compatível: a frente não revela o valor e o verso mostra a resposta; ocorrências são agregadas em um único aviso, sem simular o campo digitável completo do Anki.
 * Mídias permitidas são validadas por nome, tamanho, assinatura e hash antes de serem armazenadas sob o UID do proprietário.
+* O nome original do APKG fica apenas em metadados. O objeto temporário usa a chave ASCII estável `package.apkg`; imports antigos com divergência Unicode podem ser recuperados somente dentro do prefixo exclusivo do próprio `importId`.
 * Cards novos recebem apenas o estado inicial opaco do scheduler; cards existentes recebem atualização de conteúdo por merge, preservando `schedulerState`, `status`, `dueAt`, `lapses`, `reps` e `createdAt`.
+* O relatório só termina como completo quando `detectados = novos + atualizados + ignorados`, todos os lotes concluem, a reconciliação não falha e a contagem persistida corresponde aos cards válidos do parser.
 
 ---
 
@@ -191,3 +196,78 @@ Perfis que ainda não possuem o marco histórico de sequência fazem uma única 
 As posições gerais e semanais de uma ação comum usam consultas agregadas `count()` para calcular somente a colocação do usuário alterado. A manutenção diária pode ordenar a coleção uma vez, mas grava exclusivamente posições funcionais diferentes. Rankings mensais dos grupos recebem a mesma projeção absoluta da pipeline principal, sem gatilhos acadêmicos paralelos.
 
 O recálculo histórico integral permanece disponível apenas para migração, recuperação e transições raras de conclusão. Mesmo nesse caminho, eventos, conquistas, perfis e posições idênticos não recebem novos timestamps nem novas gravações.
+
+---
+
+## 9. Chat Interno dos Grupos de Estudo
+
+O chat usa uma sequência monotônica por grupo e não cria fan-out de escrita para mensagens comuns. O envio normal é uma única transação client-side que lê `chat_meta/current` e o estado do remetente, grava a mensagem, avança o meta e atualiza `lastSendAt`/`sentCountTotal`. Em contenção, o mesmo ID é preservado nos retries; o fluxo comum permanece em aproximadamente 2 reads e 3 writes.
+
+```
+study_groups/{groupId}/
+  ├── chat_meta/current               (sem texto ou preview)
+  ├── messages/{messageId}            (seq autoritativa; TTL de 90 dias)
+  └── typing/{uid}                    (presença efêmera)
+
+users/{uid}/
+  ├── group_chat_states/{groupId}     (cursor e contadores do próprio usuário)
+  └── group_chat_mention_outbox/{id}  (somente quando há menção; TTL de 14 dias)
+```
+
+* **Ordem**: `chat_meta.lastSeq` é incrementado em exatamente uma unidade; horário de dispositivo nunca ordena mensagens.
+* **Unread O(1)**: `(lastSeq - lastReadSeq) - (sentCountTotal - sentCountAtRead)`, com piso zero, exclui mensagens próprias sem documentos por destinatário.
+* **Resumo global**: um listener `collectionGroup('chat_meta')` filtrado por `memberIds array-contains uid` e um listener da coleção pessoal de states são combinados em memória. Não há listener por card de grupo.
+* **Conversa aberta**: primeira página de 30 mensagens por cursor; depois, listener apenas para `seq > highestSeq`. Ao voltar do background, o catch-up ocorre em lotes de 100.
+* **Menções**: apenas mensagens com menção criam outbox. `@Todos` é expandido para os UIDs reais dos demais membros, respeitando o limite atual do grupo; a Function valida mensagem e membership e usa IDs determinísticos para notificar somente esses UIDs.
+* **Segurança**: chat de grupo público continua privado aos membros. Rules impedem spoof de autor/seq, updates separados do meta/state, cursor regressivo, edição após 15 minutos e moderação sem permissão.
+
+---
+
+## 10. Identidade e Atualização do PWA
+
+O PWA possui uma única fonte de manifesto, gerada por `vite-plugin-pwa`, e identidade explícita estável em `id: /app/home`. O `start_url` pode evoluir sem criar uma segunda identidade de aplicativo. O cliente verifica atualizações no carregamento, ao voltar ao primeiro plano, ao recuperar a conexão e periodicamente enquanto estiver visível; a ativação continua dependente da confirmação do usuário.
+
+## 11. Importação Anki integral (ADR-019)
+
+`APKG → validação SQLite/conteúdo/cotas → árvore completa → mídia por hash → lotes atômicos → relatório`.
+Cada deck Anki, inclusive folha ou vazio, recebe uma Pasta de Estudo própria. Cards diretos de um deck-pai pertencem à mesma pasta que contém os subdecks; os totais visuais somam os diretos e os descendentes uma única vez. A reimportação repara a estrutura anterior e preserva identidade, histórico e movimentos para decks manuais. Associações antigas ainda gerenciadas pelo Anki são movidas para o deck/folha canônicos, com decremento e incremento atômicos dos contadores. A árvore reutiliza o `deck.cardCount` reconciliado pelo backend para o total e não executa outra agregação total por deck.
+
+O backend mantém cards em `users/{uid}/decks/{deckId}/cards/{identity}` e o índice existente em `anki_card_index`. Um lease privado em `anki_import_locks/active` serializa importações do mesmo usuário. Não há migração destrutiva para coleção nova. A leitura inicial do índice é em grupos de IDs existentes; decks novos dispensam leitura de cards inexistentes. Escritas sem mudanças são eliminadas. Falhas de lote são explícitas e mantêm o APKG para recuperação.
+
+Limites APKG independentes permitem 10.000 cards por pacote/deck e até 10.000 decks/pastas por usuário por padrão, sujeitos a overrides remotos e limites de arquivo/descompressão. O sistema rejeita excesso antes de gravar a estrutura em vez de importar uma fração. Testes: `tests/ankiImportScale.test.mjs`; prova com persistência real local: `scripts/verify-anki-emulator.mjs` exige ambos os hosts de Emulator em localhost e usa apenas projeto `demo-anki-local`.
+
+---
+
+## 12. Alternância local entre Firebase real e Emulator (ADR-020)
+
+Em `localhost`, `EnvironmentBadge` permite alternar o ambiente. A ida para Emulator chama apenas o middleware local `POST /__modoqap/firebase-emulators/start`; o Vite executa o script fixo de inicialização e responde quando Auth `9099`, Firestore `8085`, Functions `5001` e Storage `9199` estão prontos. A aplicação persiste a escolha e recarrega porque clientes Firebase já inicializados não são religados em runtime.
+
+O modo Emulator usa o projeto isolado `demo-dashboard-pmba-local`, não as credenciais/configuração de `dashboard-pmba`. O controle de processos rejeita clientes que não sejam loopback. Em Hosting/preview, o seletor não é renderizado e nenhuma preferência local pode ativar emuladores. Voltar ao ambiente real pede confirmação explícita.
+
+Quando a troca parte de uma sessão real autenticada, o middleware local espelha no Auth/Firestore Emulator o UID, e-mail, nome, foto e perfil de acesso já disponíveis ao usuário. Uma credencial aleatória local é usada uma vez para autenticar após o reload e então removida da sessão; nenhuma senha do Firebase real é lida ou armazenada. Se já existir uma conta local com o mesmo e-mail, ela é promovida ao perfil espelhado para preservar seus dados de teste.
+
+---
+
+## 13. Sistema de Suporte Privado e Anexos Otimizados (ADR-021)
+
+O sistema de suporte atende abertura de chamados e respostas de usuários e administradores com suporte a imagens privadas (até 3 por mensagem, até 5 MB por imagem, nos formatos JPEG, PNG e WebP estático).
+
+```
+system_feedback/{ticketId}/
+  ├── (documento do ticket com status, lastUpdate, unreadUser/Admin, attachmentsExpireAt)
+  └── messages/{messageId} (texto, remetente, timestamp, attachments: [...])
+
+support_operations/{key} (reserva autenticada, fingerprint, lease, TTL 24h)
+support_quotas/{uid}     (cotas diárias e rate limit por minuto, TTL 48h)
+support_cleanup/{docId}  (fila de exclusão e expiração de anexos)
+
+Storage:
+support_attachments/{ticketId}/{messageId}/{attachmentId}/
+  ├── image.webp     (lado máx 2560px, Q80)
+  └── thumbnail.webp (lado máx 480px, Q70)
+```
+
+* **Segurança e Regras**: Storage é blindado contra leitura e escrita direta de clientes (`allow read, write: if false;`). Firestore nega escrita direta em `system_feedback` e `messages`. Acesso a imagens é mediado exclusivamente pelo endpoint HTTP autenticado `readSupportAttachment` com validação transacional de autorização.
+* **Ciclo de Vida em 3 Etapas**: Reserva autenticada (`reserveSupportMessage`) -> Upload e processamento sequencial Sharp (`uploadSupportAttachment`) -> Publicação atômica em transação (`finalizeSupportMessage`).
+* **Retenção e Expiração**: Chamados resolvidos agendam expiração dos anexos para 15 dias (`attachmentsExpireAt = now + 15d`). A rotina diária existente (`executarRotinaDiariaManutencao`) executa a remoção física dos arquivos em lotes indexados limitados (`maintenanceBatch: 100`), mantendo os textos históricos íntegros.
+* **Eficiência e Escala**: Escopo de envio estritamente $O(1)$. Zero operações Firebase na seleção de arquivos. Miniaturas em lazy loading e cache de Blobs em memória descartado ao fechar a conversa.

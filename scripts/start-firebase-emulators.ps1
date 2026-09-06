@@ -27,6 +27,18 @@ $env:JAVA_HOME = $resolvedJavaHome
 $env:Path = "$(Join-Path $resolvedJavaHome 'bin');$env:Path"
 $env:FUNCTIONS_DISCOVERY_TIMEOUT = '60'
 
-Write-Host "Firebase Emulators usando JAVA_HOME=$resolvedJavaHome e discovery timeout de 60s"
-& firebase emulators:start --project dashboard-pmba --only auth,functions,firestore,storage
+$targetPorts = @(9099, 8085, 5001, 9199, 4000)
+foreach ($port in $targetPorts) {
+  $connections = Get-NetTCPConnection -LocalPort $port -ErrorAction SilentlyContinue
+  foreach ($conn in $connections) {
+    if ($conn.OwningProcess -and $conn.OwningProcess -ne $PID) {
+      Write-Host "Liberando porta $port ocupada pelo processo $($conn.OwningProcess)..."
+      Stop-Process -Id $conn.OwningProcess -Force -ErrorAction SilentlyContinue
+    }
+  }
+}
+Start-Sleep -Milliseconds 500
+
+Write-Host "Firebase Emulators usando projeto demo isolado, JAVA_HOME=$resolvedJavaHome e discovery timeout de 60s"
+& firebase emulators:start --project demo-dashboard-pmba-local --only auth,functions,firestore,storage
 exit $LASTEXITCODE

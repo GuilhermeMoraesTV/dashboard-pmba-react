@@ -10,12 +10,15 @@ import {
   addDoc,
   collection,
   doc,
+  documentId,
+  getCountFromServer,
   getDoc,
   getDocs,
   limit as firestoreLimit,
   orderBy,
   query,
   serverTimestamp,
+  startAfter,
   updateDoc,
   where,
 } from 'firebase/firestore';
@@ -120,13 +123,10 @@ export async function listDecks(userId, options = {}) {
   if (!userId) throw new Error('userId e obrigatorio em listDecks.');
   const firestoreDb = options.firestoreDb || db;
   const decksRef = collection(firestoreDb, 'users', userId, 'decks');
-  const constraints = [];
-  if (!options.includeArchived) {
-    constraints.push(where('archived', '==', false));
-  }
-  const snap = await getDocs(query(decksRef, ...constraints));
+  const snap = await getDocs(decksRef);
   return snap.docs
     .map(normalizeDeck)
+    .filter((deck) => options.includeArchived || !deck.archived)
     .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
 }
 
@@ -472,6 +472,120 @@ export async function getFolderStudyCards(userId, folderIds, options = {}) {
     ? allCards.filter((card) => !card.dueAt || card.dueAt <= now || card.status === 'new')
     : allCards;
   return filtered.sort((a, b) => (a.dueAt?.getTime?.() || 0) - (b.dueAt?.getTime?.() || 0));
+}
+
+/**
+ * Carrega uma página pequena e determinística para uma sessão de pasta.
+ * O cursor atravessa os decks sem baixar a coleção inteira no navegador.
+ */
+export async function getFolderStudyCardsPage(userId, folderIds, options = {}) {
+  if (!userId || !Array.isArray(folderIds) || !folderIds.length) {
+    return { cards: [], cursor: null, hasMore: false };
+  }
+  const firestoreDb = options.firestoreDb || db;
+  const pageSize = Math.min(Math.max(1, Number(options.pageSize) || 100), 100);
+  const targetFolderSet = new Set(folderIds);
+  const matchingDecks = (await listDecks(userId, { includeArchived: false, firestoreDb }))
+    .filter((deck) => deck.folderId && targetFolderSet.has(deck.folderId) && (!options.deckId || deck.id === options.deckId))
+    .sort((left, right) => left.id.localeCompare(right.id));
+  let deckIndex = Math.max(0, Number(options.cursor?.deckIndex || 0));
+  let lastValueMs = Number(options.cursor?.lastValueMs || 0);
+  let lastValueSeconds = options.cursor?.lastValueSeconds;
+  let lastValueNanoseconds = options.cursor?.lastValueNanoseconds;
+  let lastCardId = String(options.cursor?.lastCardId || '');
+  const cards = [];
+  const targetDate = options.targetDate
+    ? (options.targetDate instanceof Date ? options.targetDate : new Date(options.targetDate))
+    : new Date();
+
+  while (deckIndex < matchingDecks.length && cards.length < pageSize) {
+    const deck = matchingDecks[deckIndex];
+    const remaining = pageSize - cards.length;
+    const cardsRef = collection(firestoreDb, 'users', userId, 'decks', deck.id, 'cards');
+    const sortField = options.onlyDue ? 'dueAt' : 'createdAt';
+    const constraints = [];
+    if (options.onlyDue) constraints.push(where('dueAt', '<=', Timestamp.fromDate(targetDate)));
+    constraints.push(orderBy(sortField, 'asc'), orderBy(documentId(), 'asc'));
+    if (lastValueMs > 0 && lastCardId) {
+      const preciseValue = Number.isInteger(lastValueSeconds) && Number.isInteger(lastValueNanoseconds)
+        ? new Timestamp(lastValueSeconds, lastValueNanoseconds)
+        : Timestamp.fromMillis(lastValueMs);
+      constraints.push(startAfter(preciseValue, lastCardId));
+    }
+    constraints.push(firestoreLimit(remaining));
+    const snap = await getDocs(query(cardsRef, ...constraints));
+    const pageCards = snap.docs.map((snapshot) => normalizeCard(snapshot, deck.id));
+    cards.push(...pageCards);
+    if (snap.size === remaining && snap.docs.length) {
+      const last = snap.docs.at(-1);
+      const rawValue = last.data()?.[sortField];
+      const value = toDate(rawValue);
+      return {
+        cards,
+        cursor: { deckIndex, lastValueMs: value?.getTime?.() || 0, lastCardId: last.id,
+          lastValueSeconds: rawValue?.seconds, lastValueNanoseconds: rawValue?.nanoseconds },
+        hasMore: true,
+      };
+    }
+    deckIndex += 1;
+    lastValueMs = 0;
+    lastValueSeconds = undefined;
+    lastValueNanoseconds = undefined;
+    lastCardId = '';
+  }
+  return {
+    cards,
+    cursor: deckIndex < matchingDecks.length ? { deckIndex, lastValueMs: 0, lastCardId: '' } : null,
+    hasMore: deckIndex < matchingDecks.length,
+  };
+}
+
+async function mapWithConcurrency(items, concurrency, mapper) {
+  const results = new Array(items.length);
+  let nextIndex = 0;
+  async function worker() {
+    while (nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      results[index] = await mapper(items[index], index);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, worker));
+  return results;
+}
+
+/**
+ * Obtém contadores agregados diretamente do Firestore, sem depender dos cards carregados na UI.
+ */
+export async function getAuthoritativeFolderMetrics(userId, decks, options = {}) {
+  if (!userId) throw new Error('userId e obrigatorio em getAuthoritativeFolderMetrics.');
+  const firestoreDb = options.firestoreDb || db;
+  const now = options.targetDate instanceof Date ? options.targetDate : new Date(options.targetDate || Date.now());
+  const activeDecks = (decks || []).filter((deck) => deck?.id && deck.folderId && deck.archived !== true);
+  const deckMetrics = await mapWithConcurrency(activeDecks, 8, async (deck) => {
+    if (options.isCancelled?.()) return null;
+    const cardsRef = collection(firestoreDb, 'users', userId, 'decks', deck.id, 'cards');
+    const [due, fresh] = await Promise.all([
+      getCountFromServer(query(cardsRef, where('dueAt', '<=', Timestamp.fromDate(now)))),
+      getCountFromServer(query(cardsRef, where('status', '==', 'new'))),
+    ]);
+    // cardCount is maintained atomically and reconciled by the backend. Reusing
+    // it here makes the tree immediate and avoids one billed aggregation per deck.
+    const totalCount = Math.max(0, Number(deck.cardCount || 0));
+    return {
+      folderId: deck.folderId,
+      total: totalCount,
+      due: Number(due.data().count || 0),
+      studied: Math.max(0, totalCount - Number(fresh.data().count || 0)),
+    };
+  });
+  return deckMetrics.reduce((result, metric) => {
+    if (!metric) return result;
+    result.totalByFolder[metric.folderId] = Number(result.totalByFolder[metric.folderId] || 0) + metric.total;
+    result.dueByFolder[metric.folderId] = Number(result.dueByFolder[metric.folderId] || 0) + metric.due;
+    result.studiedByFolder[metric.folderId] = Number(result.studiedByFolder[metric.folderId] || 0) + metric.studied;
+    return result;
+  }, { totalByFolder: {}, dueByFolder: {}, studiedByFolder: {} });
 }
 
 /**

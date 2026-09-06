@@ -1,6 +1,10 @@
 {
   "indexes": [
     {
+      "collectionGroup": "messages", "queryScope": "COLLECTION",
+      "fields": [ { "fieldPath": "hasAttachments", "order": "ASCENDING" }, { "fieldPath": "timestamp", "order": "ASCENDING" } ]
+    },
+    {
       "collectionGroup": "decks",
       "queryScope": "COLLECTION",
       "fields": [
@@ -215,6 +219,183 @@
     }
   ],
   "fieldOverrides": [
+    {
+      "collectionGroup": "messages",
+      "fieldPath": "expiresAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "group_chat_mention_outbox",
+      "fieldPath": "expiresAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "messages",
+      "fieldPath": "text",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "messages",
+      "fieldPath": "authorName",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "messages",
+      "fieldPath": "authorPhotoURL",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "messages",
+      "fieldPath": "deletedBy",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "messages",
+      "fieldPath": "mentionUids",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "messages",
+      "fieldPath": "replyToMessageId",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "messages",
+      "fieldPath": "editedAt",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "messages",
+      "fieldPath": "deletedAt",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "messages",
+      "fieldPath": "deleted",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "chat_meta",
+      "fieldPath": "memberIds",
+      "indexes": [
+        { "order": "ASCENDING", "queryScope": "COLLECTION" },
+        { "order": "DESCENDING", "queryScope": "COLLECTION" },
+        { "arrayConfig": "CONTAINS", "queryScope": "COLLECTION" },
+        { "arrayConfig": "CONTAINS", "queryScope": "COLLECTION_GROUP" }
+      ]
+    },
+    {
+      "collectionGroup": "chat_meta",
+      "fieldPath": "groupId",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "chat_meta",
+      "fieldPath": "groupName",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "chat_meta",
+      "fieldPath": "lastSeq",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "chat_meta",
+      "fieldPath": "lastMessageId",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "chat_meta",
+      "fieldPath": "lastMessageAt",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "chat_meta",
+      "fieldPath": "lastAuthorId",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "chat_meta",
+      "fieldPath": "createdAt",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "chat_meta",
+      "fieldPath": "updatedAt",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "group_chat_states",
+      "fieldPath": "groupId",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "group_chat_states",
+      "fieldPath": "lastReadSeq",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "group_chat_states",
+      "fieldPath": "readAt",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "group_chat_states",
+      "fieldPath": "lastSendAt",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "group_chat_states",
+      "fieldPath": "sentCountTotal",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "group_chat_states",
+      "fieldPath": "sentCountAtRead",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "group_chat_states",
+      "fieldPath": "updatedAt",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "typing",
+      "fieldPath": "uid",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "typing",
+      "fieldPath": "name",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "typing",
+      "fieldPath": "typingUntil",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "typing",
+      "fieldPath": "updatedAt",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "group_chat_mention_outbox",
+      "fieldPath": "mentionUids",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "group_chat_mention_outbox",
+      "fieldPath": "processed",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "group_chat_mention_outbox",
+      "fieldPath": "createdAt",
+      "indexes": []
+    },
     {
       "collectionGroup": "operations",
       "fieldPath": "expiresAt",

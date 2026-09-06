@@ -4,6 +4,13 @@
  */
 
 const DEFAULT_SERVER_PRODUCT_LIMITS = Object.freeze({
+  support: Object.freeze({
+    maxAttachments: 3, maxImageBytes: 5 * 1024 * 1024, maxPixels: 25_000_000,
+    imageSide: 2560, imageQuality: 80, thumbnailSide: 480, thumbnailQuality: 70,
+    userDailyImages: 30, adminDailyImages: 200, operationsPerMinute: 3,
+    retentionMs: 15 * 86400000, operationTtlMs: 86400000, leaseMs: 180000,
+    pageSize: 50, ticketPageSize: 100, maintenanceBatch: 100, maxTextChars: 12000,
+  }),
   storage: Object.freeze({
     maxPdfSizeBytes: 25 * 1024 * 1024,
     maxApkgSizeBytes: 50 * 1024 * 1024,
@@ -59,17 +66,26 @@ const DEFAULT_SERVER_PRODUCT_LIMITS = Object.freeze({
     maxFolderDescriptionChars: 1000,
     maxNoteChars: 120000,
   }),
+  groupChat: Object.freeze({
+    maxMessageChars: 4000,
+    maxMentions: 10,
+    editWindowMinutes: 15,
+    messageCooldownMs: 1000,
+    retentionDays: 90,
+    outboxRetentionDays: 14,
+  }),
   adaptiveStudy: Object.freeze({
     targetReady: 4,
-    lowWatermark: 2,
-    refillSize: 3,
-    maxConceptsPerSource: 24,
+    lowWatermark: 3,
+    refillSize: 4,
+    conceptsPerWindow: 8,
+    conceptWindowMaxChars: 18000,
+    conceptAnalysisConcurrency: 1,
     maxItemsPerSession: 100,
     maxGenerationCallsPerSession: 35,
     maxDailyGenerationCalls: 40,
     maxTokensPerGeneration: 4096,
     maxTokensPerSession: 60000,
-    maxConceptChunks: 4,
   }),
   anki: Object.freeze({
     maxArchiveEntries: 10000,
@@ -78,7 +94,13 @@ const DEFAULT_SERVER_PRODUCT_LIMITS = Object.freeze({
     maxMediaFileSizeBytes: 12 * 1024 * 1024,
     maxMediaFiles: 5000,
     maxCardsPerImport: 10000,
+    maxCardsPerDeck: 10000,
+    maxDecksPerUser: 10000,
+    maxFoldersPerUser: 10000,
+    importLeaseMs: 12 * 60 * 1000,
     maxCardHtmlChars: 200000,
+    maxCardBytes: 900 * 1024,
+    maxInlineReportBytes: 256 * 1024,
     maxWarnings: 100,
     maxCompressionRatio: 200,
   }),

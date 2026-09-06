@@ -50,6 +50,8 @@ test('resolve logo oficial conhecido e preserva fallback tipografico para qualqu
   );
   assert.equal(buildEditalLogoFallbackLabel({ nome: 'Policia Militar da Bahia' }), 'PMBA');
   assert.equal(buildEditalLogoFallbackLabel({ nome: 'Concurso Municipal de Exemplo' }), 'CME');
+  assert.equal(buildEditalLogoFallbackLabel({ id: 'manual', editalNome: 'Manual', nome: 'Polícia Penal da Bahia' }), 'PPB');
+  assert.equal(buildEditalLogoFallbackLabel({ id: 'manual', editalNome: 'Manual', nome: 'Estudo Pessoal Focado' }), 'EPF');
 });
 
 test('prioriza todas as fontes persistidas de logo antes dos fallbacks derivados', () => {

@@ -58,8 +58,8 @@ function buildFlashcardSchema(targetCount) {
         items: {
           type: 'object', required: ['front', 'back', 'tags'], additionalProperties: false,
           properties: {
-            front: { type: 'string', minLength: 1, maxLength: 400 },
-            back: { type: 'string', minLength: 1, maxLength: 600 },
+            front: { type: 'string', minLength: 1, maxLength: 1000 },
+            back: { type: 'string', minLength: 1, maxLength: 2000 },
             tags: { type: 'array', maxItems: 10, items: { type: 'string', maxLength: 60 } },
           },
         },

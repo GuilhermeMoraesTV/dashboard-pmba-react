@@ -13,6 +13,13 @@ export const SYSTEM_CONFIG_PRODUCT_LIMITS_DOC = 'system_config/product_limits';
  * Limites padrão imutáveis do sistema.
  */
 export const DEFAULT_PRODUCT_LIMITS = Object.freeze({
+  support: Object.freeze({
+    maxAttachments: 3, maxImageBytes: 5 * 1024 * 1024, maxPixels: 25_000_000,
+    imageSide: 2560, imageQuality: 80, thumbnailSide: 480, thumbnailQuality: 70,
+    userDailyImages: 30, adminDailyImages: 200, operationsPerMinute: 3,
+    retentionMs: 15 * 86400000, operationTtlMs: 86400000, leaseMs: 180000,
+    pageSize: 50, ticketPageSize: 100, maintenanceBatch: 100, maxTextChars: 12000,
+  }),
   // Armazenamento e Upload
   storage: Object.freeze({
     maxPdfSizeBytes: 25 * 1024 * 1024, // 25 MB
@@ -85,18 +92,37 @@ export const DEFAULT_PRODUCT_LIMITS = Object.freeze({
     maxNoteChars: 120000,
   }),
 
+  groupChat: Object.freeze({
+    maxMessageChars: 4000,
+    maxMentions: 10,
+    editWindowMinutes: 15,
+    messageCooldownMs: 1000,
+    pageSize: 30,
+    reconnectBatchSize: 100,
+    retentionDays: 90,
+    outboxRetentionDays: 14,
+    typingThrottleMs: 4000,
+    typingVisibleMs: 10000,
+    summaryHiddenGraceMs: 45000,
+    readDebounceMs: 800,
+    transactionMaxAttempts: 10,
+    transactionConflictRetries: 30,
+    transactionRetryBaseMs: 25,
+  }),
+
   // Tutor Adaptativo (valores internos; nunca solicitados ao usuario)
   adaptiveStudy: Object.freeze({
     targetReady: 4,
     lowWatermark: 3,
     refillSize: 4,
-    maxConceptsPerSource: 24,
+    conceptsPerWindow: 8,
+    conceptWindowMaxChars: 18000,
+    conceptAnalysisConcurrency: 1,
     maxItemsPerSession: 100,
     maxGenerationCallsPerSession: 35,
     maxDailyGenerationCalls: 40,
     maxTokensPerGeneration: 4096,
     maxTokensPerSession: 60000,
-    maxConceptChunks: 4,
   }),
 
   // Identidade de Reimportação do Anki
@@ -109,7 +135,14 @@ export const DEFAULT_PRODUCT_LIMITS = Object.freeze({
     maxMediaFileSizeBytes: 12 * 1024 * 1024,
     maxMediaFiles: 5000,
     maxCardsPerImport: 10000,
+    maxCardsPerDeck: 10000,
+    maxDecksPerUser: 10000,
+    maxFoldersPerUser: 10000,
+    importLeaseMs: 12 * 60 * 1000,
+    metricsDebounceMs: 600,
     maxCardHtmlChars: 200000,
+    maxCardBytes: 900 * 1024,
+    maxInlineReportBytes: 256 * 1024,
     maxWarnings: 100,
     maxCompressionRatio: 200,
   }),
@@ -126,6 +159,7 @@ export function resolveProductLimits(remoteOverrides = {}) {
   }
 
   return {
+    support: { ...DEFAULT_PRODUCT_LIMITS.support },
     storage: {
       ...DEFAULT_PRODUCT_LIMITS.storage,
       ...(remoteOverrides.storage || {}),
@@ -157,6 +191,10 @@ export function resolveProductLimits(remoteOverrides = {}) {
     studySources: {
       ...DEFAULT_PRODUCT_LIMITS.studySources,
       ...(remoteOverrides.studySources || {}),
+    },
+    groupChat: {
+      ...DEFAULT_PRODUCT_LIMITS.groupChat,
+      ...(remoteOverrides.groupChat || {}),
     },
     adaptiveStudy: {
       ...DEFAULT_PRODUCT_LIMITS.adaptiveStudy,

@@ -7,6 +7,8 @@ import {
 import { isEditalLaunchNotification, isXPNotification, normalizeNotification } from '../services/notificationContract';
 import { respondToGroupEntryRequest } from '../services/groupMembership';
 import { isLeagueOnlyNotification } from '../config/featureFlags';
+import { useGroupChatSummaries } from './useGroupChatSummaries.js';
+import { manageSupportTicket } from '../services/support/supportService.js';
 
 // =======================================================
 // HELPERS E ALGORITMOS DE MATCHING (INTELIGÊNCIA)
@@ -305,6 +307,7 @@ const agruparAtualizacoesPorEdital = (updates = []) => {
 // HOOK PRINCIPAL
 // =======================================================
 export const useNotifications = (user) => {
+  const { summaries: groupChatSummaries, unreadCount: groupChatUnreadCount } = useGroupChatSummaries(user);
   const [broadcasts, setBroadcasts] = useState([]);
   const [editalUpdates, setEditalUpdates] = useState([]);
   const [dismissedHistory, setDismissedHistory] = useState([]);
@@ -312,6 +315,7 @@ export const useNotifications = (user) => {
   const [deletedNotifs, setDeletedNotifs] = useState(new Set());
   const [loading, setLoading] = useState(false);
   const [operationalNotifications, setOperationalNotifications] = useState([]);
+  const [supportNotifications, setSupportNotifications] = useState([]);
   const [userCreatedAtMillis, setUserCreatedAtMillis] = useState(null);
   const [backgroundAuditReady, setBackgroundAuditReady] = useState(false);
 
@@ -582,6 +586,55 @@ export const useNotifications = (user) => {
     return () => { stopPersonal(); stopPersonalFallback?.(); };
   }, [user?.uid]);
 
+  // 4. Chamados de suporte respondidos
+  useEffect(() => {
+    if (!user?.uid) {
+      setSupportNotifications([]);
+      return undefined;
+    }
+
+    const q = query(
+      collection(db, 'system_feedback'),
+      where('uid', '==', user.uid),
+      where('unreadUser', '==', true),
+      limit(20)
+    );
+
+    const unsub = onSnapshot(
+      q,
+      (snapshot) => {
+        const list = snapshot.docs
+          .map((docSnap) => {
+            const data = docSnap.data();
+            if (data.deleted) return null;
+            return {
+              id: `support_${docSnap.id}`,
+              ticketId: docSnap.id,
+              _type: 'support',
+              operationalKind: 'support',
+              category: 'suporte',
+              title: 'Resposta do Suporte',
+              message: data.preview
+                ? `Nova resposta no seu chamado: "${data.preview}"`
+                : 'O suporte respondeu ao seu chamado.',
+              ticketType: data.type || 'duvida',
+              timestamp: data.lastUpdate?.toDate?.() || (data.lastUpdate?.seconds ? new Date(data.lastUpdate.seconds * 1000) : new Date()),
+              unread: true,
+              virtual: true,
+            };
+          })
+          .filter(Boolean);
+
+        setSupportNotifications(list);
+      },
+      (error) => {
+        console.warn('[Notificações] Falha ao monitorar chamados de suporte:', error.code || error);
+      }
+    );
+
+    return () => unsub();
+  }, [user?.uid]);
+
   // Exclui os apagados da visão
   const rawActiveEditalUpdates = editalUpdates.filter((u) => !u.isDismissed && !deletedNotifs.has(u.id));
   const activeEditalUpdates = agruparAtualizacoesPorEdital(rawActiveEditalUpdates).map(normalizeNotification);
@@ -596,11 +649,11 @@ export const useNotifications = (user) => {
       id: h.id || `edital_${h.cicloId}_${h.versionKey}`,
   }));
 
-  const notifications = [...operationalNotifications, ...activeBroadcasts, ...activeEditalUpdates].sort(
+  const notifications = [...groupChatSummaries, ...supportNotifications, ...operationalNotifications, ...activeBroadcasts, ...activeEditalUpdates].sort(
     (a, b) => (b.timestamp?.getTime?.() || 0) - (a.timestamp?.getTime?.() || 0)
   );
 
-  const unreadCount = operationalNotifications.length + activeBroadcasts.filter((b) => !readBroadcasts.has(b.id)).length + activeEditalUpdates.length;
+  const unreadCount = groupChatUnreadCount + supportNotifications.length + operationalNotifications.length + activeBroadcasts.filter((b) => !readBroadcasts.has(b.id)).length + activeEditalUpdates.length;
 
   // AÇÕES
   const addItemsToHistory = useCallback((items = []) => {
@@ -663,6 +716,11 @@ export const useNotifications = (user) => {
 
   const markOperationalRead = useCallback(async (item) => {
     if (!user?.uid || !item?.id) return;
+    if (item._type === 'support' || item.ticketId) {
+      await manageSupportTicket({ ticketId: item.ticketId, action: 'presence', read: true }).catch(() => {});
+      return;
+    }
+    if (item.virtual) return;
     const target = doc(db, 'users', user.uid, 'notifications', item.id);
     await updateDoc(target, { isRead: true, readAt: serverTimestamp(), updatedAt: serverTimestamp() });
   }, [user?.uid]);
@@ -688,11 +746,16 @@ export const useNotifications = (user) => {
     setEditalUpdates(Object.values(editalUpdatesRef.current));
 
     try {
-      await Promise.all(updatesParaArquivar.map((item) => (
-        updateDoc(doc(db, 'users', user.uid, 'ciclos', item.cicloId), {
-          dismissedUpdateVersion: item.versionKey,
-        })
-      )));
+      await Promise.all([
+        ...updatesParaArquivar.map((item) => (
+          updateDoc(doc(db, 'users', user.uid, 'ciclos', item.cicloId), {
+            dismissedUpdateVersion: item.versionKey,
+          })
+        )),
+        ...supportNotifications.map((item) => (
+          manageSupportTicket({ ticketId: item.ticketId, action: 'presence', read: true }).catch(() => {})
+        )),
+      ]);
       for (let start = 0; start < operationalNotifications.length; start += 100) {
         const batch = writeBatch(db);
         operationalNotifications.slice(start, start + 100).forEach((item) => {
@@ -702,7 +765,7 @@ export const useNotifications = (user) => {
         await batch.commit();
       }
     } catch {}
-  }, [user, operationalNotifications, activeBroadcasts, activeEditalUpdates, rawActiveEditalUpdates, addItemsToHistory]);
+  }, [user, operationalNotifications, supportNotifications, activeBroadcasts, activeEditalUpdates, rawActiveEditalUpdates, addItemsToHistory]);
 
   const deleteBroadcast = useCallback((id) => {
       if (!user) return;
@@ -935,6 +998,8 @@ export const useNotifications = (user) => {
   return {
     notifications,
     unreadCount,
+    groupChatSummaries,
+    groupChatUnreadCount,
     broadcasts: activeBroadcasts,
     editalUpdates: activeEditalUpdates,
     dismissedHistory: activeHistory,

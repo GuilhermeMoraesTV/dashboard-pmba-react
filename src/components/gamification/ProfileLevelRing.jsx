@@ -17,14 +17,14 @@ const ProfileLevelRing = ({ userPhotoURL, levelData, size = 60, strokeWidth = 3.
       />
       <div className="absolute rounded-full bg-white dark:bg-zinc-900" style={{ inset: strokeWidth }} />
       <div
-        className="relative z-10 flex items-center justify-center overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800"
-        style={{ width: size - strokeWidth * 3, height: size - strokeWidth * 3 }}
+        className="relative z-10 flex items-center justify-center overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800 border-[1.5px] border-red-600 dark:border-red-500"
+        style={{ width: size - strokeWidth * 2.8, height: size - strokeWidth * 2.8, borderColor: ringColor }}
       >
         {userPhotoURL
           ? <img src={userPhotoURL} alt="Perfil" className="h-full w-full object-cover"/>
           : <User size={size * 0.42} className="text-zinc-400"/>}
       </div>
-      <span className="absolute -bottom-1 z-20 min-w-5 rounded-full border-2 border-white bg-red-600 px-1 text-center text-[8px] font-black leading-4 text-white shadow-md dark:border-zinc-900">
+      <span className="absolute -bottom-1 z-20 flex h-4 min-w-4 sm:h-5 sm:min-w-5 items-center justify-center rounded-full border-2 border-white bg-red-600 px-1 text-center text-[8px] sm:text-[9px] font-black text-white shadow-md dark:border-zinc-900">
         {level}
       </span>
     </div>

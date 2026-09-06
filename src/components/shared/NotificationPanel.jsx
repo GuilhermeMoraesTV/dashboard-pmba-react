@@ -8,7 +8,7 @@ import {
   BookOpen, Shield, ArrowUpCircle, Clock,
   CheckCheck, Inbox, Eye, Layers, Sparkles, Rocket,
   ExternalLink, ChevronRight, Info, History, Trash2,
-  ChevronLeft, Target, CalendarDays, TrendingUp, Flame
+  ChevronLeft, Target, CalendarDays, TrendingUp, Flame, MessageCircle, MessageSquare
 } from 'lucide-react';
 import { db } from '../../firebaseConfig';
 import UserProfileModal from '../gamification/UserProfileModal';
@@ -714,14 +714,16 @@ const NotifItem = ({ notif, isRead, onRead, onOpenBroadcast, onOpenEditalModal, 
   return null;
 };
 
-const OperationalNotifItem = ({ notif, onRead, onRespondGroupRequest, onOpenApplicant, processingRequestId }) => {
+const OperationalNotifItem = ({ notif, onRead, onRespondGroupRequest, onOpenApplicant, onOpenGroupChat, onOpenSupport, processingRequestId }) => {
   const isRequest = notif.operationalKind === 'group_request' && notif.requiresAction === true;
   const isXP = notif.operationalKind === 'xp';
+  const isGroupChat = notif.operationalKind === 'group_chat_summary' || notif.operationalKind === 'group_chat_mention';
+  const isSupport = notif.operationalKind === 'support' || notif._type === 'support' || notif.category === 'suporte';
   const processing = processingRequestId === notif.id;
-  const Icon = isRequest ? Inbox : isXP ? Zap : notif.operationalKind === 'league_state' || notif.operationalKind === 'league_result' ? TrendingUp : Bell;
+  const Icon = isRequest ? Inbox : isXP ? Zap : isGroupChat ? MessageCircle : isSupport ? MessageSquare : notif.operationalKind === 'league_state' || notif.operationalKind === 'league_result' ? TrendingUp : Bell;
   return <motion.article initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
-    <div className="flex items-start gap-3.5 p-4"><span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${isXP ? 'bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-300' : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300'}`}><Icon size={18}/></span><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-3"><h4 className="text-sm font-extrabold leading-snug text-zinc-900 dark:text-white">{notif.title || 'Atualização'}</h4><span className="shrink-0 text-[10px] font-semibold text-zinc-400">{formatTimeAgo(notif.timestamp)}</span></div><p className="mt-1.5 text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">{notif.message || 'Seu progresso foi atualizado.'}</p></div></div>
-    <div className="flex gap-2 border-t border-zinc-100 px-4 py-3 dark:border-zinc-800">{isRequest ? <><button disabled={processing} onClick={() => onOpenApplicant(notif)} className="flex-1 rounded-xl border border-zinc-200 py-2.5 text-[9px] font-black uppercase tracking-wide text-zinc-600 transition hover:border-red-200 hover:text-red-600 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300"><Eye size={12} className="mr-1 inline"/>Perfil</button><button disabled={processing} onClick={() => onRespondGroupRequest(notif, false)} className="flex-1 rounded-xl border border-zinc-200 py-2.5 text-[9px] font-black uppercase tracking-wide text-zinc-600 transition hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800">Recusar</button><button disabled={processing} onClick={() => onRespondGroupRequest(notif, true)} className="flex-1 rounded-xl bg-emerald-600 py-2.5 text-[9px] font-black uppercase tracking-wide text-white transition hover:bg-emerald-700 disabled:opacity-50">{processing ? 'Processando…' : 'Aceitar'}</button></> : <button onClick={() => onRead(notif)} className="ml-auto inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-[9px] font-black uppercase text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"><Check size={13}/> Marcar como lida</button>}</div>
+    <div className="flex items-start gap-3.5 p-4"><span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${isXP ? 'bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-300' : isSupport ? 'bg-red-50 text-red-600 dark:bg-red-950/30 dark:text-red-400' : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300'}`}><Icon size={18}/></span><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-3"><h4 className="text-sm font-extrabold leading-snug text-zinc-900 dark:text-white">{notif.title || 'Atualização'}</h4><span className="shrink-0 text-[10px] font-semibold text-zinc-400">{formatTimeAgo(notif.timestamp)}</span></div><p className="mt-1.5 text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">{notif.message || 'Seu progresso foi atualizado.'}</p></div></div>
+    <div className="flex gap-2 border-t border-zinc-100 px-4 py-3 dark:border-zinc-800">{isRequest ? <><button disabled={processing} onClick={() => onOpenApplicant(notif)} className="flex-1 rounded-xl border border-zinc-200 py-2.5 text-[9px] font-black uppercase tracking-wide text-zinc-600 transition hover:border-red-200 hover:text-red-600 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300"><Eye size={12} className="mr-1 inline"/>Perfil</button><button disabled={processing} onClick={() => onRespondGroupRequest(notif, false)} className="flex-1 rounded-xl border border-zinc-200 py-2.5 text-[9px] font-black uppercase tracking-wide text-zinc-600 transition hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800">Recusar</button><button disabled={processing} onClick={() => onRespondGroupRequest(notif, true)} className="flex-1 rounded-xl bg-emerald-600 py-2.5 text-[9px] font-black uppercase tracking-wide text-white transition hover:bg-emerald-700 disabled:opacity-50">{processing ? 'Processando…' : 'Aceitar'}</button></> : isGroupChat ? <button onClick={() => { if (!notif.virtual) onRead(notif); onOpenGroupChat?.(notif.groupId); }} className="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-2 text-[9px] font-black uppercase text-white hover:bg-red-700"><MessageCircle size={13}/> Abrir chat</button> : isSupport ? <div className="flex w-full items-center justify-between"><button onClick={() => onRead(notif)} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-[9px] font-black uppercase text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"><Check size={13}/> Marcar lida</button><button onClick={() => { onRead(notif); onOpenSupport?.(notif.ticketId); }} className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3.5 py-2 text-[9px] font-black uppercase text-white hover:bg-red-700 shadow-sm"><MessageSquare size={13}/> Ver chamado</button></div> : <button onClick={() => onRead(notif)} className="ml-auto inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-[9px] font-black uppercase text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"><Check size={13}/> Marcar como lida</button>}</div>
   </motion.article>;
 };
 
@@ -730,7 +732,7 @@ const NotificationPanel = ({
   readBroadcasts, onMarkBroadcastRead, onMarkAllRead,
   onApplyEditalUpdate, onDismissEditalUpdate, loadingUpdate, onNavigateToEdital,
   deleteBroadcast, deleteHistoryItem, systemAlerts = [], onSystemAlertAction,
-  onMarkOperationalRead, onRespondGroupRequest,
+  onMarkOperationalRead, onRespondGroupRequest, onOpenGroupChat, onOpenSupport,
   bellRef
 }) => {
   const [activeFilter, setActiveFilter] = useState('all');
@@ -885,7 +887,7 @@ const NotificationPanel = ({
                   </div>
                 ) : (
                   <div key={activeFilter} className="space-y-3.5">
-                    {filtered.map(n => n._type === 'operational' ? <OperationalNotifItem key={`operational:${n.sourceCollection}:${n.id}`} notif={n} onRead={onMarkOperationalRead} onRespondGroupRequest={respondGroupRequest} onOpenApplicant={openApplicant} processingRequestId={processingRequestId}/> : <NotifItem key={`${n._type || 'notif'}:${n.id}:${n.versionKey || ''}`} notif={n} isRead={n._type === 'broadcast' || n._type === 'edital_launch' ? readBroadcasts.has(n.id) : false} onRead={onMarkBroadcastRead} onOpenBroadcast={(notif) => { setBroadcastModal(notif); if (!readBroadcasts.has(notif.id)) onMarkBroadcastRead(notif.id); }} onOpenEditalModal={setEditalModal} onDismissUpdate={onDismissEditalUpdate} onDeleteBroadcast={deleteBroadcast} onDeleteHistory={deleteHistoryItem} isDismissedItem={n.isDismissed || activeFilter === 'history'} />)}
+                    {filtered.map(n => n._type === 'operational' || n._type === 'support' ? <OperationalNotifItem key={`operational:${n.sourceCollection || 'support'}:${n.id}`} notif={n} onRead={onMarkOperationalRead} onRespondGroupRequest={respondGroupRequest} onOpenApplicant={openApplicant} onOpenGroupChat={(groupId) => { onClose(); onOpenGroupChat?.(groupId); }} onOpenSupport={(ticketId) => { onClose(); onOpenSupport?.(ticketId); }} processingRequestId={processingRequestId}/> : <NotifItem key={`${n._type || 'notif'}:${n.id}:${n.versionKey || ''}`} notif={n} isRead={n._type === 'broadcast' || n._type === 'edital_launch' ? readBroadcasts.has(n.id) : false} onRead={onMarkBroadcastRead} onOpenBroadcast={(notif) => { setBroadcastModal(notif); if (!readBroadcasts.has(notif.id)) onMarkBroadcastRead(notif.id); }} onOpenEditalModal={setEditalModal} onDismissUpdate={onDismissEditalUpdate} onDeleteBroadcast={deleteBroadcast} onDeleteHistory={deleteHistoryItem} isDismissedItem={n.isDismissed || activeFilter === 'history'} />)}
                   </div>
                 )}
               </div>
@@ -904,7 +906,7 @@ const NotificationPanel = ({
   );
 };
 
-export const NotificationBell = ({ unreadCount, notifications, dismissedHistory, readBroadcasts, onMarkBroadcastRead, onMarkOperationalRead, onRespondGroupRequest, onMarkAllRead, onApplyEditalUpdate, onDismissEditalUpdate, loadingUpdate, onNavigateToEdital, deleteBroadcast, deleteHistoryItem, systemAlerts = [], onSystemAlertAction, bellRef }) => {
+export const NotificationBell = ({ unreadCount, notifications, dismissedHistory, readBroadcasts, onMarkBroadcastRead, onMarkOperationalRead, onRespondGroupRequest, onMarkAllRead, onApplyEditalUpdate, onDismissEditalUpdate, loadingUpdate, onNavigateToEdital, onOpenGroupChat, onOpenSupport, deleteBroadcast, deleteHistoryItem, systemAlerts = [], onSystemAlertAction, bellRef }) => {
   const [panelOpen, setPanelOpen] = useState(false);
   const hasEditalUpdate = (notifications || []).some(n => n._type === 'edital_update');
   const totalBadgeCount = Number(unreadCount || 0) + (systemAlerts || []).length;
@@ -914,12 +916,12 @@ export const NotificationBell = ({ unreadCount, notifications, dismissedHistory,
         <Bell size={17} strokeWidth={2.2} />
         {totalBadgeCount > 0 && (
           <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center border-2 border-white dark:border-zinc-950 shadow-lg">
-            {totalBadgeCount > 9 ? '9+' : totalBadgeCount}
+            {totalBadgeCount > 99 ? '99+' : totalBadgeCount}
           </span>
         )}
         {hasEditalUpdate && totalBadgeCount === 0 && <span className="absolute -top-1 -right-1 h-3.5 w-3.5 rounded-full bg-red-500 border-2 border-white dark:border-zinc-950" />}
       </motion.button>
-      <NotificationPanel isOpen={panelOpen} onClose={() => setPanelOpen(false)} notifications={notifications || []} dismissedHistory={dismissedHistory || []} unreadCount={unreadCount} readBroadcasts={readBroadcasts} onMarkBroadcastRead={onMarkBroadcastRead} onMarkOperationalRead={onMarkOperationalRead} onRespondGroupRequest={onRespondGroupRequest} onMarkAllRead={onMarkAllRead} onApplyEditalUpdate={onApplyEditalUpdate} onDismissEditalUpdate={onDismissEditalUpdate} loadingUpdate={loadingUpdate} onNavigateToEdital={onNavigateToEdital} deleteBroadcast={deleteBroadcast} deleteHistoryItem={deleteHistoryItem} systemAlerts={systemAlerts} onSystemAlertAction={onSystemAlertAction} bellRef={bellRef} />
+      <NotificationPanel isOpen={panelOpen} onClose={() => setPanelOpen(false)} notifications={notifications || []} dismissedHistory={dismissedHistory || []} unreadCount={unreadCount} readBroadcasts={readBroadcasts} onMarkBroadcastRead={onMarkBroadcastRead} onMarkOperationalRead={onMarkOperationalRead} onRespondGroupRequest={onRespondGroupRequest} onMarkAllRead={onMarkAllRead} onApplyEditalUpdate={onApplyEditalUpdate} onDismissEditalUpdate={onDismissEditalUpdate} loadingUpdate={loadingUpdate} onNavigateToEdital={onNavigateToEdital} onOpenGroupChat={onOpenGroupChat} onOpenSupport={onOpenSupport} deleteBroadcast={deleteBroadcast} deleteHistoryItem={deleteHistoryItem} systemAlerts={systemAlerts} onSystemAlertAction={onSystemAlertAction} bellRef={bellRef} />
     </div>
   );
 };

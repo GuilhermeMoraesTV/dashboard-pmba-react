@@ -43,6 +43,7 @@ import {
   REGISTRO_PROGRESS_OPTIMISTIC_EVENT,
   applyCronogramaRegistroProgress,
 } from '../services/reviewOptimisticUpdates';
+import { getBrasiliaTodayKey } from '../utils/planningDates';
 
 // --- CONSTANTES ---------------------------------------------------------------
 const MESES_PT   = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
@@ -61,16 +62,16 @@ const getCronogramaTemplateId = (cronograma) => (
 
 // --- UTILITÁRIOS --------------------------------------------------------------
 const getCalendarDays = (year, month) => {
-  const first    = new Date(year, month, 1);
-  const last     = new Date(year, month + 1, 0);
+  const first    = new Date(year, month, 1, 12, 0, 0, 0);
+  const last     = new Date(year, month + 1, 0, 12, 0, 0, 0);
   const days     = [];
-  const prevLast = new Date(year, month, 0).getDate();
+  const prevLast = new Date(year, month, 0, 12, 0, 0, 0).getDate();
   for (let i = first.getDay() - 1; i >= 0; i--)
-    days.push({ day: prevLast - i, type: 'prev', date: new Date(year, month - 1, prevLast - i) });
+    days.push({ day: prevLast - i, type: 'prev', date: new Date(year, month - 1, prevLast - i, 12, 0, 0, 0) });
   for (let i = 1; i <= last.getDate(); i++)
-    days.push({ day: i, type: 'current', date: new Date(year, month, i) });
+    days.push({ day: i, type: 'current', date: new Date(year, month, i, 12, 0, 0, 0) });
   while (days.length < 42)
-    days.push({ day: days.length - first.getDay() - last.getDate() + 1, type: 'next', date: new Date(year, month + 1, days.length - first.getDay() - last.getDate() + 1) });
+    days.push({ day: days.length - first.getDay() - last.getDate() + 1, type: 'next', date: new Date(year, month + 1, days.length - first.getDay() - last.getDate() + 1, 12, 0, 0, 0) });
   return days;
 };
 
@@ -92,11 +93,7 @@ const formatarDuracao = (minutos = 0) => {
 
 const normalizarModoTempo = (modo) => (modo === 'oculto' || modo === 'nenhum' ? 'total' : (modo || 'detalhado'));
 
-const dateToYMDLocal = (date) => {
-  const d = new Date(date);
-  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-  return d.toISOString().split('T')[0];
-};
+const dateToYMDLocal = (date) => getBrasiliaTodayKey(date);
 
 const getRegistroDateKey = (registro) => {
   if (registro?.data) return registro.data;
@@ -1370,9 +1367,7 @@ const VisualizacaoMensal = ({ cronograma, dataInicio, onStart, registrosEstudo =
   const [diaSelecionado, setDiaSelecionado] = useState(null);
 
   const days = useMemo(() => getCalendarDays(mesAtual.getFullYear(), mesAtual.getMonth()), [mesAtual]);
-  const hojeDate = new Date();
-  hojeDate.setHours(0, 0, 0, 0);
-  const hoje = hojeDate.toDateString();
+  const hoje = getBrasiliaTodayKey();
   const modoTempo = normalizarModoTempo(cronograma?.modoExibirTempo);
   const mostrarTempoTotal = modoTempo !== 'nenhum';
   const mostrarTempoBloco = modoTempo === 'detalhado';
@@ -1525,10 +1520,10 @@ const VisualizacaoMensal = ({ cronograma, dataInicio, onStart, registrosEstudo =
 
             {days.map((item, i) => {
               const slots = getSlotsEstudo(item);
-              const isHoje = item.date.toDateString() === hoje;
+              const dataKey = dateToYMDLocal(item.date);
+              const isHoje = dataKey === hoje;
               const isSelected = diaSelecionado?.date.toDateString() === item.date.toDateString();
               const isMesAtual = item.type === 'current';
-              const dataKey = dateToYMDLocal(item.date);
               const totalMinutosDia = slots.reduce((acc, slot) => acc + Number(slot.tempoMinutos ?? slot.minutosEstudo ?? 0), 0);
               const temRevisao = agendaMes.revisoesPorData.has(dataKey) && isMesAtual;
               const concluidos = slots.filter((slot) => slot.concluido).length;
@@ -3509,7 +3504,7 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
               >
                 {weekDates.map((date) => {
                   const diaReal = date.getDay();
-                  const isHoje = new Date().toDateString() === date.toDateString();
+                  const isHoje = getBrasiliaTodayKey(date) === getBrasiliaTodayKey(new Date());
                   return (
                     <div
                       key={date.getTime()}

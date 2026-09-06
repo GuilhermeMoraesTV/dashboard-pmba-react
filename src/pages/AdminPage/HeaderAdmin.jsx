@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../../firebaseConfig';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, limit } from 'firebase/firestore';
 import {
   Lock, MessageSquare, Megaphone, Quote, Bug, FileText, Lightbulb, HelpCircle,
   Database, AlertTriangle, RefreshCw, GitMerge, SlidersHorizontal, X, ShieldCheck
@@ -45,7 +45,7 @@ const HeaderAdmin = ({
   };
 
   useEffect(() => {
-    const q = query(collection(db, 'system_feedback'), where('status', '==', 'pendente'));
+    const q = query(collection(db, 'system_feedback'), where('status', '==', 'pendente'), limit(100));
     const unsub = onSnapshot(q, (snap) => {
       let newCounts = { total: 0, bug: 0, ideia: 0, edital: 0, duvida: 0 };
       snap.docs.forEach(doc => {

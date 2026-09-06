@@ -13,7 +13,7 @@ const {
 } = require('../functions/anki/archive.js');
 const { loadSqlJs, parseAnkiCollection } = require('../functions/anki/parser.js');
 const { renderCard, sanitizeRenderedHtml } = require('../functions/anki/renderer.js');
-const { buildImportedCardContent, chooseAnkiDeckDocumentId, planAnkiFolderTree, splitAnkiDeckPath, stableId } = require('../functions/anki/service.js');
+const { buildImportAccounting, buildImportedCardContent, chooseAnkiDeckDocumentId, planAnkiFolderTree, resolveUploadedPackage, shouldDeleteUploadedPackage, splitAnkiDeckPath, stableId } = require('../functions/anki/service.js');
 const { createInitialState } = require('../functions/flashcards/schedulerInitialState.js');
 
 const limits = {
@@ -36,6 +36,70 @@ function crc32(buffer) {
   }
   return (crc ^ 0xffffffff) >>> 0;
 }
+
+test('relatório autoritativo só conclui quando parser, escrita, lotes e persistência fecham', () => {
+  const complete = buildImportAccounting({
+    cardsDetected: 4160,
+    cardsParsed: 4160,
+    parserCardsSkipped: 0,
+    cardsAdded: 4120,
+    cardsUpdated: 40,
+    importCardsSkipped: 0,
+    unacceptedCards: 0,
+    cardsPersisted: 4160,
+    writeFailures: 0,
+    batchesStarted: 24,
+    batchesCompleted: 24,
+    reconciliationFailures: 0,
+  });
+  assert.deepEqual(complete, {
+    cardsSkipped: 0,
+    accountingComplete: true,
+    persistenceComplete: true,
+    isComplete: true,
+  });
+
+  const incomplete = buildImportAccounting({
+    cardsDetected: 4160,
+    cardsParsed: 4160,
+    cardsAdded: 4000,
+    cardsUpdated: 0,
+    importCardsSkipped: 0,
+    cardsPersisted: 4000,
+    writeFailures: 160,
+    batchesStarted: 23,
+    batchesCompleted: 22,
+  });
+  assert.equal(incomplete.accountingComplete, false);
+  assert.equal(incomplete.persistenceComplete, false);
+  assert.equal(incomplete.isComplete, false);
+  assert.equal(shouldDeleteUploadedPackage(complete), true);
+  assert.equal(shouldDeleteUploadedPackage(incomplete), false);
+  assert.equal(shouldDeleteUploadedPackage(null), false);
+});
+
+test('importador recupera pelo prefixo isolado um APKG cujo nome chegou com codificação divergente', async () => {
+  const actualFile = {
+    name: 'user_uploads/u1/anki_imports/i1/POLÍCIA MILITAR.apkg',
+    async getMetadata() { return [{ size: '128', contentType: 'application/zip' }]; },
+  };
+  const missingFile = {
+    name: 'user_uploads/u1/anki_imports/i1/POLÃ_CIA MILITAR.apkg',
+    async getMetadata() { throw Object.assign(new Error('No such object'), { code: 404 }); },
+  };
+  const bucket = {
+    file() { return missingFile; },
+    async getFiles() { return [[actualFile]]; },
+  };
+  const result = await resolveUploadedPackage(
+    bucket,
+    missingFile.name,
+    'user_uploads/u1/anki_imports/i1/',
+  );
+  assert.equal(result.sourceFile, actualFile);
+  assert.equal(result.recoveredPath, true);
+  assert.equal(result.metadata.size, '128');
+});
 
 function storedZip(entries) {
   const localParts = [];
@@ -141,17 +205,38 @@ test('parser preserva NoteType, Note, Card, GUID, ordinal, tags, deck e cloze', 
     maxCards: 10, maxTags: 10, mediaUris: new Map(),
   });
   assert.equal(result.cards.length, 2);
-  assert.ok(result.warnings.some((warning) => /duplicada/i.test(warning)));
+  assert.equal(result.metrics.totalCardsSQLite, 3);
+  assert.equal(result.metrics.totalNotesSQLite, 2);
+  assert.equal(result.metrics.cardsDetected, 3);
+  assert.equal(result.metrics.cardsParsed, 2);
+  assert.equal(result.metrics.cardsSkipped, 1);
+  assert.equal(result.metrics.skipReasons.duplicateIdentity, 1);
+  assert.equal(result.metrics.cardsParsed + result.metrics.cardsSkipped, result.metrics.cardsDetected);
   assert.deepEqual(result.cards[0].tags, ['lei', 'prova']);
   assert.equal(result.cards[0].ankiNoteGuid, 'guid-basico');
   assert.equal(result.cards[0].ankiNoteId, '10');
   assert.equal(result.cards[0].ankiCardOrd, 0);
   assert.equal(result.cards[0].deckName, 'Direito::Constitucional');
   assert.doesNotMatch(result.cards[0].front, /script|onerror/i);
-  assert.ok(result.warnings.some((warning) => /inseguro foi removido/i.test(warning)));
+  assert.ok(result.warnings.some((warning) => /inseguros.*removidos/i.test(warning)));
   assert.equal(result.cards[1].isCloze, true);
   assert.match(result.cards[1].front, /norma|\.\.\./i);
   assert.match(result.cards[1].back, /Constituição/);
+});
+
+test('{{type:Field}} usa modo compatível sem revelar a resposta na frente', () => {
+  const rendered = renderCard({
+    template: { qfmt: '{{type:Resposta}}', afmt: '{{FrontSide}}<hr>{{type:Resposta}}' },
+    fieldNames: ['Resposta'],
+    fieldValues: ['valor-secreto'],
+    cardOrd: 0,
+    isCloze: false,
+    mediaUris: new Map(),
+  });
+  assert.equal(rendered.typedAnswerMode, 'compatible');
+  assert.doesNotMatch(rendered.front, /valor-secreto/i);
+  assert.match(rendered.front, /pense na resposta/i);
+  assert.match(rendered.back, /valor-secreto/i);
 });
 
 test('parser lê metadados normalizados do schema moderno do Anki', async () => {
@@ -244,18 +329,35 @@ test('hierarquia Anki aceita :: e U+001F, reaproveita a pasta raiz e preserva pr
   assert.deepEqual(splitAnkiDeckPath('Realidade Brasileira\u001fGeografia\u001fBahia'), ['Realidade Brasileira', 'Geografia', 'Bahia']);
   const plan = planAnkiFolderTree({
     decks: [
-      { id: '1', name: 'PMBA::Direito Penal::Crimes' },
-      { id: '2', name: 'PMBA::Direito Penal::Teoria do Crime::Iter Criminis' },
+      { id: '10', name: 'PMBA::Direito Penal::Crimes' },
+      { id: '20', name: 'PMBA::Direito Penal::Teoria do Crime::Iter Criminis' },
     ],
     targetFolder: { name: 'PMBA', color: 'red', ancestorFolderIds: [] },
     targetFolderId: 'root',
     existingFolders: [],
   });
-  const crimesId = plan.folderIdByDeckId.get('1');
-  const iterId = plan.folderIdByDeckId.get('2');
+  const crimesId = plan.folderIdByDeckId.get('10');
+  const iterId = plan.folderIdByDeckId.get('20');
   assert.notEqual(crimesId, 'root');
   assert.notEqual(iterId, crimesId);
+  assert.equal(plan.newFolders.length, 4);
   assert.equal(plan.newFolders.find((folder) => folder.id === iterId).ancestorFolderIds.length, 3);
+  assert.equal(plan.newFolders.find((folder) => folder.id === crimesId).name, 'Crimes');
+});
+
+test('hierarquia representa também decks folha para navegação e estudo por pasta', () => {
+  const plan = planAnkiFolderTree({
+    decks: [
+      { id: '1', name: 'POLÍCIA MILITAR DA BAHIA::Português::Crase' },
+      { id: '2', name: 'POLÍCIA MILITAR DA BAHIA::Português::Sintaxe' },
+      { id: '3', name: 'POLÍCIA MILITAR DA BAHIA::Matemática::Conjuntos::Inteiros' },
+    ],
+    targetFolder: { name: 'Nome corrompido do arquivo', color: 'red', ancestorFolderIds: [] },
+    targetFolderId: 'root',
+    existingFolders: [],
+  });
+  assert.deepEqual(plan.newFolders.map((folder) => folder.name), ['Matemática', 'Conjuntos', 'Inteiros', 'Português', 'Crase', 'Sintaxe']);
+  assert.equal(plan.newFolders.filter((folder) => ['Crase', 'Sintaxe', 'Inteiros'].includes(folder.name)).length, 3);
 });
 
 test('IDs numericos iguais em pacotes Anki diferentes nao colidem entre decks', () => {

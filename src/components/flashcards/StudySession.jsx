@@ -1,9 +1,10 @@
-import React, { useMemo, useEffect } from 'react';
+import React, { useMemo, useEffect, useRef, useState } from 'react';
 import { Loader2, AlertTriangle, Inbox } from 'lucide-react';
 import { useStudySession } from '../../hooks/useStudySession.js';
 import StudyCard from './StudyCard.jsx';
 import ReviewControls from './ReviewControls.jsx';
 import StudySessionComplete from './StudySessionComplete.jsx';
+import StudySessionHeader from './StudySessionHeader.jsx';
 
 /**
  * Componente orquestrador da sessao de estudo estilo Anki.
@@ -16,7 +17,17 @@ import StudySessionComplete from './StudySessionComplete.jsx';
  *   onBack: () => void,
  * }} props
  */
-export default function StudySession({ userId, deckId, deckName, cards, onBack }) {
+export default function StudySession({
+  userId,
+  deckId,
+  deckName,
+  folderPath,
+  cards,
+  totalCards,
+  hasMoreCards = false,
+  loadMoreCards,
+  onBack,
+}) {
   const {
     phase,
     currentCard,
@@ -26,10 +37,42 @@ export default function StudySession({ userId, deckId, deckName, cards, onBack }
     pendingSyncCount,
     syncError,
     reveal,
+    toggleReveal,
+    setRevealState,
     submitReview,
     retryFailedSync,
     restart,
+    appendCards,
+    currentIndex,
+    queueLength,
+    activeCount,
+    intradayCount,
+    nextReviewLabel,
+    nextIntradaySeconds,
   } = useStudySession(userId, deckId, cards);
+  const [hasMore, setHasMore] = useState(hasMoreCards);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const loadingMoreRef = useRef(false);
+
+  useEffect(() => {
+    setHasMore(hasMoreCards);
+  }, [hasMoreCards]);
+
+  useEffect(() => {
+    const remaining = Math.max(0, queueLength - currentIndex - 1);
+    if (!loadMoreCards || !hasMore || loadingMoreRef.current || remaining > 10) return;
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+    void loadMoreCards().then((page) => {
+      appendCards(page?.cards || []);
+      setHasMore(Boolean(page?.hasMore));
+    }).catch(() => {
+      setHasMore(false);
+    }).finally(() => {
+      loadingMoreRef.current = false;
+      setLoadingMore(false);
+    });
+  }, [appendCards, currentIndex, hasMore, loadMoreCards, queueLength]);
 
   // Atalhos de teclado estilo Anki (Space para revelar, 1-4 para ratings, Esc para voltar)
   useEffect(() => {
@@ -63,21 +106,22 @@ export default function StudySession({ userId, deckId, deckName, cards, onBack }
           e.preventDefault();
           submitReview('easy');
         } else if (e.key === ' ' || e.key === 'Enter') {
-          // Espaço na resposta avalia como "good" (progressão padrão estilo Anki)
           e.preventDefault();
-          submitReview('good');
+          toggleReveal();
         }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [phase, reveal, submitReview, onBack]);
+  }, [phase, reveal, submitReview, toggleReveal, onBack]);
 
   const progress = useMemo(() => {
-    if (!cards?.length) return 0;
-    return Math.round((sessionStats.total / cards.length) * 100);
-  }, [sessionStats.total, cards?.length]);
+    const denominator = Math.max(1, Number(totalCards || (sessionStats.total + queueLength)));
+    return Math.min(100, Math.round((sessionStats.total / denominator) * 100));
+  }, [queueLength, sessionStats.total, totalCards]);
+
+  const progressLabel = `${sessionStats.total} respondidos${activeCount > 0 ? ` · ${activeCount} na fila` : ''}${intradayCount > 0 ? ` · ${intradayCount} em espera` : ''}`;
 
   if (phase === 'loading') {
     return (
@@ -93,12 +137,14 @@ export default function StudySession({ userId, deckId, deckName, cards, onBack }
         <div className="h-16 w-16 rounded-2xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center">
           <Inbox size={28} className="text-zinc-400" />
         </div>
-        <h3 className="text-lg font-black text-zinc-800 dark:text-zinc-100">Nenhum card para revisar</h3>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">Todos os cards foram revisados ou nao ha cards devidos.</p>
+        <h3 className="text-lg font-black text-zinc-800 dark:text-zinc-100">Nenhum card para revisar agora</h3>
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">
+          {nextReviewLabel ? `Próxima revisão: ${nextReviewLabel}.` : 'Todos os cards foram revisados ou não há cards devidos.'}
+        </p>
         <button
           type="button"
           onClick={onBack}
-          className="rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-bold px-6 py-3 text-sm hover:bg-red-600 hover:text-white transition-all active:scale-95"
+          className="rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-bold px-6 py-3 text-sm hover:bg-red-600 hover:text-white transition-all active:scale-95 shadow-md"
         >
           Voltar ao Deck
         </button>
@@ -106,14 +152,66 @@ export default function StudySession({ userId, deckId, deckName, cards, onBack }
     );
   }
 
+  if (phase === 'waiting_intraday') {
+    return (
+      <div className="mx-auto flex flex-col gap-4 w-full max-w-3xl px-3 py-4 sm:px-5 sm:py-6">
+        <StudySessionHeader
+          folderPath={folderPath || deckName}
+          progressLabel={progressLabel}
+          onBack={onBack}
+          onEnd={onBack}
+        />
+        <div className="flex flex-col items-center justify-center min-h-[320px] gap-4 text-center p-8 rounded-3xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-card-dark shadow-sm animate-in fade-in duration-300">
+          <div className="h-16 w-16 rounded-2xl bg-red-50 dark:bg-red-950/40 flex items-center justify-center text-red-600">
+            <Loader2 size={28} className="animate-spin text-red-600" />
+          </div>
+          <h3 className="text-lg font-black text-zinc-950 dark:text-white">
+            Próxima revisão em instantes…
+          </h3>
+          <p className="max-w-md text-xs sm:text-sm text-zinc-500 dark:text-zinc-400">
+            Você completou a fila atual. {intradayCount} card{intradayCount === 1 ? '' : 's'} com revisão recente {intradayCount === 1 ? 'estará' : 'estarão'} pronto{intradayCount === 1 ? '' : 's'} {nextIntradaySeconds ? `em ${nextIntradaySeconds}s` : 'em instantes'}.
+          </p>
+          <div className="flex gap-2 pt-2">
+            <button
+              type="button"
+              onClick={onBack}
+              className="rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-card-dark text-zinc-700 dark:text-zinc-300 font-bold px-5 py-2.5 text-xs hover:bg-zinc-100 transition"
+            >
+              Concluir por agora
+            </button>
+          </div>
+        </div>
+        <SyncStatus pending={pendingSyncCount} error={syncError} onRetry={retryFailedSync} />
+      </div>
+    );
+  }
+
+  if (phase === 'done' && loadingMore) {
+    return (
+      <div className="mx-auto w-full max-w-3xl px-3 py-4 sm:px-5 sm:py-6">
+        <StudySessionHeader folderPath={folderPath || deckName} progressLabel={progressLabel} onBack={onBack} onEnd={onBack} />
+        <div className="flex min-h-[260px] items-center justify-center gap-2 text-sm font-bold text-zinc-500">
+          <Loader2 size={20} className="animate-spin text-red-500" /> Carregando o próximo lote…
+        </div>
+      </div>
+    );
+  }
+
   if (phase === 'done') {
     return (
-      <div>
+      <div className="mx-auto w-full max-w-3xl px-3 py-4 sm:px-5 sm:py-6">
+        <StudySessionHeader
+          folderPath={folderPath || deckName}
+          progressLabel={progressLabel}
+          onBack={onBack}
+          onEnd={onBack}
+        />
         <StudySessionComplete
           stats={sessionStats}
           deckName={deckName}
+          nextReviewLabel={nextReviewLabel}
           onBack={onBack}
-          onRestart={cards?.length > 0 && pendingSyncCount === 0 ? restart : undefined}
+          onRestart={activeCount > 0 && pendingSyncCount === 0 ? restart : undefined}
         />
         <SyncStatus pending={pendingSyncCount} error={syncError} onRetry={retryFailedSync} />
       </div>
@@ -140,12 +238,13 @@ export default function StudySession({ userId, deckId, deckName, cards, onBack }
   }
 
   return (
-    <div className="flex flex-col gap-4 w-full max-w-2xl mx-auto">
-      {/* Header com progresso */}
-      <div className="flex items-center justify-between text-xs font-semibold text-zinc-500 dark:text-zinc-400">
-        <span>{deckName}</span>
-        <span>{sessionStats.total}/{cards?.length || 0}</span>
-      </div>
+    <main className="mx-auto flex flex-col gap-4 w-full max-w-3xl px-3 py-4 sm:px-5 sm:py-6">
+      <StudySessionHeader
+        folderPath={folderPath || deckName}
+        progressLabel={progressLabel}
+        onBack={onBack}
+        onEnd={onBack}
+      />
 
       {/* Barra de progresso */}
       <div className="h-1.5 w-full rounded-full bg-zinc-200 dark:bg-zinc-700 overflow-hidden">
@@ -155,12 +254,13 @@ export default function StudySession({ userId, deckId, deckName, cards, onBack }
         />
       </div>
 
-      {/* Card */}
+      {/* Card com Flip Bidirecional */}
       {currentCard && (
         <StudyCard
           card={currentCard}
           revealed={phase === 'revealed'}
-          onReveal={reveal}
+          onReveal={setRevealState}
+          onToggleReveal={toggleReveal}
         />
       )}
 
@@ -174,7 +274,7 @@ export default function StudySession({ userId, deckId, deckName, cards, onBack }
       )}
 
       <SyncStatus pending={pendingSyncCount} error={syncError} onRetry={retryFailedSync} />
-    </div>
+    </main>
   );
 }
 

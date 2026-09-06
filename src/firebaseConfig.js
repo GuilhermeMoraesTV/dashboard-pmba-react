@@ -9,6 +9,7 @@ import {
 import { browserLocalPersistence, connectAuthEmulator, getAuth, setPersistence } from "firebase/auth";
 import { connectStorageEmulator, getStorage } from "firebase/storage";
 import { connectFunctionsEmulator, getFunctions } from "firebase/functions";
+import { isLocalDevelopment, readFirebaseModePreference } from './utils/firebaseEnvironment.js';
 
 const env = (typeof import.meta !== 'undefined' && import.meta.env)
   ? import.meta.env
@@ -53,11 +54,52 @@ export function resolveFirebaseConfig(sourceEnv = {}, { nodeTest = false } = {})
   return config;
 }
 
-const app = getApps().length > 0
-  ? getApp()
-  : initializeApp(resolveFirebaseConfig(env, { nodeTest: isNodeTest }));
+export function resolveRealFirebaseConfig() {
+  return resolveFirebaseConfig(env, { nodeTest: false });
+}
 
 const isBrowser = typeof window !== 'undefined';
+
+function emulatorPort(value, fallback) {
+  const parsed = Number.parseInt(String(value || ''), 10);
+  return Number.isInteger(parsed) && parsed > 0 && parsed <= 65535 ? parsed : fallback;
+}
+
+export function resolveFirebaseEmulatorConfig(sourceEnv = {}, browserLocation = {}, modePreference = '') {
+  const mode = String(sourceEnv.MODE || '').toLowerCase();
+  const storedMode = modePreference === 'emulator' || modePreference === 'real' ? modePreference : '';
+  const environmentOptIn = ['1', 'true', 'yes'].includes(String(sourceEnv.VITE_USE_FIREBASE_EMULATORS || '').toLowerCase())
+    || mode === 'emulator';
+  const explicitOptIn = storedMode ? storedMode === 'emulator' : environmentOptIn;
+  return Object.freeze({
+    enabled: isLocalDevelopment(sourceEnv, browserLocation) && explicitOptIn,
+    host: String(sourceEnv.VITE_FIREBASE_EMULATOR_HOST || '127.0.0.1'),
+    authPort: emulatorPort(sourceEnv.VITE_AUTH_EMULATOR_PORT, 9099),
+    firestorePort: emulatorPort(sourceEnv.VITE_FIRESTORE_EMULATOR_PORT, 8085),
+    functionsPort: emulatorPort(sourceEnv.VITE_FUNCTIONS_EMULATOR_PORT, 5001),
+    storagePort: emulatorPort(sourceEnv.VITE_STORAGE_EMULATOR_PORT, 9199),
+  });
+}
+
+export function resolveFirebaseRuntimeConfig(sourceEnv = {}, browserLocation = {}, modePreference = '', options = {}) {
+  const emulator = resolveFirebaseEmulatorConfig(sourceEnv, browserLocation, modePreference);
+  const config = emulator.enabled
+    ? resolveFirebaseConfig({
+        FIREBASE_TEST_PROJECT_ID: String(sourceEnv.VITE_FIREBASE_EMULATOR_PROJECT_ID || 'demo-dashboard-pmba-local'),
+      }, { nodeTest: true })
+    : resolveFirebaseConfig(sourceEnv, { nodeTest: options.nodeTest === true });
+  return Object.freeze({ config: Object.freeze(config), emulator });
+}
+
+const runtimeModePreference = isBrowser ? readFirebaseModePreference(window.localStorage) : '';
+const runtime = resolveFirebaseRuntimeConfig(
+  env,
+  isBrowser ? window.location : {},
+  runtimeModePreference,
+  { nodeTest: isNodeTest },
+);
+const { emulator: emulatorConfig, config: runtimeFirebaseConfig } = runtime;
+const app = getApps().length > 0 ? getApp() : initializeApp(runtimeFirebaseConfig);
 
 const db = isBrowser
   ? initializeFirestore(app, {
@@ -81,32 +123,9 @@ const authPersistenceReady = isBrowser
     })
   : Promise.resolve();
 
-function emulatorPort(value, fallback) {
-  const parsed = Number.parseInt(String(value || ''), 10);
-  return Number.isInteger(parsed) && parsed > 0 && parsed <= 65535 ? parsed : fallback;
-}
-
-export function resolveFirebaseEmulatorConfig(sourceEnv = {}, browserLocation = {}) {
-  const hostname = String(browserLocation.hostname || '').toLowerCase();
-  const localHostname = hostname === 'localhost' || hostname === '127.0.0.1';
-  const mode = String(sourceEnv.MODE || '').toLowerCase();
-  const explicitOptIn = ['1', 'true', 'yes'].includes(String(sourceEnv.VITE_USE_FIREBASE_EMULATORS || '').toLowerCase()) || mode === 'emulator';
-  return Object.freeze({
-    enabled: sourceEnv.DEV === true && localHostname && explicitOptIn,
-    host: String(sourceEnv.VITE_FIREBASE_EMULATOR_HOST || '127.0.0.1'),
-    authPort: emulatorPort(sourceEnv.VITE_AUTH_EMULATOR_PORT, 9099),
-    firestorePort: emulatorPort(sourceEnv.VITE_FIRESTORE_EMULATOR_PORT, 8085),
-    functionsPort: emulatorPort(sourceEnv.VITE_FUNCTIONS_EMULATOR_PORT, 5001),
-    storagePort: emulatorPort(sourceEnv.VITE_STORAGE_EMULATOR_PORT, 9199),
-  });
-}
-
-const isFirebaseEmulator = (isBrowser && window.location)
-  ? resolveFirebaseEmulatorConfig(env, window.location).enabled
-  : false;
+const isFirebaseEmulator = emulatorConfig.enabled;
 
 if (isBrowser && window.location) {
-  const emulatorConfig = resolveFirebaseEmulatorConfig(env, window.location);
   if (emulatorConfig.enabled) {
     connectAuthEmulator(auth, `http://${emulatorConfig.host}:${emulatorConfig.authPort}`, { disableWarnings: true });
     connectFirestoreEmulator(db, emulatorConfig.host, emulatorConfig.firestorePort);
@@ -119,3 +138,9 @@ if (isBrowser && window.location) {
 }
 
 export { app, db, auth, storage, functions, authPersistenceReady, isFirebaseEmulator };
+export function firebaseHttpFunctionUrl(name) {
+  const project = app.options.projectId;
+  return emulatorConfig.enabled
+    ? `http://${emulatorConfig.host}:${emulatorConfig.functionsPort}/${project}/us-central1/${name}`
+    : `https://us-central1-${project}.cloudfunctions.net/${name}`;
+}

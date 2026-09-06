@@ -223,6 +223,11 @@ export const useCiclos = (user) => {
       });
 
       await batch.commit();
+      requestGamificationRefresh({
+        uid: user.uid,
+        sourceType: 'cycle_create',
+        sourceId: cicloRef.id,
+      });
       setLoading(false);
       return cicloRef.id;
 
@@ -249,6 +254,11 @@ export const useCiclos = (user) => {
       const cicloRef = doc(db, 'users', user.uid, 'ciclos', cicloId);
       batch.update(cicloRef, { ativo: true, arquivado: false });
       await batch.commit();
+      requestGamificationRefresh({
+        uid: user.uid,
+        sourceType: 'cycle_activation',
+        sourceId: cicloId,
+      });
       setLoading(false); return true;
     } catch (err) { console.error('Erro ao ativar ciclo:', err); setError(err.message); setLoading(false); return false; }
   };
@@ -259,6 +269,11 @@ export const useCiclos = (user) => {
     try {
       const cicloRef = doc(db, 'users', user.uid, 'ciclos', cicloId);
       await updateDoc(cicloRef, { ativo: false });
+      requestGamificationRefresh({
+        uid: user.uid,
+        sourceType: 'cycle_deactivation',
+        sourceId: cicloId,
+      });
       setLoading(false); return true;
     } catch (err) {
       console.error('Erro ao desativar ciclo:', err);

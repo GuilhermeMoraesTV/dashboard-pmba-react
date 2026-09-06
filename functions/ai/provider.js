@@ -45,6 +45,31 @@ function responseDiagnostics(payload, text, attempt, surface) {
   };
 }
 
+function inferReturnedCount(parsedJson) {
+  if (!parsedJson || typeof parsedJson !== 'object') return 0;
+  for (const key of ['items', 'concepts', 'flashcards', 'questions']) {
+    if (Array.isArray(parsedJson[key])) return parsedJson[key].length;
+  }
+  return 1;
+}
+
+function logGenerationTelemetry(options, diagnostics, extras = {}) {
+  console.log('[VertexAI Generation Telemetry]', {
+    surface: diagnostics.surface,
+    attempt: diagnostics.attempt,
+    promptTokens: diagnostics.promptTokens,
+    outputTokens: diagnostics.outputTokens,
+    finishReason: diagnostics.finishReason,
+    finishMessage: diagnostics.finishMessage,
+    requestedCount: Number(options.requestedCount || 0),
+    returnedCount: Number(extras.returnedCount || 0),
+    durationMs: diagnostics.durationMs,
+    sourceId: options.sourceId || null,
+    conceptId: options.conceptId || null,
+    status: extras.status || 'completed',
+  });
+}
+
 function validateJsonSchema(value, schema, path = '$') {
   if (!schema || typeof schema !== 'object') return;
   if (schema.type === 'object') {
@@ -142,40 +167,75 @@ class VertexAIProvider extends ServerAIProvider {
       } : {}),
     };
 
+    const startTime = Date.now();
     let response;
-    try {
-      response = await this.fetchImpl(url, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${auth.token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-    } catch (error) {
-      throw new AIProviderError('provider-unavailable', `Falha de rede no provedor de IA: ${error?.message || error}`);
-    }
-    if (!response.ok) {
-      const responseBody = await response.text().catch(() => '');
-      const code = response.status === 429 ? 'quota-exceeded' : 'provider-error';
-      throw new AIProviderError(code, `Vertex AI retornou HTTP ${response.status}.`, responseBody.slice(0, 500));
+    const maxHttpRetries = 4;
+    for (let httpAttempt = 1; httpAttempt <= maxHttpRetries; httpAttempt += 1) {
+      try {
+        response = await this.fetchImpl(url, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${auth.token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+      } catch (error) {
+        if (httpAttempt < maxHttpRetries) {
+          const backoffMs = Math.min(6000, 1000 * Math.pow(2, httpAttempt - 1) + Math.floor(Math.random() * 500));
+          console.warn(`[VertexAIProvider] Falha de rede (${error?.message || error}), aguardando ${backoffMs}ms antes da tentativa ${httpAttempt + 1}/${maxHttpRetries}...`);
+          await new Promise((resolve) => setTimeout(resolve, backoffMs));
+          continue;
+        }
+        throw new AIProviderError('provider-unavailable', `Falha de rede no provedor de IA: ${error?.message || error}`);
+      }
+
+      if (!response.ok) {
+        const responseBody = await response.text().catch(() => '');
+        const isRetryableHttp = [429, 500, 502, 503, 504].includes(response.status);
+        if (isRetryableHttp && httpAttempt < maxHttpRetries) {
+          const backoffMs = Math.min(8000, 1500 * Math.pow(2, httpAttempt - 1) + Math.floor(Math.random() * 500));
+          console.warn(`[VertexAIProvider] Vertex AI retornou HTTP ${response.status}, aguardando ${backoffMs}ms antes da tentativa ${httpAttempt + 1}/${maxHttpRetries}...`);
+          await new Promise((resolve) => setTimeout(resolve, backoffMs));
+          continue;
+        }
+        const code = response.status === 429 ? 'quota-exceeded' : 'provider-error';
+        throw new AIProviderError(code, `Vertex AI retornou HTTP ${response.status}.`, responseBody.slice(0, 500));
+      }
+
+      break;
     }
 
     const payload = await response.json();
+    let durationMs = Date.now() - startTime;
     const text = extractModelText(payload);
-    const diagnostics = responseDiagnostics(payload, text, attempt, options.surface);
+    const diagnostics = { ...responseDiagnostics(payload, text, attempt, options.surface), durationMs };
+    const usageMetadata = payload?.usageMetadata || {};
+    const promptTokens = Number(usageMetadata.promptTokenCount || diagnostics.promptTokens || 0);
+    const outputTokens = Number(usageMetadata.candidatesTokenCount || diagnostics.outputTokens || 0);
+
     const retryableFinish = diagnostics.finishReason === 'MAX_TOKENS';
     const blockedFinish = ['SAFETY', 'RECITATION', 'BLOCKLIST', 'PROHIBITED_CONTENT', 'SPII'].includes(diagnostics.finishReason);
     if (blockedFinish) {
+      logGenerationTelemetry(options, diagnostics, { status: 'blocked' });
       console.warn('[VertexAIProvider] Resposta estruturada bloqueada.', diagnostics);
       throw new AIProviderError('provider-blocked', 'O Vertex AI bloqueou a resposta estruturada.', diagnostics);
     }
     if (retryableFinish && attempt === 1) {
-      console.warn('[VertexAIProvider] Resposta estruturada truncada; repetindo uma unica vez.', diagnostics);
-      return this.generate({
-        ...options,
-        temperature: 0,
-        maxOutputTokens: Math.min(8192, Math.max(maxOutputTokens + 1024, Math.ceil(maxOutputTokens * 1.5))),
-      }, 2);
+      logGenerationTelemetry(options, diagnostics, { status: 'max_tokens' });
+      const reducedOptions = typeof options.reduceScopeOnRetry === 'function'
+        ? options.reduceScopeOnRetry({ diagnostics, maxOutputTokens })
+        : null;
+      if (reducedOptions?.prompt) {
+        console.warn('[VertexAIProvider] Resposta truncada; repetindo uma unica vez com escopo reduzido.', diagnostics);
+        return this.generate({
+          ...options,
+          ...reducedOptions,
+          temperature: 0,
+          maxOutputTokens,
+          reduceScopeOnRetry: null,
+        }, 2);
+      }
     }
     if (retryableFinish) {
+      if (attempt > 1) logGenerationTelemetry(options, diagnostics, { status: 'max_tokens' });
       console.warn('[VertexAIProvider] Resposta estruturada permaneceu truncada.', diagnostics);
       throw new AIProviderError('truncated-response', 'O Vertex AI encerrou a resposta ao atingir o limite de tokens.', diagnostics);
     }
@@ -185,6 +245,7 @@ class VertexAIProvider extends ServerAIProvider {
         parsedJson = parseStructuredJson(text);
         validateJsonSchema(parsedJson, options.responseSchema);
       } catch (err) {
+        logGenerationTelemetry(options, diagnostics, { status: err?.code || 'invalid-structured-response' });
         console.warn('[VertexAIProvider] Resposta estruturada invalida.', { ...diagnostics, validationCode: err?.code || 'unknown' });
         if (attempt === 1 && ['empty-response', 'invalid-json', 'schema-invalid'].includes(err.code)) {
           return this.generate({ ...options, temperature: 0 }, 2);
@@ -196,7 +257,9 @@ class VertexAIProvider extends ServerAIProvider {
         );
       }
     }
-    const usageMetadata = payload?.usageMetadata || {};
+    durationMs = Date.now() - startTime;
+    diagnostics.durationMs = durationMs;
+    logGenerationTelemetry(options, diagnostics, { returnedCount: inferReturnedCount(parsedJson), status: 'completed' });
     return {
       provider: this.name,
       model: this.model,
@@ -204,9 +267,10 @@ class VertexAIProvider extends ServerAIProvider {
       ...(options.responseSchema ? { parsedJson } : {}),
       finishReason: diagnostics.finishReason,
       finishMessage: diagnostics.finishMessage,
+      durationMs,
       usage: {
-        promptTokens: Number(usageMetadata.promptTokenCount || 0),
-        outputTokens: Number(usageMetadata.candidatesTokenCount || 0),
+        promptTokens,
+        outputTokens,
       },
     };
   }
@@ -219,5 +283,7 @@ module.exports = {
   extractModelText,
   parseStructuredJson,
   responseDiagnostics,
+  inferReturnedCount,
+  logGenerationTelemetry,
   validateJsonSchema,
 };

@@ -161,9 +161,7 @@ export const useLevelSystem = (user) => {
     const mainGroupId = groupIds.includes(profile.mainGroupId) ? profile.mainGroupId : null;
     return {
       ...progress,
-      currentLevel: profile.optimisticXP
-        ? progress.currentLevel
-        : Number(profile.level || progress.currentLevel),
+      currentLevel: progress.currentLevel,
       weeklyCompetitiveXP: Number(profile.weeklyCompetitiveXP ?? profile.weeklyXP ?? 0),
       weeklyXP: Number(profile.weeklyCompetitiveXP ?? profile.weeklyXP ?? 0),
       league,

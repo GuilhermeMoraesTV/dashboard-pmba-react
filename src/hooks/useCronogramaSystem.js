@@ -37,6 +37,7 @@ import {
   buildCronogramaPostponement,
   getCronogramaPostponementRestorePayload,
 } from '../utils/cronogramaPostponement';
+import { requestGamificationRefresh } from '../utils/gamificationRealtime';
 
 import {
   getAgendaSemana as _getAgendaSemana,
@@ -417,6 +418,13 @@ export const useCronogramaSystem = (user) => {
       });
 
       await batch.commit();
+      if (user?.uid) {
+        requestGamificationRefresh({
+          uid: user.uid,
+          sourceType: 'schedule_activation',
+          sourceId: cronogramaId,
+        });
+      }
       return true;
     } catch (e) {
       console.error('Erro ao ativar cronograma:', e);
@@ -434,6 +442,13 @@ export const useCronogramaSystem = (user) => {
     setLoading(true);
     try {
       await updateDoc(doc(db, 'users', user.uid, 'cronogramas', cronogramaId), { ativo: false });
+      if (user?.uid) {
+        requestGamificationRefresh({
+          uid: user.uid,
+          sourceType: 'schedule_deactivation',
+          sourceId: cronogramaId,
+        });
+      }
       return true;
     } catch (e) {
       console.error('Erro ao desativar cronograma:', e);
@@ -515,6 +530,13 @@ export const useCronogramaSystem = (user) => {
       });
 
       await batch.commit();
+      if (user?.uid) {
+        requestGamificationRefresh({
+          uid: user.uid,
+          sourceType: 'schedule_create',
+          sourceId: cRef.id,
+        });
+      }
       return cRef.id;
     } catch (e) {
       console.error('Erro ao salvar cronograma:', e);
@@ -586,7 +608,7 @@ export const useCronogramaSystem = (user) => {
         if (dtInicio) {
           const dtFimObj = new Date(`${dtInicio}T12:00:00`);
           dtFimObj.setDate(dtFimObj.getDate() + totalSemanas * 7);
-          updates.dataFim = dtFimObj.toISOString().split('T')[0];
+          updates.dataFim = formatDateKeyLocal(dtFimObj);
         }
       }
 

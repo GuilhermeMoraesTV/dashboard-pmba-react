@@ -75,45 +75,59 @@ const RankingRowsSkeleton = () => <div className="space-y-2 bg-zinc-50/70 p-3 da
 </div>;
 
 const RankingPage = ({ user, levelData, studyStreak = null }) => {
-  const [metric, setMetric] = useState('questions');
+  const [metric, setMetric] = useState('minutes');
   const [scope, setScope] = useState('weekly');
-  const initialCacheKey = `weekly:${getWeekId()}`;
-  const [members, setMembers] = useState(() => rankingCache.get(initialCacheKey) || []);
+  const [members, setMembers] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [selectedMember, setSelectedMember] = useState(null);
-  const [loading, setLoading] = useState(() => !rankingCache.has(initialCacheKey));
   const [accessBlocked, setAccessBlocked] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const reduceMotion = useReducedMotion();
-  const weekId = getWeekId();
 
   useEffect(() => {
-    if (!user?.uid) return undefined;
-    const cacheKey = `${scope}:${scope === 'weekly' ? weekId : 'all'}`;
+    const timer = window.setInterval(() => setNowMs(Date.now()), 30000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const targetScope = scope === 'weekly' ? getWeekId() : 'all';
+    const cacheKey = `${scope}:${targetScope}`;
     const cached = rankingCache.get(cacheKey);
+
     if (cached) {
       setMembers(cached);
       setLoading(false);
     } else {
       setLoading(true);
     }
-    const membersRef = scope === 'weekly' ? collection(db, 'weekly_rankings', weekId, 'members') : collection(db, 'general_rankings', 'all', 'members');
-    const rankingRef = query(membersRef, where('rankingEligible', '==', true));
-    return onSnapshot(rankingRef, (snapshot) => {
-      const nextMembers = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
-      rankingCache.set(cacheKey, nextMembers);
-      setMembers(nextMembers);
-      setLoading(false);
-      setAccessBlocked(false);
-    }, (error) => {
-      setAccessBlocked(['permission-denied', 'firestore/permission-denied'].includes(error?.code));
-      setLoading(false);
-    });
-  }, [scope, user?.uid, weekId]);
 
-  useEffect(() => {
-    const timer = window.setInterval(() => setNowMs(Date.now()), 30000);
-    return () => window.clearInterval(timer);
-  }, []);
+    const rankingRef = collection(
+      db,
+      scope === 'weekly' ? 'weekly_rankings' : 'general_rankings',
+      targetScope,
+      'members'
+    );
+
+    const unsubscribe = onSnapshot(
+      rankingRef,
+      (snapshot) => {
+        const next = snapshot.docs
+          .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
+          .filter((m) => m.accountActive !== false && m.active !== false && !m.disabled);
+        rankingCache.set(cacheKey, next);
+        setMembers(next);
+        setLoading(false);
+        setAccessBlocked(false);
+      },
+      (err) => {
+        console.warn('Ranking subscription failed, check permissions:', err);
+        setAccessBlocked(true);
+        setLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [scope]);
 
   const sorted = useMemo(() => sortGeneralRankingMembers(members, metric).map((member) => (
     (member.uid || member.id) === user?.uid && studyStreak !== null

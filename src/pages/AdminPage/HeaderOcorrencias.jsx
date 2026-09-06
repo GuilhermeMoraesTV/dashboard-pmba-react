@@ -1,31 +1,11 @@
-
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
-import { db } from '../../firebaseConfig';
-import {
-  collection, query, orderBy, limit, onSnapshot,
-  addDoc, updateDoc, deleteDoc, doc, serverTimestamp, setDoc
-} from 'firebase/firestore';
-import {
-  MessageSquare, Loader2, X, Trash2, Check, Send, Search,
-  ArrowLeft, Edit2, Bug, FileText, Lightbulb, HelpCircle
-} from 'lucide-react';
+import { MessageSquare, Search, Clock, CheckCircle2, X } from 'lucide-react';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
-import ConfirmModal from '../../components/shared/ConfirmModal';
+import { useSupportUser, useSupportTickets } from '../../hooks/useSupport.js';
+import SupportConversation from '../../components/support/SupportConversation.jsx';
 
-// --- UTILITÁRIOS INTERNOS ---
-const formatTimeAgo = (date) => {
-  if (!date) return '-';
-  const diff = Math.floor((new Date() - date) / 60000);
-  if (diff < 1) return 'Agora';
-  if (diff < 60) return `${diff}m`;
-  const hours = Math.floor(diff / 60);
-  if (hours < 24) return `${hours}h`;
-  return `${Math.floor(hours / 24)}d`;
-};
-
-// --- COMPONENTE MODAL BASE ---
 const ExpandedModal = ({ isOpen, onClose, title, children }) => {
   useBodyScrollLock(isOpen, { fixed: false });
   if (!isOpen) return null;
@@ -58,259 +38,214 @@ const ExpandedModal = ({ isOpen, onClose, title, children }) => {
   );
 };
 
-// --- COMPONENTES AUXILIARES ---
-const TypingIndicator = () => (
-  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-1 p-4 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-2xl rounded-tl-none w-fit shadow-sm mb-2">
-    <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
-    <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
-    <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce"></span>
-    <span className="text-[10px] text-zinc-400 ml-2 font-medium">Usuário digitando...</span>
-  </motion.div>
-);
+const getTypeColor = (type) => {
+  switch (type) {
+    case 'edital': return 'bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-950/30 dark:border-amber-800';
+    case 'ideia': return 'bg-purple-50 text-purple-600 border-purple-200 dark:bg-purple-950/30 dark:border-purple-800';
+    case 'bug': return 'bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-950/30 dark:border-rose-800';
+    case 'duvida': return 'bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-950/30 dark:border-blue-800';
+    default: return 'bg-zinc-100 text-zinc-600 border-zinc-200 dark:bg-zinc-800 dark:border-zinc-700';
+  }
+};
 
-const HeaderOcorrencias = ({ isOpen, onClose }) => {
-  const [tickets, setTickets] = useState([]);
+const formatTimeAgo = (date) => {
+  if (!date) return '';
+  const now = new Date();
+  const diffInMinutes = Math.floor((now - date) / (1000 * 60));
+  if (diffInMinutes < 1) return 'Agora';
+  if (diffInMinutes < 60) return `${diffInMinutes}m atrás`;
+  const diffInHours = Math.floor(diffInMinutes / 60);
+  if (diffInHours < 24) return `${diffInHours}h atrás`;
+  return `${Math.floor(diffInHours / 24)}d atrás`;
+};
+
+export default function HeaderOcorrencias({ isOpen, onClose }) {
+  const user = useSupportUser();
+  const { rows, more, error, loadMore } = useSupportTickets(isOpen, user?.uid, true);
   const [activeTicketId, setActiveTicketId] = useState(null);
-  const [messages, setMessages] = useState([]);
-  const [reply, setReply] = useState('');
   const [filter, setFilter] = useState('pendente');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [activeTicketData, setActiveTicketData] = useState(null);
-  const [editingMessage, setEditingMessage] = useState(null);
-  const editingMessageRef = useRef(null);
-  const [deleteRequest, setDeleteRequest] = useState(null);
+  const [search, setSearch] = useState('');
 
-  const scrollRef = useRef(null);
-  const adminTypingTimeoutRef = useRef(null);
+  useBodyScrollLock(isOpen, { fixed: false });
 
-  useEffect(() => {
-    editingMessageRef.current = editingMessage;
-  }, [editingMessage]);
+  if (!isOpen || !user) return null;
 
-  useEffect(() => {
-    if (!isOpen) return;
-    const q = query(collection(db, 'system_feedback'), orderBy('timestamp', 'desc'), limit(100));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      setTickets(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    });
-    return () => unsubscribe();
-  }, [isOpen]);
-
-  useEffect(() => {
-    if (!activeTicketId) { setActiveTicketData(null); setEditingMessage(null); setReply(''); return; }
-    updateDoc(doc(db, 'system_feedback', activeTicketId), { unreadAdmin: false });
-    const ticketUnsub = onSnapshot(doc(db, 'system_feedback', activeTicketId), (docSnap) => {
-      if (docSnap.exists()) setActiveTicketData({ id: docSnap.id, ...docSnap.data() });
-    });
-    const q = query(collection(db, 'system_feedback', activeTicketId, 'messages'), orderBy('timestamp', 'asc'));
-    const msgsUnsub = onSnapshot(q, (snap) => {
-      setMessages(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-      if (!editingMessageRef.current) setTimeout(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, 100);
-    });
-    return () => { ticketUnsub(); msgsUnsub(); };
-  }, [activeTicketId]);
-
-  const activeTicket = activeTicketData || tickets.find(t => t.id === activeTicketId);
-
-  const handleTyping = (e) => {
-    setReply(e.target.value);
-    if (!activeTicketId || editingMessage) return;
-    if (e.target.value.trim() === '') {
-      updateDoc(doc(db, 'system_feedback', activeTicketId), { adminTyping: false });
-      if (adminTypingTimeoutRef.current) clearTimeout(adminTypingTimeoutRef.current);
-      return;
-    }
-    updateDoc(doc(db, 'system_feedback', activeTicketId), { adminTyping: true });
-    if (adminTypingTimeoutRef.current) clearTimeout(adminTypingTimeoutRef.current);
-    adminTypingTimeoutRef.current = setTimeout(() => {
-      updateDoc(doc(db, 'system_feedback', activeTicketId), { adminTyping: false });
-    }, 2000);
+  const counts = {
+    all: rows.length,
+    pending: rows.filter((t) => t.status !== 'resolvido').length,
+    resolved: rows.filter((t) => t.status === 'resolvido').length,
   };
 
-  const handleSendOrUpdate = async (e) => {
-    e.preventDefault();
-    if (!reply.trim() || !activeTicketId) return;
-    if (editingMessage) {
-      try {
-        await updateDoc(doc(db, 'system_feedback', activeTicketId, 'messages', editingMessage.id), { text: reply });
-        setEditingMessage(null); setReply('');
-      } catch (error) { console.error("Erro ao editar", error); }
-    } else {
-      try {
-        await addDoc(collection(db, 'system_feedback', activeTicketId, 'messages'), { text: reply, sender: 'admin', timestamp: serverTimestamp() });
-        await updateDoc(doc(db, 'system_feedback', activeTicketId), { unreadUser: true, lastUpdate: serverTimestamp(), adminTyping: false });
-        setReply('');
-        if (adminTypingTimeoutRef.current) clearTimeout(adminTypingTimeoutRef.current);
-      } catch (error) { console.error(error); }
-    }
-  };
+  const filteredTickets = rows.filter((ticket) => {
+    const matchesFilter =
+      filter === 'todos' ||
+      (filter === 'pendente' && ticket.status !== 'resolvido') ||
+      (filter === 'resolvido' && ticket.status === 'resolvido');
 
-  const handleResolve = async () => {
-    if (!activeTicketId) return;
-    const newStatus = activeTicket?.status === 'resolvido' ? 'pendente' : 'resolvido';
-    if (newStatus === 'resolvido') {
-      await addDoc(collection(db, 'system_feedback', activeTicketId, 'messages'), {
-        text: "Este chamado foi marcado como resolvido. Se precisar de mais ajuda, só abrir um novo chamado.",
-        sender: 'system', timestamp: serverTimestamp()
-      });
-    }
-    await updateDoc(doc(db, 'system_feedback', activeTicketId), { status: newStatus });
-  };
+    const matchesSearch =
+      `${ticket.userName || ''} ${ticket.userEmail || ''} ${ticket.preview || ticket.message || ''}`
+        .toLowerCase()
+        .includes(search.toLowerCase());
 
-  const handleDeleteTicket = (id, e) => {
-    e.stopPropagation();
-    setDeleteRequest({ type: 'ticket', id });
-  };
-
-  const startEditing = (msg) => { setEditingMessage({ id: msg.id, text: msg.text }); setReply(msg.text); };
-  const cancelEditing = () => { setEditingMessage(null); setReply(''); };
-  const deleteMessage = (msgId) => {
-    setDeleteRequest({ type: 'message', id: msgId });
-  };
-
-  const confirmDelete = async () => {
-    if (!deleteRequest) return;
-    try {
-      if (deleteRequest.type === 'ticket') {
-        await deleteDoc(doc(db, 'system_feedback', deleteRequest.id));
-        if (activeTicketId === deleteRequest.id) setActiveTicketId(null);
-      } else if (activeTicketId) {
-        await deleteDoc(doc(db, 'system_feedback', activeTicketId, 'messages', deleteRequest.id));
-        if (editingMessage?.id === deleteRequest.id) cancelEditing();
-      }
-    } catch (error) {
-      console.error('Erro ao excluir item de suporte', error);
-    } finally {
-      setDeleteRequest(null);
-    }
-  };
-
-  const filteredTickets = tickets.filter(t => {
-    const matchFilter = filter === 'todos' ? true : t.status === filter;
-    const matchSearch = t.userName?.toLowerCase().includes(searchTerm.toLowerCase()) || t.preview?.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchFilter && matchSearch;
+    return matchesFilter && matchesSearch;
   });
 
-  const getTypeColor = (t) => {
-    switch (t) {
-      case 'edital': return 'text-purple-600 bg-purple-50 border-purple-200';
-      case 'bug': return 'text-red-600 bg-red-50 border-red-200';
-      default: return 'text-amber-600 bg-amber-50 border-amber-200';
-    }
-  };
-
-  if (!isOpen) return null;
-
   return (
-    <>
-    <ExpandedModal isOpen={isOpen} onClose={onClose} title="Central de Ocorrências">
-      <div className="admin-ocorrencias-modal-content flex h-full w-full overflow-hidden bg-zinc-50 dark:bg-zinc-900">
-        <div className={`admin-ocorrencias-list absolute inset-0 z-20 flex w-full flex-col border-r border-zinc-200 bg-white transition-transform duration-300 ease-in-out dark:border-zinc-700 dark:bg-zinc-900 md:relative md:w-80 lg:w-[400px] ${activeTicketId ? '-translate-x-full md:translate-x-0' : 'translate-x-0'}`}>
-          <div className="z-10 space-y-3 border-b border-zinc-100 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
-            <div className="relative group">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within:text-red-500 transition-colors" />
-              <input type="text" placeholder="Buscar ticket..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full pl-9 pr-4 py-3 text-xs bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl outline-none dark:text-white" />
+    <ExpandedModal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Central de Ocorrências"
+    >
+      <div className="flex h-full w-full overflow-hidden bg-white dark:bg-zinc-900">
+        {/* Sidebar: Ticket List */}
+        <div
+          className={`admin-ocorrencias-list flex w-full flex-col border-r border-zinc-100 bg-zinc-50/50 dark:border-zinc-800 dark:bg-zinc-950 md:w-80 md:flex-shrink-0 ${
+            activeTicketId ? 'hidden md:flex' : 'flex'
+          }`}
+        >
+          {/* Search and Filters */}
+          <div className="space-y-3 p-4 border-b border-zinc-100 dark:border-zinc-800">
+            <div className="relative">
+              <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" />
+              <input
+                type="text"
+                placeholder="Buscar por usuário, e-mail..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl text-xs outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-white dark:text-white transition-all shadow-sm"
+              />
             </div>
-            <div className="flex gap-1 p-1 bg-zinc-100 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800">
-              {['pendente', 'resolvido', 'todos'].map(f => (
-                <button key={f} onClick={() => setFilter(f)} className={`flex-1 py-2 text-[10px] font-bold uppercase rounded-lg transition-all ${filter === f ? 'bg-white dark:bg-zinc-800 shadow-sm text-zinc-900 dark:text-white' : 'text-zinc-400 hover:text-zinc-600'}`}>{f}</button>
-              ))}
+
+            <div className="flex gap-1.5 p-1 bg-zinc-200/50 dark:bg-zinc-900 rounded-xl">
+              <button
+                type="button"
+                onClick={() => setFilter('pendente')}
+                className={`flex-1 py-1.5 text-[10px] font-black uppercase rounded-lg transition-all ${
+                  filter === 'pendente'
+                    ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-sm'
+                    : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
+                }`}
+              >
+                Pendentes ({counts.pending})
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilter('resolvido')}
+                className={`flex-1 py-1.5 text-[10px] font-black uppercase rounded-lg transition-all ${
+                  filter === 'resolvido'
+                    ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-sm'
+                    : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
+                }`}
+              >
+                Resolvidos ({counts.resolved})
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilter('todos')}
+                className={`flex-1 py-1.5 text-[10px] font-black uppercase rounded-lg transition-all ${
+                  filter === 'todos'
+                    ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-sm'
+                    : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
+                }`}
+              >
+                Todos ({counts.all})
+              </button>
             </div>
           </div>
-          <div className="flex-1 space-y-2 overflow-y-auto bg-zinc-50/30 p-3 custom-scrollbar dark:bg-zinc-800/45">
-            {filteredTickets.map(t => (
-              <button key={t.id} onClick={() => setActiveTicketId(t.id)} className={`w-full text-left p-4 rounded-2xl border transition-all relative group overflow-hidden shadow-sm ${activeTicketId === t.id ? 'bg-white dark:bg-zinc-900 border-red-500/30 ring-1 ring-red-500/20' : 'bg-white dark:bg-zinc-900/60 border-zinc-200 dark:border-zinc-800 hover:border-red-200 hover:shadow-md'}`}>
-                {t.unreadAdmin && <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-red-600"></div>}
-                <div className="flex justify-between items-start mb-2 pl-2">
-                  <div className="flex items-center gap-2">
-                    <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-md border ${getTypeColor(t.type)}`}>{t.type}</span>
-                    {t.unreadAdmin && <span className="flex h-2 w-2 relative"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span></span>}
+
+          {/* List items */}
+          <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar">
+            {error && <p role="alert" className="p-3 text-xs text-red-600">{error}</p>}
+
+            {!filteredTickets.length ? (
+              <div className="py-12 text-center text-zinc-400">
+                <MessageSquare size={28} className="mx-auto text-zinc-300 dark:text-zinc-700 mb-2 opacity-50" />
+                <p className="text-xs font-semibold">Nenhum chamado encontrado</p>
+              </div>
+            ) : (
+              filteredTickets.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setActiveTicketId(t.id)}
+                  className={`w-full p-3.5 rounded-2xl text-left border transition-all duration-200 group relative ${
+                    activeTicketId === t.id
+                      ? 'bg-white dark:bg-zinc-900 border-zinc-900 dark:border-white shadow-md ring-1 ring-zinc-900 dark:ring-white'
+                      : 'bg-white dark:bg-zinc-900 border-zinc-200/80 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <div className="flex items-center gap-1.5">
+                      <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-md border ${getTypeColor(t.type)}`}>
+                        {t.type}
+                      </span>
+                      {t.unreadAdmin && (
+                        <span className="flex h-2 w-2 relative">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-[10px] text-zinc-400 font-medium">
+                      {formatTimeAgo(t.timestamp?.toDate ? t.timestamp.toDate() : (t.timestamp?.seconds ? new Date(t.timestamp.seconds * 1000) : new Date()))}
+                    </span>
                   </div>
-                  <span className="text-[10px] text-zinc-400 font-medium">{formatTimeAgo(t.timestamp?.toDate ? t.timestamp.toDate() : new Date())}</span>
-                </div>
-                <div className="pl-2">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <div className="w-5 h-5 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-[9px] font-bold text-zinc-500 border border-zinc-200">{t.userName?.substring(0, 1).toUpperCase()}</div>
-                    <p className={`text-xs truncate ${t.unreadAdmin ? 'font-black text-zinc-900 dark:text-white' : 'font-bold text-zinc-700 dark:text-zinc-300'}`}>{t.userName}</p>
+
+                  <div className="pl-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className="w-5 h-5 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-[9px] font-bold text-zinc-500 border border-zinc-200 dark:border-zinc-700 shrink-0">
+                        {t.userName?.substring(0, 1).toUpperCase() || 'U'}
+                      </div>
+                      <p className={`text-xs truncate ${t.unreadAdmin ? 'font-black text-zinc-900 dark:text-white' : 'font-bold text-zinc-700 dark:text-zinc-300'}`}>
+                        {t.userName || 'Usuário'}
+                      </p>
+                    </div>
+                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate pl-7 opacity-90">
+                      {t.preview || t.message || 'Ver mensagem...'}
+                    </p>
                   </div>
-                  <p className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate pl-7 opacity-90">{t.preview || t.message}</p>
-                </div>
+                </button>
+              ))
+            )}
+
+            {more && (
+              <button
+                type="button"
+                onClick={loadMore}
+                className="w-full py-2 text-xs text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 underline"
+              >
+                Carregar chamados anteriores
               </button>
-            ))}
+            )}
           </div>
         </div>
-        <div className={`admin-ocorrencias-chat absolute inset-0 z-10 flex flex-1 flex-col bg-white transition-transform duration-300 dark:bg-zinc-900 md:relative ${activeTicketId ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}`}>
-          {activeTicket ? (
-            <>
-              <div className="z-20 flex items-center justify-between border-b border-zinc-100 bg-white/90 px-6 py-4 backdrop-blur-md dark:border-zinc-700 dark:bg-zinc-900/90">
-                <div className="flex items-center gap-4">
-                  <button onClick={() => setActiveTicketId(null)} className="md:hidden p-2 -ml-2 text-zinc-500"><ArrowLeft size={20} /></button>
-                  <div className="relative">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-zinc-100 to-zinc-200 dark:from-zinc-800 dark:to-zinc-900 flex items-center justify-center text-sm font-black border border-zinc-200 text-zinc-600">{activeTicket.userName?.substring(0, 2).toUpperCase()}</div>
-                  </div>
-                  <div className="min-w-0">
-                    <h4 className="font-bold text-sm text-zinc-900 dark:text-white truncate flex items-center gap-2">{activeTicket.userName}</h4>
-                    <div className="flex items-center gap-1.5"><span className="text-[10px] text-zinc-400 truncate max-w-[200px]">{activeTicket.userEmail}</span><span className={`text-[10px] font-bold uppercase ${activeTicket.status === 'resolvido' ? 'text-emerald-600' : 'text-amber-600'}`}>{activeTicket.status}</span></div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button onClick={handleResolve} className={`p-2.5 rounded-xl transition-all shadow-sm ${activeTicket.status === 'resolvido' ? 'bg-zinc-100 text-zinc-400' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'}`}><Check size={18} /></button>
-                  <button onClick={(e) => handleDeleteTicket(activeTicket.id, e)} className="p-2.5 rounded-xl bg-white border border-zinc-200 text-zinc-400 hover:text-red-600"><Trash2 size={18} /></button>
-                </div>
-              </div>
-              <div ref={scrollRef} className="flex-1 space-y-6 overflow-y-auto bg-slate-50/50 p-4 custom-scrollbar dark:bg-zinc-800/45 md:p-8">
-                {(!messages.length && activeTicket.message) && (
-                  <div className="flex justify-start animate-fade-in-up">
-                    <div className="max-w-[85%] md:max-w-[70%] p-5 rounded-3xl rounded-tl-sm bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-sm shadow-sm text-zinc-700 dark:text-zinc-200 leading-relaxed">
-                      <span className="block text-[10px] font-bold uppercase text-zinc-400 mb-1">Mensagem Original</span>
-                      {activeTicket.message}
-                    </div>
-                  </div>
-                )}
-                {messages.map((m, i) => {
-                  const isAdmin = m.sender === 'admin' || m.sender === 'system';
-                  const isSystem = m.sender === 'system';
-                  if (isSystem) return <div key={i} className="flex justify-center my-4"><span className="bg-zinc-100 dark:bg-zinc-800 text-zinc-500 text-[10px] px-3 py-1 rounded-full">{m.text}</span></div>;
-                  return (
-                    <div key={i} className={`flex ${isAdmin ? 'justify-end' : 'justify-start'} animate-fade-in-up group`}>
-                      <div className="flex items-end gap-2 max-w-[85%] md:max-w-[70%]">
-                        {isAdmin && <div className="opacity-0 group-hover:opacity-100 transition-opacity flex flex-col gap-1 mb-2"><button onClick={() => startEditing(m)} className="p-1 text-zinc-300 hover:text-blue-500"><Edit2 size={12} /></button><button onClick={() => deleteMessage(m.id)} className="p-1 text-zinc-300 hover:text-red-500"><Trash2 size={12} /></button></div>}
-                        <div className={`p-4 rounded-3xl text-sm leading-relaxed shadow-sm ${isAdmin ? 'bg-gradient-to-br from-red-600 to-red-700 text-white rounded-tr-sm' : 'bg-white dark:bg-zinc-900 border border-zinc-200 text-zinc-700 rounded-tl-sm'}`}>{m.text}</div>
-                      </div>
-                    </div>
-                  );
-                })}
-                {activeTicket.userTyping && <div className="flex justify-start"><TypingIndicator /></div>}
-              </div>
-              <form onSubmit={handleSendOrUpdate} className="z-30 flex shrink-0 items-end gap-3 border-t border-zinc-100 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900 md:p-6">
-                {editingMessage && <button type="button" onClick={cancelEditing} className="p-4 bg-zinc-100 rounded-full"><X size={20} /></button>}
-                <div className={`flex-1 rounded-3xl border transition-all flex items-center px-2 ${editingMessage ? 'bg-amber-50 border-amber-200' : 'bg-zinc-100 border-transparent focus-within:bg-white focus-within:shadow-md'}`}>
-                  <textarea className="w-full bg-transparent border-none px-4 py-4 text-sm focus:ring-0 outline-none resize-none max-h-32 min-h-[56px] leading-relaxed" placeholder={editingMessage ? "Editando mensagem..." : "Escreva uma resposta..."} value={reply} onChange={handleTyping} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendOrUpdate(e); } }} rows={1} disabled={activeTicket.status === 'resolvido' && !editingMessage} />
-                </div>
-                <button disabled={!reply.trim() || (activeTicket.status === 'resolvido' && !editingMessage)} className={`p-4 text-white rounded-full shadow-lg transition-all ${editingMessage ? 'bg-amber-500 hover:bg-amber-600' : 'bg-red-600 hover:bg-red-500'}`}>{editingMessage ? <Check size={20} /> : <Send size={20} />}</button>
-              </form>
-            </>
+
+        {/* Chat Area on Right */}
+        <div
+          className={`admin-ocorrencias-chat flex-1 flex flex-col bg-white dark:bg-zinc-900 min-w-0 ${
+            activeTicketId ? 'flex' : 'hidden md:flex'
+          }`}
+        >
+          {activeTicketId ? (
+            <SupportConversation
+              key={`${user.uid}/${activeTicketId}`}
+              ticketId={activeTicketId}
+              user={user}
+              admin={true}
+              onBack={() => setActiveTicketId(null)}
+            />
           ) : (
-            <div className="hidden h-full flex-col items-center justify-center bg-zinc-50/50 p-10 text-center text-zinc-400 dark:bg-zinc-800/45 md:flex">
-              <MessageSquare size={48} className="text-zinc-300 mb-6" /><h3 className="text-xl font-bold text-zinc-800 dark:text-zinc-200">Central de Atendimento</h3>
+            <div className="hidden h-full flex-col items-center justify-center bg-zinc-50/50 dark:bg-zinc-800/45 p-10 text-center text-zinc-400 md:flex">
+              <MessageSquare size={48} className="text-zinc-300 dark:text-zinc-700 mb-4" />
+              <h3 className="text-xl font-bold text-zinc-800 dark:text-zinc-200">Central de Atendimento</h3>
+              <p className="max-w-xs text-xs text-zinc-400 mt-2">
+                Selecione um chamado ao lado para visualizar o histórico e responder ao aluno.
+              </p>
             </div>
           )}
         </div>
       </div>
     </ExpandedModal>
-    <ConfirmModal
-      isOpen={!!deleteRequest}
-      onClose={() => setDeleteRequest(null)}
-      onConfirm={confirmDelete}
-      title={deleteRequest?.type === 'ticket' ? 'Excluir chamado?' : 'Excluir mensagem?'}
-      message={deleteRequest?.type === 'ticket'
-        ? 'O chamado e todo o histórico serão removidos permanentemente.'
-        : 'A mensagem será removida permanentemente do chamado.'}
-      confirmText="Excluir"
-      isDestructive
-    />
-    </>
   );
-};
+}
 
-export default HeaderOcorrencias;

@@ -47,6 +47,7 @@ import {
 } from '../../utils/disciplineColors';
 import ConsolidatedReviewGroups from './ConsolidatedReviewGroups';
 import { expandConsolidatedReviewTopics, groupConsolidatedReviewTopics } from '../../utils/consolidatedReviews';
+import { getBrasiliaTodayKey, getBrasiliaToday, addDaysBrasilia } from '../../utils/planningDates';
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 const fmtMin = (min) => {
@@ -63,9 +64,9 @@ const fmtDate = (value) => {
   return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 };
 
-const addDias = (d, n) => { const r = new Date(d); r.setDate(r.getDate() + n); return r; };
-const isoKey  = (d) => d.toISOString().split('T')[0];
-const getHoje = () => { const d = new Date(); d.setHours(12,0,0,0); return d; };
+const addDias = (d, n) => addDaysBrasilia(d, n);
+const isoKey  = (d) => getBrasiliaTodayKey(d);
+const getHoje = () => getBrasiliaToday();
 const getCalendarDays = (year, month) => {
   const first = new Date(year, month, 1, 12, 0, 0, 0);
   const last  = new Date(year, month + 1, 0, 12, 0, 0, 0);

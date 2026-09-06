@@ -78,6 +78,9 @@ function renderTemplate(template, fields, options) {
     const fieldName = pieces.pop().trim();
     const filters = pieces.map((filter) => filter.trim().toLowerCase());
     let value = fields[fieldName] || '';
+    if (filters.includes('type')) {
+      value = side === 'front' ? '' : value;
+    }
     if (filters.includes('cloze')) value = renderCloze(value, options.cardOrd, side);
     if (filters.includes('text')) value = stripMarkup(value);
     return value;
@@ -98,9 +101,17 @@ function renderCard({ template, fieldNames, fieldValues, cardOrd, isCloze, media
   }
   if (!questionTemplate) questionTemplate = `{{${fieldNames[0] || ''}}}`;
   if (!answerTemplate) answerTemplate = `{{FrontSide}}<hr>{{${fieldNames[1] || fieldNames[0] || ''}}}`;
-  const front = renderTemplate(questionTemplate, fields, { side: 'front', cardOrd, mediaUris, frontSide: '' });
+  const hasTypedAnswer = /\{\{type:/i.test(questionTemplate);
+  const renderedFront = renderTemplate(questionTemplate, fields, { side: 'front', cardOrd, mediaUris, frontSide: '' });
+  const front = renderedFront || (hasTypedAnswer
+    ? '<span class="anki-type-compatible">Pense na resposta e vire o card para conferir.</span>'
+    : stripMarkup(fieldValues[0]));
   const back = renderTemplate(answerTemplate, fields, { side: 'back', cardOrd, mediaUris, frontSide: front });
-  return { front: front || stripMarkup(fieldValues[0]), back: back || stripMarkup(fieldValues[1] || fieldValues[0]) };
+  return {
+    front,
+    back: back || stripMarkup(fieldValues[1] || fieldValues[0]),
+    typedAnswerMode: hasTypedAnswer ? 'compatible' : null,
+  };
 }
 
 module.exports = {

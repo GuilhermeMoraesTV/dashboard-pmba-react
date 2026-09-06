@@ -1,10 +1,18 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+import { firebaseEmulatorControlPlugin } from './scripts/viteFirebaseEmulatorPlugin.js'
 
 // https://vite.dev/config/
 export default defineConfig({
+  optimizeDeps: {
+    // Scan only the app, excluding historical builds and fixtures under tmp/.
+    entries: ['index.html'],
+    // Prepare the lazy chat dependency before the first conversation is opened.
+    include: ['react-virtuoso'],
+  },
   plugins: [
+    firebaseEmulatorControlPlugin(),
     react(),
     VitePWA({
       registerType: 'prompt',
@@ -12,6 +20,7 @@ export default defineConfig({
       manifestFilename: 'manifest.webmanifest',
       includeAssets: ['logoModoQAP.png'],
       manifest: {
+        id: '/',
         name: 'ModoQAP - Plataforma de Estudos',
         short_name: 'ModoQAP',
         description: 'Plataforma de organização e acompanhamento de estudos para concursos públicos.',
@@ -20,14 +29,44 @@ export default defineConfig({
         scope: '/',
         display: 'standalone',
         orientation: 'portrait-primary',
-        background_color: '#f7f9fc',
-        theme_color: '#111827',
+        background_color: '#0a0a0a',
+        theme_color: '#0a0a0a',
         icons: [
+          {
+            src: '/logoModoQAP.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'any',
+          },
+          {
+            src: '/logoModoQAP.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'any',
+          },
           {
             src: '/logoModoQAP.png',
             sizes: '1024x1024',
             type: 'image/png',
-            purpose: 'any maskable',
+            purpose: 'any',
+          },
+          {
+            src: '/logoModoQAP.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'maskable',
+          },
+          {
+            src: '/logoModoQAP.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable',
+          },
+          {
+            src: '/logoModoQAP.png',
+            sizes: '1024x1024',
+            type: 'image/png',
+            purpose: 'maskable',
           },
         ],
       },

@@ -15,8 +15,10 @@ import {
   doc,
   getDoc,
   getDocs,
+  limit,
   orderBy,
   query,
+  runTransaction,
   serverTimestamp,
   setDoc,
   Timestamp,
@@ -25,10 +27,13 @@ import {
   writeBatch,
 } from 'firebase/firestore';
 import { GAMIFICATION_CONFIG, getNextWeekId, getWeekId, toDateKey } from '../src/utils/gamification.js';
+import { getFolderStudyCardsPage } from '../src/services/flashcards/flashcardsService.js';
+import { createAdaptiveSessionController } from '../src/services/adaptiveStudy/adaptiveSessionController.js';
 
 const require = createRequire(import.meta.url);
 const gamificationService = require('../functions/gamification/service.js');
 const groupService = require('../functions/groups/service.js');
+const groupChatService = require('../functions/groups/chat.js');
 const questionValidation = require('../functions/questions/validation.js');
 const { createGenerationService } = require('../functions/ai/generation.js');
 const flashcardsBackendService = require('../functions/flashcards/service.js');
@@ -40,6 +45,67 @@ const { migrateLegacyFlashcardsPage } = require('../functions/flashcards/adminMi
 
 const projectId = 'dashboard-pmba';
 let environment;
+
+test('lease da importação Anki é privado do backend, inclusive contra o wildcard legado', async () => {
+  const db = environment.authenticatedContext('anki-lock-owner').firestore();
+  const ref = doc(db, 'users', 'anki-lock-owner', 'anki_import_locks', 'active');
+  await assertFails(setDoc(ref, { token: 'forged', expiresAt: 0 }));
+  await assertFails(getDoc(ref));
+  await assertFails(deleteDoc(ref));
+});
+
+test('árvore Anki acima de 500 pastas não bloqueia criar outra raiz e pode ser arquivada', async () => {
+  const uid = 'large-anki-folder-user';
+  const folders = admin.firestore().collection('users').doc(uid).collection('study_folders');
+  await folders.doc('root').set({ userId: uid, name: 'Root', archived: false, ancestorFolderIds: [] });
+  for (let offset = 0; offset < 520; offset += 400) {
+    const batch = admin.firestore().batch();
+    for (let i = offset; i < Math.min(offset + 400, 520); i++) {
+      batch.create(folders.doc(`leaf-${i}`), { userId: uid, name: `Leaf ${i}`, sourceType: 'anki',
+        archived: false, parentFolderId: 'root', ancestorFolderIds: ['root'] });
+    }
+    await batch.commit();
+  }
+  const service = createStudySourceService({ admin, getProductLimits: async () => DEFAULT_SERVER_PRODUCT_LIMITS });
+  const result = await service.createFolder({ uid, data: { name: 'Próxima importação' } });
+  assert.ok(result.folder.id);
+  const archived = await service.deleteFolder({ uid, folderId: 'root' });
+  assert.equal(archived.archivedCount, 521);
+  assert.equal((await folders.where('archived', '==', true).get()).size, 521);
+  assert.equal((await folders.doc(result.folder.id).get()).data().archived, false);
+});
+
+test('paginação de pasta atravessa todos os cards com timestamps de nanossegundos e deck legado', async () => {
+  const uid = 'anki-pagination-owner';
+  const deck = admin.firestore().collection('users').doc(uid).collection('decks').doc('legacy');
+  const stamp = new admin.firestore.Timestamp(1788400000, 123456789);
+  await deck.set({ userId: uid, folderId: 'folder', name: 'Legado', cardCount: 225, createdAt: stamp, updatedAt: stamp });
+  const batch = admin.firestore().batch();
+  for (let i = 0; i < 225; i++) {
+    batch.create(deck.collection('cards').doc(`card-${String(i).padStart(4, '0')}`), {
+      userId: uid, deckId: 'legacy', folderId: 'folder', front: `F${i}`, back: `B${i}`,
+      status: 'new', createdAt: stamp, updatedAt: stamp, dueAt: stamp,
+    });
+  }
+  await batch.commit();
+  const firestoreDb = environment.authenticatedContext(uid).firestore();
+  for (const onlyDue of [false, true]) {
+    let cursor = null;
+    const seen = new Set();
+    for (let pageIndex = 0; pageIndex < 4; pageIndex++) {
+      const page = await getFolderStudyCardsPage(uid, ['folder'], {
+        firestoreDb, pageSize: 100, cursor, onlyDue, targetDate: new Date('2030-01-01'),
+      });
+      for (const card of page.cards) {
+        assert.equal(seen.has(card.id), false, 'a página não pode repetir cards');
+        seen.add(card.id);
+      }
+      cursor = page.cursor;
+      if (!page.hasMore) break;
+    }
+    assert.equal(seen.size, 225);
+  }
+});
 
 before(async () => {
   assert.ok(process.env.FIRESTORE_EMULATOR_HOST, 'Execute os testes pelo script npm test.');
@@ -855,16 +921,18 @@ test('system_feedback restringe chamados ao dono e libera gestão ao admin', asy
     collection(ownerDb, 'system_feedback'),
     where('uid', '==', 'owner-user'),
     orderBy('timestamp', 'desc'),
+    limit(100),
   )));
   await assertSucceeds(getDocs(query(
     collection(ownerDb, 'system_feedback'),
     where('uid', '==', 'owner-user'),
     where('unreadUser', '==', true),
+    limit(1),
   )));
   await assertFails(getDoc(doc(strangerDb, 'system_feedback', 'ticket-owner')));
-  await assertSucceeds(updateDoc(doc(ownerDb, 'system_feedback', 'ticket-owner'), { userTyping: true }));
+  await assertFails(updateDoc(doc(ownerDb, 'system_feedback', 'ticket-owner'), { userTyping: true }));
   await assertFails(updateDoc(doc(ownerDb, 'system_feedback', 'ticket-owner'), { status: 'resolvido' }));
-  await assertSucceeds(deleteDoc(doc(adminDb, 'system_feedback', 'ticket-owner')));
+  await assertFails(deleteDoc(doc(adminDb, 'system_feedback', 'ticket-owner')));
 });
 
 test('users impede autopromoção e mantém leitura administrativa', async () => {
@@ -883,6 +951,23 @@ test('users impede autopromoção e mantém leitura administrativa', async () =>
   await assertFails(updateDoc(doc(adminDb, 'users', 'new-student'), { status: 'blocked', disabled: true }));
   await assertFails(updateDoc(doc(adminDb, 'users', 'new-student'), { access: { role: 'admin', permissions: { adminPanel: true } } }));
   await assertSucceeds(updateDoc(doc(adminDb, 'users', 'new-student'), { name: 'Aluno revisado' }));
+});
+
+test('foto de perfil aceita URL HTTPS completa e mantém isolamento e campos protegidos', async () => {
+  const ownerDb = environment.authenticatedContext('owner-user').firestore();
+  const strangerDb = environment.authenticatedContext('stranger-user').firestore();
+  const profile = doc(ownerDb, 'users', 'owner-user');
+  const photoURL = 'https://firebasestorage.googleapis.com/v0/b/dashboard-pmba.firebasestorage.app/o/profile_images%2Fowner-user%2Favatar-123?alt=media&token=test';
+  await assertSucceeds(setDoc(profile, { photoURL }, { merge: true }));
+  assert.equal((await getDoc(profile)).data().photoURL, photoURL);
+  await assertSucceeds(updateDoc(profile, { coverURL: 'https://firebasestorage.googleapis.com/cover.jpg' }));
+  await assertSucceeds(updateDoc(profile, { photoURL: 'https://lh3.googleusercontent.com/avatar.jpg' }));
+  for (const invalid of ['https://', 'http://example.com/avatar.jpg', 'javascript:alert(1)', 'data:image/png;base64,abc', 'https://bad host/image.jpg', `https://example.com/${'x'.repeat(2048)}`]) {
+    await assertFails(updateDoc(profile, { photoURL: invalid }));
+  }
+  await assertFails(updateDoc(doc(strangerDb, 'users', 'owner-user'), { photoURL }));
+  await assertFails(updateDoc(profile, { photoURL, access: { role: 'admin' } }));
+  await assertSucceeds(updateDoc(profile, { photoURL: null }));
 });
 
 test('users permite ao dono atualizar a capa e a posicao do proprio perfil', async () => {
@@ -1287,6 +1372,8 @@ test('timer ao vivo é visível somente para dono, admin ou colega de grupo', as
   const strangerDb = environment.authenticatedContext('stranger-user').firestore();
   await assertSucceeds(getDoc(doc(memberDb, 'active_timers', 'owner-user')));
   await assertFails(getDoc(doc(strangerDb, 'active_timers', 'owner-user')));
+  await assertSucceeds(getDocs(query(collection(memberDb, 'active_timers'), where('groupIds', 'array-contains', 'private-group'))));
+  await assertFails(getDocs(query(collection(strangerDb, 'active_timers'), where('groupIds', 'array-contains', 'private-group'))));
 });
 
 test('função recalcula estudo, edição e exclusão sem duplicar XP ou ranking', async () => {
@@ -2269,7 +2356,7 @@ test('Adaptive Tutor: sessao, buffer, primeiro rating e mastery sao autoritativo
 
   const itemsAfterStart = await admin.firestore().collection('users').doc(uid).collection('generated_items')
     .where('sessionId', '==', started.session.id).get();
-  assert.equal(itemsAfterStart.docs.filter((item) => item.data().queueState === 'ready').length, 2);
+  assert.equal(itemsAfterStart.docs.filter((item) => item.data().queueState === 'ready').length, 1);
   assert.equal(itemsAfterStart.docs.filter((item) => item.data().queueState === 'served').length, 1);
 
   const first = await service.rateItem({
@@ -2302,7 +2389,8 @@ test('Adaptive Tutor: sessao, buffer, primeiro rating e mastery sao autoritativo
   await service.refillAndGetNext({ uid, sessionId: started.session.id });
   const itemsAfterRefill = await admin.firestore().collection('users').doc(uid).collection('generated_items')
     .where('sessionId', '==', started.session.id).get();
-  const readyVariants = itemsAfterRefill.docs.filter((item) => item.data().queueState === 'ready').map((item) => item.data());
+  // Both new items share createdAt; serveNext breaks ties by random document ID.
+  const readyVariants = itemsAfterRefill.docs.filter((item) => ['ready', 'served'].includes(item.data().queueState)).map((item) => item.data());
   assert.ok(readyVariants.some((item) => /:v4$/.test(item.variantKey)));
   assert.equal(new Set(itemsAfterRefill.docs.map((item) => item.data().contentFingerprint).filter(Boolean)).size,
     itemsAfterRefill.docs.map((item) => item.data().contentFingerprint).filter(Boolean).length);
@@ -2366,6 +2454,156 @@ test('Adaptive Tutor: refill concorrente usa lock e resultado tardio e descartad
   assert.ok(items.docs.some((item) => item.data().errorCode === 'late-result-discarded'));
 });
 
+test('Adaptive Tutor: note e PDF reais percorrem fonte, chunks, estudo, ratings rapidos, refill e encerramento pendente', async (t) => {
+  const { jsPDF } = await import('jspdf');
+  const { createDocumentService } = require('../functions/documents/service.js');
+  // Use the Functions SDK throughout this pipeline (its FieldValue prototypes
+  // differ from the frontend test project's separately installed Admin SDK).
+  const functionsRequire = createRequire(new URL('../functions/package.json', import.meta.url));
+  const backendAdmin = functionsRequire('firebase-admin');
+  const app = backendAdmin.initializeApp({ projectId, storageBucket: 'dashboard-pmba.appspot.com' }, 'tutor-p0-pipeline');
+  t.after(() => app.delete());
+  const admin = { firestore: Object.assign(() => backendAdmin.firestore(app), {
+    Timestamp: backendAdmin.firestore.Timestamp, FieldValue: backendAdmin.firestore.FieldValue,
+  }), storage: () => backendAdmin.storage(app) };
+  for (const kind of ['note', 'document']) {
+    const uid = `adaptive-source-flow-${kind}`;
+    const limits = async () => DEFAULT_SERVER_PRODUCT_LIMITS;
+    const sources = createStudySourceService({ admin, getProductLimits: limits });
+    const { folder } = await sources.createFolder({ uid, data: { name: `Tutor ${kind}` } });
+    let source;
+    if (kind === 'note') {
+      source = await sources.createNote({ uid, folderId: folder.id, title: 'Anotacao Tutor', content: 'Conceito X representa o conteudo privado desta anotacao para estudo ativo.' });
+    } else {
+      const pdf = new jsPDF();
+      pdf.text('Conceito X representa o conteudo privado deste PDF para estudo ativo.', 15, 20);
+      const bytes = Buffer.from(pdf.output('arraybuffer'));
+      source = await sources.prepareDocument({ uid, folderId: folder.id, title: 'PDF Tutor', originalName: 'tutor.pdf', fileSizeBytes: bytes.length });
+      const bucket = admin.storage().bucket('dashboard-pmba.appspot.com');
+      await bucket.file(source.storagePath).save(bytes, { metadata: { contentType: 'application/pdf' } });
+      const documents = createDocumentService({ admin: { firestore: admin.firestore, storage: () => ({ bucket: () => bucket }) }, getProductLimits: limits });
+      assert.equal((await documents.processUserDocument({ uid, documentId: source.documentId })).status, 'processed');
+    }
+    const provider = adaptiveProvider({ sourceRefKey: kind === 'note' ? `${source.sourceId}:chunk_0000` : `${source.documentId}:chunk_0000:p1-1` });
+    const backend = createAdaptiveStudyService({ admin, getProductLimits: limits, getProvider: () => provider });
+    let holdRating = null;
+    const api = {
+      start: (args) => backend.startSession({ uid, ...args }),
+      rate: async (args) => { if (holdRating) await holdRating; return backend.rateItem({ uid, ...args }); },
+      refill: (sessionId) => backend.refillAndGetNext({ uid, sessionId }),
+      end: (sessionId) => backend.endSession({ uid, sessionId }),
+      createRequestId: () => crypto.randomUUID(),
+    };
+    const storage = new Map();
+    const c = createAdaptiveSessionController({ api, folderId: folder.id, sourceId: source.sourceId, storageKey: uid,
+      storage: { getItem: (key) => storage.get(key), setItem: (key, value) => storage.set(key, value), removeItem: (key) => storage.delete(key) } });
+    await c.start();
+    assert.ok(c.getSnapshot().item?.id, c.getSnapshot().fatalError);
+    c.rate('good', c.getSnapshot().item.id);
+    c.rate('hard', c.getSnapshot().item.id);
+    assert.equal(c.getSnapshot().item, null);
+    assert.equal(await c.drain(), true);
+    await c.refill();
+    assert.ok(c.getSnapshot().item?.id);
+    assert.equal(provider.cardCalls, 2, 'one start generation and one refill');
+    let releaseRating;
+    holdRating = new Promise((resolve) => { releaseRating = resolve; });
+    c.rate('again', c.getSnapshot().item.id);
+    const finish = c.end();
+    const user = admin.firestore().collection('users').doc(uid);
+    const session = user.collection('adaptive_study_sessions').doc(c.getSnapshot().session.id);
+    assert.equal((await session.get()).data().status, 'active');
+    releaseRating();
+    assert.equal(await finish, true);
+    assert.equal((await session.get()).data().status, 'cancelled');
+    assert.equal((await user.collection('card_reviews').get()).size, 3);
+    assert.equal(storage.has(uid), false);
+    assert.equal(provider.cardCalls, 2, 'end never generates');
+  }
+});
+
+test('Adaptive Tutor P0: buffer zerado recupera generating com lease expirado no refill normal', async () => {
+  for (const kind of ['note', 'document']) {
+    const uid = `adaptive-orphan-${kind}`;
+    await seedAdaptiveSource(uid);
+    const user = admin.firestore().collection('users').doc(uid);
+    const refKey = kind === 'document' ? 'pdf-adaptive:chunk_0000:p1-1' : 'source-adaptive:chunk_0000';
+    if (kind === 'document') {
+      await user.collection('study_sources').doc('source-adaptive').update({ kind, documentId: 'pdf-adaptive' });
+      await user.collection('documents').doc('pdf-adaptive').set({
+        userId: uid, studySourceId: 'source-adaptive', status: 'processed',
+      });
+      await user.collection('documents').doc('pdf-adaptive').collection('chunks').doc('chunk_0000').set({
+        content: 'Conceito X e definido exclusivamente por esta fonte PDF.', order: 0, pageStart: 1, pageEnd: 1,
+      });
+    }
+    const provider = adaptiveProvider({ sourceRefKey: refKey });
+    const service = createAdaptiveStudyService({ admin, getProductLimits: async () => DEFAULT_SERVER_PRODUCT_LIMITS, getProvider: () => provider });
+    const started = await service.startSession({ uid, folderId: 'folder-adaptive', sourceId: 'source-adaptive' });
+    // Exactly the audit case: consume all ready/served cards, leaving only an orphan placeholder.
+    for (const [index, card] of [started.item, ...started.prefetchedItems].entries()) {
+      await service.rateItem({ uid, sessionId: started.session.id, itemId: card.id, rating: 'good', reviewRequestId: `rating-${index}` });
+    }
+    const sessionRef = user.collection('adaptive_study_sessions').doc(started.session.id);
+    await sessionRef.update({ generationLock: { token: 'abandoned', expiresAt: admin.firestore.Timestamp.fromMillis(1) } });
+    const orphanRef = user.collection('generated_items').doc('orphan');
+    await orphanRef.set({ userId: uid, sessionId: started.session.id, queueState: 'generating', generationToken: 'abandoned' });
+    const before = provider.cardCalls;
+    const recovered = await service.refillAndGetNext({ uid, sessionId: started.session.id });
+    assert.equal(recovered.refill.busy, undefined);
+    assert.equal(recovered.refill.generated, 2);
+    assert.ok(recovered.item.id);
+    assert.equal(provider.cardCalls - before, 1, 'one generation in normal refill, no recovery loop');
+    assert.equal((await orphanRef.get()).data().errorCode, 'generation-lease-expired');
+    assert.equal((await sessionRef.get()).data().generationLock, undefined);
+    assert.equal((await user.collection('card_reviews').get()).size, 2);
+    const refillsBeforeLive = provider.cardCalls;
+    await sessionRef.update({ generationLock: { token: 'live', expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + 60000) } });
+    assert.equal((await service.refillBuffer({ uid, sessionId: started.session.id })).busy, true);
+    assert.equal(provider.cardCalls, refillsBeforeLive, 'live lease must not invoke Vertex');
+    await service.endSession({ uid, sessionId: started.session.id });
+  }
+});
+
+test('Adaptive Tutor P0: resultado ou erro do lease antigo nao apaga o sucessor', async () => {
+  for (const failOld of [false, true]) {
+    const uid = `adaptive-lease-race-${failOld}`;
+    await seedAdaptiveSource(uid);
+    let releaseOld, releaseNew, oldStarted, newStarted;
+    const oldGate = new Promise((resolve) => { oldStarted = resolve; });
+    const newGate = new Promise((resolve) => { newStarted = resolve; });
+    const provider = adaptiveProvider({ beforeCards: async (call) => {
+      if (call === 2) {
+        oldStarted();
+        await new Promise((resolve) => { releaseOld = resolve; });
+        if (failOld) throw new Error('old generation failed');
+      }
+      if (call === 3) {
+        newStarted();
+        await new Promise((resolve) => { releaseNew = resolve; });
+      }
+    } });
+    const service = createAdaptiveStudyService({ admin, getProductLimits: async () => DEFAULT_SERVER_PRODUCT_LIMITS, getProvider: () => provider });
+    const started = await service.startSession({ uid, folderId: 'folder-adaptive', sourceId: 'source-adaptive' });
+    const sessionRef = admin.firestore().collection('users').doc(uid).collection('adaptive_study_sessions').doc(started.session.id);
+    const old = service.refillBuffer({ uid, sessionId: started.session.id }).catch((error) => error);
+    await oldGate;
+    await sessionRef.update({ 'generationLock.expiresAt': admin.firestore.Timestamp.fromMillis(1) });
+    const next = service.refillBuffer({ uid, sessionId: started.session.id });
+    await newGate;
+    const successorToken = (await sessionRef.get()).data().generationLock.token;
+    releaseOld();
+    const oldResult = await old;
+    if (failOld) assert.match(oldResult.message, /old generation failed/);
+    else assert.equal(oldResult.discarded, true);
+    assert.equal((await sessionRef.get()).data().generationLock.token, successorToken);
+    assert.equal((await service.refillBuffer({ uid, sessionId: started.session.id })).busy, true);
+    assert.equal(provider.cardCalls, 3);
+    releaseNew();
+    assert.equal((await next).generated, 2);
+  }
+});
+
 test('Adaptive Tutor: Rules permitem apenas leitura do dono e bloqueiam escrita client-side', async () => {
   const uid = 'adaptive-rules-owner';
   const stranger = 'adaptive-rules-stranger';
@@ -2419,4 +2657,225 @@ test('novo Card sem folderId e importacao Anki sem pasta de destino sao rejeitad
   await assert.rejects(() => anki.importAnkiPackage({
     uid: 'anki-folder-user', importId: 'import-1', storagePath: 'user_uploads/anki-folder-user/anki_imports/import-1/a.apkg', originalName: 'a.apkg',
   }), /folderId invalido/);
+});
+
+async function seedChatGroup(groupId, memberIds = ['chat-owner', 'chat-member'], visibility = 'private') {
+  const adminDb = admin.firestore();
+  await Promise.all(memberIds.map((uid) => adminDb.collection('users').doc(uid).set({ uid }, { merge: true })));
+  await adminDb.collection('study_groups').doc(groupId).set({ name: `Grupo ${groupId}`, visibility, ownerId: memberIds[0], memberCount: memberIds.length });
+  await Promise.all(memberIds.map((uid, index) => adminDb.collection('study_groups').doc(groupId).collection('members').doc(uid).set({
+    uid,
+    displayName: uid,
+    role: index === 0 ? 'owner' : 'member',
+    permissions: { manageGroup: index === 0, manageMembers: index === 0 },
+  })));
+  await adminDb.collection('study_groups').doc(groupId).collection('chat_meta').doc('current').set({
+    groupId,
+    groupName: `Grupo ${groupId}`,
+    memberIds,
+    lastSeq: 0,
+    lastMessageId: null,
+    lastMessageAt: null,
+    lastAuthorId: null,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  await Promise.all(memberIds.map((uid) => adminDb.collection('users').doc(uid).collection('group_chat_states').doc(groupId).set({
+    groupId,
+    lastReadSeq: 0,
+    readAt: admin.firestore.FieldValue.serverTimestamp(),
+    lastSendAt: null,
+    sentCountTotal: 0,
+    sentCountAtRead: 0,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  })));
+}
+
+async function sendChatAs(clientDb, {
+  groupId,
+  uid,
+  messageId,
+  text = 'Mensagem segura',
+  mentionUids = [],
+  authorId = uid,
+  seqDelta = 1,
+  sentCountDelta = 1,
+  writeMeta = true,
+  writeState = true,
+  writeOutbox = false,
+}) {
+  return runTransaction(clientDb, async (transaction) => {
+    const metaRef = doc(clientDb, 'study_groups', groupId, 'chat_meta', 'current');
+    const stateRef = doc(clientDb, 'users', uid, 'group_chat_states', groupId);
+    const [metaSnapshot, stateSnapshot] = await Promise.all([transaction.get(metaRef), transaction.get(stateRef)]);
+    const nextSeq = Number(metaSnapshot.data().lastSeq || 0) + seqDelta;
+    const messageRef = doc(clientDb, 'study_groups', groupId, 'messages', messageId);
+    transaction.set(messageRef, {
+      seq: nextSeq,
+      authorId,
+      authorName: uid,
+      authorPhotoURL: null,
+      text,
+      replyToMessageId: null,
+      mentionUids,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      editedAt: null,
+      deleted: false,
+      deletedAt: null,
+      deletedBy: null,
+      expiresAt: Timestamp.fromMillis(Date.now() + 90 * 86400000),
+    });
+    if (writeMeta) transaction.update(metaRef, {
+      lastSeq: nextSeq,
+      lastMessageId: messageId,
+      lastMessageAt: serverTimestamp(),
+      lastAuthorId: uid,
+      updatedAt: serverTimestamp(),
+    });
+    if (writeState) transaction.update(stateRef, {
+      lastSendAt: serverTimestamp(),
+      sentCountTotal: Number(stateSnapshot.data().sentCountTotal || 0) + sentCountDelta,
+      updatedAt: serverTimestamp(),
+    });
+    if (writeOutbox) transaction.set(doc(clientDb, 'users', uid, 'group_chat_mention_outbox', `${messageId}_create`), {
+      eventId: `${messageId}_create`,
+      groupId,
+      messageId,
+      authorUid: uid,
+      mentionUids,
+      processed: false,
+      createdAt: serverTimestamp(),
+      expiresAt: Timestamp.fromMillis(Date.now() + 14 * 86400000),
+    });
+  });
+}
+
+test('Chat: apenas membros acessam mensagens e collectionGroup de meta', async () => {
+  const groupId = 'chat-access';
+  await seedChatGroup(groupId);
+  const adminDb = admin.firestore();
+  await adminDb.collection('users').doc('chat-stranger').set({ uid: 'chat-stranger' });
+  await adminDb.collection('study_groups').doc(groupId).collection('messages').doc('seed').set({ seq: 1, authorId: 'chat-owner', text: 'Olá' });
+  const memberDb = environment.authenticatedContext('chat-member').firestore();
+  const strangerDb = environment.authenticatedContext('chat-stranger').firestore();
+  await assertSucceeds(getDoc(doc(memberDb, 'study_groups', groupId, 'messages', 'seed')));
+  await assertFails(getDoc(doc(strangerDb, 'study_groups', groupId, 'messages', 'seed')));
+  await assertSucceeds(getDocs(query(collectionGroup(memberDb, 'chat_meta'), where('memberIds', 'array-contains', 'chat-member'))));
+  const strangerSummaries = await assertSucceeds(getDocs(query(collectionGroup(strangerDb, 'chat_meta'), where('memberIds', 'array-contains', 'chat-stranger'))));
+  assert.equal(strangerSummaries.empty, true);
+  await assertFails(getDocs(query(collectionGroup(strangerDb, 'chat_meta'), where('memberIds', 'array-contains', 'chat-member'))));
+  const publicGroupId = 'chat-public-access';
+  await seedChatGroup(publicGroupId, ['chat-owner'], 'public');
+  await assertFails(getDoc(doc(strangerDb, 'study_groups', publicGroupId, 'messages', 'missing')));
+  await adminDb.collection('study_groups').doc(groupId).collection('chat_meta').doc('current').update({ memberIds: ['chat-owner'] });
+  const formerMemberSummaries = await assertSucceeds(getDocs(query(collectionGroup(memberDb, 'chat_meta'), where('memberIds', 'array-contains', 'chat-member'))));
+  assert.equal(formerMemberSummaries.empty, true);
+});
+
+test('Chat: envio válido exige mensagem, meta e state atômicos e aplica rate limit', async () => {
+  const groupId = 'chat-atomic';
+  await seedChatGroup(groupId);
+  const ownerDb = environment.authenticatedContext('chat-owner').firestore();
+  await assertSucceeds(sendChatAs(ownerDb, { groupId, uid: 'chat-owner', messageId: 'valid-1' }));
+  await assertFails(sendChatAs(ownerDb, { groupId, uid: 'chat-owner', messageId: 'rate-limited' }));
+
+  const separateGroup = 'chat-no-meta';
+  await seedChatGroup(separateGroup);
+  const separateDb = environment.authenticatedContext('chat-owner').firestore();
+  await assertFails(sendChatAs(separateDb, { groupId: separateGroup, uid: 'chat-owner', messageId: 'missing-meta', writeMeta: false }));
+  await assertFails(sendChatAs(separateDb, { groupId: separateGroup, uid: 'chat-owner', messageId: 'missing-state', writeState: false }));
+  await assertFails(sendChatAs(separateDb, { groupId: separateGroup, uid: 'chat-owner', messageId: 'spoof-seq', seqDelta: 2 }));
+
+  const spoofGroup = 'chat-spoof-author';
+  await seedChatGroup(spoofGroup, ['chat-owner', 'chat-member']);
+  await assertFails(sendChatAs(ownerDb, { groupId: spoofGroup, uid: 'chat-owner', messageId: 'spoof-author', authorId: 'chat-member' }));
+
+  const invalidCountGroup = 'chat-invalid-sent-count';
+  await seedChatGroup(invalidCountGroup);
+  await assertFails(sendChatAs(ownerDb, { groupId: invalidCountGroup, uid: 'chat-owner', messageId: 'bad-count', sentCountDelta: 2 }));
+});
+
+test('Chat: valida edição, moderação, cursor, typing e limite de menções', async () => {
+  const groupId = 'chat-security';
+  await seedChatGroup(groupId, ['chat-owner', 'chat-member', 'chat-other']);
+  const adminDb = admin.firestore();
+  const oldCreatedAt = admin.firestore.Timestamp.fromMillis(Date.now() - 16 * 60000);
+  const oldRef = adminDb.collection('study_groups').doc(groupId).collection('messages').doc('old');
+  await oldRef.set({
+    seq: 1, authorId: 'chat-member', authorName: 'Membro', authorPhotoURL: null, text: 'Antiga', replyToMessageId: null,
+    mentionUids: [], createdAt: oldCreatedAt, updatedAt: oldCreatedAt, editedAt: null, deleted: false, deletedAt: null, deletedBy: null,
+    expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + 89 * 86400000),
+  });
+  const memberDb = environment.authenticatedContext('chat-member').firestore();
+  const otherDb = environment.authenticatedContext('chat-other').firestore();
+  const ownerDb = environment.authenticatedContext('chat-owner').firestore();
+  await assertFails(updateDoc(doc(memberDb, 'study_groups', groupId, 'messages', 'old'), { text: 'Tarde', editedAt: serverTimestamp(), updatedAt: serverTimestamp() }));
+  await assertFails(updateDoc(doc(otherDb, 'study_groups', groupId, 'messages', 'old'), { text: '', deleted: true, deletedAt: serverTimestamp(), deletedBy: 'chat-other', updatedAt: serverTimestamp() }));
+  await assertSucceeds(updateDoc(doc(ownerDb, 'study_groups', groupId, 'messages', 'old'), { text: '', deleted: true, deletedAt: serverTimestamp(), deletedBy: 'chat-owner', updatedAt: serverTimestamp() }));
+  await assertFails(updateDoc(doc(memberDb, 'users', 'chat-member', 'group_chat_states', groupId), { lastReadSeq: 999, sentCountAtRead: 0, readAt: serverTimestamp(), updatedAt: serverTimestamp() }));
+  await assertFails(setDoc(doc(memberDb, 'study_groups', groupId, 'typing', 'chat-other'), { uid: 'chat-other', name: 'Falso', typingUntil: Timestamp.fromMillis(Date.now() + 10000), updatedAt: serverTimestamp() }));
+  await assertSucceeds(setDoc(doc(memberDb, 'study_groups', groupId, 'typing', 'chat-member'), { uid: 'chat-member', name: 'Membro', typingUntil: Timestamp.fromMillis(Date.now() + 10000), updatedAt: serverTimestamp() }));
+
+  await adminDb.collection('study_groups').doc(groupId).collection('chat_meta').doc('current').update({ lastSeq: 10 });
+  await adminDb.collection('users').doc('chat-member').collection('group_chat_states').doc(groupId).update({ lastReadSeq: 5 });
+  await assertFails(updateDoc(doc(memberDb, 'users', 'chat-member', 'group_chat_states', groupId), { lastReadSeq: 4, sentCountAtRead: 0, readAt: serverTimestamp(), updatedAt: serverTimestamp() }));
+  await assertFails(updateDoc(doc(memberDb, 'users', 'chat-member', 'group_chat_states', groupId), { lastReadSeq: 11, sentCountAtRead: 0, readAt: serverTimestamp(), updatedAt: serverTimestamp() }));
+
+  const mentionGroup = 'chat-mentions';
+  const mentionTargets = Array.from({ length: 11 }, (_, index) => `mention-${index}`);
+  await seedChatGroup(mentionGroup, ['chat-owner', ...mentionTargets]);
+  const mentionDb = environment.authenticatedContext('chat-owner').firestore();
+  await assertFails(sendChatAs(mentionDb, { groupId: mentionGroup, uid: 'chat-owner', messageId: 'too-many', mentionUids: mentionTargets }));
+  await assertSucceeds(sendChatAs(mentionDb, { groupId: mentionGroup, uid: 'chat-owner', messageId: 'valid-mentions', mentionUids: mentionTargets.slice(0, 2), writeOutbox: true }));
+});
+
+test('Chat: backend sincroniza membership e entrega menção idempotente só aos destinatários', async () => {
+  const groupId = 'chat-backend';
+  await seedChatGroup(groupId, ['chat-owner', 'chat-member', 'chat-other']);
+  const adminDb = admin.firestore();
+  await Promise.all([
+    adminDb.collection('study_groups').doc(groupId).collection('chat_meta').doc('current').delete(),
+    ...['chat-owner', 'chat-member', 'chat-other'].map((uid) => adminDb.collection('users').doc(uid).collection('group_chat_states').doc(groupId).delete()),
+  ]);
+  const prepared = await groupChatService.prepareChat({ uid: 'chat-member', groupId });
+  assert.equal(prepared.initialized, true);
+  assert.equal((await adminDb.collection('users').doc('chat-member').collection('group_chat_states').doc(groupId).get()).exists, true);
+  assert.equal((await adminDb.collection('users').doc('chat-owner').collection('group_chat_states').doc(groupId).get()).exists, true);
+  assert.equal((await adminDb.collection('users').doc('chat-other').collection('group_chat_states').doc(groupId).get()).exists, true);
+
+  await adminDb.collection('study_groups').doc(groupId).collection('messages').doc('mentioned').set({
+    authorId: 'chat-owner',
+    authorName: 'Responsável',
+    text: 'Olá @Membro',
+    mentionUids: ['chat-member'],
+    deleted: false,
+  });
+  await adminDb.collection('users').doc('chat-owner').collection('group_chat_mention_outbox').doc('mentioned_create').set({
+    authorUid: 'chat-owner',
+    groupId,
+    messageId: 'mentioned',
+    mentionUids: ['chat-member'],
+    processed: false,
+  });
+  const first = await groupChatService.processMentionOutbox({
+    authorUid: 'chat-owner', eventId: 'mentioned_create', data: {
+      authorUid: 'chat-owner', groupId, messageId: 'mentioned', mentionUids: ['chat-member'],
+    },
+  });
+  const replay = await groupChatService.processMentionOutbox({
+    authorUid: 'chat-owner', eventId: 'mentioned_create', data: {
+      authorUid: 'chat-owner', groupId, messageId: 'mentioned', mentionUids: ['chat-member'],
+    },
+  });
+  assert.equal(first.delivered, 1);
+  assert.equal(replay.delivered, 1);
+  assert.equal((await adminDb.collection('users').doc('chat-member').collection('notifications').get()).size, 1);
+  assert.equal((await adminDb.collection('users').doc('chat-other').collection('notifications').get()).size, 0);
+
+  await adminDb.collection('study_groups').doc(groupId).collection('members').doc('chat-member').delete();
+  await groupChatService.syncMembership({ groupId, memberId: 'chat-member', memberDeleted: true });
+  const meta = (await adminDb.collection('study_groups').doc(groupId).collection('chat_meta').doc('current').get()).data();
+  assert.equal(meta.memberIds.includes('chat-member'), false);
+  assert.equal((await adminDb.collection('users').doc('chat-member').collection('group_chat_states').doc(groupId).get()).exists, false);
 });

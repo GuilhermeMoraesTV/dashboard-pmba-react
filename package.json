@@ -13,7 +13,8 @@
     "preview": "vite preview",
     "test": "firebase emulators:exec --config firebase.test.json --project dashboard-pmba --only firestore,storage \"node --test --test-isolation=none tests/*.test.mjs\"",
     "test:unit": "node --test --test-isolation=none tests/runUnitTests.mjs",
-    "test:gamification": "node --test --test-isolation=none tests/gamification.test.mjs"
+    "test:gamification": "node --test --test-isolation=none tests/gamification.test.mjs",
+    "benchmark:group-chat": "firebase emulators:exec --config firebase.test.json --project dashboard-pmba --only firestore \"node scripts/benchmark-group-chat.mjs\""
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

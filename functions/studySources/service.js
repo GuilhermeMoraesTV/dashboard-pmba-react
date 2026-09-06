@@ -64,8 +64,11 @@ function createStudySourceService({
     if (!uid) throw new HttpsError('unauthenticated', 'Usuario nao autenticado.');
     const limits = await getProductLimits(db);
     const folders = db.collection('users').doc(uid).collection('study_folders');
-    const count = await folders.count().get();
-    if (Number(count.data().count || 0) >= limits.studySources.maxFoldersPerUser) throw new HttpsError('resource-exhausted', 'Limite de pastas atingido.');
+    const [count, imported] = await Promise.all([
+      folders.count().get(), folders.where('sourceType', '==', 'anki').count().get(),
+    ]);
+    const manualCount = Number(count.data().count || 0) - Number(imported.data().count || 0);
+    if (manualCount >= limits.studySources.maxFoldersPerUser) throw new HttpsError('resource-exhausted', 'Limite de pastas atingido.');
     let parentFolderId = null;
     let ancestorFolderIds = [];
     if (data?.parentFolderId) {
@@ -144,7 +147,10 @@ function createStudySourceService({
       }));
     }
 
-    const count = Number((await folders.count().get()).data().count || 0);
+    const [totalCount, importedCount] = await Promise.all([
+      folders.count().get(), folders.where('sourceType', '==', 'anki').count().get(),
+    ]);
+    const count = Number(totalCount.data().count || 0) - Number(importedCount.data().count || 0);
     if (count + itemsToCreate.length > limits.studySources.maxFoldersPerUser) {
       throw new HttpsError('resource-exhausted', 'A arvore excede o limite de pastas do usuario.');
     }
@@ -212,12 +218,14 @@ function createStudySourceService({
     if (!snapshot.exists || snapshot.data()?.userId !== uid) throw new HttpsError('not-found', 'Pasta nao encontrada.');
 
     const descendants = await foldersRef.where('ancestorFolderIds', 'array-contains', safeFolderId).get();
-    const batch = db.batch();
-    batch.update(targetRef, { archived: true, updatedAt: FieldValue.serverTimestamp() });
-    descendants.docs.forEach((docSnap) => {
-      batch.update(docSnap.ref, { archived: true, updatedAt: FieldValue.serverTimestamp() });
-    });
-    await batch.commit();
+    const refs = [targetRef, ...descendants.docs.map((docSnap) => docSnap.ref)];
+    for (let offset = 0; offset < refs.length; offset += 400) {
+      const batch = db.batch();
+      refs.slice(offset, offset + 400).forEach((ref) => {
+        batch.update(ref, { archived: true, updatedAt: FieldValue.serverTimestamp() });
+      });
+      await batch.commit();
+    }
     return { folderId: safeFolderId, archivedCount: 1 + descendants.size, ok: true };
   }
 

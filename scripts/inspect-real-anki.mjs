@@ -34,8 +34,19 @@ for (const filePath of process.argv.slice(2)) {
   console.log(JSON.stringify({
     file: path.basename(filePath),
     format: archive.collectionName,
-    cards: parsed.cards.length,
-    decks: parsed.deckCount,
+    sqlite: {
+      totalCards: parsed.metrics.totalCardsSQLite,
+      totalNotes: parsed.metrics.totalNotesSQLite,
+      totalDecks: parsed.metrics.totalDecksSQLite,
+      cardsPerDeck: parsed.metrics.cardsPerDeck,
+    },
+    parser: {
+      cardsDetected: parsed.metrics.cardsDetected,
+      cardsParsed: parsed.metrics.cardsParsed,
+      cardsSkipped: parsed.metrics.cardsSkipped,
+      skipReasons: parsed.metrics.skipReasons,
+      typedAnswerCards: parsed.metrics.typedAnswerCards,
+    },
     maxDepth: Math.max(...depths),
     roots: [...new Set(parsed.decks.map((deck) => splitAnkiDeckPath(deck.name)[0]))].slice(0, 12),
     createdFolders: plan.newFolders.length,

@@ -316,8 +316,24 @@ service cloud.firestore {
       return /databases/$(database)/documents/study_groups/$(groupId)/members/$(userId);
     }
 
+    function groupChatMetaPath(groupId) {
+      return /databases/$(database)/documents/study_groups/$(groupId)/chat_meta/current;
+    }
+
+    function groupChatMessagePath(groupId, messageId) {
+      return /databases/$(database)/documents/study_groups/$(groupId)/messages/$(messageId);
+    }
+
+    function groupChatStatePath(userId, groupId) {
+      return /databases/$(database)/documents/users/$(userId)/group_chat_states/$(groupId);
+    }
+
     function isGroupMember(groupId) {
       return isSignedIn() && exists(groupMemberPath(groupId, request.auth.uid));
+    }
+
+    function isGroupMemberAfter(groupId) {
+      return isSignedIn() && existsAfter(groupMemberPath(groupId, request.auth.uid));
     }
 
     function isGroupOwner(groupId) {
@@ -462,6 +478,192 @@ service cloud.firestore {
         && request.resource.data.get('isRead', false) == true;
     }
 
+    function groupChatCooldownMs() {
+      let configPath = /databases/$(database)/documents/system_config/product_limits;
+      return exists(configPath)
+        ? get(configPath).data.get('groupChat', {}).get('messageCooldownMs', 1000)
+        : 1000;
+    }
+
+    function validGroupChatMessageShape(data) {
+      return data.keys().hasAll([
+          'seq', 'authorId', 'authorName', 'authorPhotoURL', 'text', 'replyToMessageId',
+          'mentionUids', 'createdAt', 'updatedAt', 'editedAt', 'deleted', 'deletedAt',
+          'deletedBy', 'expiresAt'
+        ])
+        && data.keys().hasOnly([
+          'seq', 'authorId', 'authorName', 'authorPhotoURL', 'text', 'replyToMessageId',
+          'mentionUids', 'createdAt', 'updatedAt', 'editedAt', 'deleted', 'deletedAt',
+          'deletedBy', 'expiresAt'
+        ])
+        && data.seq is int && data.seq > 0
+        && data.authorId is string && data.authorId == request.auth.uid
+        && data.authorName is string && data.authorName.size() > 0 && data.authorName.size() <= 120
+        && (data.authorPhotoURL == null || (data.authorPhotoURL is string && data.authorPhotoURL.size() <= 2048))
+        && data.text is string && data.text.size() > 0 && data.text.size() <= 4000
+        && data.text.matches('.*[^ \\t\\r\\n].*')
+        && (data.replyToMessageId == null || (data.replyToMessageId is string && data.replyToMessageId.size() > 0 && data.replyToMessageId.size() <= 500))
+        && data.mentionUids is list && data.mentionUids.size() <= 10
+        && data.mentionUids.toSet().size() == data.mentionUids.size()
+        && !data.mentionUids.hasAny([request.auth.uid])
+        && data.createdAt == request.time && data.updatedAt == request.time
+        && data.editedAt == null && data.deleted == false
+        && data.deletedAt == null && data.deletedBy == null
+        && data.expiresAt is timestamp
+        && data.expiresAt >= request.time + duration.value(2159, 'h')
+        && data.expiresAt <= request.time + duration.value(2161, 'h');
+    }
+
+    function groupChatMessageCreateIsSafe(groupId, messageId) {
+      let metaAfter = getAfter(groupChatMetaPath(groupId)).data;
+      let stateBefore = get(groupChatStatePath(request.auth.uid, groupId)).data;
+      let stateAfter = getAfter(groupChatStatePath(request.auth.uid, groupId)).data;
+      return isGroupMember(groupId)
+        && validGroupChatMessageShape(request.resource.data)
+        && metaAfter.lastMessageId == messageId
+        && metaAfter.lastSeq == request.resource.data.seq
+        && metaAfter.lastAuthorId == request.auth.uid
+        && stateAfter.sentCountTotal == stateBefore.sentCountTotal + 1
+        && stateAfter.lastSendAt == request.time
+        && (
+          stateBefore.lastSendAt == null
+          || stateBefore.lastSendAt + duration.value(groupChatCooldownMs(), 'ms') <= request.time
+        );
+    }
+
+    function groupChatMessageEditIsSafe() {
+      return resource.data.authorId == request.auth.uid
+        && resource.data.deleted == false
+        && request.time <= resource.data.createdAt + duration.value(15, 'm')
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['text', 'mentionUids', 'editedAt', 'updatedAt'])
+        && request.resource.data.text is string
+        && request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 4000
+        && request.resource.data.text.matches('.*[^ \\t\\r\\n].*')
+        && request.resource.data.mentionUids is list
+        && request.resource.data.mentionUids.size() <= 10
+        && request.resource.data.mentionUids.toSet().size() == request.resource.data.mentionUids.size()
+        && !request.resource.data.mentionUids.hasAny([request.auth.uid])
+        && (
+          request.resource.data.text != resource.data.text
+          || request.resource.data.mentionUids != resource.data.mentionUids
+        )
+        && request.resource.data.editedAt == request.time
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    function groupChatMessageDeleteIsSafe(groupId) {
+      return resource.data.deleted == false
+        && (resource.data.authorId == request.auth.uid || isGroupManager(groupId) || isAdmin())
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['text', 'deleted', 'deletedAt', 'deletedBy', 'updatedAt'])
+        && request.resource.data.text == ''
+        && request.resource.data.deleted == true
+        && request.resource.data.deletedAt == request.time
+        && request.resource.data.deletedBy == request.auth.uid
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    function groupChatMetaCreateIsSafe(groupId) {
+      let data = request.resource.data;
+      return isSignedIn()
+        && getAfter(groupPath(groupId)).data.ownerId == request.auth.uid
+        && isGroupMemberAfter(groupId)
+        && data.keys().hasAll(['groupId', 'groupName', 'memberIds', 'lastSeq', 'lastMessageId', 'lastMessageAt', 'lastAuthorId', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['groupId', 'groupName', 'memberIds', 'lastSeq', 'lastMessageId', 'lastMessageAt', 'lastAuthorId', 'createdAt', 'updatedAt'])
+        && data.groupId == groupId
+        && data.groupName == getAfter(groupPath(groupId)).data.name
+        && data.memberIds is list && data.memberIds.size() == 1 && data.memberIds.hasAny([request.auth.uid])
+        && data.lastSeq == 0 && data.lastMessageId == null && data.lastMessageAt == null && data.lastAuthorId == null
+        && data.createdAt == request.time && data.updatedAt == request.time;
+    }
+
+    function groupChatMetaSendUpdateIsSafe(groupId) {
+      let messageId = request.resource.data.lastMessageId;
+      let messageAfter = getAfter(groupChatMessagePath(groupId, messageId)).data;
+      return isGroupMember(groupId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastSeq', 'lastMessageId', 'lastMessageAt', 'lastAuthorId', 'updatedAt'])
+        && request.resource.data.lastSeq == resource.data.lastSeq + 1
+        && request.resource.data.lastAuthorId == request.auth.uid
+        && request.resource.data.lastMessageAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && existsAfter(groupChatMessagePath(groupId, messageId))
+        && messageAfter.seq == request.resource.data.lastSeq
+        && messageAfter.authorId == request.auth.uid;
+    }
+
+    function groupChatStateCreateIsSafe(userId, groupId) {
+      let data = request.resource.data;
+      let meta = getAfter(groupChatMetaPath(groupId)).data;
+      return isOwner(userId) && isGroupMemberAfter(groupId)
+        && data.keys().hasAll(['groupId', 'lastReadSeq', 'readAt', 'lastSendAt', 'sentCountTotal', 'sentCountAtRead', 'updatedAt'])
+        && data.keys().hasOnly(['groupId', 'lastReadSeq', 'readAt', 'lastSendAt', 'sentCountTotal', 'sentCountAtRead', 'updatedAt'])
+        && data.groupId == groupId
+        && data.lastReadSeq == meta.lastSeq
+        && data.readAt == request.time
+        && data.lastSendAt == null
+        && data.sentCountTotal == 0 && data.sentCountAtRead == 0
+        && data.updatedAt == request.time;
+    }
+
+    function groupChatStateReadUpdateIsSafe(userId, groupId) {
+      return isOwner(userId) && isGroupMember(groupId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastReadSeq', 'sentCountAtRead', 'readAt', 'updatedAt'])
+        && request.resource.data.groupId == resource.data.groupId
+        && request.resource.data.lastReadSeq >= resource.data.lastReadSeq
+        && request.resource.data.lastReadSeq <= get(groupChatMetaPath(groupId)).data.lastSeq
+        && request.resource.data.sentCountTotal == resource.data.sentCountTotal
+        && request.resource.data.sentCountAtRead == request.resource.data.sentCountTotal
+        && request.resource.data.lastSendAt == resource.data.lastSendAt
+        && request.resource.data.readAt == request.time
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    function groupChatStateSendUpdateIsSafe(userId, groupId) {
+      let metaAfter = getAfter(groupChatMetaPath(groupId)).data;
+      return isOwner(userId) && isGroupMember(groupId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastSendAt', 'sentCountTotal', 'updatedAt'])
+        && request.resource.data.groupId == resource.data.groupId
+        && request.resource.data.lastReadSeq == resource.data.lastReadSeq
+        && request.resource.data.sentCountAtRead == resource.data.sentCountAtRead
+        && request.resource.data.sentCountTotal == resource.data.sentCountTotal + 1
+        && request.resource.data.lastSendAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && metaAfter.lastAuthorId == request.auth.uid
+        && metaAfter.lastSeq == get(groupChatMetaPath(groupId)).data.lastSeq + 1;
+    }
+
+    function groupChatTypingWriteIsSafe(groupId, typingUid) {
+      let data = request.resource.data;
+      return isOwner(typingUid) && isGroupMember(groupId)
+        && data.keys().hasAll(['uid', 'name', 'typingUntil', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'name', 'typingUntil', 'updatedAt'])
+        && data.uid == request.auth.uid
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 120
+        && data.typingUntil is timestamp
+        && data.typingUntil > request.time
+        && data.typingUntil <= request.time + duration.value(15, 's')
+        && data.updatedAt == request.time
+        && (!exists(/databases/$(database)/documents/study_groups/$(groupId)/typing/$(typingUid)) || data.uid == resource.data.uid);
+    }
+
+    function groupChatOutboxCreateIsSafe(userId, eventId) {
+      let data = request.resource.data;
+      let messageAfter = getAfter(groupChatMessagePath(data.groupId, data.messageId)).data;
+      return isOwner(userId) && isGroupMember(data.groupId)
+        && data.keys().hasAll(['eventId', 'groupId', 'messageId', 'authorUid', 'mentionUids', 'processed', 'createdAt', 'expiresAt'])
+        && data.keys().hasOnly(['eventId', 'groupId', 'messageId', 'authorUid', 'mentionUids', 'processed', 'createdAt', 'expiresAt'])
+        && data.eventId == eventId && data.authorUid == request.auth.uid
+        && data.mentionUids is list && data.mentionUids.size() > 0 && data.mentionUids.size() <= 10
+        && data.mentionUids.toSet().size() == data.mentionUids.size()
+        && !data.mentionUids.hasAny([request.auth.uid])
+        && existsAfter(groupChatMessagePath(data.groupId, data.messageId))
+        && messageAfter.authorId == request.auth.uid
+        && messageAfter.mentionUids.hasAll(data.mentionUids)
+        && data.processed == false && data.createdAt == request.time
+        && data.expiresAt is timestamp
+        && data.expiresAt >= request.time + duration.value(335, 'h')
+        && data.expiresAt <= request.time + duration.value(337, 'h');
+    }
+
     function newGroupMemberRoleIsSafe(groupId) {
       return (
         getAfter(groupPath(groupId)).data.ownerId == request.auth.uid
@@ -516,7 +718,7 @@ service cloud.firestore {
         && (
           !data.keys().hasAny(['photoURL'])
           || data.photoURL == null
-          || (data.photoURL is string && data.photoURL.size() <= 2048 && data.photoURL.matches('^https://'))
+          || (data.photoURL is string && data.photoURL.size() <= 2048 && data.photoURL.matches('^https://[^/\\s]+(/.*)?$'))
         )
         && (
           !data.keys().hasAny(['coverURL'])
@@ -802,7 +1004,14 @@ service cloud.firestore {
 
     // Estado do timer ao vivo: o dono escreve apenas o próprio timer e o admin pode monitorar.
     match /active_timers/{uid} {
-      allow read: if isOwnerOrAdmin(uid) || sharesStudyGroup(uid);
+      allow get: if isOwnerOrAdmin(uid) || sharesStudyGroup(uid);
+      allow list: if isAdmin()
+        || (
+          isSignedIn()
+          && exists(gamificationProfilePath(request.auth.uid))
+          && resource.data.get('groupIds', [])
+            .hasAny(get(gamificationProfilePath(request.auth.uid)).data.get('groupIds', []))
+        );
       allow create, update, delete: if isOwner(uid);
     }
 
@@ -927,6 +1136,28 @@ service cloud.firestore {
         allow delete: if isOwner(requestUserId) || isGroupMemberManager(groupId);
       }
 
+      match /chat_meta/{metaId} {
+        allow read: if metaId == 'current'
+          && (isAdmin() || (isSignedIn() && resource.data.memberIds.hasAny([request.auth.uid])));
+        allow create: if metaId == 'current' && groupChatMetaCreateIsSafe(groupId);
+        allow update: if metaId == 'current' && groupChatMetaSendUpdateIsSafe(groupId);
+        allow delete: if false;
+      }
+
+      match /messages/{messageId} {
+        allow read: if isAdmin() || isGroupMember(groupId);
+        allow create: if groupChatMessageCreateIsSafe(groupId, messageId);
+        allow update: if isGroupMember(groupId)
+          && (groupChatMessageEditIsSafe() || groupChatMessageDeleteIsSafe(groupId));
+        allow delete: if false;
+      }
+
+      match /typing/{typingUid} {
+        allow read: if isAdmin() || isGroupMember(groupId);
+        allow create, update: if groupChatTypingWriteIsSafe(groupId, typingUid);
+        allow delete: if false;
+      }
+
       match /weekly_rankings/{weekId} {
         allow read: if isAdmin()
           || (isSignedIn() && get(groupPath(groupId)).data.visibility == 'public')
@@ -981,6 +1212,16 @@ service cloud.firestore {
 
     match /{path=**}/cronogramas/{cronogramaId} {
       allow read: if isAdmin();
+    }
+
+    // Consulta agregada única dos resumos de chat. O documento não contém texto
+    // e a query precisa obrigatoriamente filtrar memberIds por request.auth.uid.
+    // O ID não é testado aqui porque consultas collectionGroup não conseguem
+    // provar uma restrição por documentId; escritas seguem restritas a `current`
+    // no matcher específico do grupo.
+    match /{path=**}/chat_meta/{metaId} {
+      allow read: if isSignedIn()
+        && resource.data.memberIds.hasAny([request.auth.uid]);
     }
 
     // Necessário para a visão consolidada de usuários do admin. Escritas continuam
@@ -1045,6 +1286,20 @@ service cloud.firestore {
         allow read: if isOwnerOrAdmin(userId);
         allow create, delete: if isAdmin();
         allow update: if isAdmin() || (isOwner(userId) && notificationReadStateUpdateIsSafe());
+      }
+
+      match /group_chat_states/{groupId} {
+        allow read: if isOwnerOrAdmin(userId);
+        allow create: if groupChatStateCreateIsSafe(userId, groupId);
+        allow update: if groupChatStateReadUpdateIsSafe(userId, groupId)
+          || groupChatStateSendUpdateIsSafe(userId, groupId);
+        allow delete: if false;
+      }
+
+      match /group_chat_mention_outbox/{eventId} {
+        allow read: if isOwnerOrAdmin(userId);
+        allow create: if groupChatOutboxCreateIsSafe(userId, eventId);
+        allow update, delete: if false;
       }
 
       match /registrosEstudo/{recordId} {
@@ -1251,11 +1506,17 @@ service cloud.firestore {
         allow read, create, update, delete: if false;
       }
 
+      match /anki_import_locks/{lockId} {
+        allow read, write: if false;
+      }
+
       // Exige ao menos uma subcoleção e um documento; o wildcard recursivo
       // sozinho também casaria o documento users/{userId} em rules_version 2.
       match /{subCollection}/{document=**} {
         allow read, write, delete: if subCollection != 'gamification'
           && subCollection != 'notifications'
+          && subCollection != 'group_chat_states'
+          && subCollection != 'group_chat_mention_outbox'
           && subCollection != 'registrosEstudo'
           && subCollection != 'simulados'
           && subCollection != 'metas'
@@ -1272,6 +1533,7 @@ service cloud.firestore {
           && subCollection != 'generated_items'
           && subCollection != 'anki_imports'
           && subCollection != 'anki_card_index'
+          && subCollection != 'anki_import_locks'
           && subCollection != 'study_folders'
           && subCollection != 'study_sources'
           && subCollection != 'adaptive_study_sessions'
@@ -1284,13 +1546,14 @@ service cloud.firestore {
     // o dono pode abrir e ler o próprio chamado;
     // o admin pode ler e gerenciar toda a fila.
     match /system_feedback/{feedbackId} {
+      allow get: if isAdmin()
+        || (isSignedIn() && resource.data.uid == request.auth.uid);
+      allow list: if request.query.limit != null && request.query.limit <= 100
+        && (isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid));
+
       allow create: if isSignedIn()
         && request.resource.data.uid == request.auth.uid;
 
-      allow read: if isAdmin()
-        || (isSignedIn() && resource.data.uid == request.auth.uid);
-
-      // Atualizações do dono ficam restritas aos campos usados pelo widget atual.
       allow update: if isAdmin()
         || (
           isSignedIn()
@@ -1299,26 +1562,37 @@ service cloud.firestore {
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             'adminTyping',
             'lastUpdate',
+            'preview',
+            'status',
             'unreadAdmin',
             'unreadUser',
-            'userTyping'
+            'userTyping',
+            'deleted'
           ])
         );
 
-      allow delete: if isAdmin();
+      allow delete: if isAdmin()
+        || (isSignedIn() && resource.data.uid == request.auth.uid);
 
       match /messages/{messageId} {
-        allow read: if isAdmin() || isFeedbackOwner(feedbackId);
+        allow get: if (isAdmin() || isFeedbackOwner(feedbackId))
+          && get(/databases/$(database)/documents/system_feedback/$(feedbackId)).data.get('deleted', false) == false;
+        allow list: if request.query.limit != null && request.query.limit <= 50
+          && (isAdmin() || isFeedbackOwner(feedbackId))
+          && get(/databases/$(database)/documents/system_feedback/$(feedbackId)).data.get('deleted', false) == false;
 
-        // O dono pode enviar apenas mensagens de usuario no proprio chamado.
-        // Mensagens admin/system ficam restritas ao painel/admin.
-        allow create: if isAdmin()
-          || (
-            isFeedbackOwner(feedbackId)
-            && request.resource.data.sender == 'user'
-          );
+        allow create: if (
+          (isAdmin() && request.resource.data.sender in ['admin', 'system'])
+          || (isFeedbackOwner(feedbackId) && request.resource.data.sender == 'user')
+        )
+          && request.resource.data.keys().hasAll(['sender', 'text', 'timestamp'])
+          && request.resource.data.text is string
+          && request.resource.data.text.size() <= 12000;
 
-        allow update, delete: if isAdmin();
+        allow update: if (isAdmin() || (isFeedbackOwner(feedbackId) && resource.data.sender == 'user'))
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['text', 'editedAt', 'updatedAt', 'deleted']);
+
+        allow delete: if isAdmin();
       }
     }
 

@@ -1,8 +1,8 @@
-import React, { useState, useEffect, Suspense, lazy } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged, signInWithEmailAndPassword } from 'firebase/auth';
 import { doc, onSnapshot } from 'firebase/firestore';
-import { auth, authPersistenceReady, db } from './firebaseConfig';
+import { auth, authPersistenceReady, db, isFirebaseEmulator } from './firebaseConfig';
 import PwaStatus from './components/shared/PwaStatus';
 import EnvironmentBadge from './components/shared/EnvironmentBadge';
 import { dismissInitialLoadingScreen } from './utils/initialLoadingScreen';
@@ -12,13 +12,15 @@ import {
   normalizeUserFontSize,
   USER_FONT_SIZE_STORAGE_KEY,
 } from './utils/userFontPreference';
+import { lazyWithRetry } from './utils/lazyWithRetry';
+import { clearPendingEmulatorLogin, readPendingEmulatorLogin } from './utils/firebaseEnvironment.js';
 
 // Importações Lazy
-const Dashboard = lazy(() => import('./components/Dashboard'));
-const Login = lazy(() => import('./components/Login'));
-const Signup = lazy(() => import('./components/Signup'));
-const ForgotPassword = lazy(() => import('./components/ForgotPassword'));
-const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
+const Dashboard = lazyWithRetry(() => import('./components/Dashboard'), { name: 'Dashboard' });
+const Login = lazyWithRetry(() => import('./components/Login'), { name: 'Login' });
+const Signup = lazyWithRetry(() => import('./components/Signup'), { name: 'Cadastro' });
+const ForgotPassword = lazyWithRetry(() => import('./components/ForgotPassword'), { name: 'Recuperar Senha' });
+const NotFoundPage = lazyWithRetry(() => import('./pages/NotFoundPage'), { name: 'Página Não Encontrada' });
 
 function ProtectedDashboard({ user, isDarkMode, toggleTheme }) {
   const location = useLocation();
@@ -43,6 +45,16 @@ function App() {
   const [userFontSize, setUserFontSize] = useState(() => {
     return normalizeUserFontSize(localStorage.getItem(USER_FONT_SIZE_STORAGE_KEY));
   });
+
+  // --- Recuperação automática de chunks desatualizados ---
+  useEffect(() => {
+    const handlePreloadError = (event) => {
+      console.warn('[Vite] Erro de preload de módulo detectado, recarregando página...', event);
+      window.location.reload();
+    };
+    window.addEventListener('vite:preloadError', handlePreloadError);
+    return () => window.removeEventListener('vite:preloadError', handlePreloadError);
+  }, []);
 
   // --- Lógica de Zoom do Sistema ---
   useEffect(() => {
@@ -100,7 +112,22 @@ function App() {
     let unsubscribe = () => {};
     let active = true;
 
-    authPersistenceReady.finally(() => {
+    authPersistenceReady.finally(async () => {
+      if (!active) return;
+      if (isFirebaseEmulator) {
+        const pendingLogin = readPendingEmulatorLogin(window.sessionStorage);
+        if (pendingLogin && auth.currentUser?.uid !== pendingLogin.uid) {
+          try {
+            await signInWithEmailAndPassword(auth, pendingLogin.email, pendingLogin.password);
+            clearPendingEmulatorLogin(window.sessionStorage);
+          } catch (error) {
+            clearPendingEmulatorLogin(window.sessionStorage);
+            console.error('[Firebase Emulator] Falha ao restaurar usuário espelhado:', error);
+          }
+        } else if (pendingLogin) {
+          clearPendingEmulatorLogin(window.sessionStorage);
+        }
+      }
       if (!active) return;
       unsubscribe = onAuthStateChanged(auth, (currentUser) => {
         if (currentUser?.uid) {
@@ -128,7 +155,7 @@ function App() {
   }, []);
 
   if (loading) {
-    return null;
+    return <EnvironmentBadge />;
   }
 
   return (

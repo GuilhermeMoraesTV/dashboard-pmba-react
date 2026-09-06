@@ -144,6 +144,11 @@ scripts/serviceAccount*.json
 .vite/
 vite-dev.out
 vite-dev.err
+*.out
+*.err
+tmp/
+output/
+.firebase/
 
 # Assistentes locais e backups
 .claude/

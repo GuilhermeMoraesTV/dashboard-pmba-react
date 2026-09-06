@@ -19,7 +19,9 @@ export function parseTimerJson(value) {
   }
 }
 
-export function claimTimerHeartbeatLease({ storage, key, ownerId, now = Date.now(), ttlMs = 45000 }) {
+export const DEFAULT_HEARTBEAT_LEASE_TTL_MS = 75000;
+
+export function claimTimerHeartbeatLease({ storage, key, ownerId, now = Date.now(), ttlMs = DEFAULT_HEARTBEAT_LEASE_TTL_MS }) {
   if (!storage || !key || !ownerId) return true;
   try {
     const current = parseTimerJson(storage.getItem(key));

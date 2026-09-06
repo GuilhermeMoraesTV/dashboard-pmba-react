@@ -2,7 +2,7 @@
  * @fileoverview Hook React para gestao de Decks do usuario com sincronizacao em tempo real.
  */
 import { useState, useEffect, useCallback } from 'react';
-import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, onSnapshot, query } from 'firebase/firestore';
 import { db } from '../firebaseConfig.js';
 import { listDecks, createDeck, updateDeck, archiveDeck, getDeckStats } from '../services/flashcards/flashcardsService.js';
 
@@ -49,9 +49,11 @@ export function useDecks(userId) {
     }
     setLoading(true);
     const decksRef = collection(db, 'users', userId, 'decks');
-    const q = query(decksRef, where('archived', '==', false));
+    // Legacy imports predate archived:false. An equality filter hides them.
+    const q = query(decksRef);
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const items = snapshot.docs.map(normalizeDeck).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+      const items = snapshot.docs.map(normalizeDeck).filter((deck) => !deck.archived)
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
       setDecks(items);
       setLoading(false);
     }, (err) => {

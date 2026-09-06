@@ -514,19 +514,18 @@ export function gerarSchedule(disciplinas, disponibilidade, opcoes = {}) {
   // Se opcoes.dataInicio foi passado explicitamente, respeita sem alteração.
   let dataInicio = opcoes.dataInicio ?? null;
   if (!dataInicio) {
-    const hoje = new Date();
-    hoje.setHours(12, 0, 0, 0);
+    const hoje = parseDateOnlyLocal(new Date());
     for (let offset = 0; offset < 7; offset++) {
       const diaIdx = (hoje.getDay() + offset) % 7;
       if (horarios[diaIdx] > 0) {
         const candidata = new Date(hoje);
         candidata.setDate(candidata.getDate() + offset);
-        dataInicio = candidata.toISOString().split('T')[0];
+        dataInicio = formatDateKeyLocal(candidata);
         break;
       }
     }
     // Fallback improvável (nenhum dia ativo): usa hoje mesmo
-    if (!dataInicio) dataInicio = hoje.toISOString().split('T')[0];
+    if (!dataInicio) dataInicio = formatDateKeyLocal(hoje);
   }
 
   let disciplinasDiarias = getDisciplinasDiarias(disciplinas);

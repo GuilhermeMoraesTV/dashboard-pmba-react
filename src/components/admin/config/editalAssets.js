@@ -2,8 +2,7 @@
 
 // Função para limpar strings e deixar pronta para URL (ex: "GCM Viana - ES" -> "gcmviana")
 export const normalizeSlug = (value = "") => {
-  return value
-    .toString()
+  return String(value ?? "")
     .toLowerCase()
     .normalize("NFD")                 // Separa acentos
     .replace(/[\u0300-\u036f]/g, "")  // Remove acentos
@@ -38,7 +37,7 @@ const resolveKnownLocalLogo = (...values) => {
  * 🚀 RESOLVER LOGO UNIVERSAL
  * Essa função tenta de tudo para achar a imagem.
  */
-export const resolveLogoUrl = ({ ciclo, editaisMap }) => {
+export const resolveLogoUrl = ({ ciclo, editaisMap } = {}) => {
   if (!ciclo) return null;
 
   // 1. PRIORIDADE MÁXIMA: O que está salvo no banco do usuário (Ciclos Novos vêm do Wizard com isso)
@@ -49,7 +48,7 @@ export const resolveLogoUrl = ({ ciclo, editaisMap }) => {
   // Isso resolve se você instalou o edital no Admin, mas o ciclo é antigo
   if (templateId && editaisMap?.has(String(templateId))) {
     const tpl = editaisMap.get(String(templateId));
-    if (tpl.logoUrl || tpl.logo) return tpl.logoUrl || tpl.logo;
+    if (tpl?.logoUrl || tpl?.logo) return tpl.logoUrl || tpl.logo;
   }
 
   if (directLogo) return directLogo;
@@ -61,11 +60,13 @@ export const resolveLogoUrl = ({ ciclo, editaisMap }) => {
   // Ex: ID "gcm_viana" -> vira "logo-gcmviana.png"
   if (templateId && templateId !== 'manual') {
     const slugId = normalizeSlug(templateId);
-    return `/logosEditais/logo-${slugId}.png`;
+    if (slugId) {
+      return `/logosEditais/logo-${slugId}.png`;
+    }
   }
 
   // 4. DETETIVE POR NOME (Para ciclos manuais ou muito antigos sem ID)
-  const nomeLower = (ciclo.nome || "").toLowerCase();
+  const nomeLower = String(ciclo.nome ?? "").toLowerCase();
 
   // 4.1 Fallbacks Hardcoded (Histórico)
   if (nomeLower.includes("pmba")) return "/logosEditais/logoModoQAP.png";
@@ -86,7 +87,7 @@ export const resolveLogoUrl = ({ ciclo, editaisMap }) => {
   // Tenta remover siglas de estado no final se estiver separado por traço (ex: " - ES")
   // Isso ajuda "GCM Viana - ES" virar "logo-gcmviana.png" em vez de "logo-gcmvianaes.png"
   if (nomeLimpo.includes(" - ")) {
-      nomeLimpo = nomeLimpo.split(" - ")[0];
+    nomeLimpo = nomeLimpo.split(" - ")[0];
   }
 
   const slugNome = normalizeSlug(nomeLimpo);

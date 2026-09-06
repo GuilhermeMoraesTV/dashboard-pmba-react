@@ -27,6 +27,7 @@
  */
 
 import { calculatePlanningPriority } from '../../utils/planningPriority.js';
+import { getBrasiliaTodayKey } from '../../utils/planningDates.js';
 
 // ─── DIAS DA SEMANA ───────────────────────────────────────────────────────────
 
@@ -548,7 +549,7 @@ export function calcularSemanas(disciplinas, cotas, dataInicio = null, dataProva
     ? (() => {
         const d = new Date(dataInicio + 'T12:00:00');
         d.setDate(d.getDate() + diasAteFechamento);
-        return d.toISOString().split('T')[0];
+        return getBrasiliaTodayKey(d);
       })()
     : null;
 

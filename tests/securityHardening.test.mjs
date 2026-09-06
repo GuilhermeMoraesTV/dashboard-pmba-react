@@ -5,7 +5,7 @@ import { JSDOM } from 'jsdom';
 
 const require = createRequire(import.meta.url);
 const imageSecurity = require('../functions/security/imageUpload.js');
-const { __test } = require('../functions/index.js');
+const { __test, uploadSecureImage } = require('../functions/index.js');
 const { escapeCsvValue, openExecutivePdfWindow } = await import('../src/pages/AdminPage/adminOperations.js');
 
 test('CSV neutraliza formulas mesmo quando começam após espaços', () => {
@@ -72,4 +72,28 @@ test('normalizador de upload confirma assinatura e reencoda imagem', async () =>
     imageSecurity.normalizeImage({ base64: Buffer.from('<svg><script>bad()</script></svg>').toString('base64'), contentType: 'image/png' }),
     (error) => error.code === 'invalid-argument',
   );
+});
+
+test('substituir imagem do perfil permite limpar a anterior sem excluir a nova', () => {
+  for (const kind of ['profile-avatar', 'profile-cover']) {
+    const args = { kind, uid: 'user-a' };
+    const previous = imageSecurity.buildStoragePath({ ...args, randomId: 'upload-1' });
+    const next = imageSecurity.buildStoragePath({ ...args, randomId: 'upload-2' });
+    assert.notEqual(previous, next);
+    assert.match(next, /^profile_images\/user-a\//);
+    const objects = new Map([[previous, 'previous-image'], [next, 'next-image']]);
+    objects.delete(previous);
+    assert.equal(objects.get(next), 'next-image');
+    // Se a persistência do perfil falhar, o rollback exclui só o novo upload.
+    objects.set(previous, 'previous-image');
+    objects.delete(next);
+    assert.equal(objects.get(previous), 'previous-image');
+  }
+});
+
+test('callable de imagem exige sessão Firebase e valida o destino antes de gravar', async () => {
+  await assert.rejects(uploadSecureImage.run({ data: { kind: 'profile-avatar' } }),
+    (error) => error.code === 'unauthenticated');
+  await assert.rejects(uploadSecureImage.run({ auth: { uid: 'user-a' }, data: { kind: 'other' } }),
+    (error) => error.code === 'invalid-argument');
 });

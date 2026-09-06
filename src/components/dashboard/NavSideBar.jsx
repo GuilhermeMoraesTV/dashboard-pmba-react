@@ -2,13 +2,14 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom';
 import {
   Home, Target, Calendar, LogOut, RefreshCw, Menu, ShieldAlert,
-  LayoutList, BarChart3, ClipboardList, Sun, Moon, Radio, X, ChevronRight,
+  LayoutList, BarChart3, ClipboardList, Sun, Moon, Radio, X, ChevronRight, ChevronLeft,
   CalendarClock, Layers, ChevronDown, Newspaper, RotateCw, CalendarDays, BookOpen,
+  PanelLeftClose, PanelLeftOpen,
   Clock, AlertTriangle, ArrowRight, Bell, Flame, Settings, HelpCircle,
   Trophy, Users, Award, Shield, Medal, Crown, Gem, Diamond, Files,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { collection, doc, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, doc, query, where, onSnapshot, limit } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
 import ProfileLevelRing from '../gamification/ProfileLevelRing';
 import { NotificationBell } from '../shared/NotificationPanel';
@@ -17,6 +18,7 @@ import { calcularStatusEstudoHoje } from '../../hooks/useCronogramaSystem';
 import { useCicloRevisoes } from '../../hooks/useCicloRevisoes';
 import { buildRevisaoCentral } from '../../utils/revisaoCentral';
 import { coverPositionToStyle } from '../../utils/profileCover';
+import { getWeekId, sortGeneralRankingMembers } from '../../utils/gamification';
 import { DOCUMENTS_ENABLED, ERROR_BOOK_ENABLED, FLASHCARDS_ENABLED, LEAGUES_ENABLED, QUESTIONS_ENABLED } from '../../config/featureFlags';
 
 
@@ -405,7 +407,6 @@ function NavSideBar({
   handleLogout,
   isExpanded,
   setExpanded,
-  forceExpandedOnLarge = false,
   isMobileOpen,
   setMobileOpen,
   isDarkMode,
@@ -427,30 +428,70 @@ function NavSideBar({
   const [hasUnreadSupport, setHasUnreadSupport]     = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen]   = useState(false);
   const [isPlanejamentoOpen, setIsPlanejamentoOpen] = useState(false);
-  const [generalTimeRanking, setGeneralTimeRanking] = useState({
+  const [weeklyRanking, setWeeklyRanking] = useState({
     loading: Boolean(user?.uid),
     position: null,
   });
 
   useEffect(() => {
     if (!user?.uid) {
-      setGeneralTimeRanking({ loading: false, position: null });
+      setWeeklyRanking({ loading: false, position: null });
       return undefined;
     }
 
-    setGeneralTimeRanking({ loading: true, position: null });
-    const memberRef = doc(db, 'general_rankings', 'all', 'members', user.uid);
-    return onSnapshot(memberRef, (snapshot) => {
-      const rawPosition = snapshot.exists() ? snapshot.data()?.positions?.minutes : null;
-      const position = Number(rawPosition);
-      setGeneralTimeRanking({
-        loading: false,
-        position: Number.isInteger(position) && position > 0 ? position : null,
-      });
+    setWeeklyRanking({ loading: true, position: null });
+    const weekId = getWeekId();
+    const memberRef = doc(db, 'weekly_rankings', weekId, 'members', user.uid);
+    let unsubCollection = null;
+
+    const unsubMember = onSnapshot(memberRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        const rawPosition = data?.positions?.minutes
+          ?? data?.positions?.questions
+          ?? data?.position
+          ?? data?.weeklyPosition
+          ?? data?.rank;
+        const posNum = Number(rawPosition);
+        if (Number.isInteger(posNum) && posNum > 0) {
+          setWeeklyRanking({ loading: false, position: posNum });
+          if (unsubCollection) {
+            unsubCollection();
+            unsubCollection = null;
+          }
+          return;
+        }
+      }
+
+      if (!unsubCollection) {
+        const membersRef = collection(db, 'weekly_rankings', weekId, 'members');
+        unsubCollection = onSnapshot(membersRef, (colSnapshot) => {
+          const membersList = colSnapshot.docs
+            .map((item) => ({ id: item.id, ...item.data() }))
+            .filter((m) => m.accountActive !== false && m.active !== false && !m.disabled);
+          if (membersList.length > 0) {
+            const sorted = sortGeneralRankingMembers(membersList, 'minutes');
+            const userIndex = sorted.findIndex((m) => (m.uid || m.id) === user.uid);
+            if (userIndex >= 0) {
+              setWeeklyRanking({ loading: false, position: userIndex + 1 });
+              return;
+            }
+          }
+          setWeeklyRanking({ loading: false, position: null });
+        }, (err) => {
+          console.warn('[Ranking] Erro ao buscar membros do ranking semanal:', err.code || err);
+          setWeeklyRanking({ loading: false, position: null });
+        });
+      }
     }, (error) => {
-      console.warn('[Ranking] Nao foi possivel carregar a posicao geral por tempo:', error.code || error);
-      setGeneralTimeRanking({ loading: false, position: null });
+      console.warn('[Ranking] Nao foi possivel carregar a posicao semanal do usuario:', error.code || error);
+      setWeeklyRanking({ loading: false, position: null });
     });
+
+    return () => {
+      if (typeof unsubMember === 'function') unsubMember();
+      if (typeof unsubCollection === 'function') unsubCollection();
+    };
   }, [user?.uid]);
 
   // Pill de lembrete — aparece na Home e some automaticamente
@@ -494,44 +535,6 @@ function NavSideBar({
   const cronogramaParaAlertas = cronogramaAtivo || activeCronogramaData || null;
 
   const menuRef = useRef(null);
-  const autoCloseTimerRef = useRef(null);
-
-  // ── Fechamento automático em dispositivos Touch (Tablets/Mobile) ────────
-  useEffect(() => {
-    // Função para limpar o timer
-    const clearTimer = () => {
-      if (autoCloseTimerRef.current) {
-        clearTimeout(autoCloseTimerRef.current);
-        autoCloseTimerRef.current = null;
-      }
-    };
-
-    // Só inicia o timer se estiver expandido E não for hover (dispositivos touch)
-    if (isExpanded && !forceExpandedOnLarge) {
-      clearTimer();
-      autoCloseTimerRef.current = setTimeout(() => {
-        // Verifica se ainda está expandido antes de fechar
-        setExpanded(false);
-      }, 5000);
-    }
-
-    // Listener para resetar o timer ao tocar em qualquer lugar do menu
-    const handleTouch = () => {
-      if (isExpanded && !forceExpandedOnLarge) {
-        clearTimer();
-        autoCloseTimerRef.current = setTimeout(() => setExpanded(false), 5000);
-      }
-    };
-
-    const el = menuRef.current;
-    if (el) el.addEventListener('touchstart', handleTouch);
-
-    return () => {
-      clearTimer();
-      if (el) el.removeEventListener('touchstart', handleTouch);
-    };
-  }, [forceExpandedOnLarge, isExpanded, setExpanded]);
-
   useEffect(() => {
     if (activeTab === 'ciclos' || activeTab === 'cronograma' || activeTab === 'cronogramas' || activeTab === 'planejamento') {
       setIsPlanejamentoOpen(true);
@@ -543,7 +546,7 @@ function NavSideBar({
     const q = query(
       collection(db, 'system_feedback'),
       where('uid', '==', user.uid),
-      where('unreadUser', '==', true)
+      where('unreadUser', '==', true), limit(1)
     );
     const unsub = onSnapshot(
       q,
@@ -745,14 +748,23 @@ function NavSideBar({
     scrollWindowToTopInstant();
   };
 
-  const isDesktopExpanded = forceExpandedOnLarge || isExpanded;
+  const isDesktopExpanded = isExpanded;
   const isFullyExpanded = isDesktopExpanded || isMobileOpen;
   const hasCicloAtivo      = !!(activeCicloId && activeCicloData);
   const hasCronogramaAtivo = !!(activeCronogramaData?.ativo);
   const revisoesPendentesBadge = revisoesInfoCanonicas.total;
   const profileCardData = useMemo(() => {
+    const profile = levelData?.profile || {};
     const progressPercent = Math.max(0, Math.min(100, Number(levelData?.progressPercent || 0)));
-    const rankValue = generalTimeRanking.position;
+    const rankCandidate = [
+      weeklyRanking.position,
+      profile.weeklyPosition,
+      profile.weeklyRank,
+    ].find((value) => Number.isFinite(Number(value)) && Number(value) > 0);
+
+    const rankValue = rankCandidate ? Number(rankCandidate) : null;
+    const rankDisplay = rankValue ? `${rankValue}º` : '--';
+
     const levelStartXP = Number(levelData?.levelStartXP || 0);
     const nextLevelXP = Number(levelData?.nextLevelXP || levelData?.totalXP || 0);
     const currentXP = Math.max(0, Number(levelData?.totalXP || 0) - levelStartXP);
@@ -767,15 +779,15 @@ function NavSideBar({
       leagueGlow: levelData?.leagueGlow || levelData?.league?.glow || '#ef4444',
       progressPercent,
       progressLabel: `${Math.round(progressPercent)}%`,
-      rankLabel: generalTimeRanking.loading ? '…' : (rankValue ? `#${rankValue}` : '--'),
-      rankHint: generalTimeRanking.loading
-        ? 'Carregando ranking geral por tempo'
-        : (rankValue ? 'Ranking geral por tempo' : 'Sem posição no ranking geral'),
+      rankValue,
+      rankDisplay,
+      rankHint: rankValue ? `Posição #${rankValue} no ranking semanal de tempo` : 'Sem posição definida no ranking',
       currentXP,
       levelRangeXP,
       xpToNextLevel: Math.max(0, Number(levelData?.xpToNextLevel || 0)),
+      totalXP: Number(levelData?.totalXP || 0),
     };
-  }, [generalTimeRanking.loading, generalTimeRanking.position, levelData, user?.displayName, user?.email]);
+  }, [weeklyRanking.position, levelData, user?.displayName, user?.email]);
   const headerStreak = Math.max(0, Number(studyStreakResult?.currentStreak || 0));
 
   // ── NavButton — agora aceita badgeCount ───────────────────────────────
@@ -784,7 +796,6 @@ function NavSideBar({
       onPointerEnter={() => prefetchId && onPrefetchTab?.(prefetchId)}
       onFocus={() => prefetchId && onPrefetchTab?.(prefetchId)}
       onClick={(e) => {
-        if (!forceExpandedOnLarge) setExpanded(true);
         onClick(e);
       }}
       className={`
@@ -897,33 +908,69 @@ function NavSideBar({
 
   const TopBar = () => (
     <div
-      className={`
-        fixed top-0 right-0 h-[60px] z-[60]
-        bg-white/70 dark:bg-card-dark border-b border-white/60 dark:border-white/10
-        flex items-center justify-between px-2 sm:px-4 shadow-sm shadow-black/5 dark:shadow-black/30 transition-all duration-300
-        left-0 lg:left-[64px]
-        ${isDesktopExpanded ? 'lg:left-[208px]' : 'lg:left-[64px]'}
-      `}
+      className="fixed top-0 left-0 right-0 h-[64px] z-[60] bg-white/90 dark:bg-card-dark/95 backdrop-blur-md border-b border-zinc-200/80 dark:border-white/10 flex items-center justify-between px-2 sm:px-4 shadow-xs"
     >
-      <div className="flex items-center z-20">
+      {/* Canto superior esquerdo: Perfil do usuário (visível no desktop) e menu mobile */}
+      <div className="flex items-center gap-2 z-20">
         <button
           onClick={() => setMobileOpen(true)}
-          className="lg:hidden p-2 -ml-2 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-colors"
+          className="lg:hidden p-2 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-colors"
+          aria-label="Abrir menu"
+          title="Abrir menu"
         >
-          <Menu size={24}/>
+          <Menu size={22}/>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => { setActiveTab('profile'); setMobileOpen(false); scrollWindowToTopInstant(); }}
+          className="group/profile flex items-center gap-2.5 rounded-2xl p-1 text-left transition-all hover:bg-zinc-100/80 dark:hover:bg-zinc-800/60 active:scale-95"
+          title="Abrir meu perfil"
+        >
+          <div className="relative shrink-0">
+            <ProfileLevelRing userPhotoURL={user?.photoURL} levelData={levelData} size={44} strokeWidth={2.8}/>
+          </div>
+          <div className="hidden sm:flex flex-col min-w-0">
+            {/* Linha 1: Nome do usuário */}
+            <span className="truncate text-xs sm:text-sm font-black leading-tight text-zinc-950 dark:text-white group-hover/profile:text-red-600 transition-colors">
+              {profileCardData.displayName}
+            </span>
+
+            {/* Linha 2: Troféu + Posição no Ranking */}
+            <div className="flex items-center gap-1.5 text-xs font-bold text-zinc-700 dark:text-zinc-200 mt-0.5">
+              <Trophy size={13} className="text-amber-500 shrink-0" />
+              <span>{profileCardData.rankDisplay}</span>
+            </div>
+
+            {/* Linha 3: Barra de Progresso de XP + Texto XP */}
+            <div className="flex items-center gap-2 mt-1">
+              <div className="h-1.5 w-16 sm:w-20 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700">
+                <div
+                  className="h-full rounded-full bg-red-600 transition-[width] duration-500"
+                  style={{ width: `${profileCardData.progressPercent}%` }}
+                />
+              </div>
+              <span className="text-[9px] sm:text-[10px] font-bold text-zinc-600 dark:text-zinc-300 whitespace-nowrap">
+                {profileCardData.currentXP}/{profileCardData.levelRangeXP} XP
+              </span>
+            </div>
+          </div>
         </button>
       </div>
 
+      {/* Centro: Logo MODOQAP única */}
       <div
         onClick={handleLogoClick}
-        className="absolute left-1/2 -translate-x-1/2 cursor-pointer z-0 group select-none"
+        className="absolute left-1/2 -translate-x-1/2 cursor-pointer z-10 group select-none flex items-center gap-2"
+        title="Ir para a Home"
       >
         <h1 className="text-red-600 font-black tracking-[0.12em] sm:tracking-[0.18em] uppercase text-base sm:text-xl whitespace-nowrap transition-all duration-300 group-hover:scale-105 group-active:scale-95 drop-shadow-sm">
           MODOQAP
         </h1>
       </div>
 
-      <div className="flex items-center gap-1 sm:gap-2 z-10">
+      {/* Canto superior direito: Streak, Notificações, Tema e Menu de Opções da Conta */}
+      <div className="flex items-center gap-1.5 sm:gap-2 z-20">
         <StreakHeaderPill streak={headerStreak} />
         {notificationProps && (
           <NotificationBell
@@ -939,6 +986,8 @@ function NavSideBar({
             onDismissEditalUpdate={notificationProps.onDismissEditalUpdate}
             loadingUpdate={notificationProps.loadingNotif}
             onNavigateToEdital={notificationProps.onNavigateToEdital}
+            onOpenGroupChat={notificationProps.onOpenGroupChat}
+            onOpenSupport={notificationProps.onOpenSupport || ((ticketId) => onOpenFeedback?.({ ticketId }))}
             systemAlerts={systemAlerts}
             onSystemAlertAction={handleSystemAlertAction}
             bellRef={bellContainerRef}
@@ -956,17 +1005,21 @@ function NavSideBar({
         )}
         <button
           onClick={toggleTheme}
-          className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 hover:text-red-600 border border-zinc-200 dark:border-zinc-800 shadow-sm flex items-center justify-center transition-all active:scale-95"
+          className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 hover:text-red-600 border border-zinc-200 dark:border-zinc-800 shadow-xs flex items-center justify-center transition-all active:scale-95"
+          aria-label="Alternar tema"
+          title={isDarkMode ? 'Modo claro' : 'Modo escuro'}
         >
-          {isDarkMode ? <Sun size={17} strokeWidth={2.2}/> : <Moon size={17} strokeWidth={2.2}/>}
+          {isDarkMode ? <Sun size={16} strokeWidth={2.2}/> : <Moon size={16} strokeWidth={2.2}/>}
         </button>
 
         <div className="relative" ref={menuRef}>
           <button
             onClick={() => setIsProfileMenuOpen(v => !v)}
-            className="outline-none active:scale-95 transition-transform flex items-center justify-center relative scale-[0.72] -mx-[7px] sm:mx-0 sm:scale-100 lg:scale-105"
+            className="outline-none active:scale-95 transition-transform flex items-center justify-center rounded-xl p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            title="Menu da conta"
+            aria-label="Menu da conta"
           >
-            <ProfileLevelRing userPhotoURL={user?.photoURL} levelData={levelData} size={50}/>
+            <ProfileLevelRing userPhotoURL={user?.photoURL} levelData={levelData} size={38} strokeWidth={2.5}/>
           </button>
 
           <AnimatePresence>
@@ -1093,69 +1146,29 @@ function NavSideBar({
       />
       <nav
         className={`
-          fixed top-0 bottom-0 z-[80] flex h-[100dvh] min-h-dvh flex-col
-          bg-white dark:bg-card-dark border-r border-zinc-200 dark:border-white/10 lg:border-r-0
+          fixed top-[64px] bottom-0 z-[50] flex flex-col
+          bg-white dark:bg-card-dark border-r border-zinc-200 dark:border-white/10
           transition-all duration-300 shadow-2xl lg:shadow-none
-          ${isMobileOpen ? 'translate-x-0 w-[260px]' : '-translate-x-full lg:translate-x-0'}
+          ${isMobileOpen ? 'translate-x-0 w-[260px] z-[80] top-0' : '-translate-x-full lg:translate-x-0'}
           lg:left-0 ${isDesktopExpanded ? 'lg:w-[208px]' : 'lg:w-[64px]'}
         `}
-        onMouseEnter={() => !isMobileOpen && !forceExpandedOnLarge && setExpanded(true)}
-        onMouseLeave={() => !isMobileOpen && !forceExpandedOnLarge && setExpanded(false)}
       >
-        <div className="nav-sidebar-content-zoom relative flex-shrink-0 px-0 py-0">
-          <button
-            type="button"
-            onClick={() => { setActiveTab('profile'); setMobileOpen(false); scrollWindowToTopInstant(); }}
-            className={`group/profile relative flex w-full overflow-hidden text-left transition-all ${isFullyExpanded ? 'h-[86px] items-center gap-3 border-0 bg-zinc-50 p-3 pr-9 hover:bg-white dark:bg-zinc-900 dark:hover:bg-zinc-800/80 lg:pr-3' : 'mx-auto my-2 max-w-[48px] items-center justify-center rounded-2xl border border-zinc-200/90 bg-white p-1.5 shadow-[0_10px_24px_-20px_rgba(24,24,27,0.8)] ring-1 ring-white dark:border-zinc-700/80 dark:bg-zinc-950 dark:ring-white/5'}`}
-            title="Abrir perfil"
-          >
-            {isFullyExpanded && (
-              <>
-                <span className="pointer-events-none absolute inset-x-0 top-0 h-px bg-zinc-200 dark:bg-white/10"/>
-              </>
-            )}
-            <span className="relative shrink-0">
-              <span
-                className="block rounded-full bg-white p-0.5 shadow-lg ring-2 ring-white transition-transform group-hover/profile:scale-105 dark:bg-zinc-900 dark:ring-red-500/20"
-                style={LEAGUES_ENABLED && isFullyExpanded ? { boxShadow: `0 12px 30px -18px ${profileCardData.leagueGlow}` } : undefined}
-              >
-                <ProfileLevelRing userPhotoURL={user?.photoURL} levelData={levelData} size={isFullyExpanded ? 54 : 38} strokeWidth={3.2}/>
-              </span>
-            </span>
-            <span className={`relative min-w-0 flex-1 transition-opacity ${isFullyExpanded ? 'opacity-100' : 'hidden opacity-0'}`}>
-              <span className="block truncate text-[14px] font-black leading-tight tracking-tight text-zinc-950 dark:text-white">{profileCardData.displayName}</span>
-              <span className="mt-1.5 flex min-w-0 items-center gap-2 text-[10px] font-black uppercase tracking-[0.06em] text-zinc-600 dark:text-zinc-300">
-                {LEAGUES_ENABLED ? <>
-                  <span className="flex min-w-0 items-center gap-1.5">
-                    <LeagueIcon league={profileCardData.league} size={13} style={{ color: profileCardData.leagueColor }}/>
-                    <span className="truncate">{profileCardData.leagueName}</span>
-                  </span>
-                  <span className="text-zinc-300 dark:text-zinc-600">•</span>
-                </> : null}
-                <span className="flex shrink-0 items-center gap-1.5 text-zinc-700 dark:text-zinc-200" title={profileCardData.rankHint}>
-                  <Trophy size={13} className="text-amber-500"/>
-                  <span className="text-[13px] font-black leading-none">{profileCardData.rankLabel}</span>
-                </span>
-              </span>
-              <span className="mt-2.5 flex items-center gap-2">
-                <span className="block h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-zinc-200 shadow-inner dark:bg-zinc-700">
-                  <span
-                    className="block h-full rounded-full bg-red-600 transition-[width] duration-700 dark:bg-red-500"
-                    style={{ width: `${profileCardData.progressPercent}%` }}
-                  />
-                </span>
-                <span className="shrink-0 text-[8px] font-black text-zinc-600 dark:text-zinc-300">
-                  {profileCardData.currentXP}/{profileCardData.levelRangeXP} XP
-                </span>
-              </span>
-            </span>
-          </button>
-          <button onClick={() => setMobileOpen(false)} className="absolute right-2 top-2 rounded-lg p-1.5 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 lg:hidden">
-            <X size={18}/>
-          </button>
-        </div>
+        {/* Botão de alternância flutuante posicionado do lado de FORA na borda direita, alinhado com a HOME */}
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="hidden lg:flex absolute -right-3.5 top-3.5 z-[60] h-7 w-7 items-center justify-center rounded-full bg-white dark:bg-zinc-900 border border-zinc-200/90 dark:border-zinc-700/80 text-zinc-500 hover:text-red-600 dark:text-zinc-400 dark:hover:text-red-400 shadow-md hover:shadow-lg transition-all duration-200 hover:scale-110 active:scale-95 cursor-pointer"
+          title={isDesktopExpanded ? "Recolher menu lateral" : "Expandir menu lateral"}
+          aria-label={isDesktopExpanded ? "Recolher menu lateral" : "Expandir menu lateral"}
+        >
+          {isDesktopExpanded ? (
+            <ChevronLeft size={15} strokeWidth={2.5} />
+          ) : (
+            <ChevronRight size={15} strokeWidth={2.5} />
+          )}
+        </button>
 
-        <div className={`nav-sidebar-content-zoom min-h-0 flex-1 overflow-y-auto px-2.5 pb-3 pt-2 ${NAV_GAP}`} style={{scrollbarWidth:'none'}}>
+        <div className={`nav-sidebar-content-zoom min-h-0 flex-1 overflow-y-auto px-2.5 pb-3 pt-3 ${NAV_GAP}`} style={{scrollbarWidth:'none'}}>
           {navItems.map((item) => {
             if (item.subItems) {
               const isActiveParent = item.subItems.some(sub => sub.id === activeTab);
@@ -1164,7 +1177,6 @@ function NavSideBar({
                   <button
                     onClick={() => {
                       setIsPlanejamentoOpen(v => !v);
-                      if (!forceExpandedOnLarge) setExpanded(true);
                     }}
                     className={`
                       relative flex items-center justify-between w-full ${NAV_BTN_PAD} ${NAV_BTN_RADIUS}
@@ -1268,7 +1280,7 @@ function NavSideBar({
           <button
             type="button"
             onClick={() => {
-              onOpenFeedback?.({ initialView: 'new', initialType: 'duvida' });
+              onOpenFeedback?.({ initialView: 'home' });
               setMobileOpen(false);
             }}
             className={`group relative flex w-full items-center overflow-hidden rounded-xl border transition-all ${

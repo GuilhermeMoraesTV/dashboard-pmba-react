@@ -316,37 +316,90 @@ const syncGroupMonthlyMember = async ({ groupId, monthId, uid, member = null }) 
 };
 
 const buildMonthlyGroupMember = async ({ uid, rules, now = new Date() }) => {
-  const sources = await loadUserGamificationSources(uid);
-  if (!sources.userExists || await userDeletionStarted(uid)) {
-    return { sources, monthId: rules.getMonthId(now), member: null };
+  const monthId = rules.getMonthId(now);
+  if (await userDeletionStarted(uid)) {
+    return { sources: { profile: {} }, monthId, member: null };
   }
-  const periods = rules.calculateRankingPeriodMetrics({
-    records: sources.records,
-    simulations: sources.simulations,
-    questionRewards: sources.questionRewards,
-    now,
-  });
-  const monthly = periods.monthly;
-  const status = String(sources.user.status || (sources.user.disabled ? 'disabled' : 'active')).toLowerCase();
-  const accountActive = !sources.user.disabled && !['blocked', 'disabled'].includes(status);
-  const member = accountActive && monthly.hasActivity ? {
+
+  // Fast-path: verificar se o usuário já possui os agregados mensais calculados no profile
+  const userRef = db().collection('users').doc(uid);
+  const profileRef = userRef.collection('gamification').doc('profile');
+  const [userSnapshot, profileSnapshot] = await Promise.all([userRef.get(), profileRef.get()]);
+
+  if (!userSnapshot.exists) {
+    return { sources: { profile: {} }, monthId, member: null };
+  }
+
+  const user = userSnapshot.data() || {};
+  const profile = profileSnapshot.exists ? profileSnapshot.data() : {};
+  const status = String(user.status || (user.disabled ? 'disabled' : 'active')).toLowerCase();
+  const accountActive = !user.disabled && !['blocked', 'disabled'].includes(status);
+
+  let monthlyMetrics = null;
+  const precomputed = profile.rankingMetrics?.monthly;
+  if (precomputed && precomputed.periodId === monthId && typeof precomputed.minutes === 'number') {
+    monthlyMetrics = {
+      minutes: Number(precomputed.minutes || 0),
+      questions: Number(precomputed.questions || 0),
+      correct: Number(precomputed.correct || 0),
+      hasActivity: Number(precomputed.minutes || 0) > 0 || Number(precomputed.questions || 0) > 0,
+    };
+  }
+
+  // Fallback controlado para usuários legados sem agregado mensal válido no profile
+  let sources = { profile };
+  if (!monthlyMetrics) {
+    sources = await loadUserGamificationSources(uid);
+    if (!sources.userExists) return { sources, monthId, member: null };
+    const periods = rules.calculateRankingPeriodMetrics({
+      records: sources.records,
+      simulations: sources.simulations,
+      questionRewards: sources.questionRewards,
+      now,
+    });
+    monthlyMetrics = periods.monthly;
+
+    // Persistir/versionar o agregado mensal no profile para que as próximas execuções usem o fast-path
+    await profileRef.set({
+      rankingMetrics: {
+        ...(profile.rankingMetrics || {}),
+        monthly: {
+          minutes: monthlyMetrics.minutes,
+          questions: monthlyMetrics.questions,
+          correct: monthlyMetrics.correct,
+          periodId: monthId,
+        },
+      },
+      updatedAt: serverTimestamp(),
+    }, { merge: true }).catch((err) => {
+      console.warn(`[buildMonthlyGroupMember] Falha ao persistir rankingMetrics.monthly para ${uid}:`, err);
+    });
+  }
+
+  let authUser = null;
+  if (!process.env.FIRESTORE_EMULATOR_HOST || process.env.FIREBASE_AUTH_EMULATOR_HOST) {
+    try { authUser = await admin.auth().getUser(uid); } catch {}
+  }
+
+  const member = accountActive && monthlyMetrics.hasActivity ? {
     uid,
-    displayName: userNameFrom(sources.user, sources.authUser),
-    photoURL: sources.user.photoURL || sources.authUser?.photoURL || null,
-    minutes: monthly.minutes,
-    questions: monthly.questions,
-    correct: monthly.correct,
-    accuracy: monthly.questions ? Number(((monthly.correct / monthly.questions) * 100).toFixed(2)) : 0,
-    errors: Math.max(0, monthly.questions - monthly.correct),
+    displayName: userNameFrom(user, authUser),
+    photoURL: user.photoURL || authUser?.photoURL || null,
+    minutes: monthlyMetrics.minutes,
+    questions: monthlyMetrics.questions,
+    correct: monthlyMetrics.correct,
+    accuracy: monthlyMetrics.questions ? Number(((monthlyMetrics.correct / monthlyMetrics.questions) * 100).toFixed(2)) : 0,
+    errors: Math.max(0, monthlyMetrics.questions - monthlyMetrics.correct),
     accountActive,
     accountStatus: status,
     rankingEligible: true,
     periodType: 'monthly',
-    monthId: monthly.monthId,
+    monthId,
     ruleVersion: rules.GAMIFICATION_RULE_VERSION,
     updatedAt: serverTimestamp(),
   } : null;
-  return { sources, monthId: monthly.monthId, member };
+
+  return { sources, monthId, member };
 };
 
 const refreshUserGroupMonthlyRankings = async (uid, { groupIds = null } = {}) => {
@@ -970,10 +1023,15 @@ const projectIncrementalRankings = async ({ uid, user, profile, rules }) => {
     : { minutes: 0, questions: 0, correct: 0 };
   const accountStatus = String(user.status || (user.disabled ? 'disabled' : 'active')).toLowerCase();
   const accountActive = !user.disabled && !['blocked', 'disabled'].includes(accountStatus);
-  const rankingEligible = accountActive && rules.hasRecentRankingActivity({
-    lastStudyAtMillis: profile.lastStudyAtMillis,
-    now: new Date(),
-  });
+  const hasWeeklyStudy = Number(weeklyMetrics.minutes || 0) > 0 || Number(weeklyMetrics.questions || 0) > 0;
+  const hasLifetimeStudy = Number(totals.minutes || 0) > 0 || Number(totals.questions || 0) > 0;
+  const lastStudyAtMillis = Number(profile.lastStudyAtMillis || 0) || (hasWeeklyStudy || hasLifetimeStudy ? Date.now() : 0);
+  const rankingEligible = accountActive && (
+    rules.hasRecentRankingActivity({
+      lastStudyAtMillis,
+      now: new Date(),
+    }) || hasWeeklyStudy
+  );
   const identity = {
     uid,
     displayName: userNameFrom(user),
@@ -982,7 +1040,7 @@ const projectIncrementalRankings = async ({ uid, user, profile, rules }) => {
     leagueId: rules.getLeague(profile.currentLeague || profile.league || 'iron').id,
     accountActive,
     accountStatus,
-    lastStudyAtMillis: Number(profile.lastStudyAtMillis || 0),
+    lastStudyAtMillis,
     editais: profile.publicEditais || generalExisting.editais || [],
     streak: Number(profile.currentStreak || profile.streak || 0),
     streakState: profile.streakState || 'not_applicable',
@@ -1000,7 +1058,7 @@ const projectIncrementalRankings = async ({ uid, user, profile, rules }) => {
   if (rankingEligible) await setIfChanged(generalRef, generalPayload, { snapshot: generalSnapshot });
   else await deleteIfExists(generalRef, generalSnapshot);
 
-  const weeklyEligible = rankingEligible && (Number(weeklyMetrics.minutes || 0) > 0 || Number(weeklyMetrics.questions || 0) > 0);
+  const weeklyEligible = accountActive && hasWeeklyStudy;
   const weeklyPayload = {
     ...identity,
     competitiveXP: Number(profile.weeklyCompetitiveXP || 0),
@@ -1340,7 +1398,11 @@ const updateRankings = async ({ uid, sources, profilePayload, academicEvents, ru
   const lastStudyAtMillis = rankingPeriods.lastStudyAtMillis;
   const accountStatus = String(sources.user.status || (sources.user.disabled ? 'disabled' : 'active')).toLowerCase();
   const accountActive = !sources.user.disabled && !['blocked', 'disabled'].includes(accountStatus);
-  const rankingEligible = accountActive && rules.hasRecentRankingActivity({ lastStudyAtMillis, now: rankingNow });
+  const hasWeeklyStudy = Number(weeklyMetrics.minutes || 0) > 0 || Number(weeklyMetrics.questions || 0) > 0 || Boolean(weeklyMetrics.hasActivity);
+  const rankingEligible = accountActive && (
+    rules.hasRecentRankingActivity({ lastStudyAtMillis, now: rankingNow })
+    || hasWeeklyStudy
+  );
   const platformSinceMillis = timestampMillis(
     sources.user.createdAt
     || sources.user.dataCriacao
@@ -1384,7 +1446,7 @@ const updateRankings = async ({ uid, sources, profilePayload, academicEvents, ru
   } else {
     await deleteIfExists(generalMemberRef);
   }
-  const weeklyRankingEligible = rankingEligible && weeklyMetrics.hasActivity;
+  const weeklyRankingEligible = accountActive && hasWeeklyStudy;
   const weeklyMember = {
     uid,
     displayName: generalMember.displayName,
@@ -1727,7 +1789,10 @@ const refreshActiveUserRankings = async () => {
     const hasWeeklyStudy = Number(member.minutes || 0) > 0 || Number(member.questions || 0) > 0;
     const eligible = member.accountActive !== false
       && hasWeeklyStudy
-      && rules.hasRecentRankingActivity({ lastStudyAtMillis: member.lastStudyAtMillis, now });
+      && (
+        !member.lastStudyAtMillis
+        || rules.hasRecentRankingActivity({ lastStudyAtMillis: member.lastStudyAtMillis, now })
+      );
     if (!eligible) {
       counts.weeklyRemoved += 1;
       writer.delete(snapshot.ref);
@@ -1762,23 +1827,31 @@ const refreshActiveUserRankings = async () => {
 };
 
 // Reprocessa em lotes pequenos os perfis que foram gravados com a regra de
-// sequência retroativa. O marcador torna a operação idempotente e impede que
-// o agendamento volte a recalcular toda a base depois da recuperação.
-const recoverHistoricalStreaks = async () => {
+// sequência retroativa. Operação administrativa idempotente sob demanda.
+const recoverHistoricalStreaks = async ({ force = false, batchSize = null, uid = null } = {}) => {
   const recoveryRef = db().collection('system_maintenance').doc('historical_streak_recovery');
   const recoverySnapshot = await recoveryRef.get();
   const recovery = recoverySnapshot.data() || {};
-  if (recovery.version === HISTORICAL_STREAK_RECOVERY_VERSION && recovery.status === 'completed') {
-    return { status: 'completed', processedCount: 0, cursor: recovery.cursor || null };
+  if (!force && !uid && recovery.version === HISTORICAL_STREAK_RECOVERY_VERSION && recovery.status === 'completed') {
+    return { status: 'completed', processedCount: 0, cursor: recovery.cursor || null, alreadyCompleted: true };
   }
 
-  const afterUid = recovery.version === HISTORICAL_STREAK_RECOVERY_VERSION
+  const effectiveBatchSize = Math.max(1, Math.min(Number(batchSize) || HISTORICAL_STREAK_RECOVERY_BATCH_SIZE, 100));
+  const afterUid = !force && recovery.version === HISTORICAL_STREAK_RECOVERY_VERSION
     && typeof recovery.cursor === 'string' && recovery.cursor
     ? recovery.cursor
     : null;
-  let query = db().collection('users').orderBy(admin.firestore.FieldPath.documentId()).limit(HISTORICAL_STREAK_RECOVERY_BATCH_SIZE);
-  if (afterUid) query = query.startAfter(afterUid);
-  const usersSnapshot = await query.get();
+
+  let usersSnapshot;
+  if (uid) {
+    const singleUserSnap = await db().collection('users').doc(uid).get();
+    usersSnapshot = singleUserSnap.exists ? { docs: [singleUserSnap], size: 1 } : { docs: [], size: 0 };
+  } else {
+    let query = db().collection('users').orderBy(admin.firestore.FieldPath.documentId()).limit(effectiveBatchSize);
+    if (afterUid) query = query.startAfter(afterUid);
+    usersSnapshot = await query.get();
+  }
+
   let processedCount = 0;
   let failedCount = 0;
   let cursor = afterUid;
@@ -1826,27 +1899,31 @@ const recoverHistoricalStreaks = async () => {
       failedCount += 1;
       console.error(`Falha ao recuperar sequência histórica de ${userSnapshot.id}:`, error);
     }
-    await recoveryRef.set({
-      version: HISTORICAL_STREAK_RECOVERY_VERSION,
-      status: 'running',
-      cursor,
-      processedCount: FieldValue.increment(processedCount + failedCount ? 1 : 0),
-      failedCount: FieldValue.increment(failedCount ? 1 : 0),
-      updatedAt: serverTimestamp(),
-      startedAt: recovery.startedAt || serverTimestamp(),
-    }, { merge: true });
+    if (!uid) {
+      await recoveryRef.set({
+        version: HISTORICAL_STREAK_RECOVERY_VERSION,
+        status: 'running',
+        cursor,
+        processedCount: FieldValue.increment(processedCount + failedCount ? 1 : 0),
+        failedCount: FieldValue.increment(failedCount ? 1 : 0),
+        updatedAt: serverTimestamp(),
+        startedAt: recovery.startedAt || serverTimestamp(),
+      }, { merge: true });
+    }
     processedCount = 0;
     failedCount = 0;
   }
 
-  const completed = usersSnapshot.size < HISTORICAL_STREAK_RECOVERY_BATCH_SIZE;
-  await recoveryRef.set({
-    version: HISTORICAL_STREAK_RECOVERY_VERSION,
-    status: completed ? 'completed' : 'running',
-    cursor,
-    completedAt: completed ? serverTimestamp() : null,
-    updatedAt: serverTimestamp(),
-  }, { merge: true });
+  const completed = uid ? true : usersSnapshot.size < effectiveBatchSize;
+  if (!uid) {
+    await recoveryRef.set({
+      version: HISTORICAL_STREAK_RECOVERY_VERSION,
+      status: completed ? 'completed' : 'running',
+      cursor,
+      completedAt: completed ? serverTimestamp() : null,
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+  }
   const result = { status: completed ? 'completed' : 'running', processedCount: usersSnapshot.size, cursor };
   console.info('Historical streak recovery batch completed', result);
   return result;
@@ -1960,12 +2037,38 @@ const refreshUserRankingIdentity = async (uid) => {
   const profile = profileSnapshot.data() || {};
   const weekId = rules.getWeekId();
   const monthId = rules.getMonthId();
+  const userGroupIds = (profile.groupIds || []).filter(Boolean);
+  let userStudyGroups = [];
+  if (userGroupIds.length > 0) {
+    try {
+      const groupRefs = userGroupIds.map((id) => db().collection('study_groups').doc(id));
+      const groupSnaps = await db().getAll(...groupRefs);
+      userStudyGroups = groupSnaps
+        .filter((snap) => snap.exists)
+        .map((snap) => {
+          const group = snap.data() || {};
+          return {
+            id: snap.id,
+            name: String(group.name || group.nome || 'Grupo de estudo').trim().slice(0, 80),
+            photoURL: group.photoURL || group.photoUrl || null,
+            editalName: String(group.editalName || group.editalNome || '').trim().slice(0, 120) || null,
+            editalLogoURL: group.editalLogoURL || group.editalLogoUrl || null,
+            visibility: group.visibility === 'private' ? 'private' : 'public',
+            memberCount: Math.max(0, Number(group.memberCount || 0)),
+          };
+        });
+    } catch (err) {
+      console.warn('[Gamification] Nao foi possivel carregar grupos do usuario:', err);
+    }
+  }
+
   const payload = {
     displayName: userNameFrom(user),
     photoURL: user.photoURL || null,
     coverURL: user.coverURL || null,
     coverPosition: user.coverPosition || null,
-    mainGroupName: profile.mainGroupName || null,
+    mainGroupName: profile.mainGroupName || (userStudyGroups[0]?.name || null),
+    studyGroups: userStudyGroups,
     platformSinceMillis: timestampMillis(user.createdAt || user.dataCriacao || user.criadoEm || user.registrationDate),
   };
   const refs = [
@@ -2051,8 +2154,12 @@ const refreshPublicStudyGroupProfiles = async () => {
         db().collection('study_groups').doc(group.id).collection('monthly_rankings').doc(monthId).collection('members').doc(uid).get()
       ))));
       snapshots.filter((snapshot) => snapshot.exists).forEach((snapshot) => {
-        writer.set(snapshot.ref, { studyGroups, publicGroupsUpdatedAt: serverTimestamp() }, { merge: true });
-        updatedDocuments += 1;
+        const currentData = snapshot.data() || {};
+        const payload = { studyGroups };
+        if (payloadChanged(currentData, payload)) {
+          writer.set(snapshot.ref, { studyGroups, publicGroupsUpdatedAt: serverTimestamp() }, { merge: true });
+          updatedDocuments += 1;
+        }
       });
     }));
   }
@@ -2469,6 +2576,64 @@ const migrateGamification = async ({ apply = false, uid = null } = {}) => {
   };
 };
 
+const runDailyMaintenance = async ({ replenishMotivationalQuotes = null, maintainSupport = null } = {}) => {
+  const summary = {
+    startedAt: new Date().toISOString(),
+    steps: {},
+    success: true,
+  };
+
+  if (typeof maintainSupport === 'function') {
+    try { summary.steps.support = { status: 'ok', result: await maintainSupport() }; }
+    catch (error) { summary.steps.support = { status: 'error', code: error.code || 'internal' }; summary.success = false; }
+  }
+  if (typeof replenishMotivationalQuotes === 'function') {
+    try {
+      const quotesResult = await replenishMotivationalQuotes({ manual: false });
+      summary.steps.quotes = { status: 'ok', result: quotesResult };
+    } catch (err) {
+      summary.steps.quotes = { status: 'error', error: String(err?.message || err).slice(0, 500) };
+      summary.success = false;
+      console.error('[DailyMaintenance] Falha no abastecimento de frases:', err);
+    }
+  }
+
+  try {
+    const rankingsResult = await refreshActiveUserRankings();
+    summary.steps.rankings = { status: 'ok', result: rankingsResult };
+  } catch (err) {
+    summary.steps.rankings = { status: 'error', error: String(err?.message || err).slice(0, 500) };
+    summary.success = false;
+    console.error('[DailyMaintenance] Falha na atualizacao de rankings ativos:', err);
+  }
+
+  try {
+    const groupMonthlyResult = await refreshStudyGroupMonthlyRankings();
+    summary.steps.groupMonthly = { status: 'ok', result: groupMonthlyResult };
+  } catch (err) {
+    summary.steps.groupMonthly = { status: 'error', error: String(err?.message || err).slice(0, 500) };
+    summary.success = false;
+    console.error('[DailyMaintenance] Falha nos rankings mensais dos grupos:', err);
+  }
+
+  try {
+    const groupProfilesResult = await refreshPublicStudyGroupProfiles();
+    summary.steps.groupProfiles = { status: 'ok', result: groupProfilesResult };
+  } catch (err) {
+    summary.steps.groupProfiles = { status: 'error', error: String(err?.message || err).slice(0, 500) };
+    summary.success = false;
+    console.error('[DailyMaintenance] Falha nos perfis publicos dos grupos:', err);
+  }
+
+  summary.completedAt = new Date().toISOString();
+  await db().collection('system_maintenance').doc('daily_routine').set({
+    ...summary,
+    updatedAt: serverTimestamp(),
+  }, { merge: true }).catch(() => {});
+
+  return summary;
+};
+
 module.exports = {
   recomputeUserGamification,
   processGamificationSourceChange,
@@ -2483,6 +2648,7 @@ module.exports = {
   simulateWeeklyGamificationClosure,
   notifyWeeklyClosing,
   migrateGamification,
+  runDailyMaintenance,
   __test: {
     isCompletedSchedule,
     buildPublicEditais,
@@ -2491,5 +2657,6 @@ module.exports = {
     functionalValuesEqual,
     payloadChanged,
     buildIncrementalDayState,
+    buildMonthlyGroupMember,
   },
 };

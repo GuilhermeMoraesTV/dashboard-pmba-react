@@ -50,6 +50,7 @@ import {
   chaveAssuntoDominado,
   normalizarNivel,
 } from './core.js';
+import { getBrasiliaTodayKey, getBrasiliaToday } from '../../utils/planningDates.js';
 
 const MIN_MINUTOS_REVISAO_AGENDADA = 5;
 const MAX_MINUTOS_REVISAO_DIA = 60;
@@ -89,14 +90,16 @@ function calcularCapacidadeRevisaoDia({
 }
 
 export function parseDateOnlyLocal(date) {
-  if (!date) return new Date();
-  if (date instanceof Date) return new Date(date);
-  if (date?.toDate) return date.toDate();
+  if (!date) return getBrasiliaToday();
   if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
     const [y, m, d] = date.split('-').map(Number);
     return new Date(y, m - 1, d, 12, 0, 0, 0);
   }
-  return new Date(date);
+  const parsed = date instanceof Date
+    ? date
+    : (date?.toDate ? date.toDate() : (date?.seconds ? new Date(date.seconds * 1000) : new Date(date)));
+  if (Number.isNaN(parsed.getTime())) return getBrasiliaToday();
+  return getBrasiliaToday(parsed);
 }
 
 export function startOfLocalDay(date) {
@@ -114,11 +117,7 @@ function getRecordCreatedDay(record) {
 }
 
 export function formatDateKeyLocal(date) {
-  const d = startOfLocalDay(date);
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}`;
+  return getBrasiliaTodayKey(date);
 }
 
 function addDaysLocal(date, days) {

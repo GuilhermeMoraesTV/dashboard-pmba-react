@@ -2,13 +2,11 @@ import React, { useState } from 'react';
 import { motion as Motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import AuthLayout from './auth/AuthLayout';
-import { auth } from '../firebaseConfig'; // Verifique o caminho
 import {
-  signInWithEmailAndPassword,
-  setPersistence,
   browserLocalPersistence,
   browserSessionPersistence
 } from 'firebase/auth';
+import { signInWithEmulatorIdentityRecovery } from '../services/auth/emulatorLoginBridge.js';
 
 // --- ÍCONES (Padronizados) ---
 const IconEmail = () => (
@@ -80,8 +78,11 @@ function Login() {
     setLoading(true);
 
     try {
-      await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
-      await signInWithEmailAndPassword(auth, email, password);
+      await signInWithEmulatorIdentityRecovery({
+        email,
+        password,
+        persistence: rememberMe ? browserLocalPersistence : browserSessionPersistence,
+      });
     } catch (err) {
       console.error("Erro de login:", err.code);
       setError(translateFirebaseError(err.code));

@@ -13,6 +13,7 @@ import {
   X,
 } from 'lucide-react';
 import { getDisciplineCardVars, getDisciplineColorForSlot } from '../../utils/disciplineColors';
+import { getBrasiliaToday } from '../../utils/planningDates';
 
 const DIAS = [
   { idx: 0, curto: 'Dom', longo: 'Domingo' },
@@ -32,11 +33,7 @@ const fmtMin = (min) => {
   return m ? `${h}h${String(m).padStart(2, '0')}` : `${h}h`;
 };
 
-const getHoje = () => {
-  const d = new Date();
-  d.setHours(12, 0, 0, 0);
-  return d;
-};
+const getHoje = () => getBrasiliaToday();
 
 const normalizeSlotMinutes = (value, fallback = 60) => {
   const minutes = Number(value);

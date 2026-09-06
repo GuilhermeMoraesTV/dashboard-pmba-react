@@ -28,11 +28,125 @@ test('heartbeat elege uma unica aba e libera a lideranca ao encerrar', () => {
     setItem: (key, value) => values.set(key, value),
     removeItem: (key) => values.delete(key),
   };
-  const input = { storage, key: 'heartbeat:user-1', now: 1000, ttlMs: 45000 };
+  const input = { storage, key: 'heartbeat:user-1', now: 1000, ttlMs: 75000 };
   assert.equal(claimTimerHeartbeatLease({ ...input, ownerId: 'tab-a' }), true);
   assert.equal(claimTimerHeartbeatLease({ ...input, ownerId: 'tab-b', now: 2000 }), false);
   releaseTimerHeartbeatLease({ storage, key: input.key, ownerId: 'tab-a' });
   assert.equal(claimTimerHeartbeatLease({ ...input, ownerId: 'tab-b', now: 3000 }), true);
+});
+
+test('multi-tab lease: Cenário 1 - Operação normal de renovação periódica a cada 30s', () => {
+  const values = new Map();
+  const storage = {
+    getItem: (key) => values.get(key) || null,
+    setItem: (key, value) => values.set(key, value),
+    removeItem: (key) => values.delete(key),
+  };
+  const key = 'heartbeat:user-1';
+
+  // t = 0s: Tab A assume liderança (lease válido até t = 75s)
+  assert.equal(claimTimerHeartbeatLease({ storage, key, ownerId: 'tab-a', now: 0 }), true);
+
+  // Tab B tenta liderança em t = 10s -> rejeitado
+  assert.equal(claimTimerHeartbeatLease({ storage, key, ownerId: 'tab-b', now: 10_000 }), false);
+
+  // t = 30s: Tab A renova o lease (válido até t = 105s)
+  assert.equal(claimTimerHeartbeatLease({ storage, key, ownerId: 'tab-a', now: 30_000 }), true);
+
+  // Tab B tenta liderança em t = 45s -> rejeitado
+  assert.equal(claimTimerHeartbeatLease({ storage, key, ownerId: 'tab-b', now: 45_000 }), false);
+
+  // t = 60s: Tab A renova o lease (válido até t = 135s)
+  assert.equal(claimTimerHeartbeatLease({ storage, key, ownerId: 'tab-a', now: 60_000 }), true);
+  assert.equal(claimTimerHeartbeatLease({ storage, key, ownerId: 'tab-b', now: 70_000 }), false);
+});
+
+test('multi-tab lease: Cenário 2 - Um heartbeat atrasado (30s atrasado para 45s)', () => {
+  const values = new Map();
+  const storage = {
+    getItem: (key) => values.get(key) || null,
+    setItem: (key, value) => values.set(key, value),
+    removeItem: (key) => values.delete(key),
+  };
+  const key = 'heartbeat:user-1';
+
+  // t = 0s: Tab A inicia (lease até t = 75s)
+  assert.equal(claimTimerHeartbeatLease({ storage, key, ownerId: 'tab-a', now: 0 }), true);
+
+  // Em t = 30s, Tab A sofre atraso e não dispara.
+  // Tab B tenta em t = 35s, 40s, 44s -> rejeitado porque 75s > now
+  assert.equal(claimTimerHeartbeatLease({ storage, key, ownerId: 'tab-b', now: 35_000 }), false);
+  assert.equal(claimTimerHeartbeatLease({ storage, key, ownerId: 'tab-b', now: 44_000 }), false);
+
+  // t = 45s: Tab A atrasada finalmente executa e renova o lease (válido até t = 120s)
+  assert.equal(claimTimerHeartbeatLease({ storage, key, ownerId: 'tab-a', now: 45_000 }), true);
+  assert.equal(claimTimerHeartbeatLease({ storage, key, ownerId: 'tab-b', now: 50_000 }), false);
+});
+
+test('multi-tab lease: Cenário 3 - Heartbeat completamente perdido no ciclo de 30s', () => {
+  const values = new Map();
+  const storage = {
+    getItem: (key) => values.get(key) || null,
+    setItem: (key, value) => values.set(key, value),
+    removeItem: (key) => values.delete(key),
+  };
+  const key = 'heartbeat:user-1';
+
+  // t = 0s: Tab A inicia (lease até t = 75s)
+  assert.equal(claimTimerHeartbeatLease({ storage, key, ownerId: 'tab-a', now: 0 }), true);
+
+  // Heartbeat de 30s é 100% perdido (ex: falha de rede temporária / heavy GC).
+  // Tab B tenta em t = 35s, 50s, 59s -> rejeitado
+  assert.equal(claimTimerHeartbeatLease({ storage, key, ownerId: 'tab-b', now: 35_000 }), false);
+  assert.equal(claimTimerHeartbeatLease({ storage, key, ownerId: 'tab-b', now: 59_000 }), false);
+
+  // t = 60s: Próximo ciclo nominal de Tab A executa (60s < 75s expiração)
+  // Tab A renova com sucesso para t = 60s + 75s = 135s
+  assert.equal(claimTimerHeartbeatLease({ storage, key, ownerId: 'tab-a', now: 60_000 }), true);
+  assert.equal(claimTimerHeartbeatLease({ storage, key, ownerId: 'tab-b', now: 65_000 }), false);
+});
+
+test('multi-tab lease: Cenário 4 - Fechamento limpo vs Crash abrupto da aba líder', () => {
+  const values = new Map();
+  const storage = {
+    getItem: (key) => values.get(key) || null,
+    setItem: (key, value) => values.set(key, value),
+    removeItem: (key) => values.delete(key),
+  };
+  const key = 'heartbeat:user-1';
+
+  // Parte A: Fechamento limpo da Tab A
+  assert.equal(claimTimerHeartbeatLease({ storage, key, ownerId: 'tab-a', now: 0 }), true);
+  releaseTimerHeartbeatLease({ storage, key, ownerId: 'tab-a' });
+  // Tab B assume instantaneamente (0ms de espera)
+  assert.equal(claimTimerHeartbeatLease({ storage, key, ownerId: 'tab-b', now: 100 }), true);
+
+  // Parte B: Crash abrupto da Tab B (sem unmount/cleanup)
+  // Lease de Tab B expira em t = 100 + 75_000 = 75_100ms
+  // Tab C tenta antes da expiração -> rejeitado
+  assert.equal(claimTimerHeartbeatLease({ storage, key, ownerId: 'tab-c', now: 50_000 }), false);
+  // Tab C tenta após expiração (t = 76_000ms < 120_000ms timeout de presença) -> assume liderança!
+  assert.equal(claimTimerHeartbeatLease({ storage, key, ownerId: 'tab-c', now: 76_000 }), true);
+});
+
+test('multi-tab lease: Cenário 5 e 6 - Concorrência simultânea e Background Tab Jitter', () => {
+  const values = new Map();
+  const storage = {
+    getItem: (key) => values.get(key) || null,
+    setItem: (key, value) => values.set(key, value),
+    removeItem: (key) => values.delete(key),
+  };
+  const key = 'heartbeat:user-1';
+
+  // Cenário 5: Tentativa simultânea no mesmo timestamp t = 0
+  assert.equal(claimTimerHeartbeatLease({ storage, key, ownerId: 'tab-a', now: 0 }), true);
+  assert.equal(claimTimerHeartbeatLease({ storage, key, ownerId: 'tab-b', now: 0 }), false);
+
+  // Cenário 6: Background tab throttling (intervalo de 30s sofre jitter de até 50s)
+  // t = 50s: Tab A em background executa com atraso (50s < 75s)
+  assert.equal(claimTimerHeartbeatLease({ storage, key, ownerId: 'tab-a', now: 50_000 }), true);
+  // Renovado até t = 125s
+  assert.equal(claimTimerHeartbeatLease({ storage, key, ownerId: 'tab-b', now: 60_000 }), false);
 });
 
 test('timer engine cancela e aplica estado remoto de outra aba', () => {

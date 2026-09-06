@@ -11,9 +11,9 @@ const { HttpsError } = require('firebase-functions/v2/https');
 const sanitizeHtml = require('sanitize-html');
 const { createInitialState, schedule } = require('../flashcards/scheduler');
 
-const ALGORITHM_VERSION = 'adaptive-flashcards-v1';
-const CONCEPT_PROMPT_VERSION = 'concepts-v1';
-const CARD_PROMPT_VERSION = 'adaptive-card-v1';
+const ALGORITHM_VERSION = 'adaptive-flashcards-v2';
+const CONCEPT_PROMPT_VERSION = 'concepts-windowed-v2';
+const CARD_PROMPT_VERSION = 'adaptive-card-compact-v2';
 const ACTIVE_QUEUE_STATES = new Set(['generating', 'ready', 'served']);
 const SAFE_TEXT_TAGS = ['p', 'br', 'strong', 'em', 'b', 'i', 'ul', 'ol', 'li', 'code'];
 
@@ -152,9 +152,9 @@ function conceptSchema(maximum) {
         items: {
           type: 'object', required: ['name', 'summary', 'sourceRefKeys'], additionalProperties: false,
           properties: {
-            name: { type: 'string', minLength: 1, maxLength: 180 },
+            name: { type: 'string', minLength: 1, maxLength: 200 },
             summary: { type: 'string', minLength: 1, maxLength: 1000 },
-            sourceRefKeys: { type: 'array', minItems: 1, maxItems: 8, items: { type: 'string', maxLength: 240 } },
+            sourceRefKeys: { type: 'array', minItems: 1, maxItems: 6, items: { type: 'string', maxLength: 120 } },
           },
         },
       },
@@ -173,17 +173,74 @@ function adaptiveCardSchema(maximum) {
           required: ['conceptId', 'cognitiveDifficulty', 'variantKey', 'front', 'back', 'sourceRefKeys'],
           additionalProperties: false,
           properties: {
-            conceptId: { type: 'string', minLength: 1, maxLength: 160 },
+            conceptId: { type: 'string', minLength: 1, maxLength: 120 },
             cognitiveDifficulty: { type: 'string', enum: ['easy', 'hard'] },
-            variantKey: { type: 'string', minLength: 1, maxLength: 240 },
-            front: { type: 'string', minLength: 1, maxLength: 400 },
-            back: { type: 'string', minLength: 1, maxLength: 600 },
-            sourceRefKeys: { type: 'array', minItems: 1, maxItems: 8, items: { type: 'string', maxLength: 240 } },
+            variantKey: { type: 'string', minLength: 1, maxLength: 150 },
+            front: { type: 'string', minLength: 1, maxLength: 600 },
+            back: { type: 'string', minLength: 1, maxLength: 1500 },
+            sourceRefKeys: { type: 'array', minItems: 1, maxItems: 6, items: { type: 'string', maxLength: 120 } },
           },
         },
       },
     },
   };
+}
+
+function buildConceptWindows(chunks, maximumChars = 18000) {
+  const safeMaximum = Math.max(2000, Math.min(30000, Number(maximumChars) || 18000));
+  const fragments = [];
+  for (const chunk of chunks) {
+    const refKey = String(chunk.refKey || 'source');
+    const header = `[REF ${refKey}]\n`;
+    const rawText = String(chunk.text || '').replace(/^\[REF [^\]]+\]\s*/i, '').trim();
+    const fragmentSize = Math.max(1000, safeMaximum - header.length);
+    for (let offset = 0; offset < rawText.length; offset += fragmentSize) {
+      fragments.push({ refKey, text: `${header}${rawText.slice(offset, offset + fragmentSize)}` });
+    }
+  }
+  const windows = [];
+  let current = [];
+  let currentLength = 0;
+  for (const fragment of fragments) {
+    const separatorLength = current.length ? 7 : 0;
+    if (current.length && currentLength + separatorLength + fragment.text.length > safeMaximum) {
+      windows.push({ fragments: current, text: current.map((item) => item.text).join('\n\n---\n\n') });
+      current = [];
+      currentLength = 0;
+    }
+    current.push(fragment);
+    currentLength += separatorLength + fragment.text.length;
+  }
+  if (current.length) windows.push({ fragments: current, text: current.map((item) => item.text).join('\n\n---\n\n') });
+  return windows;
+}
+
+async function mapWithConcurrency(items, concurrency, mapper) {
+  const results = new Array(items.length);
+  let nextIndex = 0;
+  async function worker() {
+    while (nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      try {
+        results[index] = { status: 'fulfilled', value: await mapper(items[index], index) };
+      } catch (reason) {
+        results[index] = { status: 'rejected', reason };
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(Math.max(1, concurrency), items.length) }, worker));
+  return results;
+}
+
+function logAdaptiveStage(stage, startedAt, context = {}) {
+  console.log('[AdaptiveStudy Stage Telemetry]', {
+    stage,
+    durationMs: Date.now() - startedAt,
+    sourceId: context.sourceId || null,
+    conceptId: context.conceptId || null,
+    count: Number(context.count || 0),
+  });
 }
 
 function transportItem(snapshot) {
@@ -248,20 +305,15 @@ function createAdaptiveStudyService({ admin, getProductLimits, getProvider }) {
       throw new HttpsError('failed-precondition', 'Tipo de StudySource nao suportado.');
     }
 
-    const maxConceptChunks = source.kind === 'document'
-      ? Math.max(1, Math.min(12, Number(limits.adaptiveStudy.maxConceptChunks || 4)))
-      : Number(limits.documents.maxChunks || 160);
-    const chunkQuery = chunkCollection.orderBy('order').limit(maxConceptChunks);
+    const chunkQuery = chunkCollection.orderBy('order').limit(Number(limits.documents.maxChunks || 160));
     const chunkSnapshots = await chunkQuery.get();
-    let remaining = Number(limits.ai.maxInputChars || 50000);
     const refs = new Map();
     const refText = new Map();
     const chunks = [];
     const textParts = [];
     for (const chunkSnapshot of chunkSnapshots.docs) {
-      if (remaining <= 0) break;
       const chunk = chunkSnapshot.data() || {};
-      const content = String(chunk.content || '').slice(0, remaining).trim();
+      const content = String(chunk.content || '').trim();
       if (!content) continue;
       const refKey = source.kind === 'document'
         ? `${documentId}:${chunkSnapshot.id}:p${Number(chunk.pageStart || 0)}-${Number(chunk.pageEnd || chunk.pageStart || 0)}`
@@ -280,7 +332,6 @@ function createAdaptiveStudyService({ admin, getProductLimits, getProvider }) {
       refText.set(refKey, promptText);
       chunks.push({ refKey, text: promptText });
       textParts.push(promptText);
-      remaining -= content.length;
     }
     if (!textParts.length) throw new HttpsError('failed-precondition', 'A fonte nao possui evidencia suficiente para estudo.');
     return {
@@ -296,18 +347,30 @@ function createAdaptiveStudyService({ admin, getProductLimits, getProvider }) {
       && Array.isArray(existing?.concepts) && existing.concepts.length) {
       return existing;
     }
-    const maximum = Number(limits.adaptiveStudy.maxConceptsPerSource);
     const provider = getProvider();
     const chunks = authority.chunks.length ? authority.chunks : [{ refKey: 'source', text: authority.text }];
-    const perChunkMaximum = Math.max(1, Math.ceil(maximum / chunks.length));
-    const results = await Promise.allSettled(chunks.map((chunk, index) => provider.generate({
-      surface: `adaptive-concepts-chunk-${index + 1}`,
-      systemPrompt: 'Analise somente o chunk fornecido. Nao use conhecimento externo e nao complete lacunas.',
-      prompt: `Identifique ate ${perChunkMaximum} conceitos academicamente sustentados somente pelo CHUNK. Cada conceito deve citar uma ou mais REF exatamente como fornecida. Se nao houver evidencia, devolva apenas os conceitos efetivamente sustentados.\n\nCHUNK ${index + 1}/${chunks.length}\n${chunk.text}`,
-      responseSchema: conceptSchema(perChunkMaximum),
+    const conceptsPerWindow = Math.max(4, Math.min(10, Number(limits.adaptiveStudy.conceptsPerWindow || 8)));
+    const windows = buildConceptWindows(chunks, limits.adaptiveStudy.conceptWindowMaxChars || 18000);
+    const analysisStartedAt = Date.now();
+    const results = await mapWithConcurrency(
+      windows,
+      Number(limits.adaptiveStudy.conceptAnalysisConcurrency || 1),
+      (window, index) => provider.generate({
+      surface: `adaptive-concepts-window-${index + 1}`,
+      systemPrompt: 'Analise somente o chunk fornecido. Identifique conceitos concisos, essenciais e atômicos. Nao use conhecimento externo.',
+      prompt: `Identifique ate ${conceptsPerWindow} conceitos academicamente sustentados somente por esta JANELA. Cada conceito deve citar uma ou mais REF exatamente como fornecida.\n\nJANELA ${index + 1}/${windows.length}\n${window.text}`,
+      responseSchema: conceptSchema(conceptsPerWindow),
       temperature: 0.1,
       maxOutputTokens: Math.min(limits.ai.maxOutputTokens, limits.adaptiveStudy.maxTokensPerGeneration),
-    })));
+      requestedCount: conceptsPerWindow,
+      sourceId: authority.sourceId,
+      reduceScopeOnRetry: () => ({
+        prompt: `Identifique somente os ${Math.max(2, Math.floor(conceptsPerWindow / 2))} conceitos mais essenciais desta JANELA. Use apenas as REF fornecidas e seja extremamente conciso.\n\n${window.text}`,
+        responseSchema: conceptSchema(Math.max(2, Math.floor(conceptsPerWindow / 2))),
+        requestedCount: Math.max(2, Math.floor(conceptsPerWindow / 2)),
+      }),
+    }),
+    );
     const successfulResults = results.filter((entry) => entry.status === 'fulfilled').map((entry) => entry.value);
     if (!successfulResults.length) {
       throw results.find((entry) => entry.status === 'rejected')?.reason
@@ -323,20 +386,19 @@ function createAdaptiveStudyService({ admin, getProductLimits, getProvider }) {
     });
     const concepts = [];
     const seen = new Set();
-    chunks.forEach((chunk, chunkIndex) => {
-      const execResult = results[chunkIndex];
+    windows.forEach((window, windowIndex) => {
+      const execResult = results[windowIndex];
       if (execResult?.status !== 'fulfilled' || !Array.isArray(execResult.value?.parsedJson?.concepts)) return;
       for (const raw of execResult.value.parsedJson.concepts) {
-        if (concepts.length >= maximum) break;
-        const name = cleanText(raw.name, 180);
+        const name = cleanText(raw.name, 200);
         const summary = cleanText(raw.summary, 1000);
         const key = normalizedKey(name);
         const rawRefKeys = Array.isArray(raw.sourceRefKeys) ? raw.sourceRefKeys.map(String) : [];
         let sourceRefKeys = rawRefKeys
           .map((k) => k.replace(/^\[?\s*REF\s+/i, '').replace(/\]$/, '').trim())
           .filter((k) => authority.refs.has(k));
-        if (!sourceRefKeys.length && chunk?.refKey && authority.refs.has(chunk.refKey)) {
-          sourceRefKeys = [chunk.refKey];
+        if (!sourceRefKeys.length && window.fragments[0]?.refKey && authority.refs.has(window.fragments[0].refKey)) {
+          sourceRefKeys = [window.fragments[0].refKey];
         }
         if (!name || !summary || !key || seen.has(key) || !sourceRefKeys.length) continue;
         seen.add(key);
@@ -345,17 +407,18 @@ function createAdaptiveStudyService({ admin, getProductLimits, getProvider }) {
           name,
           summary,
           sourceRefKeys,
-          sourceRefs: sourceRefKeys.map((refKey) => authority.refs.get(refKey)),
           coverageWeight: 1,
         });
       }
     });
     if (!concepts.length) throw new HttpsError('failed-precondition', 'A fonte não possui evidência suficiente para identificar conceitos.');
+    logAdaptiveStage('concept_analysis', analysisStartedAt, { sourceId: authority.sourceId, count: concepts.length });
     const analysis = {
       sourceRevision: authority.source.sourceRevision,
       algorithmVersion: ALGORITHM_VERSION,
       promptVersion: CONCEPT_PROMPT_VERSION,
       concepts,
+      analyzedWindows: windows.length,
       analyzedAt: nowTimestamp(),
       usage: successfulResults.reduce((usage, result) => ({
         promptTokens: usage.promptTokens + Number(result.usage?.promptTokens || 0),
@@ -473,9 +536,10 @@ function createAdaptiveStudyService({ admin, getProductLimits, getProvider }) {
     if (session.data.status !== 'active') return { generated: 0, discarded: true, readyCount: 0 };
     const allItems = await listSessionItems(uid, session.id);
     const readyCount = allItems.filter((item) => item.data()?.queueState === 'ready').length;
-    const generatingCount = allItems.filter((item) => item.data()?.queueState === 'generating').length;
+    const generatingItems = allItems.filter((item) => item.data()?.queueState === 'generating');
+    const liveLease = (session.data.generationLock?.expiresAt?.toMillis?.() || 0) > Date.now();
     const targetReady = Number(forceTarget || limits.adaptiveStudy.targetReady);
-    if (readyCount >= targetReady || generatingCount > 0) return { generated: 0, readyCount, busy: generatingCount > 0 };
+    if (readyCount >= targetReady || liveLease) return { generated: 0, readyCount, busy: liveLease };
     const sessionGenerated = Number(session.data.metrics?.generated || 0);
     if (sessionGenerated >= limits.adaptiveStudy.maxItemsPerSession) {
       throw new HttpsError('resource-exhausted', 'Limite de itens desta sessao atingido.');
@@ -484,9 +548,10 @@ function createAdaptiveStudyService({ admin, getProductLimits, getProvider }) {
       || Number(session.data.metrics?.tokens || 0) >= limits.adaptiveStudy.maxTokensPerSession) {
       throw new HttpsError('resource-exhausted', 'Limite de IA desta sessao atingido.');
     }
+    const maxBatch = forceTarget ? (targetReady - readyCount) : Number(limits.adaptiveStudy.refillSize || 4);
     const requested = Math.min(
       targetReady - readyCount,
-      Number(limits.adaptiveStudy.refillSize),
+      maxBatch,
       Number(limits.adaptiveStudy.maxItemsPerSession) - sessionGenerated,
     );
     const lockToken = crypto.randomUUID();
@@ -497,6 +562,13 @@ function createAdaptiveStudyService({ admin, getProductLimits, getProvider }) {
       const lockExpires = data.generationLock?.expiresAt?.toMillis?.() || 0;
       if (!current.exists || data.userId !== uid || data.status !== 'active') return false;
       if (lockExpires > Date.now()) return false;
+      // Another refill may have completed since our item query. Do not reserve
+      // against that stale snapshot (or discard its placeholders).
+      if (data.generationLock?.token !== session.data.generationLock?.token
+        || Number(data.metrics?.generationCalls || 0) !== Number(session.data.metrics?.generationCalls || 0)) return false;
+      generatingItems.forEach((item) => transaction.update(item.ref, {
+        queueState: 'error', status: 'rejected', errorCode: 'generation-lease-expired', updatedAt: serverTimestamp(),
+      }));
       transaction.update(session.ref, {
         generationLock: { token: lockToken, expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + 10 * 60 * 1000) },
         'metrics.generationCalls': Number(data.metrics?.generationCalls || 0) + 1,
@@ -523,33 +595,54 @@ function createAdaptiveStudyService({ admin, getProductLimits, getProvider }) {
     try {
       await reserveDailyGeneration(uid, limits);
       const freshSession = await loadSession(uid, session.id);
+      let stageStartedAt = Date.now();
       const authority = await loadAuthority(uid, freshSession.data.folderId, freshSession.data.sourceId, limits);
+      logAdaptiveStage('read_chunks', stageStartedAt, { sourceId: freshSession.data.sourceId, count: authority.chunks.length });
       if (authority.source.sourceRevision !== freshSession.data.sourceRevision) {
         throw new HttpsError('aborted', 'A fonte mudou durante a sessao.');
       }
+      stageStartedAt = Date.now();
       const analysis = await ensureConceptAnalysis(authority, limits);
+      logAdaptiveStage('load_concept_inventory', stageStartedAt, { sourceId: authority.sourceId, count: analysis.concepts.length });
       const mastery = await loadMastery(uid, authority.sourceId);
       const existingItems = (await listSessionItems(uid, session.id)).map((snapshot) => snapshot.data() || {});
       const plans = selectConceptPlans(analysis.concepts, mastery, requested, existingItems);
       const planByVariant = new Map(plans.map((plan) => [plan.variantKey, plan]));
+      stageStartedAt = Date.now();
       const generationRefKeys = [...new Set(plans.flatMap((plan) => plan.allowedSourceRefKeys))];
       const generationText = generationRefKeys.map((refKey) => authority.refText.get(refKey)).filter(Boolean).join('\n\n---\n\n');
+      const compactPrompt = `Crie exatamente um flashcard NOVO e ATÔMICO para cada PLANO. Seja objetivo e conciso. NÃO gere cards longos ou dissertativos.\n\nEASY: pergunta curta de definição, conceito central ou significado direto.\nHARD: pergunta curta de distinção, aplicação prática direta ou relação entre termos.\n\nCopie conceptId, cognitiveDifficulty e variantKey do plano e cite as REF permitidas no campo sourceRefKeys (não no texto visível).\n\nPLANOS\n${JSON.stringify(plans)}\n\nCHUNKS AUTORIZADOS\n${generationText}`;
+      logAdaptiveStage('build_prompt', stageStartedAt, { sourceId: authority.sourceId, count: requested });
       const provider = getProvider();
       const result = await provider.generate({
         surface: 'adaptive-flashcards',
         systemPrompt: 'Você é um especialista em criar Flashcards ultradiretos, atômicos e objetivos para estudo ativo estilo Anki. Regras essenciais:\n1. UMA ÚNICA ideia ou fato por flashcard.\n2. Frente: Pergunta ou comando curto, direto e claro (máximo 15-20 palavras).\n3. Verso: Resposta direta, concisa e objetiva (máximo 1 a 3 linhas ou até 30-40 palavras). Proibido textos longos, parágrafos dissertativos ou explicações enciclopédicas.\n4. Divida conteúdos complexos em múltiplos cards atômicos.\n5. NUNCA inclua marcações de citação como [REF ...] no texto da frente ou do verso.\n6. Use apenas evidências presentes nos chunks autorizados.',
-        prompt: `Crie exatamente um flashcard NOVO e ATÔMICO para cada PLANO. Seja objetivo e conciso. NÃO gere cards longos ou dissertativos.\n\nEASY: pergunta curta de definição, conceito central ou significado direto.\nHARD: pergunta curta de distinção, aplicação prática direta ou relação entre termos.\n\nCopie conceptId, cognitiveDifficulty e variantKey do plano e cite as REF permitidas no campo sourceRefKeys (não no texto visível).\n\nPLANOS\n${JSON.stringify(plans)}\n\nCHUNKS AUTORIZADOS\n${generationText}`,
+        prompt: compactPrompt,
         responseSchema: adaptiveCardSchema(requested),
         temperature: 0.2,
         maxOutputTokens: Math.min(limits.ai.maxOutputTokens, limits.adaptiveStudy.maxTokensPerGeneration),
+        requestedCount: requested,
+        sourceId: authority.sourceId,
+        conceptId: plans.map((plan) => plan.conceptId).join(',').slice(0, 240),
+        reduceScopeOnRetry: requested > 1 ? () => {
+          const retryPlans = plans.slice(0, 1);
+          const retryRefKeys = [...new Set(retryPlans.flatMap((plan) => plan.allowedSourceRefKeys))];
+          const retryText = retryRefKeys.map((refKey) => authority.refText.get(refKey)).filter(Boolean).join('\n\n---\n\n');
+          return {
+            prompt: `Crie exatamente um flashcard curto para este PLANO. Copie os identificadores e use apenas as REF autorizadas.\n\nPLANO\n${JSON.stringify(retryPlans[0])}\n\nCHUNKS\n${retryText}`,
+            responseSchema: adaptiveCardSchema(1),
+            requestedCount: 1,
+            conceptId: retryPlans[0]?.conceptId || null,
+          };
+        } : null,
       });
       const knownFingerprints = new Set(existingItems.map((item) => item.contentFingerprint).filter(Boolean));
       const accepted = [];
       for (const raw of result.parsedJson.items.slice(0, requested)) {
         const plan = planByVariant.get(String(raw.variantKey || ''));
         if (!plan || raw.conceptId !== plan.conceptId || raw.cognitiveDifficulty !== plan.cognitiveDifficulty) continue;
-        const front = cleanText(raw.front, 400);
-        const back = cleanText(raw.back, 600);
+        const front = cleanText(raw.front, 600);
+        const back = cleanText(raw.back, 1500);
         const rawRefKeys = Array.isArray(raw.sourceRefKeys) ? raw.sourceRefKeys.map(String) : [];
         let sourceRefKeys = rawRefKeys
           .map((k) => k.replace(/^\[?\s*REF\s+/i, '').replace(/\]$/, '').trim())
@@ -569,6 +662,7 @@ function createAdaptiveStudyService({ admin, getProductLimits, getProvider }) {
           sourceRefs: sourceRefKeys.map((refKey) => authority.refs.get(refKey)),
         });
       }
+      stageStartedAt = Date.now();
       const committed = await db.runTransaction(async (transaction) => {
         const current = await transaction.get(session.ref);
         const data = current.data() || {};
@@ -604,30 +698,34 @@ function createAdaptiveStudyService({ admin, getProductLimits, getProvider }) {
           });
         });
         transaction.update(session.ref, {
-          generationLock: admin.firestore.FieldValue.delete(),
+          ...(data.generationLock?.token === lockToken ? { generationLock: admin.firestore.FieldValue.delete() } : {}),
           'metrics.generated': Number(data.metrics?.generated || 0) + (active ? accepted.length : 0),
           'metrics.tokens': Number(data.metrics?.tokens || 0) + Number(result.usage?.promptTokens || 0) + Number(result.usage?.outputTokens || 0),
           updatedAt: serverTimestamp(),
         });
         return active;
       });
+      logAdaptiveStage('firestore_commit', stageStartedAt, { sourceId: authority.sourceId, count: accepted.length });
       return {
         generated: committed ? accepted.length : 0,
         discarded: !committed,
         readyCount: committed ? readyCount + accepted.length : 0,
       };
     } catch (error) {
-      const batch = db.batch();
-      itemRefs.forEach((ref) => batch.set(ref, {
-        queueState: 'error', status: 'buffer', errorCode: String(error?.code || 'generation-error').slice(0, 80),
-        updatedAt: serverTimestamp(),
-      }, { merge: true }));
-      batch.set(session.ref, {
-        generationLock: admin.firestore.FieldValue.delete(),
-        lastGenerationError: String(error?.message || 'Falha na geracao.').slice(0, 500),
-        updatedAt: serverTimestamp(),
-      }, { merge: true });
-      await batch.commit().catch(() => {});
+      await db.runTransaction(async (transaction) => {
+        const current = await transaction.get(session.ref);
+        const ownsLease = current.data()?.generationLock?.token === lockToken;
+        itemRefs.forEach((ref) => transaction.update(ref, {
+          queueState: ownsLease && current.data()?.status === 'active' ? 'error' : 'cancelled',
+          status: 'rejected', errorCode: String(error?.code || 'generation-error').slice(0, 80),
+          updatedAt: serverTimestamp(),
+        }));
+        if (ownsLease) transaction.update(session.ref, {
+          generationLock: admin.firestore.FieldValue.delete(),
+          lastGenerationError: String(error?.message || 'Falha na geracao.').slice(0, 500),
+          updatedAt: serverTimestamp(),
+        });
+      }).catch(() => {});
       throw error;
     }
   }
@@ -663,8 +761,12 @@ function createAdaptiveStudyService({ admin, getProductLimits, getProvider }) {
   async function startSession({ uid, folderId, sourceId }) {
     if (!uid) throw new HttpsError('unauthenticated', 'Autenticacao obrigatoria.');
     const limits = await getProductLimits(db);
+    let stageStartedAt = Date.now();
     const authority = await loadAuthority(uid, folderId, sourceId, limits);
+    logAdaptiveStage('read_chunks', stageStartedAt, { sourceId, count: authority.chunks.length });
+    stageStartedAt = Date.now();
     const analysis = await ensureConceptAnalysis(authority, limits);
+    logAdaptiveStage('load_concept_inventory', stageStartedAt, { sourceId, count: analysis.concepts.length });
     const deckId = await ensureFolderDeck(uid, authority, limits);
     const ref = authority.userRef.collection('adaptive_study_sessions').doc();
     await ref.create({
@@ -685,7 +787,7 @@ function createAdaptiveStudyService({ admin, getProductLimits, getProvider }) {
       endedAt: null,
     });
     try {
-      await refillBuffer({ uid, sessionId: ref.id, forceTarget: limits.adaptiveStudy.targetReady });
+      await refillBuffer({ uid, sessionId: ref.id, forceTarget: Number(limits.adaptiveStudy.targetReady) + 1 });
       const item = await serveNext(uid, ref.id);
       if (!item) throw new HttpsError('failed-precondition', 'Nao foi possivel preparar um flashcard sustentado pela fonte.');
       const prefetchedItems = await listReadyPreviews(uid, ref.id, limits.adaptiveStudy.targetReady);
@@ -849,7 +951,7 @@ function createAdaptiveStudyService({ admin, getProductLimits, getProvider }) {
       ...materialized,
       nextItem,
       prefetchedItems,
-      shouldRefill: readyCount <= limits.adaptiveStudy.lowWatermark,
+      shouldRefill: readyCount < Number(limits.adaptiveStudy.targetReady),
       readyCount,
     };
   }
@@ -895,6 +997,7 @@ module.exports = {
   CARD_PROMPT_VERSION,
   CONCEPT_PROMPT_VERSION,
   adaptiveCardSchema,
+  buildConceptWindows,
   chooseCognitiveDifficulty,
   conceptSchema,
   contentFingerprint,

@@ -5,21 +5,52 @@ import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import '../../utils/pwaInstall';
 
 const STATUS_HIDE_DELAY = 3500;
+const UPDATE_CHECK_INTERVAL_MS = 15 * 60 * 1000;
 
 export default function PwaStatus({ hasPendingWrites = false }) {
   const isOnline = useOnlineStatus();
   const [firestorePending, setFirestorePending] = useState(hasPendingWrites);
   const [wasOffline, setWasOffline] = useState(false);
   const [showBackOnline, setShowBackOnline] = useState(false);
+  const [registration, setRegistration] = useState(null);
   const {
     offlineReady: [offlineReady, setOfflineReady],
     needRefresh: [needRefresh, setNeedRefresh],
     updateServiceWorker,
   } = useRegisterSW({
+    onRegisteredSW(_serviceWorkerUrl, nextRegistration) {
+      setRegistration(nextRegistration || null);
+    },
     onRegisterError(error) {
       console.error('[PWA] Falha ao registrar o modo offline:', error);
     },
   });
+
+  useEffect(() => {
+    if (!registration || !isOnline) return undefined;
+
+    const checkForUpdate = () => {
+      if (document.visibilityState === 'visible') {
+        registration.update().catch((error) => {
+          console.warn('[PWA] Não foi possível verificar uma nova versão:', error?.message || error);
+        });
+      }
+    };
+    const onVisibilityChange = () => checkForUpdate();
+
+    checkForUpdate();
+    const intervalId = window.setInterval(checkForUpdate, UPDATE_CHECK_INTERVAL_MS);
+    window.addEventListener('focus', checkForUpdate);
+    window.addEventListener('online', checkForUpdate);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', checkForUpdate);
+      window.removeEventListener('online', checkForUpdate);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [isOnline, registration]);
 
   useEffect(() => {
     setFirestorePending(hasPendingWrites);

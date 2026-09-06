@@ -112,14 +112,26 @@ const EDITAL_LOGO_ALIASES = [
   { code: 'prf', pattern: /\bprf\b|policia rodoviaria federal/ },
 ];
 
+const isGenericEditalTerm = (str) => !str || ['manual', 'cronograma', 'edital', 'edital base'].includes(String(str).toLowerCase().trim());
+
 const editalIdentity = (edital = {}) => normalizePdfText([
-  edital.id,
+  !isGenericEditalTerm(edital.id) ? edital.id : '',
   edital.nome,
   edital.titulo,
-  edital.editalNome,
+  !isGenericEditalTerm(edital.editalNome) ? edital.editalNome : '',
+  edital.concursoNome,
   edital.orgao,
   edital.instituicao,
 ].filter(Boolean).join(' '));
+
+export const resolvePdfEditalName = (edital = {}, fallback = 'Edital') => {
+  return [
+    edital.nome,
+    edital.titulo,
+    edital.editalNome,
+    edital.concursoNome,
+  ].find((val) => !isGenericEditalTerm(val)) || edital.nome || edital.titulo || edital.editalNome || fallback;
+};
 
 export const buildEditalLogoCandidates = ({ edital = {}, providedLogo = null } = {}) => {
   const candidates = [];
@@ -138,7 +150,7 @@ export const buildEditalLogoCandidates = ({ edital = {}, providedLogo = null } =
   const identity = editalIdentity(edital);
   const alias = EDITAL_LOGO_ALIASES.find((item) => item.pattern.test(identity));
   if (alias) add(`/logosEditais/logo-${alias.code}.png`);
-  if (edital.id) add(`/logosEditais/logo-${slugify(edital.id)}.png`);
+  if (edital.id && !isGenericEditalTerm(edital.id)) add(`/logosEditais/logo-${slugify(edital.id)}.png`);
   return candidates;
 };
 
@@ -146,7 +158,8 @@ export const buildEditalLogoFallbackLabel = (edital = {}) => {
   const identity = editalIdentity(edital);
   const alias = EDITAL_LOGO_ALIASES.find((item) => item.pattern.test(identity));
   if (alias) return alias.code.toUpperCase();
-  const source = String(edital.nome || edital.titulo || edital.editalNome || 'EDITAL');
+  const sourceName = resolvePdfEditalName(edital, 'EDITAL');
+  const source = String(sourceName);
   const initials = source
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .split(/[^A-Za-z0-9]+/)
@@ -514,8 +527,8 @@ const drawHeader = (doc, { editalName, editalLogo, systemLogo }) => {
   doc.setFillColor(...COLORS.red);
   doc.rect(0, 0, PAGE.width, 2.4, 'F');
 
-  if (!drawContainedImage(doc, editalLogo, 12, 6, 31, 20, 'edital-logo')) {
-    drawLogoFallback(doc, editalName, 12, 6, 31, 20);
+  if (editalLogo) {
+    drawContainedImage(doc, editalLogo, 12, 6, 31, 20, 'edital-logo');
   }
   drawContainedImage(doc, systemLogo, 167, 6, 31, 20, 'system-logo');
 
@@ -900,8 +913,8 @@ const drawPhotoCardCover = (doc, {
   doc.setLineWidth(0.35);
   doc.roundedRect(59, 102, 92, 90, 6, 6, 'S');
 
-  if (!drawContainedImage(doc, editalLogo, 64, 105, 82, 82, 'edital-logo-photo-card')) {
-    drawLogoFallback(doc, editalLogoLabel, 64, 105, 82, 82);
+  if (editalLogo) {
+    drawContainedImage(doc, editalLogo, 64, 105, 82, 82, 'edital-logo-photo-card');
   }
 
   drawSoftPanelShadow(doc, 30, 204, 150, 52, 7, true);
@@ -981,8 +994,8 @@ const drawCover = (doc, context, design = PDF_DEFAULT_PAGE_DESIGN, typography = 
   doc.roundedRect(88, usesSplitLayout ? 84 : 72, 34, 1.8, 0.9, 0.9, 'F');
 
   const editalLogoY = usesSplitLayout ? 96 : 81;
-  if (!drawContainedImage(doc, editalLogo, 60, editalLogoY, 90, 90, `edital-logo-cover-${resolvedDesign}`)) {
-    drawCoverLogoFallback(doc, editalLogoLabel);
+  if (editalLogo) {
+    drawContainedImage(doc, editalLogo, 60, editalLogoY, 90, 90, `edital-logo-cover-${resolvedDesign}`);
   }
 
   doc.setFont(typography.fontFamily || PDF_COVER_TYPOGRAPHY.titleFont, typography.fontFamily ? 'normal' : PDF_COVER_TYPOGRAPHY.titleStyle);
@@ -1215,7 +1228,7 @@ export const createEditalVerticalizadoPdf = async ({
   ]);
   const autoTable = autoTableModule.default || autoTableModule.autoTable;
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true, putOnlyUsedFonts: true });
-  const editalName = edital.nome || edital.titulo || edital.editalNome || 'Edital';
+  const editalName = resolvePdfEditalName(edital, 'Edital');
   const editalCargo = edital.cargo || edital.cargoNome || edital.funcao || edital.posto || '';
   const scopeLabel = scope === PDF_SCOPE_COMPLETE ? 'Edital completo' : 'Disciplinas do planejamento';
   const fillLabel = fillMode === PDF_FILL_PROGRESS ? 'Progresso atual' : 'Em branco';
@@ -1448,7 +1461,7 @@ export const createTacticalFontShowcasePdf = async ({
 
 export const downloadEditalVerticalizadoPdf = async (options = {}) => {
   const doc = await createEditalVerticalizadoPdf(options);
-  const editalName = options?.edital?.nome || options?.edital?.titulo || options?.edital?.editalNome || 'edital';
+  const editalName = resolvePdfEditalName(options?.edital, 'edital');
   const fileName = buildEditalVerticalizadoFileName({
     editalName,
     scope: options.scope,

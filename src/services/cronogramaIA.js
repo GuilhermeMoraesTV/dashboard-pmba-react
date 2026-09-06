@@ -5,6 +5,7 @@
 
 import { gerarSchedule } from './scheduling/index.js';
 import { otimizarComIA } from './scheduling/aiAdapter.js';
+import { getBrasiliaTodayKey } from '../utils/planningDates.js';
 
 // Re-exporta funções puras para imports existentes em outros módulos
 export {
@@ -30,7 +31,7 @@ export async function gerarCronogramaIA(
   if (!disciplinas?.length) return null;
 
   const {
-    dataInicio          = new Date().toISOString().split('T')[0],
+    dataInicio          = getBrasiliaTodayKey(),
     dataFim             = null,
     tempoRevisaoMinutos = 20,
   } = opcoes;

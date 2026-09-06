@@ -8,6 +8,35 @@
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="/logoModoQAP.png" />
   <link rel="apple-touch-icon" href="/logoModoQAP.png" />
+
+  <!-- Web App Manifest & Mobile Capabilities -->
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="ModoQAP" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="application-name" content="ModoQAP" />
+
+  <!-- Early PWA Install Prompt Capture -->
+  <script>
+    window.__deferredInstallPrompt = null;
+    window.addEventListener('beforeinstallprompt', function(event) {
+      event.preventDefault();
+      try {
+        localStorage.removeItem('modoqap_pwa_installed_on_this_device');
+      } catch (_) {}
+      window.__deferredInstallPrompt = event;
+      window.dispatchEvent(new CustomEvent('modoqap-pwa-install-state'));
+    });
+    window.addEventListener('appinstalled', function() {
+      window.__deferredInstallPrompt = null;
+      try {
+        localStorage.setItem('modoqap_pwa_installed_on_this_device', 'true');
+      } catch (_) {}
+      window.dispatchEvent(new CustomEvent('modoqap-pwa-install-state'));
+    });
+  </script>
+
   <!-- Preconnect para Performance -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -18,9 +47,6 @@
   <!-- Theme Color - Dark Militar -->
   <meta name="theme-color" content="#0a0a0a" />
   <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#000000" />
-
-  <!-- PWA Support -->
-  <link rel="manifest" href="/manifest.json" />
 
   <title>ModoQAP</title>
 

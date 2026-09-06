@@ -628,6 +628,23 @@ const exportSegment = async ({ actor, targetUserIds = [] }) => {
   }));
 };
 
+const recoverHistoricalStreaks = async ({ actor, data = {}, gamification }) => {
+  return withAudit({
+    action: 'gamification.historical_streaks_recovered',
+    actor,
+    targetPath: 'system_maintenance/historical_streak_recovery',
+    targetType: 'system_maintenance',
+    payloadSummary: { force: data.force === true, batchSize: Number(data.batchSize) || null, uid: data.uid || null },
+  }, async () => {
+    const result = await gamification.recoverHistoricalStreaks({
+      force: data.force === true,
+      batchSize: Number(data.batchSize) || null,
+      uid: data.uid || null,
+    });
+    return { ...result, auditAfter: result };
+  });
+};
+
 module.exports = {
   assertAdmin,
   deleteUserPermanently,
@@ -637,6 +654,7 @@ module.exports = {
   recalculateUserStats,
   recomputeLeagueWeek,
   recomputeUserGamification,
+  recoverHistoricalStreaks,
   sendBroadcast,
   sendUserNotification,
   simulateLeagueClosure,

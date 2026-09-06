@@ -16,6 +16,53 @@ Este documento estabelece as regras obrigatórias, divisão de responsabilidades
 
 ---
 
+## 1.1 Arquitetura Zero-Cost e Eficiência Máxima no Firebase (REGRA CRÍTICA OBRIGATÓRIA)
+
+Toda nova funcionalidade, alteração arquitetural, gatilho, listener, job agendado ou estrutura de persistência implementada neste projeto **DEVE obrigatoriamente ser projetada para manter o consumo do Firebase o mais próximo possível de custo zero**, operando confortavelmente dentro das franquias gratuitas do Firebase / Google Cloud Platform (GCP).
+
+### Princípios Obrigatórios:
+
+#### 1. Firestore
+* **Sem scans históricos em caminhos comuns:** Nenhuma ação comum de usuário pode recalcular todo o histórico ou varrer coleções inteiras.
+* **Escritas Estritamente Idempotentes:** Nunca execute `set`, `update` ou `add` sem alteração funcional real. Dados derivados e projeções devem sempre utilizar `payloadChanged` (ou comparação funcional equivalente) antes de qualquer escrita.
+* **Sem escritas cosméticas:** Proibido disparar gravações apenas para atualizar timestamps cosméticos (ex.: `updatedAt`, `lastSeen`) se os dados funcionais permanecerem inalterados.
+* **Proibição de $O(U^2)$ e $O(N)$ em cascata:** Proibido desenhar lógicas onde uma ação individual (ex.: estudar, pausar timer, entrar em grupo) dispare atualizações em todos os demais usuários ou rankings inteiros.
+* **Agregados Incrementais:** Preferir sempre o cálculo de deltas pontuais (`daily_states`, `operations`) ao invés de reprocessar históricos completos.
+* **Queries Eficientes:** Sempre aplicar limites (`limit()`), paginação e cursores em consultas do client e do backend.
+
+#### 2. Cloud Functions & Triggers
+* **Gatilhos de Alta Frequência:** Gatilhos acionados com frequência (como `active_timers`) devem ser $O(1)$, leves e nunca disparar cascatas de recálculo ou fan-out para outras coleções.
+* **Sem Duplicação de Pipelines:** Triggers não devem refazer o trabalho que a chamada principal (callable ou client) já persistiu com consistência.
+* **Idempotência em Retries:** Todos os gatilhos com retries ativados devem checar marcadores de conclusão antes de processar.
+
+#### 3. Listeners em Tempo Real (Client)
+* **Realtime com Propósito:** Utilizar `onSnapshot` exclusivamente onde a reatividade em tempo real agrega valor direto à experiência do usuário.
+* **Ciclo de Vida Limpo:** Sempre registrar e invocar o `unsubscribe()` ao desmontar componentes ou trocar de rota/aba.
+* **Limitação Rígida:** Utilizar `limit()` em queries ouvidas por snapshot para impedir consumo descontrolado à medida que as coleções crescem.
+
+#### 4. Cloud Scheduler & Background Jobs
+* **Sem Crons de Alta Frequência:** Proibido criar cron jobs com frequência de minutos (ex.: `every 1 minutes`) sem justificativa explícita e aprovação prévia.
+* **Consolidação Diária:** Rotinas de manutenção diária devem ser consolidadas em um despachante único na madrugada (respeitando o limite gratuito de 3 Cloud Schedulers na GCP).
+* **Isolamento de Falhas:** Cada etapa da rotina diária consolidada deve possuir tratamento independente de erro (`try/catch`), garantindo que a falha de uma etapa não interrompa as demais.
+
+#### 5. Storage & Arquivos
+* **Retenção e Limpeza:** Uploads temporários (como arquivos `.apkg` pós-importação ou mídias intermediárias) devem ser excluídos após o processamento ou ter políticas de ciclo de vida ativas.
+
+### Checklist Obrigatório para Toda Nova Funcionalidade:
+Antes de finalizar qualquer implementação, todo agente deve auditar e responder:
+1. Quantos **reads** esta funcionalidade gera por ação comum?
+2. Quantos **writes**?
+3. Quantas **Functions** são invocadas?
+4. O consumo cresce com o tamanho do histórico do usuário?
+5. O consumo cresce com a quantidade total de usuários ($O(U)$ ou $O(U^2)$)?
+6. Possui listeners em tempo real (`onSnapshot`)? Estão devidamente limitados e desinscritos?
+7. Possui triggers de Firestore? O retry é idempotente?
+8. Gera fan-out de escritas para outros documentos?
+9. Pode um evento simples gerar dezenas ou centenas de operações em segundo plano?
+10. Os dados temporários são devidamente limpos após o uso?
+
+---
+
 ## 2. Arquitetura, Stack e Padrões do Projeto
 
 * **Stack**: React 19, Vite 7, Tailwind CSS 3, Framer Motion, Firebase (Firestore, Storage, Functions v2, Auth).

@@ -1307,6 +1307,7 @@ body.registro-modal-open .app-global-footer {
   --zoom-mobile-desempenho: 0.84;
   --zoom-mobile-home: 0.84;
   --zoom-mobile-edital: 0.68;
+  --zoom-mobile-flashcards: 0.68;
   --zoom-mobile-calendar: 0.86;
   --zoom-mobile-revisoes: 1;
   --zoom-mobile-profile: 0.86;
@@ -1939,6 +1940,11 @@ body.registro-modal-open .app-global-footer {
     padding-bottom: 3rem;
   }
 
+  .mobile-page-zoom--flashcards {
+    --page-mobile-zoom: var(--zoom-mobile-flashcards);
+    padding-bottom: 3rem;
+  }
+
   .cronograma-blocks-mobile-zoom {
     --cronograma-blocks-mobile-zoom: var(--zoom-mobile-cronograma-blocos);
     width: 100%;
@@ -2306,3 +2312,31 @@ body.registro-modal-open .app-global-footer {
   }
 }
 
+
+/* The card gallery uses a readable single-column mobile layout instead of tree zoom. */
+@media (max-width: 639px) {
+  .mobile-page-zoom--flashcards:has(.flashcards-manager-page) {
+    --page-mobile-zoom: 1;
+  }
+}
+
+/* Gallery sizing is independent from the study tree and its mobile zoom. */
+.flashcards-gallery-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+.flashcards-gallery-card { display: flex; flex-direction: column; gap: 12px; height: 232px; min-width: 0; overflow: hidden; }
+.flashcards-question-preview { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 5; overflow: hidden; overflow-wrap: anywhere; }
+.flashcards-gallery-filters { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.flashcards-detail-content { overflow-wrap: anywhere; overflow-x: auto; }
+.flashcards-detail-dialog { max-height: 100% !important; }
+.flashcards-detail-dialog > :first-child { flex-shrink: 0; }
+.flashcards-detail-content img, .flashcards-detail-content video { max-width: 100%; height: auto; }
+@media (min-width: 600px) {
+  .flashcards-gallery-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .flashcards-gallery-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 960px) {
+  .flashcards-gallery-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .flashcards-gallery-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (min-width: 1280px) {
+  .flashcards-gallery-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}

@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { db, auth } from '../../firebaseConfig';
-import { collection, query, orderBy, limit, onSnapshot, doc, setDoc, getDoc } from 'firebase/firestore';
+import { collection, query, where, orderBy, limit, onSnapshot, doc, setDoc, getDoc } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Megaphone, Check, Zap, AlertTriangle, Bell, X, ChevronLeft, ChevronRight } from 'lucide-react';
 
@@ -23,7 +23,7 @@ const getAuthCreatedAtMillis = (user) => (
     null
 );
 
-const BroadcastReceiver = ({ canShow = true, userAccess = null }) => {
+const BroadcastReceiver = ({ canShow = true, userAccess = null, user: propUser = null }) => {
     const [notification, setNotification] = useState(null);
     const [isVisible, setIsVisible] = useState(false);
     const [currentIndex, setCurrentIndex] = useState(0);
@@ -35,8 +35,9 @@ const BroadcastReceiver = ({ canShow = true, userAccess = null }) => {
     // Isso evita reprocessar o mesmo msgId quando o onSnapshot dispara múltiplas vezes.
     const processedInSession = useRef(new Set());
 
-    const user = auth.currentUser;
-    const isHome = location.pathname === '/';
+    const user = propUser || auth.currentUser;
+    const pathname = (location.pathname || '').toLowerCase();
+    const isHome = pathname === '/' || pathname === '/app' || pathname === '/app/home' || pathname.startsWith('/app/home');
     const isAdmin = userAccess?.permissions?.adminPanel === true;
 
     const preloadImages = (urls) => {
@@ -80,79 +81,90 @@ const BroadcastReceiver = ({ canShow = true, userAccess = null }) => {
 
         const q = query(
             collection(db, 'system_broadcasts'),
+            where('active', '==', true),
             orderBy('timestamp', 'desc'),
-            limit(1)
+            limit(5)
         );
 
         const unsub = onSnapshot(q, async (snap) => {
             if (snap.empty) return;
 
-            const snapDoc = snap.docs[0];
-            const data = snapDoc.data();
-            const msgId = snapDoc.id;
-
-            // Já processamos este ID nesta sessão? Para.
-            if (processedInSession.current.has(msgId)) return;
-
-            // --- BROADCAST DE TESTE: só admin vê ---
-            if (data.targetUid) {
-                if (!isAdmin) return;
-                // Admin vê broadcasts de teste sem limite (para validar)
-                processedInSession.current.add(msgId);
-                setNotification({ ...data, id: msgId });
-                setCurrentIndex(0);
-                if (data.imageUrls?.length) preloadImages(data.imageUrls);
-                return;
-            }
-
-            // --- BROADCAST SEGMENTADO: admin pode validar, usuário só vê se fizer parte do segmento ---
-            if (Array.isArray(data.targetUserIds) && data.targetUserIds.length > 0) {
-                const canReceiveSegment = isAdmin || data.targetUserIds.includes(user.uid);
-                if (!canReceiveSegment) return;
-            }
-
-            // --- BROADCAST INATIVO: ninguém vê ---
-            if (data.active === false) return;
-
-            // --- BROADCAST NORMAL: admin + usuários respeitam MAX_VIEWS ---
-            const now = new Date();
-            const msgTime = data.timestamp?.toDate?.();
-            if (!msgTime || now - msgTime >= 24 * 60 * 60 * 1000) return;
+            const now = Date.now();
             const createdAtMillis = userCreatedAtMillis || getAuthCreatedAtMillis(user);
-            if (!isAdmin && createdAtMillis && msgTime.getTime() < createdAtMillis) return;
 
-            // Lê o contador no Firestore
-            const readRef = doc(db, 'users', user.uid, 'broadcasts_read', msgId);
-            let viewCount = 0;
+            for (const snapDoc of snap.docs) {
+                const data = snapDoc.data();
+                const msgId = snapDoc.id;
 
-            try {
-                const readSnap = await getDoc(readRef);
-                viewCount = readSnap.exists() ? (readSnap.data().viewCount ?? 0) : 0;
-            } catch {
-                // Se falhar a leitura (ex: permissão), não exibe
-                return;
-            }
+                // Já processamos este ID nesta sessão? Pula para o próximo.
+                if (processedInSession.current.has(msgId)) continue;
 
-            // Ainda dentro do limite?
-            if (viewCount < MAX_VIEWS) {
-                // Marca como processado nesta sessão ANTES de exibir
-                processedInSession.current.add(msgId);
-
-                // Incrementa o contador no Firestore imediatamente
-                try {
-                    await setDoc(readRef, {
-                        viewCount: viewCount + 1,
-                        lastSeenAt: new Date(),
-                        msgId,
-                    });
-                } catch {
-                    // Se não conseguir salvar, não exibe para evitar loop
-                    return;
+                // --- BROADCAST DE TESTE ---
+                if (data.targetUid) {
+                    // Se for teste: só exibe se for o próprio usuário alvo OU se for Admin
+                    if (data.targetUid !== user.uid && !isAdmin) continue;
                 }
 
+                // --- BROADCAST SEGMENTADO ---
+                if (Array.isArray(data.targetUserIds) && data.targetUserIds.length > 0) {
+                    const canReceiveSegment = isAdmin || data.targetUserIds.includes(user.uid);
+                    if (!canReceiveSegment) continue;
+                }
+
+                // --- CHECAGEM DE TEMPO (24 horas) ---
+                const msgMillis = toMillisSafe(data.timestamp) || now;
+                if (now - msgMillis >= 24 * 60 * 60 * 1000) continue;
+
+                // --- CHECAGEM DE DATA DE CRIAÇÃO DA CONTA ---
+                if (!isAdmin && createdAtMillis && msgMillis < createdAtMillis) continue;
+
+                // --- CONTROLE ESTRITO DE VISUALIZAÇÕES (MAX_VIEWS = 2) ---
+                const readRef = doc(db, 'users', user.uid, 'broadcasts_read', msgId);
+                let viewCount = 0;
+
+                try {
+                    const readSnap = await getDoc(readRef);
+                    if (readSnap.exists()) {
+                        viewCount = Number(readSnap.data()?.viewCount) || 0;
+                    }
+                } catch (err) {
+                    console.warn('[BroadcastReceiver] Erro ao consultar broadcasts_read:', err);
+                    try {
+                        const localCount = localStorage.getItem(`broadcast_views_${user.uid}_${msgId}`);
+                        if (localCount !== null) {
+                            viewCount = Number(localCount) || 0;
+                        }
+                    } catch (_) {}
+                }
+
+                // Se já atingiu ou superou o limite de 2 visualizações, não exibe
+                if (viewCount >= MAX_VIEWS) {
+                    continue;
+                }
+
+                // Marca como processado nesta sessão
+                processedInSession.current.add(msgId);
+                const nextCount = viewCount + 1;
+
+                // Atualiza contador no Firestore (para sincronizar entre dispositivos) e no localStorage
+                try {
+                    await setDoc(readRef, {
+                        viewCount: nextCount,
+                        lastSeenAt: new Date(),
+                        msgId,
+                    }, { merge: true });
+                } catch (err) {
+                    console.warn('[BroadcastReceiver] Erro ao salvar broadcasts_read:', err);
+                }
+
+                try {
+                    localStorage.setItem(`broadcast_views_${user.uid}_${msgId}`, String(nextCount));
+                } catch (_) {}
+
                 setNotification({ ...data, id: msgId });
                 setCurrentIndex(0);
                 if (data.imageUrls?.length) preloadImages(data.imageUrls);
+                return;
             }
         });
 

@@ -204,3 +204,21 @@ export function isValidQualityRating(rating) {
 export function isValidCardStatus(status) {
   return typeof status === 'string' && CARD_STATUSES.includes(status);
 }
+
+/**
+ * Relatório da importação Anki. Reutilizados não são atualizações nem descartes.
+ * detected = added + updated + unchanged + skipped; complete exige skipped=0.
+ * @typedef {Object} AnkiImportReport
+ * @property {number} cardsDetected Quantidade física encontrada no SQLite.
+ * @property {number} cardsAdded Cards novos confirmados em lotes atômicos.
+ * @property {number} cardsUpdated Cards cujo conteúdo/atribuição mudou.
+ * @property {number} cardsUnchanged Cards já persistidos, sem regravação.
+ * @property {number} cardsSkipped Cards não importados; nunca sucesso completo.
+ * @property {number} cardsPersisted Cards existentes lidos mais criações confirmadas.
+ * @property {number} folderCount Nós Anki representados na árvore.
+ * @property {number} foldersCreated Novas pastas físicas desta execução.
+ * @property {number} mediaUploaded Objetos de mídia novos.
+ * @property {number} mediaReused Objetos existentes reutilizados por hash/usuário.
+ * @property {'snapshots_and_atomic_commits'|'read_after_failure'} persistenceVerification Evidência usada.
+ * @property {boolean} isComplete Todas as contagens fecham e não houve falhas.
+ */

@@ -23,11 +23,37 @@ async function validateApkgFile(file, limits) {
   if (String.fromCharCode(...signature).slice(0, 2) !== 'PK') throw new Error('O arquivo nao possui assinatura ZIP/APKG valida.');
 }
 
-function uploadApkg(storageRef, file, onProgress) {
+function buildApkgStoragePath(userId, importId) {
+  return `user_uploads/${userId}/anki_imports/${importId}/package.apkg`;
+}
+
+function normalizeFolderName(value) {
+  return String(value || '').normalize('NFC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('pt-BR');
+}
+
+function findReusableAnkiFolder(folders, requestedName) {
+  const normalizedName = normalizeFolderName(requestedName);
+  if (!normalizedName) return null;
+  const candidates = (folders || []).filter((folder) => (
+    folder?.id
+    && !folder.parentFolderId
+    && folder.archived !== true
+    && normalizeFolderName(folder.name) === normalizedName
+    && normalizeFolderName(folder.description) === 'importado do anki'
+  ));
+  if (!candidates.length) return null;
+  return [...candidates].sort((left, right) => {
+    const leftDescendants = (folders || []).filter((folder) => folder.ancestorFolderIds?.includes(left.id)).length;
+    const rightDescendants = (folders || []).filter((folder) => folder.ancestorFolderIds?.includes(right.id)).length;
+    return rightDescendants - leftDescendants;
+  })[0];
+}
+
+function uploadApkg(storageRef, file, originalName, onProgress) {
   return new Promise((resolve, reject) => {
     const task = uploadBytesResumable(storageRef, file, {
       contentType: 'application/zip',
-      customMetadata: { originalName: String(file.name || 'deck.apkg').slice(0, 180) },
+      customMetadata: { originalName },
     });
     task.on('state_changed', (snapshot) => {
       onProgress?.(snapshot.totalBytes ? snapshot.bytesTransferred / snapshot.totalBytes : 0);
@@ -42,42 +68,16 @@ async function importAnkiPackage(userId, file, options = {}) {
   await validateApkgFile(file, limits);
   const importRef = doc(collection(db, 'users', userId, 'anki_imports'));
   const safeName = sanitizeApkgName(file.name);
-  const storagePath = `user_uploads/${userId}/anki_imports/${importRef.id}/${safeName}`;
-  await uploadApkg(ref(storage, storagePath), file, options.onProgress);
-  try {
-    const importFn = httpsCallable(functions, 'importAnkiPackage', { timeout: 540000 });
-    const result = await importFn({
-      importId: importRef.id,
-      storagePath,
-      originalName: safeName,
-      folderId: String(options.folderId).trim(),
-    });
-    return result.data;
-  } catch (err) {
-    const idToken = await auth.currentUser?.getIdToken();
-    if (!idToken) throw err;
-    const directRes = await fetch('https://importankipackage-oxsjiftliq-uc.a.run.app', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${idToken}`,
-      },
-      body: JSON.stringify({
-        data: {
-          importId: importRef.id,
-          storagePath,
-          originalName: safeName,
-          folderId: String(options.folderId).trim(),
-        },
-      }),
-    });
-    const directJson = await directRes.json().catch(() => ({}));
-    if (directJson?.error) {
-      throw new Error(directJson.error.message || err.message || 'Falha ao importar Anki.');
-    }
-    if (directJson?.result) return directJson.result;
-    throw err;
-  }
+  const storagePath = buildApkgStoragePath(userId, importRef.id);
+  await uploadApkg(ref(storage, storagePath), file, safeName, options.onProgress);
+  const importFn = httpsCallable(functions, 'importAnkiPackage', { timeout: 540000 });
+  const result = await importFn({
+    importId: importRef.id,
+    storagePath,
+    originalName: safeName,
+    folderId: String(options.folderId).trim(),
+  });
+  return result.data;
 }
 
-export { importAnkiPackage, sanitizeApkgName, validateApkgFile };
+export { buildApkgStoragePath, findReusableAnkiFolder, importAnkiPackage, sanitizeApkgName, validateApkgFile };

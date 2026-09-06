@@ -188,7 +188,8 @@ export const hasRecentRankingActivity = ({ lastStudyAtMillis = 0, now = new Date
   const nowMillis = now instanceof Date ? now.getTime() : Number(now);
   const activityMillis = Number(lastStudyAtMillis || 0);
   const cutoffMillis = nowMillis - Math.max(1, integer(windowDays)) * 24 * 60 * 60 * 1000;
-  return activityMillis > 0 && activityMillis <= nowMillis && activityMillis >= cutoffMillis;
+  const maxFutureMillis = nowMillis + (24 * 60 * 60 * 1000);
+  return activityMillis > 0 && activityMillis <= maxFutureMillis && activityMillis >= cutoffMillis;
 };
 
 export const sortGeneralRankingMembers = (members = [], metric = 'questions') => {
@@ -306,6 +307,7 @@ const sumRankingMetrics = (sources) => {
 
 export const calculateRankingPeriodMetrics = ({ records = [], simulations = [], questionRewards = [], now = new Date() } = {}) => {
   const nowMillis = now instanceof Date ? now.getTime() : Number(now);
+  const maxFutureMillis = nowMillis + (24 * 60 * 60 * 1000);
   const weekId = getWeekId(new Date(nowMillis));
   const monthId = getMonthId(new Date(nowMillis));
   const sources = [
@@ -313,7 +315,7 @@ export const calculateRankingPeriodMetrics = ({ records = [], simulations = [], 
     ...simulations.filter(isValidGamificationRecord).map((data) => ({ metrics: getSimuladoMetrics(data), millis: sourceMillis(data) })),
     ...questionRewards.filter(isValidGamificationRecord).map((data) => ({ metrics: getQuestionRewardMetrics(data), millis: sourceMillis(data) })),
   ]
-    .filter((source) => source.millis > 0 && source.millis <= nowMillis);
+    .filter((source) => source.millis > 0 && source.millis <= maxFutureMillis);
   const weeklySources = sources.filter((source) => getWeekId(new Date(source.millis)) === weekId);
   const monthlySources = sources.filter((source) => getMonthId(new Date(source.millis)) === monthId);
   return {

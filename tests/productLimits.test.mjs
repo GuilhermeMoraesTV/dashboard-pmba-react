@@ -28,6 +28,9 @@ test('DEFAULT_PRODUCT_LIMITS has expected domain values and is frozen', () => {
   assert.equal(DEFAULT_PRODUCT_LIMITS.ai.maxDocumentPagesForAI, 50);
 
   assert.deepEqual(DEFAULT_PRODUCT_LIMITS.anki.identityFields, ['ankiNoteGuid', 'ankiCardOrd']);
+  assert.equal(DEFAULT_PRODUCT_LIMITS.groupChat.maxMessageChars, 4000);
+  assert.equal(DEFAULT_PRODUCT_LIMITS.groupChat.messageCooldownMs, 1000);
+  assert.equal(DEFAULT_PRODUCT_LIMITS.groupChat.transactionConflictRetries, 30);
 
   // Imutabilidade
   assert.ok(Object.isFrozen(DEFAULT_PRODUCT_LIMITS));
