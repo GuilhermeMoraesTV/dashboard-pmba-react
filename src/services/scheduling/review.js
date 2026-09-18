@@ -1036,7 +1036,7 @@ export function getAgendaSemana(
         // faria um único drop parecer uma duplicação do mesmo bloco.
         expandirTeoriaAteBruto: slotsEstudoDia.length > 0
           && !slotsEstudoDia.some((slot) => slot?.layoutManual === true),
-        duracaoUnicaMinutos: duracaoMaximaBlocoMinutos,
+        duracaoUnicaMinutos,
         usarDuracaoUnica: Boolean(duracaoUnicaMinutos),
       }
     ).map((s) => {

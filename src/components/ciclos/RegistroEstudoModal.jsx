@@ -1285,11 +1285,11 @@ function RegistroEstudoModal({
         }
       }
 
+      await Promise.all(saveTasks);
       setShowSuccess(true);
       setLoading(false);
       onClose();
-      void Promise.all(saveTasks)
-        .then(() => Promise.allSettled(postSaveTasks))
+      void Promise.allSettled(postSaveTasks)
         .then((results) => {
           results.forEach((result) => {
             if (result.status === 'rejected') console.error('[RegistroEstudoModal] Erro em pos-registro:', result.reason);

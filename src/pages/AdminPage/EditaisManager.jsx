@@ -10,7 +10,7 @@ import {
   Link, Copy, Layers, Target, Briefcase, Download, Sparkles, ChevronDown,
   Rocket, RefreshCw, AlertTriangle, Info
 } from 'lucide-react';
-import { gerarResumoAtualizacaoIA, gerarDescricaoDiff, deveNotificarAluno, formatarNomeEditalLegivel } from '../../services/editalIA';
+import { gerarResumoAtualizacaoIA, gerarDescricaoDiff, deveNotificarAluno, formatarNomeEditalLegivel } from '../../services/EditalIA';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import ConfirmModal from '../../components/shared/ConfirmModal';
 import { buildBancaOptions } from '../../utils/bancasConcurso';
