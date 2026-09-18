@@ -2,6 +2,12 @@ import { DEFAULT_PRODUCT_LIMITS } from '../../config/productLimits.js';
 
 const CHAT_LIMITS = DEFAULT_PRODUCT_LIMITS.groupChat;
 
+function collectMentionUids(values = [], authorUid = '') {
+  return [...new Set((Array.isArray(values) ? values : [])
+    .map((value) => String(value || '').trim())
+    .filter((value) => value && value !== authorUid))];
+}
+
 export function normalizeMessageText(value) {
   const text = String(value ?? '').trim();
   if (!text) throw new Error('Digite uma mensagem.');
@@ -12,9 +18,7 @@ export function normalizeMessageText(value) {
 }
 
 export function normalizeMentionUids(values = [], authorUid = '') {
-  const unique = [...new Set((Array.isArray(values) ? values : [])
-    .map((value) => String(value || '').trim())
-    .filter((value) => value && value !== authorUid))];
+  const unique = collectMentionUids(values, authorUid);
   if (unique.length > CHAT_LIMITS.maxMentions) {
     throw new Error(`Uma mensagem pode mencionar no máximo ${CHAT_LIMITS.maxMentions} pessoas.`);
   }
@@ -22,8 +26,8 @@ export function normalizeMentionUids(values = [], authorUid = '') {
 }
 
 export function getMentionAllUids(members = [], authorUid = '') {
-  return normalizeMentionUids(
-    members.map((member) => member?.uid || member?.id),
+  return collectMentionUids(
+    (Array.isArray(members) ? members : []).map((member) => member?.uid || member?.id),
     authorUid,
   );
 }

@@ -15,11 +15,28 @@
  *   getAgendaSemana (re-export de review.js),
  *   gerarSemanaTemplate (alias de gerarSchedule — compatibilidade),
  *   salvarCronogramaUnificado, toggleSlotConcluido,
+/**
+ * src/hooks/useCronogramaSystem.js
+ *
+ * Adaptador React fino — apenas operações Firebase e utilitários de data.
+ *
+ * INVARIANTE DE TEMPO (garantida por scheduling/index.js + review.js):
+ *   Para cada dia d:
+ *     minutosEstudo(d)  = horarios[d]*60 × 0.75   (teoria)
+ *     minutosRevisao(d) ≤ horarios[d]*60 × 0.25   (revisão 1d/7d/30d)
+ *     SOMA              ≤ horarios[d]*60            ✓ NUNCA ultrapassa
+ *
+ * Exports (máximo 10):
+ *   loading, chaveAssuntoDominado,
+ *   getWeekStartDate, getCurrentWeekOffset, getWeekDates,
+ *   getAgendaSemana (re-export de review.js),
+ *   gerarSemanaTemplate (alias de gerarSchedule — compatibilidade),
+ *   salvarCronogramaUnificado, toggleSlotConcluido,
  *   toggleAssuntoDominado, excluirCronograma
  */
 
 import { useState } from 'react';
-import { db } from '../firebaseConfig';
+import { db } from '../firebaseConfig.js';
 import {
   collection,
   serverTimestamp,
@@ -31,13 +48,19 @@ import {
   where,
   getDoc,
   FieldPath,
+  runTransaction,
 } from 'firebase/firestore';
-import { deletePlanStudyRecords } from '../services/planDeletion';
+import { deletePlanStudyRecords } from '../services/planDeletion.js';
+import { getScheduleStageGoalSnapshot } from '../utils/planningTransformation.js';
 import {
   buildCronogramaPostponement,
   getCronogramaPostponementRestorePayload,
-} from '../utils/cronogramaPostponement';
-import { requestGamificationRefresh } from '../utils/gamificationRealtime';
+} from '../utils/cronogramaPostponement.js';
+import { requestGamificationRefresh } from '../utils/gamificationRealtime.js';
+import {
+  advanceTheoryPendingAfterCompletion,
+  buildTheoryContinuationPending,
+} from '../utils/cronogramaTheoryQueue.js';
 
 import {
   getAgendaSemana as _getAgendaSemana,
@@ -262,10 +285,13 @@ export const useCronogramaSystem = (user) => {
           fieldEntries.push([['progressoMinutos', semKey, slot.slotId], proximoProgresso]);
         }
       }
-      if (novoEstado && slot.isPendenciaTeoria) {
+      if (novoEstado && slot.isFilaTeoriaOverride) {
         const disciplinaKey = getPendenciaDisciplinaKey(slot.disciplinaId);
         if (disciplinaKey) {
-          fieldEntries.push([['pendenciasTeoria', disciplinaKey], null]);
+          fieldEntries.push([['pendenciasTeoria', disciplinaKey], advanceTheoryPendingAfterCompletion({
+            pending: slot.pendenciaTeoriaSnapshot,
+            slot,
+          })]);
         }
       }
       await updateDocFieldEntries(docRef, fieldEntries);
@@ -315,12 +341,18 @@ export const useCronogramaSystem = (user) => {
 
       const assuntoPendencia = slot.assunto || slot.assuntoOriginal || slot.disciplinaNome || slot.disciplina || 'Disciplina';
       const nowIso = new Date().toISOString();
-      const pendenciaPayload = {
+      const latestSnap = await getDoc(docRef);
+      const currentPending = latestSnap.exists()
+        ? latestSnap.data()?.pendenciasTeoria?.[disciplinaKey] || null
+        : null;
+      const pendenciaPayload = buildTheoryContinuationPending({
         assunto: assuntoPendencia,
-        origemSlotIdBase: slotIdNoProgresso,
-        criadoEm: slot?.pendenciaTeoriaCriadoEm || nowIso,
-        ultimaMarcacaoEm: nowIso,
-      };
+        currentPending,
+        slot,
+        dataSlot: slot.dataSlot || null,
+        nowIso,
+        fallbackOrigin: slotIdNoProgresso,
+      });
 
       const fieldEntries = [
         [['progresso', semKey, slotIdNoProgresso], false],
@@ -500,6 +532,56 @@ export const useCronogramaSystem = (user) => {
     }
   };
 
+function areFunctionalFieldsEqual(existing, proposed) {
+  if (!existing || !proposed) return false;
+  const fields = [
+    'nome',
+    'dataInicio',
+    'dataFim',
+    'tempoRevisaoMinutos',
+    'usarDuracaoUnica',
+    'tempoSessaoMinutos',
+    'duracaoMinimaSessaoMinutos',
+    'duracaoMaximaSessaoMinutos',
+    'modoMontagem',
+  ];
+  for (const f of fields) {
+    if (proposed[f] !== undefined && proposed[f] !== existing[f]) {
+      return false;
+    }
+  }
+
+  const existingTemplate = existing.semanaTemplate || [];
+  const proposedTemplate = proposed.semanaTemplate || [];
+  if (existingTemplate.length !== proposedTemplate.length) return false;
+  for (let i = 0; i < existingTemplate.length; i++) {
+    const a = existingTemplate[i];
+    const b = proposedTemplate[i];
+    if (
+      a.slotId !== b.slotId ||
+      a.dia !== b.dia ||
+      a.disciplinaId !== b.disciplinaId ||
+      (a.tempoMinutos || a.minutosEstudo) !== (b.tempoMinutos || b.minutosEstudo) ||
+      a.cor !== b.cor
+    ) {
+      return false;
+    }
+  }
+
+  const existingDiscs = existing.disciplinasSnapshot || [];
+  const proposedDiscs = proposed.disciplinasSnapshot || [];
+  if (existingDiscs.length !== proposedDiscs.length) return false;
+  for (let i = 0; i < existingDiscs.length; i++) {
+    const a = existingDiscs[i];
+    const b = proposedDiscs[i];
+    if (a.id !== b.id || a.nome !== b.nome || a.cor !== b.cor) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
   /**
    * Desativa todos os cronogramas ativos e salva o novo como ativo.
    *
@@ -517,16 +599,33 @@ export const useCronogramaSystem = (user) => {
       cronosAtivosSnap.docs.forEach((d) => batch.update(d.ref, { ativo: false }));
 
       const cRef = doc(collection(db, 'users', user.uid, 'cronogramas'));
+      const planningRef = doc(db, 'users', user.uid, 'planejamentos', cRef.id);
       batch.set(cRef, {
         ...dadosGerais,
-        ativo:               true,
-        criadoEm:            serverTimestamp(),
+        planejamentoId: cRef.id,
+        ativo:                      true,
+        criadoEm:                   serverTimestamp(),
         semanaTemplate,
-        disciplinasSnapshot: disciplinas,
-        progresso:           {},
-        progressoMinutos:    {},
-        pendenciasTeoria:    {},
-        historicoRevisoes:   {},  // ← inicializa historicoRevisoes vazio
+        disciplinasSnapshot:        disciplinas,
+        semanaTemplateVigenteDesde: 0,
+        historicoSemanasTemplate:   {},
+        progresso:                  {},
+        progressoMinutos:           {},
+        pendenciasTeoria:           {},
+        historicoRevisoes:          {},  // ← inicializa historicoRevisoes vazio
+      });
+
+      batch.set(planningRef, {
+        nome: dadosGerais.nome || 'Meu Cronograma',
+        editalId: dadosGerais.editalId || null,
+        metodoVigente: 'cronograma',
+        etapaVigenteId: cRef.id,
+        etapas: [{
+          metodo: 'cronograma', id: cRef.id, inicioEm: new Date().toISOString(),
+          metas: getScheduleStageGoalSnapshot(dadosGerais, semanaTemplate),
+        }],
+        arquivado: false,
+        criadoEm: serverTimestamp(),
       });
 
       await batch.commit();
@@ -547,26 +646,94 @@ export const useCronogramaSystem = (user) => {
   };
 
   const atualizarCronogramaUnificado = async (cronogramaId, dadosGerais, semanaTemplate, disciplinas) => {
-    if (!cronogramaId) return null;
+    if (!cronogramaId || !user?.uid) return null;
     setLoading(true);
+    let didWrite = false;
     try {
       const docRef = doc(db, 'users', user.uid, 'cronogramas', cronogramaId);
-      const snap = await getDoc(docRef);
-      if (!snap.exists()) {
-        console.error('[atualizarCronogramaUnificado] Cronograma nao encontrado.');
-        return null;
-      }
+      await runTransaction(db, async (transaction) => {
+        const snap = await transaction.get(docRef);
+        if (!snap.exists()) {
+          throw new Error('cronograma-nao-encontrado');
+        }
 
-      await updateDoc(docRef, {
-        ...dadosGerais,
-        semanaTemplate,
-        disciplinasSnapshot: disciplinas,
-        editadoEm: serverTimestamp(),
+        const existingData = snap.data() || {};
+        const vigenciaAnterior = Math.max(0, Number(existingData.semanaTemplateVigenteDesde) || 0);
+        const historicoAnterior = existingData.historicoSemanasTemplate || {};
+        const dataInicioCronograma = existingData.dataInicio || dadosGerais.dataInicio;
+        const currentWeekOffset = getWeekOffsetFromDate(dataInicioCronograma, new Date());
+
+        // Invariante de Idempotência: Se não houve mudança funcional, 0 escritas
+        const isIdentical = areFunctionalFieldsEqual(existingData, {
+          ...dadosGerais,
+          semanaTemplate,
+          disciplinasSnapshot: disciplinas,
+        });
+
+        if (isIdentical) {
+          return;
+        }
+
+        didWrite = true;
+
+        if (currentWeekOffset > vigenciaAnterior) {
+          // Arquiva a versão anterior para o intervalo [vigenciaAnterior, currentWeekOffset - 1]
+          const rangeKey = `w${vigenciaAnterior}_w${currentWeekOffset - 1}`;
+          const novaVersaoArquivada = {
+            id: rangeKey,
+            deSemana: vigenciaAnterior,
+            ateSemana: currentWeekOffset - 1,
+            semanaTemplate: existingData.semanaTemplate || [],
+            disciplinasSnapshot: existingData.disciplinasSnapshot || [],
+            horariosDetalhados: existingData.horariosDetalhados || {},
+            metodologiasAplicadas: existingData.metodologiasAplicadas || {},
+            tempoRevisaoMinutos: existingData.tempoRevisaoMinutos ?? 20,
+            duracaoMinimaSessaoMinutos: existingData.duracaoMinimaSessaoMinutos || null,
+            duracaoMaximaSessaoMinutos: existingData.duracaoMaximaSessaoMinutos || null,
+            usarDuracaoUnica: existingData.usarDuracaoUnica ?? false,
+            tempoSessaoMinutos: existingData.tempoSessaoMinutos || null,
+            arquivadoEm: new Date().toISOString(),
+          };
+
+          const novoHistorico = {
+            ...historicoAnterior,
+            [rangeKey]: novaVersaoArquivada,
+          };
+
+          transaction.update(docRef, {
+            ...dadosGerais,
+            semanaTemplate,
+            disciplinasSnapshot: disciplinas,
+            semanaTemplateVigenteDesde: currentWeekOffset,
+            historicoSemanasTemplate: novoHistorico,
+            editadoEm: serverTimestamp(),
+          });
+        } else {
+          // Recálculo na mesma semana: substitui a versão atual mantendo a vigência
+          transaction.update(docRef, {
+            ...dadosGerais,
+            semanaTemplate,
+            disciplinasSnapshot: disciplinas,
+            semanaTemplateVigenteDesde: vigenciaAnterior,
+            historicoSemanasTemplate: historicoAnterior,
+            editadoEm: serverTimestamp(),
+          });
+        }
       });
+
+      if (didWrite && user?.uid) {
+        requestGamificationRefresh({
+          uid: user.uid,
+          sourceType: 'schedule_recalculate',
+          sourceId: cronogramaId,
+        });
+      }
 
       return cronogramaId;
     } catch (e) {
-      console.error('[atualizarCronogramaUnificado] Erro:', e);
+      if (e?.message !== 'cronograma-nao-encontrado') {
+        console.error('[atualizarCronogramaUnificado] Erro:', e);
+      }
       return null;
     } finally {
       setLoading(false);
@@ -576,7 +743,7 @@ export const useCronogramaSystem = (user) => {
   /**
    * Edita cronograma preservando progresso e historicoRevisoes.
    */
-  const editarCronograma = async (cronogramaId, novosDados, novaTemplate = null, disciplinas = []) => {
+  const editarCronograma = async (cronogramaId, novosDados, novaTemplate = null, _disciplinas = []) => {
     setLoading(true);
     try {
       const docRef = doc(db, 'users', user.uid, 'cronogramas', cronogramaId);

@@ -1,6 +1,7 @@
 import { readdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import test from 'node:test';
 
 const testsDirectory = dirname(fileURLToPath(import.meta.url));
 const files = (await readdir(testsDirectory))
@@ -8,5 +9,9 @@ const files = (await readdir(testsDirectory))
   .sort();
 
 for (const file of files) {
-  await import(pathToFileURL(join(testsDirectory, file)).href);
+  try {
+    await import(pathToFileURL(join(testsDirectory, file)).href);
+  } catch (error) {
+    test(`carregamento da suíte ${file}`, () => { throw error; });
+  }
 }

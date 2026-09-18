@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../firebaseConfig';
+import { isUnconfirmedEmptySnapshot } from '../utils/firestoreSnapshotState';
 import {
   collection, query, onSnapshot, doc,
   writeBatch, getDoc, updateDoc,
@@ -8,7 +9,7 @@ import {
   Plus, CalendarDays, Target, ArrowRight,
   MoreVertical, Zap, Trash2, AlertOctagon,
   TrendingUp, CalendarClock, SkipForward, Calendar, PauseCircle,
-  FilePenLine, Archive, Clock,
+  FilePenLine, Archive, Clock, RefreshCw,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import CronogramaCreateWizard from '../components/cronograma/WizardShell';
@@ -23,6 +24,8 @@ import PostponeDaysField from '../components/cronograma/PostponeDaysField';
 import { normalizePostponeDays } from '../utils/cronogramaPostponement';
 import { sanitizeArticleHtml } from '../utils/sanitizeHtml';
 import { deletePlanStudyRecords } from '../services/planDeletion';
+import { deletePermanentPlanning } from '../services/permanentPlanningDeletion';
+import { getSchedulePlanningRecords } from '../utils/planningTransformation';
 
 // ============================================================================
 // Resolve a logo do cronograma a partir do registro ou do edital base.
@@ -74,11 +77,8 @@ const formatHours = (value) => {
 const getRegistroMinutes = (registro) => Number(registro?.tempoEstudadoMinutos || registro?.duracaoMinutos || registro?.minutos || 0);
 
 const calcularMinutosEstudadosCronograma = (cronograma, registrosEstudo = []) => {
-  const registros = registrosEstudo.filter((registro) => (
-    registro?.cronogramaId === cronograma?.id &&
-    !registro?.conclusaoId &&
-    registro?.tipoEstudo !== 'check_manual'
-  ));
+  const registros = getSchedulePlanningRecords(registrosEstudo, cronograma)
+    .filter((registro) => registro?.tipoEstudo !== 'check_manual');
   const minutosRegistros = registros.reduce((acc, registro) => acc + getRegistroMinutes(registro), 0);
   if (minutosRegistros > 0) return minutosRegistros;
 
@@ -126,7 +126,8 @@ const calcularMetricas = (cronograma, registrosEstudo = []) => {
   })();
 
   // Horas Semanais
-  const horasSemanais = cronograma?.cargaHorariaSemanal ?? cronograma?.horasSemanais ?? null;
+  const horasSemanais = cronograma?.cargaHorariaSemanal
+    ?? cronograma?.totalHorasSemanais ?? cronograma?.horasSemanais ?? null;
 
   const minutosEstudados = calcularMinutosEstudadosCronograma(cronograma, registrosEstudo);
   const horasEstudadas = Math.round((minutosEstudados / 60) * 10) / 10;
@@ -196,6 +197,7 @@ const CronogramaCard = ({ isTimerActive = false, cronograma, editaisMap, registr
         {/* ── Título + datas ───────────────────────────────────────────────── */}
         <div className="mb-3 sm:mb-4 flex-grow">
           <h3 className="text-lg sm:text-xl md:text-2xl font-black text-zinc-900 dark:text-white leading-tight mb-2 line-clamp-2 group-hover:text-emerald-600 dark:group-hover:text-emerald-500 transition-colors">{cronograma.nome}</h3>
+          {cronograma.cicloVinculadoId && <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-300">Historico: ciclo semanal → cronograma vigente</p>}
           <div className="hidden sm:block w-8 h-1 bg-emerald-500 rounded-full mb-4 group-hover:w-16 transition-all duration-500" />
           <div className="mb-3 grid grid-cols-2 gap-1.5 sm:mb-4 sm:gap-2">
             <div className="flex min-w-0 items-center gap-1.5 rounded-lg border border-zinc-200/70 bg-zinc-50/80 px-2 py-1.5 text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800/55 dark:text-zinc-300">
@@ -330,6 +332,7 @@ function CronogramaListPage({
   const [feedbackView, setFeedbackView] = useState('home');
   const [feedbackType, setFeedbackType] = useState('ideia');
   const [cronogramaParaEditar, setCronogramaParaEditar] = useState(null);
+  const [cronogramaEditMode, setCronogramaEditMode] = useState('simple');
   const [actionError, setActionError] = useState('');
   const editaisMap = useEditaisCatalog();
   const canUseInlineCreate = typeof onRequestCreate !== 'function';
@@ -360,9 +363,10 @@ function CronogramaListPage({
     setLoadingList(true);
     const q = query(collection(db, 'users', user.uid, 'cronogramas'));
     return onSnapshot(q, { includeMetadataChanges: true }, snapshot => {
+      if (isUnconfirmedEmptySnapshot(snapshot)) return;
       const docs = snapshot.docs
         .map(d => ({ id: d.id, ...d.data() }))
-        .filter((cronograma) => !cronograma.arquivado);
+        .filter((cronograma) => !cronograma.arquivado && cronograma.metodoVigente !== 'ciclo');
       docs.sort((a, b) => {
         const getTs = (x) => {
           const ts = x.criadoEm || x.dataCriacao;
@@ -374,10 +378,7 @@ function CronogramaListPage({
         return getTs(b) - getTs(a);
       });
       setCronogramas(docs);
-      const awaitingServerConfirmation = snapshot.metadata.fromCache
-        && docs.length === 0
-        && navigator.onLine;
-      if (!awaitingServerConfirmation) setLoadingList(false);
+      setLoadingList(false);
     }, err => { console.error(err); setLoadingList(false); });
   }, [user]);
 
@@ -417,9 +418,10 @@ function CronogramaListPage({
       }
     }
     else if (action === 'desativar') { setCronogramaParaDesativar(cronograma); }
-    else if (action === 'editar') {
+    else if (action === 'editar' || action === 'recalcular') {
+      setCronogramaEditMode('edit');
       if (canUseInlineEdit) setCronogramaParaEditar(cronograma);
-      else onRequestEdit(cronograma);
+      else onRequestEdit(cronograma, { mode: 'edit' });
     }
     else if (action === 'adiar') {
       setPostponeDays('7');
@@ -428,11 +430,18 @@ function CronogramaListPage({
     else if (action === 'arquivar') {
       setActionLoading(true);
       try {
-        await updateDoc(doc(db, 'users', user.uid, 'cronogramas', cronograma.id), {
+        const scheduleRef = doc(db, 'users', user.uid, 'cronogramas', cronograma.id);
+        const archivePayload = {
           arquivado: true,
           ativo: false,
           dataArquivamento: new Date(),
-        });
+        };
+        if (cronograma.planejamentoId) {
+          const batch = writeBatch(db);
+          batch.update(scheduleRef, archivePayload);
+          batch.update(doc(db, 'users', user.uid, 'planejamentos', cronograma.planejamentoId), { arquivado: true });
+          await batch.commit();
+        } else await updateDoc(scheduleRef, archivePayload);
       } catch (err) {
         console.error('Erro ao arquivar cronograma:', err);
         setActionError('Erro ao arquivar cronograma. Tente novamente.');
@@ -483,6 +492,14 @@ function CronogramaListPage({
     setActionLoading(true);
     try {
       const { id, cicloVinculadoId } = cronogramaParaExcluir;
+      const planningId = cronogramaParaExcluir.planejamentoId || id;
+      const planningRef = doc(db, 'users', user.uid, 'planejamentos', planningId);
+      const planningSnap = await getDoc(planningRef);
+      if ((planningSnap.data()?.etapas || []).length > 1) {
+        await deletePermanentPlanning(user.uid, planningId);
+        setCronogramaParaExcluir(null);
+        return;
+      }
       await deletePlanStudyRecords({
         userId: user.uid,
         planId: id,
@@ -490,6 +507,7 @@ function CronogramaListPage({
       });
       const batch = writeBatch(db);
       batch.delete(doc(db, 'users', user.uid, 'cronogramas', id));
+      if (planningSnap.exists()) batch.delete(planningRef);
       if (cicloVinculadoId) {
         try {
           const cicloSnap = await getDoc(doc(db, 'users', user.uid, 'ciclos', cicloVinculadoId));
@@ -515,11 +533,15 @@ function CronogramaListPage({
   if (cronogramaParaEditar && canUseInlineEdit) {
     return (
       <div className={containerClassName}>
-        <ModalEditarCronograma
+        <CronogramaCreateWizard
           user={user}
-          cronograma={cronogramaParaEditar}
-          onFechar={() => setCronogramaParaEditar(null)}
-          onCronogramaAtualizado={() => setCronogramaParaEditar(null)}
+          mode="edit"
+          cronogramaId={cronogramaParaEditar.id}
+          initialState={cronogramaParaEditar}
+          initialStep={1}
+          onClose={() => setCronogramaParaEditar(null)}
+          onCronogramaCriado={() => setCronogramaParaEditar(null)}
+          onOpenFeedback={handleOpenFeedback}
         />
       </div>
     );

@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildCycleSessionCompletionUpdate } from '../src/utils/cycleSessionCompletion.js';
+import {
+  CYCLE_ROUND_IDENTITY_VERSION,
+  buildCycleSessionCompletionUpdate,
+  isCycleRecordInRound,
+} from '../src/utils/cycleSessionCompletion.js';
 import { buildCycleOrderedSessions, getCycleFreeQueue } from '../src/utils/studyDayStatus.js';
 
 test('registros de voltas anteriores com conclusaoId preenchido não completam sessões da volta atual', () => {
@@ -164,4 +168,44 @@ test('fila livre do ciclo não ressuscita registros concluídos de rodadas passa
   assert.equal(queue.sessions.length, 2);
   assert.equal(queue.sessions.every((s) => s.concluida === false), true);
   assert.equal(queue.remainingMinutes, 100);
+});
+
+test('snapshot atrasado da rodada anterior nunca completa a rodada nova', () => {
+  const ciclo = {
+    id: 'ciclo-race',
+    conclusoes: 1,
+    roundIdentityVersion: CYCLE_ROUND_IDENTITY_VERSION,
+    tempoSessaoMinutos: 50,
+    ordemSessoes: [
+      { disciplinaId: 'd1', sessaoIndex: 0, tempoMinutos: 50 },
+      { disciplinaId: 'd2', sessaoIndex: 0, tempoMinutos: 50 },
+    ],
+    disciplinas: [
+      { id: 'd1', duracoesSessoes: [50] },
+      { id: 'd2', duracoesSessoes: [50] },
+    ],
+    sessoesConcluidas: [],
+    progressoSessoes: {},
+    sessoesConcluidasDetalhes: {},
+  };
+  const snapshotAtrasado = [
+    { cicloId: ciclo.id, cicloRoundVersion: 0, conclusaoId: null, sessaoGlobalIndex: 0, disciplinaId: 'd1', tempoEstudadoMinutos: 50 },
+    { cicloId: ciclo.id, cicloRoundVersion: 0, conclusaoId: null, sessaoGlobalIndex: 1, disciplinaId: 'd2', tempoEstudadoMinutos: 50 },
+  ];
+
+  const queue = getCycleFreeQueue(ciclo, snapshotAtrasado);
+  assert.deepEqual(queue.sessions.map((session) => session.progressoMinutos), [0, 0]);
+  assert.equal(queue.sessions.some((session) => session.concluida), false);
+});
+
+test('ciclo migrado rejeita registro sem identidade de rodada, mesmo com conclusaoId nulo', () => {
+  const registroLegadoAtrasado = { conclusaoId: null, tempoEstudadoMinutos: 50 };
+  assert.equal(isCycleRecordInRound(registroLegadoAtrasado, {
+    conclusoes: 2,
+    roundIdentityVersion: CYCLE_ROUND_IDENTITY_VERSION,
+  }), false);
+  assert.equal(isCycleRecordInRound(registroLegadoAtrasado, {
+    conclusoes: 2,
+    roundIdentityVersion: 0,
+  }), true);
 });

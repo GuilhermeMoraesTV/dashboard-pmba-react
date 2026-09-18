@@ -183,7 +183,6 @@ export default function StepPreview({
               ciclo={cicloInterativo}
               isLoading={false}
               canConcludeCiclo={false}
-              onMarcarSessao={() => {}}
               onConcluirCiclo={() => {}}
               cicloActionLoading={false}
               showAssuntos={modoExibirAssuntos !== false}

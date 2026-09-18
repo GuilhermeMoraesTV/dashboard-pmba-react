@@ -12,7 +12,9 @@ const [{ initializeApp }, { getAuth }, { FieldValue, Timestamp, getFirestore }] 
   import('firebase-admin/firestore'),
 ]);
 
-const app = initializeApp({ projectId: 'dashboard-pmba' }, `group-chat-seed-${Date.now()}`);
+const projectId = process.env.FIREBASE_PROJECT_ID || 'demo-dashboard-pmba-local';
+if (!projectId.startsWith('demo-')) throw new Error('O seed do chat exige um projeto Firebase demo isolado.');
+const app = initializeApp({ projectId }, `group-chat-seed-${Date.now()}`);
 const auth = getAuth(app);
 const database = getFirestore(app);
 const groupId = 'qa-chat-local';

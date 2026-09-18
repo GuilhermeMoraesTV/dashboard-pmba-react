@@ -1,9 +1,14 @@
-import { getAgendaSemana, getWeekOffsetFromDate } from './scheduling/review';
+import { getAgendaSemana, getWeekOffsetFromDate } from './scheduling/review.js';
 import {
   applyReviewProgress,
   getReviewPlannedMinutes,
   normalizeReviewText,
-} from './reviewProgressRules';
+} from './reviewProgressRules.js';
+import {
+  advanceTheoryPendingAfterCompletion,
+  buildTheoryContinuationPending,
+} from '../utils/cronogramaTheoryQueue.js';
+import { allocateScheduleStudyRecord, getScheduleStudyCandidates, getScheduleSlotKey } from '../../functions/gamification/scheduleStudyProgress.mjs';
 
 export const REGISTRO_PROGRESS_OPTIMISTIC_EVENT = 'modoqap:registro-progress-optimistic';
 
@@ -39,11 +44,17 @@ export const applyCronogramaRegistroProgress = (cronograma, registro) => {
   const semKey = `w${weekOffset}`;
   const agenda = getAgendaSemana(cronograma, weekOffset) || [];
   const revisao = isReviewRegistro(registro);
-  const candidates = agenda
+  const candidateScope = agenda
     .filter((slot) => Boolean(slot?.isRevisaoAuto) === revisao)
-    .filter((slot) => !dataRegistro || slot.dataSlot === dataRegistro)
-    .filter((slot) => matchRegistroToSlot(registro, slot))
-    .sort((a, b) => String(a.slotId || '').localeCompare(String(b.slotId || '')));
+    .filter((slot) => !dataRegistro || slot.dataSlot === dataRegistro);
+  const targetSlotId = String(registro.cronogramaSlotIdBase || registro.cronogramaSlotId || '').trim();
+  const exactCandidates = targetSlotId
+    ? candidateScope.filter((slot) => String(slot.slotIdBase || slot.slotId || '') === targetSlotId)
+    : [];
+  const candidatesBase = revisao ? candidateScope.filter((slot) => matchRegistroToSlot(registro, slot))
+    : getScheduleStudyCandidates(registro, candidateScope);
+  const candidates = revisao ? (exactCandidates.length ? exactCandidates : candidatesBase)
+    .sort((a, b) => String(a.slotId || '').localeCompare(String(b.slotId || ''))) : candidatesBase;
 
   const slot = candidates[0];
   if (!slot) return cronograma;
@@ -102,24 +113,70 @@ export const applyCronogramaRegistroProgress = (cronograma, registro) => {
 
   const progressoMinutos = cronograma.progressoMinutos || {};
   const progressoMinutosSemana = progressoMinutos?.[semKey] || {};
-  const atual = Math.max(
-    Number(progressoMinutosSemana?.[slotKey] || 0),
-    Number(slot.progressoMinutos || 0),
-  );
-  const nextProgress = atual + minutos;
-  const done = Boolean(registro.markAsFinished || registro.assuntoFinalizado) || nextProgress >= planned;
+  const currentMinutes = {};
+  const completed = {};
+  candidateScope.forEach((candidate) => {
+    const key = getScheduleSlotKey(candidate);
+    currentMinutes[key] = Math.max(Number(progressoMinutosSemana[key] || 0), Number(progressoMinutosSemana[candidate.slotId] || 0));
+    completed[key] = progressoSemana[key] === true || progressoSemana[candidate.slotId] === true;
+  });
+  const result = allocateScheduleStudyRecord({ slots: candidateScope, record: registro, currentMinutes, completed });
+  const nextMinutes = { ...progressoMinutosSemana };
+  const nextCompleted = { ...progressoSemana };
+  for (const candidate of candidateScope) {
+    const key = getScheduleSlotKey(candidate);
+    if (!Object.prototype.hasOwnProperty.call(result.allocations, key)) continue;
+    for (const alias of [...new Set([key, candidate.slotId].filter(Boolean))]) {
+      nextMinutes[alias] = result.minutes[key];
+      nextCompleted[alias] = result.completed[key];
+    }
+  }
+  const done = result.completed[slotKey] === true;
 
-  return {
+  const nextCronograma = {
     ...cronograma,
     progresso: {
       ...progresso,
-      [semKey]: { ...progressoSemana, [slotKey]: done },
+      [semKey]: nextCompleted,
     },
     progressoMinutos: {
       ...progressoMinutos,
-      [semKey]: { ...progressoMinutosSemana, [slotKey]: nextProgress },
+      [semKey]: nextMinutes,
     },
   };
+
+  if (slot.isFilaTeoriaOverride && done && !registro.naoConcluidoCronograma
+    && normalizeReviewText(registro.assunto) === normalizeReviewText(slot.assunto)) {
+    return {
+      ...nextCronograma,
+      pendenciasTeoria: {
+        ...(cronograma.pendenciasTeoria || {}),
+        [String(slot.disciplinaId)]: advanceTheoryPendingAfterCompletion({
+          pending: slot.pendenciaTeoriaSnapshot,
+          slot,
+        }),
+      },
+    };
+  }
+
+  if (registro.naoConcluidoCronograma) {
+    const disciplinaKey = String(slot.disciplinaId || registro.disciplinaId || '').trim();
+    if (!disciplinaKey) return nextCronograma;
+    return {
+      ...nextCronograma,
+      pendenciasTeoria: {
+        ...(cronograma.pendenciasTeoria || {}),
+        [disciplinaKey]: buildTheoryContinuationPending({
+          assunto: registro.assunto || slot.assunto,
+          currentPending: cronograma.pendenciasTeoria?.[disciplinaKey] || null,
+          slot,
+          dataSlot: dataRegistro,
+        }),
+      },
+    };
+  }
+
+  return nextCronograma;
 };
 
 export const applyCicloRevisaoRegistroProgress = (revisoes = [], registro) => {

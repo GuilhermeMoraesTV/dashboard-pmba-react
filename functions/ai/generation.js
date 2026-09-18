@@ -3,6 +3,7 @@
  */
 
 const crypto = require('crypto');
+const { FieldValue, Timestamp } = require('firebase-admin/firestore');
 const sanitizeHtml = require('sanitize-html');
 const { AIProviderError } = require('./provider');
 
@@ -134,8 +135,8 @@ async function reserveGenerationQuota({ admin, db, uid, surface, limit }) {
         ...(data.domainGenerationSurfaces || {}),
         [surface]: Number(data.domainGenerationSurfaces?.[surface] || 0) + 1,
       },
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      createdAt: data.createdAt || admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+      createdAt: data.createdAt || FieldValue.serverTimestamp(),
     }, { merge: true });
   });
 }
@@ -243,7 +244,7 @@ function createGenerationService({ admin, getProductLimits, getProvider }) {
     }
 
     const generatedRef = db.collection('users').doc(uid).collection('generated_items');
-    const now = admin.firestore.FieldValue.serverTimestamp();
+    const now = FieldValue.serverTimestamp();
     const jobId = `ai_${crypto.randomUUID()}`;
     const batch = db.batch();
     let itemCount = 0;

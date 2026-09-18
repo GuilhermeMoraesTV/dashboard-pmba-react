@@ -35,20 +35,22 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { collection, doc, getDoc, getDocs } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
-import { CATALOGO_EDITAIS } from '../pages/AdminPage/EditaisManager';
+import { collection, doc, getDoc, onSnapshot } from 'firebase/firestore';
+import { db } from '../firebaseConfig.js';
+import { CATALOGO_EDITAIS } from '../pages/AdminPage/EditaisManager.jsx';
 import { gerarSchedule } from '../services/scheduling/index.js';
-import { gerarCronogramaIA, gerarCronogramaExpressoIA, limparCacheIA } from '../services/cronogramaIA';
-import { useCronogramaSystem } from './useCronogramaSystem';
-import { buildDisciplineColorMap, getDisciplineColorForSlot, getDisciplineKey, getStoredDisciplineColor } from '../utils/disciplineColors';
+import { gerarCronogramaIA, gerarCronogramaExpressoIA, limparCacheIA } from '../services/cronogramaIA.js';
+import { useCronogramaSystem } from './useCronogramaSystem.js';
+import { confirmCycleToSchedule } from '../services/planningTransformation.js';
+import { buildDisciplineColorMap, getDisciplineColorForSlot, getDisciplineKey, getStoredDisciplineColor } from '../utils/disciplineColors.js';
 import {
   getKnowledgeLevel,
   getImportanceLevel,
   hasCompletePlanningLevels,
   normalizePlanningLevel,
-} from '../utils/planningPriority';
-import { clampPlanningStartDate, getLocalTodayKey, getBrasiliaTodayKey, getBrasiliaToday } from '../utils/planningDates';
+} from '../utils/planningPriority.js';
+import { clampPlanningStartDate, getLocalTodayKey, getBrasiliaTodayKey, getBrasiliaToday } from '../utils/planningDates.js';
+import { isUnconfirmedEmptySnapshot } from '../utils/firestoreSnapshotState.js';
 import confetti from 'canvas-confetti';
 
 // ─── CONSTANTES ───────────────────────────────────────────────────────────────
@@ -64,8 +66,20 @@ const aplicarDivisaoAutomatica = (config = {}) => ({
   duracaoMinimaSessaoMinutos: DURACAO_AUTOMATICA_MINUTOS,
   duracaoMaximaSessaoMinutos: DURACAO_AUTOMATICA_MAXIMA_MINUTOS,
 });
-const DRAFT_KEY           = 'protocolo_zero_cronograma_draft';
+const DRAFT_PREFIX        = 'protocolo_zero_cronograma_draft';
+const LEGACY_DRAFT_KEY    = 'protocolo_zero_cronograma_draft';
 const DRAFT_VERSION       = 3;
+
+export const getCronogramaDraftKey = (uid) => {
+  if (!uid || typeof uid !== 'string') return null;
+  return `${DRAFT_PREFIX}_${uid}`;
+};
+
+const _limparLegacyDraft = () => {
+  try {
+    localStorage.removeItem(LEGACY_DRAFT_KEY);
+  } catch {}
+};
 
 export const defaultHorarios = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
 
@@ -124,36 +138,49 @@ export const defaultConfig = () => {
 
 // ─── DRAFT (localStorage) ─────────────────────────────────────────────────────
 
-const _limparDraft = () => localStorage.removeItem(DRAFT_KEY);
+const _limparDraft = (uid) => {
+  const key = getCronogramaDraftKey(uid);
+  if (key) {
+    try {
+      localStorage.removeItem(key);
+    } catch {}
+  }
+  _limparLegacyDraft();
+};
 
-const _salvarDraft = (dados) => {
+const _salvarDraft = (uid, dados) => {
+  const key = getCronogramaDraftKey(uid);
+  if (!key) return;
   try {
     const json = JSON.stringify(
       { version: DRAFT_VERSION, data: dados },
-      (key, value) => {
+      (k, value) => {
         if (value instanceof Set) return { __type: 'Set', values: [...value] };
         return value;
       }
     );
-    localStorage.setItem(DRAFT_KEY, json);
+    localStorage.setItem(key, json);
   } catch { /* quota exceeded — ignora silenciosamente */ }
 };
 
-const _lerDraft = () => {
+const _lerDraft = (uid) => {
+  const key = getCronogramaDraftKey(uid);
+  if (!key) return null;
+  _limparLegacyDraft();
   try {
-    const json = localStorage.getItem(DRAFT_KEY);
+    const json = localStorage.getItem(key);
     if (!json) return null;
-    const parsed = JSON.parse(json, (key, value) => {
+    const parsed = JSON.parse(json, (k, value) => {
       if (value && value.__type === 'Set') return new Set(value.values);
       return value;
     });
     if (!parsed?.version || parsed.version !== DRAFT_VERSION) {
-      _limparDraft();
+      _limparDraft(uid);
       return null;
     }
     return parsed.data;
   } catch {
-    _limparDraft();
+    _limparDraft(uid);
     return null;
   }
 };
@@ -272,7 +299,7 @@ const _temNiveisPlanejamento = (valor = {}) => hasCompletePlanningLevels(valor);
 
 const _normalizarTextoAssunto = (valor) => String(valor || '')
   .replace(/\s+/g, ' ')
-  .replace(/^[\-•–—]\s*/, '')
+  .replace(/^[-•–—]\s*/, '')
   .trim();
 
 const _normalizarAssuntos = (assuntos = []) => {
@@ -445,6 +472,31 @@ const _normalizarInitialStateEdicao = (source = {}, modelos = []) => {
     };
   });
 
+  const templateOriginal = Array.isArray(cronograma?.semanaTemplate) ? cronograma.semanaTemplate : [];
+  const gradePersonalizadaHydrated = {};
+  const disciplinaCoresPersonalizadas = {};
+
+  templateOriginal.forEach((slot) => {
+    if (slot?.isRevisao || slot?.isRevisaoAuto || slot?.isConsolidada) return;
+    const dia = Number(slot?.dia);
+    if (!Number.isInteger(dia) || dia < 0 || dia > 6) return;
+    if (!gradePersonalizadaHydrated[dia]) gradePersonalizadaHydrated[dia] = [];
+    const id = slot.slotId || slot.slotIdBase || slot.id || `custom-${dia}-${gradePersonalizadaHydrated[dia].length}`;
+    const minutos = Number(slot.minutosEstudo || slot.tempoMinutos || slot.tempoPlanejadoMinutos || 60);
+    const cor = slot.cor || null;
+    if (slot.disciplinaId && cor) {
+      disciplinaCoresPersonalizadas[slot.disciplinaId] = cor;
+    }
+    gradePersonalizadaHydrated[dia].push({
+      id,
+      disciplinaId: slot.disciplinaId,
+      disciplinaNome: slot.disciplinaNome || slot.disciplina || 'Disciplina',
+      assunto: slot.assunto || null,
+      cor,
+      minutos,
+    });
+  });
+
   return {
     tipo: 'personalizado',
     edital,
@@ -464,12 +516,14 @@ const _normalizarInitialStateEdicao = (source = {}, modelos = []) => {
       duracaoMaximaSessaoMinutos: Number(cronograma.duracaoMaximaSessaoMinutos) || DURACAO_AUTOMATICA_MAXIMA_MINUTOS,
       retaFinal: Boolean(cronograma.retaFinal),
       dataProva: cronograma.dataProva || '',
-      modoMontagem: cronograma.modoMontagem || 'inteligente',
+      modoMontagem: source?.cronConfig?.modoMontagem || 'inteligente',
       modoExibirAssuntos: cronograma.modoExibirAssuntos !== false,
       modoExibirTempo: normalizarModoExibirTempo(cronograma.modoExibirTempo),
       coresDisciplinasAtivas: cronograma.coresDisciplinasAtivas !== false,
       limitarMaterias: Boolean(cronograma.limitarMaterias),
       limitesPorDia: cronograma.limitesPorDia || {},
+      gradePersonalizada: source?.cronConfig?.gradePersonalizada || gradePersonalizadaHydrated,
+      disciplinaCoresPersonalizadas: source?.cronConfig?.disciplinaCoresPersonalizadas || disciplinaCoresPersonalizadas,
       disciplinasTodosDiasIds: _normalizarIdsTodosDias(
         cronograma.disciplinasTodosDiasIds
         || snapshot
@@ -494,8 +548,10 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
     cronogramaId = null,
     initialState = null,
     preselectedEdital = null,
+    cicloId = null,
   } = options;
-  const isEditMode = mode === 'edit';
+  const isConversionMode = mode === 'convert';
+  const isEditMode = mode === 'edit' || isConversionMode;
   const hidratacaoEdicaoRef = useRef(false);
   // ── Dados de negócio ───────────────────────────────────────────────────────
   const [tipo,             setTipo]             = useState(null);
@@ -571,10 +627,12 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
 
   // ─── EFEITO: carregamento de modelos + verificação de draft (mount) ────────
   useEffect(() => {
-    const carregarModelos = async () => {
-      setCarregandoModelos(true);
-      try {
-        const snap   = await getDocs(collection(db, 'editais_templates'));
+    setCarregandoModelos(true);
+    const unsubscribe = onSnapshot(
+      collection(db, 'editais_templates'),
+      { includeMetadataChanges: true },
+      (snap) => {
+        if (isUnconfirmedEmptySnapshot(snap)) return;
         const fromDb = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         const dbMap  = new Map(fromDb.map(t => [t.id, t]));
 
@@ -594,29 +652,35 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
           .map(t => ({ ...t, logo: t.logoUrl || t.logo, isCustom: true, isInstalled: true, ativo: t.ativo !== false }));
 
         setModelos([...local, ...custom]);
-      } catch {
+        setCarregandoModelos(false);
+      },
+      () => {
         setModelos(CATALOGO_EDITAIS);
-      } finally {
         setCarregandoModelos(false);
       }
-    };
+    );
 
-    carregarModelos();
-
-    if (!isEditMode && !preselectedEdital && _lerDraft()) setMostrandoRascunho(true);
-  }, [isEditMode, preselectedEdital]);
+    if (!isEditMode && !preselectedEdital && user?.uid) {
+      const draft = _lerDraft(user.uid);
+      if (draft) setMostrandoRascunho(true);
+      else setMostrandoRascunho(false);
+    } else {
+      setMostrandoRascunho(false);
+    }
+    return unsubscribe;
+  }, [isEditMode, preselectedEdital, user?.uid]);
 
   // ─── EFEITO: auto-save do draft sempre que dados de negócio mudarem ────────
   // Debounce de 500ms: só persiste quando o usuário para de interagir,
   // evitando dezenas de gravações seguidas (ex: digitação no campo nome).
   useEffect(() => {
-    if (isEditMode) return undefined;
+    if (isEditMode || !user?.uid) return undefined;
     if (!tipo && !edital && disciplinas.length === 0) return;
     const timeout = setTimeout(() => {
-      _salvarDraft({ tipo, edital, disciplinas, extraDisciplinas, selecao, horarios, cronConfig, horasExpresso });
+      _salvarDraft(user.uid, { tipo, edital, disciplinas, extraDisciplinas, selecao, horarios, cronConfig, horasExpresso });
     }, 500);
     return () => clearTimeout(timeout);
-  }, [isEditMode, tipo, edital, disciplinas, extraDisciplinas, selecao, horarios, cronConfig, horasExpresso]);
+  }, [isEditMode, user?.uid, tipo, edital, disciplinas, extraDisciplinas, selecao, horarios, cronConfig, horasExpresso]);
 
   useEffect(() => {
     if (!isEditMode || hidratacaoEdicaoRef.current || carregandoModelos) return;
@@ -670,8 +734,8 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
   // ─── RESTAURAR DRAFT ──────────────────────────────────────────────────────
 
   const restaurarDraft = () => {
-    if (isEditMode) return 1;
-    const draft = _lerDraft();
+    if (isEditMode || !user?.uid) return 1;
+    const draft = _lerDraft(user.uid);
     if (draft) {
       if (draft.tipo)              setTipo(draft.tipo);
       if (draft.edital)            setEdital(draft.edital);
@@ -767,6 +831,10 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
       : _filtrarDisciplinasSelecionadas(todasDiscs, selecao);
 
     if (!discsFinais.length) return;
+    if (isConversionMode && !gradeManualAtiva && discsFinais.every((disciplina) => disciplina.semAssuntosPendentes)) {
+      setErroGeracao('Todos os assuntos selecionados ja foram concluidos. Escolha a grade personalizada para distribuir revisoes.');
+      return;
+    }
     if (!gradeManualAtiva && !_selecionadasTemNivelValido(discsFinais, selecao)) return;
 
     // Guard: não regenera se já está carregando
@@ -787,7 +855,7 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
       discsFinais,
       selecao,
       cronConfig.disciplinasTodosDiasIds
-    );
+    ).filter((disciplina) => !isConversionMode || !disciplina.semAssuntosPendentes);
     const possuiPreferenciaDiaria = _normalizarIdsTodosDias(cronConfig.disciplinasTodosDiasIds).length > 0;
 
     let result = null;
@@ -846,8 +914,9 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
     setPercentIA(100);
     setStatusIA('Tudo pronto! Preparando prévia...');
 
-    // Delay para o usuário ver o 100%
-    await new Promise(r => setTimeout(r, Math.max(0, 3000 - (Date.now() - animationStartedAt))));
+    // Delay otimizado: instantâneo em edição/montagem manual (100ms) e suave em IA
+    const targetDelay = (gradeManualAtiva || isEditMode) ? 100 : 2500;
+    await new Promise(r => setTimeout(r, Math.max(0, targetDelay - (Date.now() - animationStartedAt))));
 
     // Fallback local se IA falhar
     if (!result?.semanaTemplate?.length) {
@@ -990,6 +1059,10 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
       setErroGeracao('Selecione ao menos uma disciplina para salvar o cronograma.');
       return;
     }
+    if (isConversionMode && !gradeManualAtiva && discsFinais.every((disciplina) => disciplina.semAssuntosPendentes)) {
+      setErroGeracao('Todos os assuntos selecionados ja foram concluidos. Escolha a grade personalizada para distribuir revisoes.');
+      return;
+    }
     if (!gradeManualAtiva && !_selecionadasTemNivelValido(discsFinais, selecao)) {
       setErroGeracao('Defina conhecimento e importancia de 1 a 5 em todas as disciplinas selecionadas.');
       return;
@@ -1009,7 +1082,7 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
       discsFinais,
       selecao,
       cronConfig.disciplinasTodosDiasIds
-    );
+    ).filter((disciplina) => !isConversionMode || !disciplina.semAssuntosPendentes);
     const possuiPreferenciaDiaria = _normalizarIdsTodosDias(cronConfig.disciplinasTodosDiasIds).length > 0;
 
     let result = null;
@@ -1116,16 +1189,42 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
     const cronogramaComCores = _aplicarCoresUnicasCronograma(result.semanaTemplate, disciplinasSnapshotCompleto);
 
     setPercentIA(98);
-    const novoId = isEditMode
-      ? await atualizarCronogramaUnificado(cronogramaId, dados, cronogramaComCores.semanaTemplate, cronogramaComCores.disciplinas)
-      : await salvarCronogramaUnificado(dados, cronogramaComCores.semanaTemplate, cronogramaComCores.disciplinas);
+    let novoId = null;
+    try {
+      novoId = isConversionMode
+        ? await confirmCycleToSchedule({
+            userId: user?.uid,
+            cycleId: cicloId,
+            schedule: dados,
+            semanaTemplate: cronogramaComCores.semanaTemplate,
+            disciplinas: cronogramaComCores.disciplinas,
+          })
+        : isEditMode
+          ? await atualizarCronogramaUnificado(cronogramaId, dados, cronogramaComCores.semanaTemplate, cronogramaComCores.disciplinas)
+          : await salvarCronogramaUnificado(dados, cronogramaComCores.semanaTemplate, cronogramaComCores.disciplinas);
+    } catch (error) {
+      setErroGeracao(error?.message || 'Falha ao transformar o planejamento. Tente novamente.');
+      setIsLoading(false);
+      setStatusIA(null);
+      setPercentIA(0);
+      return;
+    }
+
+    if (!novoId) {
+      setErroGeracao('Nao foi possivel salvar o cronograma. Tente novamente.');
+      setIsLoading(false);
+      setStatusIA(null);
+      setPercentIA(0);
+      return;
+    }
 
     setPercentIA(100);
-    setStatusIA(isEditMode ? 'Cronograma atualizado com sucesso!' : 'Cronograma criado com sucesso!');
-    await new Promise(r => setTimeout(r, Math.max(0, 3000 - (Date.now() - animationStartedAt))));
+    setStatusIA(isConversionMode ? 'Planejamento transformado com sucesso!' : isEditMode ? 'Cronograma atualizado com sucesso!' : 'Cronograma criado com sucesso!');
+    const targetSaveDelay = (gradeManualAtiva || isEditMode) ? 150 : 2500;
+    await new Promise(r => setTimeout(r, Math.max(0, targetSaveDelay - (Date.now() - animationStartedAt))));
 
     if (novoId) {
-      if (!isEditMode) _limparDraft();
+      if (!isEditMode && user?.uid) _limparDraft(user.uid);
       _dispararConfetti(true);
       if (!isEditMode) {
         window.dispatchEvent(new CustomEvent('Planning:Created', {
@@ -1200,14 +1299,14 @@ export function useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFee
    * @param {number} passo
    */
   const salvarDraftComPasso = useCallback((passo) => {
-    if (isEditMode) return;
+    if (isEditMode || !user?.uid) return;
     if (tipo || edital || disciplinas.length > 0) {
-      _salvarDraft({ tipo, edital, disciplinas, extraDisciplinas, selecao, horarios, cronConfig, horasExpresso, passo });
+      _salvarDraft(user.uid, { tipo, edital, disciplinas, extraDisciplinas, selecao, horarios, cronConfig, horasExpresso, passo });
     }
-  }, [isEditMode, tipo, edital, disciplinas, extraDisciplinas, selecao, horarios, cronConfig, horasExpresso]);
+  }, [isEditMode, user?.uid, tipo, edital, disciplinas, extraDisciplinas, selecao, horarios, cronConfig, horasExpresso]);
 
   // ─── EXPOR limparDraft publicamente ───────────────────────────────────────
-  const limparDraft = _limparDraft;
+  const limparDraft = useCallback(() => _limparDraft(user?.uid), [user?.uid]);
 
   // ─── RETORNO DO HOOK ──────────────────────────────────────────────────────
   return {
@@ -1319,6 +1418,7 @@ function _gerarCronogramaDeGradePersonalizada(grade, disciplinas = [], config = 
     const slotIndexParaDisc = indicePorDisciplina[key] || 0;
     indicePorDisciplina[key] = slotIndexParaDisc + 1;
     const minutos = Number(slot.minutos || slot.tempoMinutos || 60);
+    const isCompletedTopicReview = slot.tipoSlot === 'revisao_concluida' && Boolean(slot.assunto);
 
     return {
       slotId: slot.id || `custom-${slot.dia}-${index}`,
@@ -1332,10 +1432,12 @@ function _gerarCronogramaDeGradePersonalizada(grade, disciplinas = [], config = 
       cor: slot.cor || disciplina.cor || null,
       tempoMinutos: minutos,
       tempoPlanejadoMinutos: minutos,
-      minutosEstudo: minutos,
-      isRevisao: false,
+      minutosEstudo: isCompletedTopicReview ? 0 : minutos,
+      isRevisao: isCompletedTopicReview,
       isRevisaoAuto: false,
+      revisaoManual: isCompletedTopicReview,
       isConsolidada: false,
+      layoutManual: true,
       totalSlotsParaDisc: contagemPorDisciplina[key] || 1,
       slotIndexParaDisc,
     };

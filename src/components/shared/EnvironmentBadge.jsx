@@ -4,6 +4,8 @@ import { auth, db, isFirebaseEmulator } from '../../firebaseConfig';
 import { deriveUserAccess, LEGACY_ADMIN_UID } from '../../auth/accessControl.js';
 import {
   ensureFirebaseEmulators,
+  clearEmulatorSessionIdentity,
+  clearPendingEmulatorLogin,
   isLocalDevelopment,
   mirrorFirebaseUserToEmulator,
   writePendingEmulatorLogin,
@@ -37,6 +39,8 @@ export default function EnvironmentBadge() {
     if (isEmulator) {
       const confirmed = window.confirm('Voltar ao Firebase REAL? Ações poderão alterar dados de produção e gerar custos.');
       if (!confirmed) return;
+      clearEmulatorSessionIdentity(window.sessionStorage);
+      clearPendingEmulatorLogin(window.sessionStorage);
       writeFirebaseModePreference(window.localStorage, 'real');
       window.location.reload();
       return;

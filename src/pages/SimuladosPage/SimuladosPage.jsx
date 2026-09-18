@@ -162,6 +162,7 @@ const SimuladosPage = ({ user, activeCycleDisciplines, onStartSimulado, initialD
 
       <SimuladoCreationModal
         isOpen={isModalOpen}
+        user={user}
         onClose={() => {
           setIsModalOpen(false);
           setFinishedSimuladoData(null);

@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildCycleSessionCompletionUpdate } from '../src/utils/cycleSessionCompletion.js';
+import {
+  buildCycleSessionCompletionUpdate,
+  getStudyBackedCycleCompletionState,
+} from '../src/utils/cycleSessionCompletion.js';
 import { buildCycleOrderedSessions } from '../src/utils/studyDayStatus.js';
 
 test('conclusão grava mapas completos e duração planejada sem field path numérico', () => {
@@ -67,7 +70,7 @@ test('estado concluído sem progresso não deixa todos os blocos verdes', () => 
   assert.deepEqual(sessions.map((session) => session.progressoMinutos), [0, 0]);
 });
 
-test('conclusão manual válida exibe o tempo planejado somente no bloco marcado', () => {
+test('conclusão por checkout manual com minutos persistidos é ignorada', () => {
   const sessions = buildCycleOrderedSessions({
     id: 'cycle-1',
     tempoSessaoMinutos: 60,
@@ -81,6 +84,25 @@ test('conclusão manual válida exibe o tempo planejado somente no bloco marcado
     sessoesConcluidasDetalhes: { 0: { origem: 'checkout_manual' } },
   });
 
-  assert.deepEqual(sessions.map((session) => session.concluida), [true, false]);
-  assert.deepEqual(sessions.map((session) => session.progressoMinutos), [60, 0]);
+  assert.deepEqual(sessions.map((session) => session.concluida), [false, false]);
+  assert.deepEqual(sessions.map((session) => session.progressoMinutos), [0, 0]);
+});
+
+test('normalização remove checkout pendente e preserva conclusões vindas de estudo', () => {
+  const state = getStudyBackedCycleCompletionState({
+    sessoesConcluidas: [0, 1, 2],
+    progressoSessoes: { 0: 60, 1: 60, 2: 60 },
+    sessoesConcluidasDetalhes: {
+      0: { origem: 'checkout_manual' },
+      1: { origem: 'timer' },
+      2: { origem: 'registro_manual' },
+    },
+  });
+
+  assert.deepEqual(state.sessoesConcluidas, [1, 2]);
+  assert.equal(state.progressoSessoes['0'], undefined);
+  assert.equal(state.progressoSessoes['1'], 60);
+  assert.equal(state.progressoSessoes['2'], 60);
+  assert.equal(state.sessoesConcluidasDetalhes['0'], undefined);
+  assert.equal(state.removedManualCheckoutCount, 1);
 });

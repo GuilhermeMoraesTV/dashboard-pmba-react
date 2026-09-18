@@ -298,9 +298,9 @@ const DesempenhoResumo = ({
             </div>
             <div className="min-w-0">
               <h3 className="text-lg font-black uppercase tracking-tight text-zinc-900 dark:text-white leading-tight">
-                Distribuicao <span className="bg-gradient-to-r from-red-600 to-rose-700 bg-clip-text text-transparent">Tatica</span>
+                Distribuicao <span className="bg-gradient-to-r from-red-600 to-rose-700 bg-clip-text text-transparent">De Estudos</span>
               </h3>
-              <span className="hidden">Distribuição</span>
+              <span className="hidden">Distribuição de Estudos</span>
               {/* CORREÇÃO 6 */}
               <p className="mt-1 text-[11px] font-semibold leading-relaxed text-zinc-500 dark:text-zinc-400">Quanto tempo e quantas questoes voce dedicou a cada disciplina.</p>
             </div>
@@ -322,9 +322,9 @@ const DesempenhoResumo = ({
               </div>
               <div className="min-w-0">
                 <h3 className="text-lg font-black uppercase tracking-tight text-zinc-900 dark:text-white leading-tight">
-                  Equilibrio <span className="bg-gradient-to-r from-red-600 to-rose-700 bg-clip-text text-transparent">Tatico</span>
+                  Equilibrio <span className="bg-gradient-to-r from-red-600 to-rose-700 bg-clip-text text-transparent">De Estudos</span>
                 </h3>
-                <span className="hidden">Equilibrio Tatico</span>
+                <span className="hidden">Equilibrio de Estudos</span>
                 {/* CORREÇÃO 6 */}
                 <p className="mt-1 text-[11px] font-semibold leading-relaxed text-zinc-500 dark:text-zinc-400">Sua taxa de acertos por materia comparada a meta de 80%.</p>
               </div>

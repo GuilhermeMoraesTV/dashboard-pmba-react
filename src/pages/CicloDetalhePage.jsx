@@ -23,13 +23,15 @@ import { isCicloLegacyForGuide } from '../utils/cicloLegacyUpgrade';
 import { getCicloWeeklyStatus, mergeOptimisticCycleRecords } from '../utils/cicloWeeklyStatus';
 import { getRecordedStudyMinutes, normalizeRecordedStudyMinutes } from '../utils/studyRecords';
 import { setLatestToggleIntent, takeLatestToggleIntent } from '../utils/latestToggleIntent';
+import { getStudyBackedCycleCompletionState } from '../utils/cycleSessionCompletion';
+import { getCycleSessionPlannedMinutes } from '../utils/cycleProgressPersistence';
 
 import {
   ArrowLeft, Target, CalendarDays,
   BookOpen, ChevronRight, History, X, Trash2,
   Shield, LayoutList, RotateCw,
   Check, CheckCircle2, Clock3, Loader2, Play, CalendarPlus,
-  Sparkles, Settings2, Cog, PlusCircle, Palette, BarChart3
+  Sparkles, Settings2, Cog, PlusCircle, Palette, BarChart3, CalendarRange
 } from 'lucide-react';
 
 // --- FUNÇÕES AUXILIARES ---
@@ -474,7 +476,23 @@ const CicloRevisoesOperacionaisCard = ({
 };
 
 // --- PÁGINA PRINCIPAL DO CICLO ---
-export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, deleteCompletionRegistro, onDeleteRegistro, onStartStudy, onGoToEdital, onGoToRevisao, onCreateNewCycle, onRegistroModalOpenChange, registrosEstudo: registrosEstudoExterno = null }) {
+export function CicloDetalhePage({
+  cicloId,
+  onBack,
+  user,
+  addRegistroEstudo,
+  deleteCompletionRegistro,
+  onDeleteRegistro,
+  onStartStudy,
+  onGoToEdital,
+  onGoToRevisao,
+  onCreateNewCycle,
+  onRegistroModalOpenChange,
+  onTransformToSchedule = null,
+  transformationError = '',
+  isTimerActive = false,
+  registrosEstudo: registrosEstudoExterno = null,
+}) {
   const [ciclo, setCiclo] = useState(null);
   const [disciplinas, setDisciplinas] = useState([]);
   const [allRegistrosEstudo, setAllRegistrosEstudo] = useState([]);
@@ -1001,7 +1019,7 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
   };
   const handleIniciarSessaoSugerida = (disciplina, globalIndex, sessao = null) => {
     if (onStartStudy) {
-      onStartStudy(disciplina, sessao?.assuntoSugerido?.nome || null, {
+      onStartStudy(disciplina, null, {
         defaultContext: 'ciclo',
         sessaoGlobalIndex: globalIndex,
         tempoPlanejadoMinutos: sessao?.tempoPlanejadoMinutos || sessao?.tempoMinutos,
@@ -1101,13 +1119,31 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
   // Concluir direto do CicloVisual (sem modal intermediário)
   const handleConcluirCicloDoVisual = () => setShowConclusaoModal(true);
 
-  const todasSessoesConcluidasLocalmente = Boolean(ciclo?.ordemSessoes?.length) && ciclo.ordemSessoes.every((_, index) => {
-    const override = sessionCompletionOverrides?.[index];
-    return typeof override === 'boolean'
-      ? override
-      : (ciclo?.sessoesConcluidas || []).map(Number).includes(index);
-  });
-  const canConcludeCiclo = ciclo?.ativo && (todasSessoesConcluidasLocalmente || (progressoGeral >= 100 && isAllDisciplinesMet));
+  const todasSessoesConcluidasLocalmente = useMemo(() => {
+    if (!ciclo?.ordemSessoes?.length) return false;
+    // Usa a mesma filtragem que a transação de fechamento no backend:
+    // apenas conclusões com respaldo de estudo real contam (timer, registro manual etc.).
+    // Checkouts via botão ("botao_concluir" / "checkout_manual") são ignorados.
+    const completionState = getStudyBackedCycleCompletionState(ciclo);
+    const concluidas = new Set(completionState.sessoesConcluidas);
+    const progresso = completionState.progressoSessoes;
+    return ciclo.ordemSessoes.every((sessao, index) => {
+      // Overrides otimistas locais: apenas conclusões positivas são aceitas
+      const override = sessionCompletionOverrides?.[index];
+      if (override === true) return true;
+      // Bloco concluído via estudo real OU progresso acumulado >= tempo planejado
+      const planejado = getCycleSessionPlannedMinutes(ciclo, disciplinas, sessao);
+      return (
+        concluidas.has(index)
+        || Number(progresso[index] ?? progresso[String(index)] ?? 0) >= planejado
+      );
+    });
+  }, [ciclo, disciplinas, sessionCompletionOverrides]);
+
+  // Libera a conclusão SOMENTE quando todos os blocos da roda estão concluídos
+  // por estudo real. O caminho alternativo por carga horária semanal foi removido
+  // pois criava divergência: a UI liberava enquanto o backend rejeitava.
+  const canConcludeCiclo = ciclo?.ativo && todasSessoesConcluidasLocalmente;
   const weeklyStatus = getCicloWeeklyStatus({ ciclo, isRoundComplete: Boolean(canConcludeCiclo) });
   const weeklyStatusConfig = {
     nao_iniciado: {
@@ -1487,6 +1523,23 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
                                       </span>
                                       <ChevronRight size={14} className="shrink-0 text-zinc-300 transition-transform group-hover:translate-x-0.5 group-hover:text-zinc-700 dark:text-zinc-700 dark:group-hover:text-zinc-300" />
                                   </button>
+                                   {onTransformToSchedule && (
+                                       <button
+                                           type="button"
+                                           onClick={() => {
+                                               setConfigMenuOpen(false);
+                                               onTransformToSchedule(cicloId);
+                                           }}
+                                           className="group relative mt-1.5 flex w-full items-center gap-2.5 rounded-xl border border-zinc-200/80 bg-zinc-50/80 p-2.5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-zinc-300 hover:bg-white hover:shadow-md hover:shadow-zinc-900/5 dark:border-zinc-700 dark:bg-zinc-800/55 dark:hover:border-zinc-600 dark:hover:bg-zinc-800"
+                                       >
+                                           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white shadow-sm dark:bg-blue-500"><CalendarRange size={14} /></span>
+                                           <span className="min-w-0 flex-1">
+                                               <span className="block text-[10px] font-black uppercase tracking-wide text-zinc-900 dark:text-white">Transformar em cronograma</span>
+                                               <span className="mt-0.5 block text-[10px] font-medium leading-snug text-zinc-500 dark:text-zinc-400">Converta este ciclo em um cronograma semanal com dias fixos.</span>
+                                           </span>
+                                           <ChevronRight size={14} className="shrink-0 text-zinc-300 transition-transform group-hover:translate-x-0.5 group-hover:text-zinc-700 dark:text-zinc-700 dark:group-hover:text-zinc-300" />
+                                       </button>
+                                   )}
                               </motion.div>
                           )}
                       </AnimatePresence>
@@ -1506,6 +1559,11 @@ export function CicloDetalhePage({ cicloId, onBack, user, addRegistroEstudo, del
 
       {!showEmptyMessage && (
           <div className="-mx-2 min-h-0 sm:-mx-4 md:-mx-6 lg:-mx-8">
+              {transformationError && (
+                  <div className="mb-3 rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-semibold text-red-700 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-300">
+                      {transformationError}
+                  </div>
+              )}
               <div className="grid min-h-0 grid-cols-1 items-stretch gap-3 xl:grid-cols-[minmax(0,1.08fr)_minmax(380px,0.62fr)] 2xl:grid-cols-[minmax(0,1.12fr)_minmax(410px,0.64fr)]">
                   <section className="ciclo-visual-card-shell relative flex h-full w-full flex-col overflow-hidden rounded-2xl border border-zinc-200/70 bg-white/80 px-2.5 py-2.5 shadow-lg shadow-zinc-200/30 backdrop-blur-xl dark:border-zinc-800/70 dark:bg-card-dark dark:shadow-none sm:px-4 sm:py-3">
                       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-red-500/40 to-transparent" />

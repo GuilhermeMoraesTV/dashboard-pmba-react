@@ -8,6 +8,7 @@
 
 const { HttpsError } = require('firebase-functions/v2/https');
 const admin = require('firebase-admin');
+const { FieldValue, Timestamp } = require('firebase-admin/firestore');
 const crypto = require('crypto');
 const { createInitialState, schedule } = require('./scheduler');
 const { getProductLimits } = require('../shared/productLimits');
@@ -94,7 +95,7 @@ async function syncFlashcardErrorBook({ uid, deckId, cardId, reviewId }) {
     }
 
     const cardData = cardSnap.data() || {};
-    const serverTimestamp = admin.firestore.FieldValue.serverTimestamp();
+    const serverTimestamp = FieldValue.serverTimestamp();
     const frontText = String(cardData.front || '');
     const backText = String(cardData.back || '');
 
@@ -106,8 +107,8 @@ async function syncFlashcardErrorBook({ uid, deckId, cardId, reviewId }) {
       deckId: safeDeckId,
       disciplineId: null,
       subject: null,
-      wrongCount: admin.firestore.FieldValue.increment(1),
-      correctCount: admin.firestore.FieldValue.increment(0),
+      wrongCount: FieldValue.increment(1),
+      correctCount: FieldValue.increment(0),
       lastAttemptAt: serverTimestamp,
       userNotes: errorEntrySnap.exists ? errorEntrySnap.data().userNotes || null : null,
       mastered: false,
@@ -214,7 +215,7 @@ async function createCard({ uid, deckId, card }) {
     const cardCount = Number(deck.cardCount || 0);
     if (deck.archived === true) throw new HttpsError('failed-precondition', 'Deck arquivado nao aceita novos cards.');
     if (cardCount >= limits.flashcards.maxCardsPerDeck) throw new HttpsError('resource-exhausted', 'Limite de cards do deck atingido.');
-    const now = admin.firestore.Timestamp.now();
+    const now = Timestamp.now();
     const payload = {
       userId: uid, deckId: safeDeckId, folderId, front, back, tags,
       status: 'new', dueAt: now, lapses: 0, reps: 0, reviewVersion: 0,
@@ -261,8 +262,8 @@ async function createFolderCard({ uid, folderId, card }) {
         cardMutationVersion: 0,
         tags: [],
         archived: false,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
       });
     });
     deck = await deckRef.get();
@@ -286,7 +287,7 @@ async function deleteCard({ uid, deckId, cardId }) {
     transaction.update(deckRef, {
       cardCount: Math.max(0, Number(deckSnap.data()?.cardCount || 0) - 1),
       cardMutationVersion: Number(deckSnap.data()?.cardMutationVersion || 0) + 1,
-      updatedAt: admin.firestore.Timestamp.now(),
+      updatedAt: Timestamp.now(),
     });
     return { ok: true, deleted: true, duplicate: false };
   });
@@ -331,17 +332,17 @@ async function reviewCard({ uid, deckId, cardId, rating, expectedReviewVersion, 
       ...card,
       schedulerState: outcome.nextState,
       status: outcome.status,
-      dueAt: admin.firestore.Timestamp.fromDate(outcome.dueAt),
+      dueAt: Timestamp.fromDate(outcome.dueAt),
       lapses: outcome.isLapse ? Number(card.lapses || 0) + 1 : Number(card.lapses || 0),
       reps: outcome.isLapse ? 0 : Number(card.reps || 0) + 1,
       reviewVersion: nextVersion,
-      updatedAt: admin.firestore.Timestamp.fromDate(now),
+      updatedAt: Timestamp.fromDate(now),
     };
     const review = {
       userId: uid, cardId: safeCardId, deckId: safeDeckId, rating,
       scheduledDays: outcome.intervalDays, previousState, nextState: outcome.nextState,
       reviewRequestId: safeRequestId, reviewVersion: nextVersion, isLapse: outcome.isLapse,
-      reviewedAt: admin.firestore.Timestamp.fromDate(now),
+      reviewedAt: Timestamp.fromDate(now),
       ...(safeElapsed == null ? {} : { elapsedTimeMs: safeElapsed }),
       ...(outcome.isLapse && rating === 'again' ? { errorBookSyncStatus: 'pending' } : {}),
     };
@@ -427,7 +428,7 @@ async function materializeGeneratedFlashcard({ uid, generatedItemId, targetDeckI
         transaction.update(itemRef, {
           status: 'materialized',
           'content.materializedCardId': approvedCardId,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
         });
       }
       return { ok: true, cardId: approvedCardId, duplicate: true };
@@ -440,8 +441,8 @@ async function materializeGeneratedFlashcard({ uid, generatedItemId, targetDeckI
       throw new HttpsError('invalid-argument', 'GeneratedItem nao possui front e back validos.');
     }
 
-    const serverTimestamp = admin.firestore.FieldValue.serverTimestamp();
-    const now = admin.firestore.Timestamp.now();
+    const serverTimestamp = FieldValue.serverTimestamp();
+    const now = Timestamp.now();
 
     transaction.set(cardRef, {
       userId: uid,

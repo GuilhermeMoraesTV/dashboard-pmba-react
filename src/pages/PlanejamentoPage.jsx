@@ -11,13 +11,16 @@ import {
 } from 'lucide-react';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
+import { isUnconfirmedEmptySnapshot } from '../utils/firestoreSnapshotState';
 import CicloCreateWizard from '../components/ciclos/CicloCreateWizard/CicloCreateWizard';
 import CicloEditModal from '../components/ciclos/CicloEditModal';
 import CiclosList from '../components/ciclos/CiclosList';
 import CronogramaCreateWizard from '../components/cronograma/WizardShell';
+import ModalEditarCronograma from '../components/cronograma/ModalEditarCronograma';
 import CronogramaListPage from './CronogramaListPage';
 import { CicloDetalhePage } from './CicloDetalhePage';
 import PlanejamentoNovoPage from './PlanejamentoNovoPage';
+import { prepareCycleToSchedule } from '../services/planningTransformation';
 
 const ABAS = [
   { id: 'todos', label: 'Todos', icon: LayoutGrid },
@@ -40,28 +43,30 @@ const AbaBotao = ({ id, label, icon: Icon, ativa, onClick }) => (
   </button>
 );
 
-const CiclosCentralizadosPanel = ({ user, activeCicloId, onOpenActive, onRequestCreate, onRequestEdit, onCicloAtivado }) => {
+const CiclosCentralizadosPanel = ({ user, activeCicloId, onOpenActive, onRequestCreate, onRequestEdit, onCicloAtivado, isAccessReady = true }) => {
   const [ciclos, setCiclos] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!user?.uid) {
+    if (!user?.uid || isAccessReady === false) {
       setCiclos([]);
       setLoading(false);
       return undefined;
     }
     const ref = collection(db, 'users', user.uid, 'ciclos');
     return onSnapshot(ref, { includeMetadataChanges: true }, (snapshot) => {
+      if (isUnconfirmedEmptySnapshot(snapshot)) return;
       const lista = snapshot.docs
         .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
+        .filter((ciclo) => !ciclo.cronogramaVinculadoId)
         .sort((a, b) => Number(b.ativo === true) - Number(a.ativo === true));
       setCiclos(lista);
-      const awaitingServerConfirmation = snapshot.metadata.fromCache
-        && lista.length === 0
-        && navigator.onLine;
-      if (!awaitingServerConfirmation) setLoading(false);
-    }, () => setLoading(false));
-  }, [user?.uid]);
+      setLoading(false);
+    }, (err) => {
+      console.error('Erro ao sincronizar ciclos:', err);
+      setLoading(false);
+    });
+  }, [user?.uid, isAccessReady]);
 
   return (
     <section className="p-0">
@@ -182,11 +187,14 @@ function PlanejamentoPage({
   initialEdital = null,
   onInitialEditalConsumed,
   onBackToEditais,
+  isAccessReady = true,
 }) {
   const [aba, setAba] = useState('todos');
   const [telaCriacao, setTelaCriacao] = useState('lista'); // 'lista' | 'seletor'
   const [wizardAberto, setWizardAberto] = useState(null); // 'ciclo' | 'cronograma' | null
   const [selectedCicloId, setSelectedCicloId] = useState(null);
+  const [transformacao, setTransformacao] = useState(null);
+  const [erroTransformacao, setErroTransformacao] = useState('');
   const [cicloParaEditar, setCicloParaEditar] = useState(null);
   const [cronogramaParaEditar, setCronogramaParaEditar] = useState(null);
   const [seletorDiretoAtivo, setSeletorDiretoAtivo] = useState(false);
@@ -258,6 +266,39 @@ function PlanejamentoPage({
     setCronogramaParaEditar(null);
   };
 
+  const abrirTransformacao = async (cycleId) => {
+    setErroTransformacao('');
+    if (isTimerActive) {
+      setErroTransformacao('Finalize ou cancele o estudo ou cronometro ativo antes da transformacao.');
+      return;
+    }
+    try {
+      const prepared = await prepareCycleToSchedule(user.uid, cycleId);
+      setTransformacao(prepared);
+      setSelectedCicloId(null);
+    } catch (error) {
+      setErroTransformacao(error?.message || 'Nao foi possivel preparar a transformacao.');
+    }
+  };
+
+  if (transformacao) {
+    return (
+      <CronogramaCreateWizard
+        user={user}
+        mode="convert"
+        cicloId={transformacao.ciclo.id}
+        initialState={transformacao.state}
+        initialStep={1}
+        onClose={() => setTransformacao(null)}
+        onCronogramaCriado={(id) => {
+          setTransformacao(null);
+          onGoToCronograma?.(id);
+        }}
+        onOpenFeedback={onOpenFeedback}
+      />
+    );
+  }
+
   if (selectedCicloId) {
     return (
       <CicloDetalhePage
@@ -269,6 +310,9 @@ function PlanejamentoPage({
         onGoToEdital={onGoToEdital}
         onGoToRevisao={onGoToRevisao}
         onRegistroModalOpenChange={onRegistroModalOpenChange}
+        onTransformToSchedule={abrirTransformacao}
+        transformationError={erroTransformacao}
+        isTimerActive={isTimerActive}
       />
     );
   }
@@ -279,6 +323,7 @@ function PlanejamentoPage({
         onClose={fecharEdicaoCiclo}
         user={user}
         ciclo={cicloParaEditar}
+        upgradeMode={true}
       />
     );
   }
@@ -420,6 +465,7 @@ function PlanejamentoPage({
               isTimerActive={isPlanActivationBlocked(isTimerActive, activeTimerContext, 'ciclo')}
               onRequestCreate={() => abrirCriacao('ciclo')}
               onRequestEdit={abrirEdicaoCiclo}
+              onRequestTransform={abrirTransformacao}
               hideHeader={true}
               compact={true}
             />
@@ -452,6 +498,7 @@ function PlanejamentoPage({
           isTimerActive={isPlanActivationBlocked(isTimerActive, activeTimerContext, 'ciclo')}
           onRequestCreate={() => abrirCriacao('ciclo')}
           onRequestEdit={abrirEdicaoCiclo}
+          onRequestTransform={abrirTransformacao}
           hideHeader={true}
           compact={true}
         />

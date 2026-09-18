@@ -1,10 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowRight, Layers, Plus } from 'lucide-react';
 import { CicloDetalhePage } from './CicloDetalhePage';
+import CronogramaCreateWizard from '../components/cronograma/WizardShell';
+import { prepareCycleToSchedule } from '../services/planningTransformation';
 
 // AQUI: Recebe 'registrosEstudo' do Dashboard
-function CiclosPage({ user, addRegistroEstudo, deleteCompletionRegistro, onDeleteRegistro, onCicloAtivado, onStartStudy, activeCicloId, forceOpenVisual, targetOpenCicloId, onTargetOpenHandled, onGoToEdital, onGoToRevisao, onCreateNewCycle, registrosEstudo, isTimerActive, onRegistroModalOpenChange }) {
+function CiclosPage({ user, addRegistroEstudo, deleteCompletionRegistro, onDeleteRegistro, onCicloAtivado, onStartStudy, activeCicloId, forceOpenVisual, targetOpenCicloId, onTargetOpenHandled, onGoToEdital, onGoToRevisao, onCreateNewCycle, onGoToCronograma, registrosEstudo, isTimerActive, onRegistroModalOpenChange }) {
   const [selectedCicloId, setSelectedCicloId] = useState(null);
+  const [transformacao, setTransformacao] = useState(null);
+  const [erroTransformacao, setErroTransformacao] = useState('');
 
   useEffect(() => {
     const cicloIdParaAbrir = targetOpenCicloId || activeCicloId;
@@ -15,6 +19,31 @@ function CiclosPage({ user, addRegistroEstudo, deleteCompletionRegistro, onDelet
   }, [forceOpenVisual, activeCicloId, targetOpenCicloId, onTargetOpenHandled]);
 
   const cicloIdAberto = selectedCicloId || targetOpenCicloId || activeCicloId;
+
+  const abrirTransformacao = async (cycleId) => {
+    setErroTransformacao('');
+    if (isTimerActive) {
+      setErroTransformacao('Finalize ou cancele o estudo ou cronometro ativo antes da transformacao.');
+      return;
+    }
+    try {
+      setTransformacao(await prepareCycleToSchedule(user.uid, cycleId));
+    } catch (error) {
+      setErroTransformacao(error?.message || 'Nao foi possivel preparar a transformacao.');
+    }
+  };
+
+  if (transformacao) {
+    return <CronogramaCreateWizard
+      user={user}
+      mode="convert"
+      cicloId={transformacao.ciclo.id}
+      initialState={transformacao.state}
+      initialStep={1}
+      onClose={() => setTransformacao(null)}
+      onCronogramaCriado={(id) => { setTransformacao(null); onGoToCronograma?.(id); }}
+    />;
+  }
 
   if (cicloIdAberto && typeof cicloIdAberto === 'string') {
     return (
@@ -30,6 +59,9 @@ function CiclosPage({ user, addRegistroEstudo, deleteCompletionRegistro, onDelet
         onGoToRevisao={onGoToRevisao}
         onCreateNewCycle={onCreateNewCycle}
         onRegistroModalOpenChange={onRegistroModalOpenChange}
+        onTransformToSchedule={abrirTransformacao}
+        transformationError={erroTransformacao}
+        isTimerActive={isTimerActive}
         registrosEstudo={registrosEstudo}
       />
     );

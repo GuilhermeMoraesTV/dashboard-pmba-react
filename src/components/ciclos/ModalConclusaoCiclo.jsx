@@ -26,6 +26,7 @@ function ModalConclusaoCiclo({
     revisoesProgramadas = 0,
     editalLogo = null,
     editalName = null,
+    errorMessage = '',
     instant = false,
 }) {
     const proximaConclusao = Number(ciclo?.conclusoes || 0) + 1;
@@ -53,6 +54,11 @@ function ModalConclusaoCiclo({
 
     const footer = (
         <div className="space-y-1.5 sm:space-y-2">
+            {errorMessage && (
+                <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-center text-[10px] font-bold text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
+                    {errorMessage}
+                </p>
+            )}
             <p className="text-center text-[8px] font-bold uppercase tracking-wide text-zinc-500 dark:text-zinc-400 sm:text-[10px] leading-tight">
                 Confirmar salva as estatisticas e abre uma nova rodada.
             </p>

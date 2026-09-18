@@ -286,7 +286,8 @@ test('registro manual mensurado qualifica, mas registros invalidos e espelhos de
   ];
   invalidRecords.forEach((record) => assert.equal(isQualifiedStudyRecord(record), false));
   assert.equal(isQualifiedStudyRecord({ data: '2026-08-18', questoesFeitas: 1, origemConclusao: 'registro_manual' }), true);
-  assert.equal(isQualifiedStudyRecord({ data: '2026-08-18', tempoEstudadoMinutos: 30, origemConclusao: 'botao_concluir', conclusaoManual: true }), true);
+  assert.equal(isQualifiedStudyRecord({ data: '2026-08-18', cicloId: 'cycle-1', contextoRegistro: 'ciclo', tempoEstudadoMinutos: 30, origemConclusao: 'botao_concluir', conclusaoManual: true }), false);
+  assert.equal(isQualifiedStudyRecord({ data: '2026-08-18', cronogramaId: 'schedule-1', contextoRegistro: 'cronograma', tempoEstudadoMinutos: 30, origemConclusao: 'botao_concluir', conclusaoManual: true }), true);
   assert.equal(isQualifiedStudyRecord({ data: '2026-08-18', tipoEstudo: 'check_manual', tempoEstudadoMinutos: 0 }), false);
 });
 
@@ -476,4 +477,383 @@ test('usa sequencia persistida anterior como base e aplica a regra nova somente 
   });
 
   assert.equal(result.currentStreak, 122);
+});
+
+test('troca ciclo, cronograma e novo ciclo sem reiniciar a sequencia ou reavaliar metas antigas', () => {
+  const stages = [
+    { metodo: 'ciclo', id: 'plan-1', inicioEm: '2026-08-17T09:00:00.000Z',
+      metas: { dataInicioPlanejamento: '2026-08-17', diasEstudo: { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1 } } },
+    { metodo: 'cronograma', id: 'plan-1', inicioEm: '2026-08-19T09:00:00.000Z',
+      metas: { dataInicio: '2026-08-19', diasEstudo: [1, 2, 3, 4, 5],
+        horariosDetalhados: { 1: 0.5, 2: 0.5, 3: 0.5, 4: 0.5, 5: 0.5 },
+        semanaTemplate: [1, 2, 3, 4, 5].map((dia) => ({ dia, minutosEstudo: 30 })) } },
+    { metodo: 'ciclo', id: 'plan-1-ciclo-2', inicioEm: '2026-08-21T09:00:00.000Z',
+      metas: { dataInicioPlanejamento: '2026-08-21', diasEstudo: { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1 } } },
+  ];
+  const records = [
+    ...recordsFor(['2026-08-17', '2026-08-18'], { cicloId: 'plan-1' }),
+    ...recordsFor(['2026-08-19', '2026-08-20'], {
+      cronogramaId: 'plan-1', tempoEstudadoMinutos: 30,
+    }).map((record, index) => ({ ...record, id: `schedule-${index}` })),
+    { ...recordsFor(['2026-08-21'], { cicloId: 'plan-1-ciclo-2' })[0], id: 'new-cycle' },
+  ];
+  const result = calculateCanonicalStudyStreak({
+    records, cycles: [cycle({ id: 'plan-1-ciclo-2',
+      planejamentoId: 'plan-1', dataInicioPlanejamento: '2026-08-21',
+      etapasPlanejamento: stages })],
+    now: new Date('2026-08-21T12:00:00-03:00'),
+  });
+  assert.equal(result.currentStreak, 5);
+  assert.equal(result.days['2026-08-19'].plannedMinutes, 30);
+  assert.equal(result.days['2026-08-20'].plannedMinutes, 30);
+  assert.equal(result.days['2026-08-21'].plannedMinutes, 60);
+});
+
+test('cronograma com meta batida sem revisoes pendentes fica verde e incrementa sequencia imediatamente', () => {
+  const date = '2026-08-18'; // Tuesday (dia 2)
+  const plan = schedule({
+    dataInicio: '2026-08-18',
+    diasEstudo: [2],
+    horariosDetalhados: { 2: 1.5 },
+    semanaTemplate: [
+      { slotId: 'slot-1', dia: 2, minutosEstudo: 90, minutosBrutoDia: 90 },
+    ],
+  });
+  const records = [
+    {
+      id: 'study-record-1',
+      data: date,
+      tempoEstudadoMinutos: 90,
+      tipoEstudo: 'teoria',
+      cronogramaId: plan.id,
+      contextoRegistro: 'cronograma',
+      confirmado: true,
+      persisted: true,
+    },
+  ];
+  const studyDaysMap = buildStudyDaysMap(records);
+
+  const streak = calculatePlanStudyStreak({
+    records,
+    plan,
+    planType: 'schedule',
+    now: new Date('2026-08-18T12:00:00-03:00'),
+  });
+
+  const dailyStatus = getDailyStudyStatus({
+    date,
+    studyDaysMap,
+    activeCronogramaData: plan,
+    contextMode: 'cronograma',
+    getAgendaSemana: () => [
+      { slotId: 'slot-1', slotIdBase: 'slot-1', dataSlot: date, minutosEstudo: 90 },
+    ],
+  });
+
+  assert.equal(streak.currentStreak, 1);
+  assert.equal(streak.days[date].state, STUDY_STREAK_DAY_STATES.STUDIED);
+  assert.equal(streak.days[date].incrementsStreak, true);
+  assert.equal(dailyStatus.goalMet, true);
+  assert.equal(dailyStatus.status, 'goal-met-both');
+  assert.equal(dailyStatus.completedSlots, 1);
+  assert.equal(dailyStatus.totalSlots, 1);
+});
+
+test('cronograma com blocos concluidos antes do tempo previsto sem revisoes fecha sequencia', () => {
+  const date = '2026-08-18';
+  const plan = schedule({
+    dataInicio: '2026-08-18',
+    diasEstudo: [2],
+    horariosDetalhados: { 2: 1 },
+    semanaTemplate: [
+      { slotId: 'slot-early', dia: 2, minutosEstudo: 60, minutosBrutoDia: 60, concluido: true },
+    ],
+  });
+  const records = [
+    {
+      id: 'study-early-1',
+      data: date,
+      tempoEstudadoMinutos: 45,
+      tipoEstudo: 'teoria',
+      cronogramaId: plan.id,
+      contextoRegistro: 'cronograma',
+      slotId: 'slot-early',
+      confirmado: true,
+      persisted: true,
+    },
+  ];
+  const studyDaysMap = buildStudyDaysMap(records);
+
+  const streak = calculatePlanStudyStreak({
+    records,
+    plan,
+    planType: 'schedule',
+    now: new Date('2026-08-18T12:00:00-03:00'),
+  });
+
+  assert.equal(streak.currentStreak, 1);
+  assert.equal(streak.days[date].state, STUDY_STREAK_DAY_STATES.STUDIED);
+  assert.equal(streak.days[date].incrementsStreak, true);
+});
+
+test('desmarcar bloco no cronograma reduz sequencia imediatamente e volta dia para pendente', () => {
+  const date = '2026-08-18'; // Tuesday (dia 2)
+  const basePlan = schedule({
+    dataInicio: '2026-08-18',
+    diasEstudo: [2],
+    horariosDetalhados: { 2: 2 },
+    semanaTemplate: [
+      { slotId: 'slot-1', slotIdBase: 'slot-1', dia: 2, minutosEstudo: 60, tempoMinutos: 60 },
+      { slotId: 'slot-2', slotIdBase: 'slot-2', dia: 2, minutosEstudo: 60, tempoMinutos: 60 },
+    ],
+  });
+
+  const fullProgressPlan = {
+    ...basePlan,
+    progresso: { w0: { 'slot-1': true, 'slot-2': true } },
+    progressoMinutos: { w0: { 'slot-1': 60, 'slot-2': 60 } },
+  };
+
+  const recordsBoth = [
+    { id: 'rec-1', data: date, tempoEstudadoMinutos: 60, tipoEstudo: 'teoria', cronogramaId: basePlan.id, contextoRegistro: 'cronograma', slotId: 'slot-1' },
+    { id: 'rec-2', data: date, tempoEstudadoMinutos: 60, tipoEstudo: 'teoria', cronogramaId: basePlan.id, contextoRegistro: 'cronograma', slotId: 'slot-2' },
+  ];
+
+  // 1. Com ambos os blocos concluídos
+  const streakBoth = calculatePlanStudyStreak({
+    records: recordsBoth,
+    plan: fullProgressPlan,
+    planType: 'schedule',
+    now: new Date('2026-08-18T12:00:00-03:00'),
+  });
+  const statusBoth = getDailyStudyStatus({
+    date,
+    studyDaysMap: buildStudyDaysMap(recordsBoth, { contextMode: 'cronograma', planId: basePlan.id }),
+    activeCronogramaData: fullProgressPlan,
+    contextMode: 'cronograma',
+    getAgendaSemana: () => [
+      { slotId: 'slot-1', slotIdBase: 'slot-1', dataSlot: date, tempoMinutos: 60 },
+      { slotId: 'slot-2', slotIdBase: 'slot-2', dataSlot: date, tempoMinutos: 60 },
+    ],
+  });
+
+  assert.equal(streakBoth.currentStreak, 1);
+  assert.equal(streakBoth.days[date].state, STUDY_STREAK_DAY_STATES.STUDIED);
+  assert.equal(statusBoth.goalMet, true);
+  assert.equal(statusBoth.status, 'goal-met-both');
+  assert.equal(statusBoth.completedSlots, 2);
+  assert.equal(statusBoth.totalSlots, 2);
+
+  // 2. Desmarcar o slot-2: progresso vira false e removemos seu registro
+  const unmarkedPlan = {
+    ...basePlan,
+    progresso: { w0: { 'slot-1': true, 'slot-2': false } },
+    progressoMinutos: { w0: { 'slot-1': 60, 'slot-2': 0 } },
+  };
+  const recordsOnlySlot1 = [recordsBoth[0]];
+
+  const streakUnmarked = calculatePlanStudyStreak({
+    records: recordsOnlySlot1,
+    plan: unmarkedPlan,
+    planType: 'schedule',
+    now: new Date('2026-08-18T12:00:00-03:00'),
+  });
+  const statusUnmarked = getDailyStudyStatus({
+    date,
+    studyDaysMap: buildStudyDaysMap(recordsOnlySlot1, { contextMode: 'cronograma', planId: basePlan.id }),
+    activeCronogramaData: unmarkedPlan,
+    contextMode: 'cronograma',
+    getAgendaSemana: () => [
+      { slotId: 'slot-1', slotIdBase: 'slot-1', dataSlot: date, tempoMinutos: 60 },
+      { slotId: 'slot-2', slotIdBase: 'slot-2', dataSlot: date, tempoMinutos: 60 },
+    ],
+  });
+
+  assert.equal(streakUnmarked.currentStreak, 0, 'sequencia deve cair para 0 ao desmarcar o bloco');
+  assert.equal(streakUnmarked.days[date].state, STUDY_STREAK_DAY_STATES.RECOVERY_PENDING, 'dia deve ficar amarelo (recuperacao pendente)');
+  assert.equal(statusUnmarked.goalMet, false, 'status diário deve indicar meta não batida');
+  assert.equal(statusUnmarked.status, 'goal-met-one', 'status visual deve ser amarelo (goal-met-one)');
+  assert.equal(statusUnmarked.completedSlots, 1);
+  assert.equal(statusUnmarked.totalSlots, 2);
+
+  // 3. Re-marcar o slot-2: volta para concluído
+  const streakRemarked = calculatePlanStudyStreak({
+    records: recordsBoth,
+    plan: fullProgressPlan,
+    planType: 'schedule',
+    now: new Date('2026-08-18T12:00:00-03:00'),
+  });
+  assert.equal(streakRemarked.currentStreak, 1);
+  assert.equal(streakRemarked.days[date].state, STUDY_STREAK_DAY_STATES.STUDIED);
+});
+
+test('estudos no cronograma nao vazam nem contam para a meta ou sequencia do ciclo', () => {
+  const date = '2026-08-18';
+  const myCycle = cycle({
+    id: 'ciclo-isolado',
+    dataInicioPlanejamento: '2026-08-18',
+    diasEstudo: { 2: 1 },
+    tempoSessaoMinutos: 60,
+  });
+  const mySchedule = schedule({
+    id: 'cronograma-isolado',
+    dataInicio: '2026-08-18',
+    diasEstudo: [2],
+    horariosDetalhados: { 2: 1.5 },
+    semanaTemplate: [{ slotId: 's-1', dia: 2, minutosEstudo: 90 }],
+  });
+
+  // Usuário estudou apenas no Cronograma
+  const cronogramaRecords = [
+    {
+      id: 'crono-rec',
+      data: date,
+      tempoEstudadoMinutos: 90,
+      tipoEstudo: 'teoria',
+      cronogramaId: mySchedule.id,
+      contextoRegistro: 'cronograma',
+      confirmado: true,
+      persisted: true,
+    },
+  ];
+
+  // 1. Avaliação do Cronograma: bateu a meta
+  const scheduleStreak = calculatePlanStudyStreak({
+    records: cronogramaRecords,
+    plan: mySchedule,
+    planType: 'schedule',
+    now: new Date('2026-08-18T12:00:00-03:00'),
+  });
+  assert.equal(scheduleStreak.currentStreak, 1);
+
+  // 2. Avaliação do Ciclo com os mesmos registros no banco: deve ser 0!
+  const cycleStreak = calculatePlanStudyStreak({
+    records: cronogramaRecords,
+    plan: myCycle,
+    planType: 'cycle',
+    now: new Date('2026-08-18T12:00:00-03:00'),
+  });
+  const cycleDaysMap = buildStudyDaysMap(cronogramaRecords, { contextMode: 'ciclo', planId: myCycle.id });
+  const cycleStatus = getDailyStudyStatus({
+    date,
+    studyDaysMap: cycleDaysMap,
+    activeCicloData: myCycle,
+    contextMode: 'ciclo',
+  });
+
+  assert.equal(cycleStreak.currentStreak, 0, 'Ciclo não pode pontuar sequência com estudos do Cronograma');
+  assert.equal(cycleStreak.days[date].qualifiedStudy, false);
+  assert.equal(cycleStatus.goalMet, false, 'Meta do Ciclo não pode ser batida pelo Cronograma');
+  assert.equal(cycleStatus.completedSlots, 0);
+
+  // 3. Agora usuário estuda também no Ciclo
+  const allRecords = [
+    ...cronogramaRecords,
+    {
+      id: 'ciclo-rec',
+      data: date,
+      tempoEstudadoMinutos: 60,
+      tipoEstudo: 'teoria',
+      cicloId: myCycle.id,
+      contextoRegistro: 'ciclo',
+      confirmado: true,
+      persisted: true,
+    },
+  ];
+
+  const cycleStreakWithStudy = calculatePlanStudyStreak({
+    records: allRecords,
+    plan: myCycle,
+    planType: 'cycle',
+    now: new Date('2026-08-18T12:00:00-03:00'),
+  });
+  const cycleDaysMapWithStudy = buildStudyDaysMap(allRecords, { contextMode: 'ciclo', planId: myCycle.id });
+  const cycleStatusWithStudy = getDailyStudyStatus({
+    date,
+    studyDaysMap: cycleDaysMapWithStudy,
+    activeCicloData: myCycle,
+    contextMode: 'ciclo',
+  });
+
+  assert.equal(cycleStreakWithStudy.currentStreak, 1);
+  assert.equal(cycleStatusWithStudy.goalMet, true);
+  assert.equal(cycleStatusWithStudy.completedSlots, 1);
+});
+
+test('alternancia de ciclos isola sequencias e ciclo sem estudos exibe 0', () => {
+  const cycleA = cycle({
+    id: 'cycle-a',
+    dataInicioPlanejamento: '2026-08-17',
+    diasEstudo: { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1 },
+  });
+  const cycleB = cycle({
+    id: 'cycle-b',
+    dataInicioPlanejamento: '2026-08-21',
+    diasEstudo: { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1 },
+  });
+
+  // Cycle A possui 5 dias de estudo consecutivos (17 a 21 de agosto)
+  const recordsCycleA = recordsFor(
+    ['2026-08-17', '2026-08-18', '2026-08-19', '2026-08-20', '2026-08-21'],
+    { cicloId: cycleA.id, contextoRegistro: 'ciclo' }
+  );
+
+  const now = new Date('2026-08-21T12:00:00-03:00');
+
+  // Ciclo A deve ter sequência 5
+  const streakA = calculatePlanStudyStreak({
+    records: recordsCycleA,
+    plan: cycleA,
+    planType: 'cycle',
+    now,
+  });
+  assert.equal(streakA.currentStreak, 5);
+
+  // Ciclo B ativado: nenhum estudo foi feito no Ciclo B -> sequência DEVE ser 0
+  const streakB = calculatePlanStudyStreak({
+    records: recordsCycleA, // todos os registros do usuário no banco
+    plan: cycleB,
+    planType: 'cycle',
+    now,
+  });
+  assert.equal(streakB.currentStreak, 0, 'Ciclo B recém-ativado sem estudos próprios deve ter sequência 0');
+  assert.equal(streakB.days['2026-08-21'].state, STUDY_STREAK_DAY_STATES.RECOVERY_PENDING);
+
+  // Retornar para o Ciclo A restaura os 5 dias
+  const streakARestored = calculatePlanStudyStreak({
+    records: recordsCycleA,
+    plan: cycleA,
+    planType: 'cycle',
+    now,
+  });
+  assert.equal(streakARestored.currentStreak, 5, 'Retornar ao Ciclo A deve restaurar seus 5 dias de sequencia');
+});
+
+test('remocao de estudo de dia anterior quebra sequencia retroativamente', () => {
+  const dates = ['2026-08-17', '2026-08-18', '2026-08-19'];
+  const testCycle = cycle({
+    id: 'cycle-break-test',
+    dataInicioPlanejamento: '2026-08-17',
+    diasEstudo: { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1 },
+  });
+
+  const fullRecords = recordsFor(dates, { cicloId: testCycle.id, contextoRegistro: 'ciclo' });
+  const streakBefore = calculatePlanStudyStreak({
+    records: fullRecords,
+    plan: testCycle,
+    planType: 'cycle',
+    now: new Date('2026-08-19T12:00:00-03:00'),
+  });
+  assert.equal(streakBefore.currentStreak, 3);
+
+  // Remove o registro do dia do meio (2026-08-18) e do dia anterior:
+  // Se remover 2026-08-17 e 2026-08-18, resta apenas 2026-08-19
+  const recordsWithGap = fullRecords.filter((r) => r.data === '2026-08-19');
+  const streakAfter = calculatePlanStudyStreak({
+    records: recordsWithGap,
+    plan: testCycle,
+    planType: 'cycle',
+    now: new Date('2026-08-19T12:00:00-03:00'),
+  });
+  assert.equal(streakAfter.currentStreak, 1, 'Sequência deve ser recalculada retroativamente e refletir apenas o estudo restante');
 });

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { motion as Motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
-import { auth, db } from '../firebaseConfig';
+import { auth, db, functions } from '../firebaseConfig';
+import { httpsCallable } from 'firebase/functions';
 import { buildInitialAccessProfile, LEGACY_ADMIN_UID } from '../auth/accessControl';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
@@ -117,7 +118,6 @@ function Signup({ onSetLightTheme }) {
       if (photo) {
         ({ url: photoURL } = await uploadSecureImage(photo, { kind: 'profile-avatar' }));
       }
-
       await updateProfile(user, {
         displayName: name,
         photoURL: photoURL
@@ -133,9 +133,15 @@ function Signup({ onSetLightTheme }) {
         access: buildInitialAccessProfile({ isLegacyAdmin: user.uid === LEGACY_ADMIN_UID }),
       });
 
+      try {
+        const callEnsureSubscription = httpsCallable(functions, 'ensureUserSubscription');
+        await callEnsureSubscription();
+      } catch (subErr) {
+        console.warn('Falha na inicialização imediata de assinatura no signup:', subErr?.message || subErr);
+      }
+
       setLoading(false);
       navigate('/');
-
     } catch (err) {
       setLoading(false);
       console.error("Erro no cadastro:", err);

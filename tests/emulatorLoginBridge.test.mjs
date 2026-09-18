@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { inMemoryPersistence } from 'firebase/auth';
 import {
   shouldRecoverEmulatorIdentity,
   signInWithEmulatorIdentityRecovery,
@@ -36,12 +37,40 @@ test('login recupera no Auth Emulator somente depois de validar a credencial rea
       return { uid: LEGACY_ADMIN_UID_FOR_TEST, email, displayName: 'Admin', photoURL: '' };
     },
     mirrorUser: async (payload) => calls.push(['mirror', payload]),
+    saveSessionIdentity: (payload) => calls.push(['saveSession', payload]),
   });
 
   assert.equal(result.user.uid, LEGACY_ADMIN_UID_FOR_TEST);
-  assert.deepEqual(calls.map(([name]) => name), ['persistence', 'signIn', 'verifyReal', 'mirror', 'signIn']);
+  assert.deepEqual(calls.map(([name]) => name), ['persistence', 'signIn', 'verifyReal', 'mirror', 'signIn', 'saveSession']);
+  assert.equal(calls[0][2], inMemoryPersistence);
   assert.equal(calls[3][1].localPassword, 'production-password');
   assert.equal(calls[3][1].isAdmin, true);
+  assert.deepEqual(calls[5][1], {
+    uid: LEGACY_ADMIN_UID_FOR_TEST,
+    email: 'admin@example.com',
+  });
+});
+
+test('login já existente no Emulator usa memória e preserva credencial local da sessão', async () => {
+  const calls = [];
+  const credential = { user: { uid: 'local-user' } };
+  const result = await signInWithEmulatorIdentityRecovery({
+    email: 'local@example.com',
+    password: 'local-password',
+    persistence: 'local',
+  }, {
+    auth: {},
+    emulatorEnabled: true,
+    setPersistence: async (_auth, persistence) => calls.push(['persistence', persistence]),
+    signIn: async () => credential,
+    saveSessionIdentity: (payload) => calls.push(['saveSession', payload]),
+  });
+
+  assert.equal(result, credential);
+  assert.equal(calls[0][1], inMemoryPersistence);
+  assert.deepEqual(calls[1][1], {
+    uid: 'local-user', email: 'local@example.com',
+  });
 });
 
 const LEGACY_ADMIN_UID_FOR_TEST = 'OLoJi457GQNE2eTSOcz9DAD6ppZ2';

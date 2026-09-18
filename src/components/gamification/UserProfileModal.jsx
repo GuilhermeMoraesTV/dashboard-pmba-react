@@ -9,6 +9,7 @@ import { db } from '../../firebaseConfig';
 import { formatStudyMinutes, getWeekId } from '../../utils/gamification';
 import { coverPositionToStyle } from '../../utils/profileCover';
 import ProfileLevelRing from './ProfileLevelRing';
+import FounderBadge from '../shared/FounderBadge';
 
 const knownLogos = [
   'gcmaquiraz', 'gcmgoiania', 'gcmrecife', 'gcmsalvador', 'gcmviana',
@@ -184,7 +185,13 @@ const UserProfileModal = ({ member, onClose }) => {
   const [extraEditais, setExtraEditais] = useState([]);
   const [weeklyMemberData, setWeeklyMemberData] = useState(null);
   const [extraTotals, setExtraTotals] = useState(null);
-  const coverURL = member?.coverURL || member?.coverUrl || member?.cover?.url || null;
+  const [extraFounder, setExtraFounder] = useState(null);
+  const [extraPublicIdentity, setExtraPublicIdentity] = useState(null);
+  const coverURL = member?.coverURL
+    || member?.coverUrl
+    || member?.cover?.url
+    || extraPublicIdentity?.coverURL
+    || null;
   const targetUid = member?.uid || member?.id;
 
   useEffect(() => setCoverFailed(false), [coverURL]);
@@ -194,6 +201,8 @@ const UserProfileModal = ({ member, onClose }) => {
       setExtraEditais([]);
       setWeeklyMemberData(null);
       setExtraTotals(null);
+      setExtraFounder(null);
+      setExtraPublicIdentity(null);
       return undefined;
     }
     let active = true;
@@ -216,6 +225,17 @@ const UserProfileModal = ({ member, onClose }) => {
             minutes: data.minutes,
             questions: data.questions,
             correct: data.correct,
+          });
+          setExtraPublicIdentity({
+            coverURL: data.coverURL || data.coverUrl || data.cover?.url || null,
+            coverPosition: data.coverPosition || data.cover?.position || null,
+            platformSinceMillis: data.platformSinceMillis
+              || data.createdAtMillis
+              || data.platformSince
+              || data.accountCreatedAt
+              || data.registrationDate
+              || data.createdAt
+              || null,
           });
           if (Array.isArray(data.studyGroups) && data.studyGroups.length > 0) {
             setExtraStudyGroups(data.studyGroups);
@@ -241,6 +261,23 @@ const UserProfileModal = ({ member, onClose }) => {
         const userDocSnap = await getDoc(doc(db, 'users', targetUid)).catch(() => null);
         if (active && userDocSnap?.exists?.()) {
           const uData = userDocSnap.data() || {};
+          setExtraPublicIdentity((current) => ({
+            coverURL: uData.coverURL || uData.coverUrl || uData.cover?.url || current?.coverURL || null,
+            coverPosition: uData.coverPosition || uData.cover?.position || current?.coverPosition || null,
+            platformSinceMillis: uData.platformSinceMillis
+              || uData.createdAtMillis
+              || uData.platformSince
+              || uData.accountCreatedAt
+              || uData.dataCriacao
+              || uData.criadoEm
+              || uData.registrationDate
+              || uData.createdAt
+              || current?.platformSinceMillis
+              || null,
+          }));
+          if (uData.subscription?.founder !== undefined) {
+            setExtraFounder(uData.subscription?.founder === true);
+          }
           if (Array.isArray(uData.editais) && uData.editais.length > 0) {
             setExtraEditais((prev) => [...(prev || []), ...uData.editais]);
           }
@@ -343,7 +380,8 @@ const UserProfileModal = ({ member, onClose }) => {
     || member.platformSince
     || member.accountCreatedAt
     || member.registrationDate
-    || member.createdAt,
+    || member.createdAt
+    || extraPublicIdentity?.platformSinceMillis,
   );
   const weeklyCandidate = weeklyMemberData?.positions?.minutes
     ?? member.positions?.minutes
@@ -354,12 +392,16 @@ const UserProfileModal = ({ member, onClose }) => {
   const rankingLabel = member.publicRankingLabel
     || ((weeklyMemberData?.positions?.minutes || member.positions?.minutes || weeklyCandidate) ? 'Ranking semanal por tempo' : 'Ranking semanal');
   const bio = String(member.bio || member.biografia || member.about || '').trim();
-  const coverPosition = member.coverPosition || member.cover?.position || { x: 50, y: 50 };
+  const coverPosition = member.coverPosition
+    || member.cover?.position
+    || extraPublicIdentity?.coverPosition
+    || { x: 50, y: 50 };
   const avatarLevelData = {
     currentLevel: level,
     progressPercent: number(member.levelProgress ?? member.progressPercent),
     levelRing: member.levelRing || '#dc2626',
   };
+  const isFounder = (member?.subscription?.founder === true) || (extraFounder === true);
 
   return createPortal(
     <div className="user-profile-modal-portal fixed inset-0 z-[100100] flex min-h-[100dvh] items-center justify-center overflow-y-auto bg-zinc-950/70 p-2 backdrop-blur-md sm:p-5" onClick={(event) => { if (event.target === event.currentTarget) onClose?.(); }}>
@@ -385,7 +427,10 @@ const UserProfileModal = ({ member, onClose }) => {
               <ProfileLevelRing userPhotoURL={member.photoURL || member.photoUrl} levelData={avatarLevelData} size={104} strokeWidth={4}/>
             </div>
             <div className="mt-3 min-w-0 flex-1 text-center sm:mt-0 sm:pt-16 sm:text-left">
-              <h2 id={titleId} className="break-words text-2xl font-black leading-tight tracking-tight text-zinc-950 dark:text-white sm:text-3xl lg:text-4xl">{name}</h2>
+              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 sm:gap-3">
+                <h2 id={titleId} className="break-words text-2xl font-black leading-tight tracking-tight text-zinc-950 dark:text-white sm:text-3xl lg:text-4xl">{name}</h2>
+                <FounderBadge founder={isFounder} size="lg" />
+              </div>
               {bio ? <p className="mx-auto mt-2 max-w-2xl text-xs leading-relaxed text-zinc-500 dark:text-zinc-400 sm:mx-0 sm:text-sm">{bio}</p> : null}
             </div>
           </section>

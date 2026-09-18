@@ -1,10 +1,11 @@
 const admin = require('firebase-admin');
+const { FieldValue, Timestamp } = require('firebase-admin/firestore');
 
 const db = () => admin.firestore();
-const serverTimestamp = () => admin.firestore.FieldValue.serverTimestamp();
-const arrayUnion = (...values) => admin.firestore.FieldValue.arrayUnion(...values);
-const arrayRemove = (...values) => admin.firestore.FieldValue.arrayRemove(...values);
-const increment = (value) => admin.firestore.FieldValue.increment(value);
+const serverTimestamp = () => FieldValue.serverTimestamp();
+const arrayUnion = (...values) => FieldValue.arrayUnion(...values);
+const arrayRemove = (...values) => FieldValue.arrayRemove(...values);
+const increment = (value) => FieldValue.increment(value);
 const currentWeekId = () => {
   const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bahia', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
   const get = (type) => parts.find((part) => part.type === type)?.value;

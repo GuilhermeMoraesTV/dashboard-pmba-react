@@ -59,6 +59,11 @@ export const DEFAULT_PRODUCT_LIMITS = Object.freeze({
     maxExplanationChars: 12000,
   }),
 
+  // Registros de estudo (alinhado ao contrato de seguranca do Firestore)
+  studyRecords: Object.freeze({
+    maxMinutesPerRecord: 12 * 60,
+  }),
+
   // Caderno de Erros
   errorBook: Object.freeze({
     maxEntriesPerPage: 50,
@@ -146,6 +151,17 @@ export const DEFAULT_PRODUCT_LIMITS = Object.freeze({
     maxWarnings: 100,
     maxCompressionRatio: 200,
   }),
+
+  // Enquetes via Broadcast
+  polls: Object.freeze({
+    minOptions: 2,
+    maxOptions: 6,
+    maxTitleChars: 120,
+    maxDescriptionChars: 600,
+    maxOptionChars: 120,
+    pageSizeRespondents: 50,
+    maxHistoryItems: 100,
+  }),
 });
 
 /**
@@ -176,6 +192,10 @@ export function resolveProductLimits(remoteOverrides = {}) {
       ...DEFAULT_PRODUCT_LIMITS.questions,
       ...(remoteOverrides.questions || {}),
     },
+    studyRecords: {
+      ...DEFAULT_PRODUCT_LIMITS.studyRecords,
+      ...(remoteOverrides.studyRecords || {}),
+    },
     errorBook: {
       ...DEFAULT_PRODUCT_LIMITS.errorBook,
       ...(remoteOverrides.errorBook || {}),
@@ -204,5 +224,11 @@ export function resolveProductLimits(remoteOverrides = {}) {
       ...DEFAULT_PRODUCT_LIMITS.anki,
       ...(remoteOverrides.anki || {}),
     },
+    polls: {
+      ...DEFAULT_PRODUCT_LIMITS.polls,
+      ...(remoteOverrides.polls || {}),
+    },
   };
 }
+
+export const PRODUCT_LIMITS = DEFAULT_PRODUCT_LIMITS;

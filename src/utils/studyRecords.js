@@ -9,7 +9,17 @@ export const isManualCompletionRecord = (record = {}) => {
     || record?.conclusaoManual === true;
 };
 
+export const isManualCycleCompletionRecord = (record = {}) => {
+  if (!isManualCompletionRecord(record)) return false;
+  const context = String(record?.contextoRegistro || '').trim().toLowerCase();
+  if (context === 'cronograma') return false;
+  if (context === 'ciclo') return true;
+  if (record?.cronogramaId) return false;
+  return Boolean(record?.cicloId) || !context;
+};
+
 export const getRecordedStudyMinutes = (record = {}) => {
+  if (isManualCycleCompletionRecord(record)) return 0;
   return Math.max(0, Number(record?.tempoEstudadoMinutos || record?.duracaoMinutos || 0));
 };
 

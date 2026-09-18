@@ -6,7 +6,14 @@ import {
   persistentLocalCache,
   persistentMultipleTabManager,
 } from "firebase/firestore";
-import { browserLocalPersistence, connectAuthEmulator, getAuth, setPersistence } from "firebase/auth";
+import {
+  browserLocalPersistence,
+  connectAuthEmulator,
+  getAuth,
+  indexedDBLocalPersistence,
+  initializeAuth,
+  inMemoryPersistence,
+} from "firebase/auth";
 import { connectStorageEmulator, getStorage } from "firebase/storage";
 import { connectFunctionsEmulator, getFunctions } from "firebase/functions";
 import { isLocalDevelopment, readFirebaseModePreference } from './utils/firebaseEnvironment.js';
@@ -101,6 +108,14 @@ const runtime = resolveFirebaseRuntimeConfig(
 const { emulator: emulatorConfig, config: runtimeFirebaseConfig } = runtime;
 const app = getApps().length > 0 ? getApp() : initializeApp(runtimeFirebaseConfig);
 
+const auth = isBrowser
+  ? initializeAuth(app, {
+      persistence: emulatorConfig.enabled
+        ? inMemoryPersistence
+        : [indexedDBLocalPersistence, browserLocalPersistence],
+    })
+  : getAuth(app);
+
 const db = isBrowser
   ? initializeFirestore(app, {
       localCache: persistentLocalCache({
@@ -113,13 +128,12 @@ if (isBrowser) {
   console.log("📦 Cache Offline configurado (API v10).");
 }
 
-const auth    = getAuth(app);
 const storage = getStorage(app);
 const functions = getFunctions(app, 'us-central1');
 
 const authPersistenceReady = isBrowser
-  ? setPersistence(auth, browserLocalPersistence).catch((error) => {
-      console.warn('[Firebase] Persistencia local de autenticacao indisponivel:', error);
+  ? auth.authStateReady().catch((error) => {
+      console.warn('[Firebase] Estado inicial de autenticacao indisponivel:', error);
     })
   : Promise.resolve();
 

@@ -15,12 +15,12 @@ export default defineConfig({
     firebaseEmulatorControlPlugin(),
     react(),
     VitePWA({
-      registerType: 'prompt',
+      registerType: 'autoUpdate',
       injectRegister: null,
       manifestFilename: 'manifest.webmanifest',
       includeAssets: ['logoModoQAP.png'],
       manifest: {
-        id: '/',
+        id: '/app/home',
         name: 'ModoQAP - Plataforma de Estudos',
         short_name: 'ModoQAP',
         description: 'Plataforma de organização e acompanhamento de estudos para concursos públicos.',

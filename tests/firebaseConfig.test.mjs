@@ -1,13 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { resolveFirebaseConfig, resolveFirebaseEmulatorConfig, resolveFirebaseRuntimeConfig } from '../src/firebaseConfig.js';
 import {
   FIREBASE_MODE_STORAGE_KEY,
   clearPendingEmulatorLogin,
+  clearEmulatorSessionIdentity,
   normalizeFirebaseMode,
   readPendingEmulatorLogin,
+  readEmulatorSessionIdentity,
   readFirebaseModePreference,
   writePendingEmulatorLogin,
+  writeEmulatorSessionIdentity,
   writeFirebaseModePreference,
 } from '../src/utils/firebaseEnvironment.js';
 
@@ -18,6 +22,24 @@ test('Firebase config fails closed outside tests and uses only demo projects in 
     () => resolveFirebaseConfig({ FIREBASE_TEST_PROJECT_ID: 'dashboard-pmba' }, { nodeTest: true }),
     /prefixo demo-/,
   );
+});
+
+test('sessão do Emulator persiste somente identidade não secreta', () => {
+  const values = new Map();
+  const storage = {
+    getItem: (key) => values.get(key),
+    setItem: (key, value) => values.set(key, value),
+    removeItem: (key) => values.delete(key),
+  };
+  writeEmulatorSessionIdentity(storage, {
+    uid: 'local-user', email: 'local@example.com', password: 'nao-deve-ser-persistida',
+  });
+  assert.deepEqual(readEmulatorSessionIdentity(storage), {
+    uid: 'local-user', email: 'local@example.com',
+  });
+  assert.equal([...values.values()].some((value) => value.includes('nao-deve-ser-persistida')), false);
+  clearEmulatorSessionIdentity(storage);
+  assert.equal(readEmulatorSessionIdentity(storage), null);
 });
 
 test('login temporário do Emulator é validado e removível', () => {
@@ -102,4 +124,17 @@ test('preferência do ambiente Firebase aceita apenas real ou emulator', () => {
   assert.equal(values.get(FIREBASE_MODE_STORAGE_KEY), 'emulator');
   assert.equal(readFirebaseModePreference(storage), 'emulator');
   assert.throws(() => writeFirebaseModePreference(storage, 'invalid'), /inválido/);
+});
+
+test('bootstrap de Auth preserva a sessão e não redireciona antes do estado inicial', async () => {
+  const [firebaseConfigSource, appSource] = await Promise.all([
+    readFile(new URL('../src/firebaseConfig.js', import.meta.url), 'utf8'),
+    readFile(new URL('../src/App.jsx', import.meta.url), 'utf8'),
+  ]);
+
+  assert.match(firebaseConfigSource, /persistence:\s*emulatorConfig\.enabled[\s\S]*indexedDBLocalPersistence, browserLocalPersistence/);
+  assert.match(firebaseConfigSource, /auth\.authStateReady\(\)/);
+  assert.doesNotMatch(firebaseConfigSource, /setPersistence\(/);
+  assert.doesNotMatch(appSource, /authTimeout/);
+  assert.doesNotMatch(appSource, /setTimeout\(\(\) => \{\s*if \(active\) setLoading\(false\)/);
 });

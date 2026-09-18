@@ -26,6 +26,18 @@ test('normaliza ciclo, ranqueia atrasos e calcula recuperacao', () => {
   assert.match(result.insight, /Direito Penal/);
 });
 
+test('nova etapa de ciclo mantém revisão pendente da etapa antiga no mesmo planejamento', () => {
+  const result = buildRevisaoCentral({
+    ciclo: { id: 'new-cycle', disciplinas: [{ id: 'penal', nome: 'Direito Penal', assuntos: [] }] },
+    revisoesCiclo: [{ id: 'inherited', cicloId: 'old-cycle',
+      disciplinaId: 'penal', disciplinaNome: 'Direito Penal',
+      assunto: 'Crime', dataAgendada: '2026-08-06', concluida: false }],
+    dataReferencia: reference,
+  });
+  assert.equal(result.buckets.hoje.length, 1);
+  assert.equal(result.buckets.hoje[0].id, 'inherited');
+});
+
 test('usa registros de revisao na cobertura e separa resolvidas', () => {
   const result = buildRevisaoCentral({
     ciclo: { id: 'c1', disciplinas: [{ id: 'const', nome: 'Constitucional', assuntos: ['Direitos fundamentais', 'Estado'] }] },

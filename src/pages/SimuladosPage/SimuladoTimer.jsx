@@ -21,10 +21,12 @@ import {
   formatTimerClock,
   isValidTimerElapsedMs,
   releaseTimerHeartbeatLease,
+  TIMER_MAX_ELAPSED_MS,
   timerTimestampToMillis,
   useFullscreenState,
   useWakeLock,
 } from '../../hooks/useTimerEngine';
+import { PWA_BEFORE_RELOAD_EVENT } from '../../utils/pwaLifecycle';
 
 // ============================================
 // CONFIGURAÇÕES DE TAMANHOS
@@ -130,6 +132,14 @@ const safeNotify = (title, body) => {
 const toMillisSafe = timerTimestampToMillis;
 const isValidElapsedMs = isValidTimerElapsedMs;
 
+const getInitialServerOffset = () => {
+  try {
+    const cached = Number(localStorage.getItem('@ModoQAP:ServerOffsetMs'));
+    if (Number.isFinite(cached)) return cached;
+  } catch {}
+  return 0;
+};
+
 function SimuladoTimer({
   tituloSimulado,
   mode = 'free',
@@ -161,7 +171,7 @@ function SimuladoTimer({
   const desiredRunningRef = useRef(false);
 
   // === Time Sync Refs ===
-  const serverOffsetMsRef = useRef(0);
+  const serverOffsetMsRef = useRef(getInitialServerOffset());
   const bestRttRef = useRef(Number.POSITIVE_INFINITY);
   const timeSyncInFlightRef = useRef(false);
 
@@ -305,7 +315,17 @@ function SimuladoTimer({
         if (!sample) sample = await trySampleWithTimeSyncDoc(i);
         if (sample && sample.rtt < bestRttRef.current) {
           bestRttRef.current = sample.rtt;
-          serverOffsetMsRef.current = sample.offset;
+          const oldOffset = serverOffsetMsRef.current;
+          const newOffset = sample.offset;
+          serverOffsetMsRef.current = newOffset;
+          try {
+            localStorage.setItem('@ModoQAP:ServerOffsetMs', String(newOffset));
+          } catch {}
+
+          const delta = newOffset - oldOffset;
+          if (delta !== 0) {
+            if (focusStartMsRef.current != null) focusStartMsRef.current += delta;
+          }
         }
         await new Promise((r) => setTimeout(r, 80));
       }
@@ -656,7 +676,15 @@ function SimuladoTimer({
 
   const getRemoteRunStartedMs = useCallback((data) => {
     const numericMs = Number(data?.runStartedAtMs);
-    if (Number.isFinite(numericMs) && numericMs > 0 && Math.abs(nowMs() - numericMs) < 300000) return numericMs;
+    const now = nowMs();
+    if (
+      Number.isFinite(numericMs)
+      && numericMs > 0
+      && numericMs < now + 5 * 60 * 1000
+      && numericMs > now - TIMER_MAX_ELAPSED_MS
+    ) {
+      return numericMs;
+    }
     const timestampMs = toMillisSafe(data?.runStartedAt);
     if (Number.isFinite(timestampMs)) return timestampMs;
     const actionMs = toMillisSafe(data?.actionAt);
@@ -706,6 +734,18 @@ function SimuladoTimer({
       if (shouldRun && remoteStartMs != null) focusStartMsRef.current = remoteStartMs;
       lastAppliedStateKeyRef.current = key;
       return;
+    }
+
+    // 🛡️ Se o simulado local já está rodando e a diferença é mínima (< 4s), evita pulo visual
+    const isAlreadyRunningLocally = !isPausedRef.current && focusStartMsRef.current != null;
+    if (isAlreadyRunningLocally && shouldRun && remoteStartMs != null) {
+      const remoteElapsed = baseMs + Math.max(0, nowMs() - remoteStartMs);
+      const localElapsed = getCurrentElapsedMs();
+      if (Math.abs(remoteElapsed - localElapsed) < 4000) {
+        lastAppliedStateKeyRef.current = key;
+        if (!intervalRef.current) startTickLoop();
+        return;
+      }
     }
 
     clearTimers();
@@ -874,6 +914,22 @@ function SimuladoTimer({
     document.addEventListener('visibilitychange', onVis);
     return () => document.removeEventListener('visibilitychange', onVis);
   }, [msToDisplaySeconds, getCurrentElapsedMs, setSecondsIfChanged, updateExternalStatus, updateMediaSession]);
+
+  useEffect(() => {
+    const persistBeforePageLeaves = () => {
+      saveToStorage(isPausedRef.current, getCurrentElapsedMs(), false);
+    };
+    window.addEventListener(PWA_BEFORE_RELOAD_EVENT, persistBeforePageLeaves);
+    window.addEventListener('pagehide', persistBeforePageLeaves);
+    window.addEventListener('beforeunload', persistBeforePageLeaves);
+    window.addEventListener('unload', persistBeforePageLeaves);
+    return () => {
+      window.removeEventListener(PWA_BEFORE_RELOAD_EVENT, persistBeforePageLeaves);
+      window.removeEventListener('pagehide', persistBeforePageLeaves);
+      window.removeEventListener('beforeunload', persistBeforePageLeaves);
+      window.removeEventListener('unload', persistBeforePageLeaves);
+    };
+  }, [getCurrentElapsedMs, saveToStorage]);
 
   // Init audio + cleanup
   useEffect(() => {

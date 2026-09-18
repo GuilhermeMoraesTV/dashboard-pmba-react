@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { AlertTriangle, ArrowLeft, ArrowRight, CheckCircle2, RefreshCw, Settings2, Layers, Target, Clock, X } from 'lucide-react';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, onSnapshot } from 'firebase/firestore';
 
 import { calcularDistribuicao, gerarOrdemSessoes, useCiclos } from '../../../hooks/useCiclos';
 import { db } from '../../../firebaseConfig';
 import { CATALOGO_EDITAIS } from '../../../pages/AdminPage/EditaisManager';
+import { isUnconfirmedEmptySnapshot } from '../../../utils/firestoreSnapshotState';
 import StepEdital from './steps/StepEdital';
 import StepDisciplinas from './steps/StepDisciplinas';
 import StepHorarios from './steps/StepHorarios';
@@ -23,29 +24,50 @@ import {
 } from '../../../utils/planningPriority';
 import { clampPlanningStartDate, getLocalTodayKey } from '../../../utils/planningDates';
 
-const CICLO_DRAFT_KEY = 'planejamento_ciclo_wizard_draft_v1';
+const CICLO_DRAFT_PREFIX = 'planejamento_ciclo_wizard_draft_v1';
+const LEGACY_CICLO_DRAFT_KEY = 'planejamento_ciclo_wizard_draft_v1';
 
 const STEPS = [
-  { id: 0, label: 'Edital', icon: Target, title: 'Selecao de Edital', sub: 'Escolha sua base' },
-  { id: 1, label: 'Materias', icon: Layers, title: 'Disciplinas', sub: 'O que estudar' },
-  { id: 2, label: 'Horarios', icon: Clock, title: 'Sua Rotina', sub: 'Quando estudar' },
-  { id: 3, label: 'Metodologia', icon: RefreshCw, title: 'Revisao', sub: 'Como revisar' },
-  { id: 4, label: 'Ajustes', icon: Settings2, title: 'Preferencias', sub: 'Personalizacao' },
-  { id: 5, label: 'Previa', icon: CheckCircle2, title: 'Resultado', sub: 'Seu plano pronto' },
+  { id: 0, label: 'Edital', icon: Target, title: 'Seleção de Edital', sub: 'Escolha sua base' },
+  { id: 1, label: 'Matérias', icon: Layers, title: 'Disciplinas', sub: 'O que estudar' },
+  { id: 2, label: 'Horários', icon: Clock, title: 'Sua Rotina', sub: 'Quando estudar' },
+  { id: 3, label: 'Metodologia', icon: RefreshCw, title: 'Revisão', sub: 'Como revisar' },
+  { id: 4, label: 'Ajustes', icon: Settings2, title: 'Preferências', sub: 'Personalização' },
+  { id: 5, label: 'Prévia', icon: CheckCircle2, title: 'Resultado', sub: 'Seu plano pronto' },
 ];
 
-const lerCicloDraft = () => {
+export const getCicloDraftKey = (uid) => {
+  if (!uid || typeof uid !== 'string') return null;
+  return `${CICLO_DRAFT_PREFIX}_${uid}`;
+};
+
+const limparLegacyCicloDraft = () => {
   try {
-    const raw = localStorage.getItem(CICLO_DRAFT_KEY);
+    localStorage.removeItem(LEGACY_CICLO_DRAFT_KEY);
+  } catch {}
+};
+
+const lerCicloDraft = (uid) => {
+  const key = getCicloDraftKey(uid);
+  if (!key) return null;
+  limparLegacyCicloDraft();
+  try {
+    const raw = localStorage.getItem(key);
     return raw ? JSON.parse(raw) : null;
   } catch {
-    localStorage.removeItem(CICLO_DRAFT_KEY);
+    limparCicloDraft(uid);
     return null;
   }
 };
 
-const limparCicloDraft = () => {
-  localStorage.removeItem(CICLO_DRAFT_KEY);
+const limparCicloDraft = (uid) => {
+  const key = getCicloDraftKey(uid);
+  if (key) {
+    try {
+      localStorage.removeItem(key);
+    } catch {}
+  }
+  limparLegacyCicloDraft();
 };
 
 const serializarSelecaoDisciplinas = (selecao = {}) =>
@@ -269,8 +291,10 @@ function CicloCreateWizard({
   }, [isEditMode]);
 
   const salvarRascunhoAtual = () => {
-    if (isEditMode) return;
+    if (isEditMode || !user?.uid) return;
     if (!possuiDadosParaRascunho) return;
+    const key = getCicloDraftKey(user.uid);
+    if (!key) return;
     const payload = {
       passo,
       nomeCiclo,
@@ -290,21 +314,23 @@ function CicloCreateWizard({
       disciplinaTodosDiasIds,
     };
     try {
-      localStorage.setItem(CICLO_DRAFT_KEY, JSON.stringify(payload));
+      localStorage.setItem(key, JSON.stringify(payload));
     } catch {}
   };
 
   const descartarEFechar = () => {
     setConfirmandoSaida(false);
-    if (!isEditMode) limparCicloDraft();
+    if (!isEditMode && user?.uid) limparCicloDraft(user.uid);
     onClose?.();
   };
 
   useEffect(() => {
-    const buscarModelos = async () => {
-      setCarregandoModelos(true);
-      try {
-        const querySnapshot = await getDocs(collection(db, 'editais_templates'));
+    setCarregandoModelos(true);
+    return onSnapshot(
+      collection(db, 'editais_templates'),
+      { includeMetadataChanges: true },
+      (querySnapshot) => {
+        if (isUnconfirmedEmptySnapshot(querySnapshot)) return;
         const firestoreTemplates = querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
         const firestoreMap = new Map(firestoreTemplates.map((t) => [t.id, t]));
 
@@ -335,26 +361,29 @@ function CicloCreateWizard({
           }));
 
         setModelos([...localSeedsProcessed, ...customTemplates]);
-      } catch (error) {
+        setCarregandoModelos(false);
+      },
+      (error) => {
         console.error('Erro ao carregar templates:', error);
-      } finally {
+        setModelos(CATALOGO_EDITAIS);
         setCarregandoModelos(false);
       }
-    };
-
-    buscarModelos();
+    );
   }, []);
 
   useEffect(() => {
     document.body.classList.add('wizard-shell-open');
-    if (!isEditMode && !preselectedEdital) {
-      const draft = lerCicloDraft();
+    if (!isEditMode && !preselectedEdital && user?.uid) {
+      const draft = lerCicloDraft(user.uid);
       if (draft) setMostrandoRascunho(true);
+      else setMostrandoRascunho(false);
+    } else {
+      setMostrandoRascunho(false);
     }
     return () => {
       document.body.classList.remove('wizard-shell-open');
     };
-  }, [isEditMode, preselectedEdital]);
+  }, [isEditMode, preselectedEdital, user?.uid]);
 
   useEffect(() => {
     scrollToTopInstant(conteudoRef.current);
@@ -653,22 +682,26 @@ function CicloCreateWizard({
     };
 
     if (isEditMode) {
-      const editou = await editarCiclo(cicloId, dadosCiclo, { guideUpgrade: upgradeMode, forceRegenerate: true });
+      const editou = await editarCiclo(cicloId, dadosCiclo, { guideUpgrade: true, forceRegenerate: true });
       if (editou) {
         onClose?.();
         if (onCicloAtivado) onCicloAtivado(cicloId);
+      } else {
+        setValidationMessage('Não foi possível salvar as alterações do ciclo. Tente novamente.');
       }
       return;
     }
 
     const novoId = await criarCiclo(dadosCiclo);
     if (novoId) {
-      limparCicloDraft();
+      if (user?.uid) limparCicloDraft(user.uid);
       window.dispatchEvent(new CustomEvent('Planning:Created', {
         detail: { type: 'ciclo', name: nomeCiclo.trim() },
       }));
       onClose?.();
       if (onCicloAtivado) onCicloAtivado(novoId);
+    } else {
+      setValidationMessage('Não foi possível criar o ciclo. Verifique os dados e tente novamente.');
     }
   };
 
@@ -712,7 +745,11 @@ function CicloCreateWizard({
   const onAbrirSuporte = () => onOpenFeedback?.({ initialView: 'new', initialType: 'edital' });
 
   const restaurarRascunho = () => {
-    const draft = lerCicloDraft();
+    if (!user?.uid) {
+      setMostrandoRascunho(false);
+      return;
+    }
+    const draft = lerCicloDraft(user.uid);
     if (!draft) {
       setMostrandoRascunho(false);
       return;
@@ -854,7 +891,10 @@ function CicloCreateWizard({
         </div>
       </div>
 
-      <div className={`wizard-navigation-bar inset-x-2 bottom-2 z-[100050] mx-auto max-w-5xl rounded-2xl border border-zinc-200/80 bg-white/92 shadow-2xl shadow-zinc-950/12 backdrop-blur-xl dark:border-zinc-800 dark:bg-card-dark sm:inset-x-3 sm:bottom-4 ${embedded ? 'absolute' : 'fixed'}`}>
+      <div
+        data-wizard-embedded={embedded ? 'true' : undefined}
+        className={`wizard-navigation-bar ${embedded ? 'wizard-navigation-bar--embedded absolute inset-x-2 bottom-2 sm:inset-x-3 sm:bottom-4' : 'fixed inset-x-2 bottom-2 sm:inset-x-3 sm:bottom-4 lg:inset-x-auto lg:bottom-4 lg:right-8 lg:left-[calc(var(--sidebar-offset,72px)+2rem)] lg:max-w-[min(64rem,calc(100vw-var(--sidebar-offset,72px)-4rem))]'} z-[100050] mx-auto max-w-5xl rounded-2xl border border-zinc-200/80 bg-white/92 shadow-2xl shadow-zinc-950/12 backdrop-blur-xl dark:border-zinc-800 dark:bg-card-dark sm:bottom-4 transition-all duration-300`}
+      >
         <div className="absolute top-0 left-0 right-0 h-[2px] bg-zinc-100 dark:bg-zinc-800">
           <motion.div
             className="h-full bg-red-600"
@@ -901,6 +941,11 @@ function CicloCreateWizard({
           </div>
 
           <div className="flex items-center gap-3">
+            {validationMessage && (
+              <span className="text-[10px] sm:text-xs font-bold text-red-600 dark:text-red-400 max-w-xs text-right">
+                {validationMessage}
+              </span>
+            )}
             {passo >= 3 && (
               <div className="hidden md:flex flex-col items-end mr-2">
                 <span className="text-[9px] font-black uppercase tracking-tighter text-zinc-400 leading-none">Carga total</span>
@@ -933,7 +978,7 @@ function CicloCreateWizard({
                   isEditMode ? 'Salvando...' : 'Criando...'
                 ) : (
                   <>
-                    <CheckCircle2 size={16} strokeWidth={2.5} className="group-hover:scale-110 transition-transform" /> {upgradeMode ? 'Atualizar ciclo semanal' : isEditMode ? 'Salvar alteracoes' : 'Criar ciclo semanal'}
+                    <CheckCircle2 size={16} strokeWidth={2.5} className="group-hover:scale-110 transition-transform" /> {isEditMode ? 'Salvar alteracoes' : 'Criar ciclo semanal'}
                   </>
                 )}
               </button>
@@ -956,7 +1001,7 @@ function CicloCreateWizard({
               <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={() => {
-                    limparCicloDraft();
+                    limparCicloDraft(user?.uid);
                     setMostrandoRascunho(false);
                   }}
                   className="rounded-xl bg-zinc-100 px-2 py-2.5 text-[10px] font-bold uppercase tracking-wider text-zinc-900 transition-all hover:bg-zinc-200 dark:bg-zinc-800 dark:text-white"

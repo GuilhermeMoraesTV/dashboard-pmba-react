@@ -1,10 +1,16 @@
-import { FieldPath, doc, getDoc, updateDoc } from 'firebase/firestore';
-import { getAgendaSemana } from './scheduling/review';
+import { FieldPath, doc, getDoc, runTransaction, updateDoc } from 'firebase/firestore';
+import { getAgendaSemana } from './scheduling/review.js';
 import {
   applyReviewProgress,
   getReviewPlannedMinutes,
   normalizeReviewText,
-} from './reviewProgressRules';
+} from './reviewProgressRules.js';
+import {
+  advanceTheoryPendingAfterCompletion,
+  buildTheoryContinuationPending,
+  captureDisplacedTheoryTopic,
+} from '../utils/cronogramaTheoryQueue.js';
+import { allocateScheduleStudyRecord, getScheduleSlotKey } from '../../functions/gamification/scheduleStudyProgress.mjs';
 
 const normalize = (value) =>
   String(value || '')
@@ -40,7 +46,6 @@ const calculateWeekOffset = (dataInicio, dataRegistroYmd) => {
   return diff;
 };
 
-const getSlotProgressKey = (slot) => slot.slotIdBase || slot.slotId;
 const getPendenciaDisciplinaKey = (disciplinaId) => String(disciplinaId || '').trim();
 
 const updateDocFieldEntries = async (docRef, entries = []) => {
@@ -72,14 +77,28 @@ export async function marcarPendenciaTeoriaPorRegistro({
   const pendenciaAtual = cronograma?.pendenciasTeoria?.[disciplinaKey] || null;
   const nowIso = new Date().toISOString();
   const fallbackOrigem = `registro-manual:${disciplinaKey}:${normalize(assunto) || 'assunto'}`;
+  const slotContext = registro.cronogramaSlotIdBase || registro.cronogramaSlotData
+    ? {
+      slotIdBase: registro.cronogramaSlotIdBase || null,
+      slotId: registro.cronogramaSlotId || null,
+      dataSlot: registro.cronogramaSlotData || toYMD(registro.data),
+      ordemNoDia: registro.cronogramaSlotOrdem,
+      hora: registro.cronogramaSlotHora,
+      assunto: registro.assunto,
+      assuntoOriginal: registro.cronogramaAssuntoOriginal || registro.assunto,
+    }
+    : null;
+  const pendenciaPayload = buildTheoryContinuationPending({
+    assunto,
+    currentPending: pendenciaAtual,
+    slot: slotContext,
+    dataSlot: toYMD(registro.data),
+    nowIso,
+    fallbackOrigin: fallbackOrigem,
+  });
 
   await updateDoc(cronogramaRef, {
-    [`pendenciasTeoria.${disciplinaKey}`]: {
-      assunto,
-      origemSlotIdBase: pendenciaAtual?.origemSlotIdBase || fallbackOrigem,
-      criadoEm: pendenciaAtual?.criadoEm || nowIso,
-      ultimaMarcacaoEm: nowIso,
-    },
+    [`pendenciasTeoria.${disciplinaKey}`]: pendenciaPayload,
   });
 
   return { synced: true };
@@ -90,6 +109,7 @@ export async function syncRegistroEstudoWithCronograma({
   userUid,
   cronogramaId,
   registro,
+  registroRef,
 }) {
   if (!db || !userUid || !cronogramaId || !registro) return { synced: false };
 
@@ -99,153 +119,80 @@ export async function syncRegistroEstudoWithCronograma({
 
   const dataRegistro = toYMD(registro.data);
   if (!dataRegistro) return { synced: false, reason: 'invalid-date' };
+  if (!registroRef) throw new Error('registro-ref-obrigatoria-para-sincronizacao');
 
   const cronogramaRef = doc(db, 'users', userUid, 'cronogramas', cronogramaId);
-  const cronogramaSnap = await getDoc(cronogramaRef);
-  if (!cronogramaSnap.exists()) return { synced: false, reason: 'missing-cronograma' };
+  return runTransaction(db, async (transaction) => {
+    const registroSnap = await transaction.get(registroRef);
+    if (!registroSnap.exists()) return { synced: false, reason: 'missing-registro' };
+    if (registroSnap.data()?.cronogramaProgressApplied === true) return { synced: true, duplicate: true };
+    const savedRegistro = registroSnap.data();
+    if (savedRegistro.cronogramaId !== cronogramaId || toYMD(savedRegistro.data) !== dataRegistro) {
+      return { synced: false, reason: 'registro-context-changed' };
+    }
+    const cronogramaSnap = await transaction.get(cronogramaRef);
+    if (!cronogramaSnap.exists()) return { synced: false, reason: 'missing-cronograma' };
 
-  const cronograma = { id: cronogramaSnap.id, ...cronogramaSnap.data() };
-  if (!cronograma.ativo || !cronograma.dataInicio || !Array.isArray(cronograma.semanaTemplate)) {
-    return { synced: false, reason: 'invalid-cronograma' };
-  }
+    const cronograma = { id: cronogramaSnap.id, ...cronogramaSnap.data() };
+    if (!cronograma.ativo || !cronograma.dataInicio || !Array.isArray(cronograma.semanaTemplate)) {
+      return { synced: false, reason: 'invalid-cronograma' };
+    }
 
-  const weekOffset = calculateWeekOffset(cronograma.dataInicio, dataRegistro);
-  if (weekOffset === null) return { synced: false, reason: 'invalid-week-offset' };
+    const weekOffset = calculateWeekOffset(cronograma.dataInicio, dataRegistro);
+    if (weekOffset === null) return { synced: false, reason: 'invalid-week-offset' };
 
-  const semKey = `w${weekOffset}`;
-  const progressoW = cronograma?.progresso?.[semKey] || {};
-  const progressoMinutosW = cronograma?.progressoMinutos?.[semKey] || {};
-  const dominados = new Set(Object.keys(cronograma?.progresso?.dominios || {}));
-  const agendaSemana = getAgendaSemana(cronograma, weekOffset, null, dominados);
+    const semKey = `w${weekOffset}`;
+    const progressoW = cronograma?.progresso?.[semKey] || {};
+    const progressoMinutosW = cronograma?.progressoMinutos?.[semKey] || {};
+    const dominados = new Set(Object.keys(cronograma?.progresso?.dominios || {}));
+    const agendaSemana = getAgendaSemana(cronograma, weekOffset, null, dominados);
 
-  const slotsDia = (agendaSemana || []).filter(
-    (slot) => !slot.isRevisaoAuto && slot.dataSlot === dataRegistro
-  );
-  if (!slotsDia.length) return { synced: false, reason: 'no-slots-for-day' };
+    const slotsDia = (agendaSemana || []).filter(
+      (slot) => !slot.isRevisaoAuto && slot.dataSlot === dataRegistro
+    );
+    if (!slotsDia.length) return { synced: false, reason: 'no-slots-for-day' };
 
-  const disciplinaIdRegistro = String(registro.disciplinaId || '').trim();
-  const disciplinaNomeRegistroNorm = normalizeReviewText(registro.disciplinaNome);
-  const assuntoRegistroNorm = normalizeReviewText(registro.assunto);
-
-  const candidatesByDisciplina = slotsDia.filter((slot) => {
-    const sameId = disciplinaIdRegistro && String(slot.disciplinaId || '') === disciplinaIdRegistro;
-    const sameNome = disciplinaNomeRegistroNorm && normalize(slot.disciplinaNome) === disciplinaNomeRegistroNorm;
-    return sameId || sameNome;
+    const currentMinutes = {};
+    const completed = {};
+    slotsDia.forEach((slot) => {
+      const key = getScheduleSlotKey(slot);
+      currentMinutes[key] = Math.max(Number(progressoMinutosW[key] || 0), Number(progressoMinutosW[slot.slotId] || 0));
+      completed[key] = progressoW[key] === true || progressoW[slot.slotId] === true;
   });
-
-  if (!candidatesByDisciplina.length) return { synced: false, reason: 'no-discipline-match' };
-
-  const candidates = assuntoRegistroNorm
-    ? candidatesByDisciplina.filter((slot) => normalize(slot.assunto) === assuntoRegistroNorm)
-    : candidatesByDisciplina;
-
-  const slotsOrdenados = (candidates.length ? candidates : candidatesByDisciplina)
-    .slice()
-    .sort((a, b) => {
-      const aOrder = Number(a.ordemNoDia ?? 0);
-      const bOrder = Number(b.ordemNoDia ?? 0);
-      if (aOrder !== bOrder) return aOrder - bOrder;
-      const aIdx = Number(a.slotIndexParaDisc ?? 0);
-      const bIdx = Number(b.slotIndexParaDisc ?? 0);
-      return aIdx - bIdx;
-    });
-
-  let minutosRestantes = shouldForceComplete ? Number.POSITIVE_INFINITY : minutosRegistrados;
-  let minutosAbatidos = 0;
+  const result = allocateScheduleStudyRecord({ slots: slotsDia, record: savedRegistro, currentMinutes, completed });
   const updates = {};
   const pendenciasTeoria = cronograma?.pendenciasTeoria || {};
-  let lastTouchedSlot = null;
-
-  for (const slot of slotsOrdenados) {
-    if (!shouldForceComplete && minutosRestantes <= 0) break;
-
-    const slotKey = getSlotProgressKey(slot);
-    if (!slotKey) continue;
-
-    const minutosPlanejados = Number(slot.tempoMinutos ?? slot.minutosEstudo ?? 0);
-    if (minutosPlanejados <= 0) continue;
-
-    const wasDone = Boolean(
-      progressoW[slotKey] === true ||
-      progressoW[slot.slotId] === true ||
-      (slot.slotIdBase && progressoW[slot.slotIdBase] === true)
-    );
-    const progressoAtual = Math.max(
-      Number(progressoMinutosW[slotKey] || 0),
-      Number(slot.slotId ? progressoMinutosW[slot.slotId] || 0 : 0),
-      Number(slot.slotIdBase ? progressoMinutosW[slot.slotIdBase] || 0 : 0),
-      Number(slot.progressoMinutos || 0)
-    );
-    const progressoBase = wasDone ? Math.max(progressoAtual, minutosPlanejados) : progressoAtual;
-    const faltantes = Math.max(0, minutosPlanejados - progressoBase);
-    if (faltantes <= 0) {
-      if (!shouldForceComplete && minutosRestantes > 0) {
-        const nextProgress = progressoBase + minutosRestantes;
-        updates[`progressoMinutos.${semKey}.${slotKey}`] = nextProgress;
-        updates[`progresso.${semKey}.${slotKey}`] = true;
-        if (slot.slotId && slot.slotId !== slotKey) {
-          updates[`progressoMinutos.${semKey}.${slot.slotId}`] = nextProgress;
-          updates[`progresso.${semKey}.${slot.slotId}`] = true;
-        }
-        lastTouchedSlot = { slot, slotKey };
-        minutosAbatidos += minutosRestantes;
-        minutosRestantes = 0;
-        break;
-      }
-      if (!wasDone && progressoBase >= minutosPlanejados) {
-        updates[`progresso.${semKey}.${slotKey}`] = true;
-        if (slot.slotId && slot.slotId !== slotKey) {
-          updates[`progresso.${semKey}.${slot.slotId}`] = true;
-        }
-      }
-      continue;
+  const touched = Object.keys(result.allocations);
+  if (!touched.length) return { synced: false, reason: 'no-discipline-match' };
+  for (const slot of slotsDia.filter((item) => touched.includes(getScheduleSlotKey(item)))) {
+    const slotKey = getScheduleSlotKey(slot);
+    const concluiu = result.completed[slotKey];
+    for (const key of [...new Set([slotKey, slot.slotId].filter(Boolean))]) {
+      if (Number(progressoMinutosW[key] || 0) !== result.minutes[slotKey]) updates[`progressoMinutos.${semKey}.${key}`] = result.minutes[slotKey];
+      if (Boolean(progressoW[key]) !== concluiu) updates[`progresso.${semKey}.${key}`] = concluiu;
     }
-
-    const incremento = shouldForceComplete ? faltantes : Math.min(faltantes, minutosRestantes);
-    const novoProgresso = progressoBase + incremento;
-    const concluiu = novoProgresso >= minutosPlanejados;
-
-    updates[`progressoMinutos.${semKey}.${slotKey}`] = novoProgresso;
-    updates[`progresso.${semKey}.${slotKey}`] = concluiu;
-    lastTouchedSlot = { slot, slotKey };
-    if (slot.slotId && slot.slotId !== slotKey) {
-      updates[`progressoMinutos.${semKey}.${slot.slotId}`] = novoProgresso;
-      updates[`progresso.${semKey}.${slot.slotId}`] = concluiu;
-    }
-    if (concluiu && slot.isPendenciaTeoria) {
+    if (slot.isFilaTeoriaOverride) {
       const disciplinaKey = getPendenciaDisciplinaKey(slot.disciplinaId);
       const pendenciaAtiva = pendenciasTeoria?.[disciplinaKey];
-      if (disciplinaKey && pendenciaAtiva?.assunto && normalize(pendenciaAtiva.assunto) === normalize(slot.assunto)) {
-        updates[`pendenciasTeoria.${disciplinaKey}`] = null;
+      if (disciplinaKey && pendenciaAtiva?.assunto && normalize(pendenciaAtiva.assunto) === normalize(registro.assunto)) {
+        const nextPending = concluiu && !registro.naoConcluidoCronograma
+          ? advanceTheoryPendingAfterCompletion({ pending: pendenciaAtiva, slot })
+          : captureDisplacedTheoryTopic(pendenciaAtiva, slot);
+        if (JSON.stringify(nextPending) !== JSON.stringify(pendenciaAtiva)) updates[`pendenciasTeoria.${disciplinaKey}`] = nextPending;
       }
     }
-
-    if (!shouldForceComplete) minutosRestantes -= incremento;
-    minutosAbatidos += incremento;
   }
-
-  if (!shouldForceComplete && minutosRestantes > 0 && lastTouchedSlot) {
-    const { slot, slotKey } = lastTouchedSlot;
-    const currentProgress = Number(updates[`progressoMinutos.${semKey}.${slotKey}`] || progressoMinutosW[slotKey] || 0);
-    const nextProgress = currentProgress + minutosRestantes;
-    updates[`progressoMinutos.${semKey}.${slotKey}`] = nextProgress;
-    if (slot.slotId && slot.slotId !== slotKey) {
-      updates[`progressoMinutos.${semKey}.${slot.slotId}`] = nextProgress;
-    }
-    minutosAbatidos += minutosRestantes;
-    minutosRestantes = 0;
-  }
-
-  if (!Object.keys(updates).length) return { synced: false, reason: 'nothing-to-update' };
-
-  await updateDoc(cronogramaRef, updates);
+  if (Object.keys(updates).length) transaction.update(cronogramaRef, updates);
+  transaction.update(registroRef, { cronogramaProgressApplied: true, cronogramaProgressAllocations: result.allocations });
+  const minutosAbatidos = Object.values(result.allocations).reduce((total, minutes) => total + minutes, 0);
 
   return {
     synced: true,
     minutesLogged: minutosRegistrados,
     minutesAppliedToPlan: minutosAbatidos,
-    minutesRemainingUnplanned: shouldForceComplete ? 0 : Math.max(0, minutosRestantes),
+    minutesRemainingUnplanned: Math.max(0, minutosRegistrados - minutosAbatidos),
   };
+  });
 }
 
 export async function syncRegistroRevisaoWithCronograma({

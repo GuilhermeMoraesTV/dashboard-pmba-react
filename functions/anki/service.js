@@ -4,6 +4,7 @@
 
 const crypto = require('crypto');
 const { isDeepStrictEqual } = require('node:util');
+const { FieldValue: AdminFieldValue, FieldPath: AdminFieldPath, Timestamp: AdminTimestamp } = require('firebase-admin/firestore');
 const { openAnkiArchive } = require('./archive');
 const { parseAnkiCollection } = require('./parser');
 const { createInitialState } = require('../flashcards/schedulerInitialState');
@@ -260,7 +261,7 @@ function planCardBatches(cards) {
   return batches;
 }
 
-async function reconcileDeckCardCount(db, deckRef, admin, maxAttempts = 5, FieldValue = admin.firestore.FieldValue) {
+async function reconcileDeckCardCount(db, deckRef, admin, maxAttempts = 5, FieldValue = admin?.firestore?.FieldValue || AdminFieldValue) {
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     const before = await deckRef.get();
     if (!before.exists) return null;
@@ -290,8 +291,8 @@ async function reconcileDeckCardCount(db, deckRef, admin, maxAttempts = 5, Field
   return null;
 }
 
-function createAnkiService({ admin, getProductLimits, FieldValue = admin.firestore.FieldValue,
-  FieldPath = admin.firestore.FieldPath, Timestamp = admin.firestore.Timestamp }) {
+function createAnkiService({ admin, getProductLimits, FieldValue = admin?.firestore?.FieldValue || AdminFieldValue,
+  FieldPath = admin?.firestore?.FieldPath || AdminFieldPath, Timestamp = admin?.firestore?.Timestamp || AdminTimestamp }) {
   const db = admin.firestore();
   const getBucket = () => admin.storage().bucket();
 

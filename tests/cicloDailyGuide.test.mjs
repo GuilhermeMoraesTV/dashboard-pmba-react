@@ -159,7 +159,25 @@ describe('cycle free queue', () => {
     assert.equal(status.goalMet, false);
   });
 
-  it('counts checkout planned time toward the configured cycle goal', () => {
+  it('does not mark a cronograma rest day with no slots as a completed goal', () => {
+    const status = getDailyStudyStatus({
+      date: '2026-08-02',
+      studyDaysMap: {},
+      activeCronogramaData: {
+        id: 'cronograma-sem-slot',
+        dataInicio: '2026-08-01',
+        diasEstudo: [1, 2, 3, 4, 5],
+      },
+      getAgendaSemana: () => [],
+      contextMode: 'cronograma',
+      registrosEstudo: [],
+    });
+
+    assert.equal(status.status, 'no-data');
+    assert.equal(status.goalMet, false);
+  });
+
+  it('ignores checkout planned time and accepts only measured study toward the cycle goal', () => {
     const date = '2026-08-03';
     const cycle = {
       id: 'ciclo-meta',
@@ -195,8 +213,8 @@ describe('cycle free queue', () => {
       registrosEstudo: records,
     });
 
-    assert.equal(getStatus(completionOnly).goalMet, true);
-    assert.equal(getStatus(completionOnly).status, 'goal-met-both');
+    assert.equal(getStatus(completionOnly).goalMet, false);
+    assert.notEqual(getStatus(completionOnly).status, 'goal-met-both');
     assert.equal(getStatus(partialConfirmed).goalMet, false);
     assert.equal(getStatus(partialConfirmed).status, 'goal-met-one');
     assert.equal(getStatus(completedConfirmed).goalMet, true);

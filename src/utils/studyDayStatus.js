@@ -1,5 +1,10 @@
 import { normalizarDuracaoSessao } from './cicloDistribution.js';
 import { getRecordedStudyMinutes, isManualCompletionRecord } from './studyRecords.js';
+import { buildScheduleRecordedProgress, getScheduleSlotKey } from '../../functions/gamification/scheduleStudyProgress.mjs';
+import {
+  isCycleRecordInRound,
+  isStudyBackedCycleCompletion,
+} from './cycleSessionCompletion.js';
 
 export const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000;
 
@@ -60,12 +65,24 @@ export const getCronogramaSlotRecordedMinutes = ({
   registrosEstudo = [],
   dateKey = null,
   onlyRealStudyRecords = false,
+  slotsDia = null,
 }) => {
   if (!cronograma?.id || !slot) return 0;
   const slotDateKey = dateKey || slot.dataSlot || null;
   const disciplinaId = String(slot.disciplinaId || '').trim();
   const disciplinaNomeNorm = normalizeRecordText(slot.disciplinaNome || slot.disciplina);
   const assuntoNorm = normalizeRecordText(slot.assunto || slot.assuntoOriginal);
+
+  if (Array.isArray(slotsDia) && slotsDia.length) {
+    const records = registrosEstudo.filter((record) => record
+      && (!onlyRealStudyRecords || !isManualCompletionRecord(record))
+      && !record.isRevisao && !record.revisao && record.tipoEstudo !== 'revisao' && record.tipoRegistro !== 'revisao'
+      && String(record.cronogramaId || '') === String(cronograma.id)
+      && (!record.contextoRegistro || record.contextoRegistro === 'cronograma')
+      && (!slotDateKey || getRegistroDateKey(record) === slotDateKey));
+    return Number(buildScheduleRecordedProgress({ slots: slotsDia, records,
+      getMinutes: getRecordedStudyMinutes }).minutes[getScheduleSlotKey(slot)] || 0);
+  }
 
   return (Array.isArray(registrosEstudo) ? registrosEstudo : []).reduce((acc, registro) => {
     if (!registro || getRecordMinutes(registro) <= 0) return acc;
@@ -80,16 +97,33 @@ export const getCronogramaSlotRecordedMinutes = ({
     if (!sameDisciplinaId && !sameDisciplinaNome) return acc;
 
     const registroAssuntoNorm = normalizeRecordText(registro.assunto);
-    if (assuntoNorm && registroAssuntoNorm && registroAssuntoNorm !== assuntoNorm) return acc;
+    if (assuntoNorm && registroAssuntoNorm && registroAssuntoNorm !== assuntoNorm) {
+      return acc;
+    }
 
     return acc + getRecordMinutes(registro);
   }, 0);
 };
 
-export const buildStudyDaysMap = (registrosEstudo = []) => {
+export const buildStudyDaysMap = (registrosEstudo = [], options = {}) => {
   const days = {};
+  const { planId = null, contextMode = null } = typeof options === 'string'
+    ? { contextMode: options }
+    : (options || {});
 
-  registrosEstudo.forEach((item) => {
+  (Array.isArray(registrosEstudo) ? registrosEstudo : []).forEach((item) => {
+    if (!item) return;
+
+    if (contextMode === 'ciclo') {
+      if (item.cronogramaId) return;
+      if (item.contextoRegistro && item.contextoRegistro !== 'ciclo') return;
+      if (planId && item.cicloId && String(item.cicloId) !== String(planId)) return;
+    } else if (contextMode === 'cronograma') {
+      if (item.cicloId) return;
+      if (item.contextoRegistro && item.contextoRegistro !== 'cronograma') return;
+      if (planId && item.cronogramaId && String(item.cronogramaId) !== String(planId)) return;
+    }
+
     const dateKey = getRegistroDateKey(item);
     if (!dateKey) return;
 
@@ -197,20 +231,125 @@ const getCycleSessionCompletionDate = (ciclo, globalIndex) => {
   return detail?.concluidaEm || detail?.data || null;
 };
 
-const isCycleSessionCompletedByDate = (ciclo, globalIndex, dateKey = null) => {
-  const sessoesConcluidas = new Set((ciclo?.sessoesConcluidas || []).map(Number));
-  if (!sessoesConcluidas.has(Number(globalIndex))) return false;
+export const getCycleSessionStudyDetails = ({
+  ciclo,
+  registrosEstudo = [],
+  dateKey = null,
+}) => {
+  const ordemSessoes = Array.isArray(ciclo?.ordemSessoes) ? ciclo.ordemSessoes : [];
+  const tempoSessaoMinutos = Math.max(1, Number(ciclo?.tempoSessaoMinutos) || 50);
 
-  const completionDate = getCycleSessionCompletionDate(ciclo, globalIndex);
-  if (!completionDate || !dateKey) return true;
+  const sessionAllocations = new Map();
+  ordemSessoes.forEach((sessao, index) => {
+    const disciplina = Array.isArray(ciclo?.disciplinas)
+      ? ciclo.disciplinas.find((item) => String(item?.id) === String(sessao?.disciplinaId))
+      : null;
+    const duracaoConfigurada = Number(disciplina?.duracoesSessoes?.[Number(sessao?.sessaoIndex)] || 0);
+    const planned = normalizarDuracaoSessao(
+      duracaoConfigurada || sessao?.tempoPlanejadoMinutos || sessao?.tempoMinutos || tempoSessaoMinutos,
+      {
+        min: ciclo?.duracaoMinimaSessaoMinutos || 10,
+        max: ciclo?.duracaoMaximaSessaoMinutos || 240,
+        allowPartial: true,
+      },
+    );
+    sessionAllocations.set(index, {
+      planned,
+      disciplinaId: String(sessao?.disciplinaId || '').trim(),
+      minutes: 0,
+      subjectsMap: new Map(),
+    });
+  });
 
-  return String(completionDate) <= String(dateKey);
+  const validRecords = (Array.isArray(registrosEstudo) ? registrosEstudo : [])
+    .filter((r) => isCycleStudyRegistro(r, ciclo?.id)
+      && isCycleRecordInRound(r, ciclo)
+      && isConfirmedStudyRecord(r)
+      && !isManualCompletionRecord(r)
+      && !r.isEstudoExtra
+      && (!dateKey || getRegistroDateKey(r) === dateKey))
+    .slice()
+    .sort((a, b) => {
+      const time = (rec) => rec.timestamp?.toMillis?.()
+        ?? (rec.timestamp?.seconds ? rec.timestamp.seconds * 1000 : Date.parse(rec.timestamp || '') || 0);
+      return time(a) - time(b);
+    });
+
+  const unindexedRecords = [];
+  for (const record of validRecords) {
+    const sIndex = Number(record.sessaoGlobalIndex);
+    if (Number.isFinite(sIndex) && sessionAllocations.has(sIndex)) {
+      const alloc = sessionAllocations.get(sIndex);
+      const mins = getRecordMinutes(record);
+      alloc.minutes += mins;
+      const subjectName = String(record.assunto || '').trim();
+      if (subjectName) {
+        const key = normalizeRecordText(subjectName);
+        const existing = alloc.subjectsMap.get(key);
+        if (existing) {
+          existing.minutos += mins;
+          existing.markAsFinished = existing.markAsFinished || Boolean(record.markAsFinished || record.assuntoFinalizadoCiclo || record.assuntoFinalizado);
+        } else {
+          alloc.subjectsMap.set(key, {
+            assunto: subjectName,
+            minutos: mins,
+            markAsFinished: Boolean(record.markAsFinished || record.assuntoFinalizadoCiclo || record.assuntoFinalizado),
+          });
+        }
+      }
+    } else {
+      unindexedRecords.push(record);
+    }
+  }
+
+  for (const record of unindexedRecords) {
+    const discId = String(record.disciplinaId || '').trim();
+    const remainingMins = getRecordMinutes(record);
+    const subjectName = String(record.assunto || '').trim();
+
+    const matchingSessions = [...sessionAllocations.entries()]
+      .filter(([, alloc]) => alloc.disciplinaId === discId);
+
+    if (matchingSessions.length === 0) continue;
+
+    let targetEntry = matchingSessions.find(([, alloc]) => alloc.minutes < alloc.planned);
+    if (!targetEntry) {
+      targetEntry = matchingSessions[0];
+    }
+
+    const [, alloc] = targetEntry;
+    alloc.minutes += remainingMins;
+    if (subjectName) {
+      const key = normalizeRecordText(subjectName);
+      const existing = alloc.subjectsMap.get(key);
+      if (existing) {
+        existing.minutos += remainingMins;
+        existing.markAsFinished = existing.markAsFinished || Boolean(record.markAsFinished || record.assuntoFinalizadoCiclo || record.assuntoFinalizado);
+      } else {
+        alloc.subjectsMap.set(key, {
+          assunto: subjectName,
+          minutos: remainingMins,
+          markAsFinished: Boolean(record.markAsFinished || record.assuntoFinalizadoCiclo || record.assuntoFinalizado),
+        });
+      }
+    }
+  }
+
+  const result = {};
+  for (const [globalIndex, alloc] of sessionAllocations.entries()) {
+    result[globalIndex] = {
+      minutes: alloc.minutes,
+      assuntosEstudados: Array.from(alloc.subjectsMap.values()),
+    };
+  }
+  return result;
 };
 
 export const buildCycleOrderedSessions = (ciclo, dateKey = null, registrosEstudo = []) => {
   const ordemSessoes = Array.isArray(ciclo?.ordemSessoes) ? ciclo.ordemSessoes : [];
   const progressoSessoes = ciclo?.progressoSessoes || {};
   const tempoSessaoMinutos = Math.max(1, Number(ciclo?.tempoSessaoMinutos) || 50);
+  const sessionStudyDetails = getCycleSessionStudyDetails({ ciclo, registrosEstudo, dateKey });
 
   return ordemSessoes
     .map((sessao, globalIndex) => {
@@ -229,55 +368,37 @@ export const buildCycleOrderedSessions = (ciclo, dateKey = null, registrosEstudo
       const concluidaEm = getCycleSessionCompletionDate(ciclo, globalIndex);
       const completionDetail = getCycleSessionCompletionDetail(ciclo, globalIndex);
       const progressoPersistido = Number(progressoSessoes?.[globalIndex] || progressoSessoes?.[String(globalIndex)] || 0);
-      const progressoRegistrado = getCycleSessionRecordedMinutes({
-        ciclo,
-        session: sessao,
-        globalIndex,
-        registrosEstudo,
-        dateKey,
-        allowLooseMatch: progressoPersistido <= 0,
-      });
-      const progressoRegistroReal = getCycleSessionRecordedMinutes({
-        ciclo,
-        session: sessao,
-        globalIndex,
-        registrosEstudo,
-        dateKey,
-        allowLooseMatch: progressoPersistido <= 0,
-        onlyRealStudyRecords: true,
-      });
-      const origemConclusaoPersistida = String(completionDetail?.origem || '');
-      const conclusaoPersistidaPorEstudo = ['registro_manual', 'timer', 'registro_estudo'].includes(origemConclusaoPersistida);
+      const sessionStudy = sessionStudyDetails[globalIndex] || { minutes: 0, assuntosEstudados: [] };
+      const progressoRegistroReal = sessionStudy.minutes;
+      const progressoRegistrado = progressoRegistroReal;
+      const conclusaoPersistidaPorEstudo = isStudyBackedCycleCompletion(completionDetail);
       const progressoPersistidoReal = conclusaoPersistidaPorEstudo
         || !(ciclo?.sessoesConcluidas || []).map(Number).includes(globalIndex)
         ? progressoPersistido
         : 0;
       const bloqueiaDesmarcarConclusao = progressoRegistroReal >= tempoPlanejadoMinutos;
-      const concluidaManual = isCycleSessionCompletedByDate(ciclo, globalIndex, dateKey)
-        && progressoPersistido >= tempoPlanejadoMinutos
-        && !bloqueiaDesmarcarConclusao;
       const progressoMinutos = Math.max(
-        progressoRegistrado,
+        progressoRegistroReal,
         progressoPersistidoReal,
-        concluidaManual ? progressoPersistido : 0,
       );
       const concluidaPorRegistroDoDia = dateKey && progressoMinutos >= tempoPlanejadoMinutos;
-      const concluida = concluidaManual
-        || concluidaPorRegistroDoDia
-        || progressoMinutos >= tempoPlanejadoMinutos;
+      const concluida = progressoMinutos >= tempoPlanejadoMinutos;
+      const assuntosEstudados = sessionStudy.assuntosEstudados || [];
       return {
         ...sessao,
         globalIndex,
         concluida,
-        concluidaEm: concluidaEm || (concluidaPorRegistroDoDia ? dateKey : null),
+        concluidaEm: concluida ? (concluidaEm || (concluidaPorRegistroDoDia ? dateKey : null)) : null,
         tempoPlanejadoMinutos,
         progressoMinutos,
         progressoRegistradoMinutos: progressoRegistrado,
         progressoRegistroRealMinutos: progressoRegistroReal,
         progressoPersistidoMinutos: progressoPersistido,
         bloqueiaDesmarcarConclusao,
-        concluidaManual,
+        concluidaManual: false,
         concluidaPorTempoRegistrado: progressoMinutos >= tempoPlanejadoMinutos,
+        assuntosEstudados,
+        totalAssuntosEstudados: assuntosEstudados.length,
       };
     });
 };
@@ -385,9 +506,11 @@ export const getCycleSessionRecordedMinutes = ({
 
   return (Array.isArray(registrosEstudo) ? registrosEstudo : []).reduce((acc, registro) => {
     if (!isCycleStudyRegistro(registro, ciclo.id)) return acc;
-    // Registros de voltas ja encerradas recebem conclusaoId ao concluir o ciclo.
-    // Eles continuam no historico, mas nao podem preencher novamente a fila atual.
-    if (registro.conclusaoId != null) return acc;
+    // A identidade explícita da rodada impede que um snapshot atrasado da
+    // rodada anterior preencha a nova fila, mesmo antes de `conclusaoId`
+    // aparecer no listener de registros.
+    if (!isCycleRecordInRound(registro, ciclo)) return acc;
+    if (registro.isEstudoExtra) return acc;
     if (onlyRealStudyRecords && (!isConfirmedStudyRecord(registro) || isManualCompletionRecord(registro))) return acc;
     if (dateKey && getRegistroDateKey(registro) !== dateKey) return acc;
 
@@ -400,21 +523,8 @@ export const getCycleSessionRecordedMinutes = ({
 
     if (disciplinaId && String(registro.disciplinaId || '') !== disciplinaId) return acc;
 
-    const registroAssuntoNorm = normalizeRecordText(registro.assunto);
-    if (assuntoNorm && registroAssuntoNorm && registroAssuntoNorm !== assuntoNorm) return acc;
-
     const firstMatchingSessionIndex = (Array.isArray(ciclo?.ordemSessoes) ? ciclo.ordemSessoes : [])
-      .findIndex((candidate, candidateIndex) => {
-        if (disciplinaId && String(candidate?.disciplinaId || '') !== disciplinaId) return false;
-        if (!registroAssuntoNorm) return true;
-        const candidateDisciplina = getDisciplinaById(ciclo, candidate?.disciplinaId);
-        const candidateAssunto = getCycleAssuntoForSession(
-          ciclo,
-          { ...candidate, globalIndex: candidateIndex },
-          candidateDisciplina,
-        )?.assuntoSugerido?.nome;
-        return !candidateAssunto || normalizeRecordText(candidateAssunto) === registroAssuntoNorm;
-      });
+      .findIndex((candidate) => disciplinaId && String(candidate?.disciplinaId || '') === disciplinaId);
     if (firstMatchingSessionIndex >= 0 && firstMatchingSessionIndex !== sessionIndex) return acc;
 
     return acc + getRecordMinutes(registro);
@@ -689,16 +799,29 @@ export const getCycleDailyGuide = (ciclo, date = new Date(), registrosEstudo = [
   };
 };
 
-export const getCronogramaStudyDays = (cronograma) => {
+export const getCronogramaStudyDays = (cronograma, weekOffset = null) => {
   if (!cronograma) return [];
 
   const explicitDays = normalizeStudyDays(cronograma.diasEstudo, []);
   if (explicitDays.length > 0) return explicitDays;
 
-  const rawTemplate = Array.isArray(cronograma.semanaTemplate)
-    ? cronograma.semanaTemplate
-    : cronograma.semanaTemplate && typeof cronograma.semanaTemplate === 'object'
-      ? Object.values(cronograma.semanaTemplate)
+  let template = cronograma.semanaTemplate;
+  if (cronograma.historicoSemanasTemplate && typeof weekOffset === 'number') {
+    const vigDesde = Number(cronograma.semanaTemplateVigenteDesde ?? 0);
+    if (weekOffset < vigDesde) {
+      const match = Object.values(cronograma.historicoSemanasTemplate).find((v) => (
+        weekOffset >= Number(v.deSemana) && weekOffset <= Number(v.ateSemana)
+      ));
+      if (match?.semanaTemplate) {
+        template = match.semanaTemplate;
+      }
+    }
+  }
+
+  const rawTemplate = Array.isArray(template)
+    ? template
+    : template && typeof template === 'object'
+      ? Object.values(template)
       : [];
 
   const templateDays = rawTemplate
@@ -754,26 +877,25 @@ export const getCycleSessionsForDay = (ciclo, date, registrosEstudo = []) => {
   };
 };
 
-export const getCronogramaDayStatus = (activeCronogramaData, dateToCheck, getAgendaSemana) => {
-  const studyDays = getCronogramaStudyDays(activeCronogramaData);
-  const hasCronogramaSchedule = !!activeCronogramaData?.id
-    && !!activeCronogramaData?.dataInicio
-    && studyDays.length > 0;
-
-  if (!hasCronogramaSchedule) return null;
+export const getCronogramaDayStatus = (activeCronogramaData, dateToCheck, getAgendaSemana, confirmedMinutes = 0) => {
+  if (!activeCronogramaData?.id || !activeCronogramaData?.dataInicio) return null;
 
   const dateStr = dateToYMDLocal(dateToCheck);
   const dataInicioCronograma = startOfLocalDay(new Date(`${activeCronogramaData.dataInicio}T12:00:00`));
   const dayDate = startOfLocalDay(dateToCheck);
   const dayOfWeek = dayDate.getDay();
 
+  if (dayDate.getTime() < dataInicioCronograma.getTime()) return null;
+
+  const weekOffset = Math.max(0, Math.floor((dayDate.getTime() - dataInicioCronograma.getTime()) / MS_PER_WEEK));
+  const studyDays = getCronogramaStudyDays(activeCronogramaData, weekOffset);
+
+  if (!studyDays.length) return null;
+
   if (!studyDays.includes(dayOfWeek)) {
     return { isRestDay: true, totalSlots: 0, completedSlots: 0 };
   }
 
-  if (dayDate.getTime() < dataInicioCronograma.getTime()) return null;
-
-  const weekOffset = Math.max(0, Math.floor((dayDate.getTime() - dataInicioCronograma.getTime()) / MS_PER_WEEK));
   const semKey = `w${weekOffset}`;
   const progressoW = activeCronogramaData?.progresso?.[semKey] || {};
   const agenda = getAgendaSemana(activeCronogramaData, weekOffset) || [];
@@ -783,9 +905,19 @@ export const getCronogramaDayStatus = (activeCronogramaData, dateToCheck, getAge
     return { isRestDay: true, totalSlots: 0, completedSlots: 0 };
   }
 
-  const completedSlots = slotsDoDia.filter((slot) => {
+  const plannedMinutes = slotsDoDia.reduce((total, slot) => total + Number(slot.tempoMinutos ?? slot.minutosEstudo ?? 0), 0);
+  const timeGoalMet = plannedMinutes > 0 && confirmedMinutes >= plannedMinutes;
+
+  const isSlotDone = (slot) => {
     const slotKey = slot.slotIdBase || slot.slotId;
-    const plannedMinutes = Number(slot.tempoMinutos ?? slot.minutosEstudo ?? 0);
+    if (
+      progressoW[slotKey] === false ||
+      progressoW[slot.slotId] === false ||
+      (slot.slotIdBase && progressoW[slot.slotIdBase] === false)
+    ) {
+      return false;
+    }
+    const slotPlannedMinutes = Number(slot.tempoMinutos ?? slot.minutosEstudo ?? 0);
     const progressMap = activeCronogramaData?.progressoMinutos?.[semKey] || {};
     const progressMinutes = Math.max(
       Number(progressMap[slotKey] || 0),
@@ -794,18 +926,32 @@ export const getCronogramaDayStatus = (activeCronogramaData, dateToCheck, getAge
       Number(slot.progressoMinutos || 0)
     );
     return Boolean(
-      slot.concluido ||
       progressoW[slotKey] === true ||
       progressoW[slot.slotId] === true ||
       (slot.slotIdBase && progressoW[slot.slotIdBase] === true) ||
-      (plannedMinutes > 0 && progressMinutes >= plannedMinutes)
+      slot.concluido ||
+      (slotPlannedMinutes > 0 && progressMinutes >= slotPlannedMinutes)
     );
-  }).length;
+  };
+
+  const theorySlots = slotsDoDia.filter((slot) => !slot.isRevisaoAuto && !slot.isRevisao && !slot.isConsolidada);
+  const reviewSlots = slotsDoDia.filter((slot) => slot.isRevisaoAuto || slot.isRevisao || slot.isConsolidada);
+
+  const hasUnmarkedTheorySlot = theorySlots.some((slot) => {
+    const slotKey = slot.slotIdBase || slot.slotId;
+    return progressoW[slotKey] === false || progressoW[slot.slotId] === false || (slot.slotIdBase && progressoW[slot.slotIdBase] === false);
+  });
+  const completedTheorySlots = hasUnmarkedTheorySlot
+    ? theorySlots.filter(isSlotDone).length
+    : (timeGoalMet ? theorySlots.length : theorySlots.filter(isSlotDone).length);
+  const completedReviewSlots = reviewSlots.filter(isSlotDone).length;
+  const completedSlots = completedTheorySlots + completedReviewSlots;
 
   return {
     isRestDay: false,
     totalSlots: slotsDoDia.length,
     completedSlots,
+    plannedMinutes,
   };
 };
 
@@ -822,9 +968,9 @@ export const getDailyStudyStatus = ({
   const dayDate = startOfLocalDay(typeof date === 'string' ? new Date(`${date}T12:00:00`) : date);
   const todayDate = startOfLocalDay(new Date());
   const isFutureDay = dayDate.getTime() > todayDate.getTime();
-  const cronogramaStatus = getCronogramaDayStatus(activeCronogramaData, dayDate, getAgendaSemana);
   const dayData = studyDaysMap?.[dateStr];
   const confirmedMinutes = Math.max(0, Number(dayData?.confirmedMinutes ?? dayData?.minutes ?? 0));
+  const cronogramaStatus = getCronogramaDayStatus(activeCronogramaData, dayDate, getAgendaSemana, confirmedMinutes);
   const hasRawStudyData = !!dayData && (dayData.minutes > 0 || dayData.questions > 0);
   const hasConfirmedStudyData = confirmedMinutes > 0;
   const cycleTargetMinutes = Number(getCycleDayTargetMinutesMap(activeCicloData)?.[dayDate.getDay()] || 0);
@@ -863,6 +1009,19 @@ export const getDailyStudyStatus = ({
   if (contextMode === 'ciclo') statuses = [cicloStatus].filter(Boolean);
   const hasStudyData = contextMode === 'ciclo' ? hasConfirmedStudyData : hasRawStudyData;
 
+  const isRestDay = statuses.length > 0 && statuses.every((status) => Boolean(status?.isRestDay));
+  if (isRestDay) {
+    return {
+      status: 'rest',
+      goalMet: false,
+      hasData: hasStudyData,
+      isRestDay: true,
+      totalSlots: 0,
+      completedSlots: 0,
+      plannedMinutes: 0,
+    };
+  }
+
   const recordDates = Object.keys(studyDaysMap || {})
     .map(ymdToMillis)
     .filter((millis) => millis !== null);
@@ -895,20 +1054,10 @@ export const getDailyStudyStatus = ({
     };
   }
 
-  const hasScheduledSurface = statuses.some((status) => status.totalSlots > 0 || status.isRestDay);
+  const plannedMinutes = statuses.reduce((total, status) => total + Number(status.plannedMinutes || status.targetMinutes || 0), 0);
+  const timeGoalMet = plannedMinutes > 0 && confirmedMinutes >= plannedMinutes;
   const totalSlots = statuses.reduce((acc, status) => acc + (status.totalSlots || 0), 0);
   const completedSlots = statuses.reduce((acc, status) => acc + (status.completedSlots || 0), 0);
-
-  if (hasScheduledSurface && totalSlots === 0) {
-    return {
-      status: 'goal-met-both',
-      goalMet: true,
-      hasData: hasStudyData,
-      isRestDay: true,
-      totalSlots: 0,
-      completedSlots: 0,
-    };
-  }
 
   if (totalSlots > 0) {
     const allDone = completedSlots === totalSlots;
@@ -921,6 +1070,7 @@ export const getDailyStudyStatus = ({
       isRestDay: false,
       totalSlots,
       completedSlots,
+      plannedMinutes,
     };
   }
 

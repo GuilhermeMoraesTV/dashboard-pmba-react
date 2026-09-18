@@ -8,7 +8,10 @@ import {
 } from 'firebase/auth';
 import { LEGACY_ADMIN_UID } from '../../auth/accessControl.js';
 import { auth, isFirebaseEmulator, resolveRealFirebaseConfig } from '../../firebaseConfig.js';
-import { mirrorFirebaseUserToEmulator } from '../../utils/firebaseEnvironment.js';
+import {
+  mirrorFirebaseUserToEmulator,
+  writeEmulatorSessionIdentity,
+} from '../../utils/firebaseEnvironment.js';
 
 const EMULATOR_IDENTITY_ERRORS = new Set([
   'auth/invalid-credential',
@@ -50,13 +53,22 @@ export async function signInWithEmulatorIdentityRecovery(
   const emulatorEnabled = adapters.emulatorEnabled ?? isFirebaseEmulator;
   const verifyReal = adapters.verifyRealCredentials || verifyRealFirebaseCredentials;
   const mirror = adapters.mirrorUser || mirrorFirebaseUserToEmulator;
+  const saveSessionIdentity = adapters.saveSessionIdentity || ((identity) => {
+    if (typeof window !== 'undefined') writeEmulatorSessionIdentity(window.sessionStorage, identity);
+  });
 
-  await persist(targetAuth, persistence);
+  await persist(targetAuth, emulatorEnabled ? inMemoryPersistence : persistence);
 
+  let credential;
   try {
-    return await signIn(targetAuth, email, password);
+    credential = await signIn(targetAuth, email, password);
   } catch (error) {
     if (!shouldRecoverEmulatorIdentity(error, emulatorEnabled)) throw error;
+  }
+
+  if (credential) {
+    if (emulatorEnabled) saveSessionIdentity({ uid: credential.user.uid, email });
+    return credential;
   }
 
   // The production password is checked by Firebase Auth itself. Only after a
@@ -69,5 +81,7 @@ export async function signInWithEmulatorIdentityRecovery(
     localPassword: password,
   });
 
-  return signIn(targetAuth, email, password);
+  credential = await signIn(targetAuth, email, password);
+  saveSessionIdentity({ uid: credential.user.uid, email });
+  return credential;
 }

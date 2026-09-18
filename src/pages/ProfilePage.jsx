@@ -13,6 +13,8 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { CATALOGO_EDITAIS } from './AdminPage/EditaisManager';
 import { useForceUnlock } from '../hooks/useForceUnlock';
 import { deletePlanStudyRecords } from '../services/planDeletion';
+import { deletePermanentPlanning } from '../services/permanentPlanningDeletion';
+import { getPlanningStageRecords } from '../utils/planningTransformation';
 import {
   DEFAULT_COVER_POSITION,
   coverPositionToStyle,
@@ -35,6 +37,7 @@ import {
   USER_FONT_SIZE_OPTIONS,
   USER_FONT_SIZE_STORAGE_KEY,
 } from '../utils/userFontPreference';
+import FounderBadge from '../components/shared/FounderBadge';
 
 import {
   User, Save, X, Archive, Loader2, Upload, Trash2,
@@ -547,6 +550,7 @@ const ArchivedCycleCard = ({ ciclo, hours, onRestore, onDelete, loading, type = 
 
 function ProfilePage({
   user,
+  founder,
   allRegistrosEstudo = [],
   onDeleteRegistro,
   coverURL = null,
@@ -556,6 +560,7 @@ function ProfilePage({
   studyStreak = 0,
   onGoToAchievements,
 }) {
+  const isFounder = founder === true || user?.subscription?.founder === true;
   const [isEditingEmail, setIsEditingEmail] = useState(false);
   const [newEmail, setNewEmail] = useState(user?.email || '');
 
@@ -681,8 +686,10 @@ function ProfilePage({
     return onSnapshot(q, (snap) => setTodosCiclos(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
   }, [user]);
 
-  const ciclosArquivados = useMemo(() => todosCiclos.filter(c => c.arquivado === true), [todosCiclos]);
-  const cronogramasArquivados = useMemo(() => todosCronogramas.filter(c => c.arquivado === true), [todosCronogramas]);
+  const ciclosArquivados = useMemo(() => todosCiclos.filter(c => c.arquivado === true
+    && (!c.planejamentoId || c.metodoVigente !== 'cronograma')), [todosCiclos]);
+  const cronogramasArquivados = useMemo(() => todosCronogramas.filter(c => c.arquivado === true
+    && (!c.planejamentoId || c.metodoVigente !== 'ciclo')), [todosCronogramas]);
   const planosArquivados = useMemo(() => [
       ...ciclosArquivados.map(ciclo => ({ ...ciclo, archiveType: 'ciclo' })),
       ...cronogramasArquivados.map(cronograma => ({ ...cronograma, archiveType: 'cronograma' })),
@@ -713,23 +720,31 @@ function ProfilePage({
   }, [user]);
 
   const groupedHistory = useMemo(() => {
-      const groups = {};
-      const ciclosMap = new Map(todosCiclos.map(c => [c.id, c]));
-      allRegistrosEstudo.forEach(reg => {
-          if (reg.cicloId && !ciclosMap.has(reg.cicloId)) return;
-          const cid = reg.cicloId || 'sem-ciclo';
-          if (!groups[cid]) groups[cid] = { id: cid, cicloInfo: ciclosMap.get(cid), registros: [] };
-          groups[cid].registros.push(reg);
+      const groups = new Map();
+      const stageToPlanning = new Map();
+      for (const stage of [...todosCiclos, ...todosCronogramas]) {
+        const planningId = stage.planejamentoId || stage.id;
+        stageToPlanning.set(stage.id, planningId);
+        if (!groups.has(planningId)) groups.set(planningId, {
+          id: planningId, cicloInfo: stage, registros: [], recordIds: new Set(),
+        });
+        else if (stage.ativo) groups.get(planningId).cicloInfo = stage;
+      }
+      allRegistrosEstudo.forEach((record, index) => {
+        const planningId = record.planejamentoId
+          || stageToPlanning.get(record.cronogramaId || record.cicloId);
+        const group = groups.get(planningId);
+        const recordId = record.id || `record-${index}`;
+        if (!group || group.recordIds.has(recordId)) return;
+        group.recordIds.add(recordId);
+        group.registros.push(record);
       });
-      todosCiclos.forEach(c => {
-          if (!groups[c.id]) groups[c.id] = { id: c.id, cicloInfo: c, registros: [] };
-      });
-      return Object.values(groups).filter(g => g.cicloInfo).sort((a, b) => {
+      return [...groups.values()].sort((a, b) => {
           if (a.cicloInfo.ativo && !b.cicloInfo.ativo) return -1;
           if (!a.cicloInfo.ativo && b.cicloInfo.ativo) return 1;
           return 0;
       });
-  }, [allRegistrosEstudo, todosCiclos]);
+  }, [allRegistrosEstudo, todosCiclos, todosCronogramas]);
 
   const activeCycleData = useMemo(() => groupedHistory.find(g => g.id === selectedCycleId), [groupedHistory, selectedCycleId]);
 
@@ -1091,7 +1106,15 @@ function ProfilePage({
 
     const handleUnarchive = async (id, type = 'ciclo') => {
       const collectionName = type === 'cronograma' ? 'cronogramas' : 'ciclos';
-      await updateDoc(doc(db, 'users', user.uid, collectionName, id), { arquivado: false });
+      const stage = type === 'cronograma'
+        ? todosCronogramas.find((item) => item.id === id)
+        : todosCiclos.find((item) => item.id === id);
+      if (stage?.planejamentoId) {
+        const batch = writeBatch(db);
+        batch.update(doc(db, 'users', user.uid, collectionName, id), { arquivado: false });
+        batch.update(doc(db, 'users', user.uid, 'planejamentos', stage.planejamentoId), { arquivado: false });
+        await batch.commit();
+      } else await updateDoc(doc(db, 'users', user.uid, collectionName, id), { arquivado: false });
     };
     const handleDeletePermanent = (ciclo) => { setCicloParaExcluir(ciclo); setShowDeleteCycleConfirm(true); };
 
@@ -1103,6 +1126,11 @@ function ProfilePage({
         setCicloActionLoading(true);
 
         try {
+            if (cicloParaExcluir.planejamentoId) {
+                await deletePermanentPlanning(user.uid, cicloParaExcluir.planejamentoId);
+                setMessage({ type: 'success', text: `Planejamento "${nome}" e registros excluidos.` });
+                return;
+            }
             await deletePlanStudyRecords({
                 userId: user.uid,
                 planId: id,
@@ -1221,10 +1249,11 @@ function ProfilePage({
                   <div className="w-full min-w-0 flex-1 space-y-2 text-center md:pt-20 md:text-left">
                       <div className="flex w-full items-end justify-between gap-2">
                           {!isEditingName ? (
-                              <div className="group flex min-w-0 items-center gap-2 sm:gap-3">
+                              <div className="group flex min-w-0 flex-wrap items-center gap-2 sm:gap-3">
                                   <h1 className="truncate text-3xl font-black leading-none tracking-tight text-zinc-900 dark:text-white sm:text-4xl md:text-5xl">
                                       {user.displayName || 'Usuário'}
                                   </h1>
+                                  <FounderBadge founder={isFounder} size="lg" />
                                   <button
                                       onClick={() => setIsEditingName(true)}
                                       className="shrink-0 rounded-lg bg-zinc-100 p-2 text-zinc-400 transition-all hover:text-indigo-600 dark:bg-zinc-800 dark:hover:text-indigo-400"
@@ -1486,7 +1515,9 @@ function ProfilePage({
                         {planosArquivadosFiltrados.map((ciclo, idx) => {
                             // Calcula as horas do plano arquivado.
                             const isCronogramaArquivado = ciclo.archiveType === 'cronograma';
-                            const registrosDoCiclo = allRegistrosEstudo.filter(r => isCronogramaArquivado ? r.cronogramaId === ciclo.id : r.cicloId === ciclo.id);
+                            const registrosDoCiclo = ciclo.etapasPlanejamento?.length > 1
+                              ? getPlanningStageRecords(allRegistrosEstudo, ciclo)
+                              : allRegistrosEstudo.filter(r => isCronogramaArquivado ? r.cronogramaId === ciclo.id : r.cicloId === ciclo.id);
                             const min = registrosDoCiclo.reduce((acc, r) => acc + (r.tempoEstudadoMinutos || 0), 0);
                             const horas = Math.round(min / 60 * 10) / 10;
 

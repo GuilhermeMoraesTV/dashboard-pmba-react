@@ -3,6 +3,7 @@
  */
 
 const { HttpsError } = require('firebase-functions/v2/https');
+const { Timestamp: AdminTimestamp, FieldValue: AdminFieldValue } = require('firebase-admin/firestore');
 
 function identifier(value, label) {
   const normalized = String(value || '').trim();
@@ -46,8 +47,8 @@ function splitNoteIntoChunks(content, limits) {
 function createStudySourceService({
   admin,
   getProductLimits,
-  Timestamp = admin.firestore.Timestamp,
-  FieldValue = admin.firestore.FieldValue,
+  Timestamp = admin?.firestore?.Timestamp || AdminTimestamp,
+  FieldValue = admin?.firestore?.FieldValue || AdminFieldValue,
 }) {
   const db = admin.firestore();
 

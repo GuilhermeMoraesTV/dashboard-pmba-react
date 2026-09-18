@@ -73,9 +73,7 @@ const ModalEditarCronograma = ({
   );
 
   if (modoCompleto) {
-    const tituloModoCompleto = modoCompletoTipo === 'recalculate'
-      ? 'Recalcular cronograma'
-      : 'Edicao do cronograma';
+    const tituloModoCompleto = 'Edição do cronograma';
 
     return createPortal(
       <div className="fixed inset-0 z-[20000] flex items-center justify-center bg-zinc-950/80 px-2 py-2 backdrop-blur-sm sm:px-4 sm:py-4">
@@ -101,7 +99,7 @@ const ModalEditarCronograma = ({
               mode="edit"
               cronogramaId={cronograma.id}
               initialState={cronograma}
-              initialStep={2}
+              initialStep={1}
               embedded
               onClose={onFechar}
               onCronogramaCriado={(cronogramaId) => onCronogramaAtualizado?.(cronogramaId)}
@@ -243,7 +241,7 @@ const ModalEditarCronograma = ({
             className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-zinc-200 px-3 py-2.5 text-[9px] font-black uppercase text-zinc-600 transition hover:bg-white dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900"
           >
             <Settings2 size={13} />
-            Recalcular planejamento
+            Editar planejamento completo
           </button>
           <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
             <button onClick={onFechar} className="rounded-xl border border-zinc-200 px-3 py-2.5 text-[9px] font-black uppercase text-zinc-500 transition hover:bg-white dark:border-zinc-800 dark:hover:bg-zinc-900">

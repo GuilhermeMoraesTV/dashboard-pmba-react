@@ -2,6 +2,7 @@ export const FIREBASE_MODE_STORAGE_KEY = 'modoqap_firebase_mode';
 export const FIREBASE_EMULATOR_CONTROL_ENDPOINT = '/__modoqap/firebase-emulators/start';
 export const FIREBASE_EMULATOR_MIRROR_ENDPOINT = '/__modoqap/firebase-emulators/mirror-user';
 export const FIREBASE_EMULATOR_LOGIN_KEY = 'modoqap_firebase_emulator_login';
+export const FIREBASE_EMULATOR_SESSION_KEY = 'modoqap_firebase_emulator_session';
 
 export function normalizeFirebaseMode(value) {
   return value === 'emulator' || value === 'real' ? value : '';
@@ -62,6 +63,27 @@ export function readPendingEmulatorLogin(storage) {
 
 export function clearPendingEmulatorLogin(storage) {
   storage?.removeItem?.(FIREBASE_EMULATOR_LOGIN_KEY);
+}
+
+export function writeEmulatorSessionIdentity(storage, identity) {
+  if (!identity?.uid || !identity?.email) throw new Error('Identidade de sessão do Emulator inválida.');
+  storage?.setItem?.(FIREBASE_EMULATOR_SESSION_KEY, JSON.stringify({
+    uid: String(identity.uid),
+    email: String(identity.email),
+  }));
+}
+
+export function readEmulatorSessionIdentity(storage) {
+  try {
+    const parsed = JSON.parse(storage?.getItem?.(FIREBASE_EMULATOR_SESSION_KEY) || 'null');
+    return parsed?.uid && parsed?.email ? { uid: String(parsed.uid), email: String(parsed.email) } : null;
+  } catch {
+    return null;
+  }
+}
+
+export function clearEmulatorSessionIdentity(storage) {
+  storage?.removeItem?.(FIREBASE_EMULATOR_SESSION_KEY);
 }
 
 export async function mirrorFirebaseUserToEmulator(user, fetchImpl = globalThis.fetch) {

@@ -32,6 +32,7 @@ import { db } from "../firebaseConfig";
 import { useCronogramaSystem } from "../hooks/useCronogramaSystem";
 import { formatDateKeyLocal } from "../services/scheduling/review.js";
 import { useCicloRevisoes } from "../hooks/useCicloRevisoes";
+import { getPlanningStageRecords } from "../utils/planningTransformation";
 import { buildCompletionRegistro } from "../utils/completionRegistro";
 import {
   REGISTRO_PROGRESS_OPTIMISTIC_EVENT,
@@ -428,9 +429,13 @@ export function RevisaoPage({
   }, [user?.uid]);
 
   const revisoesCicloAtivas = useMemo(() => {
-    if (!cicloAtivo?.id) return [];
-    return todasRevisoesCiclo.filter((r) => r.cicloId === cicloAtivo.id);
-  }, [todasRevisoesCiclo, cicloAtivo?.id]);
+    const currentStage = cronograma || cicloAtivo;
+    const cycleIds = new Set((currentStage?.etapasPlanejamento || [])
+      .filter((stage) => stage.metodo === 'ciclo').map((stage) => stage.id));
+    if (cicloAtivo?.id) cycleIds.add(cicloAtivo.id);
+    if (cronograma?.cicloVinculadoId) cycleIds.add(cronograma.cicloVinculadoId);
+    return todasRevisoesCiclo.filter((r) => cycleIds.has(r.cicloId));
+  }, [todasRevisoesCiclo, cicloAtivo, cronograma]);
   const sourceAtual = filtroFonte === "ciclo" && cicloAtivo
     ? "ciclo"
     : filtroFonte === "cronograma" && cronograma
@@ -438,14 +443,17 @@ export function RevisaoPage({
       : cronograma
         ? "cronograma"
         : "ciclo";
-  const registrosDaFonteAtual = useMemo(() => filterStudyRecordsByPlanningSource(registrosEstudo, {
-    source: sourceAtual,
-    planId: sourceAtual === "ciclo" ? cicloAtivo?.id : cronograma?.id,
-  }), [cicloAtivo?.id, cronograma?.id, registrosEstudo, sourceAtual]);
+  const currentStage = sourceAtual === 'cronograma' ? cronograma : cicloAtivo;
+  const registrosDaFonteAtual = useMemo(() => currentStage?.etapasPlanejamento?.length > 1
+    ? getPlanningStageRecords(registrosEstudo, currentStage)
+    : filterStudyRecordsByPlanningSource(registrosEstudo, {
+        source: sourceAtual,
+        planId: currentStage?.id,
+      }), [currentStage, registrosEstudo, sourceAtual]);
   const central = useMemo(() => buildRevisaoCentral({
     cronograma: sourceAtual === "cronograma" ? cronograma : null,
     ciclo: sourceAtual === "ciclo" && cicloAtivo ? { ...cicloAtivo, disciplinas: disciplinasCiclo } : null,
-    revisoesCiclo: sourceAtual === "ciclo" ? revisoesCicloAtivas : [],
+    revisoesCiclo: sourceAtual === "ciclo" || cronograma?.cicloVinculadoId ? revisoesCicloAtivas : [],
     registrosEstudo: registrosDaFonteAtual,
     dataReferencia: new Date(),
   }), [cronograma, cicloAtivo, disciplinasCiclo, registrosDaFonteAtual, revisoesCicloAtivas, sourceAtual]);
@@ -475,10 +483,14 @@ export function RevisaoPage({
     try {
       if (item._fonte === "ciclo") {
         const wasDone = Boolean(item.concluida || item.concluido);
+        const inheritedInSchedule = sourceAtual === 'cronograma'
+          && (cronograma?.etapasPlanejamento || []).some((stage) => stage.metodo === 'ciclo' && stage.id === item.cicloId);
         const completionRegistro = buildCompletionRegistro({
-          context: "ciclo",
-          item,
+          context: inheritedInSchedule ? 'cronograma' : "ciclo",
+          item: { ...item, dataSlot: wasDone && item.concluidaEm?.toDate
+            ? formatDateKeyLocal(item.concluidaEm.toDate()) : formatDateKeyLocal(new Date()) },
           ciclo: cicloAtivo,
+          cronograma: inheritedInSchedule ? cronograma : null,
           isReview: true,
           fallbackMinutes: 20,
         });
@@ -528,7 +540,7 @@ export function RevisaoPage({
     onStartStudy?.(
       { id: s.disciplinaId, nome: s.disciplinaNome || s.disciplina },
       s.assunto || s.topico || null,
-      { defaultContext: s._fonte === "cronograma" ? "cronograma" : "ciclo", tipoRegistro: "revisao" }
+      { defaultContext: sourceAtual === 'cronograma' ? "cronograma" : "ciclo", tipoRegistro: "revisao" }
     );
 
   const handleDominar = async (s) => {

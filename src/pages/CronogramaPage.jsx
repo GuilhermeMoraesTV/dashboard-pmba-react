@@ -6,6 +6,7 @@ import {
   BookOpen, Clock, Star, Flame, BarChart2, Sun, LayoutList,
   GripVertical, Calendar, LayoutGrid, Check, MoreHorizontal,
   BadgeCheck, Loader2, Trophy, History, Cog, RefreshCw, Printer,
+  FilePenLine,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createPortal } from 'react-dom';
@@ -28,6 +29,9 @@ import ModalEditarCronograma from '../components/cronograma/ModalEditarCronogram
 import TimerSettingsModal from '../components/ciclos/StudyTimer/TimerSettingsModal';
 import HistoricoModal from '../components/dashboard/HistoricoModal';
 import { useCronogramaSystem, getAgendaSemana, chaveAssuntoDominado } from '../hooks/useCronogramaSystem';
+import { getSchedulePlanningRecords } from '../utils/planningTransformation';
+import { returnScheduleToCycle } from '../services/planningTransformation';
+import { resolveTemplateForWeek } from '../services/scheduling/review';
 import { buildCompletionRegistro } from '../utils/completionRegistro';
 import { getDisciplineCardVars, getDisciplineColor, getDisciplineColorForSlot } from '../utils/disciplineColors';
 import { openCronogramaWeekPdf } from './CronogramaWeekPdf';
@@ -39,11 +43,13 @@ import ConsolidatedReviewGroups from '../components/cronograma/ConsolidatedRevie
 import { expandConsolidatedReviewTopics } from '../utils/consolidatedReviews.js';
 import { normalizePostponeDays } from '../utils/cronogramaPostponement.js';
 import { getCronogramaSlotRecordedMinutes } from '../utils/studyDayStatus';
+import { getRecordedStudyMinutes } from '../utils/studyRecords';
+import { buildScheduleRecordedProgress, getScheduleSlotKey } from '../../functions/gamification/scheduleStudyProgress.mjs';
 import {
   REGISTRO_PROGRESS_OPTIMISTIC_EVENT,
   applyCronogramaRegistroProgress,
 } from '../services/reviewOptimisticUpdates';
-import { getBrasiliaTodayKey } from '../utils/planningDates';
+import { getBrasiliaTodayKey, isPlanningDateToday } from '../utils/planningDates';
 
 // --- CONSTANTES ---------------------------------------------------------------
 const MESES_PT   = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
@@ -205,16 +211,13 @@ const normalizeCompletionOverride = (override) => (
 
 const applyCompletionOverride = (slot, override) => {
   const { done, progressMinutes } = normalizeCompletionOverride(override);
-  const tempo = Number(slot?.tempoPlanejadoMinutos ?? slot?.tempoMinutos ?? slot?.minutosEstudo ?? 0);
   const progressoAtual = Number(slot?.progressoMinutos || 0);
   return {
     ...slot,
     concluido: done,
     progressoMinutos: Number.isFinite(Number(progressMinutes))
       ? Math.max(0, Number(progressMinutes))
-      : done
-        ? Math.max(progressoAtual, tempo)
-        : progressoAtual,
+      : progressoAtual,
   };
 };
 
@@ -236,6 +239,7 @@ const buildCronogramaTaskState = ({
   weekOffset = 0,
   registrosEstudo = [],
   optimisticDone = {},
+  slotsDia = null,
 }) => {
   const semKey = `w${weekOffset}`;
   const progressoW = cronograma?.progresso?.[semKey] || {};
@@ -247,28 +251,46 @@ const buildCronogramaTaskState = ({
     slot,
     registrosEstudo,
     dateKey: slot?.dataSlot,
+    slotsDia,
   });
-  const progressoCru = Math.max(
+  const slotKey = getScheduleSlotKey(slot);
+  const recordedState = buildScheduleRecordedProgress({ slots: slotsDia || [slot], records: registrosEstudo.filter((record) =>
+    String(record.cronogramaId || '') === String(cronograma?.id || '')
+    && (!record.contextoRegistro || record.contextoRegistro === 'cronograma')
+    && getRegistroDateKey(record) === slot?.dataSlot
+    && !record.isRevisao && !record.revisao && record.tipoEstudo !== 'revisao' && record.tipoRegistro !== 'revisao'),
+    getMinutes: getRecordedStudyMinutes });
+  const assuntosEstudados = recordedState.allSubjects?.[slotKey]
+    || recordedState.subjects?.[slotKey]
+    || [];
+  const assuntosDetalhes = recordedState.subjectDetails?.[slotKey] || [];
+  const planejadoEstudado = Boolean(recordedState.hasPlannedStudied?.[slotKey]);
+  const progressoCru = slot?.isRevisaoAuto ? Math.max(
     Number(progressoMinutosW[slotIdNoProgresso] || 0),
     Number(slot?.slotId ? progressoMinutosW[slot.slotId] || 0 : 0),
     Number(slot?.slotIdBase ? progressoMinutosW[slot.slotIdBase] || 0 : 0),
     Number(slot?.progressoMinutos || 0),
     progressoRegistrado
-  );
+  ) : progressoRegistrado;
   const concluido = slot?.isRevisaoAuto
     ? Boolean(slot?.concluido || progressoW[slot?.slotId] === true)
     : Boolean(
       progressoW[slotIdNoProgresso] === true ||
       progressoW[slot?.slotId] === true ||
       slot?.concluido === true ||
+      recordedState.completed[getScheduleSlotKey(slot)] === true ||
       (tempoPlanejadoMinutos > 0 && progressoCru >= tempoPlanejadoMinutos)
     );
   const tarefaMontada = {
     ...slot,
     slotIdNoProgresso,
     tempoPlanejadoMinutos,
-    progressoMinutos: concluido ? Math.max(progressoCru, tempoPlanejadoMinutos) : progressoCru,
+    progressoMinutos: progressoCru,
     concluido,
+    assuntosEstudados,
+    assuntosDetalhes,
+    planejadoEstudado,
+    assuntoPlanejado: slot?.assunto || slot?.assuntoOriginal || null,
   };
   const optimisticKey = getCompletionKey(tarefaMontada);
   return optimisticKey && Object.prototype.hasOwnProperty.call(optimisticDone, optimisticKey)
@@ -304,10 +326,7 @@ const getTaskPlannedMinutes = (tarefa) => Number(
 );
 
 const getTaskProgressMinutes = (tarefa) => {
-  const tempo = getTaskPlannedMinutes(tarefa);
-  const progressoRaw = Number(tarefa?.progressoMinutos || 0);
-  if (tarefa?.concluido) return Math.max(progressoRaw, tempo);
-  return Math.min(progressoRaw, tempo || progressoRaw);
+  return Math.max(0, Number(tarefa?.progressoMinutos || 0));
 };
 
 const getDayStudySummary = (date, tarefas = []) => {
@@ -388,7 +407,7 @@ const ModalConfirm = ({ msg, onConfirm, onCancel, loading, children = null, conf
   </motion.div>
 );
 
-const WeekSelectorCard = ({ weekOffset, totalWeeks, weekDates, onWeekChange, className = '' }) => {
+const WeekSelectorCard = ({ weekOffset, totalWeeks, weekDates, onWeekChange, isArchived = false, className = '' }) => {
   const safeTotalWeeks = Math.max(1, Number(totalWeeks) || 1);
   const periodLabel = weekDates.length > 0
     ? `${weekDates[0].getDate()} ${MESES_PT[weekDates[0].getMonth()]} – ${weekDates[weekDates.length - 1].getDate()} ${MESES_PT[weekDates[weekDates.length - 1].getMonth()]}`
@@ -406,9 +425,16 @@ const WeekSelectorCard = ({ weekOffset, totalWeeks, weekDates, onWeekChange, cla
         <ChevronLeft size={16}/>
       </button>
       <div className="flex min-w-0 flex-1 flex-col items-center justify-center text-center">
-        <p className="text-[10px] font-black uppercase leading-none tracking-[0.18em] text-zinc-900 dark:text-white">
-          Semana {weekOffset + 1} de {safeTotalWeeks}
-        </p>
+        <div className="flex items-center justify-center gap-1.5">
+          <p className="text-[10px] font-black uppercase leading-none tracking-[0.18em] text-zinc-900 dark:text-white">
+            Semana {weekOffset + 1} de {safeTotalWeeks}
+          </p>
+          {isArchived && (
+            <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+              Histórico
+            </span>
+          )}
+        </div>
         <p className="mt-1 text-[9px] font-medium leading-none text-zinc-500 dark:text-zinc-400">{periodLabel}</p>
       </div>
       <button
@@ -614,6 +640,106 @@ const ModalRevisaoConsolidada = ({ slot, onClose, onDominar, onStart, onToggle, 
   );
 };
 
+// --- RENDERIZADOR DE ASSUNTOS DO CRONOGRAMA --------------------------------
+const CronogramaTaskSubjects = ({ tarefa, modoExibirAssuntos = true, isDominado = false }) => {
+  const [expandido, setExpandido] = useState(false);
+  if (!modoExibirAssuntos) return null;
+
+  if (tarefa.isRevisaoAuto || tarefa.isRevisao) {
+    const textoRevisao = tarefa.assunto || tarefa.assuntoOriginal || 'Revisão Geral do Conteúdo';
+    return (
+      <p className={`line-clamp-2 w-full pr-1 text-xs font-semibold leading-snug ${
+        tarefa.concluido ? 'text-zinc-500 dark:text-zinc-400' : 'text-zinc-600 dark:text-zinc-300'
+      }`}>
+        {textoRevisao}
+      </p>
+    );
+  }
+
+  const detalhes = tarefa.assuntosDetalhes || [];
+  const planejado = tarefa.assunto || tarefa.assuntoOriginal || null;
+
+  if (detalhes.length > 1) {
+    return (
+      <div className="w-full space-y-0.5 text-xs">
+        {!expandido ? (
+          <div className="flex items-center justify-between gap-1 text-[11px]">
+            <div className="flex items-center gap-1.5 min-w-0 truncate">
+              <span className="shrink-0 font-black text-emerald-600 dark:text-emerald-400">✓</span>
+              <span className="shrink-0 font-bold text-emerald-800 dark:text-emerald-300">
+                {detalhes.length} assuntos
+              </span>
+              <span className="shrink-0 text-zinc-400 dark:text-zinc-500">·</span>
+              <span className="truncate font-medium text-zinc-600 dark:text-zinc-300">
+                {detalhes.map((d) => d.assunto).join(' · ')}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setExpandido(true);
+              }}
+              className="shrink-0 text-[10px] font-bold text-blue-600 hover:underline dark:text-blue-400"
+            >
+              Ver lista
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-1">
+            <div className="flex items-center justify-between text-[10px] font-black uppercase text-emerald-700 dark:text-emerald-400">
+              <span>{detalhes.length} assuntos estudados</span>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setExpandido(false);
+                }}
+                className="font-bold lowercase text-blue-600 hover:underline dark:text-blue-400"
+              >
+                recolher
+              </button>
+            </div>
+            <ul className="max-h-32 space-y-0.5 overflow-y-auto pr-1 custom-scrollbar">
+              {detalhes.map((item, idx) => (
+                <li
+                  key={idx}
+                  className="flex items-center justify-between gap-1 text-[11px] font-medium text-zinc-700 dark:text-zinc-200"
+                >
+                  <span className="truncate">✓ {item.assunto}</span>
+                  {Number(item.minutos) > 0 && (
+                    <span className="shrink-0 text-[10px] font-bold tabular-nums text-zinc-400">
+                      {Math.round(item.minutos)}m
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  const assuntoExibido = detalhes[0]?.assunto || planejado;
+  if (!assuntoExibido) return null;
+
+  return (
+    <p
+      className={`line-clamp-2 w-full pr-1 text-xs font-semibold leading-snug ${
+        tarefa.concluido
+          ? 'text-zinc-500 dark:text-zinc-400'
+          : isDominado
+            ? 'text-amber-700/80 dark:text-amber-300/80'
+            : 'text-zinc-600 dark:text-zinc-300'
+      }`}
+      title={assuntoExibido}
+    >
+      {assuntoExibido}
+    </p>
+  );
+};
+
 // --- CARD DE TAREFA ARRASTÁVEL -------------------------------------------------
 const TarefaCardDraggable = ({
   tarefa,
@@ -652,9 +778,7 @@ const TarefaCardDraggable = ({
   const tempoPlanejadoMinutos = Number(tarefa.tempoPlanejadoMinutos ?? tarefa.tempoMinutos ?? tarefa.minutosEstudo ?? 0);
   const progressoAtualMinutos = Number(tarefa.progressoMinutos || 0);
   const progressoLimitado = Math.min(progressoAtualMinutos, tempoPlanejadoMinutos || progressoAtualMinutos);
-  const progressoExibidoMinutos = tarefa.concluido
-    ? Math.max(progressoAtualMinutos, tempoPlanejadoMinutos)
-    : progressoLimitado;
+  const progressoExibidoMinutos = progressoAtualMinutos;
   const progressoPercentual = tempoPlanejadoMinutos > 0
     ? Math.min(100, Math.round((progressoLimitado / tempoPlanejadoMinutos) * 100))
     : (tarefa.concluido ? 100 : 0);
@@ -711,7 +835,7 @@ const TarefaCardDraggable = ({
                 onToggle(tarefa);
               }}
               disabled={desmarcarBloqueado}
-              title={desmarcarBloqueado ? 'Conclusao protegida por registro de revisao' : tarefa.concluido ? 'Marcar como pendente' : 'Marcar como concluido'}
+              title={desmarcarBloqueado ? 'Conclusao protegida por registro de revisao' : tarefa.concluido ? 'Desmarcar conclusão' : 'Marcar como concluido'}
               className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border shadow-sm disabled:cursor-not-allowed ${
                 tarefa.concluido
                   ? 'border-emerald-500 bg-emerald-500 text-white shadow-emerald-500/20'
@@ -721,8 +845,7 @@ const TarefaCardDraggable = ({
               <Check size={15} strokeWidth={3.5} />
             </button>
             <h4 className={`min-w-0 flex-1 line-clamp-2 text-[11px] font-black uppercase tracking-wide leading-tight ${
-              tarefa.concluido ? `${disciplinaColor.text} line-through opacity-75`
-              : isDominado     ? 'text-amber-700 dark:text-amber-400'
+              isDominado     ? 'text-amber-700 dark:text-amber-400'
               : emAndamento    ? 'text-orange-700 dark:text-orange-400'
               : disciplinaColor.text
             }`}>
@@ -737,13 +860,11 @@ const TarefaCardDraggable = ({
           )}
         </div>
 
-        {assuntoTexto && (
-          <p className={`line-clamp-3 w-full pr-1 text-xs font-semibold leading-snug ${
-            tarefa.concluido ? 'text-zinc-500 dark:text-zinc-400 line-through decoration-emerald-500/60' : isDominado ? 'text-amber-700/80 dark:text-amber-300/80' : 'text-zinc-600 dark:text-zinc-300'
-          }`}>
-            {assuntoTexto}
-          </p>
-        )}
+        <CronogramaTaskSubjects
+          tarefa={tarefa}
+          modoExibirAssuntos={modoExibirAssuntos}
+          isDominado={isDominado}
+        />
         {tarefa.isPendenciaTeoria && tarefa.assuntoOriginal && tarefa.assuntoOriginal !== tarefa.assunto && (
           <div className="text-[9px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
             Original: {tarefa.assuntoOriginal}
@@ -822,11 +943,11 @@ const TarefaCardDraggable = ({
           {canMarkPendencia && (
             <button
               onClick={(e) => { e.stopPropagation(); onMarkPendencia(tarefa); }}
-              title="Pendente: mova este assunto para retomar depois sem marcar como concluido."
+              title="Continuar depois: este assunto será o próximo desta disciplina."
                 className="inline-flex h-8 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg bg-white/65 px-2 text-[9px] font-black uppercase tracking-wide text-amber-700 hover:bg-amber-100 dark:bg-white/10 dark:text-amber-300 dark:hover:bg-amber-950/30"
             >
               <SkipForward size={15}/>
-              Pendente
+              Continuar depois
             </button>
           )}
       </div>
@@ -851,9 +972,7 @@ const ModalDetalhesCronograma = ({ slot, cronograma, onClose, onStart, onToggle,
   const accentProgressClass = useDisciplineTheme ? disciplinaColor.progress : 'bg-blue-500';
   const tempoPlanejado = Number(slot.tempoPlanejadoMinutos ?? slot.tempoMinutos ?? slot.minutosEstudo ?? 0);
   const progressoRaw = Number(slot.progressoMinutos || 0);
-  const progressoMinutos = slotAtual.concluido
-    ? Math.max(progressoRaw, tempoPlanejado)
-    : Math.min(progressoRaw, tempoPlanejado || progressoRaw);
+  const progressoMinutos = progressoRaw;
   const progressoPercentual = tempoPlanejado > 0
     ? Math.min(100, Math.round((progressoMinutos / tempoPlanejado) * 100))
     : (slotAtual.concluido ? 100 : 0);
@@ -995,11 +1114,9 @@ const ModalDetalhesCronograma = ({ slot, cronograma, onClose, onStart, onToggle,
                     ))}
                   </div>
                 ) : (
-                  <p className="mt-2 line-clamp-2 text-xs font-medium leading-relaxed text-zinc-700 dark:text-zinc-300 sm:mt-3 sm:text-sm">
-                    {isRevisao
-                      ? slot.assunto || slot.assuntoOriginal || 'Revisão espaçada agendada para reforço do conteúdo.'
-                      : slot.assunto || 'Sessão planejada para avançar no conteúdo principal da disciplina.'}
-                  </p>
+                  <div className="mt-2 sm:mt-3">
+                    <CronogramaTaskSubjects tarefa={slotAtual} modoExibirAssuntos={true} />
+                  </div>
                 )}
               </div>
             </div>
@@ -1062,7 +1179,7 @@ const ModalDetalhesCronograma = ({ slot, cronograma, onClose, onStart, onToggle,
                     }`}
                   >
                     <CheckCircle2 size={15} />
-                    {slotAtual.concluido ? 'Marcar como pendente' : 'Marcar como concluido'}
+                    {slotAtual.concluido ? 'Desmarcar conclusão' : 'Marcar como concluido'}
                   </button>
                 )}
                 <button
@@ -1083,7 +1200,7 @@ const ModalDetalhesCronograma = ({ slot, cronograma, onClose, onStart, onToggle,
               }`}
             >
               <CheckCircle2 size={14} />
-              {slotAtual.concluido ? 'Pendente' : 'Concluir'}
+              {slotAtual.concluido ? 'Desmarcar' : 'Concluir'}
             </button>
             {!isRevisao && onStart && !slotAtual.concluido ? (
               <button
@@ -1165,7 +1282,7 @@ const RevisoesAgrupadasCard = ({ revisoes = [], onOpenConsolidada }) => {
 
 // ZONA DE DROP POR DIA
 const DayDropZone = ({
-  diaSemanaIdx, date, tarefas, isHoje,
+  diaSemanaIdx, date, tarefas, isHoje, isArchived = false,
   onToggle, onMarkPendencia, onStart,
   onDominar, onOpenConsolidada, onOpenDetails, onOpenCompletion, cronograma
 }) => {
@@ -1179,12 +1296,13 @@ const DayDropZone = ({
   } = resumoDia;
   const { isOver, setNodeRef } = useDroppable({
     id: `day-${diaSemanaIdx}`,
+    disabled: isArchived,
     data: {
       type: 'day',
       dia: diaSemanaIdx,
     },
   });
-  const draggablesNoDia = tarefas.filter(isMovableTask).map(getDragTaskId);
+  const draggablesNoDia = isArchived ? [] : tarefas.filter(isMovableTask).map(getDragTaskId);
   const revisoesAgrupadas = tarefas.filter((tarefa) => tarefa.isRevisao || tarefa.isRevisaoAuto || tarefa.isConsolidada);
   const tarefasVisiveis = tarefas.filter((tarefa) => !(tarefa.isRevisao || tarefa.isRevisaoAuto || tarefa.isConsolidada));
   const modoTempo = normalizarModoTempo(cronograma?.modoExibirTempo);
@@ -1309,7 +1427,7 @@ const DayDropZone = ({
                 />
               )}
               {tarefasVisiveis.map(t => (
-                isMovableTask(t) ? (
+                isMovableTask(t) && !isArchived ? (
                   <SortableTarefaCard
                     key={getDragTaskId(t)}
                     tarefa={t}
@@ -1388,6 +1506,12 @@ const VisualizacaoMensal = ({ cronograma, dataInicio, onStart, registrosEstudo =
     }
 
     const slotsPorData = {};
+    const registrosPorData = new Map();
+    registrosEstudo.forEach((registro) => {
+      const key = String(registro.data || registro.dataRegistro || '');
+      if (!registrosPorData.has(key)) registrosPorData.set(key, []);
+      registrosPorData.get(key).push(registro);
+    });
     const revisoesPorData = new Set();
     const metricas = { diasComEstudo: 0, blocos: 0, minutos: 0 };
     const dominios = new Set(Object.keys(cronograma?.progresso?.dominios || {}));
@@ -1412,8 +1536,9 @@ const VisualizacaoMensal = ({ cronograma, dataInicio, onStart, registrosEstudo =
           cronograma,
           slot,
           weekOffset: week,
-          registrosEstudo,
+          registrosEstudo: registrosPorData.get(dataKey) || [],
           optimisticDone,
+          slotsDia: agendaSemana.filter((candidate) => candidate.dataSlot === dataKey),
         });
         const tempoMinutos = Number(tarefa.tempoMinutos ?? tarefa.minutosEstudo ?? tarefa.tempoPlanejadoMinutos ?? 0);
         slotsPorData[dataKey].push({ ...tarefa, tempoMinutos });
@@ -1828,10 +1953,7 @@ const VisualizacaoLista = ({ cronograma, weekDates, tarefasPorDia, onStart, onOp
     acc + Number(item.tarefa.tempoPlanejadoMinutos ?? item.tarefa.tempoMinutos ?? item.tarefa.minutosEstudo ?? 0)
   ), 0);
   const totalProgresso = tarefasTimeline.reduce((acc, item) => {
-    const tempo = Number(item.tarefa.tempoPlanejadoMinutos ?? item.tarefa.tempoMinutos ?? item.tarefa.minutosEstudo ?? 0);
-    const progresso = item.tarefa.concluido
-      ? Math.max(Number(item.tarefa.progressoMinutos || 0), tempo)
-      : Math.min(Number(item.tarefa.progressoMinutos || 0), tempo || Number(item.tarefa.progressoMinutos || 0));
+    const progresso = getTaskProgressMinutes(item.tarefa);
     return acc + progresso;
   }, 0);
   const progressoSemana = totalPlanejado > 0 ? Math.round((totalProgresso / totalPlanejado) * 100) : 0;
@@ -2019,9 +2141,7 @@ const VisualizacaoLista = ({ cronograma, weekDates, tarefasPorDia, onStart, onOp
               const isActive = idx === activeIndex;
               const tempo = Number(tarefa.tempoPlanejadoMinutos ?? tarefa.tempoMinutos ?? tarefa.minutosEstudo ?? 0);
               const progressoRaw = Number(tarefa.progressoMinutos || 0);
-              const progressoMinutos = isCompleted
-                ? Math.max(progressoRaw, tempo)
-                : Math.min(progressoRaw, tempo || progressoRaw);
+              const progressoMinutos = progressoRaw;
               const progressoPercentual = tempo > 0
                 ? Math.min(100, Math.round((progressoMinutos / tempo) * 100))
                 : (isCompleted ? 100 : 0);
@@ -2078,7 +2198,7 @@ const VisualizacaoLista = ({ cronograma, weekDates, tarefasPorDia, onStart, onOp
                         <div className="flex min-w-0 flex-1 items-start gap-2">
                           <button
                             onClick={() => onToggle(tarefa)}
-                            title={isCompleted ? 'Marcar como pendente' : 'Marcar como concluido'}
+                            title={isCompleted ? 'Desmarcar conclusão' : 'Marcar como concluido'}
                             className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border shadow-sm ${
                               isCompleted
                                 ? 'border-emerald-500 bg-emerald-500 text-white shadow-emerald-500/20'
@@ -2122,7 +2242,9 @@ const VisualizacaoLista = ({ cronograma, weekDates, tarefasPorDia, onStart, onOp
                             <p className="text-[9px] font-black uppercase tracking-widest opacity-60">
                               {tarefa.isPendenciaTeoria ? 'Retomar Assunto' : isRevisao ? 'Revisao Agendada' : 'Assunto Sugerido'}
                             </p>
-                            <p className="truncate text-[11px] font-bold sm:text-xs">{getTextoAssunto(tarefa, cronograma)}</p>
+                            <div className="mt-1">
+                              <CronogramaTaskSubjects tarefa={tarefa} modoExibirAssuntos={true} />
+                            </div>
                           </div>
                         </div>
                       )}
@@ -2199,11 +2321,11 @@ const VisualizacaoLista = ({ cronograma, weekDates, tarefasPorDia, onStart, onOp
                           {!isRevisao && (
                             <button
                               onClick={() => onMarkPendencia(tarefa)}
-                              title="Pendente: mova este assunto para retomar depois sem marcar como concluido."
+                              title="Continuar depois: este assunto será o próximo desta disciplina."
                               className="flex h-8 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg bg-amber-50 px-3 text-[9px] font-black uppercase tracking-wide text-amber-700 transition-colors hover:bg-amber-100 dark:bg-amber-950/20 dark:text-amber-300 dark:hover:bg-amber-950/30"
                             >
                               <SkipForward size={14} />
-                              Pendente
+                              Continuar depois
                             </button>
                           )}
                         </div>
@@ -2342,7 +2464,7 @@ const SemanaHojeHero = ({ date, tarefas }) => {
 };
 
 // --- PÁGINA PRINCIPAL ----------------------------------------------------------
-const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletionRegistro, registrosEstudo = [], onDeleteRegistro, onGoToEdital, initialEditMode = null, onInitialEditModeHandled }) => {
+const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletionRegistro, registrosEstudo = [], onDeleteRegistro, onGoToEdital, onReturnToCycle, isTimerActive = false, initialEditMode = null, onInitialEditModeHandled }) => {
   const [cronograma,        setCronograma]        = useState(null);
   const [loadingPage,       setLoadingPage]       = useState(true);
   const [showWizard,        setShowWizard]        = useState(false);
@@ -2369,6 +2491,9 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
   const [editInitialMode,   setEditInitialMode]   = useState('simple');
   const [completionModalData, setCompletionModalData] = useState(null);
   const [editalTemplateData, setEditalTemplateData] = useState(null);
+  const [confirmarRetornoCiclo, setConfirmarRetornoCiclo] = useState(false);
+  const [retornoCicloLoading, setRetornoCicloLoading] = useState(false);
+  const [retornoCicloError, setRetornoCicloError] = useState('');
 
   const weekScrollRef = useRef(null);
   const configMenuRef = useRef(null);
@@ -2559,6 +2684,11 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
     });
   }, [cronograma, weekOffset]);
 
+  const resolvedTemplateInfo = useMemo(() => {
+    return resolveTemplateForWeek(cronograma, weekOffset);
+  }, [cronograma, weekOffset]);
+  const isArchivedWeek = Boolean(resolvedTemplateInfo.isArchived);
+
   const agendaSemana = useMemo(() => {
     if (!cronograma) return [];
     const dominados = new Set(Object.keys(cronograma.progresso?.dominios || {}));
@@ -2567,14 +2697,21 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
 
   const tarefasPorDia = useMemo(() => {
     const mapa = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] };
+    const registrosPorData = new Map();
+    registrosEstudo.forEach((registro) => {
+      const key = String(registro.data || registro.dataRegistro || '');
+      if (!registrosPorData.has(key)) registrosPorData.set(key, []);
+      registrosPorData.get(key).push(registro);
+    });
     agendaSemana.forEach(slot => {
       const chave = chaveAssuntoDominado(slot.disciplinaId, slot.assunto);
       const tarefaMontada = buildCronogramaTaskState({
         cronograma,
         slot,
         weekOffset,
-        registrosEstudo,
+        registrosEstudo: registrosPorData.get(slot.dataSlot) || [],
         optimisticDone,
+        slotsDia: agendaSemana.filter((candidate) => candidate.dataSlot === slot.dataSlot),
       });
       mapa[slot.dia]?.push({ ...tarefaMontada, dominado: !!(dominiosLocal[chave]) });
     });
@@ -2583,13 +2720,20 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
 
   useEffect(() => {
     if (!cronograma || !agendaSemana.length) return;
+    const registrosPorData = new Map();
+    registrosEstudo.forEach((registro) => {
+      const key = String(registro.data || registro.dataRegistro || '');
+      if (!registrosPorData.has(key)) registrosPorData.set(key, []);
+      registrosPorData.get(key).push(registro);
+    });
     const authoritativeByKey = new Map(agendaSemana.map((slot) => {
       const task = buildCronogramaTaskState({
         cronograma,
         slot,
         weekOffset,
-        registrosEstudo,
+        registrosEstudo: registrosPorData.get(slot.dataSlot) || [],
         optimisticDone: {},
+        slotsDia: agendaSemana.filter((candidate) => candidate.dataSlot === slot.dataSlot),
       });
       return [getCompletionKey(task), task];
     }));
@@ -2619,14 +2763,13 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
 
   const buildCompletionModalData = useCallback(({ date, tarefas }) => {
     if (!date || !Array.isArray(tarefas) || tarefas.length === 0) return null;
+    if (!isPlanningDateToday(date)) return null;
     const resumo = getDayStudySummary(date, tarefas);
     if (!resumo.todoConcluido) return null;
 
     const dateKey = dateToYMDLocal(date);
-    const registrosDoDia = (registrosEstudo || []).filter((registro) => (
-      getRegistroDateKey(registro) === dateKey
-      && (!cronograma?.id || registro.cronogramaId === cronograma.id)
-    ));
+    const registrosDoDia = getSchedulePlanningRecords(registrosEstudo, cronograma)
+      .filter((registro) => getRegistroDateKey(registro) === dateKey);
     const questions = registrosDoDia.reduce((acc, registro) => acc + Number(registro.questoesFeitas || 0), 0);
     const correct = registrosDoDia.reduce((acc, registro) => acc + Number(registro.acertos || 0), 0);
 
@@ -2671,9 +2814,7 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
     const todos = Object.values(tarefasPorDia).flat();
     return todos.reduce((acc, tarefa) => {
       const tempo = Number(tarefa.tempoPlanejadoMinutos ?? tarefa.tempoMinutos ?? tarefa.minutosEstudo ?? 0);
-      const progresso = tarefa.concluido
-        ? Math.max(Number(tarefa.progressoMinutos || 0), tempo)
-        : Math.min(Number(tarefa.progressoMinutos || 0), tempo || Number(tarefa.progressoMinutos || 0));
+      const progresso = getTaskProgressMinutes(tarefa);
       return {
         totalMeta: acc.totalMeta + tempo,
         totalFeito: acc.totalFeito + progresso,
@@ -2708,7 +2849,7 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
 
   const registrosHistoricoCronograma = useMemo(() => {
     if (!cronograma?.id) return [];
-    return (registrosEstudo || []).filter((registro) => registro.cronogramaId === cronograma.id);
+    return getSchedulePlanningRecords(registrosEstudo, cronograma);
   }, [cronograma?.id, registrosEstudo]);
   const totalAcumuladoCronograma = useMemo(() => registrosHistoricoCronograma.reduce(
     (total, registro) => total + Math.max(0, Number(registro.tempoEstudadoMinutos || registro.duracaoMinutos || 0)),
@@ -2746,9 +2887,18 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
       context: 'cronograma',
       item: tarefa,
       cronograma,
-      isReview: !!tarefa.isRevisaoAuto,
+      isReview: !!tarefa.isRevisaoAuto || !!tarefa.isRevisao,
     });
-    let openedCompletionPreview = false;
+    const showCompletionPreviewOnce = (preview) => {
+      if (!preview) return;
+      const key = `@ModoQAP:DailyGoalShown:${user.uid}:cronograma:${cronograma.id}:${completionRegistro.data}`;
+      try {
+        if (localStorage.getItem(key) === '1') return;
+        localStorage.setItem(key, '1');
+      } catch {}
+      setCompletionModalData(preview);
+    };
+    let completionPreviewData = null;
     if (nextDone) {
       const diaSemana = Number(tarefa.dia);
       const date = tarefa.dataSlot
@@ -2759,8 +2909,7 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
       ));
       const previewData = buildCompletionModalData({ date, tarefas: tarefasDoDia });
       if (previewData) {
-        openedCompletionPreview = true;
-        setCompletionModalData(previewData);
+        completionPreviewData = previewData;
       }
     }
     const persistToggle = async () => {
@@ -2772,9 +2921,21 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
       const isLatestIntent = toggleIntentRef.current[toggleId] === intentVersion;
     if (!ok) {
       if (optimisticKey && isLatestIntent) setOptimisticDone(prev => ({ ...prev, [optimisticKey]: previousDone }));
-      if (openedCompletionPreview && isLatestIntent) setCompletionModalData(null);
+      if (completionPreviewData && isLatestIntent) setCompletionModalData(null);
     } else if (!previousDone && addRegistroEstudo) {
-      await registroPromise;
+      try {
+        const saved = await registroPromise;
+        if (saved === false) {
+          showToast('Bloco marcado, mas o registro de estudo não foi salvo. Tente novamente.');
+        } else if (completionPreviewData && isLatestIntent) {
+          showCompletionPreviewOnce(completionPreviewData);
+        }
+      } catch (error) {
+        console.error('[CronogramaPage] Falha ao registrar conclusão:', error);
+        showToast('Bloco marcado, mas o registro de estudo não foi salvo. Tente novamente.');
+      }
+    } else if (!previousDone && completionPreviewData && isLatestIntent) {
+      showCompletionPreviewOnce(completionPreviewData);
     } else if (previousDone && deleteCompletionRegistro) {
       await deleteCompletionRegistro(completionRegistro);
     }
@@ -2852,7 +3013,7 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
     const ok = await marcarTeoriaAindaNaoConcluida(cronograma.id, tarefa, semanaDoSlot);
     setToggleLoadingId(null);
     showToast(ok
-      ? 'Assunto marcado como teoria ainda nao concluida'
+      ? 'Continuação reservada para a próxima sessão desta disciplina'
       : 'Erro ao salvar pendencia de teoria.'
     );
   };
@@ -2861,7 +3022,17 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
     if (onStartStudy) onStartStudy(
       { id: tarefa.disciplinaId, nome: tarefa.disciplinaNome },
       tarefa.assunto || null,
-      { defaultContext: 'cronograma' }
+      {
+        defaultContext: 'cronograma',
+        cronogramaSlotContext: {
+          slotIdBase: tarefa.slotIdBase || tarefa.slotId || null,
+          slotId: tarefa.slotId || null,
+          dataSlot: tarefa.dataSlot || null,
+          ordemNoDia: tarefa.ordemNoDia ?? null,
+          hora: tarefa.hora ?? null,
+          assuntoOriginal: tarefa.assuntoOriginal || tarefa.assunto || null,
+        },
+      }
     );
   };
 
@@ -2895,6 +3066,7 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
   }, [cronograma]);
 
   const persistTemplateReorder = useCallback(async (ordersByDay, manualDays) => {
+    if (isArchivedWeek) return false;
     const updatedTemplate = buildTemplateFromOrders(ordersByDay, manualDays);
     if (!updatedTemplate) return false;
 
@@ -2915,21 +3087,22 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
       }
       return false;
     }
-  }, [buildTemplateFromOrders, cronograma?.id, cronograma?.semanaTemplate, user?.uid]);
+  }, [buildTemplateFromOrders, cronograma?.id, cronograma?.semanaTemplate, isArchivedWeek, user?.uid]);
 
   const handleDragStart = useCallback((event) => {
+    if (isArchivedWeek) return;
     const tarefa = event.active.data.current?.tarefa;
     if (tarefa) setActiveDragTask(tarefa);
     const initialRect = event.active.rect.current?.initial;
     setActiveDragSize(initialRect ? { width: initialRect.width, height: initialRect.height } : null);
-  }, []);
+  }, [isArchivedWeek]);
 
   const handleDragEnd = useCallback(async (event) => {
     setActiveDragTask(null);
     setActiveDragSize(null);
 
     const { active, over } = event;
-    if (!over || !cronograma) return;
+    if (!over || !cronograma || isArchivedWeek) return;
 
     const activeData = active.data.current;
     const overData = over.data.current;
@@ -3106,10 +3279,38 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
     );
   }
 
+  const confirmarVoltaAoCiclo = async () => {
+    if (!cronograma?.id || retornoCicloLoading) return;
+    setRetornoCicloLoading(true);
+    setRetornoCicloError('');
+    try {
+      const id = await returnScheduleToCycle(user.uid, cronograma.id);
+      setConfirmarRetornoCiclo(false);
+      onReturnToCycle?.(id);
+    } catch (error) {
+      setRetornoCicloError(error?.message || 'Nao foi possivel voltar ao ciclo.');
+    } finally {
+      setRetornoCicloLoading(false);
+    }
+  };
+
   // --- RENDER PRINCIPAL ------------------------------------------------------
   return (
     <div className="desktop-page-zoom desktop-page-zoom--cronograma relative flex min-h-[calc(100vh-120px)] min-w-0 flex-col animate-fade-in">
       {/* -- MODAIS -- */}
+      {confirmarRetornoCiclo && typeof document !== 'undefined' && createPortal(
+        <ModalConfirm
+          title="Voltar ao ciclo semanal"
+          msg="O mesmo planejamento ganha uma nova etapa de ciclo e uma rodada nova. O cronograma e todos os estudos anteriores permanecem no histórico."
+          confirmLabel="Criar nova etapa de ciclo"
+          confirmIcon={RefreshCw}
+          onConfirm={confirmarVoltaAoCiclo}
+          onCancel={() => { setConfirmarRetornoCiclo(false); setRetornoCicloError(''); }}
+          loading={retornoCicloLoading}
+        >
+          {retornoCicloError && <p role="alert" className="text-xs font-semibold text-red-600">{retornoCicloError}</p>}
+        </ModalConfirm>, document.body
+      )}
       {delayConfirmation && typeof document !== 'undefined' && createPortal(
         <ModalConfirm
           title="Adiar semana"
@@ -3260,6 +3461,22 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
                 </div>
               </div>
 
+              {(cronograma.etapasPlanejamento || []).length > 1 && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-blue-600 dark:text-blue-300">
+                    Etapas do planejamento: {(cronograma.etapasPlanejamento || []).map((stage, index) => (
+                      `${stage.metodo === 'ciclo' ? 'ciclo' : 'cronograma'}${index === cronograma.etapasPlanejamento.length - 1 ? ' vigente' : ''}`
+                    )).join(' → ')}
+                  </p>
+                  {onReturnToCycle && cronograma.ativo && (
+                    <button type="button" disabled={isTimerActive} onClick={() => setConfirmarRetornoCiclo(true)}
+                      className="rounded-lg border border-blue-200 px-2 py-1 text-[10px] font-bold text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-blue-900 dark:text-blue-300">
+                      Voltar ao ciclo
+                    </button>
+                  )}
+                </div>
+              )}
+
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-zinc-400">
                 <div className="flex items-center gap-1">
                   <CalendarDays size={10} className="md:h-3.5 md:w-3.5"/>
@@ -3404,9 +3621,9 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
                       }}
                       className="group relative mt-1.5 flex w-full items-center gap-2.5 rounded-xl border border-zinc-200/80 bg-zinc-50/80 p-2.5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-zinc-300 hover:bg-white hover:shadow-md hover:shadow-zinc-900/5 dark:border-zinc-700 dark:bg-zinc-800/55 dark:hover:border-zinc-600 dark:hover:bg-zinc-800"
                     >
-                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-zinc-900 text-white shadow-sm dark:bg-white dark:text-zinc-950"><RefreshCw size={14} /></span>
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-zinc-900 text-white shadow-sm dark:bg-white dark:text-zinc-950"><FilePenLine size={14} /></span>
                       <span className="min-w-0 flex-1">
-                        <span className="block text-[10px] font-black uppercase tracking-wide text-zinc-900 dark:text-white">Recalcular</span>
+                        <span className="block text-[10px] font-black uppercase tracking-wide text-zinc-900 dark:text-white">Editar cronograma</span>
                         <span className="mt-0.5 block text-[9px] font-medium leading-snug text-zinc-500 dark:text-zinc-400">Refaça rotina, disciplinas e distribuição pelo assistente.</span>
                       </span>
                       <ChevronRight size={14} className="shrink-0 text-zinc-300 transition-transform group-hover:translate-x-0.5 group-hover:text-zinc-700 dark:text-zinc-700 dark:group-hover:text-zinc-300" />
@@ -3474,6 +3691,7 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
               weekOffset={weekOffset}
               totalWeeks={totalSemanas}
               weekDates={weekDates}
+              isArchived={isArchivedWeek}
               onWeekChange={setWeekOffset}
               className="sm:w-[258px] lg:col-start-2 lg:row-start-1 lg:mx-0 lg:justify-self-center"
             />
@@ -3516,6 +3734,7 @@ const CronogramaPage = ({ user, onStartStudy, addRegistroEstudo, deleteCompletio
                         date={date}
                         tarefas={tarefasPorDia[diaReal] || []}
                         isHoje={isHoje}
+                        isArchived={isArchivedWeek}
                         onToggle={handleToggle}
                         onMarkPendencia={handleMarkPendencia}
                         onStart={handleStart}

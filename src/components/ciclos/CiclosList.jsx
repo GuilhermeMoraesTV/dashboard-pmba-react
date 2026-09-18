@@ -18,6 +18,7 @@ import {
   Trash2,
   Trophy,
   Zap,
+  CalendarRange,
 } from 'lucide-react';
 import {
   collection,
@@ -29,6 +30,7 @@ import {
 } from 'firebase/firestore';
 
 import { db } from '../../firebaseConfig';
+import { isUnconfirmedEmptySnapshot } from '../../utils/firestoreSnapshotState';
 import { resolveLogoUrl } from '../admin/config/editalAssets';
 import { getCicloWeeklyStatus } from '../../utils/cicloWeeklyStatus';
 import { useEditaisCatalog } from '../../hooks/useEditaisCatalog';
@@ -95,7 +97,7 @@ const ModalConfirmacao = ({ item, title, description, icon: Icon, tone = 'red', 
   );
 };
 
-const CicloCard = ({ ciclo, editaisMap, registrosEstudo = [], onOpen, onMenuToggle, isMenuOpen, onAction, isTimerActive }) => {
+const CicloCard = ({ ciclo, editaisMap, registrosEstudo = [], onOpen, onMenuToggle, isMenuOpen, onAction, isTimerActive, canTransform = false }) => {
   const logo = resolveLogoUrl({ ciclo, editaisMap });
   const concluidoCount = Number(ciclo.conclusoes || 0);
   const totalBlocos = Number(
@@ -158,6 +160,11 @@ const CicloCard = ({ ciclo, editaisMap, registrosEstudo = [], onOpen, onMenuTogg
               {isMenuOpen && (
                 <motion.div initial={{ opacity: 0, y: 5, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} onClick={(event) => event.stopPropagation()} className="absolute right-0 top-8 z-50 w-44 overflow-hidden rounded-xl border border-zinc-200 bg-white py-1 shadow-xl ring-1 ring-black/5 dark:border-zinc-800 dark:bg-card-dark sm:w-52">
                   {ciclo.ativo && <button type="button" onClick={(event) => onAction(event, 'desativar', ciclo)} className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-zinc-500 transition-colors hover:bg-zinc-50 dark:text-zinc-400 dark:hover:bg-zinc-800/60"><PauseCircle size={14} /> Desativar</button>}
+                  {canTransform && (
+                    <button type="button" onClick={(event) => onAction(event, 'transformar', ciclo)} className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-blue-600 transition-colors hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/40">
+                      <CalendarRange size={14} /> Transformar em cronograma
+                    </button>
+                  )}
                   <button type="button" onClick={(event) => onAction(event, 'arquivar', ciclo)} className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-zinc-500 transition-colors hover:bg-zinc-50 dark:text-zinc-400 dark:hover:bg-zinc-800/60"><Archive size={14} /> Arquivar</button>
                   <div className="my-1 h-px bg-zinc-100 dark:bg-zinc-800" />
                   <button type="button" onClick={(event) => onAction(event, 'excluir', ciclo)} className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-red-600 transition-colors hover:bg-red-50 dark:text-red-500 dark:hover:bg-red-900/10"><Trash2 size={14} /> Excluir</button>
@@ -232,6 +239,7 @@ export default function CiclosList({
   hideHeader = false,
   onRequestCreate = null,
   onRequestEdit = null,
+  onRequestTransform = null,
   compact = false,
 }) {
   const [ciclos, setCiclos] = useState([]);
@@ -239,6 +247,7 @@ export default function CiclosList({
   const [showCreateWizard, setShowCreateWizard] = useState(false);
   const [menuAberto, setMenuAberto] = useState(null);
   const [cicloParaEditar, setCicloParaEditar] = useState(null);
+  const [cicloEditMode, setCicloEditMode] = useState('edit');
   const [cicloParaExcluir, setCicloParaExcluir] = useState(null);
   const [cicloParaDesativar, setCicloParaDesativar] = useState(null);
   const [timerWarning, setTimerWarning] = useState(false);
@@ -246,7 +255,7 @@ export default function CiclosList({
   const [actionError, setActionError] = useState('');
   const editaisMap = useEditaisCatalog();
 
-  const { ativarCiclo, desativarCiclo, loading: actionLoading, error } = useCiclos(user);
+  const { ativarCiclo, desativarCiclo, excluirCicloPermanente, loading: actionLoading, error } = useCiclos(user);
   const canUseInlineCreate = typeof onRequestCreate !== 'function';
   const canUseInlineEdit = typeof onRequestEdit !== 'function';
   const containerClassName = compact ? 'p-0 animate-fade-in' : 'p-0 min-h-[50vh] animate-fade-in pb-12';
@@ -267,15 +276,13 @@ export default function CiclosList({
     setLoadingList(true);
     const ciclosRef = collection(db, 'users', user.uid, 'ciclos');
     return onSnapshot(query(ciclosRef), { includeMetadataChanges: true }, (snapshot) => {
+      if (isUnconfirmedEmptySnapshot(snapshot)) return;
       const list = snapshot.docs
         .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
-        .filter((ciclo) => !ciclo.arquivado)
+        .filter((ciclo) => !ciclo.arquivado && !ciclo.cronogramaVinculadoId)
         .sort((a, b) => getTs(b) - getTs(a));
       setCiclos(list);
-      const awaitingServerConfirmation = snapshot.metadata.fromCache
-        && list.length === 0
-        && navigator.onLine;
-      if (!awaitingServerConfirmation) setLoadingList(false);
+      setLoadingList(false);
     }, (err) => {
       console.error('Erro ao buscar ciclos:', err);
       setLoadingList(false);
@@ -326,9 +333,15 @@ export default function CiclosList({
       return;
     }
 
-    if (action === 'editar') {
+    if (action === 'transformar') {
+      onRequestTransform?.(ciclo.id, ciclo);
+      return;
+    }
+
+    if (action === 'editar' || action === 'recalcular') {
+      setCicloEditMode('edit');
       if (canUseInlineEdit) setCicloParaEditar(ciclo);
-      else onRequestEdit(ciclo);
+      else onRequestEdit(ciclo, { mode: 'edit' });
       return;
     }
 
@@ -359,15 +372,12 @@ export default function CiclosList({
     if (!cicloParaExcluir || deleteLoading || !user?.uid) return;
     setDeleteLoading(true);
     try {
-      await deletePlanStudyRecords({
-        userId: user.uid,
-        planId: cicloParaExcluir.id,
-        planType: 'ciclo',
-      });
-      const batch = writeBatch(db);
-      batch.delete(doc(db, 'users', user.uid, 'ciclos', cicloParaExcluir.id));
-      await batch.commit();
-      setCicloParaExcluir(null);
+      const ok = await excluirCicloPermanente(cicloParaExcluir.id);
+      if (ok) {
+        setCicloParaExcluir(null);
+      } else {
+        setActionError('Erro ao excluir ciclo. Tente novamente.');
+      }
     } catch (err) {
       console.error('Erro ao excluir ciclo:', err);
       setActionError('Erro ao excluir ciclo. Tente novamente.');
@@ -387,7 +397,7 @@ export default function CiclosList({
   if (cicloParaEditar && canUseInlineEdit) {
     return (
       <div className={containerClassName}>
-        <CicloEditModal onClose={() => setCicloParaEditar(null)} user={user} ciclo={cicloParaEditar} onCicloAtivado={onCicloAtivado} />
+        <CicloEditModal onClose={() => setCicloParaEditar(null)} user={user} ciclo={cicloParaEditar} onCicloAtivado={onCicloAtivado} upgradeMode={cicloEditMode === 'recalculate'} />
       </div>
     );
   }
@@ -489,6 +499,7 @@ export default function CiclosList({
               isMenuOpen={menuAberto === ciclo.id}
               onAction={handleAction}
               isTimerActive={isTimerActive}
+              canTransform={Boolean(onRequestTransform)}
             />
           ))}
         </div>

@@ -13,7 +13,13 @@ import {
   USER_FONT_SIZE_STORAGE_KEY,
 } from './utils/userFontPreference';
 import { lazyWithRetry } from './utils/lazyWithRetry';
-import { clearPendingEmulatorLogin, readPendingEmulatorLogin } from './utils/firebaseEnvironment.js';
+import {
+  clearPendingEmulatorLogin,
+  mirrorFirebaseUserToEmulator,
+  readEmulatorSessionIdentity,
+  readPendingEmulatorLogin,
+  writeEmulatorSessionIdentity,
+} from './utils/firebaseEnvironment.js';
 
 // Importações Lazy
 const Dashboard = lazyWithRetry(() => import('./components/Dashboard'), { name: 'Dashboard' });
@@ -21,6 +27,9 @@ const Login = lazyWithRetry(() => import('./components/Login'), { name: 'Login' 
 const Signup = lazyWithRetry(() => import('./components/Signup'), { name: 'Cadastro' });
 const ForgotPassword = lazyWithRetry(() => import('./components/ForgotPassword'), { name: 'Recuperar Senha' });
 const NotFoundPage = lazyWithRetry(() => import('./pages/NotFoundPage'), { name: 'Página Não Encontrada' });
+const SubscriptionTestPanel = import.meta.env.DEV
+  ? lazyWithRetry(() => import('./components/dev/SubscriptionTestPanel'), { name: 'SubscriptionTestPanel' })
+  : null;
 
 function ProtectedDashboard({ user, isDarkMode, toggleTheme }) {
   const location = useLocation();
@@ -116,16 +125,23 @@ function App() {
       if (!active) return;
       if (isFirebaseEmulator) {
         const pendingLogin = readPendingEmulatorLogin(window.sessionStorage);
-        if (pendingLogin && auth.currentUser?.uid !== pendingLogin.uid) {
+        const sessionIdentity = readEmulatorSessionIdentity(window.sessionStorage);
+        if (pendingLogin || sessionIdentity) {
           try {
-            await signInWithEmailAndPassword(auth, pendingLogin.email, pendingLogin.password);
+            const identity = pendingLogin || sessionIdentity;
+            const restored = await mirrorFirebaseUserToEmulator({
+              uid: identity.uid,
+              email: identity.email,
+              localPassword: pendingLogin?.password,
+              restoreOnly: true,
+            });
+            await signInWithEmailAndPassword(auth, restored.email, restored.password);
+            writeEmulatorSessionIdentity(window.sessionStorage, restored);
             clearPendingEmulatorLogin(window.sessionStorage);
           } catch (error) {
             clearPendingEmulatorLogin(window.sessionStorage);
-            console.error('[Firebase Emulator] Falha ao restaurar usuário espelhado:', error);
+            console.warn('[Firebase Emulator] Sessão local expirada; faça login novamente:', error?.code || error?.message);
           }
-        } else if (pendingLogin) {
-          clearPendingEmulatorLogin(window.sessionStorage);
         }
       }
       if (!active) return;
@@ -167,6 +183,11 @@ function App() {
       <div className="flex flex-col min-h-screen bg-background-color dark:bg-dark-background-color transition-colors">
         <PwaStatus />
         <EnvironmentBadge />
+        {SubscriptionTestPanel && (
+          <Suspense fallback={null}>
+            <SubscriptionTestPanel user={user} />
+          </Suspense>
+        )}
 
         <Suspense fallback={null}>
           <main className="flex-grow">

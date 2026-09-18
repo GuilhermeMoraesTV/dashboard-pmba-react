@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { Check, Eye, EyeOff, Play } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Check, Clock3, Play } from 'lucide-react';
 import { getCycleFreeQueue } from '../../utils/studyDayStatus';
 import { getDisciplineColorForSlot } from '../../utils/disciplineColors';
 
@@ -13,20 +13,91 @@ const fmtMin = (value) => {
   return rest ? `${hours}h${String(rest).padStart(2, '0')}` : `${hours}h`;
 };
 
+function CardSessoesCicloSubjects({ session }) {
+  const [expandido, setExpandido] = useState(false);
+  const assuntos = session.assuntosEstudados || [];
+  const temEstudos = assuntos.length > 0;
+
+  if (!temEstudos) {
+    return (
+      <p className="truncate text-[11px] font-medium text-zinc-400 dark:text-zinc-500">
+        Escolha o assunto ao finalizar
+      </p>
+    );
+  }
+
+  if (assuntos.length === 1) {
+    const item = assuntos[0];
+    return (
+      <div className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 truncate">
+        <span className="font-black text-emerald-600 dark:text-emerald-400 shrink-0">✓</span>
+        <span className="truncate">{item.assunto}</span>
+        <span className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 shrink-0 tabular-nums">({fmtMin(item.minutos)})</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="text-[11px]">
+      {!expandido ? (
+        <div className="flex items-center justify-between gap-1">
+          <div className="flex items-center gap-1 min-w-0 truncate">
+            <span className="font-black text-emerald-600 dark:text-emerald-400 shrink-0">✓</span>
+            <span className="font-bold text-emerald-700 dark:text-emerald-400 shrink-0">
+              {assuntos.length} assuntos
+            </span>
+            <span className="text-zinc-400 dark:text-zinc-500 shrink-0">·</span>
+            <span className="truncate font-medium text-zinc-600 dark:text-zinc-300">
+              {assuntos.map((a) => a.assunto).join(' · ')}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setExpandido(true);
+            }}
+            className="text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:underline shrink-0 ml-1"
+          >
+            Ver lista
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-1">
+          <div className="flex items-center justify-between text-[10px] font-black uppercase text-emerald-700 dark:text-emerald-400">
+            <span>{assuntos.length} assuntos estudados</span>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setExpandido(false);
+              }}
+              className="text-blue-600 dark:text-blue-400 lowercase font-bold hover:underline"
+            >
+              recolher
+            </button>
+          </div>
+          <div className="space-y-0.5 max-h-32 overflow-y-auto custom-scrollbar pr-1">
+            {assuntos.map((item, idx) => (
+              <div key={idx} className="flex items-center justify-between gap-1 text-[11px] font-medium text-zinc-700 dark:text-zinc-200">
+                <span className="truncate">✓ {item.assunto}</span>
+                <span className="text-[10px] font-bold text-zinc-400 shrink-0 tabular-nums">{fmtMin(item.minutos)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function CardSessoesCicloHoje({
   ciclo,
   disciplinas = [],
   onIniciarSessao,
-  onToggleSessao,
-  loadingSessionId = null,
-  loadingSessionIds = {},
   useDisciplineColors = true,
   registrosEstudo = [],
   fillAvailableHeight = false,
-  sessionCompletionOverrides = {},
-  showAssuntos = true,
-  onToggleAssuntos,
-  assuntosToggleLoading = false,
   hideHeader = false,
 }) {
   const cicloComDisciplinas = useMemo(
@@ -45,31 +116,13 @@ function CardSessoesCicloHoje({
   return (
     <section className={`cycle-block-list-card-zoom ${fillAvailableHeight || hideHeader ? 'cycle-block-list-card-zoom--fill h-full max-h-[min(62dvh,560px)] sm:max-h-[min(68dvh,620px)] xl:max-h-none' : 'max-h-[430px] sm:max-h-[460px]'} box-border flex min-h-0 w-full max-w-full flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900`}>
       {!hideHeader && (
-        <div className="border-b border-zinc-100 px-3 py-2.5 dark:border-zinc-800 sm:px-4">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-red-600 dark:text-red-400">Fila do ciclo</p>
-          <div className="mt-1 flex items-end justify-between gap-3">
-            <h3 className="text-base font-black text-zinc-900 dark:text-white">Blocos do ciclo</h3>
-            <div className="flex shrink-0 items-center gap-2">
-              {onToggleAssuntos && (
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={showAssuntos}
-                  aria-label={showAssuntos ? 'Ocultar assuntos sugeridos' : 'Exibir assuntos sugeridos'}
-                  title={showAssuntos ? 'Ocultar assuntos sugeridos' : 'Exibir assuntos sugeridos'}
-                  disabled={assuntosToggleLoading}
-                  onClick={onToggleAssuntos}
-                  className={`inline-flex h-7 items-center gap-1.5 rounded-full border px-2 text-[9px] font-black uppercase tracking-wide transition-colors disabled:cursor-wait disabled:opacity-60 ${showAssuntos
-                    ? 'border-red-200 bg-red-50 text-red-600 dark:border-red-900/50 dark:bg-red-950/25 dark:text-red-400'
-                    : 'border-zinc-200 bg-zinc-50 text-zinc-400 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300'
-                  }`}
-                >
-                  {showAssuntos ? <Eye size={12} /> : <EyeOff size={12} />}
-                  <span className="hidden sm:inline">Assuntos</span>
-                </button>
-              )}
-              <span className="text-xs font-bold text-zinc-400">{queue.sessions.length} blocos</span>
+        <div className="border-b border-zinc-100 px-3 py-2 dark:border-zinc-800 sm:px-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-red-600 dark:text-red-400">Fila do ciclo</p>
+              <h3 className="text-sm sm:text-base font-black text-zinc-900 dark:text-white">Blocos do ciclo</h3>
             </div>
+            <span className="text-xs font-bold text-zinc-400">{queue.sessions.length} blocos</span>
           </div>
         </div>
       )}
@@ -87,39 +140,16 @@ function CardSessoesCicloHoje({
               nome: session.disciplinaNome || 'Disciplina',
             };
             const plannedMinutes = Math.max(1, Number(session.tempoPlanejadoMinutos || session.tempoMinutos || ciclo?.tempoSessaoMinutos || 1));
-            const completionOverride = session.globalIndex !== null
-              ? sessionCompletionOverrides?.[session.globalIndex]
-              : undefined;
             const completedByRecordedStudy = Boolean(session.bloqueiaDesmarcarConclusao);
-            const completed = typeof completionOverride === 'boolean'
-              ? completionOverride || completedByRecordedStudy
-              : Boolean(session.concluida) || completedByRecordedStudy;
-            const canonicalProgressMinutes = Math.max(
+            const completed = Boolean(session.concluida) || completedByRecordedStudy;
+            const progressMinutes = Math.max(
               0,
-              Number(session.progressoRegistroRealMinutos || 0),
-              Number(session.progressoRegistradoMinutos || 0),
               Number(session.progressoMinutos || 0),
-              Number(session.progressoPersistidoMinutos || 0),
+              Number(session.progressoRegistroRealMinutos || 0),
             );
-            const progressMinutes = typeof completionOverride === 'boolean'
-              ? completionOverride
-                ? Math.max(canonicalProgressMinutes, plannedMinutes)
-                : completedByRecordedStudy
-                  ? canonicalProgressMinutes
-                  : 0
-              : canonicalProgressMinutes;
             const progressPercent = Math.min(100, Math.round((progressMinutes / plannedMinutes) * 100));
             const completedByStudy = progressMinutes >= plannedMinutes || completedByRecordedStudy;
             const hasSession = !session.filaSemSessao && session.globalIndex !== null;
-            const loading = hasSession
-              && (
-                Boolean(loadingSessionIds?.[session.globalIndex])
-                || (
-                  loadingSessionId !== null
-                  && loadingSessionId !== undefined
-                  && Number(loadingSessionId) === Number(session.globalIndex)
-                )
-              );
             const color = useDisciplineColors !== false && ciclo?.coresDisciplinasAtivas !== false
               ? getDisciplineColorForSlot({
                 disciplinaId: disciplina?.id || session.disciplinaId,
@@ -130,78 +160,69 @@ function CardSessoesCicloHoje({
               : NEUTRAL_COLOR;
             const displayedSession = {
               ...session,
+              roundVersion: Number(ciclo?.conclusoes || 0),
               concluida: completed,
               concluido: completed,
               progressoMinutos: progressMinutes,
             };
-            const assuntoSugerido = typeof session.assuntoSugerido === 'string'
-              ? session.assuntoSugerido
-              : (session.assuntoSugerido?.nome || session.assunto || '');
 
             return (
               <div
                 key={`${session.disciplinaId}-${session.globalIndex ?? `sem-sessao-${listIndex}`}`}
-                className="relative flex min-w-0 flex-col overflow-hidden border-l-[7px] px-3 py-2.5 sm:border-l-[5px] sm:px-4"
+                className="relative flex min-w-0 flex-col overflow-hidden border-l-4 px-3 py-2 sm:px-3.5 sm:py-2.5"
                 style={{
                   borderLeftColor: color,
-                  backgroundImage: `linear-gradient(90deg, ${color}20 0%, transparent 28%)`,
+                  backgroundImage: `linear-gradient(90deg, ${color}14 0%, transparent 24%)`,
                 }}
               >
-                <span
-                  aria-hidden="true"
-                  className="absolute inset-y-0 left-0 w-2 sm:w-[5px]"
-                  style={{ backgroundColor: color }}
-                />
-                <div className="flex min-w-0 flex-1 items-center gap-2.5">
+                <div className="flex items-center justify-between gap-2 min-w-0">
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <span
+                      aria-label={completedByStudy ? 'Bloco concluído pelo tempo registrado' : 'Bloco pendente de estudo'}
+                      title={completedByStudy ? 'Bloco concluído pelo tempo registrado' : 'Conclua pelo cronômetro ou por um registro manual de estudo'}
+                      className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border text-xs shadow-xs ${completed
+                        ? 'border-emerald-500 bg-emerald-500 text-white'
+                        : 'border-zinc-200 bg-white text-zinc-400 dark:border-zinc-700 dark:bg-white/10 dark:text-zinc-400'
+                      }`}
+                    >
+                      {completed ? <Check size={13} strokeWidth={3.5} /> : <Clock3 size={13} strokeWidth={2.5} />}
+                    </span>
+                    <span className="truncate text-xs sm:text-sm font-black text-zinc-900 dark:text-white">
+                      {disciplina?.nome || session.disciplinaNome || 'Disciplina'}
+                    </span>
+                    <span className="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold tracking-tight text-zinc-400 dark:text-zinc-500 bg-zinc-100/90 dark:bg-zinc-800/70 border border-zinc-200/60 dark:border-zinc-700/50">
+                      Bloco {hasSession ? Number(session.globalIndex) + 1 : listIndex + 1}
+                    </span>
+                  </div>
+                  <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-zinc-200/80 bg-zinc-100/80 dark:border-zinc-700/80 dark:bg-zinc-800/80 px-2 py-0.5 text-[10px] font-black tabular-nums text-zinc-600 dark:text-zinc-300">
+                    {progressMinutes > 0 ? `${fmtMin(progressMinutes)} / ${fmtMin(plannedMinutes)}` : fmtMin(plannedMinutes)}
+                  </span>
+                </div>
+
+                <div className="mt-1 min-w-0">
+                  <CardSessoesCicloSubjects session={session} />
+                </div>
+
+                <div className="mt-1.5 flex items-center justify-between gap-2.5">
+                  <div className="min-w-0 flex-1 flex items-center gap-2">
+                    <div className="h-1.5 flex-1 min-w-0 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
+                      <div
+                        className={`h-full rounded-full transition-all ${completed ? 'bg-emerald-500' : 'bg-amber-500'}`}
+                        style={{ width: `${progressPercent}%` }}
+                      />
+                    </div>
+                    <span className="shrink-0 text-[10px] font-bold tabular-nums text-zinc-400 dark:text-zinc-500">
+                      {progressPercent}%
+                    </span>
+                  </div>
                   <button
                     type="button"
-                    onClick={() => onToggleSessao?.(displayedSession)}
-                    disabled={!hasSession || (completed && completedByStudy)}
-                    aria-busy={loading}
-                    aria-label={completedByStudy ? 'Bloco concluido pelo tempo registrado' : completed ? 'Marcar bloco como pendente' : 'Marcar bloco como concluido'}
-                    title={completedByStudy ? 'O tempo registrado mantém este bloco concluído' : completed ? 'Marcar bloco como pendente' : 'Marcar bloco como concluido'}
-                    className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border shadow-sm transition-all disabled:cursor-not-allowed disabled:opacity-60 ${completed
-                      ? 'border-emerald-500 bg-emerald-500 text-white shadow-emerald-500/20'
-                      : 'border-emerald-200 bg-white text-emerald-600 shadow-emerald-500/10 hover:border-emerald-300 hover:bg-emerald-50 dark:border-emerald-900/40 dark:bg-white/10 dark:text-emerald-300 dark:hover:bg-emerald-900/35'
-                    }`}
+                    onClick={() => onIniciarSessao?.(disciplinaAcao, session.globalIndex, displayedSession)}
+                    disabled={!hasSession}
+                    className="inline-flex h-6 sm:h-7 shrink-0 items-center justify-center gap-1 rounded-md bg-red-600 px-2.5 text-[9px] font-black uppercase tracking-wide text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    <Check size={15} strokeWidth={3.5} />
+                    <Play size={11} fill="currentColor" /> Iniciar
                   </button>
-                  <div className="min-w-0 flex-1">
-                    <p className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-[0.18em] text-zinc-400">
-                      <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: color }} />
-                      Bloco {hasSession ? Number(session.globalIndex) + 1 : listIndex + 1}
-                    </p>
-                    <p className="min-w-0 break-words text-sm font-black leading-snug text-zinc-900 dark:text-white">
-                      {disciplina?.nome || session.disciplinaNome || 'Disciplina'}
-                    </p>
-                    {showAssuntos && assuntoSugerido && (
-                      <p className="mt-0.5 line-clamp-2 min-w-0 break-words text-[10px] font-semibold leading-snug text-zinc-500 dark:text-zinc-300">
-                        {assuntoSugerido}
-                      </p>
-                    )}
-                    <div className="mt-1.5 grid min-w-0 max-w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-2.5">
-                      <div className="min-w-0">
-                        <div className="h-1.5 min-w-0 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
-                          <div
-                            className={`h-full rounded-full transition-all ${completed ? 'bg-emerald-500' : 'bg-amber-500'}`}
-                            style={{ width: `${progressPercent}%` }}
-                          />
-                        </div>
-                        <span className="min-w-0 truncate text-[11px] font-black tabular-nums text-zinc-500 dark:text-zinc-300 sm:text-xs">
-                          {fmtMin(progressMinutes)} / {fmtMin(plannedMinutes)}
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => onIniciarSessao?.(disciplinaAcao, session.globalIndex, displayedSession)}
-                        disabled={!hasSession}
-                        className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-red-600 px-2.5 text-[9px] font-black uppercase tracking-wide text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        <Play size={13} fill="currentColor" /> Iniciar
-                      </button>
-                    </div>
-                  </div>
                 </div>
               </div>
             );

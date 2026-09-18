@@ -11,6 +11,7 @@ const endpoint = '/__modoqap/firebase-emulators/start';
 const mirrorEndpoint = '/__modoqap/firebase-emulators/mirror-user';
 const emulatorProjectId = 'demo-dashboard-pmba-local';
 const ports = Object.freeze([9099, 8085, 5001, 9199]);
+const functionsProbeUrl = `http://127.0.0.1:5001/${emulatorProjectId}/us-central1/ensureUserSubscription`;
 let emulatorProcess = null;
 let emulatorStartPromise = null;
 
@@ -18,7 +19,7 @@ function isLoopbackAddress(address = '') {
   return ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(String(address));
 }
 
-function portIsOpen(port, timeoutMs = 250) {
+function portIsOpen(port, timeoutMs = 1200) {
   return new Promise((resolve) => {
     const socket = net.createConnection({ host: '127.0.0.1', port });
     const finish = (open) => { socket.destroy(); resolve(open); };
@@ -32,6 +33,33 @@ function portIsOpen(port, timeoutMs = 250) {
 async function readPortStatus() {
   const states = await Promise.all(ports.map(async (port) => [port, await portIsOpen(port)]));
   return Object.fromEntries(states);
+}
+
+async function functionsAreReady(timeoutMs = 1500) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(functionsProbeUrl, {
+      method: 'OPTIONS',
+      headers: {
+        Origin: 'http://localhost:5173',
+        'Access-Control-Request-Method': 'POST',
+        'Access-Control-Request-Headers': 'content-type',
+      },
+      signal: controller.signal,
+    });
+    return response.status === 204
+      && Boolean(response.headers.get('access-control-allow-origin'));
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function emulatorsAreReady(status = null) {
+  const current = status || await readPortStatus();
+  return Object.values(current).every(Boolean) && await functionsAreReady();
 }
 
 function tailLog(file, maximum = 1800) {
@@ -77,22 +105,24 @@ function killProcessesOnPorts(targetPorts = []) {
 }
 
 async function ensureEmulatorsReady() {
-  const initial = await readPortStatus();
-  if (Object.values(initial).every(Boolean)) return { ready: true, alreadyRunning: true, ports: initial };
-  if (Object.values(initial).some(Boolean) && !emulatorProcess) {
-    killProcessesOnPorts(ports);
-    await new Promise((resolve) => setTimeout(resolve, 800));
-    const recheck = await readPortStatus();
-    if (Object.values(recheck).every(Boolean)) return { ready: true, alreadyRunning: true, ports: recheck };
+  let status = await readPortStatus();
+  if (await emulatorsAreReady(status)) return { ready: true, alreadyRunning: true, ports: status };
+
+  // Tentativa de confirmação rápida para evitar falsos negativos em conexões locais ocupadas
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    status = await readPortStatus();
+    if (await emulatorsAreReady(status)) return { ready: true, alreadyRunning: true, ports: status };
   }
+
   if (emulatorStartPromise) return emulatorStartPromise;
   emulatorStartPromise = (async () => {
     const logs = startEmulatorProcess();
     const deadline = Date.now() + 90000;
     while (Date.now() < deadline) {
       await new Promise((resolve) => setTimeout(resolve, 500));
-      const status = await readPortStatus();
-      if (Object.values(status).every(Boolean)) return { ready: true, alreadyRunning: false, ports: status };
+      const current = await readPortStatus();
+      if (await emulatorsAreReady(current)) return { ready: true, alreadyRunning: false, ports: current };
       if (!emulatorProcess) {
         const detail = tailLog(logs.errorPath) || tailLog(logs.outputPath);
         throw new Error(`Firebase Emulators encerraram antes de iniciar.${detail ? ` ${detail}` : ''}`);
@@ -162,6 +192,7 @@ function normalizeMirrorUserPayload(payload = {}) {
 async function mirrorUserToEmulator(payload) {
   await ensureEmulatorsReady();
   const profile = normalizeMirrorUserPayload(payload);
+  const restoreOnly = payload?.restoreOnly === true;
   globalThis.process.env.FIREBASE_AUTH_EMULATOR_HOST = '127.0.0.1:9099';
   globalThis.process.env.FIRESTORE_EMULATOR_HOST = '127.0.0.1:8085';
   const [{ initializeApp, getApps }, { getAuth }, { getFirestore, FieldValue }] = await Promise.all([
@@ -199,6 +230,9 @@ async function mirrorUserToEmulator(payload) {
   } else {
     await emulatorAuth.createUser({ uid: profile.uid, ...authData });
   }
+  if (restoreOnly) {
+    return { ready: true, uid: profile.uid, email: profile.email, password };
+  }
   await emulatorAuth.setCustomUserClaims(profile.uid, {
     admin: profile.access.role === 'admin' || profile.access.adminRole != null,
     role: profile.access.role,
@@ -216,13 +250,99 @@ async function mirrorUserToEmulator(payload) {
   return { ready: true, uid: profile.uid, email: profile.email, password };
 }
 
+const monetizationApplyEndpoint = '/__modoqap/monetization-dev/apply-state';
+const monetizationResetEndpoint = '/__modoqap/monetization-dev/reset-subscription';
+
+async function getDevAdminFirestore() {
+  const isFirestoreActive = await portIsOpen(8085);
+  if (!isFirestoreActive) {
+    throw new Error('Firestore Emulator (porta 8085) não está ativo. O painel de teste exige o Emulator rodando.');
+  }
+  globalThis.process.env.FIRESTORE_EMULATOR_HOST = '127.0.0.1:8085';
+  globalThis.process.env.FIREBASE_AUTH_EMULATOR_HOST = '127.0.0.1:9099';
+
+  const [{ initializeApp, getApps }, { getFirestore, FieldValue, Timestamp }] = await Promise.all([
+    import('firebase-admin/app'),
+    import('firebase-admin/firestore'),
+  ]);
+
+  const appName = 'modoqap-emulator-dev-test';
+  const app = getApps().find((candidate) => candidate.name === appName)
+    || initializeApp({ projectId: emulatorProjectId }, appName);
+
+  return { firestore: getFirestore(app), FieldValue, Timestamp };
+}
+
+async function applyMonetizationStateDev(payload = {}) {
+  const { firestore, FieldValue, Timestamp } = await getDevAdminFirestore();
+
+  const toTimestamp = (val) => {
+    if (!val) return null;
+    const d = new Date(val);
+    return Number.isNaN(d.getTime()) ? null : Timestamp.fromDate(d);
+  };
+
+  // 1. Atualiza configuração global de monetização
+  if (payload.monetizationPhase) {
+    const configUpdate = {
+      monetizationPhase: String(payload.monetizationPhase),
+      founderProgram: {
+        isOpen: Boolean(payload.founderProgram?.isOpen),
+        priceYearly: Number(payload.founderProgram?.priceYearly) || 97,
+        openedAt: toTimestamp(payload.founderProgram?.openedAt),
+        closedAt: toTimestamp(payload.founderProgram?.closedAt),
+      },
+      trialConfig: {
+        durationDays: Number(payload.trialConfig?.durationDays) || 7,
+      },
+      updatedAt: FieldValue.serverTimestamp(),
+    };
+    await firestore.collection('system_config').doc('monetization').set(configUpdate, { merge: true });
+  }
+
+  // 2. Atualiza assinatura do usuário de teste
+  if (payload.uid && payload.subscription) {
+    const sub = payload.subscription;
+    const subUpdate = {
+      plan: String(sub.plan || 'FREE_TRIAL'),
+      status: String(sub.status || 'ACTIVE'),
+      trialStartedAt: toTimestamp(sub.trialStartedAt),
+      trialEndsAt: toTimestamp(sub.trialEndsAt),
+      founder: Boolean(sub.founder),
+      founderSince: toTimestamp(sub.founderSince),
+      founderEligible: Boolean(sub.founderEligible),
+      founderEligibleAt: toTimestamp(sub.founderEligibleAt),
+      updatedAt: FieldValue.serverTimestamp(),
+    };
+    await firestore.collection('users').doc(String(payload.uid)).set({ subscription: subUpdate }, { merge: true });
+  }
+
+  return { ready: true, success: true, appliedAt: new Date().toISOString() };
+}
+
+async function resetSubscriptionDev(payload = {}) {
+  const uid = String(payload.uid || '').trim();
+  if (!uid) throw new Error('UID do usuário é obrigatório para reset.');
+
+  const { firestore, FieldValue } = await getDevAdminFirestore();
+  await firestore.collection('users').doc(uid).update({
+    subscription: FieldValue.delete(),
+  }).catch(async (_err) => {
+    // Se o documento existe mas o update falhou (ou campo já não existia), define como nulo
+    await firestore.collection('users').doc(uid).set({ subscription: null }, { merge: true });
+  });
+
+  return { ready: true, success: true, resetUid: uid, resetAt: new Date().toISOString() };
+}
+
 export function firebaseEmulatorControlPlugin() {
   return {
     name: 'modoqap-firebase-emulator-control',
     apply: 'serve',
     configureServer(server) {
       server.middlewares.use(async (request, response, next) => {
-        if (![endpoint, mirrorEndpoint].includes(request.url)) return next();
+        const allowedUrls = [endpoint, mirrorEndpoint, monetizationApplyEndpoint, monetizationResetEndpoint];
+        if (!allowedUrls.includes(request.url)) return next();
         if (request.method !== 'POST') return sendJson(response, 405, { ready: false, message: 'Método não permitido.' });
         if (!isLoopbackAddress(request.socket.remoteAddress)) {
           return sendJson(response, 403, { ready: false, message: 'Controle disponível somente no computador local.' });
@@ -231,6 +351,14 @@ export function firebaseEmulatorControlPlugin() {
           if (request.url === mirrorEndpoint) {
             response.setHeader('Cache-Control', 'no-store');
             return sendJson(response, 200, await mirrorUserToEmulator(await readJsonBody(request)));
+          }
+          if (request.url === monetizationApplyEndpoint) {
+            response.setHeader('Cache-Control', 'no-store');
+            return sendJson(response, 200, await applyMonetizationStateDev(await readJsonBody(request)));
+          }
+          if (request.url === monetizationResetEndpoint) {
+            response.setHeader('Cache-Control', 'no-store');
+            return sendJson(response, 200, await resetSubscriptionDev(await readJsonBody(request)));
           }
           return sendJson(response, 200, await ensureEmulatorsReady());
         } catch (error) {
@@ -241,4 +369,11 @@ export function firebaseEmulatorControlPlugin() {
   };
 }
 
-export const firebaseEmulatorControlInternals = Object.freeze({ isLoopbackAddress, normalizeMirrorUserPayload });
+export const firebaseEmulatorControlInternals = Object.freeze({
+  isLoopbackAddress,
+  normalizeMirrorUserPayload,
+  functionsAreReady,
+  emulatorsAreReady,
+  applyMonetizationStateDev,
+  resetSubscriptionDev,
+});

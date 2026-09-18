@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { CheckCircle2, CloudOff, Download, X } from 'lucide-react';
+import { CheckCircle2, CloudOff } from 'lucide-react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
+import { notifyBeforePwaReload, PWA_UPDATE_CHECK_INTERVAL_MS } from '../../utils/pwaLifecycle';
 import '../../utils/pwaInstall';
 
 const STATUS_HIDE_DELAY = 3500;
-const UPDATE_CHECK_INTERVAL_MS = 15 * 60 * 1000;
 
 export default function PwaStatus({ hasPendingWrites = false }) {
   const isOnline = useOnlineStatus();
@@ -15,9 +15,11 @@ export default function PwaStatus({ hasPendingWrites = false }) {
   const [registration, setRegistration] = useState(null);
   const {
     offlineReady: [offlineReady, setOfflineReady],
-    needRefresh: [needRefresh, setNeedRefresh],
-    updateServiceWorker,
   } = useRegisterSW({
+    onNeedReload() {
+      notifyBeforePwaReload();
+      window.location.reload();
+    },
     onRegisteredSW(_serviceWorkerUrl, nextRegistration) {
       setRegistration(nextRegistration || null);
     },
@@ -39,7 +41,7 @@ export default function PwaStatus({ hasPendingWrites = false }) {
     const onVisibilityChange = () => checkForUpdate();
 
     checkForUpdate();
-    const intervalId = window.setInterval(checkForUpdate, UPDATE_CHECK_INTERVAL_MS);
+    const intervalId = window.setInterval(checkForUpdate, PWA_UPDATE_CHECK_INTERVAL_MS);
     window.addEventListener('focus', checkForUpdate);
     window.addEventListener('online', checkForUpdate);
     document.addEventListener('visibilitychange', onVisibilityChange);
@@ -86,24 +88,7 @@ export default function PwaStatus({ hasPendingWrites = false }) {
 
   let content = null;
 
-  if (needRefresh) {
-    content = {
-      icon: Download,
-      tone: 'border-red-500/30 bg-zinc-950 text-white',
-      title: 'Nova versão disponível',
-      detail: 'Atualize para usar a versão mais recente.',
-      action: (
-        <button
-          type="button"
-          onClick={() => updateServiceWorker(true)}
-          className="rounded-lg bg-red-600 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-white hover:bg-red-700"
-        >
-          Atualizar
-        </button>
-      ),
-      onClose: () => setNeedRefresh(false),
-    };
-  } else if (!isOnline) {
+  if (!isOnline) {
     content = {
       icon: CloudOff,
       tone: 'border-amber-500/30 bg-zinc-950 text-white',
@@ -141,17 +126,6 @@ export default function PwaStatus({ hasPendingWrites = false }) {
         <p className="text-xs font-black uppercase tracking-wider">{content.title}</p>
         <p className="mt-0.5 text-[11px] font-medium leading-snug text-zinc-300">{content.detail}</p>
       </div>
-      {content.action}
-      {content.onClose && (
-        <button
-          type="button"
-          aria-label="Fechar aviso"
-          onClick={content.onClose}
-          className="rounded-lg p-1.5 text-zinc-400 hover:bg-white/10 hover:text-white"
-        >
-          <X size={15} />
-        </button>
-      )}
     </aside>
   );
 }

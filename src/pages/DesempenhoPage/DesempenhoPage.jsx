@@ -8,6 +8,7 @@ import DesempenhoResumo from './DesempenhoResumo';
 import DesempenhoDetalhado from './DesempenhoDetalhado';
 import DesempenhoDisciplinaCard from './DesempenhoDisciplinaCard';
 import { useForceUnlock } from '../../hooks/useForceUnlock';
+import { getPlanningStageRecords } from '../../utils/planningTransformation';
 
 // ============================================================================
 // UTILS
@@ -64,6 +65,8 @@ const DesempenhoPage = ({
   }, [activeCronogramaData]);
 
   const disciplinasDoContexto = effectiveContext === 'cronograma' ? disciplinasDoCronograma : disciplinasDoCiclo;
+  const activeStage = effectiveContext === 'cronograma' ? activeCronogramaData : activeCicloData;
+  const hasLinkedStages = (activeStage?.etapasPlanejamento || []).length > 1;
 
   // ── DATA ENGINE ──────────────────────────────────────────────────────────
   const analytics = useMemo(() => {
@@ -89,7 +92,9 @@ const DesempenhoPage = ({
 
     baseRecords = effectiveContext === 'all'
       ? [...registrosEstudo]
-      : registrosEstudo.filter(r => (
+      : hasLinkedStages
+        ? getPlanningStageRecords(registrosEstudo, activeStage)
+        : registrosEstudo.filter(r => (
           effectiveContext === 'ciclo'
             ? r.cicloId === contextId && !r.cronogramaId
             : r.cronogramaId === contextId
@@ -111,7 +116,8 @@ const DesempenhoPage = ({
 
     // Conjunto de nomes ativos — se o ciclo tem disciplinas definidas, usamos como
     // lista de referência. No modo ALL_TIME sem ciclo, aceitamos todas.
-    const activeDisciplineNames = cycleDisciplines.length > 0 ? new Set(cycleDisciplines) : null;
+    const activeDisciplineNames = !hasLinkedStages && cycleDisciplines.length > 0
+      ? new Set(cycleDisciplines) : null;
 
     // CORREÇÃO 1C: filtrar registros históricos de disciplinas que já foram excluídas.
     // Só aplica quando há um ciclo ativo com disciplinas definidas e não é ALL_TIME.
@@ -261,6 +267,7 @@ const DesempenhoPage = ({
   }, [
     registrosEstudo, activeCicloId, activeCronogramaId, effectiveContext,
     timeRange, selectedDiscipline, selectedTopic, disciplinasDoContexto,
+    activeStage, hasLinkedStages,
   ]);
 
   useEffect(() => { setSelectedTopic('ALL'); }, [selectedDiscipline]);

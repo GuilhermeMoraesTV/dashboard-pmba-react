@@ -22,9 +22,9 @@ service cloud.firestore {
       return isSignedIn() && exists(currentUserDocPath());
     }
 
-    // Retorna os dados do documento do usuário autenticado.
+    // Retorna os dados do documento do usuário autenticado de forma segura.
     function currentUserDoc() {
-      return get(currentUserDocPath()).data;
+      return currentUserDocExists() ? get(currentUserDocPath()).data : {};
     }
 
     function currentUserAccess() {
@@ -48,6 +48,20 @@ service cloud.firestore {
     // Admin pode ser o legado por UID ou um usuário com papel administrativo no documento.
     function isAdmin() {
       return isLegacyAdmin() || hasAdminRoleDoc();
+    }
+
+    // Assinatura do usuário autenticado.
+    function currentUserSubscription() {
+      return currentUserDoc().get('subscription', {});
+    }
+
+    // Enquanto o produto está em PRE_FOUNDER, não existe cobrança nem bloqueio por assinatura.
+    // Manter este atalho sem leituras auxiliares evita custo adicional em cada operação do
+    // Firestore e, principalmente, não bloqueia contas legadas antes da migração de cobrança.
+    // A exigência de plano ativo só deve voltar em uma publicação específica, depois da
+    // migração dos usuários e da ativação formal do faturamento.
+    function hasActiveSubscription(userId) {
+      return isAdmin() || isOwner(userId);
     }
 
     // Verifica se o usuário autenticado é o próprio dono do recurso.
@@ -786,6 +800,47 @@ service cloud.firestore {
         && optionalString(data, 'origemConclusaoId', 240);
     }
 
+    function isProtectedCycleStudyRecord(data) {
+      return data.get('contextoRegistro', '') == 'ciclo'
+        && data.get('cicloId', '') is string
+        && data.get('cicloId', '').size() > 0
+        && data.get('isRevisao', false) != true
+        && data.get('revisao', false) != true
+        && data.get('tipoEstudo', '') != 'revisao'
+        && data.get('tipoEstudo', '') != 'check_manual'
+        && data.get('origemConclusao', '') != 'botao_concluir';
+    }
+
+    function cycleStudyRecordContractIsSafe(data) {
+      return !isProtectedCycleStudyRecord(data)
+        || (
+          data.get('cycleProgressContractVersion', 0) == 1
+          && data.get('cycleProgressOperationId', '') is string
+          && data.get('cycleProgressOperationId', '').size() >= 8
+          && data.get('cycleProgressOperationId', '').size() <= 180
+          && data.get('cicloRoundVersion', -1) is int
+          && data.get('cicloRoundVersion', -1) >= 0
+          && data.get('cycleProgressAllocations', {}) is map
+        );
+    }
+
+    function studyRecordUpdateIsSafe(userId) {
+      return studyRecordIsSafe(userId)
+        && (
+          (!isProtectedCycleStudyRecord(resource.data) && !isProtectedCycleStudyRecord(request.resource.data))
+          || (
+            isProtectedCycleStudyRecord(resource.data)
+            && isProtectedCycleStudyRecord(request.resource.data)
+            && cycleStudyRecordContractIsSafe(request.resource.data)
+            && request.resource.data.get('cicloId', '') == resource.data.get('cicloId', '')
+            && request.resource.data.get('cicloRoundVersion', -1) == resource.data.get('cicloRoundVersion', -1)
+            && request.resource.data.get('cycleProgressOperationId', '') == resource.data.get('cycleProgressOperationId', '')
+            && request.resource.data.get('cycleProgressEditVersion', 0)
+              == resource.data.get('cycleProgressEditVersion', 0) + 1
+          )
+        );
+    }
+
     function simulationSummaryIsSafe(data) {
       let summary = data.get('resumo', null);
       return summary == null
@@ -834,6 +889,29 @@ service cloud.firestore {
         && optionalNumberBetween(data, 'tempoSessaoMinutos', 1, 720)
         && optionalListSize(data, 'ordemSessoes', 1000)
         && optionalListSize(data, 'sessoesConcluidas', 1000);
+    }
+
+    function cycleProgressMutationIsSafe() {
+      let affected = request.resource.data.diff(resource.data).affectedKeys();
+      let protectedFields = [
+        'conclusoes',
+        'ordemSessoes',
+        'totalSessoesCiclo',
+        'sessoesConcluidas',
+        'progressoSessoes',
+        'sessoesConcluidasDetalhes',
+        'cycleProgressOperations',
+        'cycleRoundMinutesByDisciplineUntilIdeal'
+      ];
+      return !affected.hasAny(protectedFields)
+        || (
+          request.resource.data.get('cycleProgressContractVersion', 0) == 1
+          && request.resource.data.get('roundIdentityVersion', 0) == 1
+          && request.resource.data.get('lastCycleProgressOperationId', '') is string
+          && request.resource.data.get('lastCycleProgressOperationId', '').size() >= 8
+          && request.resource.data.get('lastCycleProgressOperationId', '')
+            != resource.data.get('lastCycleProgressOperationId', '')
+        );
     }
 
     function scheduleIsSafe(userId) {
@@ -926,6 +1004,49 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
+    match /system_broadcast_poll_results/{pollId} {
+      allow read: if isAdmin()
+        || (
+          isSignedIn()
+          && exists(/databases/$(database)/documents/system_broadcasts/$(pollId))
+          && (
+            get(/databases/$(database)/documents/system_broadcasts/$(pollId)).data.get('status', 'open') == 'closed'
+            || (
+              get(/databases/$(database)/documents/system_broadcasts/$(pollId)).data.get('closesAt', null) != null
+              && get(/databases/$(database)/documents/system_broadcasts/$(pollId)).data.closesAt <= request.time
+            )
+          )
+        );
+      allow create: if isAdmin()
+        || (
+          isSignedIn()
+          && exists(/databases/$(database)/documents/system_broadcasts/$(pollId))
+          && get(/databases/$(database)/documents/system_broadcasts/$(pollId)).data.get('status', 'open') == 'open'
+          && (
+            get(/databases/$(database)/documents/system_broadcasts/$(pollId)).data.get('closesAt', null) == null
+            || get(/databases/$(database)/documents/system_broadcasts/$(pollId)).data.closesAt > request.time
+          )
+          && request.resource.data.keys().hasAll(['pollId', 'responseCount', 'optionCounts', 'createdAt'])
+          && request.resource.data.pollId == pollId
+          && request.resource.data.responseCount == 1
+          && request.resource.data.optionCounts is map
+        );
+      allow update: if isAdmin()
+        || (
+          isSignedIn()
+          && exists(/databases/$(database)/documents/system_broadcasts/$(pollId))
+          && get(/databases/$(database)/documents/system_broadcasts/$(pollId)).data.get('status', 'open') == 'open'
+          && (
+            get(/databases/$(database)/documents/system_broadcasts/$(pollId)).data.get('closesAt', null) == null
+            || get(/databases/$(database)/documents/system_broadcasts/$(pollId)).data.closesAt > request.time
+          )
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['responseCount', 'optionCounts', 'updatedAt'])
+          && request.resource.data.responseCount == resource.data.responseCount + 1
+          && request.resource.data.optionCounts is map
+        );
+      allow delete: if isAdmin();
+    }
+
     match /editais_templates/{docId} {
       allow read: if isSignedIn();
       allow create, update, delete: if isAdmin();
@@ -1002,9 +1123,11 @@ service cloud.firestore {
         && docId.matches('^' + request.auth.uid + '(_.*)?$');
     }
 
-    // Estado do timer ao vivo: o dono escreve apenas o próprio timer e o admin pode monitorar.
+    // Estado do timer ao vivo: o dono lê e escreve apenas com assinatura ativa; admin e membros do grupo mantêm acesso.
     match /active_timers/{uid} {
-      allow get: if isOwnerOrAdmin(uid) || sharesStudyGroup(uid);
+      allow get: if (isOwner(uid) && hasActiveSubscription(uid))
+        || isAdmin()
+        || sharesStudyGroup(uid);
       allow list: if isAdmin()
         || (
           isSignedIn()
@@ -1012,7 +1135,7 @@ service cloud.firestore {
           && resource.data.get('groupIds', [])
             .hasAny(get(gamificationProfilePath(request.auth.uid)).data.get('groupIds', []))
         );
-      allow create, update, delete: if isOwner(uid);
+      allow create, update, delete: if isOwner(uid) && hasActiveSubscription(uid);
     }
 
     // Rankings são agregados exclusivamente pelas Cloud Functions.
@@ -1230,6 +1353,11 @@ service cloud.firestore {
       allow read: if isAdmin();
     }
 
+    // Consulta collectionGroup de respostas nominais para apuração administrativa.
+    match /{path=**}/broadcast_poll_answers/{answerId} {
+      allow read: if isAdmin();
+    }
+
     // Documento principal do usuário e todas as subcoleções permanecem restritos ao dono ou admin.
     match /users/{userId} {
       allow create: if (
@@ -1288,6 +1416,23 @@ service cloud.firestore {
         allow update: if isAdmin() || (isOwner(userId) && notificationReadStateUpdateIsSafe());
       }
 
+      match /broadcast_poll_answers/{pollId} {
+        allow read: if isOwnerOrAdmin(userId);
+        allow create: if isOwner(userId)
+          && request.resource.data.keys().hasAll(['pollId', 'uid', 'optionId', 'respondedAt'])
+          && request.resource.data.pollId == pollId
+          && request.resource.data.uid == userId
+          && request.resource.data.optionId is string
+          && exists(/databases/$(database)/documents/system_broadcasts/$(pollId))
+          && get(/databases/$(database)/documents/system_broadcasts/$(pollId)).data.get('status', 'open') == 'open'
+          && (
+            get(/databases/$(database)/documents/system_broadcasts/$(pollId)).data.get('closesAt', null) == null
+            || get(/databases/$(database)/documents/system_broadcasts/$(pollId)).data.closesAt > request.time
+          );
+        allow update: if false;
+        allow delete: if isAdmin();
+      }
+
       match /group_chat_states/{groupId} {
         allow read: if isOwnerOrAdmin(userId);
         allow create: if groupChatStateCreateIsSafe(userId, groupId);
@@ -1303,55 +1448,118 @@ service cloud.firestore {
       }
 
       match /registrosEstudo/{recordId} {
-        allow read: if isOwnerOrAdmin(userId);
-        allow create, update: if isOwner(userId) && studyRecordIsSafe(userId);
-        allow delete: if isOwner(userId);
+        allow read: if isOwnerOrAdmin(userId) && hasActiveSubscription(userId);
+        allow create: if isOwner(userId)
+          && hasActiveSubscription(userId)
+          && studyRecordIsSafe(userId)
+          && cycleStudyRecordContractIsSafe(request.resource.data);
+        allow update: if isOwner(userId) && hasActiveSubscription(userId) && studyRecordUpdateIsSafe(userId);
+        allow delete: if isOwner(userId) && hasActiveSubscription(userId);
       }
 
       match /simulados/{simulationId} {
-        allow read: if isOwnerOrAdmin(userId);
-        allow create, update: if isOwner(userId) && simulationIsSafe(userId);
-        allow delete: if isOwner(userId);
+        allow read: if isOwnerOrAdmin(userId) && hasActiveSubscription(userId);
+        allow create, update: if isOwner(userId) && hasActiveSubscription(userId) && simulationIsSafe(userId);
+        allow delete: if isOwner(userId) && hasActiveSubscription(userId);
       }
 
       match /metas/{goalId} {
-        allow read: if isOwnerOrAdmin(userId);
-        allow create, update: if isOwner(userId) && goalIsSafe(userId);
-        allow delete: if isOwner(userId);
+        allow read: if isOwnerOrAdmin(userId) && hasActiveSubscription(userId);
+        allow create, update: if isOwner(userId) && hasActiveSubscription(userId) && goalIsSafe(userId);
+        allow delete: if isOwner(userId) && hasActiveSubscription(userId);
       }
 
       match /ciclos/{cycleId} {
-        allow read: if isOwnerOrAdmin(userId);
-        allow create, update: if isOwner(userId) && cycleIsSafe(userId);
-        allow delete: if isOwner(userId);
+        allow read: if isOwnerOrAdmin(userId) && hasActiveSubscription(userId);
+        allow create: if isOwner(userId) && hasActiveSubscription(userId) && cycleIsSafe(userId);
+        allow update: if isOwner(userId)
+          && hasActiveSubscription(userId)
+          && cycleIsSafe(userId)
+          && cycleProgressMutationIsSafe()
+          && (resource.data.get('cronogramaVinculadoId', null) == null
+            || request.resource.data.get('ativo', false) == false);
+        allow delete: if isOwner(userId) && hasActiveSubscription(userId);
 
         match /rodadas/{roundId} {
-          allow read: if isOwnerOrAdmin(userId);
-          allow create: if isOwner(userId) && cycleRoundCreateIsSafe(userId, cycleId);
+          allow read: if isOwnerOrAdmin(userId) && hasActiveSubscription(userId);
+          allow create: if isOwner(userId) && hasActiveSubscription(userId) && cycleRoundCreateIsSafe(userId, cycleId);
           allow update: if false;
-          allow delete: if isOwner(userId);
+          allow delete: if isOwner(userId) && hasActiveSubscription(userId);
         }
 
         match /{nestedCollection}/{nestedDocument=**} {
-          allow read: if nestedCollection != 'rodadas' && isOwnerOrAdmin(userId);
-          allow write: if nestedCollection != 'rodadas' && isOwner(userId);
+          allow read: if nestedCollection != 'rodadas' && isOwnerOrAdmin(userId) && hasActiveSubscription(userId);
+          allow write: if nestedCollection != 'rodadas' && isOwner(userId) && hasActiveSubscription(userId);
         }
       }
 
+      match /planejamentos/{planningId} {
+        allow read: if isOwnerOrAdmin(userId) && hasActiveSubscription(userId);
+        allow create: if isOwner(userId)
+          && hasActiveSubscription(userId)
+          && request.resource.data.get('etapaVigenteId', '') == planningId
+          && request.resource.data.get('etapas', []) is list
+          && (
+            (request.resource.data.get('etapas', []).size() == 1
+              && request.resource.data.get('metodoVigente', '') == 'ciclo'
+              && !exists(/databases/$(database)/documents/users/$(userId)/ciclos/$(planningId))
+              && getAfter(/databases/$(database)/documents/users/$(userId)/ciclos/$(planningId)).data.get('ativo', false) == true)
+            || (request.resource.data.get('etapas', []).size() == 1
+              && request.resource.data.get('metodoVigente', '') == 'cronograma'
+              && !exists(/databases/$(database)/documents/users/$(userId)/cronogramas/$(planningId))
+              && getAfter(/databases/$(database)/documents/users/$(userId)/cronogramas/$(planningId)).data.get('ativo', false) == true)
+            || (request.resource.data.get('etapas', []).size() == 2
+              && request.resource.data.get('metodoVigente', '') == 'cronograma'
+              && get(/databases/$(database)/documents/users/$(userId)/ciclos/$(planningId)).data.get('ativo', false) == true
+              && getAfter(/databases/$(database)/documents/users/$(userId)/ciclos/$(planningId)).data.get('ativo', true) == false
+              && !exists(/databases/$(database)/documents/users/$(userId)/cronogramas/$(planningId))
+              && getAfter(/databases/$(database)/documents/users/$(userId)/cronogramas/$(planningId)).data.get('ativo', false) == true)
+          );
+        allow update: if isOwner(userId)
+          && hasActiveSubscription(userId)
+          && request.resource.data.get('etapaVigenteId', '') is string
+          && request.resource.data.get('etapas', []) is list
+          && request.resource.data.get('etapas', []).size() <= 20
+          && (
+            (request.resource.data.get('metodoVigente', '') == resource.data.get('metodoVigente', '')
+              && request.resource.data.get('etapaVigenteId', '') == resource.data.get('etapaVigenteId', '')
+              && request.resource.data.get('etapas', []) == resource.data.get('etapas', []))
+            || (resource.data.get('metodoVigente', '') == 'ciclo'
+              && request.resource.data.get('metodoVigente', '') == 'cronograma'
+              && request.resource.data.get('etapas', []).size() == resource.data.get('etapas', []).size() + 1
+              && get(/databases/$(database)/documents/users/$(userId)/ciclos/$(resource.data.etapaVigenteId)).data.get('ativo', false) == true
+              && getAfter(/databases/$(database)/documents/users/$(userId)/ciclos/$(resource.data.etapaVigenteId)).data.get('ativo', true) == false
+              && !exists(/databases/$(database)/documents/users/$(userId)/cronogramas/$(request.resource.data.etapaVigenteId))
+              && getAfter(/databases/$(database)/documents/users/$(userId)/cronogramas/$(request.resource.data.etapaVigenteId)).data.get('ativo', false) == true)
+            || (resource.data.get('metodoVigente', '') == 'cronograma'
+              && request.resource.data.get('metodoVigente', '') == 'ciclo'
+              && request.resource.data.get('etapas', []).size() == resource.data.get('etapas', []).size() + 1
+              && get(/databases/$(database)/documents/users/$(userId)/cronogramas/$(resource.data.etapaVigenteId)).data.get('ativo', false) == true
+              && getAfter(/databases/$(database)/documents/users/$(userId)/cronogramas/$(resource.data.etapaVigenteId)).data.get('ativo', true) == false
+              && !exists(/databases/$(database)/documents/users/$(userId)/ciclos/$(request.resource.data.etapaVigenteId))
+              && getAfter(/databases/$(database)/documents/users/$(userId)/ciclos/$(request.resource.data.etapaVigenteId)).data.get('ativo', false) == true)
+          );
+        allow delete: if isOwner(userId) && hasActiveSubscription(userId);
+      }
+
       match /cronogramas/{scheduleId} {
-        allow read: if isOwnerOrAdmin(userId);
-        allow create, update: if isOwner(userId) && scheduleIsSafe(userId);
-        allow delete: if isOwner(userId);
+        allow read: if isOwnerOrAdmin(userId) && hasActiveSubscription(userId);
+        allow create: if isOwner(userId) && hasActiveSubscription(userId) && scheduleIsSafe(userId);
+        allow update: if isOwner(userId) && hasActiveSubscription(userId) && scheduleIsSafe(userId)
+          && (resource.data.get('metodoVigente', '') != 'ciclo'
+            || request.resource.data.get('ativo', false) == false);
+        allow delete: if isOwner(userId) && hasActiveSubscription(userId);
 
         match /{nestedCollection}/{nestedDocument=**} {
-          allow read: if isOwnerOrAdmin(userId);
-          allow write: if isOwner(userId);
+          allow read: if isOwnerOrAdmin(userId) && hasActiveSubscription(userId);
+          allow write: if isOwner(userId) && hasActiveSubscription(userId);
         }
       }
 
       match /decks/{deckId} {
-        allow read: if isOwner(userId);
+        allow read: if isOwner(userId) && hasActiveSubscription(userId);
         allow create: if isOwner(userId)
+          && hasActiveSubscription(userId)
           && validDeck(request.resource.data, userId)
           && request.resource.data.get('folderId', '') is string
           && request.resource.data.get('folderId', '').size() > 0
@@ -1361,18 +1569,20 @@ service cloud.firestore {
           && request.resource.data.createdAt == request.time
           && request.resource.data.updatedAt == request.time;
         allow update: if isOwner(userId)
+          && hasActiveSubscription(userId)
           && validDeck(request.resource.data, userId)
           && request.resource.data.userId == resource.data.userId
           && request.resource.data.createdAt == resource.data.createdAt
           && request.resource.data.cardCount == resource.data.cardCount
           && request.resource.data.get('cardMutationVersion', 0) == resource.data.get('cardMutationVersion', 0)
           && request.resource.data.updatedAt == request.time;
-        allow delete: if isOwner(userId);
+        allow delete: if isOwner(userId) && hasActiveSubscription(userId);
 
         match /cards/{cardId} {
-          allow read: if isOwner(userId);
+          allow read: if isOwner(userId) && hasActiveSubscription(userId);
           allow create: if false;
           allow update: if isOwner(userId)
+            && hasActiveSubscription(userId)
             && validCard(request.resource.data, userId, deckId)
             && request.resource.data.userId == resource.data.userId
             && request.resource.data.deckId == resource.data.deckId
@@ -1384,12 +1594,12 @@ service cloud.firestore {
       }
 
       match /card_reviews/{reviewId} {
-        allow read: if isOwner(userId);
+        allow read: if isOwner(userId) && hasActiveSubscription(userId);
         allow create, update, delete: if false;
       }
 
       match /questions/{questionId} {
-        allow read: if isOwner(userId) && validPrivateQuestion(resource.data, userId);
+        allow read: if isOwner(userId) && hasActiveSubscription(userId) && validPrivateQuestion(resource.data, userId);
         allow create, update, delete: if false;
 
         match /private/{privateDoc} {
@@ -1399,12 +1609,12 @@ service cloud.firestore {
 
       // Tentativas validadas e estatísticas derivadas são gravadas só pelo backend.
       match /question_attempts/{attemptId} {
-        allow read: if isOwner(userId);
+        allow read: if isOwner(userId) && hasActiveSubscription(userId);
         allow create, update, delete: if false;
       }
 
       match /question_stats/{statsId} {
-        allow read: if isOwner(userId);
+        allow read: if isOwner(userId) && hasActiveSubscription(userId);
         allow create, update, delete: if false;
       }
 
@@ -1414,9 +1624,10 @@ service cloud.firestore {
       }
 
       match /error_book/{entryId} {
-        allow read: if isOwner(userId);
+        allow read: if isOwner(userId) && hasActiveSubscription(userId);
         allow create, delete: if false;
         allow update: if isOwner(userId)
+          && hasActiveSubscription(userId)
           && request.resource.data.userId == resource.data.userId
           && request.resource.data.sourceType == resource.data.sourceType
           && request.resource.data.sourceId == resource.data.sourceId
@@ -1448,9 +1659,10 @@ service cloud.firestore {
       }
 
       match /documents/{docId} {
-        allow read: if isOwner(userId);
-        allow create: if isOwner(userId) && validDocumentCreate(request.resource.data, userId, docId);
+        allow read: if isOwner(userId) && hasActiveSubscription(userId);
+        allow create: if isOwner(userId) && hasActiveSubscription(userId) && validDocumentCreate(request.resource.data, userId, docId);
         allow update: if isOwner(userId)
+          && hasActiveSubscription(userId)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'updatedAt'])
           && request.resource.data.name is string
           && request.resource.data.name.size() > 0
@@ -1464,19 +1676,19 @@ service cloud.firestore {
       }
 
       match /generated_items/{itemId} {
-        allow read: if isOwner(userId);
+        allow read: if isOwner(userId) && hasActiveSubscription(userId);
         allow create, update, delete: if false;
       }
 
       match /study_folders/{folderId} {
-        allow get: if isOwner(userId) && validStudyFolder(resource.data, userId);
-        allow list: if isOwner(userId);
+        allow get: if isOwner(userId) && hasActiveSubscription(userId) && validStudyFolder(resource.data, userId);
+        allow list: if isOwner(userId) && hasActiveSubscription(userId);
         allow create, update, delete: if false;
       }
 
       match /study_sources/{sourceId} {
-        allow get: if isOwner(userId) && validStudySource(resource.data, userId);
-        allow list: if isOwner(userId);
+        allow get: if isOwner(userId) && hasActiveSubscription(userId) && validStudySource(resource.data, userId);
+        allow list: if isOwner(userId) && hasActiveSubscription(userId);
         allow create, update, delete: if false;
 
         match /chunks/{chunkId} {
@@ -1486,18 +1698,18 @@ service cloud.firestore {
 
       // Sessao e dominio adaptativo sao inteiramente gravados pelo backend.
       match /adaptive_study_sessions/{sessionId} {
-        allow read: if isOwner(userId);
+        allow read: if isOwner(userId) && hasActiveSubscription(userId);
         allow create, update, delete: if false;
       }
 
       match /concept_mastery/{masteryId} {
-        allow read: if isOwner(userId);
+        allow read: if isOwner(userId) && hasActiveSubscription(userId);
         allow create, update, delete: if false;
       }
 
       // O backend cria e atualiza o resultado da importacao; o dono apenas consulta.
       match /anki_imports/{importId} {
-        allow read: if isOwner(userId);
+        allow read: if isOwner(userId) && hasActiveSubscription(userId);
         allow create, update, delete: if false;
       }
 
@@ -1510,8 +1722,6 @@ service cloud.firestore {
         allow read, write: if false;
       }
 
-      // Exige ao menos uma subcoleção e um documento; o wildcard recursivo
-      // sozinho também casaria o documento users/{userId} em rules_version 2.
       match /{subCollection}/{document=**} {
         allow read, write, delete: if subCollection != 'gamification'
           && subCollection != 'notifications'
@@ -1521,6 +1731,7 @@ service cloud.firestore {
           && subCollection != 'simulados'
           && subCollection != 'metas'
           && subCollection != 'ciclos'
+          && subCollection != 'planejamentos'
           && subCollection != 'cronogramas'
           && subCollection != 'decks'
           && subCollection != 'card_reviews'
@@ -1538,6 +1749,7 @@ service cloud.firestore {
           && subCollection != 'study_sources'
           && subCollection != 'adaptive_study_sessions'
           && subCollection != 'concept_mastery'
+          && subCollection != 'broadcast_poll_answers'
           && isOwnerOrAdmin(userId);
       }
     }

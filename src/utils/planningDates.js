@@ -58,10 +58,15 @@ export const addDaysBrasilia = (dateOrKey, days = 0) => {
 
 export const getLocalTodayKey = (referenceDate = new Date()) => getBrasiliaTodayKey(referenceDate);
 
+export const isPlanningDateToday = (date, now = new Date()) => {
+  const dateKey = getBrasiliaTodayKey(date);
+  const todayKey = getBrasiliaTodayKey(now);
+  return Boolean(dateKey && todayKey && dateKey === todayKey);
+};
+
 export const clampPlanningStartDate = (value, minimumDate = getBrasiliaTodayKey()) => {
   const normalizedValue = /^\d{4}-\d{2}-\d{2}$/.test(String(value || ''))
     ? String(value)
     : minimumDate;
   return normalizedValue < minimumDate ? minimumDate : normalizedValue;
 };
-

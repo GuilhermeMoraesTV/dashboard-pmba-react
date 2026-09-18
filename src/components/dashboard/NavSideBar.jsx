@@ -14,6 +14,7 @@ import { db } from '../../firebaseConfig';
 import ProfileLevelRing from '../gamification/ProfileLevelRing';
 import { NotificationBell } from '../shared/NotificationPanel';
 import InstallAppButton from '../shared/InstallAppButton';
+import TrialStatusBadge from '../subscription/TrialStatusBadge';
 import { calcularStatusEstudoHoje } from '../../hooks/useCronogramaSystem';
 import { useCicloRevisoes } from '../../hooks/useCicloRevisoes';
 import { buildRevisaoCentral } from '../../utils/revisaoCentral';
@@ -402,6 +403,7 @@ function NavSideBar({
   coverLoading = false,
   levelData,
   userAccess,
+  monetizationConfig = null,
   activeTab,
   setActiveTab,
   handleLogout,
@@ -924,17 +926,24 @@ function NavSideBar({
         <button
           type="button"
           onClick={() => { setActiveTab('profile'); setMobileOpen(false); scrollWindowToTopInstant(); }}
-          className="group/profile flex items-center gap-2.5 rounded-2xl p-1 text-left transition-all hover:bg-zinc-100/80 dark:hover:bg-zinc-800/60 active:scale-95"
+          className="hidden lg:flex group/profile items-center gap-2.5 rounded-2xl p-1 text-left transition-all hover:bg-zinc-100/80 dark:hover:bg-zinc-800/60 active:scale-95"
           title="Abrir meu perfil"
         >
           <div className="relative shrink-0">
             <ProfileLevelRing userPhotoURL={user?.photoURL} levelData={levelData} size={44} strokeWidth={2.8}/>
           </div>
-          <div className="hidden sm:flex flex-col min-w-0">
-            {/* Linha 1: Nome do usuário */}
-            <span className="truncate text-xs sm:text-sm font-black leading-tight text-zinc-950 dark:text-white group-hover/profile:text-red-600 transition-colors">
-              {profileCardData.displayName}
-            </span>
+          <div className="flex flex-col min-w-0">
+            {/* Linha 1: Nome do usuário + Badge de Assinatura/Trial */}
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="truncate text-xs sm:text-sm font-black leading-tight text-zinc-950 dark:text-white group-hover/profile:text-red-600 transition-colors">
+                {profileCardData.displayName}
+              </span>
+              <TrialStatusBadge
+                subscription={userAccess?.subscription}
+                monetizationConfig={monetizationConfig}
+                size="sm"
+              />
+            </div>
 
             {/* Linha 2: Troféu + Posição no Ranking */}
             <div className="flex items-center gap-1.5 text-xs font-bold text-zinc-700 dark:text-zinc-200 mt-0.5">
@@ -1060,6 +1069,13 @@ function NavSideBar({
                   <h3 className={`relative z-10 mb-1 w-full truncate text-center text-sm font-black leading-tight tracking-tight ${coverURL ? 'text-white drop-shadow-md' : 'text-zinc-950 dark:text-white'}`}>
                     {user?.displayName || 'Guerreiro'}
                   </h3>
+                  <div className="relative z-10 flex items-center justify-center gap-1.5 mb-1.5 flex-wrap">
+                    <TrialStatusBadge
+                      subscription={userAccess?.subscription}
+                      monetizationConfig={monetizationConfig}
+                      size="sm"
+                    />
+                  </div>
                   <div className={`relative z-10 rounded-full px-2.5 py-0.5 text-[8px] font-black uppercase tracking-[0.18em] shadow-sm ${coverURL ? 'border border-white/25 bg-black/35 text-white backdrop-blur-sm' : 'border border-zinc-200 bg-white/75 text-zinc-600 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300'}`}>
                     Nível {levelData?.currentLevel || 1}{LEAGUES_ENABLED ? ` · Liga ${levelData?.leagueName || 'Ferro'}` : ''}
                   </div>
@@ -1139,20 +1155,83 @@ function NavSideBar({
 
   return (
     <>
-      <TopBar/>
+      {TopBar()}
       <div
         className={`fixed inset-0 bg-black/60 z-[70] lg:hidden backdrop-blur-sm transition-opacity duration-300 ${isMobileOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
         onClick={() => setMobileOpen(false)}
       />
       <nav
         className={`
-          fixed top-[64px] bottom-0 z-[50] flex flex-col
+          fixed bottom-0 z-[50] flex flex-col
           bg-white dark:bg-card-dark border-r border-zinc-200 dark:border-white/10
           transition-all duration-300 shadow-2xl lg:shadow-none
-          ${isMobileOpen ? 'translate-x-0 w-[260px] z-[80] top-0' : '-translate-x-full lg:translate-x-0'}
-          lg:left-0 ${isDesktopExpanded ? 'lg:w-[208px]' : 'lg:w-[64px]'}
+          ${isMobileOpen ? 'top-0 translate-x-0 w-[260px] z-[80]' : '-translate-x-full lg:translate-x-0'}
+          lg:top-[64px] lg:left-0 ${isDesktopExpanded ? 'lg:w-[208px]' : 'lg:w-[64px]'}
         `}
       >
+        {/* Cabeçalho do menu mobile com Perfil Completo */}
+        <div className="lg:hidden shrink-0 border-b border-zinc-100 dark:border-zinc-800/80 p-3 bg-zinc-50/70 dark:bg-zinc-900/50">
+          <div className="flex items-center justify-between gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('profile');
+                setMobileOpen(false);
+                scrollWindowToTopInstant();
+              }}
+              className="group/mobprofile flex items-center gap-2.5 flex-1 min-w-0 text-left rounded-xl p-1 -m-1 transition-all hover:bg-zinc-100/80 dark:hover:bg-zinc-800/60 active:scale-[0.98]"
+              title="Abrir meu perfil"
+            >
+              <div className="relative shrink-0">
+                <ProfileLevelRing userPhotoURL={user?.photoURL} levelData={levelData} size={44} strokeWidth={2.8}/>
+              </div>
+              <div className="flex flex-col min-w-0 flex-1">
+                {/* Linha 1: Nome do usuário + Badge de Assinatura/Trial */}
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="truncate text-xs font-black leading-tight text-zinc-950 dark:text-white group-hover/mobprofile:text-red-600 transition-colors">
+                    {profileCardData.displayName}
+                  </span>
+                  <TrialStatusBadge
+                    subscription={userAccess?.subscription}
+                    monetizationConfig={monetizationConfig}
+                    size="sm"
+                  />
+                </div>
+
+                {/* Linha 2: Troféu + Posição no Ranking */}
+                <div className="flex items-center gap-1.5 text-xs font-bold text-zinc-700 dark:text-zinc-200 mt-0.5">
+                  <Trophy size={13} className="text-amber-500 shrink-0" />
+                  <span>{profileCardData.rankDisplay}</span>
+                </div>
+
+                {/* Linha 3: Barra de Progresso de XP + Texto XP */}
+                <div className="flex items-center gap-2 mt-1">
+                  <div className="h-1.5 flex-1 max-w-[84px] overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700">
+                    <div
+                      className="h-full rounded-full bg-red-600 transition-[width] duration-500"
+                      style={{ width: `${profileCardData.progressPercent}%` }}
+                    />
+                  </div>
+                  <span className="text-[9px] font-bold text-zinc-600 dark:text-zinc-300 whitespace-nowrap">
+                    {profileCardData.currentXP}/{profileCardData.levelRangeXP} XP
+                  </span>
+                </div>
+              </div>
+            </button>
+
+            {/* Botão de Fechar o Menu Mobile */}
+            <button
+              type="button"
+              onClick={() => setMobileOpen(false)}
+              className="p-1.5 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-colors shrink-0"
+              aria-label="Fechar menu"
+              title="Fechar menu"
+            >
+              <X size={18} />
+            </button>
+          </div>
+        </div>
+
         {/* Botão de alternância flutuante posicionado do lado de FORA na borda direita, alinhado com a HOME */}
         <button
           type="button"

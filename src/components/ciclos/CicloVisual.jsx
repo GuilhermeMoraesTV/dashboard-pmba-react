@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertTriangle, BookOpen, Play, Clock, Target, Trophy, CheckCircle2, Sparkles, RotateCw } from 'lucide-react';
+import { AlertTriangle, BookOpen, Play, Clock, Target, Trophy, CheckCircle2, Sparkles, RotateCw, Check } from 'lucide-react';
 import { buildCycleOrderedSessions, getCycleAssuntoForSession } from '../../utils/studyDayStatus';
 import { getDisciplineColorForSlot } from '../../utils/disciplineColors';
 import { normalizarDuracaoSessao } from '../../utils/cicloDistribution';
@@ -114,6 +114,57 @@ const centerButtonStyle = (width) => ({
   borderRadius: `${CYCLE_CENTER_MANUAL_LAYOUT.actions.radius}px`,
   fontSize: `${CYCLE_CENTER_MANUAL_LAYOUT.actions.fontSize}px`,
 });
+
+function CicloVisualBlockSubjects({ activeDisciplina, shouldShowAssuntos, formatVisualHours }) {
+  const [expandido, setExpandido] = useState(false);
+  const assuntos = activeDisciplina?.assuntosEstudados || [];
+  const temEstudos = assuntos.length > 0;
+
+  if (!shouldShowAssuntos) return null;
+
+  if (!temEstudos) {
+    return (
+      <div className="mb-5 rounded-2xl border border-zinc-200 bg-white p-3.5 dark:border-zinc-800 dark:bg-zinc-900">
+        <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
+          Escolha livre: selecione o assunto ao estudar.
+        </p>
+      </div>
+    );
+  }
+
+  const LIMITE_ITENS = 3;
+  const itensExibidos = expandido ? assuntos : assuntos.slice(0, LIMITE_ITENS);
+  const temMais = assuntos.length > LIMITE_ITENS;
+
+  return (
+    <div className="mb-5 rounded-2xl border border-zinc-200 bg-white p-3.5 dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="mb-2 flex items-center justify-between">
+        <span className="text-[11px] font-black uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+          {assuntos.length} {assuntos.length === 1 ? 'assunto estudado neste bloco' : 'assuntos estudados neste bloco'}
+        </span>
+      </div>
+      <div className="space-y-1.5">
+        {itensExibidos.map((item, idx) => (
+          <div key={idx} className="flex items-baseline justify-between gap-2 text-xs font-semibold text-zinc-700 dark:text-zinc-200">
+            <span className="truncate">{item.assunto}</span>
+            <span className="shrink-0 text-[11px] font-bold text-zinc-400 dark:text-zinc-500 tabular-nums">
+              — {item.minutos} min
+            </span>
+          </div>
+        ))}
+      </div>
+      {temMais && (
+        <button
+          type="button"
+          onClick={() => setExpandido(!expandido)}
+          className="mt-2 text-[11px] font-bold text-blue-600 hover:underline dark:text-blue-400"
+        >
+          {expandido ? 'Ver menos' : `Ver todos (${assuntos.length})`}
+        </button>
+      )}
+    </div>
+  );
+}
 
 // --- COMPONENTE DE SEGMENTO (BLOCO) ---
 const CicloSegment = ({
@@ -442,7 +493,6 @@ function CicloVisual({
   ciclo,
   isLoading,
   canConcludeCiclo,
-  onMarcarSessao,
   onConcluirCiclo,
   cicloActionLoading,
   showAssuntos,
@@ -452,8 +502,6 @@ function CicloVisual({
   viewCiclo: controlledViewCiclo,
   onViewCicloChange,
   showViewToggle = true,
-  sessionCompletionOverrides = {},
-  loadingSessionIds = {},
   instantStateChanges = false,
 }) {
   const [hoveredId, setHoveredId] = useState(null);
@@ -585,19 +633,10 @@ function CicloVisual({
           allowPartial: true,
         },
       );
-      const completionOverride = sessionCompletionOverrides?.[globalIndex];
       const bloqueiaDesmarcarConclusao = Boolean(canonicalSession.bloqueiaDesmarcarConclusao);
       const progressoCanonico = Number(canonicalSession.progressoMinutos || 0);
-      const progressoMinutos = typeof completionOverride === 'boolean'
-        ? completionOverride
-          ? Math.max(progressoCanonico, tempoPlanejadoSessao)
-          : bloqueiaDesmarcarConclusao
-            ? progressoCanonico
-            : 0
-        : progressoCanonico;
-      const concluida = typeof completionOverride === 'boolean'
-        ? (completionOverride || bloqueiaDesmarcarConclusao)
-        : Boolean(canonicalSession.concluida) || bloqueiaDesmarcarConclusao;
+      const progressoMinutos = progressoCanonico;
+      const concluida = Boolean(canonicalSession.concluida) || bloqueiaDesmarcarConclusao;
       const corBase = coresDisciplinas[disciplina.id] || '#71717a';
       const percentage = tempoPlanejadoSessao > 0 ? Math.min(100, Math.round((progressoMinutos / tempoPlanejadoSessao) * 100)) : 0;
       const color = concluida ? CICLO_CONCLUIDO_COLOR : progressoMinutos > 0 ? '#f59e0b' : corBase;
@@ -605,6 +644,7 @@ function CicloVisual({
       const segmentData = {
         key: `sessao-${globalIndex}`,
         globalIndex,
+        roundVersion: Number(ciclo?.conclusoes || 0),
         disciplina,
         sessaoIndex: sessao.sessaoIndex,
         concluida,
@@ -618,15 +658,17 @@ function CicloVisual({
         progressMinutos: progressoMinutos,
         progressoPersistidoMinutos: progressoPersistido,
         bloqueiaDesmarcarConclusao,
-        concluidaManual: concluida && !bloqueiaDesmarcarConclusao,
+        concluidaManual: false,
         percentage,
+        assuntosEstudados: canonicalSession.assuntosEstudados || [],
+        totalAssuntosEstudados: canonicalSession.totalAssuntosEstudados || 0,
         ...getCycleAssuntoForSession(ciclo, { ...sessao, globalIndex }, disciplina),
       };
 
       currentAngle += anguloPorSessao;
       return segmentData;
     }).filter(Boolean);
-  }, [disciplinas, ciclo, coresDisciplinas, registrosEstudo, sessionCompletionOverrides]);
+  }, [disciplinas, ciclo, coresDisciplinas, registrosEstudo]);
 
   const dataViewAtual = useMemo(() => {
     if (!isModoCicloSessoes) return dataLegado;
@@ -702,9 +744,10 @@ function CicloVisual({
     : dataLegado.reduce((acc, d) => acc + d.metaMinutos, 0);
   const progressoGeral = totalMeta > 0 ? (totalEstudado / totalMeta) * 100 : 0;
 
-  const isConcluido = isModoCicloSessoes
-    ? totalMeta > 0 && totalEstudado >= totalMeta
-    : !!canConcludeCiclo;
+  // O centro concluído depende exclusivamente do estado persistido que a
+  // transação de fechamento também valida. Registros otimistas não podem
+  // liberar o fechamento antes da confirmação do Firestore.
+  const isConcluido = !!canConcludeCiclo;
 
   useEffect(() => {
     const acabouDeConcluir = isConcluido && !previousIsConcluidoRef.current;
@@ -732,20 +775,6 @@ function CicloVisual({
     }
 
     onSelectDisciplina(seg.disciplina.id === selectedDisciplinaId ? null : seg.disciplina.id);
-  };
-
-  const getNextPendingSessionForDisciplina = (disciplinaId) => (
-    data.find((sessao) => sessao.disciplina.id === disciplinaId && !sessao.concluida) || null
-  );
-  const isSessionLoading = (sessionIndex) => Boolean(loadingSessionIds?.[Number(sessionIndex)]);
-  const isNextDisciplineSessionLoading = (disciplinaId) => {
-    const nextSession = getNextPendingSessionForDisciplina(disciplinaId);
-    return nextSession ? isSessionLoading(nextSession.globalIndex) : false;
-  };
-
-  const handleConcluirDisciplinaAgregada = (disciplinaId) => {
-    const sessao = getNextPendingSessionForDisciplina(disciplinaId);
-    if (sessao) onMarcarSessao?.(sessao.globalIndex, sessao);
   };
 
   if (!disciplinas.length) {
@@ -827,6 +856,7 @@ function CicloVisual({
                       stroke={CICLO_CONCLUIDO_COLOR}
                       strokeWidth="0.5"
                       strokeOpacity={0.4}
+                      initial={{ opacity: 0.4, scale: 1 }}
                       animate={{ scale: instantStateChanges ? 1 : [1, 1.07, 1], opacity: instantStateChanges ? 0.4 : [0.4, 0.1, 0.4] }}
                       transition={{ repeat: instantStateChanges ? 0 : Infinity, duration: instantStateChanges ? 0 : 2.5, ease: 'easeInOut' }}
                       style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
@@ -924,22 +954,32 @@ function CicloVisual({
                               </span>
                             )}
 
-                            {shouldShowAssuntos && !activeDisciplina.isDisciplinaAgregada && activeDisciplina.assuntoSugerido?.nome && (
+                            {shouldShowAssuntos && !activeDisciplina.isDisciplinaAgregada && (
                               <div
                                 className="text-center"
                                 style={centerCircularSlotStyle(CYCLE_CENTER_MANUAL_LAYOUT.assunto)}
-                                title={activeDisciplina.assuntoSugerido.nome}
+                                title={
+                                  activeDisciplina.assuntosEstudados?.length > 0
+                                    ? activeDisciplina.assuntosEstudados.map((a) => a.assunto).join(', ')
+                                    : 'Escolha livre ao iniciar'
+                                }
                               >
                                 <span
-                                  className="font-extrabold text-zinc-600 dark:text-zinc-200"
+                                  className={`font-extrabold ${activeDisciplina.assuntosEstudados?.length > 0 ? 'text-zinc-700 dark:text-zinc-200' : 'text-zinc-400 dark:text-zinc-500'}`}
                                   style={{
                                     ...centerClampStyle(CYCLE_CENTER_MANUAL_LAYOUT.assunto),
                                     width: '100%',
-                                    fontSize: `${CYCLE_CENTER_MANUAL_LAYOUT.assunto.fontSize}px`,
+                                    fontSize: activeDisciplina.assuntosEstudados?.length > 0
+                                      ? `${CYCLE_CENTER_MANUAL_LAYOUT.assunto.fontSize}px`
+                                      : '3.1px',
                                     lineHeight: CYCLE_CENTER_MANUAL_LAYOUT.assunto.lineHeight,
                                   }}
                                 >
-                                  {activeDisciplina.assuntoSugerido.nome}
+                                  {activeDisciplina.assuntosEstudados?.length > 0
+                                    ? (activeDisciplina.assuntosEstudados.length === 1
+                                        ? activeDisciplina.assuntosEstudados[0].assunto
+                                        : `${activeDisciplina.assuntosEstudados[0].assunto} (+${activeDisciplina.assuntosEstudados.length - 1})`)
+                                    : 'Escolha livre'}
                                 </span>
                               </div>
                             )}
@@ -965,40 +1005,27 @@ function CicloVisual({
                             {!hideActionButtons && isModoCicloSessoes && activeDisciplina.isDisciplinaAgregada ? (
                               <div
                                 className="flex w-full items-center justify-center overflow-visible"
-                                style={{
-                                  ...centerCircularSlotStyle(CYCLE_CENTER_MANUAL_LAYOUT.actions),
-                                  gap: `${CYCLE_CENTER_MANUAL_LAYOUT.actions.gap}px`,
-                                }}
+                                style={centerCircularSlotStyle(CYCLE_CENTER_MANUAL_LAYOUT.actions)}
                               >
                                 <button
-                                  onClick={() => onStartStudy(activeDisciplina.disciplina, null, { defaultContext: 'ciclo', tempoPlanejadoMinutos: activeDisciplina.tempoPlanejadoMinutos || activeDisciplina.metaMinutos })}
+                                  onClick={() => onStartStudy(activeDisciplina.disciplina, null, { defaultContext: 'ciclo', cycleRoundVersion: activeDisciplina.roundVersion, tempoPlanejadoMinutos: activeDisciplina.tempoPlanejadoMinutos || activeDisciplina.metaMinutos })}
                                   className="pointer-events-auto inline-flex items-center justify-center bg-red-600 px-[2px] font-black uppercase leading-none tracking-[0.02em] text-white shadow-[0_1.5px_5px_rgba(220,38,38,0.18)] transition hover:bg-red-700 active:scale-95"
-                                  style={centerButtonStyle(CYCLE_CENTER_MANUAL_LAYOUT.actions.startWidth)}
+                                  style={centerButtonStyle(CYCLE_CENTER_MANUAL_LAYOUT.actions.singleWidth)}
                                 >
                                   Iniciar
                                 </button>
-                                <button
-                                  onClick={() => handleConcluirDisciplinaAgregada(activeDisciplina.disciplina.id)}
-                                  disabled={isNextDisciplineSessionLoading(activeDisciplina.disciplina.id) || !getNextPendingSessionForDisciplina(activeDisciplina.disciplina.id)}
-                                  className="pointer-events-auto inline-flex items-center justify-center bg-emerald-600 px-[2px] font-black uppercase leading-none tracking-[0.02em] text-white shadow-[0_1.5px_5px_rgba(5,150,105,0.18)] transition hover:bg-emerald-700 active:scale-95 disabled:opacity-50"
-                                  style={centerButtonStyle(CYCLE_CENTER_MANUAL_LAYOUT.actions.endWidth)}
-                                >
-                                  Concluir
-                                </button>
                               </div>
                             ) : !hideActionButtons && activeDisciplina.concluida && isModoCicloSessoes ? (
-                              <button
-                                onClick={() => onMarcarSessao?.(activeDisciplina.globalIndex, activeDisciplina)}
-                                disabled={activeDisciplina.bloqueiaDesmarcarConclusao}
-                                title={activeDisciplina.bloqueiaDesmarcarConclusao ? 'O tempo registrado mantém este bloco concluído' : 'Desmarcar bloco'}
-                                className="pointer-events-auto inline-flex items-center justify-center border border-emerald-500/40 bg-emerald-500/10 px-[4.4px] font-black uppercase leading-none tracking-[0.03em] text-emerald-600 disabled:opacity-60 dark:text-emerald-300"
+                              <span
+                                title="Bloco concluído pelo tempo de estudo registrado"
+                                className="inline-flex items-center justify-center border border-emerald-500/40 bg-emerald-500/10 px-[4.4px] font-black uppercase leading-none tracking-[0.03em] text-emerald-600 dark:text-emerald-300"
                                 style={{
                                   ...centerCircularSlotStyle(CYCLE_CENTER_MANUAL_LAYOUT.actions),
                                   ...centerButtonStyle(CYCLE_CENTER_MANUAL_LAYOUT.actions.singleWidth),
                                 }}
                               >
                                 Concluída
-                              </button>
+                              </span>
                             ) : !hideActionButtons ? (
                               <div
                                 className="flex w-full items-center justify-center overflow-visible"
@@ -1010,24 +1037,15 @@ function CicloVisual({
                                 <button
                                   onClick={() => onStartStudy(
                                     activeDisciplina.disciplina,
-                                    shouldShowAssuntos ? activeDisciplina.assuntoSugerido?.nome || null : null,
-                                    isModoCicloSessoes ? { defaultContext: 'ciclo', sessaoGlobalIndex: activeDisciplina.globalIndex, tempoPlanejadoMinutos: activeDisciplina.tempoPlanejadoMinutos || activeDisciplina.metaMinutos } : { defaultContext: 'ciclo' }
+                                    null,
+                                    isModoCicloSessoes ? { defaultContext: 'ciclo', cycleRoundVersion: activeDisciplina.roundVersion, sessaoGlobalIndex: activeDisciplina.globalIndex, tempoPlanejadoMinutos: activeDisciplina.tempoPlanejadoMinutos || activeDisciplina.metaMinutos } : { defaultContext: 'ciclo', cycleRoundVersion: Number(ciclo?.conclusoes || 0) }
                                   )}
                                   className="pointer-events-auto inline-flex items-center justify-center bg-red-600 px-[2px] font-black uppercase leading-none tracking-[0.03em] text-white shadow-[0_1.5px_5px_rgba(220,38,38,0.22)] transition hover:bg-red-700 active:scale-95"
-                                  style={centerButtonStyle(CYCLE_CENTER_MANUAL_LAYOUT.actions.startWidth)}
+                                  style={centerButtonStyle(isModoCicloSessoes ? CYCLE_CENTER_MANUAL_LAYOUT.actions.singleWidth : CYCLE_CENTER_MANUAL_LAYOUT.actions.startWidth)}
                                 >
                                   Iniciar
                                 </button>
-                                {isModoCicloSessoes ? (
-                                  <button
-                                    onClick={() => onMarcarSessao?.(activeDisciplina.globalIndex, activeDisciplina)}
-                                    aria-busy={isSessionLoading(activeDisciplina.globalIndex)}
-                                    className="pointer-events-auto inline-flex items-center justify-center bg-emerald-600 px-[2px] font-black uppercase leading-none tracking-[0.03em] text-white shadow-[0_1.5px_5px_rgba(5,150,105,0.24)] transition hover:bg-emerald-700 active:scale-95 disabled:opacity-60"
-                                    style={centerButtonStyle(CYCLE_CENTER_MANUAL_LAYOUT.actions.endWidth)}
-                                  >
-                                    Concluir
-                                  </button>
-                                ) : (
+                                {!isModoCicloSessoes && (
                                   <button
                                     onClick={() => onViewDetails(activeDisciplina.disciplina)}
                                     className="pointer-events-auto inline-flex items-center justify-center bg-emerald-600 px-[2px] font-black uppercase leading-none tracking-[0.03em] text-white shadow-[0_1.5px_5px_rgba(5,150,105,0.24)] transition hover:bg-emerald-700 active:scale-95"
@@ -1194,27 +1212,21 @@ function CicloVisual({
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <div className="grid grid-cols-1 gap-2">
                         <button
-                          onClick={() => onStartStudy(activeDisciplina.disciplina, null, { defaultContext: 'ciclo', tempoPlanejadoMinutos: activeDisciplina.tempoPlanejadoMinutos || activeDisciplina.metaMinutos })}
+                          onClick={() => onStartStudy(activeDisciplina.disciplina, null, { defaultContext: 'ciclo', cycleRoundVersion: activeDisciplina.roundVersion, tempoPlanejadoMinutos: activeDisciplina.tempoPlanejadoMinutos || activeDisciplina.metaMinutos })}
                           className="w-full py-3 bg-red-600 text-white rounded-xl font-bold text-xs uppercase tracking-wide shadow-lg shadow-red-600/20 transition-all hover:-translate-y-0.5 hover:bg-red-700"
                         >
                           Iniciar
-                        </button>
-                        <button
-                          onClick={() => handleConcluirDisciplinaAgregada(activeDisciplina.disciplina.id)}
-                          disabled={isNextDisciplineSessionLoading(activeDisciplina.disciplina.id) || !getNextPendingSessionForDisciplina(activeDisciplina.disciplina.id)}
-                          className="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold text-xs uppercase tracking-wide shadow-lg shadow-emerald-600/20 transition-all hover:-translate-y-0.5 hover:bg-emerald-700 disabled:opacity-50 disabled:hover:translate-y-0"
-                        >
-                          Concluir
                         </button>
                       </div>
                     </>
                   ) : isModoCicloSessoes ? (
                     <>
                       <div className="flex justify-between items-start mb-4">
-                        <h3 className="text-xl font-black text-zinc-800 dark:text-white line-clamp-2 leading-tight tracking-wide">
-                          {activeDisciplina.disciplina.nome}
+                        <h3 className="text-xl font-black text-zinc-800 dark:text-white line-clamp-2 leading-tight tracking-wide flex items-center gap-1.5">
+                          {activeDisciplina.concluida && <Check size={18} className="text-emerald-500 shrink-0" strokeWidth={3} />}
+                          <span>{activeDisciplina.disciplina.nome}</span>
                         </h3>
                         <span
                           className="px-2 py-1 rounded text-[10px] font-black uppercase tracking-wide bg-white dark:bg-zinc-800 border border-zinc-100 dark:border-zinc-700"
@@ -1243,26 +1255,11 @@ function CicloVisual({
                         </div>
                       </div>
 
-                      {shouldShowAssuntos && activeDisciplina.assuntoSugerido?.nome && (
-                        <div className={`mb-5 rounded-2xl border p-3 ${
-                          activeDisciplina.hasPendenciaTeoria
-                            ? 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-200'
-                            : 'border-zinc-200 bg-white text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300'
-                        }`}>
-                          <div className="mb-1 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest">
-                            {activeDisciplina.hasPendenciaTeoria ? <AlertTriangle size={13} /> : <BookOpen size={13} />}
-                            {activeDisciplina.hasPendenciaTeoria ? 'Retomada pendente' : 'Assunto sugerido'}
-                          </div>
-                          <p className="text-sm font-black leading-snug">
-                            {activeDisciplina.assuntoSugerido.nome}
-                          </p>
-                          {activeDisciplina.hasPendenciaTeoria && activeDisciplina.retomada?.minutosAcumulados > 0 && (
-                            <p className="mt-1 text-[11px] font-bold opacity-80">
-                              {formatVisualHours(activeDisciplina.retomada.minutosAcumulados)} ja acumulados
-                            </p>
-                          )}
-                        </div>
-                      )}
+                      <CicloVisualBlockSubjects
+                        activeDisciplina={activeDisciplina}
+                        shouldShowAssuntos={shouldShowAssuntos}
+                        formatVisualHours={formatVisualHours}
+                      />
 
                       <div className="mb-5">
                         <div className="flex justify-between text-xs mb-1.5">
@@ -1287,33 +1284,12 @@ function CicloVisual({
                           Bloco concluido
                         </div>
                       ) : (
-                        <div className="flex gap-3">
+                        <div className="flex">
                           <button
-                            onClick={() => onStartStudy(activeDisciplina.disciplina, shouldShowAssuntos ? activeDisciplina.assuntoSugerido?.nome || null : null, { defaultContext: 'ciclo', sessaoGlobalIndex: activeDisciplina.globalIndex, tempoPlanejadoMinutos: activeDisciplina.tempoPlanejadoMinutos || activeDisciplina.metaMinutos })}
-                            className="flex-1 py-3 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-xl font-bold text-xs uppercase tracking-wide shadow-lg hover:shadow-xl transition-all hover:-translate-y-0.5 flex items-center justify-center gap-2"
+                            onClick={() => onStartStudy(activeDisciplina.disciplina, null, { defaultContext: 'ciclo', cycleRoundVersion: activeDisciplina.roundVersion, sessaoGlobalIndex: activeDisciplina.globalIndex, tempoPlanejadoMinutos: activeDisciplina.tempoPlanejadoMinutos || activeDisciplina.metaMinutos })}
+                            className="w-full py-3 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-xl font-bold text-xs uppercase tracking-wide shadow-lg hover:shadow-xl transition-all hover:-translate-y-0.5 flex items-center justify-center gap-2"
                           >
                             <Play size={16} fill="currentColor" /> Iniciar estudo
-                          </button>
-                          <button
-                            onClick={() => onMarcarSessao?.(activeDisciplina.globalIndex, activeDisciplina)}
-                            disabled={activeDisciplina.bloqueiaDesmarcarConclusao}
-                            title={activeDisciplina.bloqueiaDesmarcarConclusao ? 'O tempo registrado mantém este bloco concluído' : 'Desmarcar bloco'}
-                            className="px-4 py-3 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 rounded-xl font-bold text-xs uppercase tracking-wide hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors border border-zinc-200 dark:border-zinc-700 shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
-                          >
-                            Concluir
-                          </button>
-                        </div>
-                      )}
-
-                      {activeDisciplina.concluida && (
-                        <div className="mt-3">
-                          <button
-                            onClick={() => onMarcarSessao?.(activeDisciplina.globalIndex, activeDisciplina)}
-                            disabled={activeDisciplina.bloqueiaDesmarcarConclusao}
-                            title={activeDisciplina.bloqueiaDesmarcarConclusao ? 'O tempo registrado mantém este bloco concluído' : 'Desmarcar bloco'}
-                            className="w-full px-4 py-3 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 rounded-xl font-bold text-xs uppercase tracking-wide hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors border border-zinc-200 dark:border-zinc-700 shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
-                          >
-                            {activeDisciplina.bloqueiaDesmarcarConclusao ? 'Concluído pelo tempo' : 'Desmarcar'}
                           </button>
                         </div>
                       )}
@@ -1371,7 +1347,7 @@ function CicloVisual({
 
                       <div className="flex gap-3">
                         <button
-                          onClick={() => onStartStudy(activeDisciplina.disciplina, null, { defaultContext: 'ciclo', tempoPlanejadoMinutos: activeDisciplina.tempoPlanejadoMinutos || activeDisciplina.metaMinutos })}
+                          onClick={() => onStartStudy(activeDisciplina.disciplina, null, { defaultContext: 'ciclo', cycleRoundVersion: activeDisciplina.roundVersion, tempoPlanejadoMinutos: activeDisciplina.tempoPlanejadoMinutos || activeDisciplina.metaMinutos })}
                           className="flex-1 py-3 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-xl font-bold text-xls uppercase tracking-wide shadow-lg hover:shadow-xl transition-all hover:-translate-y-0.5 flex items-center justify-center gap-2"
                         >
                           <Play size={25} fill="currentColor" /> Iniciar Estudo

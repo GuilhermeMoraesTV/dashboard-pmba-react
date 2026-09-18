@@ -5,10 +5,18 @@ import {
   clampPlanningStartDate,
   getLocalTodayKey,
   getBrasiliaTodayKey,
+  isPlanningDateToday,
   getBrasiliaToday,
   getBrasiliaDayOfWeek,
   addDaysBrasilia,
 } from '../src/utils/planningDates.js';
+
+it('resumo de conclusao diaria so e elegivel para a data de hoje', () => {
+  const now = new Date('2026-09-11T15:00:00-03:00');
+  assert.equal(isPlanningDateToday('2026-09-10', now), false);
+  assert.equal(isPlanningDateToday('2026-09-11', now), true);
+  assert.equal(isPlanningDateToday('2026-09-12', now), false);
+});
 
 describe('planning start dates and Brasilia timezone', () => {
   it('formats the local day without using UTC conversion', () => {
@@ -42,4 +50,3 @@ describe('planning start dates and Brasilia timezone', () => {
     assert.equal(clampPlanningStartDate('2026-09-01', '2026-08-15'), '2026-09-01');
   });
 });
-

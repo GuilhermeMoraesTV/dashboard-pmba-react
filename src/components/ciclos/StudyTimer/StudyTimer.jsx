@@ -14,14 +14,17 @@ import { db } from '../../../firebaseConfig';
 import {
   claimTimerHeartbeatLease,
   createTimerTabId,
+  deriveRestoredTimerState,
   formatTimerClock,
   isValidTimerElapsedMs,
   parseTimerJson,
   releaseTimerHeartbeatLease,
+  TIMER_MAX_ELAPSED_MS,
   timerTimestampToMillis,
   useFullscreenState,
   useWakeLock,
 } from '../../../hooks/useTimerEngine';
+import { PWA_BEFORE_RELOAD_EVENT } from '../../../utils/pwaLifecycle';
 
 import MiniWidgetTimer from './MiniWidgetTimer';
 import OverlaysTimer from './OverlaysTimer';
@@ -56,11 +59,21 @@ const toMillisSafe = timerTimestampToMillis;
 // 🛡️ ANTI-EPOCH: Valida se um valor ms é razoável (não é timestamp epoch)
 const isValidElapsedMs = isValidTimerElapsedMs;
 
+const getInitialServerOffset = () => {
+  try {
+    const cached = Number(localStorage.getItem('@ModoQAP:ServerOffsetMs'));
+    if (Number.isFinite(cached)) return cached;
+  } catch {}
+  return 0;
+};
+
 function StudyTimer({
   disciplina,
   assunto,
   contextHint = null,
+  cycleRoundVersion = null,
   sessaoGlobalIndex = null,
+  cronogramaSlotContext = null,
   onStop,
   onCancel,
   isMinimized,
@@ -79,25 +92,42 @@ function StudyTimer({
   storageKeyOverride,
   activeTimerCollectionOverride,
   activeTimerDocIdOverride,
+  initialRemoteState = null,
   finishButtonLabel,
 }) {
   const { settings } = useTimerSettings(userUid);
+
+  const restoredStateRef = useRef(undefined);
+  if (restoredStateRef.current === undefined) {
+    let localData = null;
+    try {
+      const storageKey = storageKeyOverride || `@ModoQAP:ActiveSession:${userUid}`;
+      const raw = localStorage.getItem(storageKey);
+      if (raw) localData = JSON.parse(raw);
+    } catch {}
+
+    const hasValidLocalSession = !!localData?.schemaVersion && !!localData?.disciplinaId && !localData?.isFinishing;
+    const sessionToRestore = hasValidLocalSession ? localData : initialRemoteState;
+
+    restoredStateRef.current = deriveRestoredTimerState(sessionToRestore, Date.now());
+  }
+  const restoredState = restoredStateRef.current;
 
   const tabIdRef = useRef(createTimerTabId());
 
   const mountTimeRef = useRef(Date.now());
   const bcRef = useRef(null);
 
-  const joinedExistingRef = useRef(false);
-  const hasSessionStartedRef = useRef(false);
-  const hasEverSeenRemoteDocRef = useRef(false);
+  const joinedExistingRef = useRef(!!restoredState);
+  const hasSessionStartedRef = useRef(!!restoredState);
+  const hasEverSeenRemoteDocRef = useRef(!!restoredState);
   const lastAppliedStateKeyRef = useRef(null);
 
   // ✅ Ref que controla intenção local (separado do estado remoto)
   const desiredRunningRef = useRef(false);
 
   // ======= NTP / offset =======
-  const serverOffsetMsRef = useRef(0);
+  const serverOffsetMsRef = useRef(getInitialServerOffset());
   const bestRttRef = useRef(Number.POSITIVE_INFINITY);
   const timeSyncInFlightRef = useRef(false);
 
@@ -108,35 +138,35 @@ function StudyTimer({
     return `@ModoQAP:ActiveSession:${userUid}`;
   }, [storageKeyOverride, userUid]);
 
-  const [isPreparing, setIsPreparing] = useState(true);
-  const [countdown, setCountdown] = useState(3);
+  const [isPreparing, setIsPreparing] = useState(!restoredState);
+  const [countdown, setCountdown] = useState(restoredState ? 0 : 3);
 
-  const [seconds, setSeconds] = useState(0);
-  const [totalFocusSeconds, setTotalFocusSeconds] = useState(0);
+  const [seconds, setSeconds] = useState(() => restoredState?.displaySeconds || 0);
+  const [totalFocusSeconds, setTotalFocusSeconds] = useState(() => Math.floor((restoredState?.focusElapsedMs || 0) / 1000));
 
-  const [isPaused, setIsPaused] = useState(false);
+  const [isPaused, setIsPaused] = useState(() => restoredState?.isPaused || false);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const { isFullscreen, toggleFullscreen } = useFullscreenState();
   const [isDark, setIsDark] = useState(true);
 
-  const [isPomodoroFinished, setIsPomodoroFinished] = useState(false);
-  const [isResting, setIsResting] = useState(false);
-  const [isRestFinished, setIsRestFinished] = useState(false);
+  const [isPomodoroFinished, setIsPomodoroFinished] = useState(() => restoredState?.isPomodoroFinished || false);
+  const [isResting, setIsResting] = useState(() => restoredState?.isResting || false);
+  const [isRestFinished, setIsRestFinished] = useState(() => restoredState?.isRestFinished || false);
 
   // ✅ FIX: Estado para armazenar o modo vindo do servidor (garante sync entre dispositivos)
-  const [remoteMode, setRemoteMode] = useState(null);
-  const remoteModeRef = useRef(null);
+  const [remoteMode, setRemoteMode] = useState(() => restoredState?.mode || null);
+  const remoteModeRef = useRef(restoredState?.mode || null);
 
   // ✅ FIX: Armazena o countdownSeconds vindo do servidor
-  const [remoteCountdownSeconds, setRemoteCountdownSeconds] = useState(null);
-  const remoteCountdownSecondsRef = useRef(null);
+  const [remoteCountdownSeconds, setRemoteCountdownSeconds] = useState(() => restoredState?.countdownSeconds ?? null);
+  const remoteCountdownSecondsRef = useRef(restoredState?.countdownSeconds ?? null);
 
-  const secondsRef = useRef(0);
-  const isPausedRef = useRef(false);
-  const isRestingRef = useRef(false);
-  const isPomodoroFinishedRef = useRef(false);
-  const isRestFinishedRef = useRef(false);
-  const totalFocusSecondsRef = useRef(0);
+  const secondsRef = useRef(restoredState?.displaySeconds || 0);
+  const isPausedRef = useRef(restoredState?.isPaused || false);
+  const isRestingRef = useRef(restoredState?.isResting || false);
+  const isPomodoroFinishedRef = useRef(restoredState?.isPomodoroFinished || false);
+  const isRestFinishedRef = useRef(restoredState?.isRestFinished || false);
+  const totalFocusSecondsRef = useRef(Math.floor((restoredState?.focusElapsedMs || 0) / 1000));
 
   useEffect(() => { secondsRef.current = seconds; }, [seconds]);
   useEffect(() => { isPausedRef.current = isPaused; }, [isPaused]);
@@ -147,13 +177,13 @@ function StudyTimer({
 
   const intervalRef = useRef(null);
 
-  const focusAccumulatedMsRef = useRef(0);
-  const focusBlockElapsedBaseMsRef = useRef(0);
-  const restElapsedBaseMsRef = useRef(0);
+  const focusAccumulatedMsRef = useRef(restoredState?.focusElapsedMs || 0);
+  const focusBlockElapsedBaseMsRef = useRef(restoredState?.pomodoroElapsedMs || 0);
+  const restElapsedBaseMsRef = useRef(restoredState?.restElapsedMs || 0);
 
   // IMPORTANT: esses ms são no "relógio do servidor" (via offset)
-  const focusStartMsRef = useRef(null);
-  const restStartMsRef = useRef(null);
+  const focusStartMsRef = useRef(restoredState?.isRunning && !restoredState?.isResting ? nowMs() : null);
+  const restStartMsRef = useRef(restoredState?.isRunning && restoredState?.isResting ? nowMs() : null);
 
   const lastPersistDisplaySecondRef = useRef(-1);
   const actionInFlightRef = useRef(false);
@@ -313,9 +343,20 @@ function StudyTimer({
 
         if (sample && sample.rtt < bestRttRef.current) {
           bestRttRef.current = sample.rtt;
-          serverOffsetMsRef.current = sample.offset;
+          const oldOffset = serverOffsetMsRef.current;
+          const newOffset = sample.offset;
+          serverOffsetMsRef.current = newOffset;
+          try {
+            localStorage.setItem('@ModoQAP:ServerOffsetMs', String(newOffset));
+          } catch {}
 
-          console.log(`[TimeSync] RTT: ${sample.rtt}ms, Offset: ${sample.offset}ms`);
+          const delta = newOffset - oldOffset;
+          if (delta !== 0) {
+            if (focusStartMsRef.current != null) focusStartMsRef.current += delta;
+            if (restStartMsRef.current != null) restStartMsRef.current += delta;
+          }
+
+          console.log(`[TimeSync] RTT: ${sample.rtt}ms, Offset: ${sample.offset}ms, Delta: ${delta}ms`);
         }
 
         await new Promise((r) => setTimeout(r, 80));
@@ -599,7 +640,11 @@ function StudyTimer({
         disciplinaNome: disciplina?.nome,
         assunto: assunto ?? null,
         defaultContext: contextHint || null,
+        cycleRoundVersion: cycleRoundVersion !== null && cycleRoundVersion !== undefined
+          ? Number(cycleRoundVersion)
+          : null,
         sessaoGlobalIndex: Number.isFinite(Number(sessaoGlobalIndex)) ? Number(sessaoGlobalIndex) : null,
+        cronogramaSlotContext: cronogramaSlotContext || null,
         variant,
         mode: resolvedMode,
         pomodoroDuration: Number(settings.pomodoroTime || 0) * 60,
@@ -620,7 +665,7 @@ function StudyTimer({
     } catch {}
   }, [
     STORAGE_KEY,
-    disciplina?.id, disciplina?.nome, assunto, contextHint, sessaoGlobalIndex,
+    disciplina?.id, disciplina?.nome, assunto, contextHint, cycleRoundVersion, sessaoGlobalIndex, cronogramaSlotContext,
     variant,
     effectiveMode,
     settings.pomodoroTime, settings.restTime,
@@ -696,7 +741,11 @@ function StudyTimer({
       disciplinaNome: disciplina?.nome || '',
       assunto: assunto ?? null,
       defaultContext: contextHint || null,
+      cycleRoundVersion: cycleRoundVersion !== null && cycleRoundVersion !== undefined
+        ? Number(cycleRoundVersion)
+        : null,
       sessaoGlobalIndex: Number.isFinite(Number(sessaoGlobalIndex)) ? Number(sessaoGlobalIndex) : null,
+      cronogramaSlotContext: cronogramaSlotContext || null,
 
       timerType: timerTypeLabel,
       mode: resolvedMode,
@@ -737,7 +786,7 @@ function StudyTimer({
     };
   }, [
     userUid, userName, userPhotoURL, groupIds,
-    disciplina?.id, disciplina?.nome, assunto, contextHint, sessaoGlobalIndex,
+    disciplina?.id, disciplina?.nome, assunto, contextHint, cycleRoundVersion, sessaoGlobalIndex, cronogramaSlotContext,
     effectiveMode, variant, countdownSeconds,
     settings.pomodoroTime, settings.restTime,
     isCancelModalOpen,
@@ -1372,6 +1421,20 @@ function StudyTimer({
     else pauseTimer(source);
   }, [pauseTimer, resumeTimer]);
 
+  useEffect(() => {
+    const persistBeforePageLeaves = () => persistLocalState();
+    window.addEventListener(PWA_BEFORE_RELOAD_EVENT, persistBeforePageLeaves);
+    window.addEventListener('pagehide', persistBeforePageLeaves);
+    window.addEventListener('beforeunload', persistBeforePageLeaves);
+    window.addEventListener('unload', persistBeforePageLeaves);
+    return () => {
+      window.removeEventListener(PWA_BEFORE_RELOAD_EVENT, persistBeforePageLeaves);
+      window.removeEventListener('pagehide', persistBeforePageLeaves);
+      window.removeEventListener('beforeunload', persistBeforePageLeaves);
+      window.removeEventListener('unload', persistBeforePageLeaves);
+    };
+  }, [persistLocalState]);
+
   // ========= WakeLock re-request + UI refresh =========
   useEffect(() => {
     const onVis = () => {
@@ -1419,9 +1482,14 @@ function StudyTimer({
 
   const getRemoteRunStartedMs = useCallback((data) => {
     const numericMs = Number(data?.runStartedAtMs);
-    if (Number.isFinite(numericMs) && numericMs > 0) {
-      const age = Math.abs(nowMs() - numericMs);
-      if (age < 300000) return numericMs;
+    const now = nowMs();
+    if (
+      Number.isFinite(numericMs)
+      && numericMs > 0
+      && numericMs < now + 5 * 60 * 1000
+      && numericMs > now - TIMER_MAX_ELAPSED_MS
+    ) {
+      return numericMs;
     }
 
     const timestampMs = toMillisSafe(data?.runStartedAt);
@@ -1508,13 +1576,9 @@ function StudyTimer({
 
     let remoteStartMs = shouldRun ? getRemoteRunStartedMs(data) : null;
 
-    if (shouldRun && remoteStartMs != null) {
-      const compensation = bestRttRef.current !== Number.POSITIVE_INFINITY ? Math.floor(bestRttRef.current / 2) : 0;
-      remoteStartMs -= compensation;
-
-      console.log(`[RemoteSync] Start: ${remoteStartMs}, Compensation: ${compensation}ms`);
-    }
-
+    // ✅ FIX: REMOVIDA COMPENSAÇÃO DE RTT MANUAL (USA APENAS TIME SYNC)
+    // O ServerOffsetMsRef já corrige o tempo do servidor, então não precisamos mais
+    // tentar adivinhar a latência e subtrair do tempo de início.
     if (shouldRun && bestRttRef.current === Number.POSITIVE_INFINITY) {
       performTimeSync();
     }
@@ -1531,6 +1595,28 @@ function StudyTimer({
       }
       lastAppliedStateKeyRef.current = key;
       return;
+    }
+
+    // 🛡️ Se o timer local já está em execução (ex: restaurado do cache local após fechar e abrir a aba),
+    // a fase é idêntica e a diferença de tempo é mínima (< 4s de jitter de rede/relógio),
+    // NÃO descarta o acumulado local nem reinicia o tick loop abruptamente para evitar saltos visuais.
+    const isAlreadyRunningLocally = !isPausedRef.current && (focusStartMsRef.current != null || restStartMsRef.current != null);
+    const localPhase = isRestingRef.current ? 'rest' : 'focus';
+    const isSamePhase = remotePhase === localPhase;
+
+    if (isAlreadyRunningLocally && shouldRun && isSamePhase && remoteStartMs != null) {
+      const remoteElapsed = (remotePhase === 'rest')
+        ? restBase + Math.max(0, nowMs() - remoteStartMs)
+        : focusBase + Math.max(0, nowMs() - remoteStartMs);
+      const localElapsed = (remotePhase === 'rest')
+        ? getCurrentRestElapsedMs()
+        : getCurrentFocusElapsedMs();
+
+      if (Math.abs(remoteElapsed - localElapsed) < 4000) {
+        lastAppliedStateKeyRef.current = key;
+        if (!intervalRef.current) startTickLoop();
+        return;
+      }
     }
 
     clearTick();
@@ -1824,6 +1910,17 @@ function StudyTimer({
     ensureRemoteStartAck,
     performTimeSync,
   ]);
+
+  // ========= Retoma tick loop imediatamente ao montar com sessão restaurada em execução =========
+  useEffect(() => {
+    if (restoredState?.isRunning && !restoredState?.isPaused) {
+      desiredRunningRef.current = true;
+      wakeLockWantedRef.current = true;
+      void requestWakeLock();
+      startTickLoop();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ========= init audio =========
   useEffect(() => {

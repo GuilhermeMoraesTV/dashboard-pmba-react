@@ -23,6 +23,7 @@ import {
   getMentionAutocompleteQuery,
   getTypingLabel,
   mergeGroupChatMessages,
+  normalizeMentionUids,
   normalizeMessageText,
   replaceMentionAutocomplete,
 } from '../../services/groupChat/groupChatDomain.js';
@@ -47,7 +48,10 @@ import {
 
 const LIMITS = DEFAULT_PRODUCT_LIMITS.groupChat;
 const FIRST_ITEM_INDEX = 100000;
+const SCROLL_EDGE_THRESHOLD = 12;
 const messageKey = (_, message) => message.id;
+const measureItemHeight = (element) => Number(element?.offsetHeight || element?.getBoundingClientRect?.().height || 0);
+const MENTION_ALL_LIMIT_MESSAGE = `@Todos só está disponível quando há no máximo ${LIMITS.maxMentions} pessoas para mencionar. Selecione até ${LIMITS.maxMentions} membros individualmente.`;
 
 function HistoryHeader({ context }) {
   return <div className="flex h-7 items-center justify-center">{context.loadingOlder ? <LoaderCircle size={14} className="animate-spin text-zinc-400"/> : null}</div>;
@@ -189,19 +193,25 @@ export default function GroupChatPanel({ group, user, members = [], canModerate 
 
   const messagesById = useMemo(() => new Map(messages.map((message) => [message.id, message])), [messages]);
   const mentionAllUids = useMemo(() => getMentionAllUids(members, user.uid), [members, user.uid]);
+  const canMentionAll = mentionAllUids.length > 0 && mentionAllUids.length <= LIMITS.maxMentions;
+
+  useEffect(() => {
+    if (!canMentionAll && mentionAll) setMentionAll(false);
+  }, [canMentionAll, mentionAll]);
+
   const mentionQuery = getMentionAutocompleteQuery(composer);
   const mentionSuggestions = useMemo(() => {
     if (mentionQuery == null) return [];
     const normalized = mentionQuery.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
     const people = members.filter((member) => {
       const uid = member.uid || member.id;
-      const name = member.displayName || member.name || '';
+      const name = String(member.displayName || member.name || '');
       return uid !== user.uid && !mentions.some((item) => item.uid === uid)
         && name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().includes(normalized);
     }).slice(0, 5);
-    const includeAll = !mentionAll && mentionAllUids.length > 0 && 'todos'.includes(normalized);
+    const includeAll = !mentionAll && canMentionAll && 'todos'.includes(normalized);
     return includeAll ? [{ uid: '__all__', name: 'Todos', isAll: true }, ...people] : people;
-  }, [members, mentionAll, mentionAllUids.length, mentionQuery, mentions, user.uid]);
+  }, [canMentionAll, members, mentionAll, mentionQuery, mentions, user.uid]);
   const typingLabel = getTypingLabel(typingEntries, user.uid);
 
   useEffect(() => {
@@ -235,15 +245,17 @@ export default function GroupChatPanel({ group, user, members = [], canModerate 
     }, LIMITS.readDebounceMs);
   }, [group.id, user.uid]);
 
-  // Virtuoso measures its viewport via getBoundingClientRect (scaled by CSS zoom),
-  // but browser scrolling uses layout pixels. Read detection must use native metrics with a flexible threshold.
-  const syncScrollPosition = useCallback((explicitAtBottom) => {
+  // Virtuoso can report stale edge state while it is reconciling item sizes. Native
+  // layout metrics are the source of truth, including inside the zoomed Groups page.
+  const syncScrollPosition = useCallback(() => {
     const scroller = scrollerRef.current;
-    const atBottom = typeof explicitAtBottom === 'boolean'
-      ? explicitAtBottom
-      : (scroller ? scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight <= 12 : false);
+    if (!scroller) return;
+    const scrollTop = Math.max(0, Number(scroller.scrollTop || 0));
+    const distanceToBottom = Math.max(0, Number(scroller.scrollHeight || 0) - scrollTop - Number(scroller.clientHeight || 0));
+    const atBottom = distanceToBottom <= SCROLL_EDGE_THRESHOLD;
+    atTopRef.current = scrollTop <= SCROLL_EDGE_THRESHOLD;
     atBottomRef.current = atBottom;
-    if (atBottom && !hasNewerRef.current) scheduleMarkRead();
+    if (atBottom && !scrollingRef.current && !hasNewerRef.current) scheduleMarkRead();
     else window.clearTimeout(readTimerRef.current);
   }, [scheduleMarkRead]);
 
@@ -371,6 +383,9 @@ export default function GroupChatPanel({ group, user, members = [], canModerate 
 
   const loadOlder = useCallback(async () => {
     if (!initializedRef.current || !hasMore || pagingOlderRef.current || oldestSeq == null) return;
+    // startReached also fires when the top overscan renders the first item. Only
+    // prepend history after the native scroller has actually reached the top.
+    if (!atTopRef.current) return;
     if (scrollingRef.current) { pendingOlderRef.current = true; return; }
     pendingOlderRef.current = false;
     pagingOlderRef.current = true;
@@ -433,6 +448,10 @@ export default function GroupChatPanel({ group, user, members = [], canModerate 
 
   const chooseMention = (member) => {
     if (member.isAll) {
+      if (!canMentionAll) {
+        setError(MENTION_ALL_LIMIT_MESSAGE);
+        return;
+      }
       setComposer((current) => replaceMentionAutocomplete(current, 'Todos'));
       setMentionAll(true);
       setMentions([]);
@@ -457,9 +476,20 @@ export default function GroupChatPanel({ group, user, members = [], canModerate 
     setError('');
     if (!online) { setError('Você está offline'); return; }
     let cleanText;
-    try { cleanText = normalizeMessageText(composer); } catch (validationError) { setError(validationError.message); return; }
+    let selectedMentionUids;
+    try {
+      cleanText = normalizeMessageText(composer);
+      const requestsMentionAll = /(^|\s)@Todos(?:\s|$)/iu.test(cleanText);
+      if (requestsMentionAll && !canMentionAll) throw new Error(MENTION_ALL_LIMIT_MESSAGE);
+      selectedMentionUids = normalizeMentionUids(
+        requestsMentionAll ? mentionAllUids : mentions.map((item) => item.uid),
+        user.uid,
+      );
+    } catch (validationError) {
+      setError(validationError.message);
+      return;
+    }
     setSending(true);
-    const selectedMentionUids = mentionAll ? mentionAllUids : mentions.map((item) => item.uid);
     if (editing) {
       try {
         await editGroupChatMessage({ groupId: group.id, messageId: editing.id, text: cleanText, mentionUids: selectedMentionUids, authorUid: user.uid });
@@ -520,7 +550,7 @@ export default function GroupChatPanel({ group, user, members = [], canModerate 
     setReplyingTo(null);
     setComposer(message.text);
     const editsMentionAll = /(^|\s)@Todos(?:\s|$)/iu.test(message.text || '');
-    setMentionAll(editsMentionAll);
+    setMentionAll(editsMentionAll && canMentionAll);
     setMentions(editsMentionAll ? [] : (message.mentionUids || []).map((uid) => {
       const member = members.find((item) => (item.uid || item.id) === uid);
       return { uid, name: member?.displayName || member?.name || uid };
@@ -593,19 +623,21 @@ export default function GroupChatPanel({ group, user, members = [], canModerate 
             firstItemIndex={firstItemIndex}
             initialTopMostItemIndex={initialLocation}
             defaultItemHeight={72}
+            itemSize={measureItemHeight}
             increaseViewportBy={{ top: 800, bottom: 800 }}
-            style={{ height: '100%', overflowAnchor: 'none' }}
+            style={{ height: '100%', overflowAnchor: 'none', overscrollBehaviorY: 'contain' }}
             startReached={loadOlder}
             endReached={loadNewer}
-            atBottomThreshold={10}
-            atTopThreshold={10}
+            atBottomThreshold={SCROLL_EDGE_THRESHOLD}
+            atTopThreshold={SCROLL_EDGE_THRESHOLD}
             isScrolling={(scrolling) => {
               scrollingRef.current = scrolling;
+              syncScrollPosition();
               if (!scrolling && pendingOlderRef.current && atTopRef.current) loadOlder();
             }}
-            atTopStateChange={(atTop) => { atTopRef.current = atTop; }}
+            atTopStateChange={syncScrollPosition}
             atBottomStateChange={syncScrollPosition}
-            followOutput={(isAtBottom) => (isAtBottom && !hasNewerRef.current && !pagingOlderRef.current && !pagingNewerRef.current ? 'auto' : false)}
+            followOutput={() => (!scrollingRef.current && atBottomRef.current && !hasNewerRef.current && !pagingOlderRef.current && !pagingNewerRef.current ? 'auto' : false)}
             components={timelineComponents}
             context={{ loadingOlder }}
             itemContent={(_, message) => <>{message.id === firstUnreadId ? <div className="py-3 text-center text-[10px] font-black uppercase tracking-wider text-zinc-500" role="separator" aria-label="Mensagens não lidas">Mensagens não lidas</div> : null}<ChatMessage message={message} currentUid={user.uid} groupId={group.id} messagesById={messagesById} canModerate={canModerate} onReply={(item) => { setReplyingTo(item); setEditing(null); }} onEdit={startEdit} onDelete={removeMessage} onRetry={retry}/></>}
@@ -621,7 +653,7 @@ export default function GroupChatPanel({ group, user, members = [], canModerate 
           <textarea value={composer} onChange={(event) => onComposerChange(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }} maxLength={LIMITS.maxMessageChars} rows={1} placeholder={online ? 'Escreva uma mensagem…' : 'Você está offline'} disabled={!online || sending} className="max-h-32 min-h-11 flex-1 resize-none rounded-2xl border border-zinc-200 bg-zinc-50 px-3.5 py-3 text-xs text-zinc-900 outline-none transition focus:border-red-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white"/>
           <button type="submit" disabled={!online || sending || !composer.trim()} aria-label={editing ? 'Salvar edição' : 'Enviar mensagem'} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-red-600 text-white shadow-lg shadow-red-600/20 transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40">{sending ? <LoaderCircle size={17} className="animate-spin"/> : editing ? <Pencil size={16}/> : <Send size={16}/>}</button>
         </div>
-        <div className="mt-1 flex justify-between px-1 text-[8px] font-semibold text-zinc-400"><span>{mentionAll ? `@Todos · ${mentionAllUids.length} membros` : mentions.length ? `${mentions.length}/${LIMITS.maxMentions} menções` : 'Use @ ou @Todos para mencionar'}</span><span>{composer.length.toLocaleString('pt-BR')}/{LIMITS.maxMessageChars.toLocaleString('pt-BR')}</span></div>
+        <div className="mt-1 flex justify-between px-1 text-[8px] font-semibold text-zinc-400"><span>{mentionAll ? `@Todos · ${mentionAllUids.length} membros` : mentions.length ? `${mentions.length}/${LIMITS.maxMentions} menções` : canMentionAll ? 'Use @ ou @Todos para mencionar' : `Use @ para mencionar até ${LIMITS.maxMentions} pessoas`}</span><span>{composer.length.toLocaleString('pt-BR')}/{LIMITS.maxMessageChars.toLocaleString('pt-BR')}</span></div>
       </form>
       {deleteTarget ? createPortal(
         <div

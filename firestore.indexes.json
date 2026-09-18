@@ -1,6 +1,51 @@
 {
   "indexes": [
     {
+      "collectionGroup": "registrosEstudo",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "cicloId", "order": "ASCENDING" },
+        { "fieldPath": "__name__", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "registrosEstudo",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "cronogramaId", "order": "ASCENDING" },
+        { "fieldPath": "__name__", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "revisoesCiclo",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "cicloId", "order": "ASCENDING" },
+        { "fieldPath": "__name__", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "broadcast_poll_answers",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "pollId", "order": "ASCENDING" },
+        { "fieldPath": "respondedAt", "order": "DESCENDING" },
+        { "fieldPath": "__name__", "order": "DESCENDING" }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "broadcast_poll_answers",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "pollId", "order": "ASCENDING" },
+        { "fieldPath": "optionId", "order": "ASCENDING" },
+        { "fieldPath": "respondedAt", "order": "DESCENDING" },
+        { "fieldPath": "__name__", "order": "DESCENDING" }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
       "collectionGroup": "messages", "queryScope": "COLLECTION",
       "fields": [ { "fieldPath": "hasAttachments", "order": "ASCENDING" }, { "fieldPath": "timestamp", "order": "ASCENDING" } ]
     },

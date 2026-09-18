@@ -8,6 +8,7 @@
 
 const crypto = require('crypto');
 const { HttpsError } = require('firebase-functions/v2/https');
+const { Timestamp, FieldValue } = require('firebase-admin/firestore');
 const sanitizeHtml = require('sanitize-html');
 const { createInitialState, schedule } = require('../flashcards/scheduler');
 
@@ -268,8 +269,8 @@ function transportItem(snapshot) {
 
 function createAdaptiveStudyService({ admin, getProductLimits, getProvider }) {
   const db = admin.firestore();
-  const nowTimestamp = () => admin.firestore.Timestamp.now();
-  const serverTimestamp = () => admin.firestore.FieldValue.serverTimestamp();
+  const nowTimestamp = () => Timestamp.now();
+  const serverTimestamp = () => FieldValue.serverTimestamp();
 
   async function loadAuthority(uid, folderId, sourceId, limits) {
     const safeFolderId = safeIdentifier(folderId, 'folderId');
@@ -570,7 +571,7 @@ function createAdaptiveStudyService({ admin, getProductLimits, getProvider }) {
         queueState: 'error', status: 'rejected', errorCode: 'generation-lease-expired', updatedAt: serverTimestamp(),
       }));
       transaction.update(session.ref, {
-        generationLock: { token: lockToken, expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + 10 * 60 * 1000) },
+        generationLock: { token: lockToken, expiresAt: Timestamp.fromMillis(Date.now() + 10 * 60 * 1000) },
         'metrics.generationCalls': Number(data.metrics?.generationCalls || 0) + 1,
         updatedAt: serverTimestamp(),
       });
@@ -698,7 +699,7 @@ function createAdaptiveStudyService({ admin, getProductLimits, getProvider }) {
           });
         });
         transaction.update(session.ref, {
-          ...(data.generationLock?.token === lockToken ? { generationLock: admin.firestore.FieldValue.delete() } : {}),
+          ...(data.generationLock?.token === lockToken ? { generationLock: FieldValue.delete() } : {}),
           'metrics.generated': Number(data.metrics?.generated || 0) + (active ? accepted.length : 0),
           'metrics.tokens': Number(data.metrics?.tokens || 0) + Number(result.usage?.promptTokens || 0) + Number(result.usage?.outputTokens || 0),
           updatedAt: serverTimestamp(),
@@ -721,7 +722,7 @@ function createAdaptiveStudyService({ admin, getProductLimits, getProvider }) {
           updatedAt: serverTimestamp(),
         }));
         if (ownsLease) transaction.update(session.ref, {
-          generationLock: admin.firestore.FieldValue.delete(),
+          generationLock: FieldValue.delete(),
           lastGenerationError: String(error?.message || 'Falha na geracao.').slice(0, 500),
           updatedAt: serverTimestamp(),
         });
@@ -869,7 +870,7 @@ function createAdaptiveStudyService({ admin, getProductLimits, getProvider }) {
         back: item.content?.back,
         tags: Array.isArray(item.tags) ? item.tags : [],
         status: outcome.status,
-        dueAt: admin.firestore.Timestamp.fromDate(outcome.dueAt),
+        dueAt: Timestamp.fromDate(outcome.dueAt),
         lapses: outcome.isLapse ? 1 : 0,
         reps: outcome.isLapse ? 0 : 1,
         reviewVersion: 1,
@@ -884,8 +885,8 @@ function createAdaptiveStudyService({ admin, getProductLimits, getProvider }) {
         sourceRefs: item.sourceRefs,
         adaptiveSessionId: session.id,
         generatedItemId: safeItemId,
-        createdAt: admin.firestore.Timestamp.fromDate(now),
-        updatedAt: admin.firestore.Timestamp.fromDate(now),
+        createdAt: Timestamp.fromDate(now),
+        updatedAt: Timestamp.fromDate(now),
       };
       transaction.create(cardRef, card);
       transaction.create(reviewRef, {
@@ -905,7 +906,7 @@ function createAdaptiveStudyService({ admin, getProductLimits, getProvider }) {
         conceptId,
         cognitiveDifficulty: item.cognitiveDifficulty,
         ...(safeElapsed == null ? {} : { elapsedTimeMs: safeElapsed }),
-        reviewedAt: admin.firestore.Timestamp.fromDate(now),
+        reviewedAt: Timestamp.fromDate(now),
       });
       transaction.set(masteryRef, {
         userId: uid,
@@ -914,30 +915,30 @@ function createAdaptiveStudyService({ admin, getProductLimits, getProvider }) {
         conceptId,
         conceptName: item.conceptName,
         ...evolved,
-        lastSeenAt: admin.firestore.Timestamp.fromDate(now),
-        createdAt: masterySnapshot.exists ? masterySnapshot.data()?.createdAt : admin.firestore.Timestamp.fromDate(now),
-        updatedAt: admin.firestore.Timestamp.fromDate(now),
+        lastSeenAt: Timestamp.fromDate(now),
+        createdAt: masterySnapshot.exists ? masterySnapshot.data()?.createdAt : Timestamp.fromDate(now),
+        updatedAt: Timestamp.fromDate(now),
       });
       transaction.update(deckRef, {
         cardCount: Number(deckSnapshot.data()?.cardCount || 0) + 1,
         cardMutationVersion: Number(deckSnapshot.data()?.cardMutationVersion || 0) + 1,
-        updatedAt: admin.firestore.Timestamp.fromDate(now),
+        updatedAt: Timestamp.fromDate(now),
       });
       transaction.update(itemRef, {
         queueState: 'consumed',
         status: 'materialized',
-        consumedAt: admin.firestore.Timestamp.fromDate(now),
+        consumedAt: Timestamp.fromDate(now),
         materializedCardId: cardId,
         cardReviewId: reviewId,
         firstRating: rating,
         reviewRequestId: safeRequestId,
-        updatedAt: admin.firestore.Timestamp.fromDate(now),
+        updatedAt: Timestamp.fromDate(now),
       });
       transaction.update(session.ref, {
         currentItemId: null,
         'metrics.consumed': Number(sessionData.metrics?.consumed || 0) + 1,
         [`metrics.ratings.${rating}`]: Number(sessionData.metrics?.ratings?.[rating] || 0) + 1,
-        updatedAt: admin.firestore.Timestamp.fromDate(now),
+        updatedAt: Timestamp.fromDate(now),
       });
       return { duplicate: false, cardId, reviewId, mastery: evolved };
     });

@@ -11,6 +11,8 @@ import {
   CalendarDays,
   LayoutGrid,
   ArrowLeft,
+  ArrowLeftRight,
+  BookOpen,
   Maximize2,
   Coffee,
 } from 'lucide-react';
@@ -22,6 +24,23 @@ import {
   dateToYMDLocal,
   getDailyStudyStatus,
 } from '../../utils/studyDayStatus';
+import { getPlanningStageRecords } from '../../utils/planningTransformation';
+
+const getContextLogo = (item) => {
+  if (!item) return '/logosEditais/logoModoQAP.png';
+  if (item.logoUrl) return item.logoUrl;
+  if (item.editalLogoUrl) return item.editalLogoUrl;
+
+  const templateId = item?.templateId || item?.editalId || item?.templateOrigemId || null;
+  if (templateId && templateId !== 'manual') {
+    if (String(templateId).toLowerCase().includes('pmba')) return '/logosEditais/logoModoQAP.png';
+    return `/logosEditais/${String(templateId).replace(/^edital_/, 'logo-')}.png`;
+  }
+
+  const nome = (item.nome || '').toLowerCase();
+  if (nome.includes('pmba')) return '/logosEditais/logoModoQAP.png';
+  return '/logosEditais/logoModoQAP.png';
+};
 
 const formatDecimalHours = (minutos) => {
   if (!minutos || minutos < 0) return '0h';
@@ -165,11 +184,11 @@ const MiniMonthGrid = ({ monthIndex, year, studyDaysMap, monthlyTotals, onClick,
             const isRestDay = dayStatus.isRestDay;
 
             let bgClass = 'bg-zinc-50 dark:bg-white/[0.04] text-zinc-300';
-            if (isRestDay || dayStatus.status === 'goal-met-both') {
+            if (isRestDay || dayStatus.status === 'goal-met-both' || dayStatus.goalMet || ['studied', 'recovered'].includes(dayStatus.streakState)) {
               bgClass = 'bg-emerald-500 text-white shadow-sm';
-            } else if (dayStatus.status === 'goal-met-one') {
+            } else if (dayStatus.status === 'goal-met-one' || dayStatus.streakState === 'recovery_pending') {
               bgClass = 'bg-amber-500 text-white shadow-sm';
-            } else if (dayStatus.status === 'goal-not-met') {
+            } else if (dayStatus.status === 'goal-not-met' || dayStatus.streakState === 'failed') {
               bgClass = 'bg-red-500 text-white shadow-sm';
             }
 
@@ -210,35 +229,93 @@ function CalendarTab({
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState('year');
   const [selectedDate, setSelectedDate] = useState(null);
-  const [homeContextPreferred, setHomeContextPreferred] = useState(() => {
-    try { return localStorage.getItem('homeContextPreferred') || 'cronograma'; } catch { return 'cronograma'; }
+  const [selectedMode, setSelectedMode] = useState(() => {
+    try {
+      return localStorage.getItem('calendarPlanningMode') || 'geral';
+    } catch {
+      return 'geral';
+    }
   });
 
-  useEffect(() => {
-    const syncPreferredContext = () => {
-      try {
-        setHomeContextPreferred(localStorage.getItem('homeContextPreferred') || 'cronograma');
-      } catch {
-        setHomeContextPreferred('cronograma');
-      }
-    };
+  const [preferredPlan, setPreferredPlan] = useState(() => {
+    try {
+      return localStorage.getItem('homeContextPreferred') || 'ciclo';
+    } catch {
+      return 'ciclo';
+    }
+  });
 
-    window.addEventListener('storage', syncPreferredContext);
-    window.addEventListener('home-context-preferred-change', syncPreferredContext);
-    return () => {
-      window.removeEventListener('storage', syncPreferredContext);
-      window.removeEventListener('home-context-preferred-change', syncPreferredContext);
-    };
+  const [planDestination, setPlanDestination] = useState(() => {
+    try {
+      const saved = localStorage.getItem('calendarPlanDestination');
+      if (saved === 'ciclo' || saved === 'cronograma') return saved;
+      const currentMode = localStorage.getItem('calendarPlanningMode');
+      if (currentMode === 'cronograma') return 'ciclo';
+      return 'cronograma';
+    } catch {
+      return 'cronograma';
+    }
+  });
+
+  const handleModeChange = useCallback((mode) => {
+    setSelectedMode(mode);
+    if (mode === 'ciclo' || mode === 'cronograma') {
+      setPreferredPlan(mode);
+      const nextDest = mode === 'cronograma' ? 'ciclo' : 'cronograma';
+      setPlanDestination(nextDest);
+      try {
+        localStorage.setItem('homeContextPreferred', mode);
+        localStorage.setItem('calendarPlanDestination', nextDest);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    try {
+      localStorage.setItem('calendarPlanningMode', mode);
+    } catch (e) {
+      console.error(e);
+    }
   }, []);
 
-  const effectiveContextMode = useMemo(() => {
-    const hasCiclo = !!activeCicloData?.id;
-    const hasCronograma = !!activeCronogramaData?.id;
-    if (hasCiclo && hasCronograma) return homeContextPreferred === 'ciclo' ? 'ciclo' : 'cronograma';
-    if (hasCiclo) return 'ciclo';
-    if (hasCronograma) return 'cronograma';
-    return 'all';
-  }, [activeCicloData?.id, activeCronogramaData?.id, homeContextPreferred]);
+  const cicloLogo = useMemo(() => getContextLogo(activeCicloData), [activeCicloData]);
+  const cronogramaLogo = useMemo(() => getContextLogo(activeCronogramaData), [activeCronogramaData]);
+
+  const destinoLogo = planDestination === 'cronograma' ? cronogramaLogo : cicloLogo;
+  const destinoLabel = planDestination === 'cronograma' ? 'CRONOGRAMA' : 'CICLO';
+  const isPlanActive = selectedMode === 'ciclo' || selectedMode === 'cronograma';
+
+  const handleTogglePlanning = useCallback(() => {
+    handleModeChange(planDestination);
+  }, [handleModeChange, planDestination]);
+
+  const filteredRegistros = useMemo(() => {
+    if (selectedMode === 'geral') return registrosEstudo || [];
+    if (selectedMode === 'ciclo') {
+      if (!activeCicloData?.id) return [];
+      const hasLinkedStages = (activeCicloData?.etapasPlanejamento || []).length > 1;
+      if (hasLinkedStages) {
+        return getPlanningStageRecords(registrosEstudo, activeCicloData).filter(
+          (r) => r.contextoRegistro === 'ciclo' || (r.cicloId === activeCicloData.id && !r.cronogramaId)
+        );
+      }
+      return (registrosEstudo || []).filter(
+        (r) => (r.cicloId === activeCicloData.id && !r.cronogramaId) || r.contextoRegistro === 'ciclo'
+      );
+    }
+    if (selectedMode === 'cronograma') {
+      if (!activeCronogramaData?.id) return [];
+      const hasLinkedStages = (activeCronogramaData?.etapasPlanejamento || []).length > 1;
+      if (hasLinkedStages) {
+        return getPlanningStageRecords(registrosEstudo, activeCronogramaData).filter(
+          (r) => r.contextoRegistro === 'cronograma' || r.cronogramaId === activeCronogramaData.id
+        );
+      }
+      return (registrosEstudo || []).filter(
+        (r) => r.cronogramaId === activeCronogramaData.id || r.contextoRegistro === 'cronograma'
+      );
+    }
+    return registrosEstudo || [];
+  }, [registrosEstudo, selectedMode, activeCicloData, activeCronogramaData]);
 
   const getGoalsForDate = useCallback((dateStr) => {
     if (!goalsHistory || goalsHistory.length === 0) return { questions: 0, hours: 0 };
@@ -247,7 +324,7 @@ function CalendarTab({
   }, [goalsHistory]);
 
   const { studyDays, currentStreak, annualStats, monthlyData, currentMonthStats } = useMemo(() => {
-    const days = buildStudyDaysMap(registrosEstudo);
+    const days = buildStudyDaysMap(filteredRegistros);
     const months = {};
 
     const selectedYear = currentDate.getFullYear();
@@ -255,17 +332,17 @@ function CalendarTab({
     const currentMonthKey = `${selectedYear}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
     const selectedMonthStats = { hours: 0, questions: 0, daysStudied: 0 };
 
-    if (!registrosEstudo || registrosEstudo.length === 0) {
+    if (!filteredRegistros || filteredRegistros.length === 0) {
       return {
         studyDays: days,
-        currentStreak: Math.max(0, Number(studyStreakResult?.currentStreak || 0)),
+        currentStreak: selectedMode === 'geral' ? Math.max(0, Number(studyStreakResult?.currentStreak || 0)) : 0,
         annualStats: currentYearStats,
         monthlyData: {},
         currentMonthStats: selectedMonthStats,
       };
     }
 
-    registrosEstudo.forEach((item) => {
+    filteredRegistros.forEach((item) => {
       try {
         const dateStr = item.data;
         if (!dateStr) return;
@@ -301,34 +378,123 @@ function CalendarTab({
       months[k].daysStudied = months[k].rawDays.size;
     });
 
+    let calculatedStreak = 0;
+    if (selectedMode === 'geral') {
+      calculatedStreak = Math.max(0, Number(studyStreakResult?.currentStreak || 0));
+    } else {
+      const today = new Date();
+      const todayStr = dateToYMDLocal(today);
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = dateToYMDLocal(yesterday);
+
+      let checkDate = new Date(today);
+      if (!days[todayStr]) {
+        if (!days[yesterdayStr]) {
+          calculatedStreak = 0;
+        } else {
+          checkDate = yesterday;
+        }
+      }
+
+      if (days[dateToYMDLocal(checkDate)]) {
+        while (true) {
+          const key = dateToYMDLocal(checkDate);
+          if (days[key] && (days[key].minutes > 0 || days[key].questions > 0)) {
+            calculatedStreak++;
+            checkDate.setDate(checkDate.getDate() - 1);
+          } else {
+            break;
+          }
+        }
+      }
+    }
+
     return {
       studyDays: days,
-      currentStreak: Math.max(0, Number(studyStreakResult?.currentStreak || 0)),
+      currentStreak: calculatedStreak,
       annualStats: currentYearStats,
       monthlyData: months,
       currentMonthStats: selectedMonthStats,
     };
-  }, [registrosEstudo, currentDate, studyStreakResult]);
+  }, [filteredRegistros, currentDate, selectedMode, studyStreakResult]);
 
   const getDayStatus = useCallback((dateValue) => {
     const dateKey = typeof dateValue === 'string' ? dateValue : dateToYMDLocal(dateValue);
-    return {
-      ...getDailyStudyStatus({
+    const dayData = studyDays[dateKey];
+    const hasStudy = Boolean(dayData && (dayData.minutes > 0 || dayData.questions > 0));
+
+    if (selectedMode === 'geral') {
+      return {
+        status: hasStudy ? 'goal-met-both' : 'no-data',
+        goalMet: hasStudy,
+        hasData: hasStudy,
+        isRestDay: false,
+        streakState: hasStudy ? 'studied' : 'not_applicable',
+      };
+    }
+
+    if (selectedMode === 'ciclo') {
+      if (!activeCicloData?.id) {
+        return {
+          status: 'no-data',
+          goalMet: false,
+          hasData: false,
+          isRestDay: false,
+          streakState: 'not_applicable',
+        };
+      }
+      const dailyStatus = getDailyStudyStatus({
         date: dateValue,
         studyDaysMap: studyDays,
-        activeCronogramaData,
+        activeCronogramaData: null,
         activeCicloData,
         getAgendaSemana,
-        contextMode: effectiveContextMode,
+        contextMode: 'ciclo',
         cycleReviews,
-      }),
-      streakState: studyStreakResult?.days?.[dateKey]?.state || 'not_applicable',
+      });
+      const streakState = dailyStatus.goalMet || (dailyStatus.hasData && hasStudy)
+        ? 'studied'
+        : (dailyStatus.isRestDay ? 'rest' : dailyStatus.status === 'goal-not-met' ? 'failed' : 'not_applicable');
+      return {
+        ...dailyStatus,
+        streakState,
+      };
+    }
+
+    // cronograma
+    if (!activeCronogramaData?.id) {
+      return {
+        status: 'no-data',
+        goalMet: false,
+        hasData: false,
+        isRestDay: false,
+        streakState: 'not_applicable',
+      };
+    }
+    const dailyStatus = getDailyStudyStatus({
+      date: dateValue,
+      studyDaysMap: studyDays,
+      activeCronogramaData,
+      activeCicloData: null,
+      getAgendaSemana,
+      contextMode: 'cronograma',
+      cycleReviews: [],
+    });
+    const streakState = dailyStatus.goalMet || (dailyStatus.hasData && hasStudy)
+      ? 'studied'
+      : (dailyStatus.isRestDay ? 'rest' : dailyStatus.status === 'goal-not-met' ? 'failed' : 'not_applicable');
+    return {
+      ...dailyStatus,
+      streakState,
     };
-  }, [studyDays, activeCronogramaData, activeCicloData, cycleReviews, effectiveContextMode, studyStreakResult]);
+  }, [studyDays, selectedMode, activeCicloData, activeCronogramaData, cycleReviews]);
 
   const handleDayClick = (dateStr) => {
-    const baseRegistros = registrosEstudo.filter((r) => r.data === dateStr);
-    const reviewFallbackRecords = buildCronogramaReviewHistoryRecords(activeCronogramaData, dateStr, baseRegistros);
+    const baseRegistros = filteredRegistros.filter((r) => r.data === dateStr);
+    const reviewFallbackRecords = selectedMode === 'cronograma' || selectedMode === 'geral'
+      ? buildCronogramaReviewHistoryRecords(activeCronogramaData, dateStr, baseRegistros)
+      : [];
     const dayRegistros = [...baseRegistros, ...reviewFallbackRecords];
     const dayStatus = getDayStatus(dateStr);
     const dayQuestions = dayRegistros.filter((r) => (r.questoesFeitas || 0) > 0);
@@ -383,6 +549,81 @@ function CalendarTab({
             </div>
           </div>
 
+          {/* Seletor de Planejamento: Geral / Ciclo ↔ Cronograma */}
+          <div className="flex shrink-0 flex-col gap-1 items-start md:items-end">
+            <span className="text-[9px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500 px-1">
+              Planejamento
+            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Botão Geral */}
+              <motion.button
+                type="button"
+                onClick={() => handleModeChange('geral')}
+                whileHover={{ scale: 1.04, y: -1 }}
+                whileTap={{ scale: 0.96 }}
+                className={`group relative flex items-center gap-1.5 px-3 py-1 rounded-full border transition-all duration-200 shadow-md backdrop-blur-sm ${
+                  selectedMode === 'geral'
+                    ? 'border-red-500/40 bg-red-50/90 text-red-600 dark:border-red-500/50 dark:bg-red-950/40 dark:text-red-400 shadow-red-500/10'
+                    : 'border-zinc-200 bg-white/90 text-zinc-500 hover:border-red-300 hover:text-red-600 dark:border-zinc-700 dark:bg-zinc-800/90 dark:text-zinc-400 dark:hover:border-red-600 dark:hover:text-red-400'
+                }`}
+                title="Ver todos os registros no calendário"
+              >
+                <div
+                  className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border transition-colors ${
+                    selectedMode === 'geral'
+                      ? 'border-red-600 bg-red-600 text-white shadow-sm'
+                      : 'border-zinc-200 bg-zinc-100 text-zinc-400 group-hover:text-red-500 dark:border-zinc-600 dark:bg-zinc-700'
+                  }`}
+                >
+                  <LayoutGrid size={10} strokeWidth={2.5} />
+                </div>
+                <span className="text-[9px] font-black uppercase tracking-widest whitespace-nowrap">
+                  Geral
+                </span>
+              </motion.button>
+
+              {/* Botão de troca Ciclo ↔ Cronograma (Design da print) */}
+              <motion.button
+                type="button"
+                onClick={handleTogglePlanning}
+                whileHover={{ scale: 1.04, y: -1 }}
+                whileTap={{ scale: 0.96 }}
+                className={`group relative flex items-center gap-1.5 pl-1.5 pr-3 py-1 rounded-full border transition-all duration-200 shadow-md backdrop-blur-sm ${
+                  isPlanActive
+                    ? 'border-red-300 dark:border-red-600/60 bg-white/95 dark:bg-zinc-800/95 shadow-red-500/5 hover:border-red-400 hover:shadow-lg'
+                    : 'border-zinc-200 dark:border-zinc-700 bg-white/90 dark:bg-zinc-800/90 hover:border-red-300 dark:hover:border-red-600 hover:shadow-lg'
+                }`}
+                title={`Ver calendário do ${destinoLabel === 'CRONOGRAMA' ? 'Cronograma' : 'Ciclo'}`}
+              >
+                <div className="flex h-5 w-5 flex-shrink-0 items-center justify-center overflow-hidden rounded-full border border-zinc-200 bg-zinc-100 dark:border-zinc-600 dark:bg-zinc-700">
+                  {destinoLogo ? (
+                    <img src={destinoLogo} alt="" className="h-4 w-4 object-contain" />
+                  ) : planDestination === 'cronograma' ? (
+                    <CalendarDays size={10} className="text-zinc-400" />
+                  ) : (
+                    <BookOpen size={10} className="text-zinc-400" />
+                  )}
+                </div>
+
+                <ArrowLeftRight
+                  size={9}
+                  className={`flex-shrink-0 transition-colors ${
+                    isPlanActive ? 'text-red-500' : 'text-zinc-400 group-hover:text-red-500'
+                  }`}
+                />
+
+                <span
+                  className={`whitespace-nowrap text-[9px] font-black uppercase tracking-widest transition-colors ${
+                    isPlanActive
+                      ? 'text-red-600 dark:text-red-400'
+                      : 'text-zinc-500 group-hover:text-red-600 dark:group-hover:text-red-400'
+                  }`}
+                >
+                  Ver {destinoLabel}
+                </span>
+              </motion.button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -529,13 +770,13 @@ function CalendarTab({
                     let cardClasses = 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-white/10 shadow-sm';
                     let textClasses = 'text-zinc-700 dark:text-zinc-300';
 
-                    if (isRestDay || dayStatus.status === 'goal-met-both') {
+                    if (isRestDay || dayStatus.status === 'goal-met-both' || dayStatus.goalMet || ['studied', 'recovered'].includes(dayStatus.streakState)) {
                       cardClasses = 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-400 dark:border-emerald-700 shadow-sm';
                       textClasses = 'text-emerald-800 dark:text-emerald-400';
-                    } else if (dayStatus.status === 'goal-met-one') {
+                    } else if (dayStatus.status === 'goal-met-one' || dayStatus.streakState === 'recovery_pending') {
                       cardClasses = 'bg-amber-50 dark:bg-amber-900/20 border-amber-400 dark:border-amber-700 shadow-sm';
                       textClasses = 'text-amber-800 dark:text-amber-400';
-                    } else if (dayStatus.status === 'goal-not-met') {
+                    } else if (dayStatus.status === 'goal-not-met' || dayStatus.streakState === 'failed') {
                       cardClasses = 'bg-red-50 dark:bg-red-900/10 border-red-300 dark:border-red-900/30 shadow-sm';
                       textClasses = 'text-red-800 dark:text-red-400';
                     }

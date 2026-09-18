@@ -13,6 +13,7 @@ import HeaderBroadcast from './HeaderBroadcast';
 import MigrarTemplateModal from './MigrarTemplateModal';
 
 const HeaderAdmin = ({
+  users = [],
   onRecalculateStats,
   broadcastDraft = null,
   filters,
@@ -61,6 +62,7 @@ const HeaderAdmin = ({
     return () => unsub();
   }, []);
 
+
   useEffect(() => {
     const q = query(collection(db, 'system_quotes'));
     const unsub = onSnapshot(q, (snap) => setQuotesCount(snap.size));
@@ -76,7 +78,7 @@ const HeaderAdmin = ({
   return (
     <>
       <HeaderOcorrencias isOpen={showInbox}     onClose={() => setShowInbox(false)} />
-      <HeaderBroadcast   isOpen={showBroadcast} onClose={() => setShowBroadcast(false)} segmentDraft={broadcastDraft?.segment || null} />
+      <HeaderBroadcast   isOpen={showBroadcast} onClose={() => setShowBroadcast(false)} segmentDraft={broadcastDraft?.segment || null} users={users} />
       <HeaderFrases      isOpen={showQuotes}    onClose={() => setShowQuotes(false)} />
       <MigrarTemplateModal isOpen={showMigrar}  onClose={() => setShowMigrar(false)} />
 

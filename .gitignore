@@ -140,20 +140,46 @@ scripts/serviceAccountkey.json
 scripts/serviceAccountKey.json
 scripts/serviceAccount*.json
 
-# Artefatos locais do Vite
+# Artefatos locais, builds e emuladores
 .vite/
-vite-dev.out
-vite-dev.err
-*.out
-*.err
+.firebase/
 tmp/
 output/
-.firebase/
+.env.emulator
+firebase.support.local.json
+firebase.test.json
 
-# Assistentes locais e backups
+# Logs e execuções temporárias
+*.log
+*.out
+*.err
+firestore-debug.log
+dev-server.log
+vite-dev*
+codex-*
+
+# IDE e ferramentas
+.idea/
+*.iml
+.vscode/
+
+# Ferramentas e documentações de IA
+.agents/
+.codex/
 .claude/
 src/.claude/
+AGENTS.md
+ARCHITECTURE.md
+DECISIONS.md
+QA_HOMOLOGATION.md
+PROMPTS_CODEX_CICLO_SESSOES.md
+GUIA_IMPLEMENTACAO_NOVOS_USUARIOS_EMPTY_STATES.md
+plano_refatoracao_cronograma.md
+docs/
+
+# Backups
 Backup/
 Backup ModoQAP/
 *.rar
 *.zip
+

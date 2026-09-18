@@ -9,3 +9,7 @@ export * from './documents.js';
 export * from './studySources.js';
 export * from './adaptiveStudy.js';
 export * from './ai.js';
+export * from './broadcastPoll.js';
+export * from './cronograma.js';
+export * from './cycles.js';
+export * from './planning.js';

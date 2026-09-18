@@ -60,9 +60,21 @@ const CloseConfirmationModal = ({ isOpen, onCancel, onConfirm }) => {
 // ============================================================================
 // COMPONENTE PRINCIPAL DO MODAL DE CRIAÇÃO
 // ============================================================================
-const SimuladoCreationModal = ({ isOpen, onClose, onSave, disciplinasSugestivas, initialData, onClearInitialData }) => {
-  const DRAFT_KEY = 'simulado_draft_v7_ultra';
+const SIMULADO_DRAFT_PREFIX = 'simulado_draft_v7_ultra';
+const LEGACY_SIMULADO_DRAFT_KEY = 'simulado_draft_v7_ultra';
 
+export const getSimuladoDraftKey = (uid) => {
+  if (!uid || typeof uid !== 'string') return null;
+  return `${SIMULADO_DRAFT_PREFIX}_${uid}`;
+};
+
+export const limparLegacySimuladoDraft = () => {
+  try {
+    localStorage.removeItem(LEGACY_SIMULADO_DRAFT_KEY);
+  } catch {}
+};
+
+const SimuladoCreationModal = ({ isOpen, onClose, onSave, disciplinasSugestivas, initialData, onClearInitialData, user }) => {
   const [titulo, setTitulo] = useState('');
   const [banca, setBanca] = useState('');
   const [data, setData] = useState(new Date().toISOString().split('T')[0]);
@@ -82,6 +94,8 @@ const SimuladoCreationModal = ({ isOpen, onClose, onSave, disciplinasSugestivas,
 
   const [manualHours, setManualHours] = useState('');
   const [manualMins, setManualMins] = useState('');
+
+  const DRAFT_KEY = getSimuladoDraftKey(user?.uid) || LEGACY_SIMULADO_DRAFT_KEY;
 
   // ✅ TRAVA DE SCROLL ROBUSTA (Igual ao ModalSelecaoEdital)
   useBodyScrollLock(isOpen, { overscrollBehavior: 'none' });
@@ -138,109 +152,101 @@ const SimuladoCreationModal = ({ isOpen, onClose, onSave, disciplinasSugestivas,
   }, [isOpen]);
 
   const buildInitialDisciplinas = useCallback(() => {
-      const baseObj = { _id: Date.now(), nome: '', questoes: '', acertos: '', branco: '', peso: 1 };
-      if (disciplinasSugestivas && disciplinasSugestivas.length > 0) {
-        return disciplinasSugestivas.map((d, i) => ({
-          ...baseObj,
-          _id: Date.now() + i,
-          nome: d.nome || d.disciplinaNome || ''
-        }));
-      }
-      return [baseObj];
-    }, [disciplinasSugestivas]);
+    const baseObj = { _id: Date.now(), nome: '', questoes: '', acertos: '', branco: '', peso: 1 };
+    if (disciplinasSugestivas && disciplinasSugestivas.length > 0) {
+      return disciplinasSugestivas.map((d, i) => ({
+        ...baseObj,
+        _id: Date.now() + i,
+        nome: d.nome || d.disciplinaNome || ''
+      }));
+    }
+    return [baseObj];
+  }, [disciplinasSugestivas]);
 
   // EFEITO PRINCIPAL DE CARREGAMENTO (Mount/Open)
   useEffect(() => {
-      if (!isOpen) return;
+    if (!isOpen) return;
 
-      setActiveTab('details');
-      setConfirmCloseOpen(false);
+    setActiveTab('details');
+    setConfirmCloseOpen(false);
 
-      const savedDraft = localStorage.getItem(DRAFT_KEY);
-      let draftObj = null;
-      try { draftObj = JSON.parse(savedDraft); } catch (e) {}
+    const savedDraft = localStorage.getItem(DRAFT_KEY);
+    let draftObj = null;
+    try { draftObj = JSON.parse(savedDraft); } catch (e) {}
 
-      let nextTitulo = '';
-      let nextBanca = '';
-      let nextData = new Date().toISOString().split('T')[0];
-      let nextDisciplinas = buildInitialDisciplinas();
-      let nextDurationMinutes = null;
+    let nextTitulo = '';
+    let nextBanca = '';
+    let nextData = new Date().toISOString().split('T')[0];
+    let nextDisciplinas = buildInitialDisciplinas();
+    let nextDurationMinutes = null;
 
-      if (initialData && initialData.durationMinutes != null) {
-        nextDurationMinutes = initialData.durationMinutes;
-      }
+    if (initialData && initialData.durationMinutes != null) {
+      nextDurationMinutes = initialData.durationMinutes;
+    }
 
-      // LÓGICA DE CARREGAMENTO
-      if (initialData) {
-        // Se temos dados iniciais (Ex: veio do Timer), IGNORA O RASCUNHO e usa os dados
-        nextTitulo = initialData.titulo || '';
-        nextData = initialData.data || nextData;
-        nextBanca = ''; // Geralmente timer não tem banca definida ainda
-        // Se o timer passou disciplinas pré-configuradas (futuro), usaria aqui. Por enquanto reseta ou usa sugestivas.
-        nextDisciplinas = buildInitialDisciplinas();
-        setDraftLoaded(false);
-      } else if (draftObj) {
-        // Se NÃO tem initialData, mas tem rascunho
-        nextTitulo = draftObj.titulo || '';
-        nextBanca = draftObj.banca || '';
-        nextData = draftObj.data || nextData;
-        nextDisciplinas = draftObj.disciplinas || buildInitialDisciplinas();
-        // Recupera tempo manual do rascunho se existir
-        if (draftObj.durationMinutes) nextDurationMinutes = draftObj.durationMinutes;
-        setDraftLoaded(true);
-      } else {
-        // Limpo (Novo Simulado Manual sem rascunho)
-        nextDisciplinas = buildInitialDisciplinas();
-        setDraftLoaded(false);
-        // GARANTIR LIMPEZA TOTAL
-        nextTitulo = '';
-        nextBanca = '';
-        nextDurationMinutes = null;
-      }
+    // LÓGICA DE CARREGAMENTO
+    if (initialData) {
+      nextTitulo = initialData.titulo || '';
+      nextData = initialData.data || nextData;
+      nextBanca = '';
+      nextDisciplinas = buildInitialDisciplinas();
+      setDraftLoaded(false);
+    } else if (draftObj) {
+      nextTitulo = draftObj.titulo || '';
+      nextBanca = draftObj.banca || '';
+      nextData = draftObj.data || nextData;
+      nextDisciplinas = draftObj.disciplinas || buildInitialDisciplinas();
+      if (draftObj.durationMinutes) nextDurationMinutes = draftObj.durationMinutes;
+      setDraftLoaded(true);
+    } else {
+      nextDisciplinas = buildInitialDisciplinas();
+      setDraftLoaded(false);
+      nextTitulo = '';
+      nextBanca = '';
+      nextDurationMinutes = null;
+    }
 
-      // Aplica os estados
-      setTitulo(nextTitulo);
-      setBanca(nextBanca);
-      setData(nextData);
-      setDisciplinas(nextDisciplinas);
-      setDurationMinutes(nextDurationMinutes);
+    setTitulo(nextTitulo);
+    setBanca(nextBanca);
+    setData(nextData);
+    setDisciplinas(nextDisciplinas);
+    setDurationMinutes(nextDurationMinutes);
 
-      // Sincroniza inputs manuais de hora/min
-      if (nextDurationMinutes) {
-        const h = Math.floor(nextDurationMinutes / 60);
-        const m = nextDurationMinutes % 60;
-        setManualHours(String(h).padStart(2, '0'));
-        setManualMins(String(m).padStart(2, '0'));
-      } else {
-        setManualHours('');
-        setManualMins('');
-      }
+    if (nextDurationMinutes) {
+      const h = Math.floor(nextDurationMinutes / 60);
+      const m = nextDurationMinutes % 60;
+      setManualHours(String(h).padStart(2, '0'));
+      setManualMins(String(m).padStart(2, '0'));
+    } else {
+      setManualHours('');
+      setManualMins('');
+    }
 
-      initialSnapshotRef.current = JSON.stringify({
-        titulo: nextTitulo,
-        banca: nextBanca,
-        data: nextData,
-        durationMinutes: nextDurationMinutes,
-        disciplinas: nextDisciplinas
-      });
-    }, [isOpen, initialData, disciplinasSugestivas, buildInitialDisciplinas]);
+    initialSnapshotRef.current = JSON.stringify({
+      titulo: nextTitulo,
+      banca: nextBanca,
+      data: nextData,
+      durationMinutes: nextDurationMinutes,
+      disciplinas: nextDisciplinas
+    });
+  }, [isOpen, initialData, disciplinasSugestivas, buildInitialDisciplinas, DRAFT_KEY]);
 
   // Efeito para Salvar Rascunho Automaticamente
   useEffect(() => {
-      if (isOpen && !initialData) { // Só salva rascunho se for edição manual, não vindo do timer
-        const payload = {
-            titulo,
-            banca,
-            data,
-            disciplinas,
-            durationMinutes // Salva também o tempo manual
-        };
-        const isDirtyCheck = titulo || banca || (durationMinutes !== null) || disciplinas.some(d => d.nome || d.questoes);
-        if (isDirtyCheck) {
-          localStorage.setItem(DRAFT_KEY, JSON.stringify(payload));
-        }
+    if (isOpen && !initialData) {
+      const payload = {
+        titulo,
+        banca,
+        data,
+        disciplinas,
+        durationMinutes
+      };
+      const isDirtyCheck = titulo || banca || (durationMinutes !== null) || disciplinas.some(d => d.nome || d.questoes);
+      if (isDirtyCheck) {
+        localStorage.setItem(DRAFT_KEY, JSON.stringify(payload));
       }
-    }, [titulo, banca, data, disciplinas, durationMinutes, isOpen, initialData]);
+    }
+  }, [titulo, banca, data, disciplinas, durationMinutes, isOpen, initialData, DRAFT_KEY]);
 
   const handleChange = (idx, field, val) => {
     if (['questoes', 'acertos', 'branco', 'peso'].includes(field)) {
@@ -251,7 +257,7 @@ const SimuladoCreationModal = ({ isOpen, onClose, onSave, disciplinasSugestivas,
     setDisciplinas(arr);
 
     if (fieldErrors.disciplinas) {
-        setFieldErrors(prev => ({ ...prev, disciplinas: false }));
+      setFieldErrors(prev => ({ ...prev, disciplinas: false }));
     }
   };
 
@@ -293,9 +299,6 @@ const SimuladoCreationModal = ({ isOpen, onClose, onSave, disciplinasSugestivas,
     return { tQuestoes, tAcertos, tBrancos, tPontosPossiveis, tPontosObtidos, notaFinal };
   }, [disciplinas]);
 
-  // =================================================================
-  // FUNÇÃO DE SAVE COM VALIDAÇÃO VISUAL
-  // =================================================================
   const handleSave = () => {
     const newErrors = { titulo: false, data: false, disciplinas: false };
     let hasError = false;

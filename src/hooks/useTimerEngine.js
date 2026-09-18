@@ -57,6 +57,74 @@ export function isValidTimerElapsedMs(value) {
   return Number.isFinite(elapsed) && elapsed >= 0 && elapsed < TIMER_MAX_ELAPSED_MS;
 }
 
+function firstValidTimestampMs(...values) {
+  for (const value of values) {
+    const numeric = Number(value);
+    if (Number.isFinite(numeric) && numeric > 0) return numeric;
+    const timestamp = timerTimestampToMillis(value);
+    if (Number.isFinite(timestamp) && timestamp > 0) return timestamp;
+  }
+  return null;
+}
+
+export function deriveRestoredTimerState(data, nowMs = Date.now()) {
+  const hasLocalActiveSession = !!data?.schemaVersion && !!data?.disciplinaId && !data?.isFinishing;
+  const status = String(data?.status || (hasLocalActiveSession ? (data?.isPaused ? 'paused' : 'running') : ''));
+  const isActive = ['running', 'paused', 'pomodoro_finished', 'rest_finished'].includes(status);
+  if (!isActive) return null;
+
+  const mode = String(data?.mode || 'free');
+  const phase = String(
+    data?.phase
+    || (data?.restFinished ? 'rest_finished' : null)
+    || (data?.pomodoroBlockFinished ? 'pomodoro_finished' : null)
+    || (data?.isResting ? 'rest' : 'focus')
+  );
+  const isRunning = status === 'running' && !data?.isPaused;
+  const startedAtMs = isRunning
+    ? firstValidTimestampMs(data?.runStartedAtMs, data?.runStartedAt, data?.lastTimestamp, data?.actionAt)
+    : null;
+  const runningMs = startedAtMs == null ? 0 : Math.max(0, Number(nowMs) - startedAtMs);
+
+  const focusBaseMs = Math.max(0, Number(data?.focusBaseMs ?? data?.focusAccumulatedMs) || 0);
+  const restBaseMs = Math.max(0, Number(data?.restBaseMs ?? data?.restElapsedBaseMs) || 0);
+  const pomoBaseMs = Math.max(0, Number(data?.pomoBaseMs ?? data?.focusBlockElapsedBaseMs) || 0);
+  const focusElapsedMs = focusBaseMs + (phase === 'focus' ? runningMs : 0);
+  const restElapsedMs = restBaseMs + (phase === 'rest' ? runningMs : 0);
+  const pomodoroElapsedMs = pomoBaseMs + (phase === 'focus' ? runningMs : 0);
+
+  let displaySeconds;
+  if (phase === 'pomodoro_finished' || phase === 'rest_finished') {
+    displaySeconds = 0;
+  } else if (mode === 'countdown') {
+    const durationMs = Math.max(0, Number(data?.countdownSeconds) || 0) * 1000;
+    displaySeconds = Math.floor(Math.max(0, durationMs - focusElapsedMs) / 1000);
+  } else if (phase === 'rest') {
+    const durationMs = Math.max(0, Number(data?.restSeconds ?? data?.restDuration) || 0) * 1000;
+    displaySeconds = Math.floor(Math.max(0, durationMs - restElapsedMs) / 1000);
+  } else if (mode === 'pomodoro') {
+    const durationMs = Math.max(0, Number(data?.pomodoroSeconds ?? data?.pomodoroDuration) || 0) * 1000;
+    displaySeconds = Math.floor(Math.max(0, durationMs - pomodoroElapsedMs) / 1000);
+  } else {
+    displaySeconds = Math.floor(focusElapsedMs / 1000);
+  }
+
+  return {
+    displaySeconds,
+    focusElapsedMs,
+    restElapsedMs,
+    pomodoroElapsedMs,
+    runStartedAtMs: startedAtMs,
+    isRunning,
+    isPaused: !isRunning,
+    isResting: phase === 'rest',
+    isPomodoroFinished: phase === 'pomodoro_finished',
+    isRestFinished: phase === 'rest_finished',
+    mode,
+    countdownSeconds: mode === 'countdown' ? Math.max(0, Number(data?.countdownSeconds) || 0) : null,
+  };
+}
+
 export function formatTimerClock(totalSeconds) {
   const safe = Math.max(0, Number(totalSeconds) || 0);
   const hours = Math.floor(safe / 3600);

@@ -23,7 +23,7 @@
  * @property {string|null} authorPhotoURL
  * @property {string} text
  * @property {string|null} replyToMessageId
- * @property {string[]} mentionUids IDs individuais ou todos os demais membros quando o texto usa @Todos.
+ * @property {string[]} mentionUids Até 10 IDs individuais ou todos os demais membros quando @Todos respeita esse limite.
  * @property {Date|null} createdAt
  * @property {Date|null} updatedAt
  * @property {Date|null} editedAt

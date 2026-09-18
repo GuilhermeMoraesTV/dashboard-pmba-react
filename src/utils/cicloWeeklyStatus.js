@@ -1,3 +1,5 @@
+import { getRecordedStudyMinutes } from './studyRecords.js';
+
 const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 const pad2 = (value) => String(value).padStart(2, '0');
@@ -98,6 +100,7 @@ export const buildCycleRoundSummary = ({
   ciclo = {},
   disciplinas = [],
   registros = [],
+  minutesByDisciplineUntilIdeal = null,
   closedAt = new Date(),
 } = {}) => {
   const inicioPlanejado = getCicloRoundStartKey(ciclo, closedAt);
@@ -105,15 +108,22 @@ export const buildCycleRoundSummary = ({
   const fechamentoRealData = dateToLocalKey(closedAt);
   const atrasoDias = Math.max(0, differenceInCalendarDays(fechamentoRealData, fechamentoIdeal));
   const currentRoundRecords = (registros || []).filter((registro) => registro?.conclusaoId == null);
-  const minutosAteIdealPorDisciplina = new Map();
+  const hasAccumulator = minutesByDisciplineUntilIdeal
+    && typeof minutesByDisciplineUntilIdeal === 'object'
+    && !Array.isArray(minutesByDisciplineUntilIdeal);
+  const minutosAteIdealPorDisciplina = new Map(
+    hasAccumulator
+      ? Object.entries(minutesByDisciplineUntilIdeal).map(([key, value]) => [String(key), Number(value || 0)])
+      : [],
+  );
 
-  currentRoundRecords.forEach((registro) => {
+  if (!hasAccumulator) currentRoundRecords.forEach((registro) => {
     const dateKey = getRegistroDateKey(registro);
     if (!dateKey || dateKey < inicioPlanejado || dateKey > fechamentoIdeal || !registro?.disciplinaId) return;
     const key = String(registro.disciplinaId);
     minutosAteIdealPorDisciplina.set(
       key,
-      (minutosAteIdealPorDisciplina.get(key) || 0) + Number(registro.tempoEstudadoMinutos || 0),
+      (minutosAteIdealPorDisciplina.get(key) || 0) + getRecordedStudyMinutes(registro),
     );
   });
 

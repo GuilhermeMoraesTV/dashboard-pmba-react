@@ -54,8 +54,9 @@ test('Cenário B: Conversa com mensagens não lidas abre na primeira não lida',
 
 test('Cenários C & D & E & F & G & H: Painel Virtuoso isola rolagem, segue mensagens em tempo real e preserva histórico', async () => {
   const dom = new JSDOM('<div id="root"></div>', { url: 'https://chat.test', pretendToBeVisual: true });
-  const prior = Object.fromEntries(['window', 'document', 'IS_REACT_ACT_ENVIRONMENT'].map(key => [key, globalThis[key]]));
-  Object.assign(globalThis, { window: dom.window, document: dom.window.document, IS_REACT_ACT_ENVIRONMENT: true });
+  const prior = Object.fromEntries(['window', 'document', 'ResizeObserver', 'IS_REACT_ACT_ENVIRONMENT'].map(key => [key, globalThis[key]]));
+  class TestResizeObserver { observe() {} disconnect() {} }
+  Object.assign(globalThis, { window: dom.window, document: dom.window.document, ResizeObserver: TestResizeObserver, IS_REACT_ACT_ENVIRONMENT: true });
   const timers = new Map();
   let timerId = 0;
   dom.window.setTimeout = callback => { timers.set(++timerId, callback); return timerId; };
@@ -63,6 +64,13 @@ test('Cenários C & D & E & F & G & H: Painel Virtuoso isola rolagem, segue mens
 
   let listProps, incomingListener, readsLogged = [];
   const initialMessages = Array.from({ length: 30 }, (_, i) => ({ id: `m${71 + i}`, seq: 71 + i, authorId: 'other', text: `Mensagem ${71 + i}` }));
+  const scroller = {
+    scrollHeight: 1000,
+    scrollTop: 600,
+    clientHeight: 400,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  };
 
   const require = createRequire(import.meta.url);
   const filename = fileURLToPath(new URL('../src/components/groups/GroupChatPanel.jsx', import.meta.url));
@@ -96,6 +104,7 @@ test('Cenários C & D & E & F & G & H: Painel Virtuoso isola rolagem, segue mens
     'react-virtuoso': {
       Virtuoso: props => {
         listProps = props;
+        props.scrollerRef?.(scroller);
         return React.createElement('div', { 'data-testid': 'timeline' });
       },
     },
@@ -111,28 +120,33 @@ test('Cenários C & D & E & F & G & H: Painel Virtuoso isola rolagem, segue mens
   module._compile(transformSync(fs.readFileSync(filename, 'utf8'), { loader: 'jsx', format: 'cjs' }).code, filename);
   const Panel = module.exports.default;
   const root = createRoot(document.getElementById('root'));
+  const largeGroupMembers = Array.from({ length: 12 }, (_, index) => ({ uid: `member-${index}`, displayName: `Membro ${index}` }));
 
   try {
-    await act(async () => root.render(React.createElement(Panel, { group: { id: 'g1' }, user: { uid: 'user1' } })));
+    await act(async () => root.render(React.createElement(Panel, { group: { id: 'g1' }, user: { uid: 'user1' }, members: largeGroupMembers })));
 
     // Cenário A: Inicia com LAST quando não há unread
     assert.deepEqual(listProps.initialTopMostItemIndex, { index: 'LAST', align: 'end' });
     assert.equal(listProps.firstItemIndex, 100000);
+    assert.match(document.body.textContent, /Use @ para mencionar até 10 pessoas/, 'grupo grande abre e desabilita @Todos sem derrubar a seção');
 
     // Cenário F: No bottom, followOutput retorna 'auto'
     assert.equal(listProps.followOutput(true), 'auto', 'No bottom, segue mensagens novas automaticamente');
 
-    // Cenário G: Lendo mensagens anteriores (!isAtBottom), followOutput retorna false
-    assert.equal(listProps.followOutput(false), false, 'Lendo mensagens anteriores, não desloca o scroll');
-
-    // Cenário C: Rolagem para cima
+    // Cenários C & G: a métrica nativa prevalece enquanto lê mensagens anteriores.
     await act(async () => {
-      listProps.atBottomStateChange(false);
+      scroller.scrollTop = 200;
+      listProps.atBottomStateChange(true);
     });
+    assert.equal(listProps.followOutput(true), false, 'Lendo mensagens anteriores, não desloca o scroll mesmo com sinal interno incorreto');
     assert.equal(timers.size, 0, 'Sair do bottom cancela timer de marcação de leitura');
+    await act(async () => listProps.startReached());
+    assert.equal(listProps.firstItemIndex, 100000, 'overscan não pagina nem altera a âncora antes do topo nativo');
 
     // Cenário E: Carregamento de mensagens antigas
     await act(async () => {
+      scroller.scrollTop = 0;
+      listProps.atTopStateChange(true);
       listProps.startReached();
     });
     // Deve deslocar o firstItemIndex para 99970 e manter as 60 mensagens
@@ -148,6 +162,7 @@ test('Cenários C & D & E & F & G & H: Painel Virtuoso isola rolagem, segue mens
 
     // Cenário D & H: Usuário desce até o bottom
     await act(async () => {
+      scroller.scrollTop = 600;
       listProps.atBottomStateChange(true);
     });
     assert.equal(timers.size, 1, 'Chegar ao bottom agenda marcação de leitura');

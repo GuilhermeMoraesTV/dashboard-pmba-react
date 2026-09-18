@@ -8,14 +8,21 @@ import {
   BookOpen, Shield, ArrowUpCircle, Clock,
   CheckCheck, Inbox, Eye, Layers, Sparkles, Rocket,
   ExternalLink, ChevronRight, Info, History, Trash2,
-  ChevronLeft, Target, CalendarDays, TrendingUp, Flame, MessageCircle, MessageSquare
+  ChevronLeft, Target, CalendarDays, TrendingUp, Flame, MessageCircle, MessageSquare,
+  BarChart3, CheckCircle2, Lock, Loader2
 } from 'lucide-react';
-import { db } from '../../firebaseConfig';
+import { db, auth } from '../../firebaseConfig';
 import UserProfileModal from '../gamification/UserProfileModal';
+import {
+  submitPollVote,
+  getUserPollAnswer,
+  getPollResults,
+} from '../../services/broadcastPollService';
+import {
+  isPollEffectiveClosed,
+  calculatePollPercentages,
+} from '../../contracts/broadcastPoll';
 
-// =======================================================
-// 🎨 ESTILOS GLOBAIS COMPACTOS E PREMIUM - FIRE THEME
-// =======================================================
 const notifGlobalStyles = `
   .notif-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
   .notif-scrollbar::-webkit-scrollbar-track { background: transparent; }
@@ -352,6 +359,363 @@ const BroadcastModal = ({ notif, onClose }) => {
   );
 };
 
+// Poll Modal
+export const PollModal = ({ notif, onClose, onVoteSubmitted }) => {
+  const [selectedOptionId, setSelectedOptionId] = useState(null);
+  const [submittingVote, setSubmittingVote] = useState(false);
+  const [voteFeedback, setVoteFeedback] = useState(null);
+  const [pollResults, setPollResults] = useState(null);
+  const [loadingResults, setLoadingResults] = useState(false);
+  const [userAnswer, setUserAnswer] = useState(null);
+  const [checkingAnswer, setCheckingAnswer] = useState(true);
+
+  const currentUser = auth.currentUser;
+
+  const handleKeyDown = useCallback((e) => {
+    if (e.key === 'Escape') { e.stopPropagation(); onClose(); }
+  }, [onClose]);
+
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [handleKeyDown]);
+
+  const isClosed = notif ? isPollEffectiveClosed(notif) : false;
+
+  useEffect(() => {
+    if (!notif || !currentUser) {
+      setCheckingAnswer(false);
+      return;
+    }
+    let alive = true;
+    setCheckingAnswer(true);
+
+    getUserPollAnswer(db, currentUser.uid, notif.id)
+      .then((ans) => {
+        if (!alive) return;
+        setUserAnswer(ans);
+        if (ans?.optionId) setSelectedOptionId(ans.optionId);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (alive) setCheckingAnswer(false);
+      });
+
+    if (isClosed) {
+      setLoadingResults(true);
+      getPollResults(db, notif.id)
+        .then((res) => {
+          if (alive && res) setPollResults(res);
+        })
+        .catch(() => {})
+        .finally(() => {
+          if (alive) setLoadingResults(false);
+        });
+    }
+
+    return () => { alive = false; };
+  }, [notif, currentUser, isClosed]);
+
+  const handleRefreshResults = () => {
+    if (!notif) return;
+    setLoadingResults(true);
+    getPollResults(db, notif.id)
+      .then((res) => {
+        if (res) setPollResults(res);
+      })
+      .catch(() => {})
+      .finally(() => setLoadingResults(false));
+  };
+
+  const handleConfirmVote = async () => {
+    if (!notif || !selectedOptionId || !currentUser || submittingVote) return;
+    setSubmittingVote(true);
+    setVoteFeedback(null);
+
+    try {
+      const answer = await submitPollVote(db, currentUser.uid, notif.id, selectedOptionId);
+      setUserAnswer(answer);
+      setVoteFeedback({ type: 'success', message: 'Voto registrado com sucesso!' });
+      onVoteSubmitted?.(notif.id);
+    } catch (err) {
+      setVoteFeedback({
+        type: 'error',
+        message: err.message || 'Não foi possível registrar seu voto.',
+      });
+    } finally {
+      setSubmittingVote(false);
+    }
+  };
+
+  if (!notif) return null;
+
+  const poll = notif.poll || {};
+  const options = Array.isArray(poll.options) ? poll.options : [];
+  const pollTitle = notif.title || notif.message || 'Enquete';
+  const pollDescription = notif.description || poll.description || (notif.title && notif.message && notif.message !== notif.title ? notif.message : null);
+  const calculatedStats = isClosed && pollResults
+    ? calculatePollPercentages(pollResults, options)
+    : null;
+  const percentages = calculatedStats?.optionStats || [];
+
+  return createPortal(
+    <AnimatePresence>
+      <div className="notif-modal-portal fixed inset-0 z-[9999] flex items-center justify-center p-3">
+        <motion.div
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          className="absolute inset-0 bg-zinc-950/80 backdrop-blur-md transition-all cursor-default"
+          onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
+        />
+
+        <motion.div
+          initial={{ scale: 0.95, opacity: 0, y: 20 }}
+          animate={{ scale: 1, opacity: 1, y: 0 }}
+          exit={{ scale: 0.95, opacity: 0, y: 20 }}
+          transition={{ type: 'spring', duration: 0.4, bounce: 0.15 }}
+          className="relative w-full max-w-lg overflow-hidden bg-white dark:bg-zinc-900 rounded-3xl shadow-2xl border border-zinc-200/80 dark:border-zinc-800 flex flex-col max-h-[90vh]"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header Compacto e Focado na Enquete */}
+          <div className="relative px-5 pt-5 pb-4 border-b border-zinc-100 dark:border-zinc-800 shrink-0 bg-zinc-50/70 dark:bg-zinc-900/80">
+            <div className="flex items-center justify-between gap-2 mb-2.5">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-900/50">
+                  <BarChart3 size={11} /> Enquete
+                </span>
+                {isClosed ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300">
+                    <Lock size={10} /> Encerrada
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900/50">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" /> Aberta
+                  </span>
+                )}
+                {poll.closesAt && !isClosed && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold text-zinc-500 dark:text-zinc-400 bg-white dark:bg-zinc-800 border border-zinc-200/60 dark:border-zinc-700/60">
+                    <Clock size={10} /> Encerra em {new Date(toMillisSafe(poll.closesAt)).toLocaleString('pt-BR')}
+                  </span>
+                )}
+              </div>
+              <button
+                onClick={onClose}
+                className="p-1.5 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-200/60 dark:hover:bg-zinc-800 rounded-full transition-colors shrink-0"
+                title="Fechar"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Título / Pergunta */}
+            <h2 className="text-base sm:text-lg font-black leading-snug tracking-tight text-zinc-900 dark:text-white">
+              {pollTitle}
+            </h2>
+
+            {/* Descrição / Contexto da Enquete */}
+            {pollDescription && (
+              <p className="mt-2 text-xs text-zinc-600 dark:text-zinc-300 leading-relaxed font-normal bg-white/80 dark:bg-zinc-800/80 p-3 rounded-2xl border border-zinc-200/60 dark:border-zinc-700/60 whitespace-pre-wrap">
+                {pollDescription}
+              </p>
+            )}
+          </div>
+
+          {/* Body */}
+          <div className="flex-1 p-5 overflow-y-auto notif-scrollbar space-y-3">
+            {checkingAnswer ? (
+              <div className="py-12 flex flex-col items-center justify-center gap-2 text-zinc-400 text-xs font-semibold">
+                <Loader2 className="animate-spin text-red-600" size={24} />
+                Carregando enquete...
+              </div>
+            ) : isClosed ? (
+              // Fechada: Resultados
+              <div className="space-y-3">
+                <div className="flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400 font-bold mb-1 px-1">
+                  <span>Resultados Consolidados</span>
+                  <div className="flex items-center gap-2">
+                    <span>Total: {pollResults?.responseCount || 0} {pollResults?.responseCount === 1 ? 'voto' : 'votos'}</span>
+                    <button
+                      onClick={handleRefreshResults}
+                      disabled={loadingResults}
+                      className="p-1 text-zinc-400 hover:text-red-500 rounded transition-colors"
+                      title="Atualizar resultados"
+                    >
+                      <RefreshCw size={12} className={loadingResults ? 'animate-spin' : ''} />
+                    </button>
+                  </div>
+                </div>
+
+                {loadingResults && !pollResults ? (
+                  <div className="py-8 flex flex-col items-center justify-center gap-2 text-zinc-400 text-xs font-semibold">
+                    <Loader2 className="animate-spin text-red-600" size={20} />
+                    Carregando resultados...
+                  </div>
+                ) : (
+                  percentages.map((opt) => {
+                    const isUserChoice = userAnswer?.optionId === opt.id;
+                    return (
+                      <div
+                        key={opt.id}
+                        className={`relative overflow-hidden rounded-2xl p-3.5 border transition-all ${
+                          isUserChoice
+                            ? 'border-red-500/60 bg-red-50/40 dark:bg-red-950/20'
+                            : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-800/40'
+                        }`}
+                      >
+                        <div
+                          className="absolute inset-y-0 left-0 bg-red-500/15 dark:bg-red-500/20 transition-all duration-700"
+                          style={{ width: `${opt.percentage}%` }}
+                        />
+                        <div className="relative z-10 flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2 min-w-0">
+                            {isUserChoice && (
+                              <span className="shrink-0 text-red-600 dark:text-red-400" title="Sua resposta">
+                                <CheckCircle2 size={16} />
+                              </span>
+                            )}
+                            <span className="text-xs md:text-sm font-bold text-zinc-800 dark:text-zinc-200 truncate">
+                              {opt.text}
+                            </span>
+                          </div>
+                          <div className="shrink-0 text-right">
+                            <span className="text-xs md:text-sm font-black text-red-600 dark:text-red-400">
+                              {opt.percentage.toFixed(1)}%
+                            </span>
+                            <span className="text-[10px] text-zinc-400 font-semibold ml-1.5">
+                              ({opt.count})
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            ) : userAnswer ? (
+              // === ABERTA E JÁ VOTOU: TELA EXCLUSIVA DE CONFIRMAÇÃO E AGRADECIMENTO ===
+              <div className="py-6 px-2 flex flex-col items-center text-center space-y-4">
+                <div className="w-16 h-16 rounded-3xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shadow-lg shadow-emerald-500/20 border border-emerald-200 dark:border-emerald-800">
+                  <CheckCircle2 size={36} strokeWidth={2.5} />
+                </div>
+
+                <div className="space-y-1.5 max-w-sm">
+                  <h3 className="text-lg font-black text-zinc-900 dark:text-white">
+                    Voto Confirmado!
+                  </h3>
+                  <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
+                    Obrigado pela sua participação!
+                  </p>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed pt-1">
+                    Sua resposta foi registrada de forma segura. Enquanto a enquete estiver aberta, o resultado parcial permanece sob sigilo para garantir a imparcialidade.
+                  </p>
+                </div>
+
+                <div className="w-full max-w-sm rounded-2xl bg-zinc-50 dark:bg-zinc-800/60 p-3.5 border border-zinc-200/60 dark:border-zinc-700/60 text-left flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+                    <Check size={16} strokeWidth={3} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[10px] font-black uppercase tracking-wider text-zinc-400">Sua escolha:</p>
+                    <p className="text-xs font-bold text-zinc-800 dark:text-zinc-200 truncate">
+                      {options.find((o) => o.id === (userAnswer?.optionId || selectedOptionId))?.text || 'Opção registrada'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="w-full max-w-sm p-3 rounded-xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/40 text-[11px] text-blue-700 dark:text-blue-300 font-medium leading-relaxed text-center">
+                  🔔 Assim que a enquete for encerrada, você receberá uma notificação para visualizar o resultado final!
+                </div>
+              </div>
+            ) : (
+              // Aberta e NÃO votou
+              <div className="space-y-2.5">
+                <p className="text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider px-1">
+                  Selecione uma opção:
+                </p>
+                {options.map((opt) => {
+                  const isSelected = selectedOptionId === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setSelectedOptionId(opt.id)}
+                      disabled={submittingVote}
+                      className={`w-full text-left p-3.5 rounded-2xl border-2 transition-all flex items-center justify-between gap-3 group ${
+                        isSelected
+                          ? 'border-red-600 bg-red-50/70 dark:bg-red-950/30 shadow-sm'
+                          : 'border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-850 hover:border-red-300 dark:hover:border-red-900/60'
+                      } cursor-pointer active:scale-[0.99]`}
+                    >
+                      <span className={`text-xs md:text-sm font-bold ${
+                        isSelected ? 'text-red-700 dark:text-red-300' : 'text-zinc-700 dark:text-zinc-200'
+                      }`}>
+                        {opt.text}
+                      </span>
+                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
+                        isSelected
+                          ? 'border-red-600 bg-red-600 text-white'
+                          : 'border-zinc-300 dark:border-zinc-600 group-hover:border-red-400'
+                      }`}>
+                        {isSelected && <div className="w-2 h-2 rounded-full bg-white" />}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Feedback */}
+            {voteFeedback && (
+              <div className={`p-3 rounded-xl text-xs font-bold flex items-center gap-2 ${
+                voteFeedback.type === 'success'
+                  ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300'
+                  : 'bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-300'
+              }`}>
+                {voteFeedback.type === 'success' ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
+                <span>{voteFeedback.message}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Footer (Focado e sem "Responder depois") */}
+          <div className="p-4 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-900/60 shrink-0">
+            {!isClosed && !userAnswer ? (
+              <button
+                type="button"
+                onClick={handleConfirmVote}
+                disabled={!selectedOptionId || submittingVote}
+                className="w-full py-3 px-5 rounded-xl font-black text-xs uppercase tracking-wider text-white bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 transition-all shadow-md hover:shadow-lg disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 active:scale-[0.99]"
+              >
+                {submittingVote ? (
+                  <>
+                    <Loader2 size={15} className="animate-spin" />
+                    Gravando resposta...
+                  </>
+                ) : (
+                  <>
+                    <Check size={15} strokeWidth={3} />
+                    Confirmar resposta
+                  </>
+                )}
+              </button>
+            ) : (
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="w-full sm:w-auto px-6 py-2.5 rounded-xl font-bold text-xs text-zinc-700 dark:text-zinc-300 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-750 transition-colors"
+                >
+                  Fechar
+                </button>
+              </div>
+            )}
+          </div>
+        </motion.div>
+      </div>
+    </AnimatePresence>,
+    document.body
+  );
+};
+
 const DiffSection = ({ label, count, variant, children, defaultOpen = false }) => {
   const [open, setOpen] = useState(defaultOpen);
   const isAdd = variant === 'add';
@@ -555,8 +919,9 @@ export const EditalUpdateModal = ({ notif, onClose, onApply, onDismiss, loading,
   );
 };
 
-const NotifItem = ({ notif, isRead, onRead, onOpenBroadcast, onOpenEditalModal, onDismissUpdate, onDeleteBroadcast, onDeleteHistory, isDismissedItem = false }) => {
-  const resolvedType = notif._type || (notif.cicloId ? 'edital_update' : 'broadcast');
+const NotifItem = ({ notif, isRead, onRead, onOpenBroadcast, onOpenPoll, onOpenEditalModal, onDismissUpdate, onDeleteBroadcast, onDeleteHistory, isDismissedItem = false }) => {
+  const isPoll = notif._type === 'poll' || notif.contentType === 'poll' || Boolean(notif.poll);
+  const resolvedType = notif._type || (isPoll ? 'poll' : notif.cicloId ? 'edital_update' : 'broadcast');
   const historyId = notif.id || (notif.cicloId && notif.versionKey ? `edital_${notif.cicloId}_${notif.versionKey}` : null);
   const handleDelete = (event) => {
     event.stopPropagation();
@@ -566,6 +931,71 @@ const NotifItem = ({ notif, isRead, onRead, onOpenBroadcast, onOpenEditalModal, 
     }
     if (notif.id && onDeleteBroadcast) onDeleteBroadcast(notif.id);
   };
+
+  if (resolvedType === 'poll') {
+    const isClosed = isPollEffectiveClosed(notif);
+    const optionsCount = notif.poll?.options?.length || 0;
+    const title = notif.title || notif.message || 'Enquete Oficial';
+
+    return (
+      <motion.div initial={false}
+        className={`relative rounded-xl border overflow-hidden transition-colors duration-75 group ${isRead ? 'opacity-70 hover:opacity-100' : 'shadow-md'} bg-white dark:bg-zinc-800/55 ${isClosed ? 'border-emerald-200 dark:border-emerald-900/40 hover:border-emerald-400' : 'border-zinc-200 dark:border-zinc-700 hover:border-red-500/30 dark:hover:border-red-500/40'}`}
+      >
+        <div className={`absolute left-0 top-0 bottom-0 w-1 ${isClosed ? 'bg-gradient-to-b from-emerald-500 to-emerald-600' : 'bg-gradient-to-b from-red-600 to-red-700'} shadow-xl`} />
+        {!isRead && (
+          <div className="absolute top-2.5 right-2.5 flex h-2 w-2">
+            <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${isClosed ? 'bg-emerald-400' : 'bg-red-400'} opacity-75`}></span>
+            <span className={`relative inline-flex h-2 w-2 rounded-full ${isClosed ? 'bg-emerald-600 shadow-[0_0_6px_rgba(16,185,129,0.8)]' : 'bg-red-600 shadow-[0_0_6px_rgba(220,38,38,0.8)]'}`}></span>
+          </div>
+        )}
+        <div className="flex items-start gap-3 p-3 pl-4">
+          <div className={`w-8 h-8 rounded-lg ${isClosed ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400' : 'bg-red-50 dark:bg-red-950/30 text-red-600'} flex items-center justify-center flex-shrink-0 shadow-inner group-hover:scale-105 transition-transform duration-300`}>
+            <BarChart3 size={15} strokeWidth={2.5} />
+          </div>
+          <div className="flex-1 min-w-0 pr-3">
+            <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+              <span className="text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 border border-red-200/50 dark:border-red-900/50">ENQUETE</span>
+              {isClosed ? (
+                <span className="text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/60 flex items-center gap-1">
+                  <CheckCircle2 size={8} /> RESULTADO DISPONÍVEL
+                </span>
+              ) : (
+                <span className="text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400">ABERTA</span>
+              )}
+              <span className="text-[8px] font-bold text-zinc-400 flex items-center gap-1"><Clock size={8} /> {formatTimeAgo(notif.timestamp)}</span>
+            </div>
+            <h4 className="text-[12px] font-black text-zinc-800 dark:text-zinc-200 leading-snug line-clamp-2">{title}</h4>
+            {isClosed ? (
+              <p className="text-[10px] text-zinc-500 dark:text-zinc-400 font-medium mt-1 leading-tight">
+                A votação foi encerrada. Clique para conferir o resultado e os percentuais de votos.
+              </p>
+            ) : (
+              optionsCount > 0 && (
+                <p className="text-[9px] text-zinc-400 font-semibold mt-0.5">{optionsCount} opções disponíveis</p>
+              )
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-2 px-3 pb-3 pt-0">
+          <button
+            onClick={() => onOpenPoll?.(notif)}
+            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest text-white transition-all active:scale-[0.97] shadow-lg ${
+              isClosed
+                ? 'bg-gradient-to-r from-emerald-600 to-teal-700 hover:brightness-110 shadow-emerald-600/20'
+                : 'bg-gradient-to-r from-red-600 to-red-700 hover:brightness-110 shadow-red-600/20'
+            }`}
+          >
+            <BarChart3 size={12} strokeWidth={3} /> {isClosed ? 'VER RESULTADO DA ENQUETE' : 'PARTICIPAR DA ENQUETE'}
+          </button>
+          {!isRead && (
+            <button onClick={(e) => { e.stopPropagation(); onRead(notif.id); }} className="p-1.5 rounded-lg text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-all active:scale-90 border border-emerald-100 dark:border-emerald-900/30 shadow-sm"><Check size={14} strokeWidth={3} /></button>
+          )}
+          {isRead && <div className="flex items-center gap-1 p-1.5 text-zinc-400"><CheckCheck size={14} strokeWidth={2.5} /></div>}
+          <button onClick={handleDelete} className="p-1.5 rounded-lg text-zinc-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 transition-all opacity-0 group-hover:opacity-100 active:scale-90"><Trash2 size={14} strokeWidth={2.5} /></button>
+        </div>
+      </motion.div>
+    );
+  }
 
   if (resolvedType === 'edital_launch') {
     const logo = notif.logoUrl || notif.imageUrl;
@@ -737,6 +1167,7 @@ const NotificationPanel = ({
 }) => {
   const [activeFilter, setActiveFilter] = useState('all');
   const [broadcastModal, setBroadcastModal] = useState(null);
+  const [pollModal, setPollModal] = useState(null);
   const [editalModal, setEditalModal] = useState(null);
   const [processingRequestId, setProcessingRequestId] = useState(null);
   const [actionError, setActionError] = useState('');
@@ -827,14 +1258,16 @@ const NotificationPanel = ({
     ? { left: '50%', width: panelWidth, marginLeft: -(panelWidth / 2) }
     : { right: bellRight, width: panelWidth };
 
+
   return createPortal(
     <>
     <AnimatePresence>
       {isOpen && (
         <>
           {broadcastModal && <BroadcastModal notif={broadcastModal} onClose={() => setBroadcastModal(null)} />}
+          {pollModal && <PollModal notif={pollModal} onClose={() => setPollModal(null)} onVoteSubmitted={() => { if (pollModal.id && !readBroadcasts?.has(pollModal.id)) onMarkBroadcastRead?.(pollModal.id); }} />}
           {editalModal && <EditalUpdateModal notif={editalModal} onClose={() => setEditalModal(null)} onApply={onApplyEditalUpdate} onDismiss={onDismissEditalUpdate} loading={loadingUpdate} onNavigateToEdital={onNavigateToEdital} />}
-          {!broadcastModal && !editalModal && <div className="fixed inset-0 z-[90] bg-zinc-950/10" onClick={onClose} />}
+          {!broadcastModal && !pollModal && !editalModal && <div className="fixed inset-0 z-[90] bg-zinc-950/10" onClick={onClose} />}
           <motion.div
             initial={{ opacity: 0, scale: 0.985, y: -4 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -887,7 +1320,7 @@ const NotificationPanel = ({
                   </div>
                 ) : (
                   <div key={activeFilter} className="space-y-3.5">
-                    {filtered.map(n => n._type === 'operational' || n._type === 'support' ? <OperationalNotifItem key={`operational:${n.sourceCollection || 'support'}:${n.id}`} notif={n} onRead={onMarkOperationalRead} onRespondGroupRequest={respondGroupRequest} onOpenApplicant={openApplicant} onOpenGroupChat={(groupId) => { onClose(); onOpenGroupChat?.(groupId); }} onOpenSupport={(ticketId) => { onClose(); onOpenSupport?.(ticketId); }} processingRequestId={processingRequestId}/> : <NotifItem key={`${n._type || 'notif'}:${n.id}:${n.versionKey || ''}`} notif={n} isRead={n._type === 'broadcast' || n._type === 'edital_launch' ? readBroadcasts.has(n.id) : false} onRead={onMarkBroadcastRead} onOpenBroadcast={(notif) => { setBroadcastModal(notif); if (!readBroadcasts.has(notif.id)) onMarkBroadcastRead(notif.id); }} onOpenEditalModal={setEditalModal} onDismissUpdate={onDismissEditalUpdate} onDeleteBroadcast={deleteBroadcast} onDeleteHistory={deleteHistoryItem} isDismissedItem={n.isDismissed || activeFilter === 'history'} />)}
+                    {filtered.map(n => n._type === 'operational' || n._type === 'support' ? <OperationalNotifItem key={`operational:${n.sourceCollection || 'support'}:${n.id}`} notif={n} onRead={onMarkOperationalRead} onRespondGroupRequest={respondGroupRequest} onOpenApplicant={openApplicant} onOpenGroupChat={(groupId) => { onClose(); onOpenGroupChat?.(groupId); }} onOpenSupport={(ticketId) => { onClose(); onOpenSupport?.(ticketId); }} processingRequestId={processingRequestId}/> : <NotifItem key={`${n._type || 'notif'}:${n.id}:${n.versionKey || ''}`} notif={n} isRead={n._type === 'broadcast' || n._type === 'edital_launch' ? readBroadcasts.has(n.id) : false} onRead={onMarkBroadcastRead} onOpenBroadcast={(notif) => { setBroadcastModal(notif); if (!readBroadcasts.has(notif.id)) onMarkBroadcastRead(notif.id); }} onOpenPoll={setPollModal} onOpenEditalModal={setEditalModal} onDismissUpdate={onDismissEditalUpdate} onDeleteBroadcast={deleteBroadcast} onDeleteHistory={deleteHistoryItem} isDismissedItem={n.isDismissed || activeFilter === 'history'} />)}
                   </div>
                 )}
               </div>

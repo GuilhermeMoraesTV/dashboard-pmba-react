@@ -242,13 +242,18 @@ export const buildRevisaoCentral = ({
   const cronogramaBuckets = cronograma
     ? getCronogramaReviewBuckets(cronograma, today)
     : { hoje: [], atrasadas: [], proximas: [] };
+  const inheritedPendingKeys = new Set(asArray(revisoesCiclo)
+    .filter((item) => !isDone(item))
+    .map((item) => `${topicKey(item.disciplinaId, item.disciplinaNome, item.assunto)}::${dateKey(item.dataAgendada)}`));
+  const scheduleReviewItems = [
+    ...asArray(cronogramaBuckets.hoje),
+    ...asArray(cronogramaBuckets.atrasadas),
+    ...asArray(cronogramaBuckets.proximas),
+  ].filter((item) => isDone(item) || !inheritedPendingKeys.has(
+    `${topicKey(item.disciplinaId, item.disciplinaNome, item.assunto)}::${dateKey(item.dataSlot || item.dataAgendada)}`));
   const raw = [
-    ...asArray(cronogramaBuckets.hoje).map((item) => ({ item, origem: 'cronograma' })),
-    ...asArray(cronogramaBuckets.atrasadas).map((item) => ({ item, origem: 'cronograma' })),
-    ...asArray(cronogramaBuckets.proximas).map((item) => ({ item, origem: 'cronograma' })),
-    ...asArray(revisoesCiclo)
-      .filter((item) => !ciclo?.id || clean(item?.cicloId) === clean(ciclo.id))
-      .map((item) => ({ item, origem: 'ciclo' })),
+    ...scheduleReviewItems.map((item) => ({ item, origem: 'cronograma' })),
+    ...asArray(revisoesCiclo).map((item) => ({ item, origem: 'ciclo' })),
   ];
   const lateCounts = new Map();
   for (const { item } of raw) {

@@ -3,6 +3,8 @@
  * Nao e exportada como Callable e nao deve ser executada automaticamente.
  */
 
+const { FieldValue } = require('firebase-admin/firestore');
+
 async function migrateLegacyFlashcardsPage({ admin, uid, cursor = null, pageSize = 100 }) {
   if (!/^[A-Za-z0-9_-]{1,160}$/.test(String(uid || ''))) throw new Error('uid invalido.');
   const safePageSize = Math.min(Math.max(Number(pageSize) || 100, 1), 200);
@@ -15,7 +17,7 @@ async function migrateLegacyFlashcardsPage({ admin, uid, cursor = null, pageSize
 
   for (const deck of decks.docs) {
     if (deck.data()?.archived === undefined) {
-      await deck.ref.update({ archived: false, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+      await deck.ref.update({ archived: false, updatedAt: FieldValue.serverTimestamp() });
       migratedDecks += 1;
     }
     let cardsQuery = deck.ref.collection('cards').orderBy('__name__').limit(300);
@@ -26,7 +28,7 @@ async function migrateLegacyFlashcardsPage({ admin, uid, cursor = null, pageSize
       let changed = 0;
       cards.docs.forEach((card) => {
         if (card.data()?.reviewVersion === undefined) {
-          batch.update(card.ref, { reviewVersion: 0, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+          batch.update(card.ref, { reviewVersion: 0, updatedAt: FieldValue.serverTimestamp() });
           migratedCards += 1;
           changed += 1;
         }

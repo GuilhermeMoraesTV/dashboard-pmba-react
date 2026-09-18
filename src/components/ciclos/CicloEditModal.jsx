@@ -102,11 +102,11 @@ const montarInitialState = ({ ciclo, disciplinas, hasCurrentRoundRecords = false
   };
 };
 
-function CicloEditModal({ onClose, user, ciclo, onCicloAtivado, upgradeMode = false }) {
+function CicloEditModal({ onClose, user, ciclo, onCicloAtivado, upgradeMode = true }) {
   const [loadingData, setLoadingData] = useState(true);
   const [initialState, setInitialState] = useState(null);
   const [confirmandoFechamento, setConfirmandoFechamento] = useState(false);
-  const tituloModal = upgradeMode ? 'Recalcular ciclo' : 'Edicao do ciclo';
+  const tituloModal = 'Edição do ciclo';
 
   const pedirConfirmacaoFechamento = () => setConfirmandoFechamento(true);
 
@@ -224,9 +224,9 @@ function CicloEditModal({ onClose, user, ciclo, onCicloAtivado, upgradeMode = fa
             <Loader2 size={28} className="text-red-600 animate-spin" />
           </div>
           <div>
-            <h2 className="text-lg font-black uppercase text-zinc-900 dark:text-white">{upgradeMode ? 'Preparando recalculo' : 'Preparando edicao completa'}</h2>
+            <h2 className="text-lg font-black uppercase text-zinc-900 dark:text-white">Preparando edicao do ciclo</h2>
             <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-2">
-              Carregando o assistente completo para redistribuir disciplinas, dias e sessoes com consistencia.
+              Carregando o assistente completo para ajustar disciplinas, pesos e sessoes mantendo seu progresso.
             </p>
           </div>
         </div>

@@ -50,6 +50,7 @@ import {
   chaveAssuntoDominado,
   normalizarNivel,
 } from './core.js';
+import { isValidTemplateVersion } from '../../contracts/cronograma.js';
 import { getBrasiliaTodayKey, getBrasiliaToday } from '../../utils/planningDates.js';
 
 const MIN_MINUTOS_REVISAO_AGENDADA = 5;
@@ -120,12 +121,6 @@ export function formatDateKeyLocal(date) {
   return getBrasiliaTodayKey(date);
 }
 
-function addDaysLocal(date, days) {
-  const d = startOfLocalDay(date);
-  d.setDate(d.getDate() + days);
-  return d;
-}
-
 function getRevisaoOverride(revisoesReagendadas, slotId) {
   if (!revisoesReagendadas || !slotId) return null;
   const override = revisoesReagendadas[slotId];
@@ -147,7 +142,7 @@ function getPendenciaTeoriaAtiva(cronograma, disciplinaId) {
 function normalizarTextoAssunto(valor) {
   return String(valor || '')
     .replace(/\s+/g, ' ')
-    .replace(/^[\-•–—]\s*/, '')
+    .replace(/^[-•–—]\s*/, '')
     .trim();
 }
 
@@ -271,127 +266,264 @@ function expandirSlotsTeoriaAteOrcamento(slots, tetoDia, duracaoMaximaBlocoMinut
 }
 
 function getPendenciaSkipDateKey(pendencia) {
+  if (pendencia?.origemDataSlot) return String(pendencia.origemDataSlot).slice(0, 10);
   if (!pendencia?.ultimaMarcacaoEm) return null;
   return formatDateKeyLocal(parseDateOnlyLocal(pendencia.ultimaMarcacaoEm));
 }
 
-function criarVerificadorDisponibilidade(semanaTemplate = [], horariosDiarios = null) {
-  const diasComEstudoTemplate = new Set(
-    (semanaTemplate || [])
-      .filter((slot) => Number(slot?.minutosBrutoDia || slot?.minutosEstudo || 0) > 0)
-      .map((slot) => Number(slot.dia))
-      .filter((dia) => Number.isInteger(dia) && dia >= 0 && dia <= 6)
-  );
+function getSlotOrderValue(slot) {
+  const ordem = Number(slot?.ordemNoDia);
+  if (slot?.ordemNoDia != null && Number.isFinite(ordem)) return ordem;
+  const hora = String(slot?.hora ?? '00:00');
+  const [hours = '0', minutes = '0'] = hora.split(':');
+  return (Number(hours) || 0) * 60 + (Number(minutes) || 0);
+}
 
-  return (date) => {
-    const diaSemana = startOfLocalDay(date).getDay();
+function isSlotAfterPendingOrigin(slot, pending) {
+  const originDate = getPendenciaSkipDateKey(pending);
+  if (!originDate) return true;
 
-    if (horariosDiarios) {
-      const horas = Number(horariosDiarios[diaSemana] ?? horariosDiarios[String(diaSemana)] ?? 0);
-      return horas > 0;
+  const slotDate = String(slot?.dataSlot || '').slice(0, 10);
+  if (slotDate > originDate) return true;
+  if (slotDate < originDate) return false;
+
+  const originSlotId = pending?.origemSlotIdBase || null;
+  if (originSlotId && originSlotId === (slot?.slotIdBase || slot?.slotId)) return false;
+
+  const originOrder = Number(pending?.origemOrdemNoDia);
+  if (pending?.origemOrdemNoDia != null && Number.isFinite(originOrder)) {
+    return getSlotOrderValue(slot) > originOrder;
+  }
+
+  if (pending?.origemHora != null) {
+    return getSlotOrderValue(slot) > getSlotOrderValue({ hora: pending.origemHora });
+  }
+
+  // Pendências legadas e registros manuais não conhecem a posição exata no dia.
+  // Nesse caso, a primeira ocorrência segura é a partir do próximo dia.
+  return false;
+}
+
+/**
+ * Resolve a versão do template semanal aplicável a um determinado weekOffset.
+ *
+ * Busca no `historicoSemanasTemplate` por uma versão arquivada cujo intervalo [deSemana, ateSemana]
+ * cubra o `weekOffset` solicitado.
+ * Se não encontrar (ou se weekOffset >= semanaTemplateVigenteDesde), retorna a versão ativa na raiz
+ * do documento (`semanaTemplate`, `disciplinasSnapshot`, `horariosDetalhados`, etc.).
+ *
+ * @param {Object} cronograma - Documento do cronograma no Firestore.
+ * @param {number} [weekOffset=0] - Offset da semana a ser resolvida (inteiro >= 0).
+ * @returns {{
+ *   semanaTemplate: Array<Object>,
+ *   disciplinasSnapshot: Array<Object>,
+ *   horariosDetalhados: Object,
+ *   metodologiasAplicadas: Object,
+ *   tempoRevisaoMinutos: number,
+ *   duracaoMinimaSessaoMinutos: number|null,
+ *   duracaoMaximaSessaoMinutos: number|null,
+ *   usarDuracaoUnica: boolean,
+ *   tempoSessaoMinutos: number|null,
+ *   isArchived: boolean,
+ *   deSemana: number,
+ *   ateSemana: number|null
+ * }}
+ */
+export function resolveTemplateForWeek(cronograma, weekOffset = 0) {
+  if (!cronograma) {
+    return {
+      semanaTemplate: [],
+      disciplinasSnapshot: [],
+      horariosDetalhados: {},
+      metodologiasAplicadas: {},
+      tempoRevisaoMinutos: 20,
+      duracaoMinimaSessaoMinutos: null,
+      duracaoMaximaSessaoMinutos: null,
+      usarDuracaoUnica: false,
+      tempoSessaoMinutos: null,
+      isArchived: false,
+      deSemana: 0,
+      ateSemana: null,
+    };
+  }
+
+  const offset = Math.max(0, Number(weekOffset) || 0);
+  const historico = cronograma.historicoSemanasTemplate;
+
+  if (historico && typeof historico === 'object') {
+    const versoes = Object.values(historico).filter((v) => isValidTemplateVersion(v));
+    const versaoArquivada = versoes.find(
+      (v) => v.deSemana <= offset && offset <= v.ateSemana
+    );
+
+    if (versaoArquivada) {
+      return {
+        semanaTemplate: versaoArquivada.semanaTemplate || [],
+        disciplinasSnapshot: versaoArquivada.disciplinasSnapshot || cronograma.disciplinasSnapshot || [],
+        horariosDetalhados: versaoArquivada.horariosDetalhados || cronograma.horariosDetalhados || {},
+        metodologiasAplicadas: versaoArquivada.metodologiasAplicadas || cronograma.metodologiasAplicadas || {},
+        tempoRevisaoMinutos: versaoArquivada.tempoRevisaoMinutos ?? cronograma.tempoRevisaoMinutos ?? 20,
+        duracaoMinimaSessaoMinutos: versaoArquivada.duracaoMinimaSessaoMinutos ?? cronograma.duracaoMinimaSessaoMinutos ?? null,
+        duracaoMaximaSessaoMinutos: versaoArquivada.duracaoMaximaSessaoMinutos ?? cronograma.duracaoMaximaSessaoMinutos ?? null,
+        usarDuracaoUnica: versaoArquivada.usarDuracaoUnica ?? cronograma.usarDuracaoUnica ?? false,
+        tempoSessaoMinutos: versaoArquivada.tempoSessaoMinutos ?? cronograma.tempoSessaoMinutos ?? null,
+        isArchived: true,
+        deSemana: versaoArquivada.deSemana,
+        ateSemana: versaoArquivada.ateSemana,
+      };
     }
+  }
 
-    return diasComEstudoTemplate.has(diaSemana);
+  const vigenteDesde = Math.max(0, Number(cronograma.semanaTemplateVigenteDesde) || 0);
+  const isArchived = offset < vigenteDesde;
+
+  return {
+    semanaTemplate: cronograma.semanaTemplate || [],
+    disciplinasSnapshot: cronograma.disciplinasSnapshot || [],
+    horariosDetalhados: cronograma.horariosDetalhados || {},
+    metodologiasAplicadas: cronograma.metodologiasAplicadas || {},
+    tempoRevisaoMinutos: cronograma.tempoRevisaoMinutos ?? 20,
+    duracaoMinimaSessaoMinutos: cronograma.duracaoMinimaSessaoMinutos ?? null,
+    duracaoMaximaSessaoMinutos: cronograma.duracaoMaximaSessaoMinutos ?? null,
+    usarDuracaoUnica: cronograma.usarDuracaoUnica ?? false,
+    tempoSessaoMinutos: cronograma.tempoSessaoMinutos ?? null,
+    isArchived,
+    deSemana: vigenteDesde,
+    ateSemana: null,
   };
 }
 
-export function calcularDataRevisaoAlocada(dataEstudo, intervaloDias, isDiaDisponivel = null) {
-  const dataBase = addDaysLocal(dataEstudo, intervaloDias);
-
-  if (typeof isDiaDisponivel !== 'function') {
-    return dataBase;
-  }
-
-  const dataAgendada = new Date(dataBase);
-  let guard = 0;
-
-  while (!isDiaDisponivel(dataAgendada) && guard < 60) {
-    dataAgendada.setDate(dataAgendada.getDate() + 1);
-    guard += 1;
-  }
-
-  return startOfLocalDay(dataAgendada);
+/**
+ * Calcula o weekOffset (inteiro >= 0) de uma data relativa à data de início.
+ *
+ * @param {string|Date} dataInicio - Data de início do cronograma.
+ * @param {string|Date} [data] - Data alvo (default: hoje).
+ * @returns {number}
+ */
+export function getWeekOffsetFromDate(dataInicio, data = new Date()) {
+  if (!dataInicio) return 0;
+  const ini = startOfLocalDay(parseDateOnlyLocal(dataInicio));
+  const d = startOfLocalDay(parseDateOnlyLocal(data));
+  const diffDays = Math.floor((d.getTime() - ini.getTime()) / (86400000));
+  return Math.max(0, Math.floor(diffDays / 7));
 }
-
-export function getWeekOffsetFromDate(dataInicio, dataRef = new Date()) {
-  const ini = startOfLocalDay(dataInicio);
-  const ref = startOfLocalDay(dataRef);
-  return Math.max(0, Math.floor((ref - ini) / (7 * 86400000)));
-}
-
-// ─── 1. getRevisoesParaDia ────────────────────────────────────────────────────
 
 /**
- * Retorna as revisões espaçadas devidas em uma data-alvo específica.
+ * Calcula a data alocada para uma revisão com base nos intervalos e na disponibilidade.
  *
- * @param {Date|string} dataAlvo       - Dia-alvo para verificar revisões.
- * @param {Array} historico            - Histórico de sessões de estudo já realizadas.
- * @param {Set<string>} assuntosDominados
- * @returns {Array<Object>} Slots de revisão devidos nesse dia.
+ * @param {Date|string} dataEstudo - Data do estudo original.
+ * @param {number} intervaloDias - Intervalo em dias (1, 7, 30).
+ * @param {Function|null} [isDiaDisponivel] - Função verificadora se o dia tem estudo.
+ * @returns {Date} Data calculada da revisão.
+ */
+export function calcularDataRevisaoAlocada(dataEstudo, intervaloDias, isDiaDisponivel = null) {
+  const d = startOfLocalDay(parseDateOnlyLocal(dataEstudo));
+  d.setDate(d.getDate() + Number(intervaloDias || 0));
+  if (!isDiaDisponivel || typeof isDiaDisponivel !== 'function') {
+    return d;
+  }
+  let guard = 0;
+  while (!isDiaDisponivel(d) && guard < 14) {
+    d.setDate(d.getDate() + 1);
+    guard += 1;
+  }
+  return d;
+}
+
+/**
+ * Cria um verificador de disponibilidade semanal para alocação de revisões.
+ *
+ * @param {Array<Object>} [semanaTemplate=[]] - Template semanal de slots.
+ * @param {Object} [horariosDiarios=null] - Mapa de horas por dia da semana (0-6).
+ * @returns {(date: Date|string) => boolean}
+ */
+export function criarVerificadorDisponibilidade(semanaTemplate = [], horariosDiarios = null) {
+  const diasComEstudo = new Set();
+  if (horariosDiarios && Object.keys(horariosDiarios).length > 0) {
+    for (let dia = 0; dia <= 6; dia++) {
+      const horas = Number(horariosDiarios[dia] ?? horariosDiarios[String(dia)] ?? 0);
+      if (horas > 0) diasComEstudo.add(dia);
+    }
+  } else if (Array.isArray(semanaTemplate) && semanaTemplate.length > 0) {
+    semanaTemplate.forEach((slot) => {
+      if (slot.dia != null && Number.isInteger(Number(slot.dia))) {
+        diasComEstudo.add(Number(slot.dia));
+      }
+    });
+  } else {
+    for (let dia = 0; dia <= 6; dia++) diasComEstudo.add(dia);
+  }
+
+  return (date) => {
+    const diaSemana = startOfLocalDay(date).getDay();
+    return diasComEstudo.has(diaSemana);
+  };
+}
+
+/**
+ * Gera a lista de revisões espaçadas devidas para um dia específico a partir do histórico.
+ *
+ * @param {Date|string} dataAlvoDia - Data do dia a ser verificado.
+ * @param {Array<Object>} [historico=[]] - Histórico de estudos realizados/reconstruídos.
+ * @param {Set<string>} [dominados=new Set()] - Set de chaves de assuntos dominados.
+ * @param {Function|null} [isDiaDisponivelRevisao=null] - Função verificadora de dias disponíveis.
+ * @param {Object} [revisoesReagendadas={}] - Overrides manuais de reagendamento.
+ * @returns {Array<Object>}
  */
 export function getRevisoesParaDia(
-  dataAlvo,
-  historico,
-  assuntosDominados = new Set(),
-  isDiaDisponivel = null,
-  revisoesReagendadas = null
+  dataAlvoDia,
+  historico = [],
+  dominados = new Set(),
+  isDiaDisponivelRevisao = null,
+  revisoesReagendadas = {}
 ) {
-  const alvo = _startOfDay(new Date(dataAlvo));
+  const alvoDate = startOfLocalDay(dataAlvoDia);
+  const alvoDateStr = formatDateKeyLocal(alvoDate);
   const revisoes = [];
-  const vistas = new Set(); // dedup: discId + assunto + intervaloDias
 
-  for (const entrada of historico) {
-    if (!entrada.assunto || !entrada.dataEstudo) continue;
+  for (const h of (Array.isArray(historico) ? historico : [])) {
+    if (!h.assunto || !h.dataEstudo) continue;
+    const chave = chaveAssuntoDominado(h.disciplinaId, h.assunto);
+    if (dominados.has(chave)) continue;
 
-    const chave = chaveAssuntoDominado(entrada.disciplinaId, entrada.assunto);
-    if (assuntosDominados.has(chave)) continue;
+    for (const intervaloDias of INTERVALOS_REVISAO) {
+      const dataRevisaoCalculada = calcularDataRevisaoAlocada(h.dataEstudo, intervaloDias, isDiaDisponivelRevisao);
+      const dataEstudoStr = formatDateKeyLocal(parseDateOnlyLocal(h.dataEstudo));
+      const slotId = `rev_${h.disciplinaId}_${encodeURIComponent(h.assunto)}_${intervaloDias}d_${dataEstudoStr}`.replace(/\s+/g, '_');
 
-    const dataEstudo = _startOfDay(new Date(entrada.dataEstudo));
-
-    for (const dias of INTERVALOS_REVISAO) {
-      const dataRevisaoOriginal = addDaysLocal(dataEstudo, dias);
-      const dataRevisao = calcularDataRevisaoAlocada(dataEstudo, dias, isDiaDisponivel);
-      const slotId = `rev-${entrada.disciplinaId}-${entrada.assunto}-d${dias}`;
       const override = getRevisaoOverride(revisoesReagendadas, slotId);
-      const dataRevisaoEfetiva = override ? parseDateOnlyLocal(override.reagendadoPara) : dataRevisao;
+      const dataEfetivaRevisao = override?.reagendadoPara
+        ? startOfLocalDay(parseDateOnlyLocal(override.reagendadoPara))
+        : dataRevisaoCalculada;
 
-      if (_startOfDay(dataRevisaoEfetiva).getTime() !== alvo.getTime()) continue;
-
-      const dedupKey = `${entrada.disciplinaId}::${entrada.assunto}::${dias}`;
-      if (vistas.has(dedupKey)) continue;
-      vistas.add(dedupKey);
-
-      revisoes.push({
-        slotId,
-        dia:             alvo.getDay(),
-        hora:            entrada.hora ?? 8,
-        ordemNoDia:      99,
-        disciplinaId:    entrada.disciplinaId,
-        disciplinaNome:  entrada.disciplinaNome ?? '',
-        assunto:         entrada.assunto,
-        assuntoOriginal: entrada.assunto,
-        isRevisao:       true,
-        isRevisaoAuto:   true,
-        intervaloDias:   dias,
-        dataOriginalRevisao: formatDateKeyLocal(dataRevisaoOriginal),
-        dataAgendadaRevisao: formatDateKeyLocal(dataRevisaoEfetiva),
-        reagendada:      Boolean(override),
-        tempoMinutos:    0, // calculado pelo chamador via Elastic Cap
-        nivel:           entrada.nivel ?? 'intermediario',
-        pesoEfetivo:     entrada.pesoEfetivo ?? 1,
-        concluido:       false,
-      });
+      if (startOfLocalDay(dataEfetivaRevisao).getTime() === alvoDate.getTime()) {
+        revisoes.push({
+          slotId,
+          slotIdBase: slotId,
+          disciplinaId: h.disciplinaId,
+          disciplinaNome: h.disciplinaNome || 'Revisão',
+          assunto: h.assunto,
+          isRevisao: true,
+          isRevisaoAuto: true,
+          intervaloDias,
+          dataEstudo: dataEstudoStr,
+          dataAgendadaRevisao: formatDateKeyLocal(dataRevisaoCalculada),
+          dataSlot: alvoDateStr,
+          tempoMinutos: MIN_MINUTOS_REVISAO_AGENDADA,
+          minutosEstudo: MIN_MINUTOS_REVISAO_AGENDADA,
+          nivel: h.nivel,
+          pesoEfetivo: h.pesoEfetivo,
+          origemReagendamento: override ? (override.origem || 'reagendamento_manual') : null,
+          hora: h.hora || '08:00',
+        });
+      }
     }
   }
 
   return revisoes;
 }
 
-// ─── 2. getAgendaDia ─────────────────────────────────────────────────────────
-
 /**
- * Retorna o array mesclado de slots de estudo + slots de revisão para um dia.
- *
  * [FIX-7] MODELO CORRETO DE ORÇAMENTO:
  *   O dia tem um orçamento bruto = minutosTeoriaDisponivel + minutosRevisaoDisponivel.
  *   - minutosTeoriaDisponivel  = bruto × 75% (já alocado nos slots de teoria pelo gerador)
@@ -535,6 +667,32 @@ export function getAgendaDia(
  * @param {number} weekOffset            - Semana relativa ao início do cronograma.
  *                                         0 = semana do dataInicio.
  *                                         Negativo: retorna [] (sem dados).
+
+// --- 3. getAgendaSemana ───────────────────────────────────────────────────────
+
+/**
+ * Gera a agenda completa de uma semana, compatível com a assinatura anterior
+ * de useCronogramaSystem.getAgendaSemana().
+ *
+ * CORREÇÕES:
+ *   [FIX-2] Cada slot tem sua dataSlot comparada com o dataInicio real:
+ *           slots cujo dataSlot < dataInicio são descartados. Assim,
+ *           retroceder semanas nunca exibe estudos antes da criação.
+ *
+ *   [FIX-2+] semanaAtualInicio é garantido >= dataInicioDate para que
+ *            weekOffset=0 com dataInicio numa quarta-feira não volte para
+ *            o domingo da mesma semana.
+ *
+ *   [FIX-4] weekOffset negativo retorna [] imediatamente.
+ *
+ *   [FIX-7] getAgendaDia agora recebe minutosRevisaoReservados (25% do bruto)
+ *           extraído dos metadados do slot — não mais o bruto total.
+ *           Isso garante que revisão + teoria ≤ bruto do dia.
+ *
+ * @param {Object} cronograma            - Objeto persistido no Firestore.
+ * @param {number} weekOffset            - Semana relativa ao início do cronograma.
+ *                                         0 = semana do dataInicio.
+ *                                         Negativo: retorna [] (sem dados).
  * @param {Array}  [historicoOpcional]   - Histórico externo; se omitido, é reconstruído.
  * @param {Set}    [dominadosOpcional]   - Set de chaves de assuntos dominados.
  * @param {Object} [horariosDiarios]     - Horas disponíveis por dia (chave 0-6).
@@ -547,14 +705,17 @@ export function getAgendaSemana(
   dominadosOpcional = null,
   horariosDiarios = null
 ) {
-  if (!cronograma?.semanaTemplate?.length) return [];
-
   // [FIX-4] Protege contra weekOffset negativo: nunca há dados antes do início
-  if (weekOffset < 0) return [];
+  if (!cronograma || weekOffset < 0) return [];
+
+  const resolved = resolveTemplateForWeek(cronograma, weekOffset);
+  const semanaTemplate = resolved.semanaTemplate;
+  const disciplinasSnapshot = resolved.disciplinasSnapshot;
+  const isArchivedWeek = resolved.isArchived;
+
+  if (!semanaTemplate?.length) return [];
 
   const {
-    semanaTemplate,
-    disciplinasSnapshot   = [],
     progresso             = {},
     dataInicio,
   } = cronograma;
@@ -597,11 +758,15 @@ export function getAgendaSemana(
     return d;
   };
 
-  const pendingReplacementByDisciplina = new Map();
-
   // ── 1. Montar slots de ESTUDO com assunto e progresso ─────────────────────
-  const agendaEstudo = semanaTemplate.map((slot) => {
+  const manualRevisionSlots = semanaTemplate.filter((slot) => slot.isRevisao && slot.revisaoManual);
+  const manualRevisionBudgetByDay = Object.fromEntries(Array.from({ length: 7 }, (_, day) => [day,
+    manualRevisionSlots.filter((slot) => Number(slot.dia) === day)
+      .reduce((sum, slot) => sum + Number(slot.tempoMinutos || 0), 0),
+  ]));
+  let agendaEstudo = semanaTemplate.filter((slot) => !slot.isRevisao).map((slot) => {
     const disc     = disciplinasSnapshot.find((d) => d.id === slot.disciplinaId);
+    if (disc?.semAssuntosPendentes) return null;
     const assuntos = normalizarAssuntosAgenda(disc?.assuntos || []);
 
     const topicIdx  = weekOffset * (slot.totalSlotsParaDisc || 1) + (slot.slotIndexParaDisc || 0);
@@ -611,7 +776,7 @@ export function getAgendaSemana(
     // apenas porque a primeira passagem pelos topicos terminou. Nas passagens
     // seguintes, o assunto volta como reforco/questoes e o orcamento diario e
     // preservado integralmente.
-    let assunto = assuntos.length > 0
+    const assunto = assuntos.length > 0
       ? assuntos[topicIdx % assuntos.length]
       : slot.assunto || 'Conteudo Base';
 
@@ -626,60 +791,71 @@ export function getAgendaSemana(
     const slotIdBase = slot.slotId;
     const concluido = progressoW[slotIdBase] === true || progressoW[slot.slotId] === true;
     const progressoMinutos = Number(progressoMinutosW[slotIdBase] || progressoMinutosW[slot.slotId] || 0);
-    const disciplinaKey = normalizePendingKey(slot.disciplinaId);
-    const pendenciaAtiva = getPendenciaTeoriaAtiva(cronograma, disciplinaKey);
     const assuntoOriginal = assunto;
-    let isPendenciaTeoria = false;
-    let origemPendencia = pendenciaAtiva?.origemSlotIdBase || null;
-
-    if (
-      pendenciaAtiva &&
-      !concluido &&
-      !pendingReplacementByDisciplina.has(disciplinaKey)
-    ) {
-      const skipDateKey = getPendenciaSkipDateKey(pendenciaAtiva);
-      const isSameMarkedOccurrence =
-        origemPendencia &&
-        origemPendencia === slotIdBase &&
-        skipDateKey &&
-        skipDateKey === formatDateKeyLocal(dataSlot);
-
-      if (!isSameMarkedOccurrence) {
-        assunto = pendenciaAtiva.assunto || assunto;
-        isPendenciaTeoria = true;
-        pendingReplacementByDisciplina.set(disciplinaKey, {
-          slotIdBase,
-          dataSlot: formatDateKeyLocal(dataSlot),
-        });
-      }
-    }
 
     return {
       ...slot,
       assunto,
       assuntoOriginal,
-      isRevisao: false,
+      isArchived:       isArchivedWeek,
+      isRevisao:        false,
       isRevisaoAuto:    false,
       isReforcoConteudo: cicloConteudo > 0,
       cicloConteudo,
-      isPendenciaTeoria,
-      origemPendenciaTeoriaSlotIdBase: origemPendencia,
-      pendenciaTeoriaCriadoEm: pendenciaAtiva?.criadoEm || pendenciaAtiva?.ultimaMarcacaoEm || null,
+      isPendenciaTeoria: false,
+      isFilaTeoriaOverride: false,
+      origemPendenciaTeoriaSlotIdBase: null,
+      pendenciaTeoriaCriadoEm: null,
       topicIdx,
       progressoDisc,
       totalTopicosDisc: assuntos.length,
       concluido,
       slotIdBase,
       tempoMinutos:     tempoPlanejado,
-      progressoMinutos: concluido ? Math.max(progressoMinutos, tempoPlanejado) : progressoMinutos,
+      progressoMinutos,
       dataSlot:         formatDateKeyLocal(dataSlot),
       dominado:         dominados.has(chaveAssuntoDominado(slot.disciplinaId, assunto)),
     };
   }).filter(Boolean);
 
+  // A continuação deve ocupar a próxima ocorrência cronológica da disciplina,
+  // nunca um slot anterior apenas por ele aparecer primeiro no template.
+  const assignedDisciplines = new Set();
+  const chronologicalIndexes = agendaEstudo
+    .map((slot, index) => ({ slot, index }))
+    .sort((a, b) => {
+      const dateCompare = String(a.slot.dataSlot).localeCompare(String(b.slot.dataSlot));
+      if (dateCompare !== 0) return dateCompare;
+      return getSlotOrderValue(a.slot) - getSlotOrderValue(b.slot);
+    });
+
+  agendaEstudo = agendaEstudo.slice();
+  for (const { slot, index } of chronologicalIndexes) {
+    const disciplinaKey = normalizePendingKey(slot.disciplinaId);
+    if (!disciplinaKey || assignedDisciplines.has(disciplinaKey) || slot.concluido) continue;
+
+    const pending = getPendenciaTeoriaAtiva(cronograma, disciplinaKey);
+    if (!pending?.assunto || !isSlotAfterPendingOrigin(slot, pending)) continue;
+
+    const assunto = pending.assunto;
+    const isContinuation = pending.tipo !== 'fila_reprogramada';
+    agendaEstudo[index] = {
+      ...slot,
+      assunto,
+      isPendenciaTeoria: isContinuation,
+      isFilaTeoriaOverride: true,
+      tipoPendenciaTeoria: pending.tipo || 'continuidade',
+      origemPendenciaTeoriaSlotIdBase: pending.origemSlotIdBase || null,
+      pendenciaTeoriaCriadoEm: pending.criadoEm || pending.ultimaMarcacaoEm || null,
+      pendenciaTeoriaSnapshot: pending,
+      dominado: dominados.has(chaveAssuntoDominado(slot.disciplinaId, assunto)),
+    };
+    assignedDisciplines.add(disciplinaKey);
+  }
+
   // ── 2. Construir histórico para revisão espaçada ───────────────────────────
   const historicoBase = historicoOpcional ?? _reconstruirHistorico(
-    semanaTemplate,
+    cronograma,
     disciplinasSnapshot,
     weekOffset,
     dataInicioDate,
@@ -845,6 +1021,8 @@ export function getAgendaSemana(
       : null;
     const duracaoMaximaBlocoMinutos = duracaoUnicaMinutos || duracaoMaximaConfigurada || null;
 
+    minutosRevisaoReservados = Math.max(0,
+      minutosRevisaoReservados - Number(manualRevisionBudgetByDay[diaAbsoluto] || 0));
     const slotsDia = getAgendaDia(
       diaAbsoluto,
       slotsEstudoDia,
@@ -878,6 +1056,7 @@ export function getAgendaSemana(
         } : {}),
         dataSlot: s.dataSlot || dataSlotStr,
         weekOffset,
+        isArchived: isArchivedWeek,
       };
     });
 
@@ -885,12 +1064,33 @@ export function getAgendaSemana(
     }
   }
 
+  for (const slot of manualRevisionSlots) {
+    const date = _dataDoSlotNaSemana(semanaAtualInicio, slot.dia);
+    if (_startOfDay(date) < dataInicioMidnight) continue;
+    const slotId = slot.slotIdBase || slot.slotId;
+    const tempo = Number(slot.tempoMinutos || slot.tempoPlanejadoMinutos || 0);
+    const concluido = progressoW[slotId] === true;
+    resultado.push({
+      ...slot,
+      slotIdBase: slotId,
+      dataSlot: formatDateKeyLocal(date),
+      weekOffset,
+      isArchived: isArchivedWeek,
+      isRevisao: true,
+      isRevisaoAuto: false,
+      assuntoOriginal: slot.assunto,
+      concluido,
+      progressoMinutos: Number(progressoMinutosW[slotId] || 0),
+    });
+  }
   return resultado;
 }
 
 export function getCronogramaReviewBuckets(cronograma, dataHoje = new Date(), horariosDiarios = null) {
   const vazio = { hoje: [], atrasadas: [], proximas: [], weekOffsetAtual: 0 };
-  if (!cronograma?.semanaTemplate?.length || !cronograma?.dataInicio) return vazio;
+  if (!cronograma?.dataInicio) return vazio;
+  const { semanaTemplate } = resolveTemplateForWeek(cronograma, 0);
+  if (!semanaTemplate?.length && !cronograma?.semanaTemplate?.length) return vazio;
 
   const hoje = startOfLocalDay(dataHoje);
   const em7dias = startOfLocalDay(dataHoje);
@@ -974,8 +1174,8 @@ function _dataDoSlotNaSemanaEstatica(inicioSemana, diaSemanaAbsoluto) {
 }
 
 function _reconstruirHistorico(
-  semanaTemplate,
-  disciplinasSnapshot,
+  cronogramaOrTemplate,
+  disciplinasSnapshotFallback,
   weekOffsetAtual,
   dataInicioDate,
   dominados,
@@ -984,6 +1184,11 @@ function _reconstruirHistorico(
   const semanasNecessarias = Math.ceil(maxIntervalo / 7) + 2;
   const semanasAVerificar  = Math.min(weekOffsetAtual, semanasNecessarias);
 
+  const isCronogramaObj = cronogramaOrTemplate && typeof cronogramaOrTemplate === 'object' && !Array.isArray(cronogramaOrTemplate);
+  const cronograma = isCronogramaObj ? cronogramaOrTemplate : null;
+  const rootTemplate = isCronogramaObj ? (cronogramaOrTemplate.semanaTemplate || []) : (cronogramaOrTemplate || []);
+  const rootSnapshot = isCronogramaObj ? (cronogramaOrTemplate.disciplinasSnapshot || []) : (disciplinasSnapshotFallback || []);
+
   const historico = [];
 
   // 1) Semanas passadas completas
@@ -991,12 +1196,16 @@ function _reconstruirHistorico(
     const semAnt = weekOffsetAtual - i;
     if (semAnt < 0) break;
 
+    const { semanaTemplate: templateSemAnt, disciplinasSnapshot: discSnapshotSemAnt } = cronograma
+      ? resolveTemplateForWeek(cronograma, semAnt)
+      : { semanaTemplate: rootTemplate, disciplinasSnapshot: rootSnapshot };
+
     // [FIX-1] Início correto: dataInicio + semAnt*7 dias (sem ancorar no domingo)
     const inicioSemAnt = new Date(dataInicioDate);
     inicioSemAnt.setDate(inicioSemAnt.getDate() + semAnt * 7);
 
-    for (const slot of semanaTemplate) {
-      const disc      = disciplinasSnapshot.find((d) => d.id === slot.disciplinaId);
+    for (const slot of (templateSemAnt || [])) {
+      const disc      = (discSnapshotSemAnt || []).find((d) => d.id === slot.disciplinaId);
       const assuntos  = normalizarAssuntosAgenda(disc?.assuntos || []);
       const topicIdx  = semAnt * (slot.totalSlotsParaDisc || 1) + (slot.slotIndexParaDisc || 0);
 
@@ -1014,7 +1223,7 @@ function _reconstruirHistorico(
 
       historico.push({
         disciplinaId:   slot.disciplinaId,
-        disciplinaNome: slot.disciplinaNome,
+        disciplinaNome: slot.disciplinaNome || disc?.nome || 'Disciplina',
         assunto:        assuntoUsado,
         dataEstudo,
         hora:           slot.hora,
@@ -1026,11 +1235,15 @@ function _reconstruirHistorico(
 
   // 2) Semana atual: inclui dias anteriores ao dia-alvo para revisões +1d
   // [FIX-1] Mesmo ajuste: parte de dataInicioDate + weekOffsetAtual*7
+  const { semanaTemplate: templateSemAtual, disciplinasSnapshot: discSnapshotSemAtual } = cronograma
+    ? resolveTemplateForWeek(cronograma, weekOffsetAtual)
+    : { semanaTemplate: rootTemplate, disciplinasSnapshot: rootSnapshot };
+
   const inicioSemAtual = new Date(dataInicioDate);
   inicioSemAtual.setDate(inicioSemAtual.getDate() + weekOffsetAtual * 7);
 
-  for (const slot of semanaTemplate) {
-    const disc      = disciplinasSnapshot.find((d) => d.id === slot.disciplinaId);
+  for (const slot of (templateSemAtual || [])) {
+    const disc      = (discSnapshotSemAtual || []).find((d) => d.id === slot.disciplinaId);
     const assuntos  = normalizarAssuntosAgenda(disc?.assuntos || []);
     const topicIdx  = weekOffsetAtual * (slot.totalSlotsParaDisc || 1) + (slot.slotIndexParaDisc || 0);
 
@@ -1048,7 +1261,7 @@ function _reconstruirHistorico(
 
     historico.push({
       disciplinaId:   slot.disciplinaId,
-      disciplinaNome: slot.disciplinaNome,
+      disciplinaNome: slot.disciplinaNome || disc?.nome || 'Disciplina',
       assunto:        assuntoUsado,
       dataEstudo,
       hora:           slot.hora,
@@ -1074,16 +1287,18 @@ function _reconstruirHistorico(
  * @returns {Array<Object>} Slots de revisão atrasados com metadados.
  */
 export function getRevisoesAtrasadas(cronograma, dataHoje = null) {
-  if (!cronograma?.semanaTemplate?.length || !cronograma?.dataInicio) return [];
+  if (!cronograma?.dataInicio) return [];
+  const { semanaTemplate: currentTemplate } = resolveTemplateForWeek(cronograma, 0);
+  if (!currentTemplate?.length && !cronograma?.semanaTemplate?.length) return [];
 
   const hoje = _startOfDay(dataHoje ? parseDateOnlyLocal(dataHoje) : new Date());
 
   const {
-    semanaTemplate,
     disciplinasSnapshot = [],
     progresso           = {},
     dataInicio,
   } = cronograma;
+  const semanaTemplate = currentTemplate || cronograma.semanaTemplate;
   const revisoesReagendadas = cronograma?.revisoesReagendadas || {};
   const historicoRevisoesMap = cronograma?.historicoRevisoes || {};
   const revisoesDesmarcadas = cronograma?.revisoesDesmarcadas || {};
@@ -1094,15 +1309,13 @@ export function getRevisoesAtrasadas(cronograma, dataHoje = null) {
   const dataInicioDate = parseDateOnlyLocal(dataInicio);
   const hojeWeekOffset = _calcWeekOffset(dataInicioDate, hoje);
 
-  const historicoBase = _reconstruirHistorico(
-    semanaTemplate,
+  const historico = _reconstruirHistorico(
+    cronograma,
     disciplinasSnapshot,
     hojeWeekOffset,
     dataInicioDate,
     dominados,
   );
-
-  const historico = historicoBase;
 
   const concluidosGlobal = new Set();
   for (const semKey of Object.keys(progresso)) {

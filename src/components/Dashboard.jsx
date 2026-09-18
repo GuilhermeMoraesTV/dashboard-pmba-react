@@ -17,7 +17,17 @@ import PlanningSuccessCelebration from '../components/shared/PlanningSuccessCele
 import DailyGoalCompletedModal from '../components/shared/DailyGoalCompletedModal';
 import XPNotification from './gamification/XPNotification';
 import TabErrorBoundary from './shared/TabErrorBoundary';
+import { useMonetizationConfig } from '../hooks/useMonetizationConfig';
+import {
+  isCycleRecordInRound,
+  isManualCycleCheckoutRecord,
+  isRealCycleStudyRecord,
+} from '../utils/cycleSessionCompletion';
+import { getCycleSessionPlannedMinutes } from '../utils/cycleProgressPersistence';
+import { deleteCycleStudyRecordWithProgress } from '../services/studyRecords/creation';
 import { lazyWithRetry } from '../utils/lazyWithRetry';
+import { clearEmulatorSessionIdentity, clearPendingEmulatorLogin } from '../utils/firebaseEnvironment.js';
+import { isUnconfirmedEmptySnapshot, snapshotHasData } from '../utils/firestoreSnapshotState';
 
 const routeLoaders = {
   home: () => import('../pages/HomePage/HomePage'),
@@ -70,10 +80,15 @@ const AchievementsPage = lazyWithRetry(() => import('../pages/AchievementsPage')
 const QuestoesPage = lazyWithRetry(() => import('../pages/QuestoesPage/QuestoesPage'), { name: 'Questões' });
 const CadernoErrosPage = lazyWithRetry(() => import('../pages/CadernoErrosPage/CadernoErrosPage'), { name: 'Caderno de Erros' });
 const DocumentsPage = lazyWithRetry(routeLoaders.documentos, { name: 'Documentos' });
+const SubscriptionLockView = lazyWithRetry(() => import('./subscription/SubscriptionLockView'), { name: 'Assinatura' });
 
 const ENABLE_ONBOARDING_TOUR = false;
 const WELCOME_UPDATE_VERSION = '2026-06-dashboard-rebuild-v2';
 const SIDEBAR_PREFERENCE_KEY = '@ModoQAP:SidebarExpanded:v1';
+const createCycleOperationId = () => (
+  globalThis.crypto?.randomUUID?.().replace(/-/g, '')
+  || `${Date.now()}_${Math.random().toString(36).slice(2)}`
+);
 const PATH_TO_TAB = {
   home: 'home',
   calendario: 'calendar',
@@ -144,6 +159,7 @@ import {
   getCoreHydrationStatus,
   HYDRATION_RESOURCE_KEYS,
   isPlanningAssessmentReady,
+  shouldShowDashboardBoot,
 } from '../utils/appHydration';
 import { dismissInitialLoadingScreen } from '../utils/initialLoadingScreen';
 import {
@@ -157,7 +173,6 @@ import {
 } from '../config/featureFlags';
 import {
   buildStudyDaysMap,
-  getCronogramaSlotRecordedMinutes,
   getDailyStudyStatus,
 } from '../utils/studyDayStatus';
 import {
@@ -181,6 +196,7 @@ import {
   toDateKey as toGamificationDateKey,
 } from '../utils/gamification';
 import { getRecordedStudyMinutes, normalizeRecordedStudyMinutes } from '../utils/studyRecords';
+import { buildScheduleRecordedProgress, getScheduleSlotKey } from '../../functions/gamification/scheduleStudyProgress.mjs';
 import { useCicloRevisoes } from '../hooks/useCicloRevisoes';
 import { useStudyRecordActions } from '../hooks/useStudyRecordActions';
 import { reconcileStudyRecordSnapshot } from '../utils/optimisticStudyRecords';
@@ -390,6 +406,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     unreadCount,
     groupChatSummaries,
     broadcasts,
+    eligibleBroadcasts,
     editalUpdates,
     dismissedHistory,
     readBroadcasts,
@@ -408,10 +425,24 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     [groupChatSummaries],
   );
   const userAccess = useUserAccess(user);
+  const monetizationConfig = useMonetizationConfig();
+  const isPreFounderPhase = monetizationConfig?.monetizationPhase === 'PRE_FOUNDER';
+  const hasSubscriptionAccess = Boolean(isPreFounderPhase || userAccess?.hasAccess);
+  const isAccessReady = Boolean(
+    user?.uid
+    && hasSubscriptionAccess
+    && !monetizationConfig?.isLoading
+    && (isPreFounderPhase || (
+      !userAccess?.isLoading
+      && !userAccess?.isInitializing
+      && !userAccess?.isPendingInitialization
+    ))
+  );
   const imageUpdates = useSyncExternalStore(subscribeProfileImages, () => getProfileImages(user?.uid));
   const displayedUser = useMemo(() => Object.assign(Object.create(Object.getPrototypeOf(user)), user, {
     photoURL: imageUpdates.avatar?.values.photoURL
       ?? (Object.hasOwn(userAccess.userDoc || {}, 'photoURL') ? userAccess.userDoc.photoURL : user.photoURL),
+    founder: userAccess.userDoc?.subscription?.founder === true,
   }), [user, userAccess.userDoc, imageUpdates.avatar]);
   useEffect(() => {
     reconcileProfileImages(user?.uid, userAccess.userDoc);
@@ -492,6 +523,9 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     } catch {
       // A preferência continua válida durante a sessão quando o storage está indisponível.
     }
+    document.body.dataset.sidebarExpanded = isSidebarExpanded ? 'true' : 'false';
+    document.documentElement.style.setProperty('--sidebar-width', isSidebarExpanded ? '208px' : '64px');
+    document.documentElement.style.setProperty('--sidebar-offset', isSidebarExpanded ? '220px' : '72px');
   }, [isSidebarExpanded]);
 
   useEffect(() => {
@@ -569,6 +603,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         // Depois que o servidor confirmou este recurso, uma mudanca de
         // metadados causada por perda de conexao nao deve reabrir o boot.
         authoritative: current[resource].authoritative || snapshot?.metadata?.fromCache === false,
+        hasData: snapshotHasData(snapshot),
         failed: false,
         hasPendingWrites: Boolean(snapshot?.metadata?.hasPendingWrites),
       },
@@ -618,7 +653,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   useEffect(() => {
     if (!user?.uid) return undefined;
     setHydrationTimedOut(false);
-    const timeoutId = window.setTimeout(() => setHydrationTimedOut(true), 10000);
+    const timeoutId = window.setTimeout(() => setHydrationTimedOut(true), 6000);
     return () => window.clearTimeout(timeoutId);
   }, [user?.uid, isOnline]);
 
@@ -657,6 +692,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         id: activeCicloId,
         label: activeCicloData?.nome || 'Ciclo',
         logoUrl: cicloLogo,
+        cicloRoundVersion: Number(activeCicloData?.conclusoes || 0),
         disciplinas: Array.isArray(activeCycleDisciplines) ? activeCycleDisciplines : [],
       });
     }
@@ -705,7 +741,11 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   }, [registroContextOptions, activeStudySession?.defaultContext]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!isAccessReady) {
+      setSimuladosLoaded(false);
+      setAllSimulados([]);
+      return undefined;
+    }
     const q = query(collection(db,'users',user.uid,'simulados'), orderBy('data','desc'));
     setSimuladosLoaded(false);
     resetHydrationResource('simulados');
@@ -718,7 +758,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       setSimuladosLoaded(true);
       markHydrationError('simulados');
     });
-  }, [user, markHydrationError, markHydrationSnapshot, resetHydrationResource]);
+  }, [user, isAccessReady, markHydrationError, markHydrationSnapshot, resetHydrationResource]);
 
   const mergedAllRegistrosEstudo = useMemo(() => {
     const virtual = [];
@@ -801,17 +841,22 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   const effectiveStudyContext = useMemo(() => {
     const hasCycle = Boolean(activeCicloData?.id);
     const hasSchedule = Boolean(activeCronogramaData?.id);
+    if (activeTab === 'cronograma' && hasSchedule) return 'cronograma';
+    if (activeTab === 'ciclos' && hasCycle) return 'ciclo';
     if (hasCycle && hasSchedule) return preferredStudyContext === 'ciclo' ? 'ciclo' : 'cronograma';
     if (hasCycle) return 'ciclo';
     if (hasSchedule) return 'cronograma';
     return null;
-  }, [activeCicloData?.id, activeCronogramaData?.id, preferredStudyContext]);
+  }, [activeCicloData?.id, activeCronogramaData?.id, preferredStudyContext, activeTab]);
 
   const currentPlanStudyStreak = useMemo(() => {
     const now = new Date(`${canonicalStudyDateKey}T12:00:00-03:00`);
-    if (effectiveStudyContext === 'ciclo') {
+    if (effectiveStudyContext === 'ciclo' && activeCicloData?.id) {
+      const cycleRecords = (allRegistrosEstudo || []).filter((r) =>
+        String(r.cicloId || '') === String(activeCicloData.id) && !r.cronogramaId && r.contextoRegistro !== 'cronograma'
+      );
       return calculatePlanStudyStreak({
-        records: allRegistrosEstudo,
+        records: cycleRecords,
         simulations: allSimulados,
         plan: activeCicloData,
         planType: 'cycle',
@@ -819,9 +864,12 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         now,
       });
     }
-    if (effectiveStudyContext === 'cronograma') {
+    if (effectiveStudyContext === 'cronograma' && activeCronogramaData?.id) {
+      const scheduleRecords = (allRegistrosEstudo || []).filter((r) =>
+        String(r.cronogramaId || '') === String(activeCronogramaData.id) && !r.cicloId && r.contextoRegistro !== 'ciclo'
+      );
       return calculatePlanStudyStreak({
-        records: allRegistrosEstudo,
+        records: scheduleRecords,
         simulations: allSimulados,
         plan: activeCronogramaData,
         planType: 'schedule',
@@ -849,9 +897,12 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   }), [allRegistrosEstudo, allSimulados, activeCyclesForStreak, activeSchedulesForStreak, cycleReviewsForStreak, canonicalStudyDateKey]);
 
   const buildRecordsForDailyGoal = (nextPayload = null, dateKey = todayStr) => {
-    const base = Array.isArray(mergedAllRegistrosEstudo) ? mergedAllRegistrosEstudo : [];
+    const byId = new Map((Array.isArray(mergedAllRegistrosEstudo) ? mergedAllRegistrosEstudo : []).map((record) => [record.id, record]));
+    pendingRegistrosEstudoRef.current.forEach((record, id) => byId.set(id, record));
+    const base = [...byId.values()];
     const records = nextPayload
-      ? [normalizeRegistroPayload('__pending_daily_goal__', nextPayload), ...base]
+      ? [normalizeRegistroPayload(nextPayload.id || '__pending_daily_goal__', nextPayload),
+          ...base.filter((record) => !nextPayload.id || record.id !== nextPayload.id)]
       : base;
     return records.filter((registro) => getRegistroDateKey(registro) === dateKey);
   };
@@ -900,7 +951,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     wasGoalMet = false,
     forceAfterCompletionAction = false,
   }) => {
-    if (activeTab === 'home' || !payload) return;
+    if (!payload) return;
     const context = getRegistroContext(payload);
     if (!isRegistroContext(context)) return;
 
@@ -922,6 +973,11 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
 
     const modalKey = `${context}:${planId}:${dateKey}`;
     if (dailyGoalShownRef.current.has(modalKey)) return;
+    const storageKey = `@ModoQAP:DailyGoalShown:${user.uid}:${modalKey}`;
+    try {
+      if (localStorage.getItem(storageKey) === '1') return;
+      localStorage.setItem(storageKey, '1');
+    } catch {}
     dailyGoalShownRef.current.add(modalKey);
 
     const recordsForStats = buildRecordsForDailyGoal(payload, dateKey).filter((registro) => {
@@ -941,7 +997,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       contextLabel: context === 'ciclo' ? 'Ciclo do dia' : 'Cronograma do dia',
       ...planInfo,
       minutes,
-      plannedMinutes: Number(afterStatus.totalSlots || 0) > 0 ? minutes : 0,
+      plannedMinutes: Number(afterStatus.plannedMinutes || 0),
       questions,
       correct,
     };
@@ -974,6 +1030,15 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   const coreDataReady = hydrationStatus.ready;
   const planningAssessmentReady = isPlanningAssessmentReady(hydrationState);
   const hasPendingWrites = hydrationStatus.hasPendingWrites;
+  const isAccessBlocking = Boolean(
+    monetizationConfig?.isLoading
+    || (!isPreFounderPhase && userAccess?.isLoading)
+  );
+  const showDashboardBoot = shouldShowDashboardBoot({
+    hasSubscriptionAccess,
+    coreDataReady,
+    hydrationTimedOut,
+  });
 
   useEffect(() => {
     if (!coreDataReady) return undefined;
@@ -1025,8 +1090,12 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     && !planningAssessmentReady;
 
   useEffect(() => {
-    if (coreDataReady && !userAccess.isLoading) dismissInitialLoadingScreen();
-  }, [coreDataReady, userAccess.isLoading]);
+    const accessResolved = !isAccessBlocking;
+    const readyToDismiss = accessResolved && (!hasSubscriptionAccess || coreDataReady || hydrationTimedOut);
+    if (readyToDismiss) {
+      dismissInitialLoadingScreen();
+    }
+  }, [coreDataReady, isAccessBlocking, hasSubscriptionAccess, hydrationTimedOut]);
 
   useEffect(() => {
     if (!user?.uid) {
@@ -1118,12 +1187,28 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
           const prevAssunto = prev?.assunto ?? null;
           const nextAssunto = data.assunto ?? null;
           if (prev?.disciplina?.id === data.disciplinaId && prevAssunto === nextAssunto) return prev;
+
+          let localParsed = null;
+          try {
+            const raw = localStorage.getItem(STUDY_STORAGE_KEY);
+            if (raw) localParsed = JSON.parse(raw);
+          } catch {}
+
+          const effectiveInitial = (localParsed?.disciplinaId === data.disciplinaId && !localParsed?.isFinishing)
+            ? localParsed
+            : data;
+
           return {
             disciplina:{ id:data.disciplinaId, nome:data.disciplinaNome },
             assunto: nextAssunto,
             isMinimized: prev ? prev.isMinimized : true,
             defaultContext: data.defaultContext || prev?.defaultContext || null,
-            sessaoGlobalIndex: Number.isFinite(Number(data.sessaoGlobalIndex)) ? Number(data.sessaoGlobalIndex) : null
+            cycleRoundVersion: data.cycleRoundVersion != null && Number.isInteger(Number(data.cycleRoundVersion))
+              ? Number(data.cycleRoundVersion)
+              : (prev?.cycleRoundVersion ?? null),
+            sessaoGlobalIndex: Number.isFinite(Number(data.sessaoGlobalIndex)) ? Number(data.sessaoGlobalIndex) : null,
+            cronogramaSlotContext: data.cronogramaSlotContext || prev?.cronogramaSlotContext || null,
+            initialRemoteState: effectiveInitial,
           };
         });
       } else {
@@ -1161,13 +1246,32 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         if (parsed.isFinishing && parsed.tempMinutes) {
           clearActiveTimerDoc();
           setPendingReviewData({
-            minutes:parsed.tempMinutes,
-            disciplinaNome:parsed.disciplinaNome,
-            assuntoInicial:parsed.assunto,
+            minutes: parsed.tempMinutes,
+            disciplinaNome: parsed.disciplinaNome,
+            assuntoInicial: parsed.assunto,
             defaultContext: parsed.defaultContext || null,
+            cycleRoundVersion: parsed.cycleRoundVersion != null && Number.isInteger(Number(parsed.cycleRoundVersion)) ? Number(parsed.cycleRoundVersion) : null,
             sessaoGlobalIndex: Number.isFinite(Number(parsed.sessaoGlobalIndex)) ? Number(parsed.sessaoGlobalIndex) : null,
-            reason:'Sessão interrompida (Atualização/Fechamento)',
-            originalData:parsed,
+            cronogramaSlotContext: parsed.cronogramaSlotContext || null,
+            reason: 'Sessão interrompida (Atualização/Fechamento)',
+            originalData: parsed,
+          });
+        } else if (parsed.disciplinaId) {
+          setActiveStudySession((previous) => {
+            if (previous) {
+              if (previous.initialRemoteState?.schemaVersion) return previous;
+              return { ...previous, initialRemoteState: parsed };
+            }
+            return {
+              disciplina: { id: parsed.disciplinaId, nome: parsed.disciplinaNome },
+              assunto: parsed.assunto ?? null,
+              isMinimized: true,
+              defaultContext: parsed.defaultContext || null,
+              cycleRoundVersion: parsed.cycleRoundVersion != null && Number.isInteger(Number(parsed.cycleRoundVersion)) ? Number(parsed.cycleRoundVersion) : null,
+              sessaoGlobalIndex: Number.isFinite(Number(parsed.sessaoGlobalIndex)) ? Number(parsed.sessaoGlobalIndex) : null,
+              cronogramaSlotContext: parsed.cronogramaSlotContext || null,
+              initialRemoteState: parsed,
+            };
           });
         }
       } catch {}
@@ -1181,7 +1285,12 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   const fetchHistory = useCallback(() => {}, []);
 
   useEffect(() => {
-    if (!user) return;
+    if (!isAccessReady) {
+      setRegistrosLoaded(false);
+      setAllRegistrosEstudo([]);
+      setLoading(false);
+      return undefined;
+    }
     setLoading(true);
     setRegistrosLoaded(false);
     resetHydrationResource('registros');
@@ -1202,7 +1311,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       setLoading(false);
       markHydrationError('registros');
     });
-  }, [user, markHydrationError, markHydrationSnapshot, resetHydrationResource]);
+  }, [user, isAccessReady, markHydrationError, markHydrationSnapshot, resetHydrationResource]);
 
   useEffect(() => {
     if (!user || !registrosLoaded || !simuladosLoaded) return;
@@ -1215,7 +1324,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
 
     const totalSimulados = allSimulados.reduce((acc, item) => ({
       minutos: acc.minutos + Number(item.durationMinutes || 0),
-      questoes: acc.questoes + Number(item.resumo?.totalQuestoes || 0),
+      questoes: acc.questoes + Math.max(0, Number(item.resumo?.totalQuestoes || 0) - Number(item.resumo?.totalBrancos || 0)),
       acertos: acc.acertos + Number(item.resumo?.totalAcertos || 0),
     }), { minutos: 0, questoes: 0, acertos: 0 });
 
@@ -1272,7 +1381,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
 
       const simQ = query(collection(db,'users',user.uid,'simulados'));
       const simSnap = await getDocs(simQ);
-      simSnap.docs.forEach(d => { const v=d.data(); tMin+=Number(v.durationMinutes||0); tQ+=Number(v.resumo?.totalQuestoes||0); tC+=Number(v.resumo?.totalAcertos||0); });
+      simSnap.docs.forEach(d => { const v=d.data(); tMin+=Number(v.durationMinutes||0); tQ+=Math.max(0, Number(v.resumo?.totalQuestoes||0) - Number(v.resumo?.totalBrancos||0)); tC+=Number(v.resumo?.totalAcertos||0); });
 
       await setDoc(doc(db,'users',user.uid,'stats','geral'), { totalHorasMinutos:tMin, totalQuestoes:tQ, totalAcertos:tC, lastUpdated:Timestamp.now() });
       setWarningAlert({ isOpen:true, title:'Estatisticas atualizadas', message:'Os dados gerais foram recalculados com sucesso.' });
@@ -1285,6 +1394,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   const { addRegistroEstudo } = useStudyRecordActions({
     userUid: user?.uid,
     activeCicloId,
+    activeCicloRoundVersion: Number(activeCicloData?.conclusoes || 0),
     activeCronogramaId: activeCronogramaData?.id || null,
     activeCycleDisciplines,
     cicloPendenteFinalizacao,
@@ -1381,6 +1491,9 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       progressoSessoes: nextProgressSessoes,
       sessoesConcluidas: nextConcluidas,
       sessoesConcluidasDetalhes: nextCompletionDetails,
+      cycleProgressContractVersion: 1,
+      roundIdentityVersion: 1,
+      lastCycleProgressOperationId: `rollback:${registro.id || Date.now()}:${Date.now()}`,
       updatedAt: Timestamp.now(),
     });
   };
@@ -1506,7 +1619,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       const item = document.data() || {};
       return {
         minutos: acc.minutos + Number(item.durationMinutes || 0),
-        questoes: acc.questoes + Number(item.resumo?.totalQuestoes || 0),
+        questoes: acc.questoes + Math.max(0, Number(item.resumo?.totalQuestoes || 0) - Number(item.resumo?.totalBrancos || 0)),
         acertos: acc.acertos + Number(item.resumo?.totalAcertos || 0),
       };
     }, { minutos: 0, questoes: 0, acertos: 0 });
@@ -1537,24 +1650,27 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       ? activeCycleDisciplines
       : (await getDocs(collection(db, 'users', user.uid, 'ciclos', cicloId, 'disciplinas')))
         .docs.map((document, __sourceOrder) => ({ id: document.id, __sourceOrder, ...document.data() }));
-    const tempoSessaoMinutos = Math.max(1, Number(cicloData.tempoSessaoMinutos || 50));
     const sessoes = ordemSessoes.map((sessao, globalIndex) => ({ ...sessao, globalIndex }));
     const progressoSessoes = {};
     const sessoesConcluidas = [];
     const sessoesConcluidasDetalhes = {};
 
-    const markProgress = (index, minutes, registro, forceComplete = false) => {
+    const markProgress = (index, minutes, registro, forceComplete = false, customOrigin = null) => {
       if (!Number.isFinite(Number(index))) return;
       const normalizedIndex = Number(index);
+      const sessao = sessoes[normalizedIndex];
+      if (!sessao) return;
+      const plannedMinutes = getCycleSessionPlannedMinutes(cicloData, disciplinasFonte, sessao);
       const current = Number(progressoSessoes[normalizedIndex] || 0);
-      const next = forceComplete ? Math.max(current + Number(minutes || 0), tempoSessaoMinutos) : current + Number(minutes || 0);
+      const next = forceComplete ? Math.max(current + Number(minutes || 0), plannedMinutes) : current + Number(minutes || 0);
       progressoSessoes[normalizedIndex] = Math.max(0, next);
-      if (progressoSessoes[normalizedIndex] >= tempoSessaoMinutos && !sessoesConcluidas.includes(normalizedIndex)) {
+      if (progressoSessoes[normalizedIndex] >= plannedMinutes && !sessoesConcluidas.includes(normalizedIndex)) {
         sessoesConcluidas.push(normalizedIndex);
+        const origin = customOrigin || (registro?.origemConclusao === 'botao_concluir' ? 'checkout_manual' : (registro?.origem || 'registro_manual'));
         sessoesConcluidasDetalhes[normalizedIndex] = {
           concluidaEm: getRegistroDateKey(registro) || dateToYMD(new Date()),
           atualizadoEm: Timestamp.now(),
-          origem: registro?.origemConclusao === 'botao_concluir' ? 'checkout_manual' : (registro?.origem || 'registro_manual'),
+          origem: origin,
         };
       }
     };
@@ -1564,20 +1680,33 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       && getRegistroContext(registro) === 'ciclo'
       && !isRegistroRevisaoPayload(registro)
       && registro?.conclusaoId == null
+      && isCycleRecordInRound(registro, cicloData)
+      && isRealCycleStudyRecord(registro)
       && Number(registro.tempoEstudadoMinutos || registro.duracaoMinutos || 0) >= 0
     )));
 
     registrosCiclo.forEach((registro) => {
       const minutos = Math.max(0, Number(registro.tempoEstudadoMinutos || registro.duracaoMinutos || 0));
       const completionSourceId = parseCompletionSourceId(registro);
-      const explicitIndex = Number.isFinite(Number(registro.sessaoGlobalIndex))
+      const hasExplicitIndex = registro.sessaoGlobalIndex !== null
+        && registro.sessaoGlobalIndex !== undefined
+        && registro.sessaoGlobalIndex !== ''
+        && Number.isInteger(Number(registro.sessaoGlobalIndex));
+      const explicitIndex = hasExplicitIndex
         ? Number(registro.sessaoGlobalIndex)
         : Number.isFinite(Number(completionSourceId))
           ? Number(completionSourceId)
           : null;
 
       if (explicitIndex !== null) {
-        markProgress(explicitIndex, minutos, registro, registro.origemConclusao === 'botao_concluir' || minutos <= 0);
+        const isExplicitCheckout = isManualCycleCheckoutRecord(registro) || minutos <= 0;
+        markProgress(
+          explicitIndex,
+          minutos,
+          registro,
+          isExplicitCheckout,
+          isExplicitCheckout ? 'checkout_manual' : (registro?.origem || 'registro_manual')
+        );
         return;
       }
 
@@ -1598,16 +1727,17 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         if (minutosRestantes <= 0) break;
         const index = Number(sessao.globalIndex);
         const current = Number(progressoSessoes[index] || 0);
-        const faltantes = Math.max(0, tempoSessaoMinutos - current);
+        const plannedMinutes = getCycleSessionPlannedMinutes(cicloData, disciplinasFonte, sessao);
+        const faltantes = Math.max(0, plannedMinutes - current);
         if (faltantes <= 0) continue;
         const applied = Math.min(faltantes, minutosRestantes);
-        markProgress(index, applied, registro);
+        markProgress(index, applied, registro, false, registro?.origem || 'tempo_acumulado');
         lastTouchedIndex = index;
         minutosRestantes -= applied;
       }
 
       if (minutosRestantes > 0 && lastTouchedIndex !== null) {
-        markProgress(lastTouchedIndex, minutosRestantes, registro);
+        markProgress(lastTouchedIndex, minutosRestantes, registro, false, registro?.origem || 'tempo_acumulado');
       }
     });
 
@@ -1615,6 +1745,9 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       progressoSessoes,
       sessoesConcluidas: sessoesConcluidas.sort((a, b) => a - b),
       sessoesConcluidasDetalhes,
+      cycleProgressContractVersion: 1,
+      roundIdentityVersion: 1,
+      lastCycleProgressOperationId: `recalculate:${cicloId}:${Date.now()}`,
       updatedAt: Timestamp.now(),
     });
   };
@@ -1729,6 +1862,22 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     const nextWeekProgress = { ...(cronograma.progresso?.[semKey] || {}) };
     const nextReviewMinutes = { ...(cronograma.progressoRevisoesMinutos || {}) };
     const nextHistoricoRevisoes = { ...(cronograma.historicoRevisoes || {}) };
+    const theoryByDate = new Map();
+    const recordsByDate = new Map();
+    agenda.filter((slot) => !slot.isRevisaoAuto).forEach((slot) => {
+      if (!theoryByDate.has(slot.dataSlot)) theoryByDate.set(slot.dataSlot, []);
+      theoryByDate.get(slot.dataSlot).push(slot);
+    });
+    registrosSnapshot.forEach((record) => {
+      if (getRegistroContext(record) !== 'cronograma' || record.cronogramaId !== cronograma.id || record.isRevisao) return;
+      const date = dateToYMD(record.data);
+      if (!theoryByDate.has(date)) return;
+      if (!recordsByDate.has(date)) recordsByDate.set(date, []);
+      recordsByDate.get(date).push(record);
+    });
+    const stateByDate = new Map([...theoryByDate].map(([date, slots]) => [date,
+      buildScheduleRecordedProgress({ slots, records: recordsByDate.get(date) || [], getMinutes: getRecordedStudyMinutes }),
+    ]));
 
     agenda.forEach((slot) => {
       if (!slot) return;
@@ -1750,30 +1899,30 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         return;
       }
 
-      const slotKey = slot.slotIdBase || slot.slotId;
+      const slotKey = getScheduleSlotKey(slot);
       if (!slotKey) return;
-      const planned = Math.max(1, Number(slot.tempoMinutos ?? slot.minutosEstudo ?? 0) || 0);
-      const minutes = getCronogramaSlotRecordedMinutes({
-        cronograma,
-        slot,
-        registrosEstudo: registrosSnapshot,
-        dateKey: slot.dataSlot,
-      });
+      const state = stateByDate.get(slot.dataSlot);
+      const minutes = Number(state?.minutes[slotKey] || 0);
+      const completed = state?.completed[slotKey] === true;
       nextWeekMinutes[slotKey] = minutes;
-      nextWeekProgress[slotKey] = minutes >= planned;
+      nextWeekProgress[slotKey] = completed;
       if (slot.slotId && slot.slotId !== slotKey) {
         nextWeekMinutes[slot.slotId] = minutes;
-        nextWeekProgress[slot.slotId] = minutes >= planned;
+        nextWeekProgress[slot.slotId] = completed;
       }
     });
 
-    await updateDoc(cronogramaRef, {
+    const updates = {
       [`progressoMinutos.${semKey}`]: nextWeekMinutes,
       [`progresso.${semKey}`]: nextWeekProgress,
       progressoRevisoesMinutos: nextReviewMinutes,
       historicoRevisoes: nextHistoricoRevisoes,
-      atualizadoEm: Timestamp.now(),
-    });
+    };
+    const originals = [cronograma.progressoMinutos?.[semKey] || {}, cronograma.progresso?.[semKey] || {},
+      cronograma.progressoRevisoesMinutos || {}, cronograma.historicoRevisoes || {}];
+    const changed = Object.fromEntries(Object.entries(updates).filter(([, value], index) =>
+      JSON.stringify(value) !== JSON.stringify(originals[index])));
+    if (Object.keys(changed).length) await updateDoc(cronogramaRef, changed);
   };
 
   const rollbackDeletedRegistroProgress = async (registro, registrosSnapshot) => {
@@ -1796,6 +1945,18 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     setAllRegistrosEstudo((current) => current.filter((item) => item.id !== id));
     try {
       const ref = doc(db,'users',user.uid,'registrosEstudo',id);
+      if (
+        previousRegistro?.contextoRegistro === 'ciclo'
+        && previousRegistro?.cycleProgressAllocations
+      ) {
+        const result = await deleteCycleStudyRecordWithProgress({ db, userUid: user.uid, registroRef: ref });
+        if (result.deleted) {
+          notifyGamificationSaveFailed({ uid: user.uid, sourceType: 'study', sourceId: id });
+          setDailyGoalModalData(null);
+          setPendingDailyGoalModalData(null);
+        }
+        return;
+      }
       const snap = await getDoc(ref);
       if (snap.exists()) {
         const data = snap.data();
@@ -1870,12 +2031,17 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   const handleStartStudy = (disciplina, assunto = null, options = {}) => {
     if (activeSimuladoSession) { setWarningAlert({ isOpen:true, title:'Sessão Conflitante', message:'Você tem um Simulado em andamento.' }); return; }
     const contextHint = isRegistroContext(options?.defaultContext) ? options.defaultContext : defaultRegistroContext;
+    const cycleRoundVersion = contextHint === 'ciclo'
+      ? Number(options?.cycleRoundVersion ?? activeCicloData?.conclusoes ?? 0)
+      : null;
     setActiveStudySession({
       disciplina,
       assunto,
       isMinimized:false,
       defaultContext: contextHint,
+      cycleRoundVersion,
       sessaoGlobalIndex: Number.isFinite(Number(options?.sessaoGlobalIndex)) ? Number(options.sessaoGlobalIndex) : null,
+      cronogramaSlotContext: options?.cronogramaSlotContext || null,
       tipoRegistro: options?.tipoRegistro === 'revisao' ? 'revisao' : 'estudo',
     });
   };
@@ -1894,17 +2060,22 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   const handleStopStudyRequest = (minutes) => {
     if (!activeStudySession) return;
     if (!hasActiveStudyContext) {
-      setWarningAlert({ isOpen:true, title:'Planejamento nao encontrado', message:'Ative um ciclo ou cronograma antes de finalizar esta sessao.' });
-      return;
+      console.warn('[Timer] Referência de planejamento órfã ao parar o timer:', {
+        activeCicloId,
+        activeCronogramaData,
+        session: activeStudySession,
+      });
     }
     const cur = JSON.parse(localStorage.getItem(STUDY_STORAGE_KEY)||'{}');
     localStorage.setItem(STUDY_STORAGE_KEY, JSON.stringify({ ...cur, isFinishing:true, tempMinutes:minutes, isPaused:true }));
     setFinishModalData({
       minutes,
-      disciplinaNome:activeStudySession.disciplina.nome,
-      assuntoInicial:activeStudySession.assunto,
-      defaultContext: activeStudySession.defaultContext || null,
+      disciplinaNome:activeStudySession.disciplina?.nome || 'Estudo Geral',
+      assuntoInicial:activeStudySession.assunto || '',
+      defaultContext: activeStudySession.defaultContext || (hasActiveStudyContext ? null : 'avulso'),
+      cycleRoundVersion: activeStudySession.cycleRoundVersion ?? null,
       sessaoGlobalIndex: activeStudySession.sessaoGlobalIndex ?? null,
+      cronogramaSlotContext: activeStudySession.cronogramaSlotContext || null,
       tipoRegistro: activeStudySession.tipoRegistro === 'revisao' ? 'revisao' : 'estudo',
     });
   };
@@ -1920,7 +2091,9 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         assunto:cur.assunto,
         isMinimized:false,
         defaultContext: isRegistroContext(cur.defaultContext) ? cur.defaultContext : null,
+        cycleRoundVersion: cur.cycleRoundVersion != null && Number.isInteger(Number(cur.cycleRoundVersion)) ? Number(cur.cycleRoundVersion) : null,
         sessaoGlobalIndex: Number.isFinite(Number(cur.sessaoGlobalIndex)) ? Number(cur.sessaoGlobalIndex) : null,
+        cronogramaSlotContext: cur.cronogramaSlotContext || null,
       });
     }
   };
@@ -1951,6 +2124,8 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       naoConcluidoCronograma,
     } = resultData;
     const nomeFinal = disciplinaNomeCorrigido || dataRef.disciplinaNome;
+    const fallbackCycleOperationId = dataRef.cycleProgressOperationId || createCycleOperationId();
+    dataRef.cycleProgressOperationId = fallbackCycleOperationId;
 
     try {
       const storageData = JSON.parse(localStorage.getItem(STUDY_STORAGE_KEY)||'{}');
@@ -1974,6 +2149,12 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         obs:obs||'Sessão via Timer',
         assunto:assunto||null,
         timestamp:Timestamp.now(),
+        ...(contextoRegistro === 'ciclo'
+          ? { cicloRoundVersion: dataRef.cycleRoundVersion != null && Number.isInteger(Number(dataRef.cycleRoundVersion))
+              ? Number(dataRef.cycleRoundVersion)
+              : null,
+              cycleProgressOperationId: fallbackCycleOperationId }
+          : {}),
         ...(Number.isFinite(Number(dataRef.sessaoGlobalIndex)) && !teoriaNaoFinalizadaCiclo ? { sessaoGlobalIndex: Number(dataRef.sessaoGlobalIndex) } : {}),
         ...(isRegistroContext(contextoRegistro) ? { contextoRegistro } : {}),
         ...(markAsFinished ? { markAsFinished: true, assuntoFinalizado: true } : {}),
@@ -1983,7 +2164,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       });
 
       if (contextoRegistro === 'ciclo' && markAsFinished && assunto) {
-        await addDoc(collection(db,'users',user.uid,'registrosEstudo'), { cicloId:activeCicloId, cicloNome:nomeCiclo, cicloTipo:tipoCiclo, disciplinaId:finalDiscId, disciplinaNome:nomeFinal, assunto, data:dateToYMD(new Date()), timestamp:Timestamp.now(), tempoEstudadoMinutos:0, questoesFeitas:0, acertos:0, tipoEstudo:'check_manual', obs:'Concluído via Timer' });
+        await addDoc(collection(db,'users',user.uid,'registrosEstudo'), { cicloId:activeCicloId, cicloRoundVersion:Number(dataRef.cycleRoundVersion ?? activeCicloData?.conclusoes ?? 0), contextoRegistro:'ciclo', cicloNome:nomeCiclo, cicloTipo:tipoCiclo, disciplinaId:finalDiscId, disciplinaNome:nomeFinal, assunto, data:dateToYMD(new Date()), timestamp:Timestamp.now(), tempoEstudadoMinutos:0, questoesFeitas:0, acertos:0, tipoEstudo:'check_manual', obs:'Concluído via Timer' });
         fetchHistory();
       }
 
@@ -2163,7 +2344,13 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     }
   }, [user?.uid, welcomeCarousel.mode]);
 
-  const handleLogout     = async () => { clearActiveTimerDoc(); clearActiveSimuladoDoc(); signOut(auth).catch(console.error); };
+  const handleLogout = async () => {
+    clearActiveTimerDoc();
+    clearActiveSimuladoDoc();
+    clearEmulatorSessionIdentity(window.sessionStorage);
+    clearPendingEmulatorLogin(window.sessionStorage);
+    signOut(auth).catch(console.error);
+  };
 
   const handleShareGoal  = (stats) => { setSharePreviewData({ stats, userName:user.displayName||'Estudante', dayData:dayToShareData, goals:goalsHistory[0]||{ questions:0, hours:0 }, isDarkMode }); };
 
@@ -2209,17 +2396,24 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   }, [user, loading, goalsHistory.length, mergedAllRegistrosEstudo.length, handleTourCloseOrFinish]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!isAccessReady) {
+      setActiveCyclesForStreak([]);
+      setActiveCicloId(null);
+      setActiveCicloData(null);
+      setActiveCicloLoaded(false);
+      return undefined;
+    }
     setActiveCicloLoaded(false);
     resetHydrationResource('activeCiclo');
     const q = query(collection(db,'users',user.uid,'ciclos'), where('ativo','==',true), where('arquivado','==',false));
     return onSnapshot(q, { includeMetadataChanges: true }, (snap) => {
+      markHydrationSnapshot('activeCiclo', snap);
+      if (isUnconfirmedEmptySnapshot(snap)) return;
       const activeCycles = snap.docs.map((d) => ({ id: d.id, ...d.data(), ativo: true }));
       setActiveCyclesForStreak(activeCycles);
       if (snap.empty) { setActiveCicloId(null); setActiveCicloData(null); }
       else { const d = snap.docs[0]; setActiveCicloId(d.id); setActiveCicloData({ id:d.id, ...d.data() }); }
       setActiveCicloLoaded(true);
-      markHydrationSnapshot('activeCiclo', snap);
     }, (error) => {
       console.error('[Dashboard] Erro ao sincronizar ciclo ativo:', error);
       setActiveCyclesForStreak([]);
@@ -2228,14 +2422,21 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       setActiveCicloLoaded(true);
       markHydrationError('activeCiclo');
     });
-  }, [user, markHydrationError, markHydrationSnapshot, resetHydrationResource]);
+  }, [user, isAccessReady, markHydrationError, markHydrationSnapshot, resetHydrationResource]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!isAccessReady) {
+      setActiveSchedulesForStreak([]);
+      setActiveCronogramaData(null);
+      setActiveCronogramaLoaded(false);
+      return undefined;
+    }
     setActiveCronogramaLoaded(false);
     resetHydrationResource('activeCronograma');
     const q = query(collection(db,'users',user.uid,'cronogramas'), where('ativo','==',true));
     return onSnapshot(q, { includeMetadataChanges: true }, (snap) => {
+      markHydrationSnapshot('activeCronograma', snap);
+      if (isUnconfirmedEmptySnapshot(snap)) return;
       if (snap.empty) setActiveCronogramaData(null);
       else {
         const cronogramasAtivos = snap.docs
@@ -2251,7 +2452,6 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       }
       if (snap.empty) setActiveSchedulesForStreak([]);
       setActiveCronogramaLoaded(true);
-      markHydrationSnapshot('activeCronograma', snap);
     }, (error) => {
       console.error('[Dashboard] Erro ao sincronizar cronograma ativo:', error);
       setActiveSchedulesForStreak([]);
@@ -2259,10 +2459,10 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       setActiveCronogramaLoaded(true);
       markHydrationError('activeCronograma');
     });
-  }, [user, markHydrationError, markHydrationSnapshot, resetHydrationResource]);
+  }, [user, isAccessReady, markHydrationError, markHydrationSnapshot, resetHydrationResource]);
 
   useEffect(() => {
-    if (!user || !activeCicloId) {
+    if (!isAccessReady || !activeCicloId) {
       setActiveCycleDisciplines([]);
       setActiveCycleDisciplinesLoaded(Boolean(hydrationState.activeCiclo.received));
       if (hydrationState.activeCiclo.received) {
@@ -2302,6 +2502,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     );
   }, [
     user,
+    isAccessReady,
     activeCicloId,
     hydrationState.activeCiclo.received,
     hydrationState.activeCiclo.authoritative,
@@ -2312,7 +2513,11 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   ]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!isAccessReady) {
+      setGoalsHistory([]);
+      setGoalsLoaded(false);
+      return undefined;
+    }
     setGoalsLoaded(false);
     resetHydrationResource('metas');
     return onSnapshot(
@@ -2329,25 +2534,58 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         markHydrationError('metas');
       }
     );
-  }, [user, markHydrationError, markHydrationSnapshot, resetHydrationResource]);
+  }, [user, isAccessReady, markHydrationError, markHydrationSnapshot, resetHydrationResource]);
+
+  useEffect(() => {
+    const handlePlanningDeleted = (event) => {
+      const planId = event?.detail?.planId || event?.detail?.id;
+      if (planId && String(planId) === String(activeCicloId)) {
+        setActiveCicloId(null);
+        setActiveCicloData(null);
+        setActiveCycleDisciplines([]);
+      }
+    };
+    window.addEventListener('Planning:Deleted', handlePlanningDeleted);
+    window.addEventListener('Ciclo:Deleted', handlePlanningDeleted);
+    return () => {
+      window.removeEventListener('Planning:Deleted', handlePlanningDeleted);
+      window.removeEventListener('Ciclo:Deleted', handlePlanningDeleted);
+    };
+  }, [activeCicloId]);
+
+  const isAccountInitializing = Boolean(
+    monetizationConfig?.isLoading
+    || (!isPreFounderPhase && (userAccess?.isLoading || userAccess?.isInitializing || userAccess?.isPendingInitialization))
+  );
 
   const renderTabContent = () => {
-    if (loading && ['home','calendar','stats'].includes(activeTab)) {
-      return <SectionLoader minHeight="18rem" label="Carregando seus dados" />;
+    if (isAccountInitializing || (loading && ['home','calendar','stats'].includes(activeTab))) {
+      return <SectionLoader minHeight="18rem" label={isAccountInitializing ? 'Preparando seu acesso...' : 'Carregando seus dados'} />;
+    }
+    if (!hasSubscriptionAccess) {
+      return (
+        <SubscriptionLockView
+          user={displayedUser}
+          subscription={userAccess?.subscription}
+          monetizationConfig={monetizationConfig}
+          onOpenSupport={() => handleOpenFeedback({ initialView: 'home' })}
+          onLogout={handleLogout}
+        />
+      );
     }
     switch (activeTab) {
       case 'home':
-        return <Home registrosEstudo={mergedActiveRegistrosEstudo} allRegistrosEstudo={mergedAllRegistrosEstudo} goalsHistory={goalsHistory} setActiveTab={handleGoToActiveCycle} activeCicloData={activeCicloData} activeCronogramaData={activeCronogramaData} cycleReviews={cycleReviewsForStreak} activeCycleDisciplines={activeCycleDisciplines} studyStreakResult={currentPlanStudyStreak} onGoToCronograma={() => handleCronogramaCreation(activeCronogramaData?.id)} onGoToRevisao={() => setActiveTab('revisoes')} onStartStudy={handleStartStudy} addRegistroEstudo={addRegistroEstudo} deleteCompletionRegistro={deleteCompletionRegistro} user={displayedUser} dailyGoalModalBlocked={Boolean(showGlobalRegistroModal || finishModalData || isLocalRegistroModalOpen)} />;
+        return <Home registrosEstudo={mergedActiveRegistrosEstudo} allRegistrosEstudo={mergedAllRegistrosEstudo} goalsHistory={goalsHistory} setActiveTab={handleGoToActiveCycle} activeCicloData={activeCicloData} activeCronogramaData={activeCronogramaData} cycleReviews={cycleReviewsForStreak} activeCycleDisciplines={activeCycleDisciplines} studyStreakResult={currentPlanStudyStreak} onGoToCronograma={() => handleCronogramaCreation(activeCronogramaData?.id)} onGoToRevisao={() => setActiveTab('revisoes')} onStartStudy={handleStartStudy} addRegistroEstudo={addRegistroEstudo} deleteCompletionRegistro={deleteCompletionRegistro} user={displayedUser} dailyGoalReady={registrosLoaded} dailyGoalModalBlocked={Boolean(showGlobalRegistroModal || finishModalData || isLocalRegistroModalOpen)} />;
       case 'calendar':
         return <div className="mobile-page-zoom mobile-page-zoom--calendar desktop-page-zoom desktop-page-zoom--calendar"><CalendarTab registrosEstudo={mergedAllRegistrosEstudo} goalsHistory={goalsHistory} onDeleteRegistro={deleteRegistro} activeCicloData={activeCicloData} activeCronogramaData={activeCronogramaData} cycleReviews={cycleReviewsForStreak} studyStreakResult={currentPlanStudyStreak}/></div>;
       case 'ciclos':
-        return <CiclosPage user={displayedUser} onStartStudy={handleStartStudy} onCicloAtivado={handleCicloCreationOrActivation} addRegistroEstudo={addRegistroEstudo} deleteCompletionRegistro={deleteCompletionRegistro} onDeleteRegistro={deleteRegistro} activeCicloId={activeCicloId} forceOpenVisual={forceOpenVisual} targetOpenCicloId={targetOpenCicloId} onTargetOpenHandled={() => setTargetOpenCicloId(null)} onGoToEdital={() => handleGoToEditalSource('ciclo')} onGoToRevisao={() => setActiveTab('revisoes')} onCreateNewCycle={handleCreateNewCycleFromLegacy} registrosEstudo={mergedAllRegistrosEstudo} isTimerActive={!!(activeStudySession||activeSimuladoSession)} onRegistroModalOpenChange={setIsLocalRegistroModalOpen}/>;
+        return <CiclosPage user={displayedUser} onStartStudy={handleStartStudy} onCicloAtivado={handleCicloCreationOrActivation} addRegistroEstudo={addRegistroEstudo} deleteCompletionRegistro={deleteCompletionRegistro} onDeleteRegistro={deleteRegistro} activeCicloId={activeCicloId} forceOpenVisual={forceOpenVisual} targetOpenCicloId={targetOpenCicloId} onTargetOpenHandled={() => setTargetOpenCicloId(null)} onGoToEdital={() => handleGoToEditalSource('ciclo')} onGoToRevisao={() => setActiveTab('revisoes')} onCreateNewCycle={handleCreateNewCycleFromLegacy} onGoToCronograma={handleCronogramaCreation} registrosEstudo={mergedAllRegistrosEstudo} isTimerActive={!!(activeStudySession||activeSimuladoSession)} onRegistroModalOpenChange={setIsLocalRegistroModalOpen}/>;
       case 'planejamento':
-        return <PlanejamentoPage user={displayedUser} addRegistroEstudo={addRegistroEstudo} onStartStudy={handleStartStudy} onGoToEdital={() => handleGoToEditalSource('ciclo')} onGoToRevisao={() => setActiveTab('revisoes')} registrosEstudo={mergedAllRegistrosEstudo} isTimerActive={!!(activeStudySession||activeSimuladoSession)} activeTimerContext={activeStudySession?.defaultContext || null} onGoToCronograma={handleCronogramaCreation} onCicloAtivado={handleCicloCreationOrActivation} activeCicloId={activeCicloId} abrirDiretoSeletor={isNovoUsuarioPlanejamento || forcePlanejamentoSelector} onSeletorDiretoAberto={handleSeletorDiretoAberto} onOpenFeedback={handleOpenFeedback} onRegistroModalOpenChange={setIsLocalRegistroModalOpen} initialEdital={pendingPlanningEdital} onInitialEditalConsumed={() => setPendingPlanningEdital(null)} onBackToEditais={handleBackToEditalLibrary} />;
+        return <PlanejamentoPage user={displayedUser} addRegistroEstudo={addRegistroEstudo} onStartStudy={handleStartStudy} onGoToEdital={() => handleGoToEditalSource('ciclo')} onGoToRevisao={() => setActiveTab('revisoes')} registrosEstudo={mergedAllRegistrosEstudo} isTimerActive={!!(activeStudySession||activeSimuladoSession)} activeTimerContext={activeStudySession?.defaultContext || null} onGoToCronograma={handleCronogramaCreation} onCicloAtivado={handleCicloCreationOrActivation} activeCicloId={activeCicloId} abrirDiretoSeletor={isNovoUsuarioPlanejamento || forcePlanejamentoSelector} onSeletorDiretoAberto={handleSeletorDiretoAberto} onOpenFeedback={handleOpenFeedback} onRegistroModalOpenChange={setIsLocalRegistroModalOpen} initialEdital={pendingPlanningEdital} onInitialEditalConsumed={() => setPendingPlanningEdital(null)} onBackToEditais={handleBackToEditalLibrary} isAccessReady={isAccessReady} />;
       case 'cronograma':
-        return <CronogramaPage user={displayedUser} onStartStudy={handleStartStudy} addRegistroEstudo={addRegistroEstudo} deleteCompletionRegistro={deleteCompletionRegistro} registrosEstudo={mergedAllRegistrosEstudo} onDeleteRegistro={deleteRegistro} onGoToEdital={() => handleGoToEditalSource('cronograma')} onGoToRevisao={() => setActiveTab('revisoes')} initialEditMode={targetCronogramaEditMode} onInitialEditModeHandled={() => setTargetCronogramaEditMode(null)}/>;
+        return <CronogramaPage user={displayedUser} onStartStudy={handleStartStudy} addRegistroEstudo={addRegistroEstudo} deleteCompletionRegistro={deleteCompletionRegistro} registrosEstudo={mergedAllRegistrosEstudo} onDeleteRegistro={deleteRegistro} onGoToEdital={() => handleGoToEditalSource('cronograma')} onGoToRevisao={() => setActiveTab('revisoes')} onReturnToCycle={handleCicloCreationOrActivation} isTimerActive={!!(activeStudySession||activeSimuladoSession)} initialEditMode={targetCronogramaEditMode} onInitialEditModeHandled={() => setTargetCronogramaEditMode(null)}/>;
       case 'cronogramas':
-        return <PlanejamentoPage user={displayedUser} addRegistroEstudo={addRegistroEstudo} onStartStudy={handleStartStudy} onGoToEdital={() => handleGoToEditalSource('ciclo')} onGoToRevisao={() => setActiveTab('revisoes')} registrosEstudo={mergedAllRegistrosEstudo} isTimerActive={!!(activeStudySession||activeSimuladoSession)} activeTimerContext={activeStudySession?.defaultContext || null} onGoToCronograma={handleCronogramaCreation} onCicloAtivado={handleCicloCreationOrActivation} activeCicloId={activeCicloId} abrirDiretoSeletor={isNovoUsuarioPlanejamento || forcePlanejamentoSelector} onSeletorDiretoAberto={handleSeletorDiretoAberto} onOpenFeedback={handleOpenFeedback} onRegistroModalOpenChange={setIsLocalRegistroModalOpen} />;
+        return <PlanejamentoPage user={displayedUser} addRegistroEstudo={addRegistroEstudo} onStartStudy={handleStartStudy} onGoToEdital={() => handleGoToEditalSource('ciclo')} onGoToRevisao={() => setActiveTab('revisoes')} registrosEstudo={mergedAllRegistrosEstudo} isTimerActive={!!(activeStudySession||activeSimuladoSession)} activeTimerContext={activeStudySession?.defaultContext || null} onGoToCronograma={handleCronogramaCreation} onCicloAtivado={handleCicloCreationOrActivation} activeCicloId={activeCicloId} abrirDiretoSeletor={isNovoUsuarioPlanejamento || forcePlanejamentoSelector} onSeletorDiretoAberto={handleSeletorDiretoAberto} onOpenFeedback={handleOpenFeedback} onRegistroModalOpenChange={setIsLocalRegistroModalOpen} isAccessReady={isAccessReady} />;
       case 'edital':
         return (
           <EditalPage
@@ -2389,7 +2627,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       case 'flashcards':
         return FLASHCARDS_ENABLED ? <div className="mobile-page-zoom mobile-page-zoom--flashcards w-full min-w-0"><DecksPage user={displayedUser} /></div> : null;
       case 'profile':
-        return <div className="mobile-page-zoom mobile-page-zoom--profile desktop-page-zoom desktop-page-zoom--profile"><ProfilePage user={displayedUser} allRegistrosEstudo={mergedAllRegistrosEstudo} onDeleteRegistro={deleteRegistro} coverURL={profileCover.url} coverPosition={profileCover.position} coverLoading={profileCover.loading} levelData={levelData} studyStreak={currentPlanStudyStreak.currentStreak} onGoToAchievements={() => setActiveTab('conquistas')}/></div>;
+        return <div className="mobile-page-zoom mobile-page-zoom--profile desktop-page-zoom desktop-page-zoom--profile"><ProfilePage user={displayedUser} founder={Boolean(displayedUser.founder)} allRegistrosEstudo={mergedAllRegistrosEstudo} onDeleteRegistro={deleteRegistro} coverURL={profileCover.url} coverPosition={profileCover.position} coverLoading={profileCover.loading} levelData={levelData} studyStreak={currentPlanStudyStreak.currentStreak} onGoToAchievements={() => setActiveTab('conquistas')}/></div>;
       case 'noticias':
         return <div className="mobile-page-zoom mobile-page-zoom--noticias desktop-page-zoom desktop-page-zoom--noticias"><NoticiasPage/></div>;
       case 'questoes':
@@ -2412,8 +2650,12 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
     return null;
   }
 
-  if (!coreDataReady || userAccess.isLoading) {
-    return null;
+  if (isAccessBlocking) {
+    return <DashboardBootScreen isOnline={isOnline} timedOut={hydrationTimedOut} />;
+  }
+
+  if (showDashboardBoot) {
+    return <DashboardBootScreen isOnline={isOnline} timedOut={hydrationTimedOut} />;
   }
 
   if (noOfflineData) {
@@ -2421,7 +2663,14 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
   }
 
   return (
-    <div className="relative isolate flex min-h-screen bg-background-light dark:bg-background-dark text-text-primary dark:text-text-dark-primary transition-colors duration-300 overflow-x-hidden">
+    <div
+      style={{
+        '--sidebar-width': isSidebarExpanded ? '208px' : '64px',
+        '--sidebar-offset': isSidebarExpanded ? '220px' : '72px',
+      }}
+      data-sidebar-expanded={isSidebarExpanded ? 'true' : 'false'}
+      className="relative isolate flex min-h-screen bg-background-light dark:bg-background-dark text-text-primary dark:text-text-dark-primary transition-colors duration-300 overflow-x-hidden"
+    >
       <AppBackgroundEffects />
       <XPNotification user={displayedUser} />
       <WarningModal isOpen={warningAlert.isOpen} title={warningAlert.title} message={warningAlert.message} onClose={() => setWarningAlert(p => ({ ...p, isOpen:false }))}/>
@@ -2436,7 +2685,12 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
       </Suspense>
       {activeTab === 'home' && (
         <Suspense fallback={null}>
-          <BroadcastReceiver canShow={!tourState.isActive && !welcomeCarousel.mode} userAccess={userAccess} user={displayedUser}/>
+          <BroadcastReceiver
+            canShow={!tourState.isActive && !welcomeCarousel.mode}
+            userAccess={userAccess}
+            user={displayedUser}
+            broadcasts={eligibleBroadcasts || broadcasts}
+          />
         </Suspense>
       )}
       <DownloadAlert isVisible={isDownloadAlertVisible} onDismiss={() => setIsDownloadAlertVisible(false)}/>
@@ -2463,6 +2717,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
           coverLoading={profileCover.loading}
           levelData={levelData}
           userAccess={userAccess}
+          monetizationConfig={monetizationConfig}
           activeTab={activeTab}
         setActiveTab={handleTabChange}
         onPrefetchTab={preloadRoute}
@@ -2543,7 +2798,7 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
         onClick={handleOpenGlobalRegistro}
         disabled={!hasActiveStudyContext}
         disabledMessage="Ative um ciclo ou cronograma para registrar estudo"
-        hidden={showGlobalRegistroModal || welcomeCarousel.loading || Boolean(welcomeCarousel.mode)}
+        hidden={!hasSubscriptionAccess || showGlobalRegistroModal || welcomeCarousel.loading || Boolean(welcomeCarousel.mode)}
       />
       <PlanningSuccessCelebration />
 
@@ -2567,7 +2822,10 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
             disciplina={activeStudySession.disciplina}
             assunto={activeStudySession.assunto}
             contextHint={activeStudySession.defaultContext || defaultRegistroContext}
+            cycleRoundVersion={activeStudySession.cycleRoundVersion}
             sessaoGlobalIndex={activeStudySession.sessaoGlobalIndex}
+            cronogramaSlotContext={activeStudySession.cronogramaSlotContext}
+            initialRemoteState={activeStudySession.initialRemoteState}
             isMinimized={activeStudySession.isMinimized}
             onStop={handleStopStudyRequest}
             onCancel={handleConfirmCancelStudy}
@@ -2647,8 +2905,10 @@ function Dashboard({ user, isDarkMode, toggleTheme }) {
             addRegistroEstudo={addRegistroEstudo}
             availableContexts={registroContextOptions}
             defaultContext={finishModalData.defaultContext || pendingReviewData?.defaultContext || activeStudySession?.defaultContext || null}
+            cycleRoundVersion={finishModalData.cycleRoundVersion ?? pendingReviewData?.cycleRoundVersion ?? activeStudySession?.cycleRoundVersion ?? null}
             initialTipoRegistro={finishModalData.tipoRegistro || pendingReviewData?.tipoRegistro || 'estudo'}
             sessaoGlobalIndex={finishModalData.sessaoGlobalIndex ?? activeStudySession?.sessaoGlobalIndex ?? null}
+            cronogramaSlotContext={finishModalData.cronogramaSlotContext || pendingReviewData?.cronogramaSlotContext || activeStudySession?.cronogramaSlotContext || null}
             onConfirm={handleConfirmFinishStudy}
             onCancel={handleRetomarEstudo}
             onDiscard={handleConfirmCancelStudy}

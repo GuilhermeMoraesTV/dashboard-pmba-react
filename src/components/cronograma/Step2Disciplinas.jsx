@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   BookOpen, CalendarCheck2, Check, X, HelpCircle, Square, MinusSquare,
@@ -571,6 +572,80 @@ const AssuntosModal = ({
   );
 };
 
+const ConfirmarExclusaoDisciplinaModal = ({ disciplina, onClose, onConfirm }) => {
+  if (!disciplina) return null;
+
+  const totalAssuntos = Array.isArray(disciplina.assuntos) ? disciplina.assuntos.length : 0;
+  const descricaoAssuntos = totalAssuntos === 1
+    ? 'Seu tópico também será removido deste planejamento.'
+    : totalAssuntos > 1
+      ? `Seus ${totalAssuntos} tópicos também serão removidos deste planejamento.`
+      : 'Ela será removida deste planejamento.';
+
+  return createPortal(
+    <AnimatePresence>
+      <motion.div
+        key="confirmar-exclusao-disciplina"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-[100070] flex items-center justify-center bg-zinc-950/65 p-4 backdrop-blur-sm"
+        onClick={onClose}
+      >
+        <motion.div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="titulo-excluir-disciplina"
+          initial={{ opacity: 0, scale: 0.92, y: 18 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.94, y: 12 }}
+          transition={{ type: 'spring', stiffness: 390, damping: 30 }}
+          className="w-full max-w-sm overflow-hidden rounded-3xl border border-red-200 bg-white shadow-2xl shadow-zinc-950/30 dark:border-red-900/50 dark:bg-card-dark"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="relative border-b border-red-100 bg-gradient-to-b from-red-50 to-white px-6 pb-6 pt-7 text-center dark:border-red-900/30 dark:from-red-950/35 dark:to-card-dark">
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Fechar confirmação"
+              className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-xl text-zinc-400 transition-colors hover:bg-white hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-white"
+            >
+              <X size={17} />
+            </button>
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-red-600 text-white shadow-lg shadow-red-600/25 ring-8 ring-red-100/70 dark:ring-red-950/50">
+              <Trash2 size={28} />
+            </div>
+            <h3 id="titulo-excluir-disciplina" className="text-lg font-black text-zinc-950 dark:text-white">
+              Excluir disciplina?
+            </h3>
+            <p className="mt-2 break-words text-sm font-semibold leading-relaxed text-zinc-600 dark:text-zinc-400">
+              Tem certeza de que deseja excluir <span className="font-black text-zinc-900 dark:text-white">“{disciplina.nome}”</span>?
+              {' '}{descricaoAssuntos}
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-3 p-5">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-2xl bg-zinc-100 px-4 py-3 text-xs font-black uppercase tracking-wide text-zinc-700 transition-colors hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={onConfirm}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-red-600 px-4 py-3 text-xs font-black uppercase tracking-wide text-white shadow-lg shadow-red-600/25 transition-colors hover:bg-red-700"
+            >
+              <Trash2 size={14} /> Excluir
+            </button>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>,
+    document.body,
+  );
+};
+
 // ══════════════════════════════════════════════════════════════════════════════
 //  COMPONENTE PRINCIPAL MODO GERAL
 // ══════════════════════════════════════════════════════════════════════════════
@@ -590,6 +665,7 @@ const ModoGeral = ({
 }) => {
   const [nomeNova, setNomeNova] = useState('');
   const [assuntosModal, setAssuntosModal] = useState(null);
+  const [disciplinaParaRemover, setDisciplinaParaRemover] = useState(null);
   const [isAdding, setIsAdding] = useState(false);
 
   const getSelecaoPadrao = () => ({
@@ -655,7 +731,36 @@ const ModoGeral = ({
     onSelecaoChange(novo);
   };
 
-  const remover = (id, isExtra) => { if (isExtra) onExtraDisciplinasChange(extraDisciplinas.filter(d => d.id !== id)); else onDisciplinasChange(disciplinas.filter(d => d.id !== id)); const novaSel = { ...selecao }; delete novaSel[id]; onSelecaoChange(novaSel); };
+  const remover = (id, isExtra) => {
+    if (isExtra) onExtraDisciplinasChange(extraDisciplinas.filter(d => d.id !== id));
+    else onDisciplinasChange(disciplinas.filter(d => d.id !== id));
+
+    const novaSel = { ...selecao };
+    delete novaSel[id];
+    onSelecaoChange(novaSel);
+
+    if (assuntosModal?.id != null && String(assuntosModal.id) === String(id)) {
+      setAssuntosModal(null);
+    }
+
+    if (typeof onDisciplinaTodosDiasChange === 'function') {
+      const idRemovido = String(id);
+      const idsRestantes = idsTodosDias.filter((disciplinaId) => disciplinaId !== idRemovido);
+      if (idsRestantes.length !== idsTodosDias.length) {
+        onDisciplinaTodosDiasChange(idsRestantes);
+      }
+    }
+  };
+  const solicitarRemocao = (id, isExtra) => {
+    const source = isExtra ? extraDisciplinas : disciplinas;
+    const disciplina = source.find((item) => String(item.id) === String(id));
+    if (disciplina) setDisciplinaParaRemover({ ...disciplina, isExtra });
+  };
+  const confirmarRemocao = () => {
+    if (!disciplinaParaRemover) return;
+    remover(disciplinaParaRemover.id, disciplinaParaRemover.isExtra);
+    setDisciplinaParaRemover(null);
+  };
   const editar = (id, novosDados, isExtra) => { if (isExtra) onExtraDisciplinasChange(extraDisciplinas.map(d => d.id === id ? novosDados : d)); else onDisciplinasChange(disciplinas.map(d => d.id === id ? novosDados : d)); };
 
   const adicionarAssunto = (discId, assunto) => {
@@ -824,10 +929,10 @@ const ModoGeral = ({
             ) : (
               <div className="grid grid-cols-1 items-start gap-3 2xl:grid-cols-2">
                 {extraDisciplinas.map(disc => (
-                  <DisciplinaCard key={disc.id} disciplina={disc} isExpanded={false} onToggleExpand={() => abrirAssuntosModal(disc, true)} isExtra={true} estadoDisc={selecao[disc.id]} onToggleDisc={() => handleToggleDisc(disc)} onToggleAssunto={idx => handleToggleAssunto(disc, idx)} onRemover={(id) => remover(id, true)} onEditar={(id, novo) => editar(id, novo, true)} onAdicionarAssunto={adicionarAssunto} onRemoverAssunto={(dId, idx) => removerAssunto(dId, idx, true)} onEditarAssunto={(dId, idx, novo) => editarAssunto(dId, idx, novo, true)} onConhecimentoChange={(id, nivel) => handlePlanningLevelChange(id, 'conhecimentoNivel', nivel)} onImportanciaChange={(id, nivel) => handlePlanningLevelChange(id, 'importanciaNivel', nivel)} canToggleTodosDias={mostrarPreferenciaDiaria} todosDiasAtivo={idsTodosDias.includes(String(disc.id))} onToggleTodosDias={toggleDisciplinaTodosDias} activeStudyDaysCount={activeStudyDaysCount} />
+                  <DisciplinaCard key={disc.id} disciplina={disc} isExpanded={false} onToggleExpand={() => abrirAssuntosModal(disc, true)} isExtra={true} estadoDisc={selecao[disc.id]} onToggleDisc={() => handleToggleDisc(disc)} onToggleAssunto={idx => handleToggleAssunto(disc, idx)} onRemover={(id) => solicitarRemocao(id, true)} onEditar={(id, novo) => editar(id, novo, true)} onAdicionarAssunto={adicionarAssunto} onRemoverAssunto={(dId, idx) => removerAssunto(dId, idx, true)} onEditarAssunto={(dId, idx, novo) => editarAssunto(dId, idx, novo, true)} onConhecimentoChange={(id, nivel) => handlePlanningLevelChange(id, 'conhecimentoNivel', nivel)} onImportanciaChange={(id, nivel) => handlePlanningLevelChange(id, 'importanciaNivel', nivel)} canToggleTodosDias={mostrarPreferenciaDiaria} todosDiasAtivo={idsTodosDias.includes(String(disc.id))} onToggleTodosDias={toggleDisciplinaTodosDias} activeStudyDaysCount={activeStudyDaysCount} />
                 ))}
                 {disciplinas.map(disc => (
-                  <DisciplinaCard key={disc.id} disciplina={disc} isExpanded={false} onToggleExpand={() => abrirAssuntosModal(disc, false)} isExtra={false} estadoDisc={selecao[disc.id]} onToggleDisc={() => handleToggleDisc(disc)} onToggleAssunto={idx => handleToggleAssunto(disc, idx)} onRemover={modoManual ? ((id) => remover(id, false)) : undefined} onEditar={(id, novo) => editar(id, novo, false)} onAdicionarAssunto={adicionarAssunto} onRemoverAssunto={(dId, idx) => removerAssunto(dId, idx, false)} onEditarAssunto={(dId, idx, novo) => editarAssunto(dId, idx, novo, false)} onConhecimentoChange={(id, nivel) => handlePlanningLevelChange(id, 'conhecimentoNivel', nivel)} onImportanciaChange={(id, nivel) => handlePlanningLevelChange(id, 'importanciaNivel', nivel)} canToggleTodosDias={mostrarPreferenciaDiaria} todosDiasAtivo={idsTodosDias.includes(String(disc.id))} onToggleTodosDias={toggleDisciplinaTodosDias} activeStudyDaysCount={activeStudyDaysCount} />
+                  <DisciplinaCard key={disc.id} disciplina={disc} isExpanded={false} onToggleExpand={() => abrirAssuntosModal(disc, false)} isExtra={false} estadoDisc={selecao[disc.id]} onToggleDisc={() => handleToggleDisc(disc)} onToggleAssunto={idx => handleToggleAssunto(disc, idx)} onRemover={(id) => solicitarRemocao(id, false)} onEditar={(id, novo) => editar(id, novo, false)} onAdicionarAssunto={adicionarAssunto} onRemoverAssunto={(dId, idx) => removerAssunto(dId, idx, false)} onEditarAssunto={(dId, idx, novo) => editarAssunto(dId, idx, novo, false)} onConhecimentoChange={(id, nivel) => handlePlanningLevelChange(id, 'conhecimentoNivel', nivel)} onImportanciaChange={(id, nivel) => handlePlanningLevelChange(id, 'importanciaNivel', nivel)} canToggleTodosDias={mostrarPreferenciaDiaria} todosDiasAtivo={idsTodosDias.includes(String(disc.id))} onToggleTodosDias={toggleDisciplinaTodosDias} activeStudyDaysCount={activeStudyDaysCount} />
                 ))}
               </div>
             )}
@@ -851,6 +956,11 @@ const ModoGeral = ({
           onEditarAssunto={(id, idx, novo) => editarAssunto(id, idx, novo, Boolean(assuntosModal?.isExtra))}
         />
       )}
+      <ConfirmarExclusaoDisciplinaModal
+        disciplina={disciplinaParaRemover}
+        onClose={() => setDisciplinaParaRemover(null)}
+        onConfirm={confirmarRemocao}
+      />
     </div>
   );
 };

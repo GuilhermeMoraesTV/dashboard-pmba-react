@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { db } from '../../firebaseConfig';
 import {
-  doc, getDoc, collection, getDocs, query, where,
+  doc, getDoc, collection,
   writeBatch, Timestamp, increment, setDoc, updateDoc, arrayUnion, onSnapshot
 } from 'firebase/firestore';
 import { useLevelSystem } from '../../hooks/useLevelSystem';
@@ -20,6 +20,11 @@ import {
   REVISAO_MODO_SUGESTAO,
   shouldPersistIntervaloRevisao,
 } from '../../utils/cicloReviewMode';
+import { ensureTopicCompletionRecord, hasTopicCompletionRecord } from '../../services/studyRecords/topicCompletion';
+import {
+  getStudyRecordMinutesValidationMessage,
+  getStudyRecordSaveErrorMessage,
+} from '../../services/studyRecords/validation';
 
 // ----------------------------------------------------
 // UTILITÁRIOS
@@ -49,6 +54,11 @@ const dateToYMDLocal = (date = new Date()) => {
   const y = date.getFullYear();
   return `${y}-${m <= 9 ? '0' + m : m}-${d <= 9 ? '0' + d : d}`;
 };
+
+const createSubmissionId = () => (
+  globalThis.crypto?.randomUUID?.().replace(/-/g, '')
+  || `${Date.now()}_${Math.random().toString(36).slice(2)}`
+);
 
 const resolveIntervaloRevisao = (topic) => {
   if (topic?.revisaoEscolhida === 'custom') {
@@ -544,7 +554,9 @@ function TimerFinishModal({
   initialAssunto,
   initialTipoRegistro = 'estudo',
   activeCicloData,
+  cycleRoundVersion = null,
   sessaoGlobalIndex = null,
+  cronogramaSlotContext = null,
 }) {
   const { addXP, checkAndAwardMilestone } = useLevelSystem({ uid: userUid });
 
@@ -554,6 +566,7 @@ function TimerFinishModal({
   );
 
   const [step, setStep] = useState(2);
+  const [submissionId, setSubmissionId] = useState(createSubmissionId);
   const [hasQuestions, setHasQuestions] = useState(true);
   const [topics, setTopics] = useState([{
     id: 'initial',
@@ -582,10 +595,24 @@ function TimerFinishModal({
   const [showSuccessToast, setShowSuccessToast] = useState(false);
   const [revisaoModoCiclo, setRevisaoModoCiclo] = useState(REVISAO_MODO_FLEXIVEL);
   const [tipoRegistro, setTipoRegistro] = useState(initialTipoRegistro === 'revisao' ? 'revisao' : 'estudo');
-  // O destino vem da sessao do timer e nao pode ser trocado na finalizacao.
-  const selectedContext = defaultContext === 'ciclo' || defaultContext === 'cronograma'
-    ? defaultContext
-    : null;
+
+  // Fallback inteligente para garantir que o registro sempre aponte para um planejamento válido ativo
+  const initialContext = useMemo(() => {
+    if (defaultContext === 'ciclo' && (activeCicloId || availableContexts.some((c) => c.type === 'ciclo'))) return 'ciclo';
+    if (defaultContext === 'cronograma' && availableContexts.some((c) => c.type === 'cronograma')) return 'cronograma';
+    if (defaultContext === 'ciclo' || defaultContext === 'cronograma') return defaultContext;
+    if (availableContexts.some((c) => c.type === 'ciclo') && activeCicloId) return 'ciclo';
+    if (availableContexts.some((c) => c.type === 'cronograma')) return 'cronograma';
+    return availableContexts[0]?.type || null;
+  }, [defaultContext, activeCicloId, availableContexts]);
+
+  const [selectedContext, setSelectedContext] = useState(initialContext);
+
+  useEffect(() => {
+    if (initialContext && initialContext !== selectedContext) {
+      setSelectedContext(initialContext);
+    }
+  }, [initialContext]);
 
   const draftLoadedRef = useRef(false);
 
@@ -615,6 +642,13 @@ function TimerFinishModal({
   const selectedCronogramaId = selectedContext === 'cronograma'
     ? (selectedContextMeta?.id || null)
     : null;
+  const selectedCycleRoundVersion = selectedContext === 'ciclo'
+    && cycleRoundVersion !== null
+    && cycleRoundVersion !== undefined
+    && cycleRoundVersion !== ''
+    && Number.isInteger(Number(cycleRoundVersion))
+    ? Number(cycleRoundVersion)
+    : null;
   const contextDisciplines = useMemo(
     () => (Array.isArray(selectedContextMeta?.disciplinas) ? selectedContextMeta.disciplinas : []),
     [selectedContextMeta]
@@ -642,8 +676,8 @@ function TimerFinishModal({
     }
 
     setTopics((prev) => prev.map((topic) => (
-      topic.markAsFinished || topic.teoriaNaoFinalizadaCiclo
-        ? { ...topic, markAsFinished: false, teoriaNaoFinalizadaCiclo: false }
+      topic.teoriaNaoFinalizadaCiclo
+        ? { ...topic, teoriaNaoFinalizadaCiclo: false }
         : topic
     )));
   }, [selectedContext]);
@@ -702,7 +736,12 @@ function TimerFinishModal({
 
   // Handler de assunto com suporte a criar novo
   const handleAssuntoChange = useCallback((index, newValue) => {
-    updateTopicData(index, { assunto: newValue });
+    updateTopicData(index, {
+      assunto: newValue,
+      markAsFinished: false,
+      teoriaNaoFinalizadaCiclo: false,
+      naoConcluidoCronograma: false,
+    });
     // Se não está na lista existente, adiciona aos extras
     const exists = assuntoOptions.some(o => o.value === newValue);
     if (!exists && newValue.trim()) {
@@ -788,6 +827,7 @@ function TimerFinishModal({
         setStep(2);
         setHasQuestions(true);
         if (Array.isArray(raw.topics)) setTopics(raw.topics);
+        if (/^[A-Za-z0-9_-]{8,180}$/.test(String(raw.submissionId || ''))) setSubmissionId(raw.submissionId);
         if (raw.disciplinaManual) setDisciplinaManual(raw.disciplinaManual);
         if (Array.isArray(raw.assuntosExtras)) setAssuntosExtras(raw.assuntosExtras);
       } else {
@@ -808,10 +848,11 @@ function TimerFinishModal({
         topics,
         disciplinaManual,
         assuntosExtras,
+        submissionId,
       }));
     }, 500);
     return () => clearTimeout(timer);
-  }, [step, hasQuestions, topics, disciplinaManual, assuntosExtras, draftKey, isSubmitting]);
+  }, [step, hasQuestions, topics, disciplinaManual, assuntosExtras, submissionId, draftKey, isSubmitting]);
 
   // Carrega TODAS as disciplinas da sub-coleção com onSnapshot (reage a mudanças em tempo real)
   useEffect(() => {
@@ -854,22 +895,25 @@ function TimerFinishModal({
   }, [disciplinasDisponiveis, disciplinaManual, disciplinaNome]);
 
   const checkTopicFinished = useCallback(async (topicName, index) => {
-    if (!topicName || !activeCicloId || !userUid) return;
+    const contextId = selectedContext === 'cronograma' ? selectedCronogramaId : activeCicloId;
+    if (!selectedContext || !topicName || !contextId || !userUid) return;
     try {
-      const q = query(
-        collection(db, 'users', userUid, 'registrosEstudo'),
-        where('cicloId', '==', activeCicloId),
-        where('assunto', '==', topicName),
-        where('tipoEstudo', '==', 'check_manual')
-      );
-      const snap = await getDocs(q);
-      if (!snap.empty) updateTopicData(index, { markAsFinished: true });
+      const finalDiscName = disciplinaManual || disciplinaNome;
+      const discObj = disciplinasDisponiveis.find((disciplina) => normalize(disciplina.nome) === normalize(finalDiscName));
+      if (await hasTopicCompletionRecord({
+        db,
+        userUid,
+        contextoRegistro: selectedContext,
+        contextId,
+        disciplinaId: discObj?.id || finalDiscName,
+        disciplinaNome: finalDiscName,
+        assunto: topicName,
+      })) updateTopicData(index, { markAsFinished: true });
     } catch (e) {
       console.error(e);
     }
-  }, [activeCicloId, userUid, updateTopicData]);
-
-  // Ref para evitar dependência circular no handleAssuntoChange
+  }, [activeCicloId, selectedCronogramaId, selectedContext, userUid, updateTopicData, disciplinaManual, disciplinaNome, disciplinasDisponiveis]);
+    // Ref para evitar dependência circular no handleAssuntoChange
   const checkTopicFinishedRef = useRef(checkTopicFinished);
   useEffect(() => { checkTopicFinishedRef.current = checkTopicFinished; }, [checkTopicFinished]);
 
@@ -898,20 +942,48 @@ function TimerFinishModal({
     if (isSubmitting) return;
     setErrorMessage('');
 
-    if (!selectedContext) {
-      setErrorMessage('Nao foi possivel identificar o planejamento de origem deste timer. Retome a sessao e tente novamente.');
-      return;
+    let contextToUse = selectedContext;
+    if (!contextToUse) {
+      const fallback = availableContexts.find(c => (c.type === 'ciclo' && activeCicloId) || (c.type === 'cronograma' && c.id));
+      if (fallback) {
+        contextToUse = fallback.type;
+        setSelectedContext(fallback.type);
+      } else {
+        setErrorMessage('Nao foi possivel identificar o planejamento de origem deste timer. Retome a sessao e tente novamente.');
+        return;
+      }
     }
-    if (selectedContext === 'ciclo' && !activeCicloId) {
-      setErrorMessage('O ciclo de origem deste timer nao esta disponivel.');
-      return;
+    if (contextToUse === 'ciclo' && !activeCicloId) {
+      const cronoAvailable = availableContexts.find(c => c.type === 'cronograma');
+      if (cronoAvailable) {
+        contextToUse = 'cronograma';
+        setSelectedContext('cronograma');
+      } else {
+        setErrorMessage('O ciclo de origem deste timer nao esta disponivel.');
+        return;
+      }
     }
-    if (selectedContext === 'cronograma' && !selectedCronogramaId) {
-      setErrorMessage('Cronograma ativo obrigatório para registrar neste contexto.');
-      return;
+    if (contextToUse === 'cronograma' && !selectedCronogramaId) {
+      const cicloAvailable = activeCicloId ? availableContexts.find(c => c.type === 'ciclo') : null;
+      if (cicloAvailable) {
+        contextToUse = 'ciclo';
+        setSelectedContext('ciclo');
+      } else {
+        setErrorMessage('Cronograma ativo obrigatório para registrar neste contexto.');
+        return;
+      }
     }
+
     if (topics.some(t => !t.assunto)) {
       setErrorMessage('Selecione ou crie o assunto para todos os itens.');
+      return;
+    }
+    if (
+      selectedContext === 'cronograma' &&
+      tipoRegistro !== 'revisao' &&
+      topics.some((topic) => !topic.markAsFinished && !topic.naoConcluidoCronograma)
+    ) {
+      setErrorMessage('Informe se concluiu cada assunto ou se deseja continuar na próxima sessão.');
       return;
     }
     if (selectedContext === 'ciclo' && tipoRegistro !== 'revisao' && topics.some((t) => t.revisaoEscolhida === null)) {
@@ -928,6 +1000,11 @@ function TimerFinishModal({
     }
     if (!isTimeBalanced) {
       setErrorMessage(`Erro de balanceamento: ${totalAllocatedTime}m vs ${timeMinutes}m.`);
+      return;
+    }
+    const invalidTopic = topics.find((topic) => getStudyRecordMinutesValidationMessage(topic.minutes));
+    if (invalidTopic) {
+      setErrorMessage(getStudyRecordMinutesValidationMessage(invalidTopic.minutes));
       return;
     }
 
@@ -947,7 +1024,6 @@ function TimerFinishModal({
         let totalCorrect = 0;
         const saveTasks = [];
         const postSaveTasks = [];
-        const hasPendingCicloTopic = selectedContext === 'ciclo' && tipoRegistro !== 'revisao' && topics.some((topic) => topic.teoriaNaoFinalizadaCiclo);
 
         for (const t of topics) {
           const qs = Number(t.questions) || 0;
@@ -959,6 +1035,7 @@ function TimerFinishModal({
           const intervaloRevisaoResolvido = resolveIntervaloRevisao(t);
           saveTasks.push(addRegistroEstudo({
             ...(selectedContext === 'ciclo' && activeCicloId ? { cicloId: activeCicloId } : {}),
+            ...(selectedContext === 'ciclo' ? { cicloRoundVersion: selectedCycleRoundVersion } : {}),
             ...(selectedContext === 'cronograma' && selectedCronogramaId ? { cronogramaId: selectedCronogramaId } : {}),
             ...(selectedContext ? { contextoRegistro: selectedContext } : {}),
             ...(selectedContext === 'ciclo' && cicloNome ? { cicloNome } : {}),
@@ -976,7 +1053,10 @@ function TimerFinishModal({
             tipoRegistro,
             ...(tipoRegistro === 'revisao' ? { isRevisao: true, revisao: true } : {}),
             origem: 'timer',
-            ...(!hasPendingCicloTopic && Number.isFinite(Number(sessaoGlobalIndex)) ? { sessaoGlobalIndex: Number(sessaoGlobalIndex) } : {}),
+            ...(selectedContext === 'ciclo' && tipoRegistro !== 'revisao'
+              ? { cycleProgressOperationId: `${submissionId}_${String(t.id).replace(/[^A-Za-z0-9_-]/g, '_')}` }
+              : {}),
+            ...(selectedContext === 'ciclo' && Number.isFinite(Number(sessaoGlobalIndex)) ? { sessaoGlobalIndex: Number(sessaoGlobalIndex) } : {}),
             ...(tipoRegistro !== 'revisao' && shouldPersistIntervaloRevisao(selectedContext, intervaloRevisaoResolvido)
               ? { intervaloRevisaoDias: intervaloRevisaoResolvido }
               : {}),
@@ -985,43 +1065,37 @@ function TimerFinishModal({
               : {}),
             ...(tipoRegistro !== 'revisao' && selectedContext === 'ciclo' && t.markAsFinished ? { assuntoFinalizadoCiclo: true, markAsFinished: true } : {}),
             ...(tipoRegistro !== 'revisao' && selectedContext === 'ciclo' && t.teoriaNaoFinalizadaCiclo ? { teoriaNaoFinalizadaCiclo: true } : {}),
+            ...(tipoRegistro !== 'revisao' && selectedContext === 'cronograma' && t.markAsFinished ? { markAsFinished: true, assuntoFinalizado: true } : {}),
             ...(tipoRegistro !== 'revisao' && selectedContext === 'cronograma' && t.naoConcluidoCronograma ? { naoConcluidoCronograma: true } : {}),
+            ...(tipoRegistro !== 'revisao' && selectedContext === 'cronograma' && cronogramaSlotContext ? {
+              cronogramaSlotIdBase: cronogramaSlotContext.slotIdBase || null,
+              cronogramaSlotId: cronogramaSlotContext.slotId || null,
+              cronogramaSlotData: cronogramaSlotContext.dataSlot || null,
+              cronogramaSlotOrdem: cronogramaSlotContext.ordemNoDia ?? null,
+              cronogramaSlotHora: cronogramaSlotContext.hora ?? null,
+              cronogramaAssuntoOriginal: cronogramaSlotContext.assuntoOriginal || t.assunto,
+            } : {}),
           }));
 
           let xp = (Number(t.minutes) || 0) + qs + ac;
           if (qs >= 5 && (ac / qs) >= 0.85) xp += 15;
           totalXP += xp;
 
-          if (tipoRegistro !== 'revisao' && selectedContext === 'ciclo' && t.markAsFinished) {
-            postSaveTasks.push((async () => {
-              const q = query(
-                collection(db, 'users', userUid, 'registrosEstudo'),
-                where('cicloId', '==', activeCicloId),
-                where('assunto', '==', t.assunto),
-                where('tipoEstudo', '==', 'check_manual')
-              );
-              const snap = await getDocs(q);
-              if (snap.empty) {
-                await setDoc(doc(collection(db, 'users', userUid, 'registrosEstudo')), {
-                  cicloId: activeCicloId,
-                  ...(cicloNome ? { cicloNome } : {}),
-                  ...(cicloTipo ? { cicloTipo } : {}),
-                  contextoRegistro: 'ciclo',
-                  disciplinaId: finalDiscId,
-                  disciplinaNome: finalDiscName,
-                  assunto: t.assunto,
-                  data: today,
-                  tempoEstudadoMinutos: 0,
-                  duracaoMinutos: 0,
-                  questoesFeitas: 0,
-                  acertos: 0,
-                  questoesAcertadas: 0,
-                  tipoEstudo: 'check_manual',
-                  obs: 'Concluído via Timer',
-                  origem: 'timer'
-                });
-              }
-            })());
+          if (t.markAsFinished && (selectedContext === 'ciclo' || selectedContext === 'cronograma')) {
+            postSaveTasks.push(ensureTopicCompletionRecord({
+              db,
+              userUid,
+              contextoRegistro: selectedContext,
+              contextId: selectedContext === 'cronograma' ? selectedCronogramaId : activeCicloId,
+              disciplinaId: finalDiscId,
+              disciplinaNome: finalDiscName,
+              assunto: t.assunto,
+              data: today,
+              obs: 'Concluído via Timer',
+              origem: 'timer',
+              cicloNome,
+              cicloTipo,
+            }));
           }
         }
 
@@ -1061,13 +1135,13 @@ function TimerFinishModal({
           savedInternal: true
         };
 
+        await Promise.all(saveTasks);
         setShowSuccessToast(true);
         localStorage.removeItem(draftKey);
 
         if (onConfirm) onConfirm(summaryPayload);
         window.dispatchEvent(new CustomEvent('StudyTimer:FinishFinalize', { detail: { uid: userUid } }));
-        void Promise.all(saveTasks)
-          .then(() => Promise.allSettled(postSaveTasks))
+        void Promise.allSettled(postSaveTasks)
           .then((results) => {
             results.forEach((result) => {
               if (result.status === 'rejected') console.error('[TimerFinishModal] Erro em pos-registro:', result.reason);
@@ -1110,6 +1184,7 @@ function TimerFinishModal({
 
         batch.set(newDocRef, {
           cicloId: activeCicloId,
+          cicloRoundVersion: selectedCycleRoundVersion,
           ...(cicloNome ? { cicloNome } : {}),
           ...(cicloTipo ? { cicloTipo } : {}),
           disciplinaId: finalDiscId,
@@ -1134,6 +1209,7 @@ function TimerFinishModal({
           const checkRef = doc(collectionRef);
           batch.set(checkRef, {
             cicloId: activeCicloId,
+            cicloRoundVersion: selectedCycleRoundVersion,
             ...(cicloNome ? { cicloNome } : {}),
             ...(cicloTipo ? { cicloTipo } : {}),
             disciplinaId: finalDiscId,
@@ -1214,8 +1290,7 @@ function TimerFinishModal({
       }, 1500);
 
     } catch (err) {
-      console.error('[TimerFinishModal] Erro ao salvar:', err);
-      setErrorMessage('Erro ao salvar. Tente novamente.');
+      setErrorMessage(getStudyRecordSaveErrorMessage(err));
       setIsSubmitting(false);
     }
   };
@@ -1446,7 +1521,13 @@ function TimerFinishModal({
                         </div>
                       )}
                       <div className="grid grid-cols-1 gap-3 md:gap-2.5">
-                        <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(158px,0.52fr)] gap-2 md:gap-2.5 content-start">
+                        <div className={`grid grid-cols-1 gap-2 md:gap-2.5 content-start ${
+                          selectedContext === 'cronograma' && tipoRegistro !== 'revisao'
+                            ? 'sm:grid-cols-2'
+                            : selectedContext === 'ciclo' && tipoRegistro !== 'revisao'
+                              ? 'md:grid-cols-[minmax(0,1fr)_minmax(158px,0.52fr)]'
+                              : ''
+                        }`}>
                           {/* ── ASSUNTO ComboBox ── */}
                           <div className={`${topics.length === 1 ? 'hidden' : 'space-y-1 md:space-y-0.5'} relative z-50 md:col-span-2`}>
                             <label className="registro-small-label text-[9px] uppercase tracking-[0.2em] flex items-center justify-between">
@@ -1525,23 +1606,49 @@ function TimerFinishModal({
                             </div>
                           )}
 
-                          {selectedContext === 'ciclo' && tipoRegistro !== 'revisao' && topic.assunto && (
-                            <div
-                              onClick={() => updateTopicData(index, { markAsFinished: !topic.markAsFinished, teoriaNaoFinalizadaCiclo: false })}
-                              className={`relative w-full min-h-[44px] overflow-hidden flex items-center gap-2.5 px-3 py-2 rounded-xl border cursor-pointer transition-all duration-300 text-left md:col-start-2 ${topic.markAsFinished ? 'bg-emerald-600 border-emerald-500 text-white shadow-sm' : 'bg-emerald-50/70 dark:bg-emerald-950/25 border-emerald-200 dark:border-emerald-800/60 hover:border-emerald-400 dark:hover:border-emerald-500 text-zinc-700 dark:text-zinc-300'}`}
+                          {selectedContext === 'cronograma' && tipoRegistro !== 'revisao' && topic.assunto && (
+                            <div className="sm:col-span-2">
+                              <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-700 dark:text-zinc-200">
+                                Você concluiu este assunto?
+                              </p>
+                              <p className="mt-0.5 text-[9px] font-semibold leading-snug text-zinc-400 dark:text-zinc-500">
+                                Os minutos serão registrados em qualquer opção.
+                              </p>
+                            </div>
+                          )}
+
+                          {(selectedContext === 'ciclo' || selectedContext === 'cronograma') && topic.assunto && (
+                            <button
+                              type="button"
+                              onClick={() => updateTopicData(index, {
+                                markAsFinished: !topic.markAsFinished,
+                                teoriaNaoFinalizadaCiclo: false,
+                                naoConcluidoCronograma: false,
+                              })}
+                              className={`relative w-full min-h-[44px] overflow-hidden flex items-center gap-2.5 px-3 py-2 rounded-xl border cursor-pointer transition-all duration-300 text-left ${selectedContext === 'ciclo' && tipoRegistro !== 'revisao' ? 'md:col-start-2' : ''} ${topic.markAsFinished ? 'bg-emerald-600 border-emerald-500 text-white shadow-sm' : 'bg-emerald-50/70 dark:bg-emerald-950/25 border-emerald-200 dark:border-emerald-800/60 hover:border-emerald-400 dark:hover:border-emerald-500 text-zinc-700 dark:text-zinc-300'}`}
                             >
                               <div className={`relative w-7 h-7 md:h-6 md:w-6 rounded-lg border-2 flex items-center justify-center transition-all duration-300 shrink-0 ${topic.markAsFinished ? 'bg-white border-white text-emerald-600 scale-105 shadow-sm' : 'bg-white/70 dark:bg-card-dark/70 border-emerald-400 dark:border-emerald-600 text-emerald-500'}`}>
                                 {topic.markAsFinished ? <CheckSquare size={15} strokeWidth={3} /> : <CheckCircle2 size={15} strokeWidth={3} />}
                               </div>
                               <div className="relative min-w-0">
                                 <p className={`text-[10px] font-black uppercase tracking-tight leading-tight ${topic.markAsFinished ? 'text-white' : 'text-emerald-700 dark:text-emerald-300'}`}>
-                                  {topic.markAsFinished ? 'Tópico Concluído' : 'Marcar como Concluído'}
+                                  {topic.markAsFinished
+                                    ? 'Assunto concluído'
+                                    : tipoRegistro === 'revisao'
+                                      ? 'Marcar como concluído'
+                                      : 'Concluí o assunto'}
                                 </p>
-                                <p className="text-[10px] text-zinc-500 mt-0.5">
-                                  {topic.markAsFinished ? 'Assunto finalizado.' : 'Clique para finalizar.'}
+                                <p className={`mt-0.5 text-[10px] ${topic.markAsFinished ? 'text-white/85' : 'text-zinc-500'}`}>
+                                  {tipoRegistro === 'revisao'
+                                    ? (topic.markAsFinished
+                                      ? 'A revisão será salva e o assunto será marcado como concluído.'
+                                      : 'A revisão será salva normalmente; a conclusão é opcional.')
+                                    : selectedContext === 'cronograma'
+                                    ? (topic.markAsFinished ? 'Ao salvar, será marcado no Edital e o cronograma avançará.' : 'Ao salvar: marcar no Edital e avançar o cronograma.')
+                                    : (topic.markAsFinished ? 'Assunto finalizado.' : 'Clique para finalizar.')}
                                 </p>
                               </div>
-                            </div>
+                            </button>
                           )}
                           {selectedContext === 'ciclo' && tipoRegistro !== 'revisao' && topic.assunto && (
                             <div
@@ -1562,22 +1669,26 @@ function TimerFinishModal({
                             </div>
                           )}
                           {selectedContext === 'cronograma' && tipoRegistro !== 'revisao' && topic.assunto && (
-                            <div
-                              onClick={() => updateTopicData(index, { naoConcluidoCronograma: !topic.naoConcluidoCronograma })}
-                              className={`w-full min-h-[44px] flex items-center gap-2.5 px-3 py-2 rounded-xl border cursor-pointer transition-all duration-300 text-left md:col-start-2 ${topic.naoConcluidoCronograma ? 'bg-amber-500 border-amber-500 text-white shadow-sm' : 'bg-amber-50/50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800/50 hover:border-amber-400 dark:hover:border-amber-600 text-zinc-700 dark:text-zinc-300'}`}
+                            <button
+                              type="button"
+                              onClick={() => updateTopicData(index, {
+                                naoConcluidoCronograma: !topic.naoConcluidoCronograma,
+                                markAsFinished: false,
+                              })}
+                              className={`w-full min-h-[44px] flex items-center gap-2.5 px-3 py-2 rounded-xl border cursor-pointer transition-all duration-300 text-left ${topic.naoConcluidoCronograma ? 'bg-amber-500 border-amber-500 text-white shadow-sm' : 'bg-amber-50/50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800/50 hover:border-amber-400 dark:hover:border-amber-600 text-zinc-700 dark:text-zinc-300'}`}
                             >
                               <div className={`w-5 h-5 rounded-[6px] border-2 flex items-center justify-center shrink-0 transition-all duration-300 ${topic.naoConcluidoCronograma ? 'bg-white border-white text-amber-500 scale-105' : 'border-amber-400 dark:border-amber-600 text-transparent'}`}>
                                 {topic.naoConcluidoCronograma && <AlertTriangle size={12} strokeWidth={3} />}
                               </div>
                               <div className="min-w-0">
                                 <p className={`text-[10px] font-black uppercase tracking-tight leading-tight ${topic.naoConcluidoCronograma ? 'text-white' : 'text-amber-700 dark:text-amber-400'}`}>
-                                  {topic.naoConcluidoCronograma ? 'Teoria ainda não concluída' : 'Marcar teoria ainda não concluída'}
+                                  {topic.naoConcluidoCronograma ? 'Continuação reservada' : 'Continuar na próxima sessão'}
                                 </p>
-                                <p className="hidden text-[10px] text-zinc-500 mt-0.5">
-                                  {topic.naoConcluidoCronograma ? 'Esse assunto volta no próximo slot elegível do cronograma.' : 'Use quando o registro precisa voltar como pendência de teoria.'}
+                                <p className={`text-[10px] mt-0.5 ${topic.naoConcluidoCronograma ? 'text-white/85' : 'text-zinc-500'}`}>
+                                  {topic.naoConcluidoCronograma ? 'Este assunto será o próximo desta disciplina.' : 'Registrar a sessão sem perder este assunto.'}
                                 </p>
                               </div>
-                            </div>
+                            </button>
                           )}
                         </div>
 

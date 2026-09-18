@@ -46,6 +46,53 @@ const { migrateLegacyFlashcardsPage } = require('../functions/flashcards/adminMi
 const projectId = 'dashboard-pmba';
 let environment;
 
+test('identidade do planejamento exige etapa vigente gravada no mesmo batch', async () => {
+  const uid = 'planning-transform-owner';
+  const ownerDb = environment.authenticatedContext(uid).firestore();
+  const cycleRef = doc(ownerDb, 'users', uid, 'ciclos', 'cycle-1');
+  const scheduleRef = doc(ownerDb, 'users', uid, 'cronogramas', 'cycle-1');
+  const planningRef = doc(ownerDb, 'users', uid, 'planejamentos', 'cycle-1');
+  const initial = writeBatch(ownerDb);
+  initial.set(cycleRef, { nome: 'PMBA', ativo: true, planejamentoId: 'cycle-1' });
+  initial.set(planningRef, {
+    nome: 'PMBA', metodoVigente: 'ciclo', etapaVigenteId: 'cycle-1',
+    etapas: [{ metodo: 'ciclo', id: 'cycle-1', inicioEm: '2026-09-15T00:00:00.000Z' }],
+  });
+  await assertSucceeds(initial.commit());
+
+  await assertFails(updateDoc(planningRef, { metodoVigente: 'cronograma' }));
+  const conversion = writeBatch(ownerDb);
+  conversion.set(scheduleRef, { nome: 'PMBA', ativo: true, planejamentoId: 'cycle-1', semanaTemplate: [] });
+  conversion.update(cycleRef, { ativo: false, metodoVigente: 'cronograma', cronogramaVinculadoId: 'cycle-1' });
+  conversion.update(planningRef, {
+    metodoVigente: 'cronograma', etapaVigenteId: 'cycle-1',
+    etapas: [
+      { metodo: 'ciclo', id: 'cycle-1', inicioEm: '2026-09-15T00:00:00.000Z' },
+      { metodo: 'cronograma', id: 'cycle-1', inicioEm: '2026-09-15T12:00:00.000Z' },
+    ],
+  });
+  await assertSucceeds(conversion.commit());
+  assert.equal((await getDoc(planningRef)).data().metodoVigente, 'cronograma');
+  await assertFails(updateDoc(cycleRef, { ativo: true }));
+  const newCycleRef = doc(ownerDb, 'users', uid, 'ciclos', 'cycle-1-ciclo-2');
+  const returnBatch = writeBatch(ownerDb);
+  returnBatch.set(newCycleRef, { nome: 'PMBA', ativo: true,
+    planejamentoId: 'cycle-1', metodoVigente: 'ciclo' });
+  returnBatch.update(scheduleRef, { ativo: false, metodoVigente: 'ciclo' });
+  returnBatch.update(planningRef, {
+    metodoVigente: 'ciclo', etapaVigenteId: 'cycle-1-ciclo-2',
+    etapas: [
+      { metodo: 'ciclo', id: 'cycle-1', inicioEm: '2026-09-15T00:00:00.000Z' },
+      { metodo: 'cronograma', id: 'cycle-1', inicioEm: '2026-09-15T12:00:00.000Z' },
+      { metodo: 'ciclo', id: 'cycle-1-ciclo-2', inicioEm: '2026-09-15T15:00:00.000Z' },
+    ],
+  });
+  await assertSucceeds(returnBatch.commit());
+  await assertFails(updateDoc(scheduleRef, { ativo: true }));
+  const strangerDb = environment.authenticatedContext('planning-stranger').firestore();
+  await assertFails(getDoc(doc(strangerDb, 'users', uid, 'planejamentos', 'cycle-1')));
+});
+
 test('lease da importação Anki é privado do backend, inclusive contra o wildcard legado', async () => {
   const db = environment.authenticatedContext('anki-lock-owner').firestore();
   const ref = doc(db, 'users', 'anki-lock-owner', 'anki_import_locks', 'active');
@@ -1040,6 +1087,25 @@ test('fontes acadêmicas validam dono, limites e coerência antes da gamificaç�
   await assertFails(setDoc(doc(strangerDb, 'users', 'owner-user', 'registrosEstudo', 'idor-record'), validRecord));
   await assertFails(setDoc(doc(adminDb, 'users', 'owner-user', 'registrosEstudo', 'browser-admin-record'), validRecord));
 
+  const protectedCycleRecord = {
+    ...validRecord,
+    contextoRegistro: 'ciclo',
+    cicloId: 'cycle-1',
+    cicloRoundVersion: 0,
+    cycleProgressContractVersion: 1,
+    cycleProgressOperationId: 'operation_cycle_0001',
+    cycleProgressAllocations: { 0: { minutes: 50, plannedMinutes: 50 } },
+  };
+  await assertFails(setDoc(doc(ownerDb, 'users', 'owner-user', 'registrosEstudo', 'legacy-cycle-record'), {
+    ...validRecord,
+    contextoRegistro: 'ciclo',
+    cicloId: 'cycle-1',
+    cicloRoundVersion: 0,
+  }));
+  const protectedRecordRef = doc(ownerDb, 'users', 'owner-user', 'registrosEstudo', 'cycle_operation_cycle_0001');
+  await assertSucceeds(setDoc(protectedRecordRef, protectedCycleRecord));
+  await assertFails(setDoc(protectedRecordRef, protectedCycleRecord));
+
   const validSimulation = {
     uid: 'owner-user',
     data: '2026-08-28',
@@ -1072,10 +1138,35 @@ test('rodada de ciclo exige incremento atômico e carimbo do servidor', async ()
   await assertFails(setDoc(roundRef, roundPayload));
 
   const batch = writeBatch(ownerDb);
-  batch.update(cycleRef, { conclusoes: 1 });
+  batch.update(cycleRef, {
+    conclusoes: 1,
+    roundIdentityVersion: 1,
+    cycleProgressContractVersion: 1,
+    lastCycleProgressOperationId: 'close:rodada-000001',
+  });
   batch.set(roundRef, roundPayload);
   await assertSucceeds(batch.commit());
   await assertFails(updateDoc(roundRef, { cargaPlanejadaMinutos: 1 }));
+});
+
+test('cliente antigo não pode fabricar progresso ou conclusão do ciclo', async () => {
+  const ownerDb = environment.authenticatedContext('owner-user').firestore();
+  const cycleRef = doc(ownerDb, 'users', 'owner-user', 'ciclos', 'cycle-1');
+  await assertFails(updateDoc(cycleRef, {
+    progressoSessoes: { 0: 50 },
+    sessoesConcluidas: [0],
+  }));
+  await assertSucceeds(updateDoc(cycleRef, {
+    progressoSessoes: { 0: 50 },
+    sessoesConcluidas: [0],
+    roundIdentityVersion: 1,
+    cycleProgressContractVersion: 1,
+    lastCycleProgressOperationId: 'operation:cycle-progress-0001',
+  }));
+  await assertFails(updateDoc(cycleRef, {
+    progressoSessoes: { 0: 100 },
+    sessoesConcluidas: [0, 1],
+  }));
 });
 
 test('gamificação permite leitura própria e bloqueia autoatribuição de XP e conquistas', async () => {
@@ -2878,4 +2969,91 @@ test('Chat: backend sincroniza membership e entrega menção idempotente só aos
   const meta = (await adminDb.collection('study_groups').doc(groupId).collection('chat_meta').doc('current').get()).data();
   assert.equal(meta.memberIds.includes('chat-member'), false);
   assert.equal((await adminDb.collection('users').doc('chat-member').collection('group_chat_states').doc(groupId).get()).exists, false);
+});
+
+test('Enquetes Broadcast: regras de segurança para votação, sigilo parcial e apuração admin', async () => {
+  const adminDb = admin.firestore();
+  const pollId = 'poll-security-test-1';
+  const openPoll = {
+    id: pollId,
+    title: 'Qual tema revisar amanhã?',
+    type: 'poll',
+    status: 'open',
+    options: [
+      { id: 'opt_1', text: 'Direito Constitucional' },
+      { id: 'opt_2', text: 'Direito Penal' },
+    ],
+    optionIds: ['opt_1', 'opt_2'],
+    audienceMode: 'all',
+    active: true,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  };
+
+  await adminDb.collection('system_broadcasts').doc(pollId).set(openPoll);
+
+  const studentUid = 'poll-student-1';
+  const studentDb = environment.authenticatedContext(studentUid).firestore();
+  const adminUserDb = environment.authenticatedContext('admin-user').firestore();
+
+  // 1. Aluno lê broadcast
+  const broadcastSnap = await assertSucceeds(getDoc(doc(studentDb, 'system_broadcasts', pollId)));
+  assert.equal(broadcastSnap.exists(), true);
+
+  // 2. Aluno não pode ler resultados enquanto enquete estiver aberta
+  await assertFails(getDoc(doc(studentDb, 'system_broadcast_poll_results', pollId)));
+
+  // 3. Admin pode ler resultados mesmo com enquete aberta
+  await assertSucceeds(getDoc(doc(adminUserDb, 'system_broadcast_poll_results', pollId)));
+
+  // 4. Aluno vota criando resposta e inicializando/incrementando resumo em lote
+  const answerRef = doc(studentDb, 'users', studentUid, 'broadcast_poll_answers', pollId);
+  const resultsRef = doc(studentDb, 'system_broadcast_poll_results', pollId);
+
+  const batch = writeBatch(studentDb);
+  batch.set(answerRef, {
+    pollId,
+    uid: studentUid,
+    optionId: 'opt_1',
+    respondedAt: serverTimestamp(),
+  });
+  batch.set(resultsRef, {
+    pollId,
+    responseCount: 1,
+    optionCounts: { opt_1: 1 },
+    createdAt: serverTimestamp(),
+  });
+  await assertSucceeds(batch.commit());
+
+  // 5. Aluno não pode alterar ou deletar seu voto (imutabilidade)
+  await assertFails(updateDoc(answerRef, { optionId: 'opt_2' }));
+  await assertFails(deleteDoc(answerRef));
+
+  // 6. Outro aluno não pode ler a resposta individual do aluno
+  const otherStudentDb = environment.authenticatedContext('poll-student-2').firestore();
+  await assertFails(getDoc(doc(otherStudentDb, 'users', studentUid, 'broadcast_poll_answers', pollId)));
+
+  // 7. Encerra a enquete
+  await adminDb.collection('system_broadcasts').doc(pollId).update({ status: 'closed' });
+
+  // 8. Agora o aluno consegue ler o resumo de resultados
+  await assertSucceeds(getDoc(doc(studentDb, 'system_broadcast_poll_results', pollId)));
+
+  // 9. Com enquete encerrada, novo voto é rejeitado
+  const student2Ref = doc(otherStudentDb, 'users', 'poll-student-2', 'broadcast_poll_answers', pollId);
+  await assertFails(setDoc(student2Ref, {
+    pollId,
+    uid: 'poll-student-2',
+    optionId: 'opt_2',
+    respondedAt: serverTimestamp(),
+  }));
+
+  // 10. Admin pode fazer consulta collectionGroup para listar respondentes nominais
+  const cgQuery = query(collectionGroup(adminUserDb, 'broadcast_poll_answers'), where('pollId', '==', pollId));
+  const cgSnap = await assertSucceeds(getDocs(cgQuery));
+  assert.equal(cgSnap.size, 1);
+
+  // Aluno comum não pode fazer consulta collectionGroup
+  const studentCgQuery = query(collectionGroup(studentDb, 'broadcast_poll_answers'), where('pollId', '==', pollId));
+  await assertFails(getDocs(studentCgQuery));
 });

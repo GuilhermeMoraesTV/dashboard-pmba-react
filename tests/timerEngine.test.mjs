@@ -3,11 +3,63 @@ import assert from 'node:assert/strict';
 import {
   claimTimerHeartbeatLease,
   formatTimerClock,
+  deriveRestoredTimerState,
   isValidTimerElapsedMs,
   parseTimerJson,
   reduceTimerState,
   releaseTimerHeartbeatLease,
 } from '../src/hooks/useTimerEngine.js';
+
+test('restaura imediatamente um cronometro livre em andamento', () => {
+  const restored = deriveRestoredTimerState({
+    status: 'running',
+    mode: 'free',
+    phase: 'focus',
+    isPaused: false,
+    focusBaseMs: 12000,
+    runStartedAtMs: 100000,
+  }, 108900);
+
+  assert.equal(restored.displaySeconds, 20);
+  assert.equal(restored.isRunning, true);
+  assert.equal(restored.isPaused, false);
+});
+
+test('restaura imediatamente pomodoro, descanso e cronometro regressivo', () => {
+  const pomodoro = deriveRestoredTimerState({
+    status: 'running', mode: 'pomodoro', phase: 'focus',
+    pomodoroSeconds: 1500, pomoBaseMs: 10000, runStartedAtMs: 100000,
+  }, 105000);
+  const rest = deriveRestoredTimerState({
+    status: 'running', mode: 'pomodoro', phase: 'rest',
+    restSeconds: 300, restBaseMs: 20000, runStartedAtMs: 100000,
+  }, 105000);
+  const countdownTimer = deriveRestoredTimerState({
+    status: 'paused', mode: 'countdown', phase: 'focus', isPaused: true,
+    countdownSeconds: 60, focusBaseMs: 17000,
+  }, 105000);
+
+  assert.equal(pomodoro.displaySeconds, 1485);
+  assert.equal(rest.displaySeconds, 275);
+  assert.equal(countdownTimer.displaySeconds, 43);
+  assert.equal(countdownTimer.isPaused, true);
+});
+
+test('restaura pelo cache local antes da leitura remota', () => {
+  const restored = deriveRestoredTimerState({
+    schemaVersion: 8,
+    disciplinaId: 'disc-1',
+    mode: 'free',
+    isPaused: false,
+    focusAccumulatedMs: 42000,
+    focusBlockElapsedBaseMs: 42000,
+    lastTimestamp: 100000,
+  }, 103500);
+
+  assert.equal(restored.displaySeconds, 45);
+  assert.equal(restored.focusElapsedMs, 45500);
+  assert.equal(restored.isRunning, true);
+});
 
 test('timer engine percorre iniciar, pausar, retomar e finalizar', () => {
   let state = reduceTimerState(undefined, { type: 'START' });

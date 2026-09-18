@@ -5,6 +5,7 @@ import {
   doc, getDoc, getDocs, updateDoc, writeBatch, serverTimestamp,
 } from 'firebase/firestore';
 import { isEditalLaunchNotification, isXPNotification, normalizeNotification } from '../services/notificationContract';
+import { isPollEffectiveClosed } from '../contracts/broadcastPoll.js';
 import { respondToGroupEntryRequest } from '../services/groupMembership';
 import { isLeagueOnlyNotification } from '../config/featureFlags';
 import { useGroupChatSummaries } from './useGroupChatSummaries.js';
@@ -409,17 +410,23 @@ export const useNotifications = (user) => {
     const unsub = onSnapshot(q, (snap) => {
       const createdAtMillis = userCreatedAtMillis || getAuthCreatedAtMillis(user);
       setBroadcasts(
-        snap.docs.map((d) => ({
-            id: d.id, ...d.data(),
-            timestamp: d.data().timestamp?.toDate?.() || new Date(d.data().createdAt || Date.now()),
-            _type: isEditalLaunchNotification(d.data()) ? 'edital_launch' : 'broadcast',
-          })).filter((b) => {
-            if (b.targetUid) return b.targetUid === user.uid;
-            if (Array.isArray(b.targetUserIds) && b.targetUserIds.length > 0 && !b.targetUserIds.includes(user.uid)) return false;
-            const broadcastMillis = toMillisSafe(b.timestamp);
-            if (createdAtMillis && broadcastMillis && broadcastMillis < createdAtMillis) return false;
-            return true;
-          })
+        snap.docs.map((d) => {
+          const data = d.data();
+          const isPoll = data.contentType === 'poll';
+          const isEditalLaunch = isEditalLaunchNotification(data);
+          return {
+            id: d.id,
+            ...data,
+            timestamp: data.timestamp?.toDate?.() || new Date(data.createdAt || Date.now()),
+            _type: isPoll ? 'poll' : isEditalLaunch ? 'edital_launch' : 'broadcast',
+          };
+        }).filter((b) => {
+          if (b.targetUid) return b.targetUid === user.uid;
+          if (Array.isArray(b.targetUserIds) && b.targetUserIds.length > 0 && !b.targetUserIds.includes(user.uid)) return false;
+          const broadcastMillis = toMillisSafe(b.timestamp);
+          if (createdAtMillis && broadcastMillis && broadcastMillis < createdAtMillis) return false;
+          return true;
+        })
       );
     });
     return () => unsub();
@@ -427,6 +434,7 @@ export const useNotifications = (user) => {
 
   // 3. Checagem de Editais
   useEffect(() => {
+
     if (!user || !backgroundAuditReady) return undefined;
     const publicarUpdates = () => setEditalUpdates(Object.values(editalUpdatesRef.current));
 
@@ -635,32 +643,81 @@ export const useNotifications = (user) => {
     return () => unsub();
   }, [user?.uid]);
 
+  // Helper para chave de leitura de broadcast: enquetes encerradas possuem chave própria para reavivar a notificação de resultado
+  const getBroadcastReadKey = useCallback((b) => {
+    if (!b) return '';
+    const isPoll = b.contentType === 'poll' || b._type === 'poll' || Boolean(b.poll);
+    if (isPoll && isPollEffectiveClosed(b)) {
+      return `poll_result_${b.id}`;
+    }
+    return b.id;
+  }, []);
+
   // Exclui os apagados da visão
   const rawActiveEditalUpdates = editalUpdates.filter((u) => !u.isDismissed && !deletedNotifs.has(u.id));
   const activeEditalUpdates = agruparAtualizacoesPorEdital(rawActiveEditalUpdates).map(normalizeNotification);
   const activeBroadcasts = broadcasts
-    .filter(b => !deletedNotifs.has(b.id) && !readBroadcasts.has(b.id))
+    .filter((b) => {
+      if (deletedNotifs.has(b.id)) return false;
+      const readKey = getBroadcastReadKey(b);
+      return !readBroadcasts.has(readKey);
+    })
     .map(normalizeNotification);
   const activeHistory = dismissedHistory.filter(h => {
       const hId = h.id || `edital_${h.cicloId}_${h.versionKey}`;
       return !deletedNotifs.has(hId) && !isXPNotification(h);
-  }).map((h) => normalizeNotification({
-      ...h,
-      id: h.id || `edital_${h.cicloId}_${h.versionKey}`,
-  }));
+  }).map((h) => {
+      const hId = h.id || `edital_${h.cicloId}_${h.versionKey}`;
+      if (h._type === 'poll' || h.contentType === 'poll') {
+        const live = broadcasts.find((b) => b.id === (h.id || hId));
+        if (live) {
+          return normalizeNotification({
+            ...h,
+            ...live,
+            id: hId,
+            isDismissed: true,
+            dismissedAt: h.dismissedAt,
+          });
+        }
+      }
+      return normalizeNotification({
+        ...h,
+        id: hId,
+      });
+  });
 
   const notifications = [...groupChatSummaries, ...supportNotifications, ...operationalNotifications, ...activeBroadcasts, ...activeEditalUpdates].sort(
     (a, b) => (b.timestamp?.getTime?.() || 0) - (a.timestamp?.getTime?.() || 0)
   );
 
-  const unreadCount = groupChatUnreadCount + supportNotifications.length + operationalNotifications.length + activeBroadcasts.filter((b) => !readBroadcasts.has(b.id)).length + activeEditalUpdates.length;
+  const unreadCount = groupChatUnreadCount + supportNotifications.length + operationalNotifications.length + activeBroadcasts.length + activeEditalUpdates.length;
 
   // AÇÕES
   const addItemsToHistory = useCallback((items = []) => {
     if (!user || items.length === 0) return;
     setDismissedHistory((history) => {
       const incoming = items.map((item) => {
-        const type = item._type || (item.cicloId ? 'edital_update' : 'broadcast');
+        const type = item._type || (item.cicloId ? 'edital_update' : item.contentType === 'poll' ? 'poll' : 'broadcast');
+        if (type === 'poll' || item.contentType === 'poll') {
+          return {
+            id: item.id,
+            _type: 'poll',
+            contentType: 'poll',
+            category: item.category || 'comunicado',
+            title: item.title || '',
+            message: item.message || '',
+            poll: {
+              options: item.poll?.options || [],
+              optionIds: item.poll?.optionIds || [],
+              status: item.poll?.status || 'open',
+              closesAt: item.poll?.closesAt instanceof Date ? item.poll.closesAt.toISOString() : (item.poll?.closesAt?.toDate ? item.poll.closesAt.toDate().toISOString() : item.poll?.closesAt || null),
+              closedAt: item.poll?.closedAt instanceof Date ? item.poll.closedAt.toISOString() : (item.poll?.closedAt?.toDate ? item.poll.closedAt.toDate().toISOString() : item.poll?.closedAt || null),
+            },
+            timestamp: item.timestamp instanceof Date ? item.timestamp.toISOString() : item.timestamp || null,
+            isDismissed: true,
+            dismissedAt: new Date().toISOString(),
+          };
+        }
         if (type === 'broadcast' || type === 'edital_launch') {
           return {
             id: item.id,
@@ -703,16 +760,19 @@ export const useNotifications = (user) => {
     });
   }, [user]);
 
+
   const markBroadcastRead = useCallback((id) => {
       if (!user) return;
-      const broadcast = broadcasts.find((item) => item.id === id);
+      const cleanId = String(id || '').replace(/^poll_result_/, '');
+      const broadcast = broadcasts.find((item) => item.id === cleanId || item.id === id);
+      const readKey = broadcast ? getBroadcastReadKey(broadcast) : id;
       if (broadcast) addItemsToHistory([broadcast]);
       setReadBroadcasts((prev) => {
-        const next = new Set([...prev, id]);
+        const next = new Set([...prev, readKey, id, cleanId]);
         try { localStorage.setItem(`notif_read_${user.uid}`, JSON.stringify([...next])); } catch {}
         return next;
       });
-  }, [user, broadcasts, addItemsToHistory]);
+  }, [user, broadcasts, getBroadcastReadKey, addItemsToHistory]);
 
   const markOperationalRead = useCallback(async (item) => {
     if (!user?.uid || !item?.id) return;
@@ -734,7 +794,8 @@ export const useNotifications = (user) => {
     if (!user) return;
     addItemsToHistory([...operationalNotifications, ...activeBroadcasts, ...activeEditalUpdates]);
     setReadBroadcasts((prev) => {
-      const next = new Set([...prev, ...activeBroadcasts.map((b) => b.id)]);
+      const keysToAdd = activeBroadcasts.flatMap((b) => [b.id, getBroadcastReadKey(b)]);
+      const next = new Set([...prev, ...keysToAdd]);
       try { localStorage.setItem(`notif_read_${user.uid}`, JSON.stringify([...next])); } catch {}
       return next;
     });
@@ -1001,6 +1062,7 @@ export const useNotifications = (user) => {
     groupChatSummaries,
     groupChatUnreadCount,
     broadcasts: activeBroadcasts,
+    eligibleBroadcasts: broadcasts,
     editalUpdates: activeEditalUpdates,
     dismissedHistory: activeHistory,
     readBroadcasts,

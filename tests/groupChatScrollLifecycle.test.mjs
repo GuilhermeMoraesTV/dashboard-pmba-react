@@ -12,8 +12,9 @@ import { DEFAULT_PRODUCT_LIMITS } from '../src/config/productLimits.js';
 
 test('painel mantém janela, bloqueia páginas concorrentes e cancela leitura ao sair do final', async () => {
   const dom = new JSDOM('<div id="root"></div>', { url: 'https://chat.test', pretendToBeVisual: true });
-  const prior = Object.fromEntries(['window', 'document', 'IS_REACT_ACT_ENVIRONMENT'].map(key => [key, globalThis[key]]));
-  Object.assign(globalThis, { window: dom.window, document: dom.window.document, IS_REACT_ACT_ENVIRONMENT: true });
+  const prior = Object.fromEntries(['window', 'document', 'ResizeObserver', 'IS_REACT_ACT_ENVIRONMENT'].map(key => [key, globalThis[key]]));
+  class TestResizeObserver { observe() {} disconnect() {} }
+  Object.assign(globalThis, { window: dom.window, document: dom.window.document, ResizeObserver: TestResizeObserver, IS_REACT_ACT_ENVIRONMENT: true });
   const timers = new Map();
   let timerId = 0;
   dom.window.setTimeout = callback => { timers.set(++timerId, callback); return timerId; };
@@ -21,6 +22,14 @@ test('painel mantém janela, bloqueia páginas concorrentes e cancela leitura ao
   let listProps, incoming, opens = 0, reads = 0, olderCalls = 0, resolveOlder;
   const older = new Promise(resolve => { resolveOlder = resolve; });
   const initialMessages = [11, 12, 13].map(seq => ({ id: `m${seq}`, seq, authorId: 'other' }));
+  const scrollListeners = new Set();
+  const scroller = {
+    scrollHeight: 1200,
+    scrollTop: 200,
+    clientHeight: 400,
+    addEventListener: (type, listener) => { if (type === 'scroll') scrollListeners.add(listener); },
+    removeEventListener: (type, listener) => { if (type === 'scroll') scrollListeners.delete(listener); },
+  };
   const require = createRequire(import.meta.url);
   const filename = fileURLToPath(new URL('../src/components/groups/GroupChatPanel.jsx', import.meta.url));
   const module = new Module(filename);
@@ -35,7 +44,7 @@ test('painel mantém janela, bloqueia páginas concorrentes e cancela leitura ao
   const mocks = {
     react: React,
     'react-dom': { createPortal: () => null },
-    'react-virtuoso': { Virtuoso: props => { listProps = props; return React.createElement('div', { 'data-testid': 'timeline' }); } },
+    'react-virtuoso': { Virtuoso: props => { listProps = props; props.scrollerRef?.(scroller); return React.createElement('div', { 'data-testid': 'timeline' }); } },
     'lucide-react': new Proxy({}, { get: () => () => null }),
     'firebase/firestore': { getDoc: async () => ({ exists: () => false }) },
     '../../config/productLimits.js': { DEFAULT_PRODUCT_LIMITS },
@@ -54,8 +63,11 @@ test('painel mantém janela, bloqueia páginas concorrentes e cancela leitura ao
     assert.equal(reads, 0);
     assert.equal(timers.size, 0, 'abrir no início das não lidas não agenda leitura');
     assert.deepEqual(listProps.initialTopMostItemIndex, { index: 100000, align: 'start' });
+    assert.equal(listProps.itemSize({ offsetHeight: 91, getBoundingClientRect: () => ({ height: 72 }) }), 91, 'mede itens em pixels de layout, sem distorção do zoom');
+    assert.equal(listProps.style.overscrollBehaviorY, 'contain');
     const header = listProps.components.Header;
     await act(async () => {
+      scroller.scrollTop = 0;
       listProps.isScrolling(true);
       listProps.atTopStateChange(true);
       listProps.startReached();
@@ -70,10 +82,17 @@ test('painel mantém janela, bloqueia páginas concorrentes e cancela leitura ao
     await act(async () => incoming([{ id: 'm14', seq: 14, authorId: 'other' }]));
     await act(async () => incoming([{ id: 'm14', seq: 14, authorId: 'other' }]));
     assert.match(document.body.textContent, /Novas mensagens \(4\)/, 'snapshot repetido não duplica badge');
-    assert.equal(listProps.followOutput(false), false);
-    assert.equal(listProps.followOutput(true), 'auto');
+    assert.equal(listProps.followOutput(true), false, 'sinal interno incorreto não toma o controle longe do final');
+    scroller.scrollTop = 800;
+    await act(async () => listProps.atBottomStateChange(false));
+    assert.equal(listProps.followOutput(false), 'auto', 'métrica nativa reconhece o final mesmo se o virtualizador disser o contrário');
+    act(() => listProps.isScrolling(true));
+    assert.equal(listProps.followOutput(true), false, 'gesto manual sempre bloqueia reposicionamento automático');
+    act(() => listProps.isScrolling(false));
+    assert.equal(listProps.followOutput(false), 'auto');
     await act(async () => listProps.atBottomStateChange(true));
     assert.equal(timers.size, 1);
+    scroller.scrollTop = 600;
     await act(async () => listProps.atBottomStateChange(false));
     assert.equal(timers.size, 0, 'sair do final cancela leitura pendente');
     await act(async () => root.render(React.createElement(Panel, { ...props, onUnreadChange: () => {} })));

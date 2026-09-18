@@ -4,6 +4,7 @@ export const NOTIFICATION_TYPES = Object.freeze({
   EDITAL: 'edital',
   ACTION_REQUIRED: 'acao_necessaria',
   SUPPORT: 'suporte',
+  POLL: 'enquete',
 });
 
 export const EDITAL_LAUNCH_CATEGORY = 'edital_lancamento';
@@ -49,6 +50,9 @@ export function buildEditalLaunchNotification({ editalId, title, logoUrl, messag
 export function classifyNotification(item = {}) {
   if (item.notificationType && Object.values(NOTIFICATION_TYPES).includes(item.notificationType)) {
     return item.notificationType;
+  }
+  if (item.contentType === 'poll' || item._type === 'poll') {
+    return NOTIFICATION_TYPES.POLL;
   }
   if (isEditalLaunchNotification(item) || item._type === 'edital_update' || item.cicloId || item.templateId) {
     return NOTIFICATION_TYPES.EDITAL;

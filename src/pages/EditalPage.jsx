@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { db } from '../firebaseConfig';
+import { isUnconfirmedEmptySnapshot } from '../utils/firestoreSnapshotState';
 import {
   collection, doc, getDoc, getDocs, query, where,
   addDoc, serverTimestamp, deleteDoc, onSnapshot, writeBatch, updateDoc
@@ -627,11 +628,13 @@ function EditalPage({
   useEffect(() => {
     if (!libraryModalOpen) return undefined;
     let active = true;
+    setLoadingCatalog(true);
 
-    const loadCatalog = async () => {
-      setLoadingCatalog(true);
-      try {
-        const snapshot = await getDocs(collection(db, 'editais_templates'));
+    const unsubscribe = onSnapshot(
+      collection(db, 'editais_templates'),
+      { includeMetadataChanges: true },
+      (snapshot) => {
+        if (isUnconfirmedEmptySnapshot(snapshot)) return;
         const firestoreTemplates = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
         const firestoreMap = new Map(firestoreTemplates.map((item) => [String(item.id), item]));
         const local = CATALOGO_EDITAIS
@@ -646,16 +649,19 @@ function EditalPage({
           .filter((item) => !item.deleted)
           .map((item) => ({ ...item, logo: item.logoUrl || item.logo, ativo: item.ativo !== false }));
         if (active) setCatalogModels([...local, ...custom]);
-      } catch (error) {
+        if (active) setLoadingCatalog(false);
+      },
+      (error) => {
         console.warn('Nao foi possivel atualizar o catalogo de editais:', error);
         if (active) setCatalogModels(CATALOGO_EDITAIS);
-      } finally {
         if (active) setLoadingCatalog(false);
       }
-    };
+    );
 
-    loadCatalog();
-    return () => { active = false; };
+    return () => {
+      active = false;
+      unsubscribe();
+    };
   }, [libraryModalOpen]);
 
   // Pending update do edital (apenas para ciclo)
@@ -707,6 +713,7 @@ function EditalPage({
       unsubCrono = onSnapshot(
         doc(db, 'users', user.uid, 'cronogramas', activeCronogramaId),
         (docSnap) => {
+          if (isUnconfirmedEmptySnapshot(docSnap)) return;
           if (!docSnap.exists()) { setCronograma(null); return; }
           const data = docSnap.data();
           setCronograma({ id: docSnap.id, ...data, computedLogo: getCronogramaLogo(data) });
@@ -719,6 +726,7 @@ function EditalPage({
         where('ativo', '==', true)
       );
       unsubCrono = onSnapshot(q, (snap) => {
+        if (isUnconfirmedEmptySnapshot(snap)) return;
         if (snap.empty) { setCronograma(null); return; }
         const docs = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(d => d.arquivado !== true);
         const maisRecente = docs.sort((a, b) => {

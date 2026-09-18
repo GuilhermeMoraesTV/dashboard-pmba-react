@@ -27,6 +27,7 @@ const supportService = () => require('./support/service').createSupportService({
 Object.assign(exports, require('./support/functions'));
 const questionValidation = require('./questions/validation');
 const flashcards = require('./flashcards/service');
+const subscriptionService = require('./subscription/service');
 const { getProductLimits } = require('./shared/productLimits');
 
 const GOOGLE_SERVICE_ACCOUNT_JSON_BASE64 = defineSecret('GOOGLE_SERVICE_ACCOUNT_JSON_BASE64');
@@ -216,16 +217,16 @@ async function recordAiUsage({ uid, surface, prompt, maxOutputTokens }) {
     await quotaRef.set({
       uid,
       day,
-      estimatedTokens: admin.firestore.FieldValue.increment(estimatedTokens),
-      calls: admin.firestore.FieldValue.increment(1),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      estimatedTokens: FieldValue.increment(estimatedTokens),
+      calls: FieldValue.increment(1),
+      updatedAt: FieldValue.serverTimestamp(),
       surfaces: {
         [surface]: {
-          calls: admin.firestore.FieldValue.increment(1),
-          estimatedTokens: admin.firestore.FieldValue.increment(estimatedTokens),
+          calls: FieldValue.increment(1),
+          estimatedTokens: FieldValue.increment(estimatedTokens),
         },
       },
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
     }, { merge: true });
 
     await quotaRef.collection('calls').add({
@@ -234,7 +235,7 @@ async function recordAiUsage({ uid, surface, prompt, maxOutputTokens }) {
       requestedMaxOutputTokens: maxOutputTokens,
       estimatedTokens,
       promptChars: String(prompt || '').length,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
     });
   } catch (error) {
     // Métricas não podem impedir a funcionalidade principal de IA.
@@ -256,7 +257,7 @@ async function reserveNewsCacheQuota(uid) {
       uid,
       day,
       calls: calls + 1,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
     }, { merge: true });
   });
 }
@@ -265,7 +266,7 @@ async function logOperationalFailure(collectionName, payload) {
   try {
     await admin.firestore().collection(collectionName).add({
       ...payload,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
     });
   } catch (loggingError) {
     console.error('Falha ao registrar erro operacional:', loggingError);
@@ -733,7 +734,7 @@ async function replenishMotivationalQuotes({ manual = false } = {}) {
 
   if (missing === 0 && !manual) {
     await db.collection('system_config').doc(QUOTES_AUTOMATION_DOC).set({
-      lastRunAt: admin.firestore.FieldValue.serverTimestamp(),
+      lastRunAt: FieldValue.serverTimestamp(),
       lastRunMode: manual ? 'manual' : 'scheduled',
       status: 'ok',
       created: 0,
@@ -803,8 +804,8 @@ async function replenishMotivationalQuotes({ manual = false } = {}) {
       sourceUrl: quote.sourceUrl || null,
       recycledFrom: quote.recycledFrom || null,
       scheduledDate: nextDate,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      generatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
+      generatedAt: FieldValue.serverTimestamp(),
     });
   });
 
@@ -821,10 +822,10 @@ async function replenishMotivationalQuotes({ manual = false } = {}) {
   };
 
   await db.collection('system_config').doc(QUOTES_AUTOMATION_DOC).set({
-    lastRunAt: admin.firestore.FieldValue.serverTimestamp(),
+    lastRunAt: FieldValue.serverTimestamp(),
     lastRunMode: manual ? 'manual' : 'scheduled',
     status: 'ok',
-    error: admin.firestore.FieldValue.delete(),
+    error: FieldValue.delete(),
     ...summary,
   }, { merge: true });
 
@@ -907,7 +908,7 @@ exports.salvarNoticiaCache = onCall(
         artigo: safeArticle,
         sourceUrl: safeUrl,
         savedBy: uid,
-        _savedAt: admin.firestore.FieldValue.serverTimestamp(),
+        _savedAt: FieldValue.serverTimestamp(),
       }, { merge: true });
 
       return { ok: true, key };
@@ -985,8 +986,8 @@ async function reserveSecureUploadQuota(uid, maxUploads) {
       uid,
       day,
       count: count + 1,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      createdAt: snapshot.data()?.createdAt || admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+      createdAt: snapshot.data()?.createdAt || FieldValue.serverTimestamp(),
     }, { merge: true });
   });
 }
@@ -1134,7 +1135,7 @@ exports.abastecerFrasesMotivacionais = onCall(
       return await replenishMotivationalQuotes({ manual: true });
     } catch (err) {
       await admin.firestore().collection('system_config').doc(QUOTES_AUTOMATION_DOC).set({
-        lastRunAt: admin.firestore.FieldValue.serverTimestamp(),
+        lastRunAt: FieldValue.serverTimestamp(),
         lastRunMode: 'manual',
         status: 'error',
         error: String(err?.message || err).slice(0, 500),
@@ -1181,8 +1182,8 @@ const projectTimerPresenceToRankings = async (event) => {
   }
   const payload = {
     liveStudy,
-    liveStudyHeartbeatAt: liveStudy ? (timer?.heartbeatAt || timer?.updatedAt || admin.firestore.FieldValue.serverTimestamp()) : null,
-    liveStudyUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    liveStudyHeartbeatAt: liveStudy ? (timer?.heartbeatAt || timer?.updatedAt || FieldValue.serverTimestamp()) : null,
+    liveStudyUpdatedAt: FieldValue.serverTimestamp(),
   };
   const weekId = getCurrentGamificationWeekId();
   const refs = [
@@ -1870,6 +1871,48 @@ exports.migrarGamificacaoV2 = onCall(
   },
 );
 
+exports.ensureUserSubscription = onCall(
+  { region: 'us-central1', maxInstances: 20 },
+  async (request) => {
+    if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Autenticacao obrigatoria.');
+    return subscriptionService.ensureUserSubscription({
+      uid: request.auth.uid,
+      email: request.auth.token?.email || null,
+      displayName: request.auth.token?.name || null,
+    });
+  },
+);
+
+exports.openFounderProgram = onCall(
+  { region: 'us-central1', timeoutSeconds: 540, memory: '1GiB', maxInstances: 1 },
+  async (request) => {
+    if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Autenticacao obrigatoria.');
+    const caller = await admin.firestore().collection('users').doc(request.auth.uid).get();
+    const callerData = caller.data() || {};
+    const isAdmin = callerData.role === 'admin'
+      || callerData.adminRole === true
+      || callerData.permissions?.adminPanel === true
+      || request.auth.uid === LEGACY_ADMIN_UID;
+    if (!isAdmin) throw new HttpsError('permission-denied', 'Somente administradores podem abrir o programa de fundador.');
+    return subscriptionService.openFounderProgram({ actor: { uid: request.auth.uid, email: request.auth.token?.email || callerData.email } });
+  },
+);
+
+exports.closeFounderProgram = onCall(
+  { region: 'us-central1', timeoutSeconds: 540, memory: '1GiB', maxInstances: 1 },
+  async (request) => {
+    if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Autenticacao obrigatoria.');
+    const caller = await admin.firestore().collection('users').doc(request.auth.uid).get();
+    const callerData = caller.data() || {};
+    const isAdmin = callerData.role === 'admin'
+      || callerData.adminRole === true
+      || callerData.permissions?.adminPanel === true
+      || request.auth.uid === LEGACY_ADMIN_UID;
+    if (!isAdmin) throw new HttpsError('permission-denied', 'Somente administradores podem fechar o programa de fundador.');
+    return subscriptionService.closeFounderProgram({ actor: { uid: request.auth.uid, email: request.auth.token?.email || callerData.email } });
+  },
+);
+
 exports.__test = {
   estimateTokenCost,
   sanitizeNewsArticle,
@@ -1881,4 +1924,5 @@ exports.__test = {
   groups: groups.__test,
   admin: adminOperations.__test,
   flashcards,
+  subscription: subscriptionService,
 };

@@ -1,3 +1,5 @@
+import { deriveSubscription } from './subscriptionControl.js';
+
 export const LEGACY_ADMIN_UID = 'OLoJi457GQNE2eTSOcz9DAD6ppZ2';
 
 export const ADMIN_ROLE_VALUES = ['admin', 'super_admin'];
@@ -50,6 +52,7 @@ export const deriveUserAccess = ({ authUser = null, userDoc = null } = {}) => {
     || accessProfile.permissions.adminPanel === true;
 
   const isAdmin = isLegacyAdmin || hasAdminRole;
+  const subscription = deriveSubscription(userDoc, { isAdmin });
 
   return {
     isLoading: false,
@@ -64,7 +67,10 @@ export const deriveUserAccess = ({ authUser = null, userDoc = null } = {}) => {
       manageTemplates: isAdmin || accessProfile.permissions.manageTemplates === true,
       viewAdminAnalytics: isAdmin || accessProfile.permissions.viewAdminAnalytics === true,
     },
+    subscription,
+    hasAccess: subscription.hasAccess,
     accessProfile,
     userDoc,
   };
 };
+

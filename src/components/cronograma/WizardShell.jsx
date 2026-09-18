@@ -59,12 +59,13 @@ const WizardShell = ({
   onBackToSelector,
   mode = 'create',
   cronogramaId = null,
+  cicloId = null,
   initialState = null,
   initialStep = 0,
   preselectedEdital = null,
   embedded = false,
 }) => {
-  const [passo,             setPasso]             = useState(() => mode === 'edit' ? Math.max(1, Number(initialStep) || 1) : Number(initialStep) || 0);
+  const [passo,             setPasso]             = useState(() => mode === 'edit' || mode === 'convert' ? Math.max(1, Number(initialStep) || 1) : Number(initialStep) || 0);
   const [confirmandoSaida,  setConfirmandoSaida]  = useState(false);
   const [confirmandoVoltar, setConfirmandoVoltar] = useState(false);
   const conteudoRef = useRef(null);
@@ -94,6 +95,7 @@ const WizardShell = ({
   } = useCronogramaWizard(user, onClose, onCronogramaCriado, onOpenFeedback, {
     mode,
     cronogramaId,
+    cicloId,
     initialState,
     preselectedEdital,
   });
@@ -113,7 +115,7 @@ const WizardShell = ({
   const isPassoEdital = passo === 0;
   const isPassoDisciplinas = passo === 2;
   const isPrimeiroStep = passo === firstVisibleStepId;
-  const ctaFinalLabel = isEditMode ? 'Salvar Alteracoes' : 'Ativar Cronograma';
+  const ctaFinalLabel = mode === 'convert' ? 'Confirmar transformacao' : isEditMode ? 'Salvar Alteracoes' : 'Ativar Cronograma';
   const isMontagemPersonalizada = cronConfig.modoMontagem === 'personalizado';
   const isPassoMontagemPersonalizada = passo === 1 && isMontagemPersonalizada;
   const activeStudyDaysCount = Object.values(horarios || {}).filter((horas) => Number(horas) > 0).length;
@@ -167,16 +169,16 @@ const WizardShell = ({
   }, [passo, isLoading, resultadoGeracao, erroGeracao, handleGerarPrevia]);
 
   const handleVoltar = () => {
-    if (isEditMode && passo === firstVisibleStepId) {
-      onClose?.();
-      return;
-    }
     if (passo === 1 && isMontagemPersonalizada) {
-      setConfirmandoVoltar(true);
+      setCronConfig((prev) => ({ ...prev, modoMontagem: 'inteligente' }));
       return;
     }
-    if (passo === 2 && (disciplinas.length > 0 || extraDisciplinas.length > 0)) {
-      setConfirmandoVoltar(true);
+    if (isEditMode && passo === firstVisibleStepId) {
+      setConfirmandoSaida(true);
+      return;
+    }
+    if (passo === 2) {
+      setPasso(1);
       return;
     }
     if (passo === 6) resetResultado();
@@ -335,6 +337,11 @@ const WizardShell = ({
       
       {/* ── Main Content ── */}
       <main ref={conteudoRef} className={`wizard-main flex-1 overflow-y-auto px-4 pt-2 md:px-6 md:pt-1 custom-scrollbar ${embedded ? 'pb-28 md:pb-32' : 'pb-32 md:pb-36'}`}>
+        {mode === 'convert' && (
+          <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-xs font-semibold text-blue-900 dark:border-blue-900/40 dark:bg-blue-950/20 dark:text-blue-200">
+            Seus estudos, rodadas e estatisticas do ciclo continuam no mesmo planejamento. A grade comeca nos assuntos pendentes e passa a valer somente depois da confirmacao.
+          </div>
+        )}
         <div
           data-wizard-type="cronograma"
           data-wizard-step={currentStepZoomKey}
@@ -356,15 +363,18 @@ const WizardShell = ({
       </main>
 
       {/* ── Footer Navigation ── */}
-      <div className={`wizard-navigation-bar inset-x-2 bottom-2 z-[100050] mx-auto max-w-5xl rounded-2xl border border-zinc-200/80 bg-white/92 p-1.5 shadow-2xl shadow-zinc-950/12 backdrop-blur-xl dark:border-zinc-800 dark:bg-card-dark sm:inset-x-3 sm:bottom-4 sm:p-3 ${embedded ? 'absolute' : 'fixed'}`}>
+      <div
+        data-wizard-embedded={embedded ? 'true' : undefined}
+        className={`wizard-navigation-bar ${embedded ? 'wizard-navigation-bar--embedded absolute inset-x-2 bottom-2 sm:inset-x-3 sm:bottom-4' : 'fixed inset-x-2 bottom-2 sm:inset-x-3 sm:bottom-4 lg:inset-x-auto lg:bottom-4 lg:right-8 lg:left-[calc(var(--sidebar-offset,72px)+2rem)] lg:max-w-[min(64rem,calc(100vw-var(--sidebar-offset,72px)-4rem))]'} z-[100050] mx-auto max-w-5xl rounded-2xl border border-zinc-200/80 bg-white/92 p-1.5 shadow-2xl shadow-zinc-950/12 backdrop-blur-xl dark:border-zinc-800 dark:bg-card-dark sm:p-3 transition-all duration-300`}
+      >
         <div className="flex items-center justify-between gap-2 sm:gap-3">
           
           <div className="flex items-center gap-2">
-            {isPassoEdital || (isEditMode && isPrimeiroStep) ? (
+            {isPassoEdital || (isEditMode && isPrimeiroStep && !isMontagemPersonalizada) ? (
               <button
                 onClick={() => {
                   if (isEditMode) {
-                    onClose?.();
+                    setConfirmandoSaida(true);
                     return;
                   }
                   if (onBackToSelector) {
@@ -375,8 +385,8 @@ const WizardShell = ({
                 }}
                 className="flex items-center gap-2 px-3 py-2 sm:px-5 sm:py-3 rounded-2xl text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 font-black text-[10px] sm:text-[11px] uppercase tracking-widest transition-all active:scale-95"
               >
-                {isEditMode || onBackToSelector ? <ArrowLeft size={16} strokeWidth={3} /> : <X size={16} strokeWidth={3} />}
-                <span className="hidden xs:inline">{onBackToSelector ? 'Métodos' : 'Cancelar'}</span>
+                <X size={16} strokeWidth={3} />
+                <span className="hidden xs:inline">Cancelar</span>
               </button>
             ) : (
               <button

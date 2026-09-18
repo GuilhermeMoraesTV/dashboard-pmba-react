@@ -1,4 +1,5 @@
 const admin = require('firebase-admin');
+const { FieldValue, Timestamp } = require('firebase-admin/firestore');
 
 const LEGACY_ADMIN_UID = 'OLoJi457GQNE2eTSOcz9DAD6ppZ2';
 const USER_STATUSES = new Set(['active', 'blocked', 'disabled']);
@@ -7,8 +8,8 @@ const ADMIN_ROLES = new Set(['admin', 'super_admin']);
 const GROUP_ACTIONS = new Set(['block', 'unblock', 'set_visibility', 'update_identity', 'remove_member']);
 
 const firestore = () => admin.firestore();
-const timestamp = () => admin.firestore.FieldValue.serverTimestamp();
-const arrayRemove = (...values) => admin.firestore.FieldValue.arrayRemove(...values);
+const timestamp = () => FieldValue.serverTimestamp();
+const arrayRemove = (...values) => FieldValue.arrayRemove(...values);
 
 const asText = (value, max = 240) => String(value ?? '').trim().slice(0, max);
 const asUid = (value, field = 'targetUid') => {

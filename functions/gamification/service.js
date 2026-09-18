@@ -1,5 +1,5 @@
 const admin = require('firebase-admin');
-const { FieldValue } = require('firebase-admin/firestore');
+const { FieldValue, FieldPath, Timestamp } = require('firebase-admin/firestore');
 
 if (!admin.apps.length) {
   admin.initializeApp({ projectId: process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || 'dashboard-pmba' });
@@ -488,7 +488,7 @@ const countPositionForMember = async ({ membersRef, memberSnapshot, metric }) =>
     .orderBy(metric, 'desc')
     .orderBy(secondaryMetric, 'desc')
     .orderBy('correct', 'desc')
-    .orderBy(admin.firestore.FieldPath.documentId(), 'asc')
+    .orderBy(FieldPath.documentId(), 'asc')
     .endBefore(
       Number(member[metric] || 0),
       Number(member[secondaryMetric] || 0),
@@ -676,7 +676,7 @@ const serializeEvent = (event, rules, extra = {}) => ({
   ruleVersion: rules.GAMIFICATION_RULE_VERSION,
   dateKey: event.dateKey || rules.toDateKey(),
   weekId: event.weekId || rules.getWeekId(),
-  occurredAt: admin.firestore.Timestamp.fromMillis(Math.max(1, Number(event.sourceMillis || Date.now()))),
+  occurredAt: Timestamp.fromMillis(Math.max(1, Number(event.sourceMillis || Date.now()))),
   updatedAt: serverTimestamp(),
   isRead: false,
   ...extra,
@@ -787,11 +787,11 @@ const mergeSnapshotsById = (...snapshots) => {
 
 const loadIncrementalDay = async ({ uid, dateKey, rules }) => {
   const userRef = db().collection('users').doc(uid);
-  const dayStart = admin.firestore.Timestamp.fromDate(new Date(`${dateKey}T00:00:00-03:00`));
+  const dayStart = Timestamp.fromDate(new Date(`${dateKey}T00:00:00-03:00`));
   const nextDate = new Date(`${dateKey}T12:00:00Z`);
   nextDate.setUTCDate(nextDate.getUTCDate() + 1);
   const nextDateKey = nextDate.toISOString().slice(0, 10);
-  const dayEnd = admin.firestore.Timestamp.fromDate(new Date(`${nextDateKey}T00:00:00-03:00`));
+  const dayEnd = Timestamp.fromDate(new Date(`${nextDateKey}T00:00:00-03:00`));
   const [
     recordsByData,
     recordsByDate,
@@ -1257,7 +1257,7 @@ const processIncrementalGamificationDay = async ({ uid, sourceType, sourceId, be
   await operationRef.set({
     status: 'completed',
     completedAt: serverTimestamp(),
-    expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + (30 * 24 * 60 * 60 * 1000)),
+    expiresAt: Timestamp.fromMillis(Date.now() + (30 * 24 * 60 * 60 * 1000)),
     updatedAt: serverTimestamp(),
   }, { merge: true });
   const sourceEvent = nextDay.events.find((event) => event.sourceType === sourceType && String(event.sourceId) === String(sourceId));
@@ -1272,8 +1272,11 @@ const processIncrementalGamificationDay = async ({ uid, sourceType, sourceId, be
 
 const processGamificationSourceChange = async ({ uid, sourceType, sourceId, before = null, after = null, eventId = null }) => {
   if (!uid || !['study', 'simulation', 'question', 'goal'].includes(sourceType)) return null;
-  if (await userDeletionStarted(uid)) return { uid, skipped: 'user-deleted' };
   const rules = await domain();
+  if (sourceType === 'study' && rules.isScheduleProgressOnlyUpdate(before, after)) {
+    return { uid, skipped: 'schedule-progress-only-update' };
+  }
+  if (await userDeletionStarted(uid)) return { uid, skipped: 'user-deleted' };
   let affectedDateKeys = [...new Set([
     incrementalSourceDateKey({ sourceType, source: before, rules }),
     incrementalSourceDateKey({ sourceType, source: after, rules }),
@@ -1282,7 +1285,7 @@ const processGamificationSourceChange = async ({ uid, sourceType, sourceId, befo
     const minimumDate = [...affectedDateKeys].sort()[0] || rules.toDateKey();
     const dailyStates = await db().collection('users').doc(uid).collection('gamification').doc('profile')
       .collection('daily_states')
-      .where(admin.firestore.FieldPath.documentId(), '>=', minimumDate)
+      .where(FieldPath.documentId(), '>=', minimumDate)
       .get();
     affectedDateKeys = [...new Set([
       ...dailyStates.docs.map((snapshot) => snapshot.id),
@@ -1565,7 +1568,7 @@ const updateRankings = async ({ uid, sources, profilePayload, academicEvents, ru
     lastStudyAtMillis,
     rankingEligible: weeklyRankingEligible,
     ...publicProfile,
-    finalXPReachedAt: admin.firestore.Timestamp.fromMillis(finalXPReachedAtMillis),
+    finalXPReachedAt: Timestamp.fromMillis(finalXPReachedAtMillis),
     ruleVersion: rules.GAMIFICATION_RULE_VERSION,
     updatedAt: serverTimestamp(),
   };
@@ -1847,7 +1850,7 @@ const recoverHistoricalStreaks = async ({ force = false, batchSize = null, uid =
     const singleUserSnap = await db().collection('users').doc(uid).get();
     usersSnapshot = singleUserSnap.exists ? { docs: [singleUserSnap], size: 1 } : { docs: [], size: 0 };
   } else {
-    let query = db().collection('users').orderBy(admin.firestore.FieldPath.documentId()).limit(effectiveBatchSize);
+    let query = db().collection('users').orderBy(FieldPath.documentId()).limit(effectiveBatchSize);
     if (afterUid) query = query.startAfter(afterUid);
     usersSnapshot = await query.get();
   }
@@ -1938,7 +1941,7 @@ const refreshUserPublicPlanningProfile = async (uid) => {
   const profileSnapshot = await profileRef.get();
   const profile = profileSnapshot.exists ? profileSnapshot.data() : {};
   const hasPersistedHistoricalBaseline = Object.hasOwn(profile.historicalStreakBaseline || {}, 'value');
-  const strictStartTimestamp = admin.firestore.Timestamp.fromDate(new Date(`${strictStartDate}T00:00:00-03:00`));
+  const strictStartTimestamp = Timestamp.fromDate(new Date(`${strictStartDate}T00:00:00-03:00`));
   const recordQueries = hasPersistedHistoricalBaseline ? [
     userRef.collection('registrosEstudo').where('data', '>=', strictStartDate).get(),
     userRef.collection('registrosEstudo').where('date', '>=', strictStartDate).get(),
@@ -2366,7 +2369,7 @@ const closeWeeklyGamification = async (weekId = null) => {
   const closureRef = rankingRef.collection('system').doc('closure');
   const closure = await closureRef.get();
   if (closure.data()?.status === 'completed') return { weekId: targetWeekId, alreadyClosed: true };
-  await closureRef.set({ status: 'processing', attempts: admin.firestore.FieldValue.increment(1), startedAt: serverTimestamp(), ruleVersion: rules.GAMIFICATION_RULE_VERSION }, { merge: true });
+  await closureRef.set({ status: 'processing', attempts: FieldValue.increment(1), startedAt: serverTimestamp(), ruleVersion: rules.GAMIFICATION_RULE_VERSION }, { merge: true });
   const cohortSnapshot = await rankingRef.collection('cohorts').get();
   const cohorts = dataWithId(cohortSnapshot).filter((item) => !['closed', 'merged'].includes(item.status)).sort((a, b) => a.leagueId.localeCompare(b.leagueId) || Number(a.sequence || 0) - Number(b.sequence || 0));
   const byLeague = new Map();
@@ -2516,7 +2519,7 @@ const migrateGamification = async ({ apply = false, uid = null } = {}) => {
     const preview = await buildMigrationPreview(sources);
     previews.push(preview);
     if (!apply || preview.alreadyMigrated) continue;
-    const cutoff = admin.firestore.Timestamp.now();
+    const cutoff = Timestamp.now();
     const batch = db().batch();
     batch.set(sources.profileRef, {
       baseXP: preview.baseXP,

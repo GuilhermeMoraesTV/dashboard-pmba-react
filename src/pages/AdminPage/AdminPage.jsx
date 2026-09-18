@@ -245,6 +245,7 @@ function AdminPage() {
 
       <div className="mx-auto w-full max-w-[1600px] animate-slide-up space-y-6 px-4 pb-20 pt-6 sm:px-6">
         <HeaderAdmin
+          users={users}
           onRecalculateStats={handleRecalculateAllUsersStats}
           broadcastDraft={broadcastDraft}
           filters={globalFilters}

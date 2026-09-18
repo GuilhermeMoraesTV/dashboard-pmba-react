@@ -5,6 +5,7 @@
 
 const { HttpsError } = require('firebase-functions/v2/https');
 const admin = require('firebase-admin');
+const { FieldValue, Timestamp } = require('firebase-admin/firestore');
 const crypto = require('crypto');
 const { getProductLimits, DEFAULT_SERVER_PRODUCT_LIMITS } = require('../shared/productLimits');
 const gamificationService = require('../gamification/service');
@@ -315,7 +316,7 @@ async function processQuestionAnswerSubmission({ uid, questionId, questionScope,
       };
     }
 
-    const serverTimestamp = admin.firestore.FieldValue.serverTimestamp();
+    const serverTimestamp = FieldValue.serverTimestamp();
     const rewardEligible = !rewardSourceSnap.exists;
     let firstAttemptId = null;
 
@@ -362,13 +363,13 @@ async function processQuestionAnswerSubmission({ uid, questionId, questionScope,
     }
 
     transaction.set(statsRef, {
-      questionsResolved: admin.firestore.FieldValue.increment(rewardEligible ? 1 : 0),
-      correctResolved: admin.firestore.FieldValue.increment(rewardEligible && isCorrect ? 1 : 0),
-      incorrectResolved: admin.firestore.FieldValue.increment(rewardEligible && !isCorrect ? 1 : 0),
-      totalAttemptEvents: admin.firestore.FieldValue.increment(1),
-      totalAttempts: admin.firestore.FieldValue.increment(1),
-      correctAttempts: admin.firestore.FieldValue.increment(isCorrect ? 1 : 0),
-      wrongAttempts: admin.firestore.FieldValue.increment(isCorrect ? 0 : 1),
+      questionsResolved: FieldValue.increment(rewardEligible ? 1 : 0),
+      correctResolved: FieldValue.increment(rewardEligible && isCorrect ? 1 : 0),
+      incorrectResolved: FieldValue.increment(rewardEligible && !isCorrect ? 1 : 0),
+      totalAttemptEvents: FieldValue.increment(1),
+      totalAttempts: FieldValue.increment(1),
+      correctAttempts: FieldValue.increment(isCorrect ? 1 : 0),
+      wrongAttempts: FieldValue.increment(isCorrect ? 0 : 1),
       ...(!statsSnap.exists ? { totalXpEarned: 0 } : {}),
       ...(!statsSnap.exists ? { createdAt: serverTimestamp } : {}),
       updatedAt: serverTimestamp,
@@ -383,8 +384,8 @@ async function processQuestionAnswerSubmission({ uid, questionId, questionScope,
         deckId: null,
         disciplineId: questionData.disciplineId || null,
         subject: questionData.subject || null,
-        wrongCount: admin.firestore.FieldValue.increment(1),
-        correctCount: admin.firestore.FieldValue.increment(0),
+        wrongCount: FieldValue.increment(1),
+        correctCount: FieldValue.increment(0),
         lastAttemptAt: serverTimestamp,
         userNotes: errorEntrySnap.exists ? errorEntrySnap.data().userNotes || null : null,
         mastered: false,
@@ -400,7 +401,7 @@ async function processQuestionAnswerSubmission({ uid, questionId, questionScope,
       }, { merge: true });
     } else if (errorEntrySnap.exists) {
       transaction.set(errorEntryRef, {
-        correctCount: admin.firestore.FieldValue.increment(1),
+        correctCount: FieldValue.increment(1),
         lastAttemptAt: serverTimestamp,
         updatedAt: serverTimestamp,
       }, { merge: true });
@@ -469,14 +470,14 @@ async function processQuestionAnswerSubmission({ uid, questionId, questionScope,
       const batch = db.batch();
       batch.set(rewardSourceRef, {
         gamificationSynced: true,
-        gamificationSyncedAt: admin.firestore.FieldValue.serverTimestamp(),
+        gamificationSyncedAt: FieldValue.serverTimestamp(),
       }, { merge: true });
       batch.set(firstAttemptRef, {
         xpEarned: rewardXp,
       }, { merge: true });
       batch.set(statsRef, {
         totalXpEarned,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
       }, { merge: true });
       await batch.commit();
 
@@ -530,7 +531,7 @@ async function upsertPrivateQuestion({ uid, data }) {
   const userQuestionsRef = db.collection('users').doc(uid).collection('questions');
   const targetDocRef = questionId ? userQuestionsRef.doc(questionId) : userQuestionsRef.doc();
   const targetAnswerKeyRef = targetDocRef.collection('private').doc('answerKey');
-  const serverTimestamp = admin.firestore.FieldValue.serverTimestamp();
+  const serverTimestamp = FieldValue.serverTimestamp();
 
   return db.runTransaction(async (transaction) => {
     const [existingSnap, existingAnswerKeySnap, userSnap] = await Promise.all([

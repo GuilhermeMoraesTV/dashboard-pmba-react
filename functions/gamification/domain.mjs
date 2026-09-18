@@ -1,3 +1,6 @@
+import { buildScheduleRecordedProgress, getScheduleSlotKey } from './scheduleStudyProgress.mjs';
+export { isScheduleProgressOnlyUpdate } from './scheduleStudyProgress.mjs';
+
 export const GAMIFICATION_RULE_VERSION = '3.0.0';
 export const GAMIFICATION_TIME_ZONE = 'America/Bahia';
 
@@ -59,7 +62,19 @@ const integer = (value) => Math.max(0, Math.floor(n(value)));
 const boundedInteger = (value, maximum) => Math.min(integer(value), maximum);
 const pad = (value) => String(value).padStart(2, '0');
 
-export const toDateKey = (value = new Date()) => {
+export const toDateKey = (...args) => {
+  if (args.length === 0) {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: GAMIFICATION_TIME_ZONE,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(new Date());
+    const get = (type) => parts.find((part) => part.type === type)?.value;
+    return `${get('year')}-${get('month')}-${get('day')}`;
+  }
+  const value = args[0];
+  if (!value) return null;
   if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
   const raw = value?.toDate ? value.toDate() : value;
   const date = raw instanceof Date ? raw : new Date(raw);
@@ -215,9 +230,23 @@ export const sortGroupsRanking = (groups = [], metric = 'xp') => [...groups].sor
   return String(a.name || a.id || '').localeCompare(String(b.name || b.id || ''), 'pt-BR');
 });
 
+export const isManualCycleCheckoutRecord = (record = {}) => {
+  const source = String(record.origemConclusao || '').trim().toLowerCase();
+  const type = String(record.tipoEstudo || '').trim().toLowerCase();
+  const context = String(record.contextoRegistro || '').trim().toLowerCase();
+  const isManualCheckout = source === 'botao_concluir'
+    || type === 'check_manual'
+    || record.conclusaoManual === true;
+  if (!isManualCheckout || context === 'cronograma') return false;
+  if (context === 'ciclo') return true;
+  if (record.cronogramaId) return false;
+  return Boolean(record.cicloId) || !context;
+};
+
 export const isValidGamificationRecord = (record = {}) => {
   const status = String(record.status || record.situacao || '').toLowerCase();
-  return !record.deletedAt
+  return !isManualCycleCheckoutRecord(record)
+    && !record.deletedAt
     && !record.excluido
     && !record.cancelado
     && !['cancelado', 'cancelled', 'planejado', 'planned', 'invalido', 'invalid'].includes(status);
@@ -233,15 +262,22 @@ export const getStudyMetrics = (record = {}) => ({
   date: record.data || record.date || record.timestamp || record.createdAt,
 });
 
-export const getSimuladoMetrics = (simulado = {}) => ({
-  minutes: boundedInteger(simulado.durationMinutes ?? simulado.duracaoMinutos ?? simulado.tempoEstudadoMinutos, GAMIFICATION_CONFIG.dailyLimits.minutes),
-  questions: boundedInteger(simulado.resumo?.totalQuestoes ?? simulado.totalQuestoes ?? simulado.questoesFeitas, GAMIFICATION_CONFIG.dailyLimits.questions),
-  correct: Math.min(
-    boundedInteger(simulado.resumo?.totalQuestoes ?? simulado.totalQuestoes ?? simulado.questoesFeitas, GAMIFICATION_CONFIG.dailyLimits.questions),
-    boundedInteger(simulado.resumo?.totalAcertos ?? simulado.totalAcertos ?? simulado.acertos, GAMIFICATION_CONFIG.dailyLimits.correct),
-  ),
-  date: simulado.data || simulado.date || simulado.timestamp || simulado.createdAt,
-});
+export const getSimuladoMetrics = (simulado = {}) => {
+  const totalQuestions = Number(simulado.resumo?.totalQuestoes ?? simulado.totalQuestoes ?? simulado.questoesFeitas ?? 0);
+  const blankQuestions = Number(simulado.resumo?.totalBrancos ?? simulado.totalBrancos ?? 0);
+  const answeredQuestions = Math.max(0, totalQuestions - blankQuestions);
+  const questions = boundedInteger(answeredQuestions, GAMIFICATION_CONFIG.dailyLimits.questions);
+
+  return {
+    minutes: boundedInteger(simulado.durationMinutes ?? simulado.duracaoMinutos ?? simulado.tempoEstudadoMinutos, GAMIFICATION_CONFIG.dailyLimits.minutes),
+    questions,
+    correct: Math.min(
+      questions,
+      boundedInteger(simulado.resumo?.totalAcertos ?? simulado.totalAcertos ?? simulado.acertos, GAMIFICATION_CONFIG.dailyLimits.correct),
+    ),
+    date: simulado.data || simulado.date || simulado.timestamp || simulado.createdAt,
+  };
+};
 
 export const getQuestionRewardMetrics = (reward = {}) => ({
   minutes: 0,
@@ -590,6 +626,11 @@ const getWeekdayFromDateKey = (dateKey) => dateKeyToUTCDate(dateKey)?.getUTCDay(
 const getPlanContext = (plan) => (plan?.type === 'cycle' ? 'ciclo' : 'cronograma');
 
 const isRecordExplicitlyLinkedToAnotherPlan = (record = {}, plan) => {
+  const stages = Array.isArray(plan?.data?.etapasPlanejamento) ? plan.data.etapasPlanejamento : [];
+  if (stages.some((stage) => (
+    (stage.metodo === 'ciclo' && String(record.cicloId || '') === String(stage.id))
+    || (stage.metodo === 'cronograma' && String(record.cronogramaId || '') === String(stage.id))
+  ))) return false;
   const planId = String(plan?.id || '');
   const context = getPlanContext(plan);
   const recordContext = String(record.contextoRegistro || record.origemPlanejamento || '').trim().toLowerCase();
@@ -665,19 +706,94 @@ const getScheduleStudyTargetMinutesForDate = (schedule, dateKey) => {
     .reduce((total, slot) => total + getSlotMinutes(slot), 0);
 };
 
+// Um cronograma pode encerrar seus blocos por conteúdo antes da duração prevista.
+const getScheduleSlotsForDate = (schedule, dateKey) => {
+  if (!schedule) return [];
+  const start = toDateKey(schedule?.dataInicio);
+  if (!start || dateKey < start) return [];
+  const week = Math.floor((dateKeyToUTCDate(dateKey) - dateKeyToUTCDate(start)) / (7 * 24 * 60 * 60 * 1000));
+  const archived = Object.values(schedule?.historicoSemanasTemplate || {}).find((version) =>
+    Number(version.deSemana) <= week && week <= Number(version.ateSemana));
+  return getScheduleTemplate(archived || schedule).filter((slot) => {
+    const rawDate = slot.dataSlot || slot.data || slot.date;
+    const explicitDate = rawDate ? toDateKey(rawDate) : null;
+    return explicitDate ? explicitDate === dateKey : Number(slot.dia) === getWeekdayFromDateKey(dateKey);
+  });
+};
+
+const hasScheduleSlotsForDate = (plan, dateKey) => getScheduleSlotsForDate(plan?.data, dateKey).length > 0;
+
+// Um cronograma pode encerrar seus blocos por conteúdo antes da duração prevista.
+// Isso conta para a sequência, mas nunca aumenta qualifiedMinutes/XP/estatísticas.
+const isScheduleDayCompletedByBlocks = (plan, dateKey, records, reservedReviewMinutes) => {
+  if (plan?.type !== 'schedule') return false;
+  const schedule = plan.data;
+  const start = toDateKey(schedule?.dataInicio);
+  if (!start || dateKey < start) return false;
+  const week = Math.floor((dateKeyToUTCDate(dateKey) - dateKeyToUTCDate(start)) / (7 * 24 * 60 * 60 * 1000));
+  const slots = getScheduleSlotsForDate(schedule, dateKey);
+  const theory = slots.filter((slot) => !slot.isRevisaoAuto && !slot.isRevisao && !slot.isConsolidada && getSlotMinutes(slot) > 0);
+  if (!theory.length) return false;
+  const studyRecords = records.filter((record) => !isReviewRecord(record));
+  if (!studyRecords.length) return false;
+  const state = buildScheduleRecordedProgress({ slots: theory, records: studyRecords,
+    getMinutes: (record) => getStudyMetrics(record).minutes });
+  const progress = schedule?.progresso?.[`w${week}`] || {};
+  const theoryStudyMinutes = studyRecords.reduce((total, record) => total + getStudyMetrics(record).minutes, 0);
+  const plannedTheoryMinutes = theory.reduce((total, slot) => total + getSlotMinutes(slot), 0);
+
+  const anyTheoryUnmarked = theory.some((slot) => {
+    const key = getScheduleSlotKey(slot);
+    return progress[key] === false || progress[slot.slotId] === false || (slot.slotIdBase && progress[slot.slotIdBase] === false);
+  });
+  if (anyTheoryUnmarked) return false;
+
+  const isTheorySlotDone = (slot) => {
+    const key = getScheduleSlotKey(slot);
+    if (progress[key] === false || progress[slot.slotId] === false || (slot.slotIdBase && progress[slot.slotIdBase] === false)) {
+      return false;
+    }
+    const hasRecorded = state.completed[key] === true || Number(state.minutes[key] || 0) >= getSlotMinutes(slot);
+    const hasProgressWithStudy = (progress[key] === true || progress[slot.slotId] === true || (slot.slotIdBase && progress[slot.slotIdBase] === true))
+      && Number(state.minutes[key] || 0) > 0;
+    const isExplicitlyDoneOnTemplate = slot.concluido === true;
+    return hasRecorded || hasProgressWithStudy || isExplicitlyDoneOnTemplate;
+  };
+
+  const allTheoryDone = !anyTheoryUnmarked && (
+    (plannedTheoryMinutes > 0 && theoryStudyMinutes >= plannedTheoryMinutes)
+    || theory.every(isTheorySlotDone)
+  );
+
+  const reviewRecords = records.filter(isReviewRecord);
+  const reviewMinutes = reviewRecords.reduce((total, record) => total + getStudyMetrics(record).minutes, 0);
+  const reviewSlots = slots.filter((slot) => slot.isRevisaoAuto || slot.isRevisao || slot.isConsolidada);
+  const allReviewsDone = reviewSlots.length > 0 && reviewSlots.every((slot) => {
+    const key = getScheduleSlotKey(slot);
+    if (progress[key] === false || progress[slot.slotId] === false) return false;
+    return slot.concluido === true || progress[key] === true || progress[slot.slotId] === true;
+  });
+  const reviewsSatisfied = reservedReviewMinutes <= 0
+    ? (reviewSlots.length === 0 || allReviewsDone)
+    : (allReviewsDone || reviewMinutes >= reservedReviewMinutes);
+  return allTheoryDone && reviewsSatisfied;
+};
+
 const getPlanTargetMinutesForDate = (plan, dateKey) => (
   plan?.type === 'cycle'
     ? getCycleTargetMinutesForDate(plan.data, dateKey)
     : getScheduleTargetMinutesForDate(plan.data, dateKey)
 );
 
-const getReviewDueDateKey = (review = {}) => toDateKey(
-  review.dataAgendada || review.dataPrevista || review.dataRevisao || review.dataSlot,
-);
+const getReviewDueDateKey = (review = {}) => {
+  const raw = review.dataAgendada || review.dataPrevista || review.dataRevisao || review.dataSlot;
+  return raw ? toDateKey(raw) : null;
+};
 
-const getReviewCompletionDateKey = (review = {}) => toDateKey(
-  review.concluidaEm || review.concluidoEm || review.dataConclusao,
-);
+const getReviewCompletionDateKey = (review = {}) => {
+  const raw = review.concluidaEm || review.concluidoEm || review.dataConclusao;
+  return raw ? toDateKey(raw) : null;
+};
 
 const isCycleReviewPendingByDate = (review, plan, dateKey) => {
   if (plan?.type !== 'cycle') return false;
@@ -704,11 +820,16 @@ const getCycleReviewRequirementsByDate = (cycleReviews, plan, dateKey) => (
 const getPlanDailyActivityMinutes = ({ records = [], simulations = [], plan }) => {
   const totalMinutesByDate = new Map();
   const studyMinutesByDate = new Map();
+  const recordsByDate = new Map();
   (Array.isArray(records) ? records : []).forEach((record) => {
     if (!isQualifiedStudyRecord(record)) return;
     if (isRecordExplicitlyLinkedToAnotherPlan(record, plan)) return;
     const metrics = getStudyMetrics(record);
     const dateKey = toDateKey(metrics.date);
+    if (dateKey) {
+      if (!recordsByDate.has(dateKey)) recordsByDate.set(dateKey, []);
+      recordsByDate.get(dateKey).push(record);
+    }
     addMapMinutes(totalMinutesByDate, dateKey, metrics.minutes);
     if (!isReviewRecord(record)) addMapMinutes(studyMinutesByDate, dateKey, metrics.minutes);
   });
@@ -719,7 +840,7 @@ const getPlanDailyActivityMinutes = ({ records = [], simulations = [], plan }) =
     addMapMinutes(totalMinutesByDate, dateKey, metrics.minutes);
     addMapMinutes(studyMinutesByDate, dateKey, metrics.minutes);
   });
-  return { totalMinutesByDate, studyMinutesByDate };
+  return { totalMinutesByDate, studyMinutesByDate, recordsByDate };
 };
 
 const normalizeStudyWeekdays = (raw, fallback = []) => {
@@ -748,12 +869,42 @@ const getPlanStudyWeekdays = (plan) => {
 };
 
 const getPlanStartKey = (plan, studyDates) => {
+  const firstStage = Array.isArray(plan?.data?.etapasPlanejamento)
+    ? plan.data.etapasPlanejamento[0] : null;
+  const firstStageStart = firstStage
+    ? toDateKey(firstStage.metas?.dataInicioPlanejamento || firstStage.metas?.dataInicio || firstStage.inicioEm)
+    : null;
+  if (firstStageStart) return firstStageStart;
   const value = plan?.type === 'cycle'
     ? (plan?.data?.dataInicioPlanejamento || plan?.data?.dataInicio || plan?.data?.inicio || plan?.data?.dataCriacao || plan?.data?.createdAt)
     : (plan?.data?.dataInicio || plan?.data?.inicio || plan?.data?.createdAt || plan?.data?.dataCriacao);
   const configured = value ? toDateKey(value) : null;
   if (configured) return configured;
   return [...studyDates].sort()[0] || null;
+};
+
+const getMethodStageForDate = (plan, dateKey) => {
+  const stages = Array.isArray(plan?.data?.etapasPlanejamento) ? plan.data.etapasPlanejamento : [];
+  if (!stages.length) return plan;
+  const stage = [...stages].reverse().find((item) => {
+    const start = toDateKey(item.inicioEm);
+    return !start || start <= dateKey;
+  }) || stages[0];
+  const type = stage.metodo === 'ciclo' ? 'cycle' : 'schedule';
+  const isCurrent = String(stage.id) === String(plan.id) && type === plan.type;
+  return { type, id: stage.id, data: isCurrent ? plan.data : (stage.metas || {}) };
+};
+
+const nextExpectedStudyDateForPlan = (dateKey, plan, limit = 14) => {
+  let cursor = dateKey;
+  for (let index = 0; index < limit; index++) {
+    cursor = addDateKeyDays(cursor, 1);
+    const stage = getMethodStageForDate(plan, cursor);
+    const weekday = dateKeyToUTCDate(cursor)?.getUTCDay();
+    if (getPlanStudyWeekdays(stage).includes(weekday)
+      && !getPlanRestDateKeys(stage).has(cursor)) return cursor;
+  }
+  return null;
 };
 
 const getPlanRestDateKeys = (plan) => {
@@ -766,16 +917,6 @@ const getPlanRestDateKeys = (plan) => {
     .filter((entry) => ['descanso', 'folga', 'feriado', 'rest'].includes(String(entry?.tipo || entry?.type || entry?.status || '').toLowerCase()))
     .map((entry) => entry?.data || entry?.date || entry?.dateKey);
   return new Set([...directValues, ...exceptionValues].map(toDateKey).filter(Boolean));
-};
-
-const nextExpectedStudyDate = (dateKey, studyWeekdays, restDates, limit = 14) => {
-  let cursor = dateKey;
-  for (let index = 0; index < limit; index += 1) {
-    cursor = addDateKeyDays(cursor, 1);
-    const weekday = dateKeyToUTCDate(cursor)?.getUTCDay();
-    if (studyWeekdays.has(weekday) && !restDates.has(cursor)) return cursor;
-  }
-  return null;
 };
 
 // A regra de meta completa/revisões não pode recalcular períodos anteriores à
@@ -869,28 +1010,58 @@ const evaluatePlannedStudyStreak = ({ plan, dailyActivityMinutes, cycleReviews =
   const days = {};
 
   while (cursor && cursor <= todayKey) {
+    const methodStage = getMethodStageForDate(plan, cursor);
+    const stageWeekdays = new Set(getPlanStudyWeekdays(methodStage));
+    const stageRestDates = getPlanRestDateKeys(methodStage);
     const weekday = dateKeyToUTCDate(cursor)?.getUTCDay();
-    const expected = studyWeekdays.has(weekday) && !restDates.has(cursor);
-    const plannedMinutes = expected ? getPlanTargetMinutesForDate(plan, cursor) : 0;
+    const expected = stageWeekdays.has(weekday) && !stageRestDates.has(cursor);
+    const plannedMinutes = expected ? getPlanTargetMinutesForDate(methodStage, cursor) : 0;
     const qualifiedMinutes = Math.max(0, Number(totalMinutesByDate.get(cursor) || 0));
     const qualifiedStudyMinutes = Math.max(0, Number(studyMinutesByDate.get(cursor) || 0));
-    const cycleReviewRequirements = expected
-      ? getCycleReviewRequirementsByDate(cycleReviews, plan, cursor)
-      : [];
+    const linkedCycleIds = (plan.data?.etapasPlanejamento || [])
+      .filter((stage) => stage.metodo === 'ciclo').map((stage) => stage.id);
+    const cycleReviewRequirements = expected && linkedCycleIds.length
+      ? linkedCycleIds.flatMap((id) => getCycleReviewRequirementsByDate(cycleReviews,
+        { type: 'cycle', id }, cursor))
+      : expected && methodStage.type === 'cycle'
+        ? getCycleReviewRequirementsByDate(cycleReviews, methodStage, cursor)
+        : [];
     const pendingReviewCount = cycleReviewRequirements
-      .filter((review) => isCycleReviewPendingByDate(review, plan, cursor)).length;
+      .filter((review) => isCycleReviewPendingByDate(review,
+        { type: 'cycle', id: review.cicloId }, cursor)).length;
     const plannedReviewMinutes = cycleReviewRequirements.reduce(
       (total, review) => total + Math.max(0, getSlotMinutes(review) || 20),
       0,
     );
-    const plannedStudyMinutes = plan.type === 'schedule'
-      ? Math.min(plannedMinutes, getScheduleStudyTargetMinutesForDate(plan.data, cursor) || plannedMinutes)
+    const plannedStudyMinutes = methodStage.type === 'schedule'
+      ? Math.min(plannedMinutes, getScheduleStudyTargetMinutesForDate(methodStage.data, cursor) || plannedMinutes)
       : Math.max(0, plannedMinutes - Math.min(plannedMinutes, plannedReviewMinutes));
 
-    const studied = expected
-      && qualifiedMinutes >= plannedMinutes
+    const completedByBlocks = isScheduleDayCompletedByBlocks(methodStage, cursor,
+      dailyActivityMinutes?.recordsByDate?.get(cursor) || [], Math.max(0, plannedMinutes - plannedStudyMinutes));
+    const timeGoalMet = plannedMinutes > 0 && qualifiedMinutes >= plannedMinutes && qualifiedStudyMinutes >= plannedStudyMinutes;
+    const studyTargetMetWithoutReviews = methodStage.type === 'schedule'
+      && plannedStudyMinutes > 0
+      && plannedMinutes <= plannedStudyMinutes
       && qualifiedStudyMinutes >= plannedStudyMinutes
-      && pendingReviewCount === 0;
+      && pendingReviewCount === 0
+      && (dailyActivityMinutes?.recordsByDate?.get(cursor) || []).length > 0;
+    const hasUnmarkedScheduleSlot = methodStage.type === 'schedule' && (() => {
+      const schedule = methodStage.data;
+      const start = toDateKey(schedule?.dataInicio);
+      if (!start || cursor < start) return false;
+      const week = Math.floor((dateKeyToUTCDate(cursor) - dateKeyToUTCDate(start)) / (7 * 24 * 60 * 60 * 1000));
+      const progress = schedule?.progresso?.[`w${week}`] || {};
+      const slots = getScheduleSlotsForDate(schedule, cursor);
+      return slots.some((slot) => {
+        const key = getScheduleSlotKey(slot);
+        return progress[key] === false || progress[slot.slotId] === false || (slot.slotIdBase && progress[slot.slotIdBase] === false);
+      });
+    })();
+    const studied = expected
+      && pendingReviewCount === 0
+      && !hasUnmarkedScheduleSlot
+      && (timeGoalMet || completedByBlocks || studyTargetMetWithoutReviews);
 
     const isToday = cursor === todayKey;
     let state = STUDY_STREAK_DAY_STATES.NOT_APPLICABLE;
@@ -908,12 +1079,12 @@ const evaluatePlannedStudyStreak = ({ plan, dailyActivityMinutes, cycleReviews =
       state = STUDY_STREAK_DAY_STATES.RECOVERY_PENDING;
       if (!pendingRecoveryDate) pendingRecoveryDate = cursor;
       recoveryDueDate = pendingRecoveryDate === cursor
-        ? nextExpectedStudyDate(cursor, studyWeekdays, restDates)
+        ? nextExpectedStudyDateForPlan(cursor, plan)
         : cursor;
     } else if (!pendingRecoveryDate) {
       state = STUDY_STREAK_DAY_STATES.RECOVERY_PENDING;
       pendingRecoveryDate = cursor;
-      recoveryDueDate = nextExpectedStudyDate(cursor, studyWeekdays, restDates);
+      recoveryDueDate = nextExpectedStudyDateForPlan(cursor, plan);
     } else {
       state = STUDY_STREAK_DAY_STATES.FAILED;
       currentStreak = 0;
@@ -929,6 +1100,7 @@ const evaluatePlannedStudyStreak = ({ plan, dailyActivityMinutes, cycleReviews =
       qualifiedStudyMinutes,
       plannedMinutes,
       plannedStudyMinutes,
+      completedByBlocks,
       pendingReviewCount,
       incrementsStreak: state === STUDY_STREAK_DAY_STATES.STUDIED || state === STUDY_STREAK_DAY_STATES.RECOVERED,
       preservesStreak: state !== STUDY_STREAK_DAY_STATES.FAILED && state !== STUDY_STREAK_DAY_STATES.NOT_APPLICABLE,
@@ -1013,12 +1185,18 @@ export const calculatePlanStudyStreak = ({
   }
 
   const wrappedPlan = { type: normalizedType, id: planId, data: plan };
-  const dailyActivityMinutes = getPlanDailyActivityMinutes({ records, simulations: simulados, plan: wrappedPlan });
-  const historicalStreak = Math.max(
-    calculateLegacyStreakBeforeStrictRules({ records, strictStartKey: STRICT_STREAK_RULES_START_DATE, lookbackDays }),
-    calculateLegacyWeekdayStreakBeforeStrictRules({ records, strictStartKey: STRICT_STREAK_RULES_START_DATE, lookbackDays }),
-    calculateLegacyPlannedStreakBeforeStrictRules({ plan: wrappedPlan, dailyActivityMinutes, strictStartKey: STRICT_STREAK_RULES_START_DATE, lookbackDays }),
-  );
+  const planRecords = (Array.isArray(records) ? records : []).filter((record) =>
+    !isRecordExplicitlyLinkedToAnotherPlan(record, wrappedPlan));
+  const dailyActivityMinutes = getPlanDailyActivityMinutes({ records: planRecords, simulations: simulados, plan: wrappedPlan });
+  const configuredStartKey = getPlanStartKey(wrappedPlan, new Set(dailyActivityMinutes?.totalMinutesByDate?.keys() || []));
+  const planStartedAfterStrict = Boolean(configuredStartKey && configuredStartKey >= STRICT_STREAK_RULES_START_DATE);
+  const historicalStreak = planStartedAfterStrict
+    ? 0
+    : Math.max(
+        calculateLegacyStreakBeforeStrictRules({ records: planRecords, strictStartKey: STRICT_STREAK_RULES_START_DATE, lookbackDays }),
+        calculateLegacyWeekdayStreakBeforeStrictRules({ records: planRecords, strictStartKey: STRICT_STREAK_RULES_START_DATE, lookbackDays }),
+        calculateLegacyPlannedStreakBeforeStrictRules({ plan: wrappedPlan, dailyActivityMinutes, strictStartKey: STRICT_STREAK_RULES_START_DATE, lookbackDays }),
+      );
   const result = evaluatePlannedStudyStreak({
     plan: wrappedPlan,
     dailyActivityMinutes,

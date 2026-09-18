@@ -477,10 +477,10 @@ function HomePage({
   const contextRegistrosEstudo = useMemo(() => {
     const source = allRegistrosEstudo?.length ? allRegistrosEstudo : registrosEstudo;
     if (effectiveHomeContext === 'ciclo' && activeCicloData?.id) {
-      return source.filter(r => r.cicloId === activeCicloData.id && !r.cronogramaId);
+      return source.filter(r => String(r.cicloId || '') === String(activeCicloData.id) && !r.cronogramaId && r.contextoRegistro !== 'cronograma');
     }
     if (effectiveHomeContext === 'cronograma' && activeCronogramaData?.id) {
-      return source.filter(r => r.cronogramaId === activeCronogramaData.id);
+      return source.filter(r => String(r.cronogramaId || '') === String(activeCronogramaData.id) && !r.cicloId && r.contextoRegistro !== 'ciclo');
     }
     return source;
   }, [allRegistrosEstudo, registrosEstudo, effectiveHomeContext, activeCicloData?.id, activeCronogramaData?.id]);
@@ -499,11 +499,14 @@ function HomePage({
   };
 
   const handleDayClick = (date) => {
-    const source = globalRegistrosEstudo;
+    const source = contextRegistrosEstudo;
     const dayRegistros = source.filter(r => r.data === date);
     const dayStatus = getDailyStudyStatus({
       date,
-      studyDaysMap: buildStudyDaysMap(globalRegistrosEstudo),
+      studyDaysMap: buildStudyDaysMap(contextRegistrosEstudo, {
+        contextMode: effectiveHomeContext,
+        planId: effectiveHomeContext === 'ciclo' ? activeCicloData?.id : activeCronogramaData?.id,
+      }),
       activeCronogramaData,
       activeCicloData,
       getAgendaSemana,
@@ -565,8 +568,20 @@ function HomePage({
         totalTimeMinutes += (item.tempoEstudadoMinutos || 0);
       });
 
-      Object.assign(studyDaysFull, buildStudyDaysMap(globalRegistrosEstudo));
+      Object.assign(studyDaysFull, buildStudyDaysMap(contextRegistrosEstudo, {
+        contextMode: effectiveHomeContext,
+        planId: effectiveHomeContext === 'ciclo' ? activeCicloData?.id : activeCronogramaData?.id,
+      }));
 
+      const todayDailyStatus = getDailyStudyStatus({
+        date: new Date(),
+        studyDaysMap: studyDaysFull,
+        activeCronogramaData,
+        activeCicloData,
+        getAgendaSemana,
+        contextMode: effectiveHomeContext,
+        cycleReviews,
+      });
       const currentStreak = Math.max(0, Number(studyStreakResult?.currentStreak || 0));
 
       // ── Últimos 12 dias ─────────────────────────────────────────────────
@@ -584,6 +599,8 @@ function HomePage({
           contextMode: effectiveHomeContext,
           cycleReviews,
         });
+        const streakDay = studyStreakResult?.days?.[dateStr];
+        const streakState = streakDay?.state || (dayStatus.isRestDay ? 'rest' : 'not_applicable');
         return {
           date: dateStr,
           status: dayStatus.status,
@@ -593,7 +610,7 @@ function HomePage({
           isRestDay: dayStatus.isRestDay,
           completedSlots: dayStatus.completedSlots,
           totalSlots: dayStatus.totalSlots,
-          streakState: studyStreakResult?.days?.[dateStr]?.state || 'not_applicable',
+          streakState,
         };
       });
 

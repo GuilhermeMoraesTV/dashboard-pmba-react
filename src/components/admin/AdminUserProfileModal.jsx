@@ -685,7 +685,6 @@ const CycleTab = ({ data }) => {
               viewMode="total"
               ciclo={cycle}
               canConcludeCiclo={canConcludeCiclo}
-              onMarcarSessao={() => {}}
               onConcluirCiclo={() => {}}
               cicloActionLoading={false}
             />
@@ -707,8 +706,6 @@ const CycleTab = ({ data }) => {
                   ciclo={cycle}
                   disciplinas={data.cycleDisciplines}
                   onIniciarSessao={() => {}}
-                  onToggleSessao={() => {}}
-                  loadingSessionId={null}
                   variant="cycle"
                 />
               </div>

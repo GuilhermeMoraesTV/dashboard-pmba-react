@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
+import { ensureTopicCompletionRecord } from '../../services/studyRecords/topicCompletion';
 
 // --- IMPORTAÇÃO DA GAMIFICAÇÃO ---
 import {
@@ -19,6 +20,11 @@ import {
   REVISAO_MODO_SUGESTAO,
   shouldPersistIntervaloRevisao,
 } from '../../utils/cicloReviewMode';
+
+const createSubmissionId = () => (
+  globalThis.crypto?.randomUUID?.().replace(/-/g, '')
+  || `${Date.now()}_${Math.random().toString(36).slice(2)}`
+);
 
 // --- ESTILOS CSS ---
 const globalStyles = `
@@ -791,6 +797,7 @@ function RegistroEstudoModal({
     acertos: initialData?.acertos || 0,
     tipoEstudo: 'Teoria',
     tipoRegistro: initialData?.tipoRegistro || 'estudo',
+    sessaoGlobalIndex: Number.isFinite(Number(initialData?.sessaoGlobalIndex)) ? Number(initialData.sessaoGlobalIndex) : null,
   });
 
   const [assuntosDisponiveis, setAssuntosDisponiveis] = useState([]);
@@ -1141,6 +1148,7 @@ function RegistroEstudoModal({
       revisaoEscolhida,
       revisaoPersonalizadaDias,
       tipoRegistro: formData.tipoRegistro || 'estudo',
+      sessaoGlobalIndex: formData.sessaoGlobalIndex,
       id: editingQueueId || Date.now()
     };
     if (editingQueueId) {
@@ -1168,7 +1176,8 @@ function RegistroEstudoModal({
       questoesFeitas: item.questoesFeitas,
       acertos: item.acertos,
       tipoEstudo: item.tipoEstudo,
-      tipoRegistro: item.tipoRegistro || 'estudo'
+      tipoRegistro: item.tipoRegistro || 'estudo',
+      sessaoGlobalIndex: item.sessaoGlobalIndex ?? null,
     });
     setTimeout(() => {
       setSelectedAssuntoNome(item.assunto);
@@ -1217,6 +1226,7 @@ function RegistroEstudoModal({
           revisaoEscolhida,
           revisaoPersonalizadaDias,
           tipoRegistro: formData.tipoRegistro || 'estudo',
+          sessaoGlobalIndex: formData.sessaoGlobalIndex,
         });
       } else {
         setLoading(false);
@@ -1225,49 +1235,53 @@ function RegistroEstudoModal({
     }
 
     try {
+      const submissionId = createSubmissionId();
       const saveTasks = [];
       const postSaveTasks = [];
       for (const item of itemsToSave) {
+        const itemContext = item.contextoRegistro || selectedContext;
         saveTasks.push(addRegistroEstudo({
-          contextoRegistro: item.contextoRegistro || selectedContext,
-          ...((item.contextoRegistro || selectedContext) === 'ciclo' && (item.contextId || selectedContextId) ? { cicloId: item.contextId || selectedContextId } : {}),
-          ...((item.contextoRegistro || selectedContext) === 'cronograma' && (item.contextId || selectedContextId) ? { cronogramaId: item.contextId || selectedContextId } : {}),
+          contextoRegistro: itemContext,
+          ...(itemContext === 'ciclo' && (item.contextId || selectedContextId) ? { cicloId: item.contextId || selectedContextId } : {}),
+          ...(itemContext === 'ciclo'
+            ? { cicloRoundVersion: Number(selectedContextMeta?.cicloRoundVersion || 0) }
+            : {}),
+          ...(itemContext === 'ciclo' && item.tipoRegistro !== 'revisao'
+            ? { cycleProgressOperationId: `${submissionId}_${String(item.id || 'single').replace(/[^A-Za-z0-9_-]/g, '_')}` }
+            : {}),
+          ...(itemContext === 'cronograma' && (item.contextId || selectedContextId) ? { cronogramaId: item.contextId || selectedContextId } : {}),
           disciplinaId: item.disciplinaId, disciplinaNome: item.disciplinaNome, assunto: item.assunto,
           data: item.data, timestamp: serverTimestamp(), tempoEstudadoMinutos: item.tempoTotal,
           questoesFeitas: Number(item.questoesFeitas), acertos: Number(item.acertos),
           tipoEstudo: item.tipoRegistro === 'revisao' ? 'revisao' : item.tipoEstudo,
           tipoRegistro: item.tipoRegistro || 'estudo',
+          ...(itemContext === 'ciclo' && Number.isFinite(Number(item.sessaoGlobalIndex))
+            ? { sessaoGlobalIndex: Number(item.sessaoGlobalIndex) }
+            : {}),
           duracaoMinutos: item.tempoTotal,
           questoesAcertadas: Number(item.acertos),
           ...(item.tipoRegistro === 'revisao' ? { isRevisao: true, revisao: true } : {}),
-          ...(item.tipoRegistro !== 'revisao' && item.markAsFinished ? { markAsFinished: true, assuntoFinalizado: true } : {}),
-          ...(item.tipoRegistro !== 'revisao' && (item.contextoRegistro || selectedContext) === 'cronograma' && item.naoConcluidoCronograma ? { naoConcluidoCronograma: true } : {}),
-          ...(item.tipoRegistro !== 'revisao' && shouldPersistIntervaloRevisao(item.contextoRegistro || selectedContext, item.revisaoEscolhida)
+          ...(item.markAsFinished ? { markAsFinished: true, assuntoFinalizado: true } : {}),
+          ...(item.tipoRegistro !== 'revisao' && itemContext === 'cronograma' && item.naoConcluidoCronograma ? { naoConcluidoCronograma: true } : {}),
+          ...(item.tipoRegistro !== 'revisao' && shouldPersistIntervaloRevisao(itemContext, item.revisaoEscolhida)
             ? { intervaloRevisaoDias: resolveIntervaloRevisaoRegistro(item.revisaoEscolhida, item.revisaoPersonalizadaDias) } : {}),
-          ...(item.tipoRegistro !== 'revisao' && (item.contextoRegistro || selectedContext) === 'ciclo' && revisaoModoCiclo === REVISAO_MODO_SUGESTAO
+          ...(item.tipoRegistro !== 'revisao' && itemContext === 'ciclo' && revisaoModoCiclo === REVISAO_MODO_SUGESTAO
             ? { revisaoAutomaticaCiclo: true } : {}),
         }));
 
-        if ((item.contextoRegistro || selectedContext) === 'ciclo' && item.markAsFinished) {
-          postSaveTasks.push((async () => {
-          const q = query(
-            collection(db, 'users', userId, 'registrosEstudo'),
-            where('cicloId', '==', item.contextId || selectedContextId),
-            where('disciplinaId', '==', item.disciplinaId),
-            where('assunto', '==', item.assunto),
-            where('tipoEstudo', '==', 'check_manual')
-          );
-          const snap = await getDocs(q);
-          if (snap.empty) {
-            await addDoc(collection(db, 'users', userId, 'registrosEstudo'), {
-              cicloId: item.contextId || selectedContextId, contextoRegistro: 'ciclo',
-              disciplinaId: item.disciplinaId, disciplinaNome: item.disciplinaNome,
-              assunto: item.assunto, data: item.data, timestamp: serverTimestamp(),
-              tempoEstudadoMinutos: 0, questoesFeitas: 0, acertos: 0,
-              tipoEstudo: 'check_manual', obs: 'Concluído via Registro Manual'
-            });
-          }
-          })());
+        if (item.markAsFinished && (itemContext === 'ciclo' || itemContext === 'cronograma')) {
+          postSaveTasks.push(ensureTopicCompletionRecord({
+            db,
+            userUid: userId,
+            contextoRegistro: itemContext,
+            contextId: item.contextId || selectedContextId,
+            disciplinaId: item.disciplinaId,
+            disciplinaNome: item.disciplinaNome,
+            assunto: item.assunto,
+            data: item.data,
+            obs: 'Concluído via Registro Manual',
+            origem: 'registro_manual',
+          }));
         }
       }
 
@@ -1549,10 +1563,9 @@ function RegistroEstudoModal({
                   />
                 </div>
 
-                {/* ── REVISÃO ── */}
-                {formData.tipoRegistro !== 'revisao' && (
-                  <div className={`grid grid-cols-1 gap-2 ${selectedContext === 'ciclo' ? 'md:grid-cols-[minmax(0,1fr)_minmax(170px,0.52fr)]' : ''}`}>
-                    {selectedContext === 'ciclo' && (
+                {/* ── REVISÃO E CONCLUSÃO ── */}
+                <div className={`grid grid-cols-1 gap-2 ${selectedContext === 'ciclo' && formData.tipoRegistro !== 'revisao' ? 'md:grid-cols-[minmax(0,1fr)_minmax(170px,0.52fr)]' : ''}`}>
+                    {selectedContext === 'ciclo' && formData.tipoRegistro !== 'revisao' && (
                       <div className="space-y-2 relative z-20">
                         <div className="flex items-start justify-between gap-3">
                           <div>
@@ -1601,8 +1614,17 @@ function RegistroEstudoModal({
                       </div>
                     )}
 
-                    {/* ── MARCAR COMO CONCLUÍDO (Design Verde Bonito) ── */}
-                    <div className={`grid gap-2 ${selectedContext === 'cronograma' ? 'grid-cols-2' : 'grid-cols-1'} items-start md:items-center`}>
+                    {selectedContext === 'cronograma' && formData.tipoRegistro !== 'revisao' && (
+                      <div className="mb-2">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-zinc-700 dark:text-zinc-200">
+                          Você concluiu este assunto?
+                        </p>
+                        <p className="mt-0.5 text-[10px] font-semibold text-zinc-500 dark:text-zinc-400">
+                          A sessão e os minutos serão registrados em qualquer uma das opções.
+                        </p>
+                      </div>
+                    )}
+                    <div className={`grid gap-2 ${selectedContext === 'cronograma' && formData.tipoRegistro !== 'revisao' ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'} items-start md:items-center`}>
                       <button
                         type="button"
                         onClick={() => {
@@ -1629,12 +1651,31 @@ function RegistroEstudoModal({
                         </div>
                         <div className="relative min-w-0">
                           <p className={`text-[10px] font-black uppercase tracking-tight leading-tight ${markAsFinished ? 'text-white' : 'text-emerald-700 dark:text-emerald-300'}`}>
-                            Marcar tópico como concluído
+                            {markAsFinished
+                              ? 'Assunto concluído'
+                              : formData.tipoRegistro === 'revisao'
+                                ? 'Marcar como concluído'
+                                : selectedContext === 'cronograma'
+                                ? 'Concluí o assunto'
+                                : 'Marcar como concluído'}
                           </p>
+                          {formData.tipoRegistro === 'revisao' ? (
+                            <p className={`mt-0.5 text-[9px] font-semibold leading-tight ${markAsFinished ? 'text-white/85' : 'text-zinc-500 dark:text-zinc-400'}`}>
+                              {markAsFinished
+                                ? 'A revisão será salva e o assunto será marcado como concluído.'
+                                : 'A revisão será salva normalmente; a conclusão é opcional.'}
+                            </p>
+                          ) : selectedContext === 'cronograma' && (
+                            <p className={`mt-0.5 text-[9px] font-semibold leading-tight ${markAsFinished ? 'text-white/85' : 'text-zinc-500 dark:text-zinc-400'}`}>
+                              {markAsFinished
+                                ? 'Ao salvar, será marcado no Edital e o cronograma avançará.'
+                                : 'Ao salvar: marcar no Edital e avançar o cronograma.'}
+                            </p>
+                          )}
                         </div>
                       </button>
 
-                      {selectedContext === 'cronograma' && (
+                      {selectedContext === 'cronograma' && formData.tipoRegistro !== 'revisao' && (
                         <div className="relative">
                           <button
                             type="button"
@@ -1686,7 +1727,6 @@ function RegistroEstudoModal({
                       )}
                     </div>
                   </div>
-                )}
               </motion.div>
             )}
 

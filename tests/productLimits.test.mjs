@@ -22,6 +22,8 @@ test('DEFAULT_PRODUCT_LIMITS has expected domain values and is frozen', () => {
 
   assert.equal(DEFAULT_PRODUCT_LIMITS.questions.defaultDailyQuestionsGoal, 20);
   assert.equal(DEFAULT_PRODUCT_LIMITS.questions.maxQuestionsPerSession, 50);
+  assert.equal(DEFAULT_PRODUCT_LIMITS.studyRecords.maxMinutesPerRecord, 720);
+  assert.ok(Object.isFrozen(DEFAULT_PRODUCT_LIMITS.studyRecords));
 
   assert.equal(DEFAULT_PRODUCT_LIMITS.ai.maxGeneratedCardsPerBatch, 30);
   assert.equal(DEFAULT_PRODUCT_LIMITS.ai.maxGeneratedQuestionsPerBatch, 20);
@@ -32,10 +34,19 @@ test('DEFAULT_PRODUCT_LIMITS has expected domain values and is frozen', () => {
   assert.equal(DEFAULT_PRODUCT_LIMITS.groupChat.messageCooldownMs, 1000);
   assert.equal(DEFAULT_PRODUCT_LIMITS.groupChat.transactionConflictRetries, 30);
 
+  assert.equal(DEFAULT_PRODUCT_LIMITS.polls.minOptions, 2);
+  assert.equal(DEFAULT_PRODUCT_LIMITS.polls.maxOptions, 6);
+  assert.equal(DEFAULT_PRODUCT_LIMITS.polls.maxTitleChars, 120);
+  assert.equal(DEFAULT_PRODUCT_LIMITS.polls.maxDescriptionChars, 600);
+  assert.equal(DEFAULT_PRODUCT_LIMITS.polls.maxOptionChars, 120);
+  assert.equal(DEFAULT_PRODUCT_LIMITS.polls.pageSizeRespondents, 50);
+  assert.equal(DEFAULT_PRODUCT_LIMITS.polls.maxHistoryItems, 100);
+
   // Imutabilidade
   assert.ok(Object.isFrozen(DEFAULT_PRODUCT_LIMITS));
   assert.ok(Object.isFrozen(DEFAULT_PRODUCT_LIMITS.storage));
   assert.ok(Object.isFrozen(DEFAULT_PRODUCT_LIMITS.flashcards));
+  assert.ok(Object.isFrozen(DEFAULT_PRODUCT_LIMITS.polls));
 });
 
 test('resolveProductLimits safely falls back to defaults with null or empty override', () => {

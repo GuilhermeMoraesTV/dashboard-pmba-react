@@ -13,6 +13,7 @@ import {
   getDoc,
   setDoc,
   runTransaction,
+  deleteDoc,
 } from 'firebase/firestore';
 import { upsertCicloRevisao } from '../services/cicloRevisoes';
 import { normalizeRevisaoModoCiclo } from '../utils/cicloReviewMode';
@@ -26,9 +27,19 @@ import {
 } from '../utils/cicloDistribution';
 import { getKnowledgeLevel, getImportanceLevel } from '../utils/planningPriority';
 import { deletePlanStudyRecords } from '../services/planDeletion';
+import { deletePermanentPlanning } from '../services/permanentPlanningDeletion';
+import { getCycleStageGoalSnapshot } from '../utils/planningTransformation';
 import { buildCycleRoundSummary } from '../utils/cicloWeeklyStatus';
 import { requestGamificationRefresh } from '../utils/gamificationRealtime';
-import { buildCycleSessionCompletionUpdate } from '../utils/cycleSessionCompletion';
+import {
+  CYCLE_ROUND_IDENTITY_VERSION,
+  getStudyBackedCycleCompletionState,
+  isRealCycleStudyRecord,
+} from '../utils/cycleSessionCompletion';
+import {
+  CYCLE_PROGRESS_CONTRACT_VERSION,
+  getCycleSessionPlannedMinutes,
+} from '../utils/cycleProgressPersistence';
 
 export {
   calcularDistribuicao,
@@ -69,7 +80,7 @@ const normalizeTempoSessaoMinutos = (tempoSessaoMinutos, diasEstudo) => {
 const buildLegacyProgressFromRecords = ({ ordemSessoes, disciplinas, registros, tempoSessaoMinutos }) => {
   const minutosPorDisciplina = new Map();
   registros.forEach((registro) => {
-    if (registro.conclusaoId != null || !registro.disciplinaId) return;
+    if (registro.conclusaoId != null || !registro.disciplinaId || !isRealCycleStudyRecord(registro)) return;
     const atual = minutosPorDisciplina.get(registro.disciplinaId) || 0;
     minutosPorDisciplina.set(registro.disciplinaId, atual + Number(registro.tempoEstudadoMinutos || 0));
   });
@@ -96,6 +107,23 @@ const buildLegacyProgressFromRecords = ({ ordemSessoes, disciplinas, registros, 
   });
 
   return { progressoSessoes, sessoesConcluidas, sessoesConcluidasDetalhes: detalhes };
+};
+
+const sanitizeFirestorePayload = (data) => {
+  if (data === null || data === undefined) return null;
+  if (Array.isArray(data)) {
+    return data.map((item) => sanitizeFirestorePayload(item));
+  }
+  if (typeof data === 'object' && !(data instanceof Date) && typeof data?.toMillis !== 'function') {
+    const clean = {};
+    Object.entries(data).forEach(([key, val]) => {
+      if (val !== undefined) {
+        clean[key] = sanitizeFirestorePayload(val);
+      }
+    });
+    return clean;
+  }
+  return data;
 };
 
 export const useCiclos = (user) => {
@@ -137,11 +165,12 @@ export const useCiclos = (user) => {
 
       const batch = writeBatch(db);
 
-      // 1. Desativa ciclos anteriores
+      // 1. Desativa ciclos anteriores atomicamente no mesmo batch (garante 1 único ativo)
       await desativarCiclosAntigos(batch, user.uid);
 
       // 2. Cria documento do Ciclo Principal
       const cicloRef = doc(collection(db, 'users', user.uid, 'ciclos'));
+      const planejamentoRef = doc(db, 'users', user.uid, 'planejamentos', cicloRef.id);
 
       const disciplinasParaSalvar = disciplinasComEstadoCompleto.map((disciplina, position) => {
         const disciplinaRef = doc(collection(db, 'users', user.uid, 'ciclos', cicloRef.id, 'disciplinas'));
@@ -171,8 +200,8 @@ export const useCiclos = (user) => {
         .filter((disciplina) => disciplina.estudarTodosDias)
         .map((disciplina) => disciplina.id);
 
-      batch.set(cicloRef, {
-        nome: cicloData.nome,
+      batch.set(cicloRef, sanitizeFirestorePayload({
+        nome: String(cicloData.nome || '').trim() || 'Ciclo de Estudos',
         dataInicioPlanejamento: dateToYMDLocal(cicloData.dataInicioPlanejamento || new Date()),
         cargaHorariaSemanalTotal: cargaHorariaTotal,
         diasEstudo: cicloData.diasEstudo || null,
@@ -189,25 +218,49 @@ export const useCiclos = (user) => {
         disciplinaTodosDiasIds,
         sessoesConcluidas: [],
         progressoSessoes: {},
+        sessoesConcluidasDetalhes: {},
         embaralharOffset: 0,
         ativo: true,
+        planejamentoId: cicloRef.id,
         dataCriacao: serverTimestamp(),
         arquivado: false,
         conclusoes: 0,
+        roundIdentityVersion: CYCLE_ROUND_IDENTITY_VERSION,
+        cycleProgressContractVersion: CYCLE_PROGRESS_CONTRACT_VERSION,
+        cycleProgressOperations: {},
+        cycleRoundMinutesByDisciplineUntilIdeal: {},
+        lastCycleProgressOperationId: 'create:initial-cycle',
         logoUrl: cicloData.logoUrl || null,
         editalId: cicloData.editalId || cicloData.templateId || null,
         templateOrigem: cicloData.templateId || null,
         tipo: cicloData.tipo || 'padrao',
         versaoCiclo: CICLO_GUIDE_VERSION,
         guiaAtualizadoEm: serverTimestamp()
+      }));
+
+      batch.set(planejamentoRef, {
+        nome: String(cicloData.nome || '').trim() || 'Ciclo de Estudos',
+        editalId: cicloData.editalId || cicloData.templateId || null,
+        metodoVigente: 'ciclo',
+        etapaVigenteId: cicloRef.id,
+        etapas: [{
+          metodo: 'ciclo', id: cicloRef.id, inicioEm: new Date().toISOString(),
+          metas: getCycleStageGoalSnapshot({
+            dataInicioPlanejamento: cicloData.dataInicioPlanejamento,
+            diasEstudo: cicloData.diasEstudo,
+            tempoSessaoMinutos,
+          }),
+        }],
+        arquivado: false,
+        criadoEm: serverTimestamp(),
       });
 
       // 3. Cria Subcolecao de Disciplinas e salva index para preservar ordem
       disciplinasParaSalvar.forEach((disciplina) => {
         const disciplinaAtiva = disciplina._disciplinaAtiva || disciplina;
         const corDisciplina = disciplina.cor || disciplinaAtiva.cor || null;
-        batch.set(disciplina._ref, {
-          nome: disciplina.nome,
+        batch.set(disciplina._ref, sanitizeFirestorePayload({
+          nome: String(disciplina.nome || 'Disciplina').trim(),
           peso: obterPesoDisciplina(disciplina),
           conhecimentoNivel: getKnowledgeLevel(disciplina),
           importanciaNivel: getImportanceLevel(disciplina),
@@ -219,7 +272,7 @@ export const useCiclos = (user) => {
           inCiclo: disciplina.inCiclo !== false,
           estudarTodosDias: disciplina.inCiclo !== false && disciplina.estudarTodosDias === true,
           ...(corDisciplina ? { cor: corDisciplina } : {}),
-        });
+        }));
       });
 
       await batch.commit();
@@ -288,7 +341,13 @@ export const useCiclos = (user) => {
     setLoading(true); setError(null);
     try {
       const cicloRef = doc(db, 'users', user.uid, 'ciclos', cicloId);
-      await updateDoc(cicloRef, { arquivado: true, ativo: false });
+      const cycleSnap = await getDoc(cicloRef);
+      if (cycleSnap.data()?.planejamentoId) {
+        const batch = writeBatch(db);
+        batch.update(cicloRef, { arquivado: true, ativo: false });
+        batch.update(doc(db, 'users', user.uid, 'planejamentos', cycleSnap.data().planejamentoId), { arquivado: true });
+        await batch.commit();
+      } else await updateDoc(cicloRef, { arquivado: true, ativo: false });
       setLoading(false); return true;
     } catch (err) { console.error('Erro ao arquivar ciclo:', err); setError(err.message); setLoading(false); return false; }
   };
@@ -447,29 +506,21 @@ export const useCiclos = (user) => {
         .map((disciplina) => disciplina.id);
       updateData.disciplinaTodosDiasId = updateData.disciplinaTodosDiasIds[0] || null;
 
-      if (options.guideUpgrade) {
-        updateData.versaoCiclo = CICLO_GUIDE_VERSION;
-        updateData.guiaAtualizadoEm = serverTimestamp();
+      updateData.versaoCiclo = CICLO_GUIDE_VERSION;
+      updateData.guiaAtualizadoEm = serverTimestamp();
 
-        const cicloAtualSnap = await getDoc(cicloRef);
-        const cicloAtualData = cicloAtualSnap.data() || {};
-        const hasExistingSessionProgress = Array.isArray(cicloAtualData.sessoesConcluidas)
-          || (cicloAtualData.progressoSessoes && Object.keys(cicloAtualData.progressoSessoes).length > 0);
+      const registrosSnapshot = await getDocs(query(collection(db, 'users', user.uid, 'registrosEstudo'), where('cicloId', '==', cicloId)));
+      const registros = registrosSnapshot.docs.map((registroDoc) => registroDoc.data() || {});
+      Object.assign(updateData, buildLegacyProgressFromRecords({
+        ordemSessoes: novaOrdemSessoes,
+        disciplinas: disciplinasParaOrdem.map((d) => ({ id: d.id })),
+        registros,
+        tempoSessaoMinutos,
+      }));
 
-        if (!hasExistingSessionProgress) {
-          const registrosSnapshot = await getDocs(query(collection(db, 'users', user.uid, 'registrosEstudo'), where('cicloId', '==', cicloId)));
-          const registros = registrosSnapshot.docs.map((registroDoc) => registroDoc.data() || {});
-          Object.assign(updateData, buildLegacyProgressFromRecords({
-            ordemSessoes: novaOrdemSessoes,
-            disciplinas: disciplinasParaOrdem.map((d) => ({ id: d.id })),
-            registros,
-            tempoSessaoMinutos,
-          }));
-        }
-      } else {
-        updateData.sessoesConcluidas = [];
-        updateData.progressoSessoes = {};
-      }
+      updateData.cycleProgressContractVersion = CYCLE_PROGRESS_CONTRACT_VERSION;
+      updateData.roundIdentityVersion = CYCLE_ROUND_IDENTITY_VERSION;
+      updateData.lastCycleProgressOperationId = `configure:${cicloId}:${Date.now()}`;
 
       batch.update(cicloRef, updateData);
 
@@ -565,6 +616,9 @@ export const useCiclos = (user) => {
         ordemSessoes,
         totalSessoesCiclo: ordemSessoes.length,
         ...(hasExistingSessionProgress ? {} : progressUpdate),
+        cycleProgressContractVersion: CYCLE_PROGRESS_CONTRACT_VERSION,
+        roundIdentityVersion: CYCLE_ROUND_IDENTITY_VERSION,
+        lastCycleProgressOperationId: `guide-upgrade:${cicloId}:${Date.now()}`,
       });
 
       await batch.commit();
@@ -584,12 +638,10 @@ export const useCiclos = (user) => {
     try {
       const cicloRef = doc(db, 'users', user.uid, 'ciclos', cicloId);
       const disciplinasRef = collection(db, 'users', user.uid, 'ciclos', cicloId, 'disciplinas');
-      const registrosRef = collection(db, 'users', user.uid, 'registrosEstudo');
-      const q = query(registrosRef, where('cicloId', '==', cicloId));
-      const [disciplinasSnapshot, registrosSnapshot] = await Promise.all([
-        getDocsFromServer(disciplinasRef),
-        getDocsFromServer(q),
-      ]);
+      const expectedConclusoes = Number.isFinite(Number(options.expectedConclusoes))
+        ? Number(options.expectedConclusoes)
+        : 0;
+      const disciplinasSnapshot = await getDocsFromServer(disciplinasRef);
       const disciplinas = disciplinasSnapshot.docs.map((discDoc) => {
         const discData = discDoc.data() || {};
         const tempoAlocado = Number(discData.tempoAlocadoSemanalMinutos || 0);
@@ -604,12 +656,6 @@ export const useCiclos = (user) => {
           estudarTodosDias: discData.estudarTodosDias === true,
         };
       });
-      const registrosAtuaisRefs = registrosSnapshot.docs
-        .filter((registroDoc) => registroDoc.data()?.conclusaoId == null)
-        .map((registroDoc) => registroDoc.ref);
-      const expectedConclusoes = Number.isFinite(Number(options.expectedConclusoes))
-        ? Number(options.expectedConclusoes)
-        : null;
       const closedAt = new Date();
       let rodadaId = null;
       let didCloseRound = false;
@@ -621,27 +667,24 @@ export const useCiclos = (user) => {
         const conclusoesAtuais = Number(cicloData.conclusoes || 0);
 
         // Uma repetição da mesma intenção deve apenas confirmar o fechamento já salvo.
-        if (expectedConclusoes !== null && conclusoesAtuais > expectedConclusoes) {
+        if (conclusoesAtuais > expectedConclusoes) {
           rodadaId = `rodada-${String(conclusoesAtuais).padStart(6, '0')}`;
           return;
         }
-        if (expectedConclusoes !== null && conclusoesAtuais < expectedConclusoes) {
+        if (conclusoesAtuais < expectedConclusoes) {
           throw new Error('ciclo-versao-desatualizada');
         }
 
         const ordemAtual = Array.isArray(cicloData.ordemSessoes) ? cicloData.ordemSessoes : [];
-        const concluidas = new Set((cicloData.sessoesConcluidas || []).map(Number));
-        const progresso = cicloData.progressoSessoes || {};
-        const tempoPadrao = Math.max(1, Number(cicloData.tempoSessaoMinutos || 50));
+        const completionState = getStudyBackedCycleCompletionState(cicloData);
+        const concluidas = new Set(completionState.sessoesConcluidas);
+        const progresso = completionState.progressoSessoes;
         const todasConcluidas = ordemAtual.length > 0 && ordemAtual.every((sessao, index) => {
-          const planejado = Math.max(1, Number(sessao?.tempoMinutos || sessao?.tempoPlanejadoMinutos || tempoPadrao));
+          const planejado = getCycleSessionPlannedMinutes(cicloData, disciplinas, sessao);
           return concluidas.has(index) || Number(progresso[index] ?? progresso[String(index)] ?? 0) >= planejado;
         });
         if (!todasConcluidas) throw new Error('ciclo-ainda-possui-blocos-pendentes');
 
-        const registrosDocs = await Promise.all(
-          registrosAtuaisRefs.map((registroRef) => transaction.get(registroRef))
-        );
         const proximaConclusaoId = conclusoesAtuais + 1;
         rodadaId = `rodada-${String(proximaConclusaoId).padStart(6, '0')}`;
         const rodadaRef = doc(collection(db, 'users', user.uid, 'ciclos', cicloId, 'rodadas'), rodadaId);
@@ -657,13 +700,10 @@ export const useCiclos = (user) => {
             })
           : [];
         const totalSessoesCiclo = disciplinasAtivas.reduce((acc, d) => acc + (Number(d.sessoesPorCiclo) || 1), 0);
-        const registrosDaRodada = registrosDocs
-          .filter((registroDoc) => registroDoc.exists() && registroDoc.data()?.conclusaoId == null)
-          .map((registroDoc) => registroDoc.data() || {});
         const resumoRodada = buildCycleRoundSummary({
           ciclo: cicloData,
           disciplinas: disciplinasAtivas,
-          registros: registrosDaRodada,
+          minutesByDisciplineUntilIdeal: cicloData.cycleRoundMinutesByDisciplineUntilIdeal || {},
           closedAt,
         });
 
@@ -675,17 +715,17 @@ export const useCiclos = (user) => {
           sessoesConcluidas: [],
           progressoSessoes: {},
           sessoesConcluidasDetalhes: {},
+          cycleProgressOperations: {},
+          cycleRoundMinutesByDisciplineUntilIdeal: {},
+          lastCycleProgressOperationId: `close:${rodadaId}`,
+          cycleProgressContractVersion: CYCLE_PROGRESS_CONTRACT_VERSION,
           embaralharOffset: novoOffset,
+          roundIdentityVersion: CYCLE_ROUND_IDENTITY_VERSION,
         });
         transaction.set(rodadaRef, {
           ...resumoRodada,
           fechamentoReal: serverTimestamp(),
           criadoEm: serverTimestamp(),
-        });
-        registrosDocs.forEach((registroDoc) => {
-          if (registroDoc.exists() && registroDoc.data()?.conclusaoId == null) {
-            transaction.update(registroDoc.ref, { conclusaoId: proximaConclusaoId });
-          }
         });
         didCloseRound = true;
       });
@@ -706,57 +746,37 @@ export const useCiclos = (user) => {
   // Alias para compatibilidade com codigo antigo
   const concluirCicloSemanal = concluirVoltaCiclo;
 
-  const marcarSessaoConcluida = async (cicloId, sessaoGlobalIndex, options = {}) => {
-    if (!user) { setError('Usuario nao autenticado'); return false; }
-    setError(null);
+  const marcarSessaoConcluida = async (cicloId, sessaoGlobalIndex) => {
+    setError('A conclusão direta de blocos foi desativada. Use o cronômetro ou registre o estudo manualmente.');
+    console.warn('[Ciclo] Checkout manual recusado.', { cicloId, sessaoGlobalIndex });
+    return false;
+  };
+
+  const limparCheckoutsManuaisLegados = async (cicloId) => {
+    if (!user || !cicloId) return false;
     try {
       const cicloRef = doc(db, 'users', user.uid, 'ciclos', cicloId);
-      const sessaoIndex = Number(sessaoGlobalIndex);
-      let protectedByStudy = false;
-      let changed = false;
-      for (let attempt = 0; attempt < 3; attempt += 1) {
-        protectedByStudy = false;
-        changed = false;
-        try {
-          await runTransaction(db, async (transaction) => {
-            const cicloDoc = await transaction.get(cicloRef);
-            if (!cicloDoc.exists()) throw new Error('ciclo-nao-encontrado');
-            const data = cicloDoc.data() || {};
-            const tempoSessaoMinutos = Math.max(1, Number(data.tempoSessaoMinutos || 50));
-            const tempoPlanejadoMinutos = Math.max(
-              1,
-              Number(options.tempoPlanejadoMinutos || options.tempoMinutos || tempoSessaoMinutos)
-            );
-            const jaConcluida = (Array.isArray(data.sessoesConcluidas) ? data.sessoesConcluidas : [])
-              .map(Number)
-              .includes(sessaoIndex);
-            const targetCompleted = typeof options.targetCompleted === 'boolean'
-              ? options.targetCompleted
-              : !jaConcluida;
-            const result = buildCycleSessionCompletionUpdate({
-              cycle: data,
-              sessionIndex: sessaoIndex,
-              targetCompleted,
-              plannedMinutes: tempoPlanejadoMinutos,
-              completedAt: dateToYMDLocal(options.concluidaEm || new Date()),
-              updatedAt: new Date(),
-              source: options.origem || 'checkout_manual',
-            });
-            protectedByStudy = result.protectedByStudy;
-            changed = result.changed;
-            if (result.update) transaction.update(cicloRef, result.update);
-          });
-          break;
-        } catch (transactionError) {
-          const code = String(transactionError?.code || '').replace('firestore/', '');
-          if (code !== 'failed-precondition' || attempt === 2) throw transactionError;
-        }
-      }
-      if (protectedByStudy) return false;
-      return changed || options.targetCompleted !== undefined;
+      let cleaned = false;
+      await runTransaction(db, async (transaction) => {
+        const cicloDoc = await transaction.get(cicloRef);
+        if (!cicloDoc.exists()) return;
+        const cicloData = cicloDoc.data() || {};
+        const completionState = getStudyBackedCycleCompletionState(cicloData);
+        const needsRoundIdentityMigration = Number(cicloData.roundIdentityVersion || 0) < CYCLE_ROUND_IDENTITY_VERSION;
+        if (completionState.removedManualCheckoutCount <= 0 && !needsRoundIdentityMigration) return;
+        transaction.update(cicloRef, {
+          sessoesConcluidas: completionState.sessoesConcluidas,
+          progressoSessoes: completionState.progressoSessoes,
+          sessoesConcluidasDetalhes: completionState.sessoesConcluidasDetalhes,
+          roundIdentityVersion: CYCLE_ROUND_IDENTITY_VERSION,
+          cycleProgressContractVersion: CYCLE_PROGRESS_CONTRACT_VERSION,
+          lastCycleProgressOperationId: `cleanup:${cicloId}:${Date.now()}`,
+        });
+        cleaned = true;
+      });
+      return cleaned;
     } catch (err) {
-      console.error('Erro ao marcar sessao concluida:', err);
-      setError(err.message);
+      console.error('Erro ao limpar checkouts manuais legados do ciclo:', err);
       return false;
     }
   };
@@ -850,26 +870,74 @@ export const useCiclos = (user) => {
   };
 
   const excluirCicloPermanente = async (cicloId) => {
-    if (!user) { setError('Usuario nao autenticado'); return false; }
+    if (!user?.uid) { setError('Usuario nao autenticado'); return false; }
+    if (!cicloId) return false;
     setLoading(true); setError(null);
     try {
+      const cycleSnap = await getDoc(doc(db, 'users', user.uid, 'ciclos', cicloId));
+      const planningId = cycleSnap.data()?.planejamentoId || cicloId;
+      const planningRef = doc(db, 'users', user.uid, 'planejamentos', planningId);
+      const planningSnap = await getDoc(planningRef);
+      if ((planningSnap.data()?.etapas || []).length > 1) {
+        await deletePermanentPlanning(user.uid, planningId);
+        setLoading(false);
+        return true;
+      }
       await deletePlanStudyRecords({
         userId: user.uid,
         planId: cicloId,
         planType: 'ciclo',
       });
-      const batch = writeBatch(db);
-      const cicloRef = doc(db, 'users', user.uid, 'ciclos', cicloId);
+
       const disciplinasRef = collection(db, 'users', user.uid, 'ciclos', cicloId, 'disciplinas');
       const disciplinasSnapshot = await getDocs(disciplinasRef);
-      disciplinasSnapshot.docs.forEach(docItem => { batch.delete(docItem.ref); });
+      const disciplinaRefs = disciplinasSnapshot.docs.map((d) => d.ref);
+      for (let i = 0; i < disciplinaRefs.length; i += 400) {
+        const batch = writeBatch(db);
+        disciplinaRefs.slice(i, i + 400).forEach((ref) => batch.delete(ref));
+        await batch.commit();
+      }
+
       const rodadasRef = collection(db, 'users', user.uid, 'ciclos', cicloId, 'rodadas');
       const rodadasSnapshot = await getDocs(rodadasRef);
-      rodadasSnapshot.docs.forEach(docItem => { batch.delete(docItem.ref); });
-      batch.delete(cicloRef);
-      await batch.commit();
-      setLoading(false); return true;
-    } catch (err) { console.error('Erro ao excluir ciclo permanentemente:', err); setError(err.message); setLoading(false); return false; }
+      const rodadaRefs = rodadasSnapshot.docs.map((r) => r.ref);
+      for (let i = 0; i < rodadaRefs.length; i += 400) {
+        const batch = writeBatch(db);
+        rodadaRefs.slice(i, i + 400).forEach((ref) => batch.delete(ref));
+        await batch.commit();
+      }
+
+      const cicloRef = doc(db, 'users', user.uid, 'ciclos', cicloId);
+      await deleteDoc(cicloRef);
+      if (planningSnap.exists()) await deleteDoc(planningRef);
+
+      try {
+        if (typeof window !== 'undefined') {
+          ['active_timer_session', 'study_timer_state', 'active_simulado_session'].forEach((k) => {
+            try {
+              const raw = localStorage.getItem(k);
+              if (raw && raw.includes(cicloId)) {
+                localStorage.removeItem(k);
+              }
+            } catch (_) {}
+          });
+          window.dispatchEvent(new CustomEvent('Planning:Deleted', {
+            detail: { planId: cicloId, planType: 'ciclo' },
+          }));
+          window.dispatchEvent(new CustomEvent('Ciclo:Deleted', {
+            detail: { cicloId },
+          }));
+        }
+      } catch (_) {}
+
+      setLoading(false);
+      return true;
+    } catch (err) {
+      console.error('Erro ao excluir ciclo permanentemente:', err);
+      setError(err.message);
+      setLoading(false);
+      return false;
+    }
   };
 
   return {
@@ -882,6 +950,7 @@ export const useCiclos = (user) => {
     concluirVoltaCiclo,
     concluirCicloSemanal,
     marcarSessaoConcluida,
+    limparCheckoutsManuaisLegados,
     salvarPendenciaTeoriaCiclo,
     limparPendenciaTeoriaCiclo,
     agendarRevisaoCiclo,

@@ -25,6 +25,9 @@ test('chat normaliza texto e limita conteúdo e menções', () => {
   assert.equal(normalizeMentionUids(Array.from({ length: 10 }, (_, index) => `u${index}`)).length, 10);
   assert.throws(() => normalizeMentionUids(Array.from({ length: 11 }, (_, index) => `u${index}`)), /10 pessoas/);
   assert.deepEqual(getMentionAllUids([{ uid: 'u1' }, { id: 'u2' }, { uid: 'u2' }, { uid: 'u3' }], 'u1'), ['u2', 'u3']);
+  const largeGroup = Array.from({ length: 12 }, (_, index) => ({ uid: `u${index + 1}` }));
+  assert.equal(getMentionAllUids(largeGroup, 'u1').length, 11, 'leitura de grupo grande não executa validação de envio');
+  assert.deepEqual(getMentionAllUids(null, 'u1'), [], 'dados ausentes de membros não derrubam a renderização');
 });
 
 test('unread exclui mensagens próprias desde a última leitura', () => {

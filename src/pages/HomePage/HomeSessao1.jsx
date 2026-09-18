@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ResponsiveContainer,
@@ -30,6 +31,8 @@ import {
   Coffee,
   Play,
   ArrowRight,
+  Maximize2,
+  X,
 } from 'lucide-react';
 import { resolveLogoUrl } from '../../components/admin/config/editalAssets';
 import HomeCardTitle from './HomeCardTitle.jsx';
@@ -244,9 +247,7 @@ const ActiveContextCard = ({ activeCicloData, activeCronogramaData, preferredCon
   const cardTone = 'border-red-400/30 bg-gradient-to-br from-red-500 via-red-600 to-rose-800 text-white shadow-black/20';
   const playTone = 'text-red-600';
   const logoUrl = activeData?.logoUrl || activeData?.logo || resolveLogoUrl({ ciclo: activeData });
-  const destinoData = isCiclo ? activeCronogramaData : activeCicloData;
   const destinoLabel = isCiclo ? 'Cronograma' : 'Ciclo';
-  const destinoLogo = destinoData?.logoUrl || destinoData?.logo || resolveLogoUrl({ ciclo: destinoData });
   const toggleDestination = isCiclo ? 'cronograma' : 'ciclo';
   const canToggle = hasBoth;
   const handleTrocarClick = (event) => {
@@ -316,6 +317,7 @@ const ActiveContextCard = ({ activeCicloData, activeCronogramaData, preferredCon
 export const WeeklyBarChart = ({ registrosEstudo, compact = false }) => {
   const [metric, setMetric] = useState('hours');
   const [weekOffset, setWeekOffset] = useState(0);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const weekData = useMemo(() => {
     const today = new Date();
@@ -404,7 +406,102 @@ export const WeeklyBarChart = ({ registrosEstudo, compact = false }) => {
     return `${fmt(first)} - ${fmt(last)}`;
   }, [weekData]);
 
+  const renderWeeklyDot = (dotProps, isModal = false) => {
+    const { cx, cy, value, payload, index } = dotProps;
+    if (!value || value <= 0 || cx === undefined || cy === undefined) return null;
+
+    let label = '';
+    if (metric === 'hours') {
+      const totalMinutes = Math.round(Number(payload?.minutes ?? value));
+      const h = Math.floor(totalMinutes / 60);
+      const m = totalMinutes % 60;
+      if (h > 0 && m > 0) label = `${h}h ${m}min`;
+      else if (h > 0) label = `${h}h`;
+      else label = `${m}min`;
+    } else {
+      label = `${Math.round(Number(payload?.questions ?? value))}`;
+    }
+
+    const textAnchor = index === 0 ? 'start' : index === 6 ? 'end' : 'middle';
+    const labelX = index === 0 ? cx + 3 : index === 6 ? cx - 3 : cx;
+
+    return (
+      <g key={`weekly-dot-${index}-${payload?.dateStr || index}`} className="pointer-events-none select-none">
+        <circle
+          cx={cx}
+          cy={cy}
+          r={isModal ? 5 : 4}
+          fill={metricConfig.color}
+          stroke="#ffffff"
+          strokeWidth={2}
+          className="dark:stroke-zinc-900"
+        />
+        <text
+          x={labelX}
+          y={cy - (isModal ? 11 : 9)}
+          textAnchor={textAnchor}
+          className="fill-zinc-900 dark:fill-zinc-100 stroke-white dark:stroke-zinc-950 font-black tracking-tight"
+          style={{
+            fontSize: isModal ? '11px' : '9.5px',
+            strokeWidth: '2.5px',
+            paintOrder: 'stroke fill',
+            strokeLinejoin: 'round',
+          }}
+        >
+          {label}
+        </text>
+      </g>
+    );
+  };
+
+  const renderChart = (isModal = false) => (
+    <ComposedChart
+      data={chartData}
+      margin={{ top: isModal ? 36 : 28, right: isModal ? 28 : 20, left: -14, bottom: 0 }}
+    >
+      <defs>
+        <linearGradient id={isModal ? "wkStudyAreaModal" : "wkStudyArea"} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="5%" stopColor={metricConfig.color} stopOpacity={0.25} />
+          <stop offset="95%" stopColor={metricConfig.color} stopOpacity={0.02} />
+        </linearGradient>
+      </defs>
+      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e4e4e7" strokeOpacity={0.4} className="dark:stroke-zinc-800" />
+      <XAxis 
+        dataKey="date" 
+        axisLine={false} 
+        tickLine={false} 
+        tick={{ fontSize: isModal ? 11 : 10, fill: '#71717a', fontWeight: 800, textAnchor: 'middle' }} 
+        dy={isModal ? 12 : 10} 
+      />
+      <YAxis
+        axisLine={false}
+        tickLine={false}
+        tick={{ fontSize: isModal ? 11 : 10, fill: metricConfig.color, fontWeight: 800 }}
+        tickFormatter={metricConfig.formatter}
+        domain={[0, (dataMax) => Math.max(metric === 'hours' ? 60 : 10, Math.ceil(dataMax * 1.3))]}
+      />
+      <Tooltip
+        content={<WeeklyStudyTooltip />}
+        cursor={{ stroke: metricConfig.color, strokeWidth: 2, strokeDasharray: '6 6', strokeOpacity: 0.2 }}
+        wrapperStyle={{ zIndex: 100 }}
+      />
+      <Area
+        key={`area-${chartAnimationKey}${isModal ? '-modal' : ''}`}
+        type="monotone"
+        dataKey="value"
+        stroke={metricConfig.color}
+        strokeWidth={isModal ? 4.5 : 3.5}
+        fill={`url(#${isModal ? "wkStudyAreaModal" : "wkStudyArea"})`}
+        dot={(props) => renderWeeklyDot(props, isModal)}
+        activeDot={{ r: 6, fill: metricConfig.color, stroke: '#fff', strokeWidth: 3 }}
+        isAnimationActive
+        animationDuration={800}
+      />
+    </ComposedChart>
+  );
+
   return (
+    <>
     <div className={`group relative z-20 flex flex-col overflow-hidden rounded-xl border-2 border-l-4 border-zinc-200 !border-l-red-500/20 bg-white transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-light/40 hover:!border-l-red-500 hover:shadow-lg dark:border-white/10 dark:!border-l-red-500/25 dark:bg-card-dark dark:hover:border-accent-light/20 dark:hover:!border-l-red-500 ${compact ? 'h-full min-h-[220px]' : 'h-full'}`}>
       {/* Decorative Orbs */}
       <div className={`pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full blur-[80px] opacity-10 transition-all duration-700 group-hover:opacity-16 bg-gradient-to-br ${metricConfig.gradient}`} />
@@ -452,51 +549,22 @@ export const WeeklyBarChart = ({ registrosEstudo, compact = false }) => {
               Questoes
             </button>
           </div>
+
+          <button
+            type="button"
+            onClick={() => setIsExpanded(true)}
+            title="Expandir gráfico semanal"
+            className="w-7 h-7 rounded-lg border border-zinc-200/80 bg-white/90 dark:border-white/10 dark:bg-zinc-800/80 flex items-center justify-center text-zinc-400 hover:text-red-600 dark:hover:text-red-400 transition-all shadow-xs hover:scale-105"
+          >
+            <Maximize2 size={13} />
+          </button>
         </div>
       </div>
 
       <div className={`relative z-10 w-full ${compact ? 'flex-1 min-h-0 p-4' : 'flex-1 min-h-[220px] p-6 pb-2'}`}>
         {hasWeeklyData ? (
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-              <defs>
-                <linearGradient id="wkStudyArea" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={metricConfig.color} stopOpacity={0.2} />
-                  <stop offset="95%" stopColor={metricConfig.color} stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e4e4e7" strokeOpacity={0.4} className="dark:stroke-zinc-800" />
-              <XAxis 
-                dataKey="date" 
-                axisLine={false} 
-                tickLine={false} 
-                tick={{ fontSize: 10, fill: '#71717a', fontWeight: 800, textAnchor: 'middle' }} 
-                dy={10} 
-              />
-              <YAxis
-                axisLine={false}
-                tickLine={false}
-                tick={{ fontSize: 10, fill: metricConfig.color, fontWeight: 800 }}
-                tickFormatter={metricConfig.formatter}
-              />
-              <Tooltip
-                content={<WeeklyStudyTooltip />}
-                cursor={{ stroke: metricConfig.color, strokeWidth: 2, strokeDasharray: '6 6', strokeOpacity: 0.2 }}
-                wrapperStyle={{ zIndex: 100 }}
-              />
-              <Area
-                key={`area-${chartAnimationKey}`}
-                type="monotone"
-                dataKey="value"
-                stroke={metricConfig.color}
-                strokeWidth={4}
-                fill="url(#wkStudyArea)"
-                dot={false}
-                activeDot={{ r: 6, fill: metricConfig.color, stroke: '#fff', strokeWidth: 3, shadow: '0 0 10px rgba(0,0,0,0.1)' }}
-                isAnimationActive
-                animationDuration={1000}
-              />
-            </ComposedChart>
+            {renderChart(false)}
           </ResponsiveContainer>
         ) : (
           <HomeEmptyState
@@ -536,8 +604,141 @@ export const WeeklyBarChart = ({ registrosEstudo, compact = false }) => {
           </div>
         </div>
       )}
-
     </div>
+
+    {/* Modal Expandido do Estudo Semanal via Portal */}
+    {isExpanded && createPortal(
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/60 backdrop-blur-md animate-fade-in">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.94, y: 15 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.94, y: 15 }}
+          className="relative w-full max-w-3xl max-h-[92vh] flex flex-col bg-white dark:bg-card-dark rounded-2xl shadow-2xl border-2 border-l-4 border-zinc-200 !border-l-red-500 dark:border-white/10 dark:!border-l-red-500 overflow-hidden"
+        >
+          {/* Modal Header */}
+          <div className="flex items-center justify-between border-b border-zinc-100 p-4 sm:p-5 dark:border-white/5 bg-zinc-50/50 dark:bg-zinc-900/40">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-red-600 to-rose-700 text-white shadow-md shadow-red-500/20">
+                <TrendingUp size={20} strokeWidth={2.2} />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base sm:text-lg font-black uppercase text-zinc-900 dark:text-white leading-none">
+                    Estudo Semanal
+                  </h3>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500 bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded-full">
+                    {weekLabel}
+                  </span>
+                </div>
+                <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 mt-0.5">
+                  Visão ampliada com todos os pontos e tempos por dia
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <div className="flex rounded-xl border border-zinc-200/50 bg-zinc-100 p-0.5 gap-0.5 dark:border-white/5 dark:bg-white/5">
+                <button 
+                  type="button" 
+                  onClick={() => setMetric('hours')} 
+                  className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${
+                    metric === 'hours' 
+                      ? `bg-gradient-to-br ${metricConfig.gradient} text-white shadow-lg ${metricConfig.shadow}` 
+                      : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
+                  }`}
+                >
+                  Horas
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => setMetric('questions')} 
+                  className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${
+                    metric === 'questions' 
+                      ? `bg-gradient-to-br ${metricConfig.gradient} text-white shadow-lg ${metricConfig.shadow}` 
+                      : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
+                  }`}
+                >
+                  Questões
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsExpanded(false)}
+                title="Fechar"
+                className="flex h-8 w-8 items-center justify-center rounded-xl border border-zinc-200 bg-white text-zinc-500 shadow-sm transition-all hover:bg-red-50 hover:text-red-600 dark:border-white/10 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-red-950/40 dark:hover:text-red-400"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          </div>
+
+          {/* Modal Body */}
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 custom-scrollbar">
+            {/* Chart container */}
+            <div className="h-[300px] sm:h-[350px] w-full rounded-xl border border-zinc-100 bg-zinc-50/40 p-2 sm:p-3 dark:border-white/5 dark:bg-zinc-900/30">
+              {hasWeeklyData ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  {renderChart(true)}
+                </ResponsiveContainer>
+              ) : (
+                <HomeEmptyState
+                  icon={TrendingUp}
+                  title="Semana ainda zerada"
+                  description="Registre seu primeiro estudo para acompanhar horas e questoes da semana."
+                  className="h-full min-h-[220px]"
+                />
+              )}
+            </div>
+
+            {/* Summary stats */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="rounded-xl border border-zinc-100 bg-zinc-50/50 p-3.5 dark:border-white/5 dark:bg-white/5">
+                <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.2em] text-zinc-400">
+                  <Clock size={13} className="text-red-500" /> Total
+                </div>
+                <p className="mt-1.5 text-xl font-black text-zinc-900 dark:text-white leading-none">
+                  {metric === 'hours' ? formatDecimalHours(weeklySummary.totalMinutes) : weeklySummary.totalQuestions}
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-zinc-100 bg-zinc-50/50 p-3.5 dark:border-white/5 dark:bg-white/5">
+                <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.2em] text-zinc-400">
+                  <Flame size={13} className="text-orange-500" /> Dias Ativos
+                </div>
+                <p className="mt-1.5 text-xl font-black text-zinc-900 dark:text-white leading-none">
+                  {weeklySummary.activeDays} <span className="text-xs text-zinc-400">de 7 dias</span>
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-zinc-100 bg-zinc-50/50 p-3.5 dark:border-white/5 dark:bg-white/5">
+                <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.2em] text-zinc-400">
+                  <Crown size={13} className="text-amber-500" /> Melhor Dia
+                </div>
+                <p className="mt-1.5 text-xl font-black text-zinc-900 dark:text-white leading-none truncate">
+                  {weeklySummary.bestDay ? (metric === 'hours' ? formatDecimalHours(weeklySummary.bestDay.minutes) : `${weeklySummary.bestDay.questions} q.`) : '0'}
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-zinc-100 bg-zinc-50/50 p-3.5 dark:border-white/5 dark:bg-white/5">
+                <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.2em] text-zinc-400">
+                  <Target size={13} className="text-blue-500" /> Média Diária
+                </div>
+                <p className="mt-1.5 text-xl font-black text-zinc-900 dark:text-white leading-none">
+                  {weeklySummary.activeDays > 0
+                    ? (metric === 'hours'
+                        ? formatDecimalHours(Math.round(weeklySummary.totalMinutes / weeklySummary.activeDays))
+                        : Math.round(weeklySummary.totalQuestions / weeklySummary.activeDays))
+                    : '0'}
+                </p>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      </div>,
+      document.body
+    )}
+    </>
   );
 };
 

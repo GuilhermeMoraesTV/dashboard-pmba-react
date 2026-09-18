@@ -9,16 +9,20 @@ import { formatDateKeyLocal, getAgendaSemana, getCronogramaReviewBuckets, getWee
 import { collection, doc, onSnapshot, updateDoc } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
 import { useCicloRevisoes } from '../../hooks/useCicloRevisoes';
+import { concluirGrupoCicloRevisao } from '../../services/cicloRevisoes';
 import { useCiclos } from '../../hooks/useCiclos';
 import { useCronogramaSystem } from '../../hooks/useCronogramaSystem';
 import { resolveLogoUrl } from '../../components/admin/config/editalAssets';
 import DailyGoalCompletedModal from '../../components/shared/DailyGoalCompletedModal.jsx';
 import CardSessoesCicloHoje from '../../components/ciclos/CardSessoesCicloHoje.jsx';
 import { buildCompletionRegistro } from '../../utils/completionRegistro';
-import { getCronogramaSlotRecordedMinutes, getCycleDayTargetMinutesMap, getCycleFreeQueue } from '../../utils/studyDayStatus';
+import { getCycleDayTargetMinutesMap, getCycleFreeQueue } from '../../utils/studyDayStatus';
+import { getRecordedStudyMinutes, isManualCompletionRecord } from '../../utils/studyRecords';
+import { buildScheduleRecordedProgress, getScheduleSlotKey } from '../../../functions/gamification/scheduleStudyProgress.mjs';
 import { getDisciplineCardVars, getDisciplineColorForSlot } from '../../utils/disciplineColors';
 import HomeEmptyState from './HomeEmptyState.jsx';
 import { setLatestToggleIntent, takeLatestToggleIntent } from '../../utils/latestToggleIntent';
+import { getStudyBackedCycleCompletionState } from '../../utils/cycleSessionCompletion';
 
 // --- Helpers ---
 const fmtMin = (min) => {
@@ -159,8 +163,7 @@ return (
               <Check size={15} strokeWidth={3.5} />
             </button>
             <h4 className={`min-w-0 flex-1 truncate text-[11px] sm:text-xs font-black uppercase tracking-wide leading-tight ${
-              effectiveDone ? `${disciplinaColor.text} line-through opacity-75`
-              : emAndamento ? 'text-orange-700 dark:text-orange-400'
+              emAndamento ? 'text-orange-700 dark:text-orange-400'
               : useDisciplineColor ? disciplinaColor.text
               : 'text-zinc-900 dark:text-zinc-100'
             }`}>
@@ -174,11 +177,17 @@ return (
           )}
         </div>
 
-        <div className="flex items-center gap-2">
-          <p className={`truncate text-[10px] sm:text-[11px] font-bold leading-snug tracking-tight text-zinc-500 dark:text-zinc-300 ${effectiveDone ? 'line-through decoration-emerald-500/60' : ''}`}>
-            {slot.assunto || (isEstudo ? 'Teoria e Base' : 'Revisão de Elite')}
-          </p>
-        </div>
+        {slot.isRevisaoAuto ? (
+          <div className="flex items-center gap-2">
+            <p className="truncate text-[10px] sm:text-[11px] font-bold leading-snug tracking-tight text-zinc-500 dark:text-zinc-300">
+              {slot.assunto || 'Revisão de Elite'}
+            </p>
+          </div>
+        ) : slot.isCicloSlot ? (
+          <HojeCardCicloSubjects slot={slot} fmtMin={fmtMin} />
+        ) : (
+          <HojeCardCronogramaSubjects slot={slot} />
+        )}
 
         {mostrarTempoBloco && tempoPlanejado > 0 && (
           <div className="flex items-end gap-2">
@@ -278,6 +287,166 @@ return (
   );
 }
 
+function HojeCardCronogramaSubjects({ slot }) {
+  const [expandido, setExpandido] = useState(false);
+  const detalhes = slot.assuntosDetalhes || [];
+  const planejado = slot.assuntoPlanejado || slot.assunto || null;
+
+  if (detalhes.length > 1) {
+    return (
+      <div className="space-y-0.5 text-left text-[10px] sm:text-[11px]">
+        {!expandido ? (
+          <div className="flex items-center justify-between gap-1">
+            <div className="flex items-center gap-1 min-w-0 truncate">
+              <span className="shrink-0 text-emerald-600 dark:text-emerald-400 font-black">✓</span>
+              <span className="font-bold text-emerald-800 dark:text-emerald-300 shrink-0">
+                {detalhes.length} assuntos
+              </span>
+              <span className="text-zinc-400 dark:text-zinc-500 shrink-0">·</span>
+              <span className="truncate font-medium text-zinc-600 dark:text-zinc-300">
+                {detalhes.map((d) => d.assunto).join(' · ')}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setExpandido(true);
+              }}
+              className="text-[10px] font-bold text-blue-600 hover:underline dark:text-blue-400 shrink-0 ml-1"
+            >
+              Ver lista
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-1">
+            <div className="flex items-center justify-between text-[10px] font-black uppercase text-emerald-700 dark:text-emerald-400">
+              <span>{detalhes.length} assuntos estudados</span>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setExpandido(false);
+                }}
+                className="text-blue-600 dark:text-blue-400 lowercase font-bold hover:underline"
+              >
+                recolher
+              </button>
+            </div>
+            <div className="space-y-0.5 max-h-28 overflow-y-auto custom-scrollbar pr-1">
+              {detalhes.map((item, idx) => (
+                <div key={idx} className="flex items-center justify-between gap-1 text-[10px] sm:text-[11px] font-medium text-zinc-700 dark:text-zinc-200">
+                  <span className="truncate">✓ {item.assunto}</span>
+                  {Number(item.minutos) > 0 && (
+                    <span className="shrink-0 text-[10px] font-bold text-zinc-400 tabular-nums">
+                      {Math.round(item.minutos)}m
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  const assuntoExibido = detalhes[0]?.assunto || planejado || 'Teoria e Base';
+  return (
+    <p
+      className={`truncate text-[10px] sm:text-[11px] font-bold leading-snug tracking-tight text-left ${
+        slot.concluido
+          ? 'text-zinc-500 dark:text-zinc-400'
+          : 'text-zinc-600 dark:text-zinc-300'
+      }`}
+      title={assuntoExibido}
+    >
+      {assuntoExibido}
+    </p>
+  );
+}
+
+function HojeCardCicloSubjects({ slot, fmtMin }) {
+  const [expandido, setExpandido] = useState(false);
+  const assuntos = slot.assuntosEstudados || [];
+  const temEstudos = assuntos.length > 0;
+
+  if (!temEstudos) {
+    return (
+      <p className="truncate text-[10px] sm:text-[11px] font-medium text-zinc-400 dark:text-zinc-500 text-left">
+        Escolha o assunto ao finalizar
+      </p>
+    );
+  }
+
+  if (assuntos.length === 1) {
+    const item = assuntos[0];
+    return (
+      <div className="flex items-center gap-1 text-[10px] font-semibold text-emerald-800 dark:text-emerald-300 truncate text-left">
+        <span className="shrink-0 text-emerald-600 dark:text-emerald-400 font-black">✓</span>
+        <span className="truncate">{item.assunto}</span>
+        <span className="text-[9px] font-bold text-zinc-400 shrink-0 tabular-nums">({fmtMin(item.minutos)})</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="text-left text-[10px]">
+      {!expandido ? (
+        <div className="space-y-0.5">
+          <div className="flex items-center justify-between gap-1">
+            <div className="flex items-center gap-1 min-w-0 truncate">
+              <span className="shrink-0 text-emerald-600 dark:text-emerald-400 font-black">✓</span>
+              <span className="font-bold text-emerald-800 dark:text-emerald-300 shrink-0">
+                {assuntos.length} assuntos
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setExpandido(true);
+              }}
+              className="text-[9px] font-bold text-blue-600 hover:underline dark:text-blue-400 shrink-0"
+            >
+              Ver lista
+            </button>
+          </div>
+          <p className="truncate text-zinc-500 dark:text-zinc-400 pl-3">
+            {assuntos.map((a) => a.assunto).join(' · ')}
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-1">
+          <div className="flex items-center justify-between gap-1">
+            <span className="font-bold text-emerald-800 dark:text-emerald-300">
+              {assuntos.length} assuntos estudados
+            </span>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setExpandido(false);
+              }}
+              className="text-[9px] font-bold text-blue-600 hover:underline dark:text-blue-400 shrink-0"
+            >
+              Recolher
+            </button>
+          </div>
+          <div className="space-y-0.5 max-h-28 overflow-y-auto custom-scrollbar pr-1">
+            {assuntos.map((item, idx) => (
+              <div key={idx} className="flex items-center justify-between gap-1 text-[10px] font-medium text-zinc-700 dark:text-zinc-300">
+                <span className="truncate">✓ {item.assunto}</span>
+                <span className="text-[9px] font-bold text-zinc-400 shrink-0 tabular-nums">{fmtMin(item.minutos)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function HojeCard({
   className = '',
   activeCicloData,
@@ -292,6 +461,7 @@ function HojeCard({
   addRegistroEstudo,
   deleteCompletionRegistro,
   registrosEstudo = [],
+  cycleReviews = [],
   preferredContext,
   onPreferredContextChange,
   dailyGoalModalBlocked = false,
@@ -300,7 +470,6 @@ function HojeCard({
   const loadingRef = useRef(null);
   const cronogramaToggleInFlightRef = useRef(new Set());
   const desiredCronogramaToggleRef = useRef(new Map());
-  const [loadingCicloSessao, setLoadingCicloSessao] = useState(null);
   const [acaoRevisaoCiclo, setAcaoRevisaoCiclo] = useState(null);
   const [sucessoRevisaoCiclo, setSucessoRevisaoCiclo] = useState(null);
   const sucessoRevisaoCicloRef = useRef(null);
@@ -310,15 +479,12 @@ function HojeCard({
   });
   const [activePanel, setActivePanel] = useState('estudo');
   const [optimisticDone, setOptimisticDone] = useState({});
-  const lastCycleStudySlotsRef = useRef([]);
   const lastCycleReviewSlotsRef = useRef([]);
   const [completionModalOpen, setCompletionModalOpen] = useState(false);
   const [pendingCompletionModal, setPendingCompletionModal] = useState(false);
   const [showCycleSubjects, setShowCycleSubjects] = useState(activeCicloData?.modoExibirAssuntos !== false);
   const [cycleSubjectsLoading, setCycleSubjectsLoading] = useState(false);
-  const completionStateRef = useRef({ initialized: false, wasDone: false });
-  const cycleToggleInFlightRef = useRef(new Set());
-  const desiredCycleToggleRef = useRef(new Map());
+  const legacyCheckoutCleanupRef = useRef(new Set());
 
   const hasCronograma = !!activeCronogramaData?.id;
   const hasCiclo = !!activeCicloData?.id;
@@ -326,11 +492,23 @@ function HojeCard({
   const modoTempoHome = modoCicloAtivo ? 'detalhado' : normalizarModoTempo(activeCronogramaData?.modoExibirTempo);
   const mostrarTempoHomeTotal = modoTempoHome !== 'nenhum';
   const mostrarTempoHomeDetalhado = modoTempoHome === 'detalhado';
-  const { salvarPendenciaTeoriaCiclo, limparPendenciaTeoriaCiclo, marcarSessaoConcluida } = useCiclos(user);
+  const { limparCheckoutsManuaisLegados } = useCiclos(user);
   const { toggleSlotConcluido, concluirRevisaoCronograma, marcarTeoriaAindaNaoConcluida } = useCronogramaSystem(user);
 
   const hojeIdx = useMemo(() => new Date().getDay(), []);
-  const { revisoesHoje, concluirRevisao, reagendarRevisao } = useCicloRevisoes(user, activeCicloData?.id || null);
+  const { revisoesHoje, concluirRevisao, reagendarRevisao } = useCicloRevisoes(user, activeCicloData?.id || '__no_active_cycle__');
+
+  useEffect(() => {
+    if (!activeCicloData?.id) return;
+    const completionState = getStudyBackedCycleCompletionState(activeCicloData);
+    if (completionState.removedManualCheckoutCount <= 0) return;
+    const cleanupKey = `${activeCicloData.id}:${Number(activeCicloData.conclusoes || 0)}`;
+    if (legacyCheckoutCleanupRef.current.has(cleanupKey)) return;
+    legacyCheckoutCleanupRef.current.add(cleanupKey);
+    limparCheckoutsManuaisLegados(activeCicloData.id).then((cleaned) => {
+      if (!cleaned) legacyCheckoutCleanupRef.current.delete(cleanupKey);
+    });
+  }, [activeCicloData, limparCheckoutsManuaisLegados]);
 
   useEffect(() => {
     setShowCycleSubjects(activeCicloData?.modoExibirAssuntos !== false);
@@ -408,24 +586,23 @@ function HojeCard({
     const progressoW = activeCronogramaData?.progresso?.[sk] || {};
     const progressoMinutosW = activeCronogramaData?.progressoMinutos?.[sk] || {};
     const agenda = getAgendaSemana(activeCronogramaData, wOff) || [];
+    const slotsDia = agenda.filter((slot) => !slot.isRevisaoAuto && slot.dia === hojeIdx);
+    const hojeDataKey = formatDateKeyLocal(hoje);
+    const registrosDoDia = registrosEstudo.filter((registro) => getRegistroDateKey(registro) === hojeDataKey);
+    const registrosTeoria = registrosDoDia.filter((registro) =>
+      String(registro.cronogramaId || '') === String(activeCronogramaData.id)
+      && (!registro.contextoRegistro || registro.contextoRegistro === 'cronograma')
+      && !registro.isRevisao && !registro.revisao && registro.tipoEstudo !== 'revisao' && registro.tipoRegistro !== 'revisao');
+    const recordedState = buildScheduleRecordedProgress({ slots: slotsDia, records: registrosTeoria, getMinutes: getRecordedStudyMinutes });
+    const realState = buildScheduleRecordedProgress({ slots: slotsDia,
+      records: registrosTeoria.filter((registro) => !isManualCompletionRecord(registro)), getMinutes: getRecordedStudyMinutes });
     const estudo = agenda
       .filter(s => !s.isRevisaoAuto && s.dia === hojeIdx)
       .map((slot) => {
         const slotIdNoProgresso = slot.slotIdBase || slot.slotId;
         const tempoPlanejadoMinutos = Number(slot.tempoMinutos ?? slot.minutosEstudo ?? 0);
-        const progressoRegistrado = getCronogramaSlotRecordedMinutes({
-          cronograma: activeCronogramaData,
-          slot,
-          registrosEstudo,
-          dateKey: formatDateKeyLocal(hoje),
-        });
-        const progressoRegistroReal = getCronogramaSlotRecordedMinutes({
-          cronograma: activeCronogramaData,
-          slot,
-          registrosEstudo,
-          dateKey: formatDateKeyLocal(hoje),
-          onlyRealStudyRecords: true,
-        });
+        const progressoRegistrado = Number(recordedState.minutes[getScheduleSlotKey(slot)] || 0);
+        const progressoRegistroReal = Number(realState.minutes[getScheduleSlotKey(slot)] || 0);
         const progressoPersistido = Math.max(
           Number(progressoMinutosW[slotIdNoProgresso] || 0),
           Number(slot.slotId ? progressoMinutosW[slot.slotId] || 0 : 0),
@@ -437,13 +614,25 @@ function HojeCard({
         const concluido = progressoW[slotIdNoProgresso] === true
           || progressoW[slot.slotId] === true
           || slot.concluido === true
+          || recordedState.completed[getScheduleSlotKey(slot)] === true
           || concluidoPorTempo;
+        const progressoExibido = progressoRegistrado;
+        const slotKey = getScheduleSlotKey(slot);
+        const outrosAssuntos = recordedState.subjects[slotKey] || [];
+        const allSubjects = recordedState.allSubjects?.[slotKey] || outrosAssuntos;
+        const subjectDetails = recordedState.subjectDetails?.[slotKey] || [];
+        const planejadoEstudado = Boolean(recordedState.hasPlannedStudied?.[slotKey]);
         return {
           ...slot,
           slotIdNoProgresso,
           concluido,
           tempoPlanejadoMinutos,
-          progressoMinutos: progressoRegistrado,
+          progressoMinutos: progressoExibido,
+          outrosAssuntosEstudados: outrosAssuntos,
+          assuntosEstudados: allSubjects,
+          assuntosDetalhes: subjectDetails,
+          planejadoEstudado,
+          assuntoPlanejado: slot.assunto || slot.assuntoOriginal || null,
           progressoRegistradoMinutos: progressoRegistrado,
           progressoPersistidoMinutos: progressoPersistido,
           progressoRegistroRealMinutos: progressoRegistroReal,
@@ -480,6 +669,7 @@ function HojeCard({
       const concluidoPorProgresso = tempoPlanejadoMinutos > 0 && progressoRaw >= tempoPlanejadoMinutos;
       return {
         ...sessao,
+        roundVersion: Number(activeCicloData?.conclusoes || 0),
         slotId: hasGlobalIndex
           ? `ciclo-${globalIndex}`
           : `ciclo-disciplina-${sessao.disciplinaId}`,
@@ -488,16 +678,29 @@ function HojeCard({
         disciplinaObj: disc,
         cor: disc?.cor,
         assunto: sessao.assuntoSugerido?.nome || sessao.assuntoSugerido || '',
+        assuntoSugerido: sessao.assuntoSugerido?.nome || sessao.assuntoSugerido || '',
+        assuntosEstudados: sessao.assuntosEstudados || [],
         tempoPlanejadoMinutos,
         tempoMinutos: tempoPlanejadoMinutos,
         progressoMinutos: progressoRaw,
         concluido: Boolean(sessao.concluida) || concluidoPorProgresso,
         isRevisaoAuto: false,
+        isCicloSlot: true,
       };
     });
-  }, [activeCicloData?.tempoSessaoMinutos, cicloGuide.sessions, disciplinasCiclo]);
+  }, [activeCicloData?.conclusoes, activeCicloData?.tempoSessaoMinutos, cicloGuide.sessions, disciplinasCiclo]);
 
-  const cicloSlotsRevisao = useMemo(() => revisoesHoje.map((rev) => {
+  const inheritedReviewsToday = useMemo(() => {
+    const current = activeCronogramaData || activeCicloData;
+    const cycleIds = new Set((current?.etapasPlanejamento || [])
+      .filter((stage) => stage.metodo === 'ciclo').map((stage) => stage.id));
+    if (!cycleIds.size) return [];
+    const today = formatDateKeyLocal(new Date());
+    return cycleReviews.filter((review) => cycleIds.has(review.cicloId)
+      && review.cicloId !== activeCicloData?.id
+      && String(review.dataAgendada || '') <= today);
+  }, [activeCicloData, activeCronogramaData, cycleReviews]);
+  const cicloSlotsRevisao = useMemo(() => [...revisoesHoje, ...inheritedReviewsToday].map((rev) => {
     const tempoPlanejadoMinutos = Number(rev.tempoPlanejadoMinutos || rev.tempoMinutos || 20);
     const progressoMinutos = rev.concluida
       ? tempoPlanejadoMinutos
@@ -514,13 +717,7 @@ function HojeCard({
       isRevisaoAuto: true,
       intervaloLabel: intervaloLabel(rev.intervaloDias),
     };
-  }), [revisoesHoje]);
-
-  useEffect(() => {
-    if (modoCicloAtivo && cicloSlotsEstudo.length > 0) {
-      lastCycleStudySlotsRef.current = cicloSlotsEstudo;
-    }
-  }, [cicloSlotsEstudo, modoCicloAtivo]);
+  }), [inheritedReviewsToday, revisoesHoje]);
 
   useEffect(() => {
     if (modoCicloAtivo && cicloSlotsRevisao.length > 0) {
@@ -533,13 +730,6 @@ function HojeCard({
     setOptimisticDone((prev) => {
       let next = prev;
 
-      cicloSlotsEstudo.forEach((slot) => {
-        const key = getOptimisticKey('ciclo', slot);
-        if (key && Object.prototype.hasOwnProperty.call(next, key) && Boolean(slot.concluido) === Boolean(next[key])) {
-          next = removeOptimisticKey(next, key);
-        }
-      });
-
       cicloSlotsRevisao.forEach((slot) => {
         const key = getOptimisticKey('ciclo', slot);
         if (key && Object.prototype.hasOwnProperty.call(next, key) && Boolean(slot.concluido) === Boolean(next[key])) {
@@ -549,28 +739,24 @@ function HojeCard({
 
       return next;
     });
-  }, [cicloSlotsEstudo, cicloSlotsRevisao, modoCicloAtivo]);
+  }, [cicloSlotsRevisao, modoCicloAtivo]);
 
   const estudosVisiveisBase = useMemo(() => {
     if (!modoCicloAtivo) return slotsEstudo;
-    const optimisticKeys = Object.keys(optimisticDone).filter((key) => key.startsWith('ciclo:estudo:'));
-    if (!optimisticKeys.length) return cicloSlotsEstudo;
-
-    const keepKeys = new Set(optimisticKeys);
-    const byKey = new Map();
-    cicloSlotsEstudo.forEach((slot) => {
-      const key = getOptimisticKey('ciclo', slot);
-      if (key) byKey.set(key, slot);
-    });
-    lastCycleStudySlotsRef.current.forEach((slot) => {
-      const key = getOptimisticKey('ciclo', slot);
-      if (key && keepKeys.has(key) && !byKey.has(key)) byKey.set(key, slot);
-    });
-    return Array.from(byKey.values()).sort((a, b) => Number(a.globalIndex || 0) - Number(b.globalIndex || 0));
-  }, [cicloSlotsEstudo, modoCicloAtivo, optimisticDone, slotsEstudo]);
+    return cicloSlotsEstudo;
+  }, [cicloSlotsEstudo, modoCicloAtivo, slotsEstudo]);
 
   const revisoesVisiveisBase = useMemo(() => {
-    if (!modoCicloAtivo) return slotsRevisao;
+    if (!modoCicloAtivo) {
+      const inheritedSlots = cicloSlotsRevisao.filter((slot) => slot.cicloId !== activeCicloData?.id);
+      const inheritedKeys = new Set(inheritedSlots.map((slot) =>
+        `${slot.disciplinaId || slot.disciplinaNome}:${String(slot.assunto || '').trim().toLowerCase()}:${slot.dataAgendada}`));
+      return [
+        ...slotsRevisao.filter((slot) => !inheritedKeys.has(
+          `${slot.disciplinaId || slot.disciplinaNome}:${String(slot.assunto || '').trim().toLowerCase()}:${slot.dataSlot || slot.dataAgendada}`)),
+        ...inheritedSlots,
+      ];
+    }
     const optimisticKeys = Object.keys(optimisticDone).filter((key) => key.startsWith('ciclo:revisao:'));
     if (!optimisticKeys.length) return cicloSlotsRevisao;
 
@@ -585,7 +771,7 @@ function HojeCard({
       if (key && keepKeys.has(key) && !byKey.has(key)) byKey.set(key, slot);
     });
     return Array.from(byKey.values()).sort((a, b) => String(a.id || a.slotId || '').localeCompare(String(b.id || b.slotId || '')));
-  }, [cicloSlotsRevisao, modoCicloAtivo, optimisticDone, slotsRevisao]);
+  }, [activeCicloData?.id, cicloSlotsRevisao, modoCicloAtivo, optimisticDone, slotsRevisao]);
   const estudosVisiveis = useMemo(() => {
     const sourceMode = modoCicloAtivo ? 'ciclo' : 'cronograma';
     return estudosVisiveisBase.map((slot) => {
@@ -595,25 +781,16 @@ function HojeCard({
         : slot;
     });
   }, [estudosVisiveisBase, modoCicloAtivo, optimisticDone]);
-  const cycleSessionCompletionOverrides = useMemo(() => {
-    const overrides = {};
-    cicloSlotsEstudo.forEach((slot) => {
-      const key = getOptimisticKey('ciclo', slot);
-      if (key && Object.prototype.hasOwnProperty.call(optimisticDone, key)) {
-        overrides[slot.globalIndex] = optimisticDone[key];
-      }
-    });
-    return overrides;
-  }, [cicloSlotsEstudo, optimisticDone]);
   const revisoesVisiveis = useMemo(() => {
-    const sourceMode = modoCicloAtivo ? 'ciclo' : 'cronograma';
     return revisoesVisiveisBase.map((slot) => {
+      const sourceMode = slot.cicloId && (modoCicloAtivo || slot.cicloId !== activeCicloData?.id)
+        ? 'ciclo' : 'cronograma';
       const key = getOptimisticKey(sourceMode, slot);
       return key && Object.prototype.hasOwnProperty.call(optimisticDone, key)
         ? applyOptimisticDone(slot, optimisticDone[key])
         : slot;
     });
-  }, [modoCicloAtivo, optimisticDone, revisoesVisiveisBase]);
+  }, [activeCicloData?.id, modoCicloAtivo, optimisticDone, revisoesVisiveisBase]);
   const revisoesPendentesCount = useMemo(
     () => revisoesVisiveis.filter((slot) => !slot.concluido).length,
     [revisoesVisiveis]
@@ -636,9 +813,7 @@ function HojeCard({
     const itens = activePanel === 'estudo' ? estudosVisiveis : revisoesVisiveis;
     const totalFila = itens.reduce((acc, item) => acc + Number(item.tempoPlanejadoMinutos ?? item.tempoMinutos ?? 0), 0);
     const feitoFila = itens.reduce((acc, item) => {
-      const tempo = Number(item.tempoPlanejadoMinutos ?? item.tempoMinutos ?? 0);
-      if (item.concluido) return acc + Math.max(Number(item.progressoMinutos || 0), tempo);
-      return acc + Math.min(Number(item.progressoMinutos || 0), tempo || Number(item.progressoMinutos || 0));
+      return acc + Math.max(0, Number(item.progressoMinutos || 0));
     }, 0);
     const usaMetaDiariaCiclo = modoCicloAtivo && activePanel === 'estudo' && cicloMetaHojeMinutos > 0;
     const total = usaMetaDiariaCiclo ? cicloMetaHojeMinutos : totalFila;
@@ -661,9 +836,7 @@ function HojeCard({
     }
     const total = itensDoDia.reduce((acc, item) => acc + Number(item.tempoPlanejadoMinutos ?? item.tempoMinutos ?? 0), 0);
     const feito = itensDoDia.reduce((acc, item) => {
-      const tempo = Number(item.tempoPlanejadoMinutos ?? item.tempoMinutos ?? 0);
-      if (item.concluido) return acc + Math.max(Number(item.progressoMinutos || 0), tempo);
-      return acc + Math.min(Number(item.progressoMinutos || 0), tempo || Number(item.progressoMinutos || 0));
+      return acc + Math.max(0, Number(item.progressoMinutos || 0));
     }, 0);
     return { total, feito };
   }, [cicloEstudadoHojeMinutos, cicloMetaHojeMinutos, itensDoDia, modoCicloAtivo]);
@@ -686,19 +859,8 @@ function HojeCard({
     || activePlanForModal?.titulo
     || activePlanForModal?.nome
     || (modoCicloAtivo ? 'Ciclo ativo' : 'Cronograma ativo');
-
-  useEffect(() => {
-    if (totalItensDia === 0) return;
-    const state = completionStateRef.current;
-    if (state.initialized && !state.wasDone && diaTodoConcluido) {
-      if (dailyGoalModalBlocked) {
-        setPendingCompletionModal(true);
-      } else {
-        setCompletionModalOpen(true);
-      }
-    }
-    completionStateRef.current = { initialized: true, wasDone: diaTodoConcluido };
-  }, [dailyGoalModalBlocked, diaTodoConcluido, totalItensDia]);
+  // A abertura automática pertence ao salvamento confirmado no Dashboard,
+  // nunca a efeitos de hidratação/navegação. Aqui fica somente a abertura por clique.
 
   useEffect(() => {
     if (!pendingCompletionModal || dailyGoalModalBlocked) return;
@@ -729,7 +891,7 @@ function HojeCard({
       context: 'cronograma',
       item: slot,
       cronograma: activeCronogramaData,
-      isReview: !!slot.isRevisaoAuto,
+      isReview: !!slot.isRevisaoAuto || !!slot.isRevisao,
     });
     setLatestToggleIntent(desiredCronogramaToggleRef.current, loadingId, { targetCompleted: nextDone, slot, completionRegistro });
     if (cronogramaToggleInFlightRef.current.has(loadingId)) return;
@@ -772,6 +934,7 @@ function HojeCard({
     }
   }, [activeCronogramaData, addRegistroEstudo, concluirRevisaoCronograma, cronogramaId, deleteCompletionRegistro, toggleSlotConcluido, user]);
 
+
   const handleMarkPending = useCallback(async (slot) => {
     const loadingId = slot.slotIdBase || slot.slotId;
     if (!cronogramaId || !user || loadingRef.current === loadingId) return;
@@ -801,7 +964,7 @@ function HojeCard({
     if (onGoToStudySession) {
       onGoToStudySession(
         { id: disciplina.id, nome: disciplina.nome },
-        sessao?.assuntoSugerido?.nome || null,
+        null,
         {
           defaultContext: 'ciclo',
           sessaoGlobalIndex: globalIndex,
@@ -813,94 +976,6 @@ function HojeCard({
     if (onGoToCiclo) onGoToCiclo();
     else setActiveTab('ciclos');
   };
-
-  const handleToggleSessaoCiclo = useCallback((sessao) => {
-    if (!activeCicloData?.id || !user?.uid) return;
-    const sessaoIndex = Number(sessao.globalIndex);
-    if (!Number.isFinite(sessaoIndex)) return;
-    const tempoSessao = Number(sessao.tempoPlanejadoMinutos || activeCicloData?.tempoSessaoMinutos || 50);
-    const progressoSessao = Number(sessao.progressoMinutos || 0);
-    const previousDone = Boolean(sessao.concluido || sessao.concluida) || (tempoSessao > 0 && progressoSessao >= tempoSessao);
-    if (previousDone && sessao.bloqueiaDesmarcarConclusao) return;
-    const optimisticKey = getOptimisticKey('ciclo', sessao);
-    const nextDone = !previousDone;
-    if (optimisticKey) {
-      setOptimisticDone((prev) => ({ ...prev, [optimisticKey]: nextDone }));
-    }
-
-    const completionRegistro = buildCompletionRegistro({
-      context: 'ciclo',
-      item: sessao,
-      ciclo: { ...activeCicloData, disciplinas: disciplinasCiclo },
-      fallbackMinutes: activeCicloData?.tempoSessaoMinutos || 50,
-    });
-    setLatestToggleIntent(desiredCycleToggleRef.current, sessaoIndex, {
-      targetCompleted: nextDone,
-      sessao,
-      completionRegistro,
-    });
-    if (cycleToggleInFlightRef.current.has(sessaoIndex)) return;
-
-    cycleToggleInFlightRef.current.add(sessaoIndex);
-    (async () => {
-      let committedState = (activeCicloData.sessoesConcluidas || []).map(Number).includes(sessaoIndex);
-      try {
-        while (desiredCycleToggleRef.current.has(sessaoIndex)) {
-          const intent = takeLatestToggleIntent(desiredCycleToggleRef.current, sessaoIndex);
-          if (intent.targetCompleted === committedState) continue;
-          const completionPersistence = marcarSessaoConcluida(activeCicloData.id, sessaoIndex, {
-            targetCompleted: intent.targetCompleted,
-            tempoPlanejadoMinutos: intent.sessao.tempoPlanejadoMinutos || intent.sessao.tempoMinutos,
-          });
-          const registroPromise = intent.targetCompleted && addRegistroEstudo
-            ? addRegistroEstudo(intent.completionRegistro, { waitForCompletion: completionPersistence })
-            : null;
-          const ok = await completionPersistence;
-          if (!ok) {
-            if (!desiredCycleToggleRef.current.has(sessaoIndex) && optimisticKey) {
-              setOptimisticDone((prev) => ({ ...prev, [optimisticKey]: committedState }));
-            }
-            continue;
-          }
-          committedState = intent.targetCompleted;
-          const newerIntent = desiredCycleToggleRef.current.get(sessaoIndex);
-          if (!newerIntent || newerIntent.targetCompleted === committedState) {
-            if (committedState && addRegistroEstudo) {
-              await registroPromise;
-              limparPendenciaTeoriaCiclo(activeCicloData.id, intent.sessao.disciplinaId).catch(console.error);
-            } else if (!committedState && deleteCompletionRegistro) {
-              await deleteCompletionRegistro(intent.completionRegistro);
-            }
-          }
-        }
-      } catch (error) {
-        if (optimisticKey) {
-          setOptimisticDone((prev) => ({ ...prev, [optimisticKey]: committedState }));
-        }
-        console.error(error);
-      } finally {
-        cycleToggleInFlightRef.current.delete(sessaoIndex);
-      }
-    })();
-  }, [activeCicloData, addRegistroEstudo, deleteCompletionRegistro, disciplinasCiclo, limparPendenciaTeoriaCiclo, marcarSessaoConcluida, user?.uid]);
-
-  const handleMarcarPendenciaCiclo = useCallback(async (sessao) => {
-    const assuntoAtual = sessao?.assuntoSugerido?.nome || '';
-    if (!activeCicloData?.id || !sessao?.disciplinaId || !assuntoAtual || loadingCicloSessao !== null) return;
-    setLoadingCicloSessao(sessao.globalIndex);
-    try {
-      await salvarPendenciaTeoriaCiclo({
-        cicloId: activeCicloData.id,
-        disciplinaId: sessao.disciplinaId,
-        assuntoAtual,
-        minutosAcumulados: 0,
-      });
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setLoadingCicloSessao(null);
-    }
-  }, [activeCicloData?.id, loadingCicloSessao, salvarPendenciaTeoriaCiclo]);
 
   const marcarSucessoRevisaoCiclo = useCallback((id, tipo) => {
     setSucessoRevisaoCiclo({ id, tipo });
@@ -916,13 +991,13 @@ function HojeCard({
       onGoToStudySession(
         { id: rev.disciplinaId || rev.id || rev.revisaoKey, nome: rev.disciplinaNome || 'Disciplina' },
         rev.assunto || null,
-        { defaultContext: 'ciclo', tipoRegistro: 'revisao' }
+        { defaultContext: activeCronogramaData?.id ? 'cronograma' : 'ciclo', tipoRegistro: 'revisao' }
       );
       return;
     }
     if (onGoToCiclo) onGoToCiclo();
     else setActiveTab('ciclos');
-  }, [onGoToCiclo, onGoToStudySession, setActiveTab]);
+  }, [activeCronogramaData?.id, onGoToCiclo, onGoToStudySession, setActiveTab]);
 
   const handleConcluirRevisaoCiclo = useCallback(async (rev) => {
     if (!rev?.id || acaoRevisaoCiclo) return;
@@ -933,14 +1008,19 @@ function HojeCard({
     }
     setAcaoRevisaoCiclo({ id: rev.id, tipo: 'concluir' });
     try {
+      const inheritedInSchedule = !!activeCronogramaData?.id && rev.cicloId !== activeCicloData?.id;
       const completionRegistro = buildCompletionRegistro({
-          context: 'ciclo',
-          item: rev,
+          context: inheritedInSchedule ? 'cronograma' : 'ciclo',
+          item: { ...rev, dataSlot: wasDone && rev.concluidaEm?.toDate
+            ? formatDateKeyLocal(rev.concluidaEm.toDate()) : formatDateKeyLocal(new Date()) },
           ciclo: { ...activeCicloData, disciplinas: disciplinasCiclo },
+          cronograma: inheritedInSchedule ? activeCronogramaData : null,
           isReview: true,
           fallbackMinutes: 20,
         });
-      const completionPersistence = concluirRevisao(rev.id, !wasDone);
+      const completionPersistence = rev.cicloId === activeCicloData?.id
+        ? concluirRevisao(rev.id, !wasDone)
+        : concluirGrupoCicloRevisao(db, user.uid, rev, !wasDone).then(() => true);
       const registroPromise = !wasDone && addRegistroEstudo
         ? addRegistroEstudo(completionRegistro, { waitForCompletion: completionPersistence })
         : null;
@@ -960,7 +1040,7 @@ function HojeCard({
     } finally {
       setAcaoRevisaoCiclo(null);
     }
-  }, [acaoRevisaoCiclo, activeCicloData, addRegistroEstudo, concluirRevisao, deleteCompletionRegistro, disciplinasCiclo, marcarSucessoRevisaoCiclo]);
+  }, [acaoRevisaoCiclo, activeCicloData, activeCronogramaData, addRegistroEstudo, concluirRevisao, deleteCompletionRegistro, disciplinasCiclo, marcarSucessoRevisaoCiclo, user?.uid]);
 
   const handleReagendarRevisaoCiclo = useCallback(async (rev) => {
     if (!rev?.id || acaoRevisaoCiclo) return;
@@ -1265,11 +1345,8 @@ function HojeCard({
                 ciclo={activeCicloData}
                 disciplinas={disciplinasCiclo}
                 onIniciarSessao={handleIniciarSessaoCiclo}
-                onToggleSessao={handleToggleSessaoCiclo}
-                loadingSessionId={loadingCicloSessao}
                 useDisciplineColors={activeCicloData?.coresDisciplinasAtivas !== false}
                 registrosEstudo={registrosEstudo}
-                sessionCompletionOverrides={cycleSessionCompletionOverrides}
                 showAssuntos={showCycleSubjects}
                 onToggleAssuntos={handleToggleCycleSubjects}
                 assuntosToggleLoading={cycleSubjectsLoading}
@@ -1305,7 +1382,7 @@ function HojeCard({
         ) : (
           <div className="study-guide-scroll custom-scrollbar min-h-0 flex-1 space-y-4 overflow-y-auto pr-2">
             {revisoesVisiveis.length > 0 ? revisoesVisiveis.map((s) => {
-              const isCycleReview = modoCicloAtivo;
+              const isCycleReview = modoCicloAtivo || Boolean(s.cicloId);
               const actionId = isCycleReview ? s.id : (s.slotIdBase || s.slotId);
               return (
                 <MissionSlot

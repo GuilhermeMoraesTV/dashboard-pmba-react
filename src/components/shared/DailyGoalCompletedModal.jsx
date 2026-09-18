@@ -13,10 +13,20 @@ const fmtMin = (min) => {
 
 const getStatValueSize = (value) => {
   const length = String(value ?? '').length;
-  if (length <= 4) return 'text-xl sm:text-2xl';
-  if (length <= 9) return 'text-lg sm:text-xl';
-  if (length <= 14) return 'text-base sm:text-lg';
-  return 'text-sm sm:text-base';
+  if (length <= 4) return 'text-2xl sm:text-3xl';
+  if (length <= 9) return 'text-xl sm:text-2xl';
+  if (length <= 14) return 'text-lg sm:text-xl';
+  return 'text-base sm:text-lg';
+};
+
+const STATIC_MOTION_PROPS = new Set(['initial', 'animate', 'exit', 'transition', 'whileHover', 'whileTap']);
+const staticProps = (props) => Object.fromEntries(Object.entries(props).filter(([key]) => !STATIC_MOTION_PROPS.has(key)));
+const STATIC_ELEMENTS = {
+  div: (props) => <div {...staticProps(props)} />,
+  img: (props) => <img {...staticProps(props)} />,
+  span: (props) => <span {...staticProps(props)} />,
+  h2: (props) => <h2 {...staticProps(props)} />,
+  p: (props) => <p {...staticProps(props)} />,
 };
 
 export default function DailyGoalCompletedModal({
@@ -40,7 +50,7 @@ export default function DailyGoalCompletedModal({
   progressLabel = '100%',
   footer = null,
   notice = null,
-  instant = false,
+  instant = true,
 }) {
   if (typeof document === 'undefined') return null;
 
@@ -55,9 +65,9 @@ export default function DailyGoalCompletedModal({
   const totalQuestions = Number(questions || 0);
   const totalCorrect = Number(correct || 0);
   const accuracy = totalQuestions > 0 ? Math.round((totalCorrect / totalQuestions) * 100) : 0;
-  const displayMinutes = Math.max(Number(minutes || 0), Number(plannedMinutes || 0));
+  const displayMinutes = Math.max(0, Number(minutes || 0));
   const defaultStats = [
-    { label: 'Tempo', value: fmtMin(displayMinutes), icon: Clock3, tone: 'emerald' },
+    { label: 'Tempo estudado', value: fmtMin(displayMinutes), description: plannedMinutes > 0 ? `Planejado: ${fmtMin(plannedMinutes)}` : null, icon: Clock3, tone: 'emerald' },
     { label: 'Questões', value: totalQuestions > 0 ? totalQuestions : '-', icon: Target, tone: 'red' },
     { label: 'Questões certas', value: totalQuestions > 0 ? totalCorrect : '-', icon: CheckCircle2, tone: 'emerald' },
     { label: 'Precisão', value: totalQuestions > 0 ? `${accuracy}%` : '-', icon: Trophy, tone: 'zinc' },
@@ -65,13 +75,14 @@ export default function DailyGoalCompletedModal({
   const stats = Array.isArray(customStats) && customStats.length ? customStats : defaultStats;
   const compactStatsLayout = Array.isArray(customStats) && customStats.length <= 2;
 
+  const Animated = instant ? STATIC_ELEMENTS : motion;
   const statDelay = instant ? 0 : 0.58;
   const modalTransition = (transition) => instant ? { duration: 0 } : transition;
 
   return createPortal(
     <AnimatePresence initial={!instant}>
       {open && (
-        <motion.div
+        <Animated.div
           className="fixed inset-0 z-[10000] flex items-center justify-center bg-zinc-950/25 p-2 backdrop-blur-[3px] sm:p-6"
           initial={instant ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -79,7 +90,7 @@ export default function DailyGoalCompletedModal({
           transition={modalTransition({ duration: 0.2 })}
           onClick={onClose}
         >
-          <motion.div
+          <Animated.div
             role="dialog"
             aria-modal="true"
             aria-label={ariaLabel}
@@ -94,19 +105,19 @@ export default function DailyGoalCompletedModal({
             <div className="h-1.5 shrink-0 bg-gradient-to-r from-amber-400 via-emerald-500 to-cyan-400" />
             <div className="pointer-events-none absolute inset-x-0 top-0 h-48 bg-gradient-to-b from-emerald-50 via-white/80 to-transparent dark:from-emerald-950/30 dark:via-zinc-950/80" />
             <div className="pointer-events-none absolute left-8 right-8 top-[110px] h-px bg-gradient-to-r from-transparent via-emerald-300 to-transparent dark:via-emerald-800 sm:top-[132px]" />
-            <motion.div
+            {!instant && (<Animated.div
               className="pointer-events-none absolute -inset-y-20 -left-40 z-10 w-28 rotate-12 bg-gradient-to-r from-transparent via-white/75 to-transparent dark:via-white/25"
               initial={{ x: '-40%' }}
               animate={{ x: ['-40%', '720%'] }}
               transition={modalTransition({ duration: 1.25, delay: 0.35, ease: 'easeOut', repeat: Infinity, repeatDelay: 5.4 })}
-            />
-            <motion.div
+            />)}
+            <Animated.div
               className="pointer-events-none absolute inset-3 rounded-[26px] border border-amber-200/55 dark:border-amber-500/15"
               initial={{ opacity: 0, scale: 0.96 }}
               animate={{ opacity: [0, 1, 0.72], scale: 1 }}
               transition={modalTransition({ duration: 0.9, delay: 0.18, ease: 'easeOut' })}
             />
-            <motion.img
+            <Animated.img
               src={systemLogo}
               alt="ModoQAP"
               className="absolute left-3 top-3 z-20 h-7 w-7 object-contain drop-shadow-xl sm:left-5 sm:top-5 sm:h-14 sm:w-14"
@@ -129,7 +140,7 @@ export default function DailyGoalCompletedModal({
             </button>
 
             <div className={`relative flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain custom-scrollbar px-3 pb-3 pt-3 sm:px-6 sm:pb-6 sm:pt-5 ${compactStatsLayout ? '' : 'sm:h-full'}`}>
-              <motion.div
+              <Animated.div
                 className="mx-auto mb-1 flex max-w-[290px] items-center justify-center gap-2 bg-transparent text-center sm:mb-2 sm:max-w-[360px]"
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -143,9 +154,9 @@ export default function DailyGoalCompletedModal({
                     {dateLabel}
                   </p>
                 </div>
-              </motion.div>
+              </Animated.div>
               <header className={`mx-auto flex min-h-0 shrink-0 flex-col items-center justify-center px-4 text-center sm:px-10 ${compactStatsLayout ? 'sm:min-h-[140px]' : 'sm:min-h-[160px]'}`}>
-                <motion.span
+                <Animated.span
                   className="inline-flex max-w-full items-center gap-1 rounded-full border border-emerald-200 bg-white/90 px-2 py-0.5 text-[7px] font-black uppercase tracking-[0.16em] text-emerald-700 shadow-sm dark:border-emerald-900/50 dark:bg-zinc-900/80 dark:text-emerald-300 sm:gap-2 sm:px-3 sm:py-1 sm:text-[8px] sm:tracking-[0.24em]"
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -153,51 +164,51 @@ export default function DailyGoalCompletedModal({
                 >
                   <CheckCircle2 size={13} className="shrink-0 sm:h-[15px] sm:w-[15px]" />
                   <span className="truncate">{achievementLabel}</span>
-                </motion.span>
-                <motion.div
+                </Animated.span>
+                <Animated.div
                   className="relative mt-1.5 flex h-10 w-10 items-center justify-center rounded-full border border-amber-200 bg-gradient-to-br from-amber-50 via-white to-emerald-50 shadow-lg shadow-emerald-900/10 dark:border-amber-500/20 dark:from-amber-500/10 dark:via-zinc-900 dark:to-emerald-500/10 sm:mt-3 sm:h-16 sm:w-16"
                   initial={{ opacity: 0, scale: 0.55, rotate: -14 }}
                   animate={{ opacity: 1, scale: 1, rotate: 0 }}
                   transition={modalTransition({ type: 'spring', stiffness: 420, damping: 20, delay: 0.32 })}
                 >
-                  <motion.div
+                  <Animated.div
                     className="absolute inset-0 rounded-full border border-amber-300/55"
                     animate={{ scale: [1, 1.18, 1], opacity: [0.65, 0, 0.65] }}
                     transition={modalTransition({ duration: 2.4, repeat: Infinity, ease: 'easeInOut' })}
                   />
-                  <motion.div
+                  <Animated.div
                     className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500 to-teal-500 text-white shadow-md shadow-emerald-500/30 sm:h-11 sm:w-11"
                     animate={{ y: [0, -3, 0], boxShadow: ['0 18px 30px rgba(16,185,129,0.25)', '0 22px 42px rgba(16,185,129,0.36)', '0 18px 30px rgba(16,185,129,0.25)'] }}
                     transition={modalTransition({ duration: 2.8, repeat: Infinity, ease: 'easeInOut' })}
                   >
-                    <motion.div
+                    <Animated.div
                       animate={{ rotate: [0, -7, 7, -3, 0], scale: [1, 1.08, 1] }}
                       transition={modalTransition({ duration: 2.6, repeat: Infinity, repeatDelay: 0.45, ease: 'easeInOut' })}
                     >
                       <HeroIcon className="h-4 w-4 sm:h-6 sm:w-6" strokeWidth={2.5} />
-                    </motion.div>
-                  </motion.div>
-                </motion.div>
-                <motion.h2
+                    </Animated.div>
+                  </Animated.div>
+                </Animated.div>
+                <Animated.h2
                   className="mt-1.5 inline-flex max-w-full flex-wrap items-center justify-center gap-1.5 text-center text-[0.85rem] font-black uppercase leading-tight tracking-normal text-zinc-950 dark:text-white sm:mt-2.5 sm:gap-2 sm:text-[1.35rem]"
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={modalTransition({ duration: 0.35, delay: 0.46, ease: 'easeOut' })}
                 >
                   <span>{title}</span>
-                </motion.h2>
-                <motion.p
+                </Animated.h2>
+                <Animated.p
                   className="mt-0.5 max-w-full truncate text-[7.5px] font-black uppercase tracking-[0.16em] text-emerald-600 dark:text-emerald-400 sm:mt-1 sm:text-[9px] sm:tracking-[0.22em]"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={modalTransition({ duration: 0.35, delay: 0.58 })}
                 >
                   {contextLabel}
-                </motion.p>
+                </Animated.p>
               </header>
 
               <section className={`mt-2 grid min-h-0 flex-1 grid-cols-1 gap-2 sm:gap-3 ${compactStatsLayout ? 'sm:grid-cols-[1.3fr_0.7fr] sm:items-stretch' : 'sm:grid-cols-[1.08fr_0.92fr]'}`}>
-                <motion.div
+                <Animated.div
                   className={`relative flex min-h-0 flex-col rounded-[16px] border border-zinc-200 bg-white/80 p-2.5 shadow-sm dark:border-white/10 dark:bg-zinc-900/80 sm:rounded-[22px] ${compactStatsLayout ? 'sm:p-3.5' : 'sm:p-3'}`}
                   initial={{ opacity: 0, y: 16, scale: 0.96 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -219,11 +230,11 @@ export default function DailyGoalCompletedModal({
                       </h3>
                     </div>
                   </div>
-                </motion.div>
+                </Animated.div>
 
                 <div className={`grid min-h-0 grid-cols-2 gap-1.5 sm:gap-2 ${compactStatsLayout ? 'sm:grid-cols-1 sm:grid-rows-2' : ''}`}>
                   {stats.map(({ label, value, description, icon: Icon, tone }, index) => (
-                    <motion.div
+                    <Animated.div
                       key={label}
                       className={`relative min-h-[52px] overflow-hidden rounded-[14px] border px-2 py-1.5 shadow-sm sm:min-h-[64px] sm:rounded-[18px] sm:px-3 sm:py-2 ${
                         tone === 'emerald'
@@ -250,58 +261,59 @@ export default function DailyGoalCompletedModal({
                           <Icon className="h-2.5 w-2.5 sm:h-3.5 sm:w-3.5" />
                         </div>
                       </div>
-                      <p className={`mt-0.5 min-w-0 break-words font-black leading-none tabular-nums text-zinc-950 dark:text-white ${compactStatsLayout ? `sm:mt-1 ${getStatValueSize(value)}` : 'text-xs sm:mt-1.5 sm:text-base'}`}>{value}</p>
+                      <p className={`mt-0.5 min-w-0 break-words font-black leading-none tabular-nums text-zinc-950 dark:text-white ${compactStatsLayout ? `sm:mt-1 ${getStatValueSize(value)}` : `sm:mt-1.5 ${getStatValueSize(value)}`}`}>{value}</p>
                       {description && (
                         <p className="mt-0.5 text-[6.5px] font-bold uppercase leading-tight tracking-wide text-zinc-500 dark:text-zinc-400 sm:text-[7.5px]">
                           {description}
                         </p>
                       )}
-                    </motion.div>
+                    </Animated.div>
                   ))}
                 </div>
               </section>
 
-              <motion.div
+              <Animated.div
                 className="mt-2 flex shrink-0 items-center gap-2 sm:mt-3"
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={modalTransition({ duration: 0.32, delay: statDelay + 0.34, ease: 'easeOut' })}
               >
                 <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-zinc-100 dark:bg-white/10">
-                  <motion.div
+                  <Animated.div
                     className="h-full rounded-full bg-gradient-to-r from-amber-400 via-emerald-500 to-cyan-400"
-                    initial={{ width: '0%' }}
+                    initial={{ width: instant ? '100%' : '0%' }}
+                    style={instant ? { width: '100%' } : undefined}
                     animate={{ width: '100%' }}
                     transition={modalTransition({ duration: 0.8, delay: statDelay + 0.42, ease: 'easeOut' })}
                   />
                 </div>
                 <span className="text-[7.5px] font-black uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400 sm:text-[8px]">{progressLabel}</span>
-              </motion.div>
+              </Animated.div>
 
               {notice && (
-                <motion.div
+                <Animated.div
                   className="mt-1.5 shrink-0 sm:mt-2"
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={modalTransition({ duration: 0.32, delay: statDelay + 0.4, ease: 'easeOut' })}
                 >
                   {notice}
-                </motion.div>
+                </Animated.div>
               )}
 
               {footer && (
-                <motion.div
+                <Animated.div
                   className="mt-2 shrink-0 sm:mt-3"
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={modalTransition({ duration: 0.32, delay: statDelay + 0.46, ease: 'easeOut' })}
                 >
                   {footer}
-                </motion.div>
+                </Animated.div>
               )}
             </div>
-          </motion.div>
-        </motion.div>
+          </Animated.div>
+        </Animated.div>
       )}
     </AnimatePresence>,
     document.body,
