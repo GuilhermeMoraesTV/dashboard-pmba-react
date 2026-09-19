@@ -19,7 +19,15 @@ import { connectFunctionsEmulator, getFunctions } from "firebase/functions";
 import { isLocalDevelopment, readFirebaseModePreference } from './utils/firebaseEnvironment.js';
 
 const env = (typeof import.meta !== 'undefined' && import.meta.env)
-  ? import.meta.env
+  ? {
+      ...import.meta.env,
+      VITE_FIREBASE_API_KEY: import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyAuvUhMNGk3XAAmlGOnBMgJqmUbxlVrYXw',
+      VITE_FIREBASE_AUTH_DOMAIN: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'dashboard-pmba.firebaseapp.com',
+      VITE_FIREBASE_PROJECT_ID: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'dashboard-pmba',
+      VITE_FIREBASE_STORAGE_BUCKET: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'dashboard-pmba.firebasestorage.app',
+      VITE_FIREBASE_MESSAGING_SENDER_ID: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '661424378188',
+      VITE_FIREBASE_APP_ID: import.meta.env.VITE_FIREBASE_APP_ID || '1:661424378188:web:82e640b67f4dc9f1cabfe9',
+    }
   : globalThis.process?.env
   ? globalThis.process.env
   : {};
