@@ -922,12 +922,10 @@ function SimuladoTimer({
     window.addEventListener(PWA_BEFORE_RELOAD_EVENT, persistBeforePageLeaves);
     window.addEventListener('pagehide', persistBeforePageLeaves);
     window.addEventListener('beforeunload', persistBeforePageLeaves);
-    window.addEventListener('unload', persistBeforePageLeaves);
     return () => {
       window.removeEventListener(PWA_BEFORE_RELOAD_EVENT, persistBeforePageLeaves);
       window.removeEventListener('pagehide', persistBeforePageLeaves);
       window.removeEventListener('beforeunload', persistBeforePageLeaves);
-      window.removeEventListener('unload', persistBeforePageLeaves);
     };
   }, [getCurrentElapsedMs, saveToStorage]);
 
