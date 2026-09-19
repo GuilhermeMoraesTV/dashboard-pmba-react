@@ -1872,7 +1872,7 @@ exports.migrarGamificacaoV2 = onCall(
 );
 
 exports.ensureUserSubscription = onCall(
-  { region: 'us-central1', maxInstances: 20 },
+  { region: 'us-central1', memory: '256MiB', maxInstances: 5, timeoutSeconds: 60 },
   async (request) => {
     if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Autenticacao obrigatoria.');
     return subscriptionService.ensureUserSubscription({
@@ -1884,7 +1884,7 @@ exports.ensureUserSubscription = onCall(
 );
 
 exports.openFounderProgram = onCall(
-  { region: 'us-central1', timeoutSeconds: 540, memory: '1GiB', maxInstances: 1 },
+  { region: 'us-central1', memory: '256MiB', maxInstances: 1, timeoutSeconds: 120 },
   async (request) => {
     if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Autenticacao obrigatoria.');
     const caller = await admin.firestore().collection('users').doc(request.auth.uid).get();
@@ -1899,7 +1899,7 @@ exports.openFounderProgram = onCall(
 );
 
 exports.closeFounderProgram = onCall(
-  { region: 'us-central1', timeoutSeconds: 540, memory: '1GiB', maxInstances: 1 },
+  { region: 'us-central1', memory: '256MiB', maxInstances: 1, timeoutSeconds: 120 },
   async (request) => {
     if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Autenticacao obrigatoria.');
     const caller = await admin.firestore().collection('users').doc(request.auth.uid).get();
